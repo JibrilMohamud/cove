@@ -4,6 +4,7 @@ type PersistenceEnv = {
   FORE_PUBLIC_URL?: string;
   COVE_AUDIO_PIPELINE_URL?: string;
   CRON_SECRET?: string;
+  FORE_INGESTION_TRIGGER_TOKEN?: string;
 };
 
 const gatewayHeader = "x-cove-backend-token";
@@ -193,9 +194,10 @@ async function audioControl(
 }
 
 function cronAuthorized(request: Request, env: PersistenceEnv) {
+  const secret = env.FORE_INGESTION_TRIGGER_TOKEN || env.CRON_SECRET || "";
   return Boolean(
-    env.CRON_SECRET &&
-    request.headers.get("authorization") === `Bearer ${env.CRON_SECRET}`
+    secret.length >= 24 &&
+    request.headers.get("authorization") === `Bearer ${secret}`
   );
 }
 
