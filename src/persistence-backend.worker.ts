@@ -44,9 +44,19 @@ function json(data: unknown, status = 200) {
 }
 
 function logicalRequest(request: Request, env: BackendEnv) {
-  if (!env.FORE_PUBLIC_URL) return request;
   const backendUrl = new URL(request.url);
-  const publicUrl = new URL(backendUrl.pathname + backendUrl.search, env.FORE_PUBLIC_URL);
+  const forwardedPublicUrl = request.headers.get("x-cove-public-url");
+  let publicBase = env.FORE_PUBLIC_URL || "";
+  if (forwardedPublicUrl) {
+    try {
+      const candidate = new URL(forwardedPublicUrl);
+      if (candidate.protocol === "https:" || candidate.hostname === "localhost") {
+        publicBase = candidate.origin;
+      }
+    } catch {}
+  }
+  if (!publicBase) return request;
+  const publicUrl = new URL(backendUrl.pathname + backendUrl.search, publicBase);
   const headers = new Headers(request.headers);
   headers.delete("x-cove-backend-token");
   headers.delete("x-cove-backend-host");
