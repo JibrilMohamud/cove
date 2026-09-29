@@ -6,14 +6,39 @@ Cove already has a large SQLite/D1 schema covering normalized catalog identity, 
 
 The safest Vercel migration is therefore an **application migration, not a data-engine rewrite**:
 
-- Vercel owns public web/SSR and scheduled orchestration.
-- The dedicated Cove persistence Worker owns D1/R2 and runs the existing domain API.
+- Vercel owns public web/SSR and bounded Python audio compute.
+- The dedicated Cove persistence Worker owns D1/R2, runs the existing domain API, and owns the durable ingestion schedule.
 - The public origin is still Vercel.
 - D1/R2 remain authoritative until Cove intentionally performs a separate data-store migration.
 
 This avoids translating FTS5, SQLite JSON expressions, RETURNING/UPSERT behavior and more than forty ordered migrations into another SQL dialect during the hosting move.
 
 ## 1. Prepare the persistence Worker
+
+### Preferred: GitHub production workflow
+
+Run the repository's manual `deploy-persistence-backend` GitHub Actions workflow. Provide:
+
+- the existing Worker name when you want to preserve that Worker's existing provider secrets;
+- the existing D1 database name and UUID;
+- the existing R2 bucket name;
+- the canonical HTTPS Vercel origin;
+- whether pending D1 migrations should be applied.
+
+Configure these GitHub Actions secrets first:
+
+```text
+CLOUDFLARE_API_TOKEN
+CLOUDFLARE_ACCOUNT_ID
+FORE_BACKEND_TOKEN
+FORE_INGESTION_TRIGGER_TOKEN
+```
+
+The workflow validates resource identifiers, builds `backend-dist/worker.js`, applies pending migrations with `wrangler d1 migrations apply DB --remote`, deploys through `cloudflare/wrangler-action@v4`, and passes the two Cove gateway secrets without writing them to the repository.
+
+If you deploy under a brand-new Worker name instead of the existing owner Worker, separately copy all enabled server-side provider secrets (Supabase, Stripe, search, notifications, tax, publishing/operations, observability, etc.) into the new Worker before cutover.
+
+### Local/operator path
 
 Build:
 
@@ -57,6 +82,8 @@ npx wrangler secret put FORE_BACKEND_TOKEN --config wrangler.backend.toml
 Configure the backend's existing server secrets as needed: Supabase, Stripe, publishing, search, notifications, tax, observability and other enabled provider credentials. The Worker, not the browser, owns those credentials.
 
 ## 3. Deploy the backend
+
+If you are not using the GitHub workflow:
 
 ```sh
 npm run build:backend
@@ -224,6 +251,12 @@ The gateway makes rollback simple:
 3. Do **not** remove the backend URL in production while accepting account/commerce writes; those are intentionally fail-closed without persistence.
 4. Roll back the Vercel deployment or backend Worker independently. D1/R2 data remains in place because deploys do not recreate resources.
 
-## 11. Future evolution
+## 11. Verification gate
+
+The persistence-specific CI gate verifies the changed TypeScript surfaces with ESLint, runs `test:persistence-backend`, compiles the Python worker modules, builds the Vercel application, and independently bundles the persistence Worker.
+
+The repository's broader supply-chain workflow is intentionally separate. At the time this backend was introduced, that older workflow also surfaced dependency advisories before reaching later checks; those advisories should be remediated rather than bypassed.
+
+## 12. Future evolution
 
 If Cove later moves off D1/R2, put the replacement behind the same persistence boundary first. The public app should not gain direct vendor-specific database calls. That keeps a future Turso/Postgres/Blob migration isolated to one backend instead of re-coupling the UI and domain code to hosting infrastructure.
