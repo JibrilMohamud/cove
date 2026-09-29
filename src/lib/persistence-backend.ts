@@ -23,20 +23,26 @@ function safePublicFallback(request: Request) {
     path === "/api/fore/storefront/page" ||
     path === "/api/fore/search/suggest" ||
     path === "/api/fore/audiobooks" ||
-    /^\/api\/fore\/books\/[1-9][0-9]{0,8}(?:\/(?:detail|epub|download\/epub))?$/.test(path) ||
+    /^\/api\/fore\/books\/[1-9][0-9]{0,8}(?:\/(?:detail|epub|download\/epub))?$/.test(
+      path,
+    ) ||
     /^\/api\/fore\/audio\/pg-[1-9][0-9]{0,8}(?:\/tracks\/[^/]+)?$/.test(path)
   );
 }
 
 function requestTimeout(path: string) {
-  return /\/(?:epub|download\/epub|tracks\/|pipeline\/(?:media|text)|publishing\/.+upload)/.test(path)
+  return /\/(?:epub|download\/epub|tracks\/|pipeline\/(?:media|text)|publishing\/.+upload)/.test(
+    path,
+  )
     ? 240_000
     : 30_000;
 }
 
 function backendUrl(env: PersistenceEnv, requestUrl: URL) {
   const base = new URL(env.FORE_BACKEND_URL!);
-  if (base.protocol !== "https:") throw new Error("FORE_BACKEND_URL must use HTTPS.");
+  if (base.protocol !== "https:") {
+    throw new Error("FORE_BACKEND_URL must use HTTPS.");
+  }
   return new URL(requestUrl.pathname + requestUrl.search, base);
 }
 
@@ -49,15 +55,21 @@ function gatewayHeaders(request: Request, env: PersistenceEnv, target: URL) {
     "x-cove-public-url",
     "cf-ipcountry",
     "cf-connecting-ip",
-  ]) headers.delete(name);
+  ]) {
+    headers.delete(name);
+  }
   headers.set(gatewayHeader, env.FORE_BACKEND_TOKEN!);
   headers.set("x-cove-public-url", request.url);
   headers.set("x-forwarded-host", new URL(request.url).host);
   headers.set("x-forwarded-proto", new URL(request.url).protocol.replace(":", ""));
   const country = request.headers.get("x-vercel-ip-country");
-  if (country && /^[A-Z]{2}$/.test(country)) headers.set("cf-ipcountry", country);
+  if (country && /^[A-Z]{2}$/.test(country)) {
+    headers.set("cf-ipcountry", country);
+  }
   const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) headers.set("cf-connecting-ip", forwarded.split(",")[0].trim());
+  if (forwarded) {
+    headers.set("cf-connecting-ip", forwarded.split(",")[0].trim());
+  }
   headers.set("x-cove-backend-host", target.host);
   return headers;
 }
@@ -72,7 +84,13 @@ function rewriteResponse(response: Response, env: PersistenceEnv) {
       const backend = new URL(env.FORE_BACKEND_URL);
       if (resolved.origin === backend.origin) {
         const publicBase = new URL(env.FORE_PUBLIC_URL);
-        headers.set("location", new URL(resolved.pathname + resolved.search + resolved.hash, publicBase).toString());
+        headers.set(
+          "location",
+          new URL(
+            resolved.pathname + resolved.search + resolved.hash,
+            publicBase,
+          ).toString(),
+        );
       }
     } catch {}
   }
@@ -89,7 +107,9 @@ export async function proxyPersistenceApi(
 ): Promise<Response | null> {
   const requestUrl = new URL(request.url);
   if (!requestUrl.pathname.startsWith("/api/fore/")) return null;
-  if (requestUrl.pathname.startsWith("/api/fore/internal/ingestion/")) return null;
+  if (requestUrl.pathname.startsWith("/api/fore/internal/ingestion/")) {
+    return null;
+  }
   if (!configured(env)) return null;
 
   let target: URL;
@@ -97,14 +117,23 @@ export async function proxyPersistenceApi(
     target = backendUrl(env, requestUrl);
   } catch (error) {
     console.error("Invalid persistence backend configuration", error);
-    return new Response(JSON.stringify({ error: "Cove persistence is misconfigured." }), {
-      status: 503,
-      headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
-    });
+    return new Response(
+      JSON.stringify({ error: "Cove persistence is misconfigured." }),
+      {
+        status: 503,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "no-store",
+        },
+      },
+    );
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), requestTimeout(requestUrl.pathname));
+  const timer = setTimeout(
+    () => controller.abort(),
+    requestTimeout(requestUrl.pathname),
+  );
   try {
     const init: RequestInit & { duplex?: "half" } = {
       method: request.method,
@@ -117,21 +146,36 @@ export async function proxyPersistenceApi(
       init.duplex = "half";
     }
     const response = await fetch(target, init);
-    if ([502, 503, 504].includes(response.status) && safePublicFallback(request)) {
-      console.warn("Persistent backend unavailable; using public-domain fallback", response.status);
+    if (
+      [502, 503, 504].includes(response.status) &&
+      safePublicFallback(request)
+    ) {
+      console.warn(
+        "Persistent backend unavailable; using public-domain fallback",
+        response.status,
+      );
       return null;
     }
     return rewriteResponse(response, env);
   } catch (error) {
     if (safePublicFallback(request)) {
-      console.warn("Persistent backend request failed; using public-domain fallback", error);
+      console.warn(
+        "Persistent backend request failed; using public-domain fallback",
+        error,
+      );
       return null;
     }
     console.error("Persistent backend request failed", error);
-    return new Response(JSON.stringify({ error: "Cove persistence is temporarily unavailable." }), {
-      status: 503,
-      headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
-    });
+    return new Response(
+      JSON.stringify({ error: "Cove persistence is temporarily unavailable." }),
+      {
+        status: 503,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "no-store",
+        },
+      },
+    );
   } finally {
     clearTimeout(timer);
   }
@@ -143,10 +187,13 @@ async function backendControl(
   payload: Record<string, unknown>,
 ) {
   if (!configured(env)) {
-    return new Response(JSON.stringify({ error: "Persistent backend is not configured." }), {
-      status: 503,
-      headers: { "content-type": "application/json; charset=utf-8" },
-    });
+    return new Response(
+      JSON.stringify({ error: "Persistent backend is not configured." }),
+      {
+        status: 503,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      },
+    );
   }
   const base = new URL(env.FORE_BACKEND_URL!);
   const target = new URL(path, base);
@@ -173,10 +220,15 @@ async function audioControl(
   payload: Record<string, unknown>,
 ) {
   if (!env.COVE_AUDIO_PIPELINE_URL) {
-    return new Response(JSON.stringify({ error: "Audio pipeline service binding is unavailable." }), {
-      status: 503,
-      headers: { "content-type": "application/json; charset=utf-8" },
-    });
+    return new Response(
+      JSON.stringify({
+        error: "Audio pipeline service binding is unavailable.",
+      }),
+      {
+        status: 503,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      },
+    );
   }
   const target = new URL("/run", env.COVE_AUDIO_PIPELINE_URL);
   const controller = new AbortController();
@@ -197,14 +249,15 @@ function cronAuthorized(request: Request, env: PersistenceEnv) {
   const secret = env.FORE_INGESTION_TRIGGER_TOKEN || env.CRON_SECRET || "";
   return Boolean(
     secret.length >= 24 &&
-    request.headers.get("authorization") === `Bearer ${secret}`
+      request.headers.get("authorization") === `Bearer ${secret}`,
   );
 }
 
 async function passthroughJson(response: Response, stage: string) {
   const text = await response.text();
   const headers = new Headers({
-    "content-type": response.headers.get("content-type") || "application/json; charset=utf-8",
+    "content-type":
+      response.headers.get("content-type") || "application/json; charset=utf-8",
     "cache-control": "no-store",
     "x-cove-ingestion-stage": stage,
   });
@@ -221,10 +274,16 @@ export async function handleVercelIngestionControl(
     return new Response("Method not allowed", { status: 405 });
   }
   if (!cronAuthorized(request, env)) {
-    return new Response(JSON.stringify({ error: "Unauthorized ingestion controller." }), {
-      status: 401,
-      headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
-    });
+    return new Response(
+      JSON.stringify({ error: "Unauthorized ingestion controller." }),
+      {
+        status: 401,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "no-store",
+        },
+      },
+    );
   }
 
   if (path === "/api/fore/internal/ingestion/catalog") {
@@ -236,7 +295,11 @@ export async function handleVercelIngestionControl(
     return passthroughJson(response, "catalog");
   }
   if (path === "/api/fore/internal/ingestion/maintenance") {
-    const response = await backendControl(env, "/__cove/ingestion/maintenance", {});
+    const response = await backendControl(
+      env,
+      "/__cove/ingestion/maintenance",
+      {},
+    );
     return passthroughJson(response, "maintenance");
   }
 
@@ -271,10 +334,16 @@ export async function handleVercelIngestionControl(
   };
   const payload = jobs[path];
   if (!payload) {
-    return new Response(JSON.stringify({ error: "Unknown ingestion controller." }), {
-      status: 404,
-      headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
-    });
+    return new Response(
+      JSON.stringify({ error: "Unknown ingestion controller." }),
+      {
+        status: 404,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "no-store",
+        },
+      },
+    );
   }
   const response = await audioControl(env, payload);
   return passthroughJson(response, path.split("/").pop() || "audio");
