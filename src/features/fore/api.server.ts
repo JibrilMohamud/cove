@@ -18,6 +18,7 @@ import { handleCommunity, migrateLegacy } from "./community.server";
 import { handleSocial, recordReadingProgress, ensureReadingJourney, processAuthorSocialFanoutJobs } from "./social.server";
 import {handlePipeline} from "./pipeline.server";
 import { handleAudio } from "./audio.server";
+import { handleVercelPublicRequest } from "./vercel-public.server";
 import {
   commercialAudioPublisherSnapshot, saveCommercialAudioProfile, replaceCommercialAudioNarrators,
   addNarrationAgreement, endNarrationAgreement, uploadCommercialAudioFile, completeCommercialAudioQc, leaseCommercialAudioQcJobs,
@@ -1530,6 +1531,7 @@ async function handleCoveRequest(request: Request, env: CoveEnv, auth:Awaited<Re
   try {
     if (request.method === "GET" && path === "/health/live") return json({ok:true,service:"fore-api",at:now()});
     if (request.method === "GET" && path === "/health/ready") {
+      if (!env.DB) return json({ok:true,service:"fore-api",mode:"vercel-public-domain",database:false,commercialFeatures:false,at:now()});
       try {const db=database(env),started=Date.now();await db.prepare("SELECT 1 ok").first<any>();const markets=await db.prepare("SELECT COUNT(*) count FROM storefront_markets WHERE market_status='active'").first<any>();const ready=Number(markets?.count||0)>0;return json({ok:ready,service:"fore-api",database:true,activeMarkets:Number(markets?.count||0),latencyMs:Date.now()-started,at:now()},ready?200:503);} catch {return json({ok:false,service:"fore-api",database:false,at:now()},503);}
     }
     // Stripe webhooks are authenticated by Stripe-Signature, not browser Origin/JSON CSRF rules.
@@ -1583,6 +1585,10 @@ async function handleCoveRequest(request: Request, env: CoveEnv, auth:Awaited<Re
         !request.headers.get("content-type")?.startsWith("application/json")
       )
         throw new ApiError(415, "JSON is required for this action.");
+    }
+    if (!env.DB) {
+      const publicResponse = await handleVercelPublicRequest(request, env, path);
+      if (publicResponse) return publicResponse;
     }
     const authResponse=await auth.handle(path);
     if(authResponse)return authResponse;
