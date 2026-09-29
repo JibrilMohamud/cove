@@ -44,8 +44,10 @@ assert.match(gateway, /cf-ipcountry/);
 assert.match(gateway, /safePublicFallback/);
 assert.match(gateway, /COVE_AUDIO_PIPELINE_URL/);
 assert.match(gateway, /CRON_SECRET/);
+assert.doesNotMatch(gateway, /\bas any\b/);
 
 assert.match(worker, /x-cove-backend-token/);
+assert.doesNotMatch(worker, /\bas any\b/);
 assert.match(worker, /safeEqual/);
 assert.match(worker, /caches\?\.default|caches\?\.default/);
 assert.match(worker, /__cove_country/);
