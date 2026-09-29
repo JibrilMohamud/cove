@@ -81,11 +81,9 @@ assert.ok(
     (x) => x.service === "audio_pipeline" && x.env === "COVE_AUDIO_PIPELINE_URL",
   ),
 );
-assert.ok(
-  vercel.services.audio_pipeline.bindings.some(
-    (x) => x.service === "app" && x.env === "COVE_APP_INTERNAL_URL",
-  ),
-);
+assert.equal(vercel.services.audio_pipeline.bindings, undefined);
+assert.match(runner, /x-cove-backend-token/);
+assert.match(runner, /FORE_BACKEND_URL/);
 
 assert.equal(vercel.crons, undefined, "frequent ingestion must not depend on Vercel plan-specific cron intervals");
 assert.match(worker, /async scheduled/);
