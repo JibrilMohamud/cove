@@ -42,7 +42,7 @@ The second binding is used only by authenticated cron controllers. Neither bindi
 FORE_PUBLIC_URL=https://<your-production-domain>
 FORE_BACKEND_URL=https://<your-persistence-worker>
 FORE_BACKEND_TOKEN=<32+ random bytes>
-CRON_SECRET=<32+ random bytes>
+FORE_INGESTION_TRIGGER_TOKEN=<32+ random bytes>
 ```
 
 The internal audio service additionally requires its scoped `FORE_SERVICE_TOKEN`. Do not put any of these values in `VITE_*` variables.
@@ -75,7 +75,7 @@ Typical Worker edge TTLs are 60-900 seconds; durable source/object caches are mu
 
 ## eBook ingestion
 
-The Vercel catalog cron runs every five minutes. It calls the token-gated backend control endpoint, which advances the existing restartable D1 ingestion cursor in bounded batches.
+The persistence Worker's catalog cron runs every five minutes. It calls the token-gated backend control endpoint, which advances the existing restartable D1 ingestion cursor in bounded batches.
 
 The underlying harvester retains the existing guarantees:
 
@@ -88,7 +88,7 @@ The underlying harvester retains the existing guarantees:
 - verifies/caches canonical EPUBs into R2;
 - keeps customer request paths separate from ingestion.
 
-Catalog page requests can still opportunistically kick one bounded ingestion unit with `waitUntil`, but the cron is the primary scheduler.
+Catalog page requests can still opportunistically kick one bounded ingestion unit with `waitUntil`, but the backend Worker cron triggers are the primary scheduler.
 
 ## Audiobook ingestion
 
