@@ -113,7 +113,7 @@ export function SiteShell({
         <span className="brand-mark">
           <BookOpen size={25} strokeWidth={1.7} />
         </span>
-        fore<span className="brand-period">.</span>
+        cove<span className="brand-period">.</span>
       </a>
       <div className="nav-label">{store.t("shell.yourReadingRoom","YOUR READING ROOM")}</div>
       <nav className="main-nav" aria-label="Primary">
