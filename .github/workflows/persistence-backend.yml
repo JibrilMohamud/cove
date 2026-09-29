@@ -14,6 +14,7 @@ on:
       - "wrangler.backend.example.toml"
       - "package.json"
       - ".github/workflows/persistence-backend.yml"
+      - ".github/workflows/deploy-persistence-backend.yml"
   push:
     branches: [main]
     paths:
