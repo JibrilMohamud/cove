@@ -1,0 +1,32 @@
+# Copy to wrangler.backend.toml and replace the resource identifiers.
+# Do not commit the real FORE_BACKEND_TOKEN or provider secrets.
+name = "cove-persistence-backend"
+main = "backend-dist/worker.js"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cove-production"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "drizzle"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "cove-production-media"
+
+[vars]
+FORE_PUBLIC_URL = "https://REPLACE_WITH_YOUR_VERCEL_DOMAIN"
+FORE_ENVIRONMENT = "production"
+FORE_DEFAULT_TERRITORY = "US"
+FORE_CATALOG_PAGES_PER_TICK = "5"
+FORE_CATALOG_EPUBS_PER_TICK = "2"
+
+# Add secrets with wrangler secret put (or your Cloudflare dashboard):
+#   FORE_BACKEND_TOKEN
+#   SUPABASE_URL
+#   SUPABASE_PUBLISHABLE_KEY
+#   STRIPE_SECRET_KEY
+#   STRIPE_WEBHOOK_SECRET
+#   FORE_STAFF_BOOTSTRAP_TOKEN
+# plus any other server-only Cove integration credentials you enable.
