@@ -70,7 +70,9 @@ function logicalRequest(request: Request, env: BackendEnv) {
       ) {
         publicBase = candidate.origin;
       }
-    } catch {}
+    } catch {
+      // Fall back to the configured canonical public origin.
+    }
   }
   if (!publicBase) return request;
 
@@ -196,7 +198,9 @@ async function catalogBatch(request: Request, env: BackendEnv) {
   let input: CatalogBatchInput = {};
   try {
     input = catalogInput(await request.json());
-  } catch {}
+  } catch {
+    // Malformed control input uses the bounded defaults below.
+  }
 
   const configuredPages = Number(env.FORE_CATALOG_PAGES_PER_TICK || 5);
   const configuredEpubs = Number(env.FORE_CATALOG_EPUBS_PER_TICK || 2);
