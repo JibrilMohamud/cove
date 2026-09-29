@@ -12,6 +12,7 @@ const [
   service,
   vercelRaw,
   packageRaw,
+  wrangler,
 ] = await Promise.all([
   read("src/server.ts"),
   read("src/lib/persistence-backend.ts"),
@@ -21,6 +22,7 @@ const [
   read("scripts/audio_pipeline/service.py"),
   read("vercel.json"),
   read("package.json"),
+  read("wrangler.backend.example.toml"),
 ]);
 
 const vercel = JSON.parse(vercelRaw);
@@ -85,15 +87,13 @@ assert.ok(
   ),
 );
 
-const cronPaths = new Set((vercel.crons || []).map((x) => x.path));
-for (const path of [
-  "/api/fore/internal/ingestion/catalog",
-  "/api/fore/internal/ingestion/audio-scan",
-  "/api/fore/internal/ingestion/audio-discover",
-  "/api/fore/internal/ingestion/audio-track",
-  "/api/fore/internal/ingestion/audio-align",
-  "/api/fore/internal/ingestion/maintenance",
-]) assert.ok(cronPaths.has(path), "missing cron " + path);
+assert.equal(vercel.crons, undefined, "frequent ingestion must not depend on Vercel plan-specific cron intervals");
+assert.match(worker, /async scheduled/);
+assert.match(worker, /FORE_INGESTION_TRIGGER_TOKEN/);
+for (const cron of ["*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]) {
+  assert.ok(wrangler.includes(cron), "missing backend Worker cron " + cron);
+}
+assert.match(wrangler, /FORE_INGESTION_TRIGGER_TOKEN/);
 
 assert.equal(pkg.scripts["build:backend"], "node scripts/build-persistence-backend.mjs");
 console.log("Persistent backend architecture checks passed.");
