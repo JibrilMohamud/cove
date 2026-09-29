@@ -10,6 +10,8 @@ class Api:
         self.base=config['siteUrl'].rstrip('/')+'/api/fore'
         token=config.get('pipelineToken') or hashlib.sha256(('fore-audio-pipeline:'+config['siteBearer']).encode()).hexdigest()
         self.headers={'Authorization':'Bearer '+token,'User-Agent':'Cove-audio-pipeline/3.0'}
+        if config.get('gatewayToken'):
+            self.headers['x-cove-backend-token']=config['gatewayToken']
         if config.get('siteBearer'):
             self.headers['OAI-Sites-Authorization']='Bearer '+config['siteBearer']
 
@@ -251,15 +253,20 @@ def main():
     p.add_argument('--no-discovery',action='store_true')
     p.add_argument('--threads',type=int,default=4)
     a=p.parse_args()
-    site_url=os.environ.get('COVE_APP_INTERNAL_URL') or os.environ.get('FORE_SITE_URL')
+    site_url=(
+        os.environ.get('FORE_PIPELINE_API_URL')
+        or os.environ.get('FORE_BACKEND_URL')
+        or os.environ.get('FORE_SITE_URL')
+    )
     if not site_url:
-        raise RuntimeError('COVE_APP_INTERNAL_URL binding or FORE_SITE_URL is required')
+        raise RuntimeError('FORE_BACKEND_URL (or FORE_PIPELINE_API_URL) is required')
     config=(
         config_from_stdin()
         if a.stdin
         else {
             'siteUrl':site_url,
             'pipelineToken':os.environ['FORE_SERVICE_TOKEN'],
+            'gatewayToken':os.environ.get('FORE_BACKEND_TOKEN',''),
             'siteBearer':os.environ.get('FORE_SITE_BEARER',''),
         }
     )
