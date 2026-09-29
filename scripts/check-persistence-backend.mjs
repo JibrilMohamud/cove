@@ -13,6 +13,7 @@ const [
   vercelRaw,
   packageRaw,
   wrangler,
+  deployWorkflow,
 ] = await Promise.all([
   read("src/server.ts"),
   read("src/lib/persistence-backend.ts"),
@@ -23,6 +24,7 @@ const [
   read("vercel.json"),
   read("package.json"),
   read("wrangler.backend.example.toml"),
+  read(".github/workflows/deploy-persistence-backend.yml"),
 ]);
 
 const vercel = JSON.parse(vercelRaw);
@@ -92,6 +94,14 @@ for (const cron of ["*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "
   assert.ok(wrangler.includes(cron), "missing backend Worker cron " + cron);
 }
 assert.match(wrangler, /FORE_INGESTION_TRIGGER_TOKEN/);
+
+assert.match(deployWorkflow, /cloudflare\/wrangler-action@v4/);
+assert.match(deployWorkflow, /d1 migrations apply DB --remote/);
+assert.match(deployWorkflow, /FORE_BACKEND_TOKEN/);
+assert.match(deployWorkflow, /FORE_INGESTION_TRIGGER_TOKEN/);
+assert.match(deployWorkflow, /database_id = "\$D1_DATABASE_ID"/);
+assert.match(deployWorkflow, /bucket_name = "\$R2_BUCKET_NAME"/);
+assert.match(deployWorkflow, /npm run build:backend/);
 
 assert.equal(pkg.scripts["build:backend"], "node scripts/build-persistence-backend.mjs");
 console.log("Persistent backend architecture checks passed.");
