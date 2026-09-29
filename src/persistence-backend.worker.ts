@@ -1,0 +1,215 @@
+import {
+  handleCoveApi,
+  kickCatalogIngestion,
+  runCatalogIngestion,
+  runPublishingReleaseMaintenance,
+  runRecommendationMaintenance,
+  type CoveEnv,
+} from "./features/fore/api.server";
+
+type BackendEnv = CoveEnv & {
+  FORE_BACKEND_TOKEN?: string;
+  FORE_PUBLIC_URL?: string;
+  FORE_CATALOG_PAGES_PER_TICK?: string;
+  FORE_CATALOG_EPUBS_PER_TICK?: string;
+};
+
+type ExecutionContextLike = {
+  waitUntil?(promise: Promise<unknown>): void;
+};
+
+function safeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+function authorized(request: Request, env: BackendEnv) {
+  const expected = env.FORE_BACKEND_TOKEN || "";
+  const supplied = request.headers.get("x-cove-backend-token") || "";
+  return expected.length >= 24 && safeEqual(expected, supplied);
+}
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+    },
+  });
+}
+
+function logicalRequest(request: Request, env: BackendEnv) {
+  if (!env.FORE_PUBLIC_URL) return request;
+  const backendUrl = new URL(request.url);
+  const publicUrl = new URL(backendUrl.pathname + backendUrl.search, env.FORE_PUBLIC_URL);
+  const headers = new Headers(request.headers);
+  headers.delete("x-cove-backend-token");
+  headers.delete("x-cove-backend-host");
+  headers.delete("x-cove-public-url");
+  return new Request(publicUrl, {
+    method: request.method,
+    headers,
+    body: ["GET", "HEAD"].includes(request.method) ? undefined : request.body,
+    redirect: request.redirect,
+  });
+}
+
+function cachePolicy(path: string) {
+  if (path === "/api/fore/catalog") return 90;
+  if (path === "/api/fore/taxonomy") return 900;
+  if (path === "/api/fore/storefront/page") return 300;
+  if (path === "/api/fore/search/suggest") return 60;
+  if (path === "/api/fore/audiobooks") return 300;
+  if (/^\/api\/fore\/audio\/[^/]+$/.test(path)) return 900;
+  if (/^\/api\/fore\/books\/[^/]+(?:\/detail)?$/.test(path)) return 300;
+  return 0;
+}
+
+function anonymousCacheable(request: Request) {
+  if (request.method !== "GET") return false;
+  if (request.headers.get("authorization")) return false;
+  if (request.headers.get("cookie")) return false;
+  if (request.headers.get("oai-authenticated-user-id")) return false;
+  if (request.headers.get("range")) return false;
+  return cachePolicy(new URL(request.url).pathname) > 0;
+}
+
+function cacheKey(request: Request) {
+  const url = new URL(request.url);
+  const country = (request.headers.get("cf-ipcountry") || "ZZ").toUpperCase();
+  const language = (request.headers.get("accept-language") || "").split(",")[0].trim().slice(0, 24);
+  url.searchParams.set("__cove_country", country);
+  if (language) url.searchParams.set("__cove_language", language);
+  return new Request(url.toString(), { method: "GET" });
+}
+
+function edgeResponse(response: Response, state: "HIT" | "MISS") {
+  const headers = new Headers(response.headers);
+  headers.set("cache-control", "no-store");
+  headers.set("x-cove-backend-cache", state);
+  headers.set("x-cove-persistence", "d1-r2");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+async function cachedApi(
+  request: Request,
+  env: BackendEnv,
+  ctx: ExecutionContextLike,
+) {
+  const runtimeCache = (globalThis as any).caches?.default as Cache | undefined;
+  const ttl = cachePolicy(new URL(request.url).pathname);
+  const canCache = runtimeCache && ttl > 0 && anonymousCacheable(request);
+  const key = canCache ? cacheKey(request) : null;
+  if (runtimeCache && key) {
+    const hit = await runtimeCache.match(key);
+    if (hit) return edgeResponse(hit, "HIT");
+  }
+
+  const response = await handleCoveApi(request, env);
+  if (!response) return null;
+  if (
+    runtimeCache &&
+    key &&
+    response.ok &&
+    !response.headers.has("set-cookie")
+  ) {
+    const storageHeaders = new Headers(response.headers);
+    storageHeaders.set("cache-control", `public, max-age=${ttl}`);
+    storageHeaders.set("x-cove-backend-cache", "STORED");
+    const storage = new Response(response.clone().body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: storageHeaders,
+    });
+    ctx.waitUntil?.(runtimeCache.put(key, storage).catch((error) => {
+      console.warn("Cove edge cache write failed", error);
+    }));
+    return edgeResponse(response, "MISS");
+  }
+  return edgeResponse(response, "MISS");
+}
+
+async function catalogBatch(request: Request, env: BackendEnv) {
+  let input: any = {};
+  try { input = await request.json(); } catch {}
+  const configuredPages = Number(env.FORE_CATALOG_PAGES_PER_TICK || 5);
+  const configuredEpubs = Number(env.FORE_CATALOG_EPUBS_PER_TICK || 2);
+  const maxPages = Math.max(1, Math.min(12, Number(input.maxPages || configuredPages) || 5));
+  const epubLimit = Math.max(1, Math.min(8, Number(input.epubLimit || configuredEpubs) || 2));
+  const maxMillis = Math.max(10_000, Math.min(240_000, Number(input.maxMillis || 220_000) || 220_000));
+  const deadline = Date.now() + maxMillis;
+  const results: unknown[] = [];
+  for (let i = 0; i < maxPages && Date.now() < deadline; i++) {
+    const result: any = await runCatalogIngestion(env, epubLimit);
+    results.push(result);
+    if (
+      result?.complete ||
+      result?.skipped === "fresh" ||
+      result?.skipped === "backoff" ||
+      result?.skipped === "running"
+    ) break;
+  }
+  return json({ ok: true, pagesAttempted: results.length, results });
+}
+
+async function maintenance(env: BackendEnv) {
+  const [recommendations, publishing] = await Promise.allSettled([
+    runRecommendationMaintenance(env),
+    runPublishingReleaseMaintenance(env),
+  ]);
+  return json({
+    ok: recommendations.status === "fulfilled" && publishing.status === "fulfilled",
+    recommendations:
+      recommendations.status === "fulfilled"
+        ? recommendations.value
+        : { error: String(recommendations.reason) },
+    publishing:
+      publishing.status === "fulfilled"
+        ? publishing.value
+        : { error: String(publishing.reason) },
+  });
+}
+
+export default {
+  async fetch(request: Request, env: BackendEnv, ctx: ExecutionContextLike) {
+    if (!authorized(request, env)) {
+      return json({ error: "Persistence gateway authorization required." }, 401);
+    }
+    const path = new URL(request.url).pathname;
+    if (path === "/__cove/health" && request.method === "GET") {
+      try {
+        const row = await env.DB.prepare("SELECT 1 ok").first<any>();
+        return json({ ok: row?.ok === 1, database: true, objectStorage: Boolean(env.BUCKET) });
+      } catch {
+        return json({ ok: false, database: false, objectStorage: Boolean(env.BUCKET) }, 503);
+      }
+    }
+    if (path === "/__cove/ingestion/catalog" && request.method === "POST") {
+      return catalogBatch(request, env);
+    }
+    if (path === "/__cove/ingestion/maintenance" && request.method === "POST") {
+      return maintenance(env);
+    }
+    if (!path.startsWith("/api/fore/")) return json({ error: "Not found." }, 404);
+
+    const logical = logicalRequest(request, env);
+    const response = await cachedApi(logical, env, ctx);
+    if (!response) return json({ error: "Not found." }, 404);
+    if (new URL(logical.url).pathname === "/api/fore/catalog") {
+      ctx.waitUntil?.(
+        kickCatalogIngestion(env).catch((error) =>
+          console.warn("Opportunistic catalog ingestion failed", error),
+        ),
+      );
+    }
+    return response;
+  },
+};
