@@ -133,7 +133,7 @@ export function AudiobooksPage() {
                 <h2>{e.title}</h2>
                 <p>{e.authors.map((a) => a.name).join(", ")}</p>
                 <span className="small muted">
-                  {e.narrator || "Narrator not listed"} · {e.tracks.length} tracks{e.commercial&&e.audioPublisher?` · ${e.audioPublisher}`:""}
+                  {e.narrator || "Narrator not listed"} · {e.tracks.length ? `${e.tracks.length} tracks` : "Tracks load when opened"}{e.commercial&&e.audioPublisher?` · ${e.audioPublisher}`:""}
                 </span>
                 {e.commercial&&<span className="small muted">{e.hasAccess?"In your library":e.offer?`${new Intl.NumberFormat(undefined,{style:"currency",currency:e.offer.currency}).format(e.offer.amountMinor/100)}`:"Commercial edition"}</span>}
                 {e.alignment && (
