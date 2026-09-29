@@ -80,14 +80,7 @@ FORE_INGESTION_TRIGGER_TOKEN
 
 Keep `FORE_SERVICE_TOKEN` scoped to the audio pipeline service. It must be a Cove service-principal credential with the scopes used by the pipeline (catalog ingestion and audio preparation), not a human/staff bearer token.
 
-Do not manually set:
-
-```text
-COVE_APP_INTERNAL_URL
-COVE_AUDIO_PIPELINE_URL
-```
-
-Those are Vercel service bindings.
+Do not manually set `COVE_AUDIO_PIPELINE_URL`; Vercel injects that service binding. The audio service uses `FORE_BACKEND_URL` directly and authenticates with both the gateway token and its scoped Cove service credential.
 
 Redeploy after environment changes.
 
