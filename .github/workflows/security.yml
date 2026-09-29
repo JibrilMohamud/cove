@@ -23,8 +23,14 @@ jobs:
         run: npm run lint && npm run typecheck
       - name: Security/domain regressions
         run: npm run test:security-sync
+      - name: Persistence backend regressions
+        run: npm run test:persistence-backend
+      - name: Python audio pipeline syntax
+        run: python3 -m py_compile scripts/audio_pipeline/*.py
       - name: Build
         run: npm run build
+      - name: Build persistence backend
+        run: npm run build:backend
       - name: CycloneDX SBOM
         run: npm run security:sbom
       - uses: actions/upload-artifact@v4
