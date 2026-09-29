@@ -34,7 +34,7 @@ The persistence backend is intentionally the system of record. Vercel never pret
 - `audio_pipeline -> app`: `COVE_APP_INTERNAL_URL`.
 - `app -> audio_pipeline`: `COVE_AUDIO_PIPELINE_URL`.
 
-The second binding is used only by authenticated cron controllers. Neither binding should be configured manually.
+The second binding is used only by authenticated ingestion controllers. Neither binding should be configured manually.
 
 ## Required Vercel server variables
 
@@ -75,7 +75,7 @@ Typical Worker edge TTLs are 60-900 seconds; durable source/object caches are mu
 
 ## eBook ingestion
 
-The persistence Worker's catalog cron runs every five minutes. It calls the token-gated backend control endpoint, which advances the existing restartable D1 ingestion cursor in bounded batches.
+The persistence Worker's catalog cron runs every five minutes and advances the existing restartable D1 ingestion cursor directly in bounded batches. Separate Worker cron triggers call Vercel's token-gated controller only for Python audio compute.
 
 The underlying harvester retains the existing guarantees:
 
