@@ -92,7 +92,9 @@ function rewriteResponse(response: Response, env: PersistenceEnv) {
           ).toString(),
         );
       }
-    } catch {}
+    } catch {
+      // Ignore malformed or non-HTTP redirect locations from the private backend.
+    }
   }
   return new Response(response.body, {
     status: response.status,
