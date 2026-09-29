@@ -1,3 +1,4 @@
+fastapi[standard]>=0.141.1
 faster-whisper==1.2.1
 rapidfuzz==3.14.3
 socksio==1.0.0
