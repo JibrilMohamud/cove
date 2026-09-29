@@ -19,8 +19,8 @@ app = FastAPI(title="Cove audio pipeline", docs_url=None, redoc_url=None)
 
 
 class RunRequest(BaseModel):
-    kind: Literal["discover", "track"] | None = None
-    max_jobs: int = Field(default=1, ge=1, le=3)
+    kind: Literal["discover", "track", "align"] | None = None
+    max_jobs: int = Field(default=1, ge=0, le=3)
     minutes: int = Field(default=4, ge=1, le=10)
     no_discovery: bool = True
     threads: int = Field(default=2, ge=1, le=4)
