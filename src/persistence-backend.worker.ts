@@ -101,13 +101,14 @@ function edgeResponse(response: Response, state: "HIT" | "MISS") {
 
 async function cachedApi(
   request: Request,
+  cacheRequest: Request,
   env: BackendEnv,
   ctx: ExecutionContextLike,
 ) {
   const runtimeCache = (globalThis as any).caches?.default as Cache | undefined;
   const ttl = cachePolicy(new URL(request.url).pathname);
   const canCache = runtimeCache && ttl > 0 && anonymousCacheable(request);
-  const key = canCache ? cacheKey(request) : null;
+  const key = canCache ? cacheKey(cacheRequest) : null;
   if (runtimeCache && key) {
     const hit = await runtimeCache.match(key);
     if (hit) return edgeResponse(hit, "HIT");
@@ -201,7 +202,7 @@ export default {
     if (!path.startsWith("/api/fore/")) return json({ error: "Not found." }, 404);
 
     const logical = logicalRequest(request, env);
-    const response = await cachedApi(logical, env, ctx);
+    const response = await cachedApi(logical, request, env, ctx);
     if (!response) return json({ error: "Not found." }, 404);
     if (new URL(logical.url).pathname === "/api/fore/catalog") {
       ctx.waitUntil?.(
