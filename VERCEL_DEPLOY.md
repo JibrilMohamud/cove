@@ -18,11 +18,11 @@ Cove persistence backend (Worker)
   |
   +-- Cloudflare edge cache for anonymous catalog metadata
 
-Vercel app <----service binding----> audio_pipeline (FastAPI)
+Vercel app ----service binding----> audio_pipeline (FastAPI)
                                       |
-                                      | scoped FORE_SERVICE_TOKEN
+                                      | FORE_BACKEND_TOKEN + scoped FORE_SERVICE_TOKEN
                                       v
-                                Vercel app -> persistence backend
+                                persistence backend
 ```
 
 The persistence backend is intentionally the system of record. Vercel never pretends to provide D1/R2 bindings and no commercial/account write falls back to an ephemeral implementation.
@@ -31,10 +31,10 @@ The persistence backend is intentionally the system of record. Vercel never pret
 
 - `app`: repository root, TanStack Start, the only public service.
 - `audio_pipeline`: `scripts/`, FastAPI, internal only.
-- `audio_pipeline -> app`: `COVE_APP_INTERNAL_URL`.
 - `app -> audio_pipeline`: `COVE_AUDIO_PIPELINE_URL`.
+- `audio_pipeline -> persistence backend`: direct HTTPS using `FORE_BACKEND_URL`, `FORE_BACKEND_TOKEN`, and its scoped `FORE_SERVICE_TOKEN`.
 
-The second binding is used only by authenticated ingestion controllers. Neither binding should be configured manually.
+The Vercel binding is used only by authenticated ingestion controllers and should not be configured manually. The audio service deliberately calls the persistence backend directly, avoiding a circular service dependency.
 
 ## Required Vercel server variables
 
