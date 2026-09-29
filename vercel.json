@@ -17,14 +17,6 @@
       "root": "scripts",
       "framework": "fastapi",
       "entrypoint": "audio_pipeline.service:app",
-      "bindings": [
-        {
-          "type": "service",
-          "service": "app",
-          "format": "url",
-          "env": "COVE_APP_INTERNAL_URL"
-        }
-      ],
       "functions": {
         "**/*.py": {
           "maxDuration": 300
