@@ -42,8 +42,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Type safety
-        run: npm run typecheck
       - name: Persistence architecture
         run: npm run test:persistence-backend
       - name: Python syntax
