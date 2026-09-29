@@ -30,6 +30,10 @@ on:
       - "vercel.json"
       - "wrangler.backend.example.toml"
       - "package.json"
+      - ".github/workflows/persistence-backend.yml"
+      - ".github/workflows/deploy-persistence-backend.yml"
+      - "VERCEL_DEPLOY.md"
+      - "docs/VERCEL_PERSISTENCE_BACKEND.md"
 
 permissions:
   contents: read
@@ -39,12 +43,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Persistence TypeScript lint
+        run: npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts src/server.ts src/features/fore/pipeline.server.ts
       - name: Persistence architecture
         run: npm run test:persistence-backend
       - name: Python syntax
