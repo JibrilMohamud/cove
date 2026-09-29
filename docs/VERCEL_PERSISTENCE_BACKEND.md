@@ -229,6 +229,10 @@ Audio jobs are leased in D1. Workers heartbeat every two minutes; a lease is ten
 
 ## 9. Cron cadence
 
+### Production Worker plan
+
+Run the persistence backend on a paid Cloudflare Workers plan for production. Cove's authenticated API, catalog projection, search/taxonomy synchronization and scheduled ingestion are not designed around the Free plan's tiny CPU allowance. The schedules remain bounded and network-heavy work does not count as CPU time, but the persistence owner is still a real application backend rather than a static edge shim.
+
 Current defaults:
 
 | Job | Schedule |
