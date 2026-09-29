@@ -1,0 +1,267 @@
+[
+  {
+    "id": "pg-20686",
+    "gutenbergId": "20686",
+    "bookId": "1342",
+    "title": "Pride and Prejudice",
+    "authors": [
+      {
+        "name": "Austen, Jane"
+      }
+    ],
+    "language": "en",
+    "narration": "human",
+    "narrator": "Annie Coleman",
+    "sourceUrl": "https://www.gutenberg.org/ebooks/20686",
+    "rights": "Public domain in the USA.",
+    "tracks": [
+      {
+        "id": "01",
+        "title": "Chapters 1\u20134",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-01.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 26060423
+      },
+      {
+        "id": "02",
+        "title": "Chapters 5\u20136",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-02.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 19310800
+      },
+      {
+        "id": "03",
+        "title": "Chapters 7\u20138",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-03.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 24456714
+      },
+      {
+        "id": "04",
+        "title": "Chapters 9\u201310",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-04.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 24641452
+      },
+      {
+        "id": "05",
+        "title": "Chapters 11\u201313",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-05.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 26177870
+      },
+      {
+        "id": "06",
+        "title": "Chapters 14\u201315",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-06.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 18177295
+      },
+      {
+        "id": "07",
+        "title": "Chapters 16\u201317",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-07.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 29299607
+      },
+      {
+        "id": "08",
+        "title": "Chapter 18",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-08.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 34923247
+      },
+      {
+        "id": "09",
+        "title": "Chapters 19\u201320",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-09.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 22826673
+      },
+      {
+        "id": "10",
+        "title": "Chapters 21\u201322",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-10.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 24713759
+      },
+      {
+        "id": "11",
+        "title": "Chapters 23\u201324",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-11.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 23709403
+      },
+      {
+        "id": "12",
+        "title": "Chapters 25\u201326",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-12.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 25423035
+      },
+      {
+        "id": "13",
+        "title": "Chapters 27\u201328",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-13.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 18199447
+      },
+      {
+        "id": "14",
+        "title": "Chapters 29\u201330",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-14.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 23931757
+      },
+      {
+        "id": "15",
+        "title": "Chapters 31\u201332",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-15.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 19099731
+      },
+      {
+        "id": "16",
+        "title": "Chapters 33\u201334",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-16.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 24014931
+      },
+      {
+        "id": "17",
+        "title": "Chapter 35",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-17.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 21435287
+      },
+      {
+        "id": "18",
+        "title": "Chapters 36\u201337",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-18.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 23905425
+      },
+      {
+        "id": "19",
+        "title": "Chapters 38\u201340",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-19.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 26533135
+      },
+      {
+        "id": "20",
+        "title": "Chapter 41",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-20.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 15450111
+      },
+      {
+        "id": "21",
+        "title": "Chapter 42",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-21.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 12542787
+      },
+      {
+        "id": "22",
+        "title": "Chapter 43",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-22.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 31837667
+      },
+      {
+        "id": "23",
+        "title": "Chapters 44\u201345",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-23.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 26761759
+      },
+      {
+        "id": "24",
+        "title": "Chapter 46",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-24.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 18886990
+      },
+      {
+        "id": "25",
+        "title": "Chapters 47\u201348",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-25.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 37132998
+      },
+      {
+        "id": "26",
+        "title": "Chapter 49",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-26.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 13597716
+      },
+      {
+        "id": "27",
+        "title": "Chapters 50\u201351",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-27.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 25926676
+      },
+      {
+        "id": "28",
+        "title": "Chapter 52",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-28.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 18618272
+      },
+      {
+        "id": "29",
+        "title": "Chapters 53\u201354",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-29.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 28024865
+      },
+      {
+        "id": "30",
+        "title": "Chapter 55",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-30.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 15303438
+      },
+      {
+        "id": "31",
+        "title": "Chapter 56",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-31.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 16029433
+      },
+      {
+        "id": "32",
+        "title": "Chapter 57",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-32.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 10227742
+      },
+      {
+        "id": "33",
+        "title": "Chapter 58",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-33.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 14533109
+      },
+      {
+        "id": "34",
+        "title": "Chapter 59",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-34.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 14708264
+      },
+      {
+        "id": "35",
+        "title": "Chapters 60\u201361",
+        "url": "https://www.gutenberg.org/files/20686/mp3/20686-35.mp3",
+        "mime": "audio/mpeg",
+        "bytes": 16561080
+      }
+    ],
+    "alignment": null,
+    "epubSha256": null
+  }
+]

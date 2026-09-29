@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1789874512894,
+      "tag": "0000_young_phantom_reporter",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789876399539,
+      "tag": "0001_omniscient_valkyrie",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789962441386,
+      "tag": "0002_abandoned_the_stranger",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790048050962,
+      "tag": "0003_curvy_vin_gonzales",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790048472136,
+      "tag": "0004_lyrical_queen_noir",
+      "breakpoints": true
+    }
+  ]
+}

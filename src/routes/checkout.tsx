@@ -1,0 +1,1 @@
+import {createFileRoute} from "@tanstack/react-router";import {SiteShell} from "@/features/fore/App";import {CheckoutPage} from "@/features/fore/Commerce";export const Route=createFileRoute("/checkout")({head:()=>({meta:[{title:"Checkout | Cove"},{name:"robots",content:"noindex,nofollow"}]}),component:()=> <SiteShell active="/cart" title="Checkout"><CheckoutPage/></SiteShell>});

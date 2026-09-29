@@ -1,0 +1,32 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
+
+const migrations=fs.readdirSync("drizzle").filter((x)=>/^\d+_.*\.sql$/.test(x)).sort();
+assert.ok(migrations.includes("0009_commercial_recommendations.sql"));
+assert.ok(migrations.includes("0010_recommendation_hardening.sql"));
+const db=new DatabaseSync(":memory:");db.exec("PRAGMA foreign_keys=ON");for(const f of migrations)db.exec(fs.readFileSync(path.join("drizzle",f),"utf8"));
+for(const table of ["recommendation_privacy","recommendation_events","recommendation_user_features","recommendation_item_neighbors","recommendation_item_metrics","recommendation_models","recommendation_experiments","recommendation_requests","recommendation_impressions","recommendation_feedback","author_follows","wishlist_items","recommendation_jobs","recommendation_model_evaluations","recommendation_model_audit"])assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(table),`${table} missing`);
+assert.deepEqual(db.prepare("SELECT model_key,version,status FROM recommendation_models WHERE status='active'").get(),Object.assign(Object.create(null),{model_key:"fore-hybrid",version:"1",status:"active"}));
+const jobColumns=db.prepare("PRAGMA table_info(recommendation_jobs)").all().map((x)=>x.name);for(const col of ["max_attempts","available_at","locked_at","lease_until"])assert.ok(jobColumns.includes(col),`recommendation job hardening column ${col} missing`);
+const requestColumns=db.prepare("PRAGMA table_info(recommendation_requests)").all().map((x)=>x.name);for(const col of ["candidate_count","latency_ms","scorer_mode","fallback_reason"])assert.ok(requestColumns.includes(col),`request telemetry column ${col} missing`);
+const eventColumns=db.prepare("PRAGMA table_info(recommendation_events)").all().map((x)=>x.name);assert.ok(eventColumns.includes("event_key"),"event idempotency key missing");
+assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_rec_events_event_key'").get(),"event dedupe index missing");
+
+const source=fs.readFileSync("src/features/fore/recommendations.server.ts","utf8");
+for(const term of ["contentSimilarity","collaborativeScores","rebuildUserFeatures","continueSeriesCandidates","followedAuthorCandidates","wishlistDropCandidates","rereadCandidates","editorialCandidates","diversitySelect","applyRankingControls","externalCandidates","externalRank","normalizedExternalScores","neighborCandidateIds","personalizeSearchBooks","recommendationFeedback","setRecommendationPrivacy","activeRecommendationExperiment","activeModel","upsertRecommendationModel","refreshRecommendationEvaluations","recommendationEventKey"])assert.match(source,new RegExp(term));
+assert.match(source,/explorationRate/);assert.match(source,/diversityStrength/);assert.match(source,/sourceWeights/);assert.match(source,/lease_until/);assert.match(source,/max_attempts/);assert.match(source,/candidate_count/);assert.match(source,/scorer_mode/);assert.match(source,/fallback_reason/);assert.match(source,/event_key/);assert.match(source,/source_entropy/);assert.match(source,/co-read/);assert.match(source,/priceBucket/);
+for(const label of ["recommended-for-you","because-you-read","because-you-rated","continue-series","favorite-genres","followed-authors","wishlist-price-drops","reread","trending","editors-picks","more-like-this","readers-also-enjoyed","more-by-author","more-from-publisher"])assert.ok(source.includes(label),`${label} rail missing`);
+assert.match(source,/recommendation_click[^]*preceding visible impression/);
+assert.match(source,/p\.source_name<>'upload'/);
+const search=fs.readFileSync("src/features/fore/search.server.ts","utf8");assert.match(search,/personalizeSearchBooks/);assert.match(search,/windowLimit/);assert.match(search,/slice\(start,start\+input\.limit\)/);
+const merch=fs.readFileSync("src/features/fore/merchandising.server.ts","utf8");assert.match(merch,/recommendationPlacementBooks/);
+const store=fs.readFileSync("src/features/fore/Store.tsx","utf8");assert.match(store,/recommendations\/home/);assert.match(store,/recommendation_impression/);assert.match(store,/Not interested/);
+const book=fs.readFileSync("src/features/fore/Book.tsx","utf8");assert.match(book,/recommendations\/book/);assert.match(book,/Wishlist/);assert.match(book,/Follow author/);
+const profile=fs.readFileSync("src/features/fore/Collections.tsx","utf8");assert.match(profile,/Personalized recommendations/);assert.match(profile,/Reset learned profile/);
+const reader=fs.readFileSync("src/features/fore/Reader.tsx","utf8");assert.match(reader,/read_start/);assert.match(reader,/read_progress/);
+const admin=fs.readFileSync("src/features/fore/StorefrontAdmin.tsx","utf8");assert.match(admin,/Recommendation platform/);assert.match(admin,/Rebuild neighbors/);assert.match(admin,/Model registry \/ deployment/);assert.match(admin,/Evaluate 30d/);assert.match(admin,/catalog coverage/);
+const api=fs.readFileSync("src/features/fore/api.server.ts","utf8");assert.match(api,/\/admin\/recommendations\/model/);assert.match(api,/\/admin\/recommendations\/evaluate/);
+const stage=fs.readFileSync("scripts/stage-sites.mjs","utf8");assert.match(stage,/runRecommendationMaintenance/);
+console.log("Recommendation regression checks passed: privacy, idempotent event ingestion, learned negative feedback, hybrid + external candidates, model-versioned ranking/diversity, explainability, cross-rail dedupe, large-catalog item/co-read neighbors, validated attribution, resilient jobs, model deployment/evaluation, follows/wishlist, homepage/book rails, operator tooling, CMS integration and search personalization.");

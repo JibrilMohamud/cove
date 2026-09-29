@@ -1,0 +1,8 @@
+import fs from 'node:fs';import crypto from 'node:crypto';
+const lock=JSON.parse(fs.readFileSync('package-lock.json','utf8'));
+function purl(name,version){if(name.startsWith('@')&&name.includes('/')){const [scope,pkg]=name.slice(1).split('/');return `pkg:npm/%40${encodeURIComponent(scope)}/${encodeURIComponent(pkg)}@${encodeURIComponent(version)}`;}return `pkg:npm/${encodeURIComponent(name)}@${encodeURIComponent(version)}`;}
+function integrityHash(value){const m=/^sha512-(.+)$/.exec(String(value||''));if(!m)return undefined;try{return [{alg:'SHA-512',content:Buffer.from(m[1],'base64').toString('hex')}];}catch{return undefined;}}
+const byPurl=new Map();for(const [p,v] of Object.entries(lock.packages||{})){if(!p.includes('node_modules/')||!v?.version)continue;const name=p.slice(p.lastIndexOf('node_modules/')+'node_modules/'.length),key=purl(name,v.version);if(!byPurl.has(key))byPurl.set(key,{type:'library',name,version:v.version,purl:key,hashes:integrityHash(v.integrity)});}
+const components=[...byPurl.values()].sort((a,b)=>a.name.localeCompare(b.name)||a.version.localeCompare(b.version));
+const bom={bomFormat:'CycloneDX',specVersion:'1.5',serialNumber:`urn:uuid:${crypto.randomUUID()}`,version:1,metadata:{timestamp:new Date().toISOString(),tools:{components:[{type:'application',name:'Cove SBOM generator',version:'1'}]},component:{type:'application',name:lock.name||'fore',version:process.env.FORE_RELEASE_ID||process.env.GITHUB_SHA||'development'}},components};
+fs.mkdirSync('artifacts',{recursive:true});const out='artifacts/sbom.cdx.json';fs.writeFileSync(out,JSON.stringify(bom,null,2)+'\n');console.log(`${out}: ${components.length} unique components`);
