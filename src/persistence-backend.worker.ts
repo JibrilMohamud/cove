@@ -12,6 +12,7 @@ type BackendEnv = CoveEnv & {
   FORE_PUBLIC_URL?: string;
   FORE_CATALOG_PAGES_PER_TICK?: string;
   FORE_CATALOG_EPUBS_PER_TICK?: string;
+  FORE_INGESTION_TRIGGER_TOKEN?: string;
 };
 
 type ExecutionContextLike = {
@@ -179,7 +180,74 @@ async function maintenance(env: BackendEnv) {
   });
 }
 
+
+async function triggerVercelAudio(env: BackendEnv, path: string) {
+  const secret = env.FORE_INGESTION_TRIGGER_TOKEN || "";
+  if (!env.FORE_PUBLIC_URL || secret.length < 24) {
+    throw new Error("FORE_PUBLIC_URL and FORE_INGESTION_TRIGGER_TOKEN are required for audio scheduling.");
+  }
+  const target = new URL(path, env.FORE_PUBLIC_URL);
+  const response = await fetch(target, {
+    method: "POST",
+    headers: { authorization: `Bearer ${secret}` },
+    signal: AbortSignal.timeout(290_000),
+  });
+  if (!response.ok) {
+    throw new Error(`Audio ingestion trigger failed (${response.status}): ${(await response.text()).slice(0,500)}`);
+  }
+}
+
+async function scheduledCatalog(env: BackendEnv) {
+  const request = new Request("https://cove.internal/__cove/ingestion/catalog", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ maxPages: 5, epubLimit: 2, maxMillis: 220_000 }),
+  });
+  const response = await catalogBatch(request, env);
+  if (!response.ok) throw new Error("Scheduled catalog ingestion failed.");
+}
+
+async function scheduledMaintenance(env: BackendEnv) {
+  const response = await maintenance(env);
+  if (!response.ok) throw new Error("Scheduled Cove maintenance failed.");
+}
+
+async function runScheduled(cron: string, env: BackendEnv) {
+  if (cron === "*/5 * * * *") {
+    await Promise.all([
+      scheduledCatalog(env),
+      triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-track"),
+    ]);
+    return;
+  }
+  if (cron === "*/10 * * * *") {
+    await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-discover");
+    return;
+  }
+  if (cron === "23 * * * *") {
+    await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align");
+    return;
+  }
+  if (cron === "17 3 * * *") {
+    await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-scan");
+    return;
+  }
+  if (cron === "41 4 * * *") {
+    await scheduledMaintenance(env);
+    return;
+  }
+  console.warn("Unknown Cove scheduled trigger", cron);
+}
+
 export default {
+  async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
+    ctx.waitUntil?.(
+      runScheduled(controller.cron, env).catch((error) => {
+        console.error("Cove scheduled ingestion failed", controller.cron, error);
+        throw error;
+      }),
+    );
+  },
   async fetch(request: Request, env: BackendEnv, ctx: ExecutionContextLike) {
     if (!authorized(request, env)) {
       return json({ error: "Persistence gateway authorization required." }, 401);
