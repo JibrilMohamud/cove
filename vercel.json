@@ -3,7 +3,15 @@
   "services": {
     "app": {
       "root": ".",
-      "framework": "tanstack-start"
+      "framework": "tanstack-start",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "audio_pipeline",
+          "format": "url",
+          "env": "COVE_AUDIO_PIPELINE_URL"
+        }
+      ]
     },
     "audio_pipeline": {
       "root": "scripts",
@@ -19,6 +27,32 @@
       ]
     }
   },
+  "crons": [
+    {
+      "path": "/api/fore/internal/ingestion/catalog",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/fore/internal/ingestion/audio-scan",
+      "schedule": "17 3 * * *"
+    },
+    {
+      "path": "/api/fore/internal/ingestion/audio-discover",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/fore/internal/ingestion/audio-track",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/fore/internal/ingestion/audio-align",
+      "schedule": "23 * * * *"
+    },
+    {
+      "path": "/api/fore/internal/ingestion/maintenance",
+      "schedule": "41 4 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/(.*)",
