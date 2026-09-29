@@ -55,7 +55,9 @@ Build the Worker bundle with:
 npm run build:backend
 ```
 
-Use `wrangler.backend.example.toml` as the deployment template. Point its `DB` and `BUCKET` bindings at Cove's existing production resources when preserving the current data, or create fresh resources for an isolated migration.
+The preferred production path is the manual GitHub Actions workflow `.github/workflows/deploy-persistence-backend.yml`. It accepts the existing Worker name, D1 database name/UUID, R2 bucket name, and public Vercel origin; builds the backend; optionally applies only pending D1 migrations; deploys with Wrangler; and injects `FORE_BACKEND_TOKEN` plus `FORE_INGESTION_TRIGGER_TOKEN` from GitHub Actions secrets.
+
+For local/operator deployment, use `wrangler.backend.example.toml` as the template. Point its `DB` and `BUCKET` bindings at Cove's existing production resources when preserving current data, or create fresh resources for an isolated migration.
 
 The backend must receive the same `FORE_BACKEND_TOKEN` as Vercel. It reconstructs incoming requests at `FORE_PUBLIC_URL`, so Cove's same-origin CSRF checks, Supabase redirects, cookies, and absolute URLs continue to use the public Vercel origin rather than the private Worker origin.
 
@@ -113,14 +115,16 @@ The Python service receives the universal 300-second Fluid Compute window. Heavi
 
 ## Verification
 
-Run:
+The focused persistence gate runs:
 
 ```sh
-npm run typecheck
+npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts src/server.ts src/features/fore/pipeline.server.ts
 npm run test:persistence-backend
+python3 -m py_compile scripts/audio_pipeline/*.py
 npm run build
 npm run build:backend
-python3 -m py_compile scripts/audio_pipeline/*.py
 ```
+
+The repository-wide `npm run typecheck` remains useful as a broader cleanup target, but it currently reports pre-existing errors in unrelated publishing/SEO/social code and is therefore not used as proof that this persistence change is healthy.
 
 Production is not considered fully cut over until the backend Worker is deployed against the intended D1/R2 resources and the Vercel variables above are configured.
