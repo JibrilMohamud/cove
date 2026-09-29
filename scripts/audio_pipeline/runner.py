@@ -82,5 +82,7 @@ def run(config,args):
     print(json.dumps({'processed':done,'pipeline':api.call('/audio-status')}),flush=True)
 def main():
     p=argparse.ArgumentParser();p.add_argument('--stdin',action='store_true');p.add_argument('--cache',default='.sites-runtime/pipeline');p.add_argument('--minutes',type=int,default=30);p.add_argument('--max-jobs',type=int,default=100);p.add_argument('--kind',choices=['discover','track']);p.add_argument('--no-discovery',action='store_true');p.add_argument('--threads',type=int,default=4);a=p.parse_args()
-    config=config_from_stdin() if a.stdin else {'siteUrl':os.environ['FORE_SITE_URL'],'pipelineToken':os.environ['FORE_SERVICE_TOKEN'],'siteBearer':os.environ.get('FORE_SITE_BEARER','')};run(config,a)
+    site_url=os.environ.get('COVE_APP_INTERNAL_URL') or os.environ.get('FORE_SITE_URL')
+    if not site_url:raise RuntimeError('COVE_APP_INTERNAL_URL binding or FORE_SITE_URL is required')
+    config=config_from_stdin() if a.stdin else {'siteUrl':site_url,'pipelineToken':os.environ['FORE_SERVICE_TOKEN'],'siteBearer':os.environ.get('FORE_SITE_BEARER','')};run(config,a)
 if __name__=='__main__':main()
