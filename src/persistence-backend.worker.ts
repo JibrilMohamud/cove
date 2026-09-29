@@ -64,10 +64,7 @@ function logicalRequest(request: Request, env: BackendEnv) {
   if (forwardedPublicUrl) {
     try {
       const candidate = new URL(forwardedPublicUrl);
-      if (
-        candidate.protocol === "https:" ||
-        candidate.hostname === "localhost"
-      ) {
+      if (candidate.protocol === "https:" || candidate.hostname === "localhost") {
         publicBase = candidate.origin;
       }
     } catch {
@@ -112,10 +109,7 @@ function anonymousCacheable(request: Request) {
 function cacheKey(request: Request) {
   const url = new URL(request.url);
   const country = (request.headers.get("cf-ipcountry") || "ZZ").toUpperCase();
-  const language = (request.headers.get("accept-language") || "")
-    .split(",")[0]
-    .trim()
-    .slice(0, 24);
+  const language = (request.headers.get("accept-language") || "").split(",")[0].trim().slice(0, 24);
   url.searchParams.set("__cove_country", country);
   if (language) url.searchParams.set("__cove_language", language);
   return new Request(url.toString(), { method: "GET" });
@@ -152,12 +146,7 @@ async function cachedApi(
   const response = await handleCoveApi(request, env);
   if (!response) return null;
 
-  if (
-    runtimeCache &&
-    key &&
-    response.ok &&
-    !response.headers.has("set-cookie")
-  ) {
+  if (runtimeCache && key && response.ok && !response.headers.has("set-cookie")) {
     const storageHeaders = new Headers(response.headers);
     storageHeaders.set("cache-control", `public, max-age=${ttl}`);
     storageHeaders.set("x-cove-backend-cache", "STORED");
@@ -178,9 +167,7 @@ async function cachedApi(
 }
 
 function catalogInput(value: unknown): CatalogBatchInput {
-  return value && typeof value === "object"
-    ? (value as CatalogBatchInput)
-    : {};
+  return value && typeof value === "object" ? (value as CatalogBatchInput) : {};
 }
 
 function terminalIngestionResult(value: unknown) {
@@ -204,14 +191,8 @@ async function catalogBatch(request: Request, env: BackendEnv) {
 
   const configuredPages = Number(env.FORE_CATALOG_PAGES_PER_TICK || 5);
   const configuredEpubs = Number(env.FORE_CATALOG_EPUBS_PER_TICK || 2);
-  const maxPages = Math.max(
-    1,
-    Math.min(12, Number(input.maxPages || configuredPages) || 5),
-  );
-  const epubLimit = Math.max(
-    1,
-    Math.min(8, Number(input.epubLimit || configuredEpubs) || 2),
-  );
+  const maxPages = Math.max(1, Math.min(12, Number(input.maxPages || configuredPages) || 5));
+  const epubLimit = Math.max(1, Math.min(8, Number(input.epubLimit || configuredEpubs) || 2));
   const maxMillis = Math.max(
     10_000,
     Math.min(240_000, Number(input.maxMillis || 220_000) || 220_000),
@@ -241,9 +222,7 @@ async function maintenance(env: BackendEnv) {
         ? recommendations.value
         : { error: String(recommendations.reason) },
     publishing:
-      publishing.status === "fulfilled"
-        ? publishing.value
-        : { error: String(publishing.reason) },
+      publishing.status === "fulfilled" ? publishing.value : { error: String(publishing.reason) },
   });
 }
 
@@ -263,22 +242,20 @@ async function triggerVercelAudio(env: BackendEnv, path: string) {
   });
   if (!response.ok) {
     throw new Error(
-      `Audio ingestion trigger failed (${response.status}): ${(
-        await response.text()
-      ).slice(0, 500)}`,
+      `Audio ingestion trigger failed (${response.status}): ${(await response.text()).slice(
+        0,
+        500,
+      )}`,
     );
   }
 }
 
 async function scheduledCatalog(env: BackendEnv) {
-  const request = new Request(
-    "https://cove.internal/__cove/ingestion/catalog",
-    {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ maxPages: 5, epubLimit: 2, maxMillis: 220_000 }),
-    },
-  );
+  const request = new Request("https://cove.internal/__cove/ingestion/catalog", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ maxPages: 5, epubLimit: 2, maxMillis: 220_000 }),
+  });
   const response = await catalogBatch(request, env);
   if (!response.ok) {
     throw new Error("Scheduled catalog ingestion failed.");
@@ -299,10 +276,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
     return;
   }
   if (cron === "*/10 * * * *") {
-    await triggerVercelAudio(
-      env,
-      "/api/fore/internal/ingestion/audio-discover",
-    );
+    await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-discover");
     return;
   }
   if (cron === "23 * * * *") {
@@ -321,11 +295,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
 }
 
 export default {
-  async scheduled(
-    controller: { cron: string },
-    env: BackendEnv,
-    ctx: ExecutionContextLike,
-  ) {
+  async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
     ctx.waitUntil?.(
       runScheduled(controller.cron, env).catch((error) => {
         console.error("Cove scheduled ingestion failed", controller.cron, error);
