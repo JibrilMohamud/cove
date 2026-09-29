@@ -5,9 +5,9 @@
       "root": "."
     },
     "audio_pipeline": {
-      "root": "scripts/audio_pipeline",
+      "root": "scripts",
       "framework": "fastapi",
-      "entrypoint": "service:app",
+      "entrypoint": "audio_pipeline.service:app",
       "bindings": [
         {
           "type": "service",
