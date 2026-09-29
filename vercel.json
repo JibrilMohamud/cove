@@ -24,7 +24,12 @@
           "format": "url",
           "env": "COVE_APP_INTERNAL_URL"
         }
-      ]
+      ],
+      "functions": {
+        "**/*.py": {
+          "maxDuration": 300
+        }
+      }
     }
   },
   "crons": [
