@@ -57,7 +57,7 @@ export default {
       const foreEnv=runtimeEnv as {
         DB?:any;BUCKET?:any;FORE_PUBLIC_URL?:string;FORE_ENVIRONMENT?:string;
         FORE_CSP_REPORT_URI?:string;FORE_SECURITY_CONTACT_EMAIL?:string;FORE_SECURITY_POLICY_URL?:string;
-        FORE_BACKEND_URL?:string;FORE_BACKEND_TOKEN?:string;COVE_AUDIO_PIPELINE_URL?:string;CRON_SECRET?:string;
+        FORE_BACKEND_URL?:string;FORE_BACKEND_TOKEN?:string;COVE_AUDIO_PIPELINE_URL?:string;CRON_SECRET?:string;FORE_INGESTION_TRIGGER_TOKEN?:string;
       };
       const ingestionControl = await handleVercelIngestionControl(request, foreEnv);
       if (ingestionControl) return applySecurityHeaders(request, ingestionControl, foreEnv);
