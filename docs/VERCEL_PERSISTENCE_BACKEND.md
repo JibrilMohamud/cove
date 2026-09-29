@@ -75,7 +75,7 @@ Set:
 FORE_PUBLIC_URL
 FORE_BACKEND_URL
 FORE_BACKEND_TOKEN
-CRON_SECRET
+FORE_INGESTION_TRIGGER_TOKEN
 ```
 
 Keep `FORE_SERVICE_TOKEN` scoped to the audio pipeline service. It must be a Cove service-principal credential with the scopes used by the pipeline (catalog ingestion and audio preparation), not a human/staff bearer token.
@@ -166,9 +166,9 @@ R2 objects use their existing content-addressing/checksum semantics and can have
 
 ## 7. eBook ingestion
 
-Vercel invokes `/api/fore/internal/ingestion/catalog` every five minutes with `CRON_SECRET`.
+The persistence Worker advances eBook ingestion directly every five minutes. Its other cron triggers call Vercel's protected audio-ingestion controller with `FORE_INGESTION_TRIGGER_TOKEN` when Python media compute is required.
 
-The Vercel controller forwards to `/__cove/ingestion/catalog`; the Worker processes up to five catalog pages or roughly 220 seconds, whichever comes first.
+The Worker processes up to five catalog pages or roughly 220 seconds, whichever comes first. The `/__cove/ingestion/catalog` control route remains available for authenticated manual/recovery runs.
 
 Each normal ingestion unit:
 
