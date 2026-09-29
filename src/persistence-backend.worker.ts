@@ -19,10 +19,24 @@ type ExecutionContextLike = {
   waitUntil?(promise: Promise<unknown>): void;
 };
 
+type CatalogBatchInput = {
+  maxPages?: unknown;
+  epubLimit?: unknown;
+  maxMillis?: unknown;
+};
+
+type CoveCacheGlobal = typeof globalThis & {
+  caches?: {
+    default?: Cache;
+  };
+};
+
 function safeEqual(a: string, b: string) {
   if (a.length !== b.length) return false;
   let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
   return diff === 0;
 }
 
@@ -50,12 +64,16 @@ function logicalRequest(request: Request, env: BackendEnv) {
   if (forwardedPublicUrl) {
     try {
       const candidate = new URL(forwardedPublicUrl);
-      if (candidate.protocol === "https:" || candidate.hostname === "localhost") {
+      if (
+        candidate.protocol === "https:" ||
+        candidate.hostname === "localhost"
+      ) {
         publicBase = candidate.origin;
       }
     } catch {}
   }
   if (!publicBase) return request;
+
   const publicUrl = new URL(backendUrl.pathname + backendUrl.search, publicBase);
   const headers = new Headers(request.headers);
   headers.delete("x-cove-backend-token");
@@ -92,7 +110,10 @@ function anonymousCacheable(request: Request) {
 function cacheKey(request: Request) {
   const url = new URL(request.url);
   const country = (request.headers.get("cf-ipcountry") || "ZZ").toUpperCase();
-  const language = (request.headers.get("accept-language") || "").split(",")[0].trim().slice(0, 24);
+  const language = (request.headers.get("accept-language") || "")
+    .split(",")[0]
+    .trim()
+    .slice(0, 24);
   url.searchParams.set("__cove_country", country);
   if (language) url.searchParams.set("__cove_language", language);
   return new Request(url.toString(), { method: "GET" });
@@ -116,10 +137,11 @@ async function cachedApi(
   env: BackendEnv,
   ctx: ExecutionContextLike,
 ) {
-  const runtimeCache = (globalThis as any).caches?.default as Cache | undefined;
+  const runtimeCache = (globalThis as CoveCacheGlobal).caches?.default;
   const ttl = cachePolicy(new URL(request.url).pathname);
   const canCache = runtimeCache && ttl > 0 && anonymousCacheable(request);
   const key = canCache ? cacheKey(cacheRequest) : null;
+
   if (runtimeCache && key) {
     const hit = await runtimeCache.match(key);
     if (hit) return edgeResponse(hit, "HIT");
@@ -127,6 +149,7 @@ async function cachedApi(
 
   const response = await handleCoveApi(request, env);
   if (!response) return null;
+
   if (
     runtimeCache &&
     key &&
@@ -141,34 +164,63 @@ async function cachedApi(
       statusText: response.statusText,
       headers: storageHeaders,
     });
-    ctx.waitUntil?.(runtimeCache.put(key, storage).catch((error) => {
-      console.warn("Cove edge cache write failed", error);
-    }));
+    ctx.waitUntil?.(
+      runtimeCache.put(key, storage).catch((error) => {
+        console.warn("Cove edge cache write failed", error);
+      }),
+    );
     return edgeResponse(response, "MISS");
   }
+
   return edgeResponse(response, "MISS");
 }
 
+function catalogInput(value: unknown): CatalogBatchInput {
+  return value && typeof value === "object"
+    ? (value as CatalogBatchInput)
+    : {};
+}
+
+function terminalIngestionResult(value: unknown) {
+  if (!value || typeof value !== "object") return false;
+  const result = value as { complete?: unknown; skipped?: unknown };
+  return (
+    result.complete === true ||
+    result.skipped === "fresh" ||
+    result.skipped === "backoff" ||
+    result.skipped === "running"
+  );
+}
+
 async function catalogBatch(request: Request, env: BackendEnv) {
-  let input: any = {};
-  try { input = await request.json(); } catch {}
+  let input: CatalogBatchInput = {};
+  try {
+    input = catalogInput(await request.json());
+  } catch {}
+
   const configuredPages = Number(env.FORE_CATALOG_PAGES_PER_TICK || 5);
   const configuredEpubs = Number(env.FORE_CATALOG_EPUBS_PER_TICK || 2);
-  const maxPages = Math.max(1, Math.min(12, Number(input.maxPages || configuredPages) || 5));
-  const epubLimit = Math.max(1, Math.min(8, Number(input.epubLimit || configuredEpubs) || 2));
-  const maxMillis = Math.max(10_000, Math.min(240_000, Number(input.maxMillis || 220_000) || 220_000));
+  const maxPages = Math.max(
+    1,
+    Math.min(12, Number(input.maxPages || configuredPages) || 5),
+  );
+  const epubLimit = Math.max(
+    1,
+    Math.min(8, Number(input.epubLimit || configuredEpubs) || 2),
+  );
+  const maxMillis = Math.max(
+    10_000,
+    Math.min(240_000, Number(input.maxMillis || 220_000) || 220_000),
+  );
   const deadline = Date.now() + maxMillis;
   const results: unknown[] = [];
+
   for (let i = 0; i < maxPages && Date.now() < deadline; i++) {
-    const result: any = await runCatalogIngestion(env, epubLimit);
+    const result = await runCatalogIngestion(env, epubLimit);
     results.push(result);
-    if (
-      result?.complete ||
-      result?.skipped === "fresh" ||
-      result?.skipped === "backoff" ||
-      result?.skipped === "running"
-    ) break;
+    if (terminalIngestionResult(result)) break;
   }
+
   return json({ ok: true, pagesAttempted: results.length, results });
 }
 
@@ -177,6 +229,7 @@ async function maintenance(env: BackendEnv) {
     runRecommendationMaintenance(env),
     runPublishingReleaseMaintenance(env),
   ]);
+
   return json({
     ok: recommendations.status === "fulfilled" && publishing.status === "fulfilled",
     recommendations:
@@ -190,12 +243,14 @@ async function maintenance(env: BackendEnv) {
   });
 }
 
-
 async function triggerVercelAudio(env: BackendEnv, path: string) {
   const secret = env.FORE_INGESTION_TRIGGER_TOKEN || "";
   if (!env.FORE_PUBLIC_URL || secret.length < 24) {
-    throw new Error("FORE_PUBLIC_URL and FORE_INGESTION_TRIGGER_TOKEN are required for audio scheduling.");
+    throw new Error(
+      "FORE_PUBLIC_URL and FORE_INGESTION_TRIGGER_TOKEN are required for audio scheduling.",
+    );
   }
+
   const target = new URL(path, env.FORE_PUBLIC_URL);
   const response = await fetch(target, {
     method: "POST",
@@ -203,18 +258,27 @@ async function triggerVercelAudio(env: BackendEnv, path: string) {
     signal: AbortSignal.timeout(290_000),
   });
   if (!response.ok) {
-    throw new Error(`Audio ingestion trigger failed (${response.status}): ${(await response.text()).slice(0,500)}`);
+    throw new Error(
+      `Audio ingestion trigger failed (${response.status}): ${(
+        await response.text()
+      ).slice(0, 500)}`,
+    );
   }
 }
 
 async function scheduledCatalog(env: BackendEnv) {
-  const request = new Request("https://cove.internal/__cove/ingestion/catalog", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ maxPages: 5, epubLimit: 2, maxMillis: 220_000 }),
-  });
+  const request = new Request(
+    "https://cove.internal/__cove/ingestion/catalog",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ maxPages: 5, epubLimit: 2, maxMillis: 220_000 }),
+    },
+  );
   const response = await catalogBatch(request, env);
-  if (!response.ok) throw new Error("Scheduled catalog ingestion failed.");
+  if (!response.ok) {
+    throw new Error("Scheduled catalog ingestion failed.");
+  }
 }
 
 async function scheduledMaintenance(env: BackendEnv) {
@@ -231,7 +295,10 @@ async function runScheduled(cron: string, env: BackendEnv) {
     return;
   }
   if (cron === "*/10 * * * *") {
-    await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-discover");
+    await triggerVercelAudio(
+      env,
+      "/api/fore/internal/ingestion/audio-discover",
+    );
     return;
   }
   if (cron === "23 * * * *") {
@@ -250,7 +317,11 @@ async function runScheduled(cron: string, env: BackendEnv) {
 }
 
 export default {
-  async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
+  async scheduled(
+    controller: { cron: string },
+    env: BackendEnv,
+    ctx: ExecutionContextLike,
+  ) {
     ctx.waitUntil?.(
       runScheduled(controller.cron, env).catch((error) => {
         console.error("Cove scheduled ingestion failed", controller.cron, error);
@@ -258,37 +329,55 @@ export default {
       }),
     );
   },
+
   async fetch(request: Request, env: BackendEnv, ctx: ExecutionContextLike) {
     if (!authorized(request, env)) {
       return json({ error: "Persistence gateway authorization required." }, 401);
     }
+
     const path = new URL(request.url).pathname;
     if (path === "/__cove/health" && request.method === "GET") {
       try {
-        const row = await env.DB.prepare("SELECT 1 ok").first<any>();
-        return json({ ok: row?.ok === 1, database: true, objectStorage: Boolean(env.BUCKET) });
+        const row = await env.DB.prepare("SELECT 1 ok").first<{ ok?: number }>();
+        return json({
+          ok: row?.ok === 1,
+          database: true,
+          objectStorage: Boolean(env.BUCKET),
+        });
       } catch {
-        return json({ ok: false, database: false, objectStorage: Boolean(env.BUCKET) }, 503);
+        return json(
+          {
+            ok: false,
+            database: false,
+            objectStorage: Boolean(env.BUCKET),
+          },
+          503,
+        );
       }
     }
+
     if (path === "/__cove/ingestion/catalog" && request.method === "POST") {
       return catalogBatch(request, env);
     }
     if (path === "/__cove/ingestion/maintenance" && request.method === "POST") {
       return maintenance(env);
     }
-    if (!path.startsWith("/api/fore/")) return json({ error: "Not found." }, 404);
+    if (!path.startsWith("/api/fore/")) {
+      return json({ error: "Not found." }, 404);
+    }
 
     const logical = logicalRequest(request, env);
     const response = await cachedApi(logical, request, env, ctx);
     if (!response) return json({ error: "Not found." }, 404);
+
     if (new URL(logical.url).pathname === "/api/fore/catalog") {
       ctx.waitUntil?.(
-        kickCatalogIngestion(env).catch((error) =>
-          console.warn("Opportunistic catalog ingestion failed", error),
-        ),
+        kickCatalogIngestion(env).catch((error) => {
+          console.warn("Opportunistic catalog ingestion failed", error);
+        }),
       );
     }
+
     return response;
   },
 };
