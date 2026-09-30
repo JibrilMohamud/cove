@@ -58,6 +58,7 @@ jobs:
     permissions:
       security-events: write
       packages: read
+      actions: read
       contents: read
     steps:
       - uses: actions/checkout@v4
