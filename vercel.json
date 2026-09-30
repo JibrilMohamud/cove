@@ -3,20 +3,25 @@
   "services": {
     "app": {
       "root": ".",
-      "framework": "tanstack-start"
+      "framework": "tanstack-start",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "audio_pipeline",
+          "format": "url",
+          "env": "COVE_AUDIO_PIPELINE_URL"
+        }
+      ]
     },
     "audio_pipeline": {
       "root": "scripts",
       "framework": "fastapi",
       "entrypoint": "audio_pipeline.service:app",
-      "bindings": [
-        {
-          "type": "service",
-          "service": "app",
-          "format": "url",
-          "env": "COVE_APP_INTERNAL_URL"
+      "functions": {
+        "**/*.py": {
+          "maxDuration": 300
         }
-      ]
+      }
     }
   },
   "rewrites": [

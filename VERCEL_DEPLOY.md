@@ -1,36 +1,130 @@
 # Cove on Vercel
 
-Cove's Vercel Services draft lives in `vercel.json`.
+Cove uses Vercel Services for the public application and bounded audio compute, while a dedicated private persistence backend owns the existing D1 database and R2 object bucket.
 
-## Proposed service topology
-
-- `app` — the TanStack Start/Lovable application at the repository root. Vercel is allowed to auto-detect the framework rather than pinning an inferred framework identifier.
-- `audio_pipeline` — a FastAPI wrapper around `scripts/audio_pipeline`, using `service:app` as its entrypoint.
-
-Only `app` is publicly routed. `audio_pipeline` is internal by default.
-
-The existing audio worker calls the Cove application, so the binding is declared on the calling service:
+## Production topology
 
 ```text
-audio_pipeline -> app
-COVE_APP_INTERNAL_URL
+Browser
+  |
+  v
+Vercel app (TanStack Start)
+  |
+  | x-cove-backend-token
+  v
+Cove persistence backend (Worker)
+  |-- D1: catalog, accounts, commerce, rights, jobs, sync, operational state
+  |-- R2: EPUBs, audio, BioSync text/timing, publisher assets
+  |
+  +-- Cloudflare edge cache for anonymous catalog metadata
+
+Vercel app ----service binding----> audio_pipeline (FastAPI)
+                                      |
+                                      | FORE_BACKEND_TOKEN + scoped FORE_SERVICE_TOKEN
+                                      v
+                                persistence backend
 ```
 
-Vercel injects `COVE_APP_INTERNAL_URL`; do not add it manually to project environment variables. Outside Vercel Services, the CLI worker still supports `FORE_SITE_URL` as a fallback.
+The persistence backend is intentionally the system of record. Vercel never pretends to provide D1/R2 bindings and no commercial/account write falls back to an ephemeral implementation.
 
-The internal FastAPI wrapper exposes `/health` and a bounded `/run` endpoint. No public rewrite currently points to those routes.
+## Vercel Services
 
-## Important runtime boundary: database and object storage
+- `app`: repository root, TanStack Start, the only public service.
+- `audio_pipeline`: `scripts/`, FastAPI, internal only.
+- `app -> audio_pipeline`: `COVE_AUDIO_PIPELINE_URL`.
+- `audio_pipeline -> persistence backend`: direct HTTPS using `FORE_BACKEND_URL`, `FORE_BACKEND_TOKEN`, and its scoped `FORE_SERVICE_TOKEN`.
 
-Cove's commercial API still uses Cloudflare-style `DB` (D1) and `BUCKET` (R2) bindings. Vercel does not provide those bindings automatically. The app can be built and served on Vercel, and `/api/fore/health/live` remains usable, but database-backed catalog, account, commerce, publishing, sync, and object-storage flows require either:
+The Vercel binding is used only by authenticated ingestion controllers and should not be configured manually. The audio service deliberately calls the persistence backend directly, avoiding a circular service dependency.
 
-1. a compatibility adapter to a Vercel-accessible database/object store, or
-2. proxying `/api/fore/*` to the existing Cloudflare Worker that owns D1/R2.
+## Required Vercel server variables
 
-Do not set Cloudflare credentials in client-visible `VITE_*` variables. Server secrets belong in Vercel environment variables only.
+```text
+FORE_PUBLIC_URL=https://<your-production-domain>
+FORE_BACKEND_URL=https://<your-persistence-worker>
+FORE_BACKEND_TOKEN=<32+ random bytes>
+FORE_INGESTION_TRIGGER_TOKEN=<32+ random bytes>
+```
 
-## Important runtime boundary: audio processing
+The internal audio service additionally requires its scoped `FORE_SERVICE_TOKEN`. Do not put any of these values in `VITE_*` variables.
 
-The current audio pipeline performs large media downloads, transcription/alignment, and local caching. The FastAPI wrapper deliberately defaults to one bounded job and skips bulk discovery. Before production use, confirm the Vercel plan/function duration and dependency-size limits, and decide whether this workload should stay request-bound, move to Vercel Workflow/Queues, or remain on dedicated worker compute.
+## D1/R2 persistence backend
 
-The service topology is intentionally a review draft until the service names, public routes, and bindings are confirmed.
+Build the Worker bundle with:
+
+```sh
+npm run build:backend
+```
+
+The preferred production path is the manual GitHub Actions workflow `.github/workflows/deploy-persistence-backend.yml`. It accepts the existing Worker name, D1 database name/UUID, R2 bucket name, and public Vercel origin; builds the backend; optionally applies only pending D1 migrations; deploys with Wrangler; and injects `FORE_BACKEND_TOKEN` plus `FORE_INGESTION_TRIGGER_TOKEN` from GitHub Actions secrets.
+
+For local/operator deployment, use `wrangler.backend.example.toml` as the template. Point its `DB` and `BUCKET` bindings at Cove's existing production resources when preserving current data, or create fresh resources for an isolated migration.
+
+The backend must receive the same `FORE_BACKEND_TOKEN` as Vercel. It reconstructs incoming requests at `FORE_PUBLIC_URL`, so Cove's same-origin CSRF checks, Supabase redirects, cookies, and absolute URLs continue to use the public Vercel origin rather than the private Worker origin.
+
+See `docs/VERCEL_PERSISTENCE_BACKEND.md` for provisioning and cutover.
+
+## Cache hierarchy
+
+Cove deliberately uses several cache layers with different jobs:
+
+1. D1 remains authoritative for mutable application state and contains Cove's durable API/source cache.
+2. R2 stores immutable or content-addressed media and publication assets.
+3. The persistence Worker uses `caches.default` for anonymous public metadata. Keys include country and primary language. Authenticated, cookie-bearing, range, and mutation requests bypass it.
+4. Browser-facing API responses from the backend are returned `no-store`, preventing a shared CDN/browser cache from accidentally crossing entitlement or territory boundaries.
+5. If the persistence backend is temporarily unavailable, only an explicit allowlist of public-domain GETs may fall back to the stateless Gutenberg adapter. Writes and account/commercial reads fail closed.
+
+Typical Worker edge TTLs are 60-900 seconds; durable source/object caches are much longer.
+
+## eBook ingestion
+
+The persistence Worker's catalog cron runs every five minutes and advances the existing restartable D1 ingestion cursor directly in bounded batches. Separate Worker cron triggers call Vercel's token-gated controller only for Python audio compute.
+
+The underlying harvester retains the existing guarantees:
+
+- accepts Project Gutenberg US records only when `copyright === false`;
+- checkpoints pagination in D1;
+- exponential retry/backoff;
+- federated Canada/Australia/Europe rights pipelines remain independently scoped;
+- materializes Work -> Edition -> Product projections;
+- updates taxonomy and search projections;
+- verifies/caches canonical EPUBs into R2;
+- keeps customer request paths separate from ingestion.
+
+Catalog page requests can still opportunistically kick one bounded ingestion unit with `waitUntil`, but the backend Worker cron triggers are the primary scheduler.
+
+## Audiobook ingestion
+
+Audio is deliberately staged:
+
+1. **scan**: refresh the official Gutenberg bulk catalog/daily feed and queue discovery records;
+2. **discover**: validate RDF rights/metadata, preserve every track, classify narration only from evidence, and queue track jobs;
+3. **track**: resumably download, checksum, inspect duration, upload content-addressed media to R2, and make playback available;
+4. **align**: independently fetch the prepared bytes, pin the matching EPUB, run ASR/BioSync alignment, verify exact checksums/cues, then publish timing objects;
+5. **retry/review**: D1 leases, attempts, exponential retry, and review states make every stage restartable.
+
+Playback therefore does not depend on BioSync succeeding. A transcription timeout cannot hide an otherwise valid audiobook.
+
+The Python service receives the universal 300-second Fluid Compute window. Heavier alignment can later move to Vercel Workflow or dedicated worker compute without changing the D1 job contract.
+
+## Health and failure behavior
+
+- `GET /__cove/health` on the private backend validates D1 and reports R2 binding presence; it requires the gateway token.
+- `GET /api/fore/health/ready` through Vercel reaches the persistent backend once configured.
+- Safe public-domain reads degrade to the bundled/live stateless Gutenberg adapter during persistence-backend 502/503/504 failures.
+- Mutations, authentication state, entitlements, commerce, publishing and private media fail closed instead of silently becoming stateless.
+
+## Verification
+
+The focused persistence gate runs:
+
+```sh
+npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts src/server.ts src/features/fore/pipeline.server.ts
+npm run test:persistence-backend
+python3 -m py_compile scripts/audio_pipeline/*.py
+npm run build
+npm run build:backend
+```
+
+The repository-wide `npm run typecheck` remains useful as a broader cleanup target, but it currently reports pre-existing errors in unrelated publishing/SEO/social code and is therefore not used as proof that this persistence change is healthy.
+
+Production is not considered fully cut over until the backend Worker is deployed against the intended D1/R2 resources and the Vercel variables above are configured.

@@ -37,7 +37,9 @@
     "security:sbom": "node scripts/generate-sbom.mjs",
     "test:security-sync": "node scripts/check-security-sync-bookmarks.mjs",
     "test:catalog-identity": "node scripts/check-catalog-identity-discovery-seo.mjs",
-    "test:social-reading": "node scripts/check-social-reading.mjs"
+    "test:social-reading": "node scripts/check-social-reading.mjs",
+    "build:backend": "node scripts/build-persistence-backend.mjs",
+    "test:persistence-backend": "node scripts/check-persistence-backend.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

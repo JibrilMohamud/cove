@@ -1,0 +1,156 @@
+name: deploy-persistence-backend
+
+on:
+  workflow_dispatch:
+    inputs:
+      worker_name:
+        description: "Cloudflare Worker name. Use the existing owner Worker name to preserve its other secrets."
+        required: true
+        default: "cove-persistence-backend"
+        type: string
+      d1_database_id:
+        description: "Existing Cove production D1 database UUID"
+        required: true
+        type: string
+      d1_database_name:
+        description: "Existing Cove production D1 database name"
+        required: true
+        default: "cove-production"
+        type: string
+      r2_bucket_name:
+        description: "Existing Cove production R2 bucket name"
+        required: true
+        type: string
+      public_url:
+        description: "Canonical public Vercel origin, e.g. https://cove.example.com"
+        required: true
+        type: string
+      apply_migrations:
+        description: "Apply pending Cove D1 migrations before deployment"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-persistence-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Validate deployment inputs
+        shell: bash
+        env:
+          WORKER_NAME: ${{ inputs.worker_name }}
+          D1_DATABASE_ID: ${{ inputs.d1_database_id }}
+          D1_DATABASE_NAME: ${{ inputs.d1_database_name }}
+          R2_BUCKET_NAME: ${{ inputs.r2_bucket_name }}
+          PUBLIC_URL: ${{ inputs.public_url }}
+        run: |
+          set -euo pipefail
+          [[ "$WORKER_NAME" =~ ^[a-zA-Z0-9_-]{1,63}$ ]] || { echo "Invalid Worker name"; exit 1; }
+          [[ "$D1_DATABASE_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || { echo "Invalid D1 database ID"; exit 1; }
+          [[ "$D1_DATABASE_NAME" =~ ^[a-zA-Z0-9_-]{1,64}$ ]] || { echo "Invalid D1 database name"; exit 1; }
+          [[ "$R2_BUCKET_NAME" =~ ^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$ ]] || { echo "Invalid R2 bucket name"; exit 1; }
+          node -e '
+            const u = new URL(process.env.PUBLIC_URL);
+            if (u.protocol !== "https:" || u.username || u.password || u.pathname !== "/" || u.search || u.hash) {
+              throw new Error("public_url must be an HTTPS origin with no path, credentials, query, or fragment");
+            }
+          '
+
+      - name: Build persistence Worker
+        run: npm run build:backend
+
+      - name: Write deployment config
+        shell: bash
+        env:
+          WORKER_NAME: ${{ inputs.worker_name }}
+          D1_DATABASE_ID: ${{ inputs.d1_database_id }}
+          D1_DATABASE_NAME: ${{ inputs.d1_database_name }}
+          R2_BUCKET_NAME: ${{ inputs.r2_bucket_name }}
+          PUBLIC_URL: ${{ inputs.public_url }}
+        run: |
+          set -euo pipefail
+          cat > wrangler.backend.deploy.toml <<EOF
+          name = "$WORKER_NAME"
+          main = "backend-dist/worker.js"
+          compatibility_date = "2026-09-01"
+          workers_dev = true
+
+          [[d1_databases]]
+          binding = "DB"
+          database_name = "$D1_DATABASE_NAME"
+          database_id = "$D1_DATABASE_ID"
+          migrations_dir = "drizzle"
+
+          [[r2_buckets]]
+          binding = "BUCKET"
+          bucket_name = "$R2_BUCKET_NAME"
+
+          [vars]
+          FORE_PUBLIC_URL = "$PUBLIC_URL"
+          FORE_ENVIRONMENT = "production"
+          FORE_DEFAULT_TERRITORY = "US"
+          FORE_CATALOG_PAGES_PER_TICK = "5"
+          FORE_CATALOG_EPUBS_PER_TICK = "2"
+
+          [triggers]
+          crons = ["*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]
+          EOF
+
+      - name: Apply pending D1 migrations
+        if: ${{ inputs.apply_migrations }}
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: d1 migrations apply DB --remote --config wrangler.backend.deploy.toml
+
+      - name: Deploy persistence Worker
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.backend.deploy.toml
+          secrets: |
+            FORE_BACKEND_TOKEN
+            FORE_INGESTION_TRIGGER_TOKEN
+        env:
+          FORE_BACKEND_TOKEN: ${{ secrets.FORE_BACKEND_TOKEN }}
+          FORE_INGESTION_TRIGGER_TOKEN: ${{ secrets.FORE_INGESTION_TRIGGER_TOKEN }}
+
+      - name: Deployment summary
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+          WORKER_NAME: ${{ inputs.worker_name }}
+        run: |
+          {
+            echo "## Cove persistence backend deployed"
+            echo
+            echo "- Worker: `$WORKER_NAME`"
+            if [ -n "${DEPLOYMENT_URL:-}" ]; then
+              echo "- Deployment URL: `$DEPLOYMENT_URL`"
+              echo "- Set Vercel `FORE_BACKEND_URL` to this Worker origin."
+            else
+              echo "- Read the Wrangler deploy output above for the Worker URL and set it as Vercel `FORE_BACKEND_URL`."
+            fi
+            echo "- Keep the same `FORE_BACKEND_TOKEN` in Vercel."
+            echo "- Keep the same `FORE_INGESTION_TRIGGER_TOKEN` in Vercel and the Worker."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -45,15 +45,15 @@ export async function handlePipeline(r:Request,env:CoveEnv,path:string,userId:st
     const p=z.object({items:z.array(z.object({gutenbergId:z.string().regex(/^\d{1,9}$/),candidates:z.array(z.string().regex(/^\d{1,9}$/)).max(8),title:z.string().max(1000)})).max(100)}).parse(await readBody(r,200000));for(const item of p.items)await queue(env,'discover-'+item.gutenbergId,'discover',item,true);return json({queued:p.items.length});
   }
   if(path==='/pipeline/claim'&&method==='POST'){
-    const p=z.object({kind:z.enum(['discover','track']).optional()}).parse(await readBody(r));const at=now(),until=new Date(Date.now()+45*60000).toISOString();
+    const p=z.object({kind:z.enum(['discover','track','align']).optional()}).parse(await readBody(r));const at=now(),until=new Date(Date.now()+10*60000).toISOString();
     await db.prepare("UPDATE audio_jobs SET status='review',last_error='Repeated worker lease expiry',updated_at=? WHERE status='running' AND lease_until<? AND attempts>=6").bind(at,at).run();
-    const job=await db.prepare(`UPDATE audio_jobs SET status='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=? WHERE id=(SELECT id FROM audio_jobs WHERE (status='queued' AND next_attempt_at<=? OR status='running' AND lease_until<?) AND attempts<6 ${p.kind?'AND kind=?':''} ORDER BY kind='discover' DESC,updated_at,id LIMIT 1) RETURNING *`).bind(crypto.randomUUID(),until,at,at,at,...(p.kind?[p.kind]:[])).first<any>();return json(job?{...job,payload:JSON.parse(job.payload_json),payload_json:undefined}:null);
+    const job=await db.prepare(`UPDATE audio_jobs SET status='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=? WHERE id=(SELECT id FROM audio_jobs WHERE (status='queued' AND next_attempt_at<=? OR status='running' AND lease_until<?) AND attempts<6 ${p.kind?'AND kind=?':''} ORDER BY CASE kind WHEN 'discover' THEN 0 WHEN 'track' THEN 1 ELSE 2 END,updated_at,id LIMIT 1) RETURNING *`).bind(crypto.randomUUID(),until,at,at,at,...(p.kind?[p.kind]:[])).first<any>();return json(job?{...job,payload:JSON.parse(job.payload_json),payload_json:undefined}:null);
   }
   const jobPath=path.match(/^\/pipeline\/jobs\/([a-zA-Z0-9_-]+)$/);
   if(jobPath&&method==='PUT'){
     const p=z.object({leaseToken:z.string().uuid(),status:z.enum(['done','review','skipped','retry','heartbeat']),error:z.string().max(1000).default('')}).parse(await readBody(r));
     const job=await db.prepare("SELECT * FROM audio_jobs WHERE id=? AND lease_token=? AND status='running' AND lease_until>?").bind(jobPath[1],p.leaseToken,now()).first<any>();if(!job)throw new ApiError(409,'Job lease expired.');
-    if(p.status==='heartbeat'){await db.prepare('UPDATE audio_jobs SET lease_until=? WHERE id=? AND lease_token=?').bind(new Date(Date.now()+45*60000).toISOString(),job.id,p.leaseToken).run();return json({renewed:true});}
+    if(p.status==='heartbeat'){await db.prepare('UPDATE audio_jobs SET lease_until=? WHERE id=? AND lease_token=?').bind(new Date(Date.now()+10*60000).toISOString(),job.id,p.leaseToken).run();return json({renewed:true});}
     const status=p.status==='retry'?(job.attempts>=6?'review':'queued'):p.status,next=new Date(Date.now()+(p.status==='retry'?Math.min(86400,60*2**job.attempts)*1000:0)).toISOString();await db.prepare('UPDATE audio_jobs SET status=?,next_attempt_at=?,last_error=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE id=? AND lease_token=?').bind(status,next,p.error,now(),job.id,p.leaseToken).run();return json({status});
   }
   if(path==='/pipeline/retire'&&method==='POST'){const p=z.object({gutenbergId:z.string().regex(/^\d{1,9}$/)}).parse(await readBody(r));await db.prepare("UPDATE audio_editions SET rights='Unavailable',alignment_json=NULL,updated_at=? WHERE gutenberg_id=?").bind(now(),p.gutenbergId).run();return json({retired:true});}
@@ -76,7 +76,9 @@ export async function handlePipeline(r:Request,env:CoveEnv,path:string,userId:st
     const checksum=hash.parse(r.headers.get('x-content-sha256')),duration=z.coerce.number().positive().max(86400).parse(r.headers.get('x-audio-duration')),size=z.coerce.number().int().positive().max(512*1024*1024).parse(r.headers.get('content-length'));
     if(!t||r.headers.get('x-source-url')!==t.url||(t.bytes&&t.bytes!==size))throw new ApiError(409,'Audio source changed during preparation.');
     const key=objectKey(e,{...t,sha256:checksum});if(!await env.BUCKET.head?.(key))await env.BUCKET.put(key,r.body,{sha256:checksum,httpMetadata:{contentType:t.mime}});
-    const n=e.tracks.findIndex(v=>v.id===t.id);await db.prepare('UPDATE audio_editions SET tracks_json=json_set(tracks_json,?,json(?)),updated_at=? WHERE id=? AND json_extract(tracks_json,?)=?').bind(`$[${n}]`,JSON.stringify({...t,sha256:checksum,duration,bytes:size}),now(),e.id,`$[${n}].url`,t.url).run();return json({stored:true,sha256:checksum});
+    const n=e.tracks.findIndex(v=>v.id===t.id);await db.prepare('UPDATE audio_editions SET tracks_json=json_set(tracks_json,?,json(?)),updated_at=? WHERE id=? AND json_extract(tracks_json,?)=?').bind(`$[${n}]`,JSON.stringify({...t,sha256:checksum,duration,bytes:size}),now(),e.id,`$[${n}].url`,t.url).run();
+    if(e.bookId)await queue(env,`align-${e.id}-${t.id}-${checksum.slice(0,16)}`,'align',{editionId:e.id,trackId:t.id,audioSha256:checksum});
+    return json({stored:true,sha256:checksum,alignmentQueued:Boolean(e.bookId)});
   }
   const textUpload=path.match(/^\/pipeline\/text\/([^/]+)$/);
   if(textUpload&&method==='PUT'){

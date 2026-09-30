@@ -19,21 +19,35 @@ app = FastAPI(title="Cove audio pipeline", docs_url=None, redoc_url=None)
 
 
 class RunRequest(BaseModel):
-    kind: Literal["discover", "track"] | None = None
-    max_jobs: int = Field(default=1, ge=1, le=3)
+    kind: Literal["discover", "track", "align"] | None = None
+    max_jobs: int = Field(default=1, ge=0, le=3)
     minutes: int = Field(default=4, ge=1, le=10)
     no_discovery: bool = True
     threads: int = Field(default=2, ge=1, le=4)
 
 
-def _app_url() -> str:
-    value = os.environ.get("COVE_APP_INTERNAL_URL") or os.environ.get("FORE_SITE_URL")
+def _api_url() -> str:
+    value = (
+        os.environ.get("FORE_PIPELINE_API_URL")
+        or os.environ.get("FORE_BACKEND_URL")
+        or os.environ.get("FORE_SITE_URL")
+    )
     if not value:
         raise HTTPException(
             status_code=503,
-            detail="COVE_APP_INTERNAL_URL service binding is unavailable",
+            detail="FORE_BACKEND_URL (or FORE_PIPELINE_API_URL) is required",
         )
     return value.rstrip("/")
+
+
+def _gateway_token() -> str:
+    value = os.environ.get("FORE_BACKEND_TOKEN", "")
+    if len(value) < 24:
+        raise HTTPException(
+            status_code=503,
+            detail="FORE_BACKEND_TOKEN is not configured for the audio service",
+        )
+    return value
 
 
 def _service_token() -> str:
@@ -50,8 +64,10 @@ def _service_token() -> str:
 def health() -> dict[str, object]:
     return {
         "ok": True,
-        "appBinding": bool(
-            os.environ.get("COVE_APP_INTERNAL_URL") or os.environ.get("FORE_SITE_URL")
+        "persistenceBackend": bool(
+            os.environ.get("FORE_PIPELINE_API_URL")
+            or os.environ.get("FORE_BACKEND_URL")
+            or os.environ.get("FORE_SITE_URL")
         ),
     }
 
@@ -59,8 +75,9 @@ def health() -> dict[str, object]:
 @app.post("/run")
 def run_pipeline(request: RunRequest) -> dict[str, object]:
     config = {
-        "siteUrl": _app_url(),
+        "siteUrl": _api_url(),
         "pipelineToken": _service_token(),
+        "gatewayToken": _gateway_token(),
         "siteBearer": os.environ.get("FORE_SITE_BEARER", ""),
     }
     args = SimpleNamespace(

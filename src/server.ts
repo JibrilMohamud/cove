@@ -5,6 +5,7 @@ import { renderErrorPage } from "./lib/error-page";
 import { handleSeoDocumentRequest } from "./features/fore/seo.server";
 import { handleCoveApi, kickCatalogIngestion } from "./features/fore/api.server";
 import { applySecurityHeaders, securityTxt } from "./lib/security-headers";
+import { handleVercelIngestionControl, proxyPersistenceApi } from "./lib/persistence-backend";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -53,7 +54,15 @@ export default {
       const runtimeEnv = (env && typeof env === "object")
         ? env
         : (typeof process !== "undefined" ? process.env : {});
-      const foreEnv=runtimeEnv as {DB?:any;BUCKET?:any;FORE_PUBLIC_URL?:string;FORE_ENVIRONMENT?:string;FORE_CSP_REPORT_URI?:string;FORE_SECURITY_CONTACT_EMAIL?:string;FORE_SECURITY_POLICY_URL?:string};
+      const foreEnv=runtimeEnv as {
+        DB?:any;BUCKET?:any;FORE_PUBLIC_URL?:string;FORE_ENVIRONMENT?:string;
+        FORE_CSP_REPORT_URI?:string;FORE_SECURITY_CONTACT_EMAIL?:string;FORE_SECURITY_POLICY_URL?:string;
+        FORE_BACKEND_URL?:string;FORE_BACKEND_TOKEN?:string;COVE_AUDIO_PIPELINE_URL?:string;CRON_SECRET?:string;FORE_INGESTION_TRIGGER_TOKEN?:string;
+      };
+      const ingestionControl = await handleVercelIngestionControl(request, foreEnv);
+      if (ingestionControl) return applySecurityHeaders(request, ingestionControl, foreEnv);
+      const persistenceResponse = await proxyPersistenceApi(request, foreEnv);
+      if (persistenceResponse) return applySecurityHeaders(request, persistenceResponse, foreEnv);
       const apiResponse = await handleCoveApi(request, foreEnv as any);
       if (apiResponse) {
         if (foreEnv.DB && new URL(request.url).pathname === "/api/fore/catalog") {

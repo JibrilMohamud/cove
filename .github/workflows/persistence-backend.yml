@@ -1,0 +1,61 @@
+name: persistence-backend
+
+on:
+  pull_request:
+    paths:
+      - "src/lib/persistence-backend.ts"
+      - "src/persistence-backend.worker.ts"
+      - "src/server.ts"
+      - "src/features/fore/pipeline.server.ts"
+      - "scripts/audio_pipeline/**"
+      - "scripts/build-persistence-backend.mjs"
+      - "scripts/check-persistence-backend.mjs"
+      - "vercel.json"
+      - "wrangler.backend.example.toml"
+      - "package.json"
+      - ".github/workflows/persistence-backend.yml"
+      - ".github/workflows/deploy-persistence-backend.yml"
+      - "VERCEL_DEPLOY.md"
+      - "docs/VERCEL_PERSISTENCE_BACKEND.md"
+  push:
+    branches: [main]
+    paths:
+      - "src/lib/persistence-backend.ts"
+      - "src/persistence-backend.worker.ts"
+      - "src/server.ts"
+      - "src/features/fore/pipeline.server.ts"
+      - "scripts/audio_pipeline/**"
+      - "scripts/build-persistence-backend.mjs"
+      - "scripts/check-persistence-backend.mjs"
+      - "vercel.json"
+      - "wrangler.backend.example.toml"
+      - "package.json"
+      - ".github/workflows/persistence-backend.yml"
+      - ".github/workflows/deploy-persistence-backend.yml"
+      - "VERCEL_DEPLOY.md"
+      - "docs/VERCEL_PERSISTENCE_BACKEND.md"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Persistence TypeScript lint
+        run: npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts
+      - name: Persistence architecture
+        run: npm run test:persistence-backend
+      - name: Python syntax
+        run: python3 -m py_compile scripts/audio_pipeline/*.py
+      - name: Vercel application build
+        run: npm run build
+      - name: Persistence Worker build
+        run: npm run build:backend
