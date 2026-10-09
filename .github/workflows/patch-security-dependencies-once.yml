@@ -22,7 +22,9 @@ jobs:
       - run: npm ci
 
       - name: Apply non-breaking audit fixes
-        run: npm audit fix
+        # npm exits nonzero while known breaking fixes remain; the post-upgrade
+        # audit below is the authoritative security gate.
+        run: npm audit fix || true
 
       - name: Upgrade security-blocked runtime dependencies
         run: npm install --save-exact epubjs@0.4.2 drizzle-orm@0.45.4
