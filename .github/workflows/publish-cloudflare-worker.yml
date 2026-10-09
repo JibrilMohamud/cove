@@ -1,0 +1,55 @@
+name: publish-cloudflare-worker-artifact
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/persistence-backend.worker.ts"
+      - "src/lib/persistence-backend.ts"
+      - "src/features/fore/**"
+      - "src/server.ts"
+      - "scripts/build-persistence-backend.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/publish-cloudflare-worker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-cloudflare-worker-artifact
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build persistence Worker
+        run: npm run build:backend
+      - name: Publish bundle to artifact branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          cp backend-dist/worker.js "$tmp/worker.js"
+          printf '%s\n' "$GITHUB_SHA" > "$tmp/SOURCE_COMMIT"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan cloudflare-worker-artifact
+          git rm -rf . >/dev/null 2>&1 || true
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp "$tmp/worker.js" ./worker.js
+          cp "$tmp/SOURCE_COMMIT" ./SOURCE_COMMIT
+          git add worker.js SOURCE_COMMIT
+          git commit -m "Build persistence Worker $GITHUB_SHA"
+          git push origin HEAD:cloudflare-worker-artifact --force
