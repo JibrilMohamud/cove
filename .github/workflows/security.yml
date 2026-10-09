@@ -50,5 +50,5 @@ jobs:
       - run: npm ci && npm run build
       - name: Package build output
         run: tar -czf fore-build.tgz dist .output 2>/dev/null || tar -czf fore-build.tgz dist
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with: {subject-path: fore-build.tgz}
