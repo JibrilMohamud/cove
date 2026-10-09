@@ -59,3 +59,10 @@ jobs:
         run: npm run build
       - name: Persistence Worker build
         run: npm run build:backend
+      - name: Upload persistence Worker bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: cove-persistence-worker
+          path: backend-dist/worker.js
+          if-no-files-found: error
+          retention-days: 1
