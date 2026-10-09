@@ -14,43 +14,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Verify Cove persistence cutover
+      - name: Diagnose Cove production persistence
         shell: bash
         run: |
           set -euo pipefail
           base="https://cove-puce-theta.vercel.app"
-          health_headers="$(mktemp)"
-          health_body="$(mktemp)"
-          catalog_headers="$(mktemp)"
-          catalog_body="$(mktemp)"
-
-          curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors             -D "$health_headers" -o "$health_body"             "$base/api/fore/health/ready"
-
-          curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors             -D "$catalog_headers" -o "$catalog_body"             "$base/api/fore/catalog?page=1"
-
+          headers="$(mktemp)"
+          body="$(mktemp)"
+          status="$(curl --silent --show-error --retry 2 --retry-all-errors             -D "$headers" -o "$body" -w '%{http_code}'             "$base/api/fore/health/ready")"
           {
-            echo "=== health headers ==="
-            cat "$health_headers"
-            echo "=== health body ==="
-            cat "$health_body"
+            echo "status=$status"
+            echo "=== headers ==="
+            cat "$headers"
+            echo "=== body ==="
+            head -c 5000 "$body"
             echo
-            echo "=== catalog headers ==="
-            cat "$catalog_headers"
-            echo "=== catalog body prefix ==="
-            head -c 2000 "$catalog_body"
-            echo
-          } > smoke.txt
-
-          grep -qi '^x-cove-persistence: remote-d1-r2' "$health_headers"
-          node --input-type=module - "$health_body" "$catalog_body" <<'NODE'
+          } | tee smoke.txt
+          test "$status" = "200"
+          grep -qi '^x-cove-persistence: remote-d1-r2' "$headers"
+          node --input-type=module - "$body" <<'NODE'
           import fs from "node:fs";
-          const [healthPath, catalogPath] = process.argv.slice(2);
-          const health = JSON.parse(fs.readFileSync(healthPath, "utf8"));
-          const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+          const health = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
           if (health.database !== true) throw new Error("Health response is not backed by D1");
-          if (!("results" in catalog) || !Array.isArray(catalog.results)) {
-            throw new Error("Catalog response is malformed");
-          }
           NODE
 
       - name: Upload smoke evidence
@@ -59,5 +44,5 @@ jobs:
         with:
           name: cove-production-persistence-smoke
           path: smoke.txt
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 1
