@@ -27,7 +27,21 @@ jobs:
         run: npm audit fix || true
 
       - name: Upgrade security-blocked runtime dependencies
-        run: npm install --save-exact epubjs@0.4.2 drizzle-orm@0.45.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --save-exact epubjs@0.3.93 drizzle-orm@0.45.4
+          node --input-type=module - <<'NODE'
+          import fs from "node:fs";
+          const path = "package.json";
+          const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+          pkg.overrides = {
+            ...(pkg.overrides || {}),
+            "@xmldom/xmldom": "0.8.15"
+          };
+          fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
+          NODE
+          npm install
 
       - name: Verify no high or critical npm advisories remain
         run: npm audit --audit-level=high
