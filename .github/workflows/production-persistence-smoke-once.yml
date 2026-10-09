@@ -1,0 +1,63 @@
+name: production-persistence-smoke-once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/production-persistence-smoke-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify Cove persistence cutover
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://cove-puce-theta.vercel.app"
+          health_headers="$(mktemp)"
+          health_body="$(mktemp)"
+          catalog_headers="$(mktemp)"
+          catalog_body="$(mktemp)"
+
+          curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors             -D "$health_headers" -o "$health_body"             "$base/api/fore/health/ready"
+
+          curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors             -D "$catalog_headers" -o "$catalog_body"             "$base/api/fore/catalog?page=1"
+
+          {
+            echo "=== health headers ==="
+            cat "$health_headers"
+            echo "=== health body ==="
+            cat "$health_body"
+            echo
+            echo "=== catalog headers ==="
+            cat "$catalog_headers"
+            echo "=== catalog body prefix ==="
+            head -c 2000 "$catalog_body"
+            echo
+          } > smoke.txt
+
+          grep -qi '^x-cove-persistence: remote-d1-r2' "$health_headers"
+          node --input-type=module - "$health_body" "$catalog_body" <<'NODE'
+          import fs from "node:fs";
+          const [healthPath, catalogPath] = process.argv.slice(2);
+          const health = JSON.parse(fs.readFileSync(healthPath, "utf8"));
+          const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8"));
+          if (health.database !== true) throw new Error("Health response is not backed by D1");
+          if (!("results" in catalog) || !Array.isArray(catalog.results)) {
+            throw new Error("Catalog response is malformed");
+          }
+          NODE
+
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cove-production-persistence-smoke
+          path: smoke.txt
+          if-no-files-found: warn
+          retention-days: 1
