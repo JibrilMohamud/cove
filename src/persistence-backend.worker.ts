@@ -136,7 +136,11 @@ function anonymousCacheable(request: Request) {
 
 function cacheKey(request: Request) {
   const url = new URL(request.url);
-  const country = (request.headers.get("cf-ipcountry") || "ZZ").toUpperCase();
+  const country = (
+    request.headers.get("x-cove-client-country") ||
+    request.headers.get("cf-ipcountry") ||
+    "ZZ"
+  ).toUpperCase();
   const language = (request.headers.get("accept-language") || "").split(",")[0].trim().slice(0, 24);
   url.searchParams.set("__cove_country", country);
   if (language) url.searchParams.set("__cove_language", language);
