@@ -59,27 +59,6 @@ export default {
         FORE_CSP_REPORT_URI?:string;FORE_SECURITY_CONTACT_EMAIL?:string;FORE_SECURITY_POLICY_URL?:string;
         FORE_BACKEND_URL?:string;FORE_BACKEND_TOKEN?:string;COVE_AUDIO_PIPELINE_URL?:string;CRON_SECRET?:string;FORE_INGESTION_TRIGGER_TOKEN?:string;FORE_INGESTION_VERIFY_JWK?:string;
       };
-      if (request.method === "GET" && new URL(request.url).pathname === "/api/fore/audio-pipeline-health") {
-        if (!foreEnv.COVE_AUDIO_PIPELINE_URL) {
-          return applySecurityHeaders(request,new Response(JSON.stringify({ok:false,error:"Audio pipeline service binding is unavailable."}),{
-            status:503,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}
-          }),foreEnv);
-        }
-        try {
-          const target=new URL("/health",foreEnv.COVE_AUDIO_PIPELINE_URL);
-          const response=await fetch(target,{signal:AbortSignal.timeout(15000)});
-          const body=await response.text();
-          let detail:unknown=body;
-          try{detail=JSON.parse(body);}catch{}
-          return applySecurityHeaders(request,new Response(JSON.stringify({ok:response.ok,status:response.status,detail}),{
-            status:response.ok?200:502,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}
-          }),foreEnv);
-        } catch (error) {
-          return applySecurityHeaders(request,new Response(JSON.stringify({
-            ok:false,error:error instanceof Error?error.message:String(error)
-          }),{status:502,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store"}}),foreEnv);
-        }
-      }
       const ingestionControl = await handleVercelIngestionControl(request, foreEnv);
       if (ingestionControl) return applySecurityHeaders(request, ingestionControl, foreEnv);
       const persistenceResponse = await proxyPersistenceApi(request, foreEnv);
