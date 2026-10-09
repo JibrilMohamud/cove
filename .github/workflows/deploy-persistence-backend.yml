@@ -24,8 +24,9 @@ on:
         default: "cove-production-media"
         type: string
       public_url:
-        description: "Canonical public Vercel origin, e.g. https://cove.example.com"
+        description: "Canonical public Vercel origin"
         required: true
+        default: "https://cove-puce-theta.vercel.app"
         type: string
       apply_migrations:
         description: "Apply pending Cove D1 migrations before deployment"
