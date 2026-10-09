@@ -15,13 +15,8 @@
     },
     "audio_pipeline": {
       "root": "scripts",
-      "framework": "fastapi",
-      "entrypoint": "audio_pipeline.service:app",
-      "functions": {
-        "**/*.py": {
-          "maxDuration": 300
-        }
-      }
+      "runtime": "container",
+      "entrypoint": "Dockerfile.vercel"
     }
   },
   "rewrites": [
