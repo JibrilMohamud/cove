@@ -1,0 +1,39 @@
+name: audio-python-size-once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/audio-python-size-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  size:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
+      - name: Report Python dependency footprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          site="$(python - <<'PY'
+          import site
+          print(site.getsitepackages()[0])
+          PY
+          )"
+          echo "SITE=$site"
+          du -sm "$site"
+          du -sm "$site"/* 2>/dev/null | sort -nr | head -40
+          python - <<'PY'
+          import importlib.metadata as m
+          for name in ["faster-whisper","ctranslate2","av","onnxruntime","tokenizers","fastapi","uvicorn","pydantic"]:
+              try: print(name, m.version(name))
+              except Exception: pass
+          PY
