@@ -60,7 +60,7 @@ jobs:
       - name: Persistence Worker build
         run: npm run build:backend
       - name: Upload persistence Worker bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cove-persistence-worker
           path: backend-dist/worker.js
