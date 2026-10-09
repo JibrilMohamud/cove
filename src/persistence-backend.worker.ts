@@ -204,9 +204,10 @@ function catalogInput(value: unknown): CatalogBatchInput {
 
 function terminalIngestionResult(value: unknown) {
   if (!value || typeof value !== "object") return false;
-  const result = value as { complete?: unknown; skipped?: unknown };
+  const result = value as { complete?: unknown; failed?: unknown; skipped?: unknown };
   return (
     result.complete === true ||
+    result.failed === true ||
     result.skipped === "fresh" ||
     result.skipped === "backoff" ||
     result.skipped === "running"
