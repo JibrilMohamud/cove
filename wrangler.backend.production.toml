@@ -9,7 +9,7 @@ workers_dev = true
 [[d1_databases]]
 binding = "DB"
 database_name = "cove-production"
-database_id = "8aec0c75-e17b-4b07-9f77-d8e2ead64bbd"
+database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"
 migrations_dir = "drizzle"
 
 # R2 account activation is still required before this bucket can be created.
