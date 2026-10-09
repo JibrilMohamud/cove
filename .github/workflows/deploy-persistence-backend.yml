@@ -9,8 +9,9 @@ on:
         default: "cove-persistence-backend"
         type: string
       d1_database_id:
-        description: "Existing Cove production D1 database UUID"
+        description: "Cove production D1 database UUID"
         required: true
+        default: "4bd657ac-8789-403e-a28c-93aba8d0a989"
         type: string
       d1_database_name:
         description: "Existing Cove production D1 database name"
@@ -18,8 +19,9 @@ on:
         default: "cove-production"
         type: string
       r2_bucket_name:
-        description: "Existing Cove production R2 bucket name"
+        description: "Cove production R2 bucket name"
         required: true
+        default: "cove-production-media"
         type: string
       public_url:
         description: "Canonical public Vercel origin, e.g. https://cove.example.com"
@@ -118,7 +120,7 @@ jobs:
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: "d26430caa63ec55f6612e32f36aca5e9"
           command: d1 migrations apply DB --remote --config wrangler.backend.deploy.toml
 
       - name: Deploy persistence Worker
@@ -126,7 +128,7 @@ jobs:
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          accountId: "d26430caa63ec55f6612e32f36aca5e9"
           command: deploy --config wrangler.backend.deploy.toml
           secrets: |
             FORE_BACKEND_TOKEN
