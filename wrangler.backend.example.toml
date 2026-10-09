@@ -1,5 +1,5 @@
 # Copy to wrangler.backend.toml and replace the resource identifiers.
-# Do not commit the real FORE_BACKEND_TOKEN or provider secrets.
+# Do not commit production secrets or private signing material.
 name = "cove-persistence-backend"
 main = "backend-dist/worker.js"
 compatibility_date = "2026-09-01"
@@ -25,9 +25,14 @@ FORE_CATALOG_EPUBS_PER_TICK = "2"
 [triggers]
 crons = ["*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]
 
-# Add secrets with wrangler secret put (or your Cloudflare dashboard):
-#   FORE_BACKEND_TOKEN
-#   FORE_INGESTION_TRIGGER_TOKEN
+# Production authentication:
+# - Vercel holds FORE_BACKEND_TOKEN; Cloudflare verifies its SHA-256 fingerprint
+#   stored in D1 cove_runtime_config under backend_token_sha256.
+# - Add the private P-256 FORE_INGESTION_SIGNING_KEY with wrangler secret put.
+# - Vercel holds only the matching FORE_INGESTION_VERIFY_JWK public key.
+#
+# Add enabled provider secrets with wrangler secret put (or your Cloudflare dashboard):
+#   FORE_INGESTION_SIGNING_KEY
 #   SUPABASE_URL
 #   SUPABASE_PUBLISHABLE_KEY
 #   STRIPE_SECRET_KEY
