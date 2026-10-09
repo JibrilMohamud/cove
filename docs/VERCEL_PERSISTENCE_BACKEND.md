@@ -25,18 +25,41 @@ Run the repository's manual `deploy-persistence-backend` GitHub Actions workflow
 - the canonical HTTPS Vercel origin;
 - whether pending D1 migrations should be applied.
 
-Configure these GitHub Actions secrets first:
+Cove's production Cloudflare resource identifiers are already recorded in the repository:
+
+```text
+Account ID: d26430caa63ec55f6612e32f36aca5e9
+Worker: cove-persistence-backend
+workers.dev origin: https://cove-persistence-backend.cove-jibrilmohamud.workers.dev
+D1 database: cove-production
+D1 UUID: 4bd657ac-8789-403e-a28c-93aba8d0a989
+R2 bucket: cove-production-media
+```
+
+Configure these GitHub Actions secrets before using the production deployment workflow:
 
 ```text
 CLOUDFLARE_API_TOKEN
-CLOUDFLARE_ACCOUNT_ID
 FORE_BACKEND_TOKEN
 FORE_INGESTION_TRIGGER_TOKEN
 ```
 
+The Cloudflare account ID is non-secret and is already pinned in the deployment workflow.
+
 The workflow validates resource identifiers, builds `backend-dist/worker.js`, applies pending migrations with `wrangler d1 migrations apply DB --remote`, deploys through `cloudflare/wrangler-action@v4`, and passes the two Cove gateway secrets without writing them to the repository.
 
 If you deploy under a brand-new Worker name instead of the existing owner Worker, separately copy all enabled server-side provider secrets (Supabase, Stripe, search, notifications, tax, publishing/operations, observability, etc.) into the new Worker before cutover.
+
+### Required one-time R2 account activation
+
+Cloudflare currently returns API error `10042: Please enable R2 through the Cloudflare Dashboard` for this account. Before the production persistence Worker can be deployed with its `BUCKET` binding:
+
+1. Open the Cloudflare dashboard.
+2. Select **R2 Object Storage**.
+3. Complete **Get started / Enable R2** and any billing acknowledgement Cloudflare presents.
+4. After activation, create (or let the Cove setup create) the bucket `cove-production-media`.
+
+Do not enable public `r2.dev` access for the bucket. Cove accesses objects through the private Worker binding and serves authorized bytes through its API.
 
 ### Local/operator path
 
