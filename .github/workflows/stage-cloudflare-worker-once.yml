@@ -18,14 +18,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          response="$(curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors             https://cove-deploy-stager.cove-jibrilmohamud.workers.dev/stage-b69c2b20)"
+          response="$(curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors             https://cove-deploy-stager.cove-jibrilmohamud.workers.dev/stage-caf594e)"
           printf '%s\n' "$response"
           RESPONSE="$response" node --input-type=module - <<'NODE'
           const payload = JSON.parse(process.env.RESPONSE);
           if (
             payload.ok !== true ||
-            payload.bytes !== 1912269 ||
-            payload.sha256 !== "b21f05100e91630a27d26bf57725f5330056f451df638e9e8575e7926fde59cc"
+            payload.bytes !== 1912523 ||
+            payload.sha256 !== "9ab3b58bcd2da0e8b969a1f1e9ecea0d1625329791fc25c8ab2595406157e295"
           ) {
             throw new Error("Cloudflare staging integrity check failed");
           }
