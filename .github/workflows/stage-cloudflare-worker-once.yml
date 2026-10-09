@@ -14,18 +14,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Stage tested Worker bundle into private R2
+      - name: Stage verified Worker bundle into private R2
         shell: bash
         run: |
           set -euo pipefail
-          response="$(curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors             https://cove-persistence-backend.cove-jibrilmohamuds-projects.workers.dev/__cove/stage-c32dd26b 2>/dev/null || true)"
-          if [ -z "$response" ]; then
-            response="$(curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors               https://cove-persistence-backend.cove-jibrilmohamud.workers.dev/__cove/stage-c32dd26b)"
-          fi
+          response="$(curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors             https://cove-deploy-stager.cove-jibrilmohamud.workers.dev/stage-b69c2b20)"
           printf '%s\n' "$response"
           RESPONSE="$response" node --input-type=module - <<'NODE'
           const payload = JSON.parse(process.env.RESPONSE);
-          if (payload.ok !== true || Number(payload.bytes) < 1_000_000) {
-            throw new Error("Cove Worker staging did not complete");
+          if (
+            payload.ok !== true ||
+            payload.bytes !== 1912269 ||
+            payload.sha256 !== "b21f05100e91630a27d26bf57725f5330056f451df638e9e8575e7926fde59cc"
+          ) {
+            throw new Error("Cloudflare staging integrity check failed");
           }
           NODE
