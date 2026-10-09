@@ -19,7 +19,7 @@ bucket_name = "cove-production-media"
 
 [vars]
 # Set this to Cove's canonical Vercel production origin before the real backend deploy.
-FORE_PUBLIC_URL = "https://REPLACE_WITH_COVE_VERCEL_PRODUCTION_ORIGIN"
+FORE_PUBLIC_URL = "https://cove-puce-theta.vercel.app"
 FORE_ENVIRONMENT = "production"
 FORE_DEFAULT_TERRITORY = "US"
 FORE_CATALOG_PAGES_PER_TICK = "5"
