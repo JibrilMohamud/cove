@@ -1,0 +1,25 @@
+name: hash-cloudflare-worker-once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/hash-cloudflare-worker-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  hash:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: cloudflare-worker-artifact
+      - name: Hash artifact branch Worker
+        run: |
+          set -euo pipefail
+          sha256sum worker.js
+          wc -c worker.js
+          cat SOURCE_COMMIT
