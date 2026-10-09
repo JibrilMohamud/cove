@@ -354,18 +354,49 @@ export function parseEuropeManifest(payload: unknown, env: FederationEnv = {}): 
   return out;
 }
 
+function trustedRegionalUrl(sourceId: RegionalSourceId, value: string, env: FederationEnv) {
+  const target = new URL(value);
+  if (target.protocol !== "https:" || target.username || target.password || target.port) {
+    throw new Error("Regional Gutenberg sources require clean HTTPS URLs.");
+  }
+  if (sourceId === "pg_ca" && !/^(?:www\.)?gutenberg\.ca$/i.test(target.hostname)) {
+    throw new Error("Canada catalog host is not allowlisted.");
+  }
+  if (sourceId === "pg_au" && !/^(?:www\.|mail\.)?gutenberg\.net\.au$/i.test(target.hostname)) {
+    throw new Error("Australia catalog host is not allowlisted.");
+  }
+  if (sourceId === "pg_eu") return new URL(assertTrustedEuropeUrl(target.href, env));
+  return target;
+}
+
+export async function fetchRegionalResource(
+  sourceId: RegionalSourceId,
+  value: string,
+  env: FederationEnv = {},
+  init: Omit<RequestInit, "redirect"> = {},
+) {
+  let target = trustedRegionalUrl(sourceId, value, env);
+  for (let hop = 0; hop < 5; hop++) {
+    const response = await fetch(target, { ...init, redirect: "manual" });
+    if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+    const location = response.headers.get("location");
+    if (!location) throw new Error(`${sourceId} redirect omitted Location.`);
+    target = trustedRegionalUrl(sourceId, new URL(location, target).href, env);
+  }
+  throw new Error(`${sourceId} exceeded the redirect limit.`);
+}
+
 async function fetchCatalogDocument(sourceId: RegionalSourceId, url: string, env: FederationEnv, headers: Record<string, string> = {}) {
-  const target = new URL(url);
-  if (target.protocol !== "https:" || target.username || target.password) throw new Error("Gutenberg catalog sources must use HTTPS.");
-  if (sourceId === "pg_ca" && !/^(?:www\.)?gutenberg\.ca$/i.test(target.hostname)) throw new Error("Canada catalog host is not allowlisted.");
-  if (sourceId === "pg_au" && !/^(?:www\.|mail\.)?gutenberg\.net\.au$/i.test(target.hostname)) throw new Error("Australia catalog host is not allowlisted.");
-  if (sourceId === "pg_eu") assertTrustedEuropeUrl(target.href, env);
-  const response = await fetch(target, { redirect: "error", headers: { Accept: sourceId === "pg_eu" ? "application/json" : "text/html,text/plain;q=0.9,*/*;q=0.1", "User-Agent": "CoveReader/1.0 (regional public-domain catalog harvester)", ...headers }, signal: AbortSignal.timeout(30000) });
-  if (response.status === 304) return { status: "not-modified" as const, url: target.href, bytes: new Uint8Array(), etag: response.headers.get("etag") || "", lastModified: response.headers.get("last-modified") || "" };
+  const target = trustedRegionalUrl(sourceId, url, env);
+  const response = await fetchRegionalResource(sourceId, target.href, env, {
+    headers: { Accept: sourceId === "pg_eu" ? "application/json" : "text/html,text/plain;q=0.9,*/*;q=0.1", "User-Agent": "CoveReader/1.0 (regional public-domain catalog harvester)", ...headers },
+    signal: AbortSignal.timeout(30000),
+  });
+  if (response.status === 304) return { status: "not-modified" as const, url: response.url || target.href, bytes: new Uint8Array(), etag: response.headers.get("etag") || "", lastModified: response.headers.get("last-modified") || "" };
   if (!response.ok) throw new Error(`${sourceId} catalog returned ${response.status}`);
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.length > 12 * 1024 * 1024) throw new Error("Regional catalog exceeded 12 MiB safety limit.");
-  return { status: "ok" as const, url: target.href, bytes, etag: response.headers.get("etag") || "", lastModified: response.headers.get("last-modified") || "" };
+  return { status: "ok" as const, url: response.url || target.href, bytes, etag: response.headers.get("etag") || "", lastModified: response.headers.get("last-modified") || "" };
 }
 
 export async function fetchRegionalCatalog(sourceId: RegionalSourceId, env: FederationEnv = {}, headers: Record<string, string> = {}) {
@@ -609,8 +640,7 @@ export async function verifyEuropeRightsEvidence(evidenceUrl: string, digest: st
   const url = assertTrustedEuropeUrl(evidenceUrl, env);
   const normalized = String(digest || "").trim().toLowerCase().replace(/^sha256:/, "");
   if (!/^[0-9a-f]{64}$/.test(normalized)) throw new Error("Project Gutenberg Europe rights evidence digest is missing or invalid; item quarantined.");
-  const response = await fetch(url, {
-    redirect: "error",
+  const response = await fetchRegionalResource("pg_eu", url, env, {
     headers: { Accept: "text/html,text/plain,application/pdf,application/json;q=0.9,*/*;q=0.1", "User-Agent": "CoveReader/1.0 (regional rights evidence verifier)" },
     signal: AbortSignal.timeout(15000),
   });
