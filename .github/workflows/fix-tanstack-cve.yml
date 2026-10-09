@@ -1,0 +1,53 @@
+name: fix-tanstack-cve
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/fix-tanstack-cve.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Upgrade patched TanStack Start
+        run: npm install --save-exact @tanstack/react-start@1.168.60
+      - name: Verify patched runtime
+        run: |
+          node --input-type=module - <<'NODE'
+          import fs from "node:fs";
+          const lock = JSON.parse(fs.readFileSync("package-lock.json", "utf8"));
+          const start = lock.packages["node_modules/@tanstack/react-start"]?.version;
+          const core = lock.packages["node_modules/@tanstack/start-server-core"]?.version;
+          console.log({ start, core });
+          if (start !== "1.168.60") process.exit(1);
+          if (!core) process.exit(1);
+          const [maj,min,patch] = core.split(".").map(Number);
+          if (maj < 1 || (maj === 1 && (min < 169 || (min === 169 && patch < 39)))) process.exit(1);
+          NODE
+      - name: Build Vercel app
+        run: npm run build
+      - name: Build persistence Worker
+        run: npm run build:backend
+      - name: Commit patched dependency and lockfile
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "Dependency was already patched."
+            exit 0
+          fi
+          git commit -m "Patch TanStack Start CVE-2026-102989"
+          git push origin HEAD:main
