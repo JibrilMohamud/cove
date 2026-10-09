@@ -41,7 +41,11 @@ const cookie = (request: Request, key: string) => {
 };
 
 function networkCountry(request: Request, fallback: string) {
-  const cf = String(request.headers.get("cf-ipcountry") || "").trim().toUpperCase();
+  const cf = String(
+    request.headers.get("x-cove-client-country") ||
+      request.headers.get("cf-ipcountry") ||
+      "",
+  ).trim().toUpperCase();
   if (/^[A-Z]{2}$/.test(cf) && !blockedNetworkCodes.has(cf)) return { country: cf, source: "network" };
   const safe = /^[A-Z]{2}$/.test(String(fallback || "").toUpperCase()) ? String(fallback).toUpperCase() : "US";
   return { country: safe, source: "default" };
