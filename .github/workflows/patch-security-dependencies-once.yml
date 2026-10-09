@@ -70,4 +70,5 @@ jobs:
             exit 0
           fi
           git commit -m "Patch audited dependency vulnerabilities"
+          git pull --rebase origin main
           git push origin HEAD:main
