@@ -40,7 +40,10 @@ assert.ok(
 assert.match(gateway, /FORE_BACKEND_URL/);
 assert.match(gateway, /FORE_BACKEND_TOKEN/);
 assert.match(gateway, /x-vercel-ip-country/);
-assert.match(gateway, /cf-ipcountry/);
+assert.match(gateway, /x-cove-client-country/);
+assert.match(gateway, /x-cove-client-ip/);
+assert.match(gateway, /startsWith\("cf-"\)/);
+assert.doesNotMatch(gateway, /headers\.set\("cf-(?:ipcountry|connecting-ip)"/);
 assert.match(gateway, /safePublicFallback/);
 assert.match(gateway, /COVE_AUDIO_PIPELINE_URL/);
 assert.match(gateway, /CRON_SECRET/);
@@ -102,12 +105,14 @@ assert.match(worker, /FORE_INGESTION_TRIGGER_TOKEN/);
 for (const cron of ["*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]) {
   assert.ok(wrangler.includes(cron), "missing backend Worker cron " + cron);
 }
-assert.match(wrangler, /FORE_INGESTION_TRIGGER_TOKEN/);
+assert.match(wrangler, /FORE_INGESTION_SIGNING_KEY/);
+assert.doesNotMatch(wrangler, /FORE_BACKEND_TOKEN\s*$/m);
 
 assert.match(deployWorkflow, /cloudflare\/wrangler-action@v4/);
 assert.match(deployWorkflow, /d1 migrations apply DB --remote/);
-assert.match(deployWorkflow, /FORE_BACKEND_TOKEN/);
-assert.match(deployWorkflow, /FORE_INGESTION_TRIGGER_TOKEN/);
+assert.match(deployWorkflow, /FORE_INGESTION_SIGNING_KEY/);
+assert.doesNotMatch(deployWorkflow, /^\s*FORE_BACKEND_TOKEN\s*$/m);
+assert.doesNotMatch(deployWorkflow, /^\s*FORE_INGESTION_TRIGGER_TOKEN\s*$/m);
 assert.match(deployWorkflow, /database_id = "\$D1_DATABASE_ID"/);
 assert.match(deployWorkflow, /bucket_name = "\$R2_BUCKET_NAME"/);
 assert.match(deployWorkflow, /npm run build:backend/);
