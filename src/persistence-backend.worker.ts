@@ -47,6 +47,21 @@ async function sha256Hex(value: string) {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+async function backendTokenHash(env: BackendEnv) {
+  const configured = (env.FORE_BACKEND_TOKEN_SHA256 || "").toLowerCase();
+  if (/^[a-f0-9]{64}$/.test(configured)) return configured;
+
+  try {
+    const row = await env.DB
+      .prepare("SELECT value FROM cove_runtime_config WHERE key='backend_token_sha256'")
+      .first<{ value?: string }>();
+    const persisted = String(row?.value || "").toLowerCase();
+    return /^[a-f0-9]{64}$/.test(persisted) ? persisted : "";
+  } catch {
+    return "";
+  }
+}
+
 async function authorized(request: Request, env: BackendEnv) {
   const supplied = request.headers.get("x-cove-backend-token") || "";
   if (supplied.length < 24) return false;
@@ -54,8 +69,8 @@ async function authorized(request: Request, env: BackendEnv) {
   const expected = env.FORE_BACKEND_TOKEN || "";
   if (expected.length >= 24 && safeEqual(expected, supplied)) return true;
 
-  const expectedHash = (env.FORE_BACKEND_TOKEN_SHA256 || "").toLowerCase();
-  if (!/^[a-f0-9]{64}$/.test(expectedHash)) return false;
+  const expectedHash = await backendTokenHash(env);
+  if (!expectedHash) return false;
   return safeEqual(expectedHash, await sha256Hex(supplied));
 }
 
