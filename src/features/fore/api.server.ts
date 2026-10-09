@@ -1485,8 +1485,16 @@ const definitionInput = z.object({
   context: z.string().max(12000).default(""),
   source: z.string().max(500).default("https://dictionaryapi.dev/"),
 });
+function clientIp(request: Request) {
+  return (
+    request.headers.get("x-cove-client-ip")?.trim() ||
+    request.headers.get("cf-connecting-ip")?.trim() ||
+    ""
+  );
+}
+
 async function rateLimitSearchRequest(request: Request, env: CoveEnv, userId: string | null, bucket: string, limit: number) {
-  const ip = request.headers.get("cf-connecting-ip")?.trim();
+  const ip = clientIp(request);
   const actor = userId ? `user:${userId}` : ip ? `ip:${ip}` : null;
   if (actor) await rateLimit(env, `search:${bucket}:${actor}`, limit);
 }
@@ -1784,9 +1792,9 @@ async function handleCoveRequest(request: Request, env: CoveEnv, auth:Awaited<Re
       if (request.method === "POST" && path === "/publishing-worker/work-identities/tick") { const x=z.object({limit:z.number().int().min(1).max(5000).default(1000)}).parse(await body(request)); return json(await rebuildWorkIdentityKeys(database(env),x.limit)); }
       if (request.method === "POST" && path === "/publishing-worker/notifications/deliver") { const x=z.object({limit:z.number().int().min(1).max(200).default(50)}).parse(await body(request)); return json(await processNotificationDeliveryQueue(env,x.limit)); }
     }
-    if (request.method === "POST" && path === "/security/disclosure") { const actor=request.headers.get("cf-connecting-ip")||"anonymous"; await rateLimit(env,`security-disclosure:${actor}`,5); return json(await submitDisclosureReport(database(env),await body(request,30000)),202); }
-        if (request.method === "POST" && path === "/moderation/report") { const reporter=identity(request)?.id||null,actor=reporter||request.headers.get("cf-connecting-ip")||"anonymous"; await rateLimit(env,`moderation-report:${actor}`,60); return json(await submitAbuseReport(database(env),reporter,await body(request))); }
-    if (request.method === "POST" && (path === "/moderation/copyright-complaint" || path === "/rights/copyright-notice")) { const reporter=identity(request)?.id||null,actor=reporter||request.headers.get("cf-connecting-ip")||"anonymous"; await rateLimit(env,`copyright-notice:${actor}`,10); return json(await submitCopyrightNotice(database(env),reporter,await body(request))); }
+    if (request.method === "POST" && path === "/security/disclosure") { const actor=clientIp(request)||"anonymous"; await rateLimit(env,`security-disclosure:${actor}`,5); return json(await submitDisclosureReport(database(env),await body(request,30000)),202); }
+        if (request.method === "POST" && path === "/moderation/report") { const reporter=identity(request)?.id||null,actor=reporter||clientIp(request)||"anonymous"; await rateLimit(env,`moderation-report:${actor}`,60); return json(await submitAbuseReport(database(env),reporter,await body(request))); }
+    if (request.method === "POST" && (path === "/moderation/copyright-complaint" || path === "/rights/copyright-notice")) { const reporter=identity(request)?.id||null,actor=reporter||clientIp(request)||"anonymous"; await rateLimit(env,`copyright-notice:${actor}`,10); return json(await submitCopyrightNotice(database(env),reporter,await body(request))); }
     if (request.method !== "GET" && /^\/social\/authors\/[^/]+\/posts(?:\/[^/]+)?$/.test(path)) {
       const socialIdentity=identity(request);
       if (!socialIdentity) throw new ApiError(401,"Sign in to manage an author profile.");
@@ -2053,11 +2061,11 @@ async function handleCoveRequest(request: Request, env: CoveEnv, auth:Awaited<Re
     if (request.method === "POST" && path === "/promotions/event") {
       const payload:any=await body(request);
       const visitor=String(payload?.visitorId||"").slice(0,180);
-      await rateLimit(env,`promotion-event:${visitor||request.headers.get("cf-connecting-ip")||"anon"}`,240);
+      await rateLimit(env,`promotion-event:${visitor||clientIp(request)||"anon"}`,240);
       return json(await recordStorefrontPromotionEvent(database(env),identity(request)?.id||null,payload));
     }
     if (request.method === "GET" && path.startsWith("/delivery/epub/")) {
-      await rateLimit(env,`delivery-token:${request.headers.get("cf-connecting-ip")||"anon"}`,240);
+      await rateLimit(env,`delivery-token:${clientIp(request)||"anon"}`,240);
       return await serveCommercialEpubGrant(env,decodeURIComponent(path.slice("/delivery/epub/".length)),request);
     }
     const user = requiredUser(request);
