@@ -132,11 +132,9 @@ jobs:
           accountId: "d26430caa63ec55f6612e32f36aca5e9"
           command: deploy --config wrangler.backend.deploy.toml
           secrets: |
-            FORE_BACKEND_TOKEN
-            FORE_INGESTION_TRIGGER_TOKEN
+            FORE_INGESTION_SIGNING_KEY
         env:
-          FORE_BACKEND_TOKEN: ${{ secrets.FORE_BACKEND_TOKEN }}
-          FORE_INGESTION_TRIGGER_TOKEN: ${{ secrets.FORE_INGESTION_TRIGGER_TOKEN }}
+          FORE_INGESTION_SIGNING_KEY: ${{ secrets.FORE_INGESTION_SIGNING_KEY }}
 
       - name: Deployment summary
         shell: bash
@@ -154,6 +152,6 @@ jobs:
             else
               echo "- Read the Wrangler deploy output above for the Worker URL and set it as Vercel `FORE_BACKEND_URL`."
             fi
-            echo "- Keep the same `FORE_BACKEND_TOKEN` in Vercel."
-            echo "- Keep the same `FORE_INGESTION_TRIGGER_TOKEN` in Vercel and the Worker."
+            echo "- Vercel keeps `FORE_BACKEND_TOKEN`; Cloudflare validates its SHA-256 fingerprint from D1."
+            echo "- Cloudflare keeps the private `FORE_INGESTION_SIGNING_KEY`; Vercel keeps the matching public `FORE_INGESTION_VERIFY_JWK`."
           } >> "$GITHUB_STEP_SUMMARY"
