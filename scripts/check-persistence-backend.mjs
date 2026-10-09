@@ -14,6 +14,7 @@ const [
   packageRaw,
   wrangler,
   deployWorkflow,
+  audioDockerfile,
 ] = await Promise.all([
   read("src/server.ts"),
   read("src/lib/persistence-backend.ts"),
@@ -25,6 +26,7 @@ const [
   read("package.json"),
   read("wrangler.backend.example.toml"),
   read(".github/workflows/deploy-persistence-backend.yml"),
+  read("scripts/Dockerfile.vercel"),
 ]);
 
 const vercel = JSON.parse(vercelRaw);
@@ -88,8 +90,14 @@ assert.match(service, /ge=0/);
 
 assert.equal(vercel.services.app.framework, "tanstack-start");
 assert.equal(vercel.services.audio_pipeline.root, "scripts");
-assert.equal(vercel.services.audio_pipeline.framework, "fastapi");
-assert.equal(vercel.services.audio_pipeline.functions["**/*.py"].maxDuration, 300);
+assert.equal(vercel.services.audio_pipeline.runtime, "container");
+assert.equal(vercel.services.audio_pipeline.entrypoint, "Dockerfile.vercel");
+assert.equal(vercel.services.audio_pipeline.framework, undefined);
+assert.equal(vercel.services.audio_pipeline.functions, undefined);
+assert.match(audioDockerfile, /FROM python:3\.12-slim/);
+assert.match(audioDockerfile, /libgomp1/);
+assert.match(audioDockerfile, /uvicorn audio_pipeline\.service:app/);
+assert.match(audioDockerfile, /\$\{PORT:-3000\}/);
 assert.ok(
   vercel.services.app.bindings.some(
     (x) => x.service === "audio_pipeline" && x.env === "COVE_AUDIO_PIPELINE_URL",
