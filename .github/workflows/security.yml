@@ -1,4 +1,6 @@
 name: security
+
+# CodeQL is managed by GitHub default setup; do not duplicate advanced CodeQL actions here.
 on:
   pull_request:
   push:
