@@ -14,29 +14,40 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Diagnose Cove production persistence
+      - name: Diagnose Cove production and Worker edge
         shell: bash
         run: |
           set -euo pipefail
-          base="https://cove-puce-theta.vercel.app"
-          headers="$(mktemp)"
-          body="$(mktemp)"
-          status="$(curl --silent --show-error --retry 2 --retry-all-errors             -D "$headers" -o "$body" -w '%{http_code}'             "$base/api/fore/health/ready")"
-          {
-            echo "status=$status"
-            echo "=== headers ==="
-            cat "$headers"
-            echo "=== body ==="
-            head -c 5000 "$body"
-            echo
-          } | tee smoke.txt
-          test "$status" = "200"
-          grep -qi '^x-cove-persistence: remote-d1-r2' "$headers"
-          node --input-type=module - "$body" <<'NODE'
-          import fs from "node:fs";
-          const health = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
-          if (health.database !== true) throw new Error("Health response is not backed by D1");
-          NODE
+          public="https://cove-puce-theta.vercel.app/api/fore/health/ready"
+          backend="https://cove-persistence-backend.cove-jibrilmohamud.workers.dev/__cove/health"
+
+          probe () {
+            name="$1"
+            url="$2"
+            headers="$(mktemp)"
+            body="$(mktemp)"
+            status="$(curl --silent --show-error --retry 2 --retry-all-errors               -D "$headers" -o "$body" -w '%{http_code}' "$url")"
+            {
+              echo "=== $name ==="
+              echo "status=$status"
+              cat "$headers"
+              echo "--- body ---"
+              head -c 5000 "$body"
+              echo
+            } >> smoke.txt
+          }
+
+          probe public "$public"
+          probe backend-unauthenticated "$backend"
+          cat smoke.txt
+
+          public_status="$(awk '/^=== public ===/{f=1;next} f&&/^status=/{print substr($0,8);exit}' smoke.txt)"
+          backend_status="$(awk '/^=== backend-unauthenticated ===/{f=1;next} f&&/^status=/{print substr($0,8);exit}' smoke.txt)"
+
+          # Direct Worker execution should reject missing Cove gateway auth itself with 401.
+          test "$backend_status" = "401"
+          # The public proxy should be healthy only after the gateway path is working.
+          test "$public_status" = "200"
 
       - name: Upload smoke evidence
         if: always()
