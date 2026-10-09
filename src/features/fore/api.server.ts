@@ -1552,7 +1552,7 @@ async function reportExternalError(env:CoveEnv,request:Request,error:unknown){
   const redact=(v:string)=>String(v||"").replace(/(authorization\s*[:=]\s*(?:bearer\s+)?)[^\s,;]+/ig,"$1[REDACTED]").replace(/fore_svc_[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,"fore_svc_[REDACTED]").replace(/\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9_-]+\b/g,"[REDACTED_STRIPE_SECRET]").replace(/([?&](?:token|secret|key|signature|password)=)[^&#\s]+/ig,"$1[REDACTED]");
   const e=error instanceof Error?error:new Error(String(error));
   const payload={service:"fore-api",requestId:request.headers.get("x-fore-request-id"),traceId:request.headers.get("x-fore-trace-id"),method:request.method,path:new URL(request.url).pathname,errorClass:e.name,message:redact(e.message).slice(0,1200),stack:redact((e.stack||"").split("\n").slice(0,12).join("\n")).slice(0,4000),at:now()};
-  try{await fetch(endpoint.toString(),{method:"POST",redirect:"error",headers:{"content-type":"application/json",...(env.FORE_ERROR_REPORTING_TOKEN?{"authorization":`Bearer ${env.FORE_ERROR_REPORTING_TOKEN}`}:{})},body:JSON.stringify(payload),signal:AbortSignal.timeout(3000)});}catch{}
+  try{await fetch(endpoint.toString(),{method:"POST",redirect:"manual",headers:{"content-type":"application/json",...(env.FORE_ERROR_REPORTING_TOKEN?{"authorization":`Bearer ${env.FORE_ERROR_REPORTING_TOKEN}`}:{})},body:JSON.stringify(payload),signal:AbortSignal.timeout(3000)});}catch{}
 }
 
 export async function handleCoveApi(request: Request, env: CoveEnv): Promise<Response | null> {
