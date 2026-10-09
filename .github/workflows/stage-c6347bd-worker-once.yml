@@ -1,0 +1,28 @@
+name: stage-c6347bd-worker-once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/stage-c6347bd-worker-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Stage c6347bd Worker bundle into private R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail-with-body --silent --show-error --retry 4 --retry-all-errors             -X POST             https://cove-artifact-stager.cove-jibrilmohamud.workers.dev/__cove/stage-c6347bd)"
+          printf '%s\n' "$response"
+          RESPONSE="$response" node --input-type=module - <<'NODE'
+          const payload=JSON.parse(process.env.RESPONSE);
+          if(payload.ok!==true||payload.sourceCommit!=="c6347bd5e5125e9dc1ad5493176f2ccff15f7413"||Number(payload.bytes)<1000000){
+            throw new Error("Artifact staging failed");
+          }
+          NODE
