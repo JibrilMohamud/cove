@@ -12,13 +12,13 @@ database_name = "cove-production"
 database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"
 migrations_dir = "drizzle"
 
-# R2 account activation is still required before this bucket can be created.
+# Provisioned private R2 media bucket; public r2.dev access remains disabled.
 [[r2_buckets]]
 binding = "BUCKET"
 bucket_name = "cove-production-media"
 
 [vars]
-# Set this to Cove's canonical Vercel production origin before the real backend deploy.
+# Canonical verified Cove Vercel production origin.
 FORE_PUBLIC_URL = "https://cove-puce-theta.vercel.app"
 FORE_ENVIRONMENT = "production"
 FORE_DEFAULT_TERRITORY = "US"
@@ -33,7 +33,12 @@ crons = ["*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"
 #   workers.dev: cove-jibrilmohamud.workers.dev
 #   backend origin: https://cove-persistence-backend.cove-jibrilmohamud.workers.dev
 #
-# Required Worker secrets:
-#   FORE_BACKEND_TOKEN
-#   FORE_INGESTION_TRIGGER_TOKEN
-# plus Cove's enabled provider secrets (Supabase, Stripe, etc.).
+# Production authentication:
+#   - Vercel stores FORE_BACKEND_TOKEN; this Worker verifies its SHA-256 fingerprint
+#     from D1 cove_runtime_config (backend_token_sha256), so Cloudflare never needs
+#     the gateway token in plaintext.
+#   - Cloudflare stores FORE_INGESTION_SIGNING_KEY (P-256 private JWK).
+#   - Vercel stores the matching FORE_INGESTION_VERIFY_JWK public key.
+#   - Vercel stores the scoped FORE_SERVICE_TOKEN used by the audio pipeline; D1
+#     stores only its service-principal credential digest and scopes.
+# Provider secrets (Supabase, Stripe, etc.) remain in their platform secret stores.
