@@ -9,10 +9,12 @@ import {
 
 type BackendEnv = CoveEnv & {
   FORE_BACKEND_TOKEN?: string;
+  FORE_BACKEND_TOKEN_SHA256?: string;
   FORE_PUBLIC_URL?: string;
   FORE_CATALOG_PAGES_PER_TICK?: string;
   FORE_CATALOG_EPUBS_PER_TICK?: string;
   FORE_INGESTION_TRIGGER_TOKEN?: string;
+  FORE_INGESTION_SIGNING_KEY?: string;
 };
 
 type ExecutionContextLike = {
@@ -40,10 +42,21 @@ function safeEqual(a: string, b: string) {
   return diff === 0;
 }
 
-function authorized(request: Request, env: BackendEnv) {
-  const expected = env.FORE_BACKEND_TOKEN || "";
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function authorized(request: Request, env: BackendEnv) {
   const supplied = request.headers.get("x-cove-backend-token") || "";
-  return expected.length >= 24 && safeEqual(expected, supplied);
+  if (supplied.length < 24) return false;
+
+  const expected = env.FORE_BACKEND_TOKEN || "";
+  if (expected.length >= 24 && safeEqual(expected, supplied)) return true;
+
+  const expectedHash = (env.FORE_BACKEND_TOKEN_SHA256 || "").toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(expectedHash)) return false;
+  return safeEqual(expectedHash, await sha256Hex(supplied));
 }
 
 function json(data: unknown, status = 200) {
@@ -226,18 +239,54 @@ async function maintenance(env: BackendEnv) {
   });
 }
 
-async function triggerVercelAudio(env: BackendEnv, path: string) {
-  const secret = env.FORE_INGESTION_TRIGGER_TOKEN || "";
-  if (!env.FORE_PUBLIC_URL || secret.length < 24) {
+function base64url(bytes: ArrayBuffer) {
+  let binary = "";
+  for (const byte of new Uint8Array(bytes)) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function ingestionTriggerHeaders(env: BackendEnv, target: URL) {
+  const legacySecret = env.FORE_INGESTION_TRIGGER_TOKEN || "";
+  if (legacySecret.length >= 24) {
+    return { authorization: `Bearer ${legacySecret}` };
+  }
+
+  const signingKey = env.FORE_INGESTION_SIGNING_KEY || "";
+  if (!signingKey) {
     throw new Error(
-      "FORE_PUBLIC_URL and FORE_INGESTION_TRIGGER_TOKEN are required for audio scheduling.",
+      "FORE_INGESTION_SIGNING_KEY or legacy FORE_INGESTION_TRIGGER_TOKEN is required for audio scheduling.",
     );
+  }
+
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    JSON.parse(signingKey) as JsonWebKey,
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["sign"],
+  );
+  const timestamp = String(Date.now());
+  const message = `${timestamp}\nPOST\n${target.pathname}${target.search}`;
+  const signature = await crypto.subtle.sign(
+    { name: "ECDSA", hash: "SHA-256" },
+    key,
+    new TextEncoder().encode(message),
+  );
+  return {
+    "x-cove-ingestion-timestamp": timestamp,
+    "x-cove-ingestion-signature": base64url(signature),
+  };
+}
+
+async function triggerVercelAudio(env: BackendEnv, path: string) {
+  if (!env.FORE_PUBLIC_URL) {
+    throw new Error("FORE_PUBLIC_URL is required for audio scheduling.");
   }
 
   const target = new URL(path, env.FORE_PUBLIC_URL);
   const response = await fetch(target, {
     method: "POST",
-    headers: { authorization: `Bearer ${secret}` },
+    headers: await ingestionTriggerHeaders(env, target),
     signal: AbortSignal.timeout(290_000),
   });
   if (!response.ok) {
@@ -305,7 +354,7 @@ export default {
   },
 
   async fetch(request: Request, env: BackendEnv, ctx: ExecutionContextLike) {
-    if (!authorized(request, env)) {
+    if (!(await authorized(request, env))) {
       return json({ error: "Persistence gateway authorization required." }, 401);
     }
 
