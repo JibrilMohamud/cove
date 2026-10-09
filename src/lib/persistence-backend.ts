@@ -5,6 +5,7 @@ type PersistenceEnv = {
   COVE_AUDIO_PIPELINE_URL?: string;
   CRON_SECRET?: string;
   FORE_INGESTION_TRIGGER_TOKEN?: string;
+  FORE_INGESTION_VERIFY_JWK?: string;
 };
 
 const gatewayHeader = "x-cove-backend-token";
@@ -214,11 +215,51 @@ async function audioControl(env: PersistenceEnv, payload: Record<string, unknown
   }
 }
 
-function cronAuthorized(request: Request, env: PersistenceEnv) {
+function base64urlBytes(value: string) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+async function cronAuthorized(request: Request, env: PersistenceEnv) {
   const secret = env.FORE_INGESTION_TRIGGER_TOKEN || env.CRON_SECRET || "";
-  return Boolean(
-    secret.length >= 24 && request.headers.get("authorization") === `Bearer ${secret}`,
-  );
+  if (secret.length >= 24 && request.headers.get("authorization") === `Bearer ${secret}`) {
+    return true;
+  }
+
+  const timestamp = request.headers.get("x-cove-ingestion-timestamp") || "";
+  const signature = request.headers.get("x-cove-ingestion-signature") || "";
+  const publicKey = env.FORE_INGESTION_VERIFY_JWK || "";
+  const timestampMs = Number(timestamp);
+  if (
+    !publicKey ||
+    !signature ||
+    !Number.isFinite(timestampMs) ||
+    Math.abs(Date.now() - timestampMs) > 5 * 60_000
+  ) {
+    return false;
+  }
+
+  try {
+    const key = await crypto.subtle.importKey(
+      "jwk",
+      JSON.parse(publicKey) as JsonWebKey,
+      { name: "ECDSA", namedCurve: "P-256" },
+      false,
+      ["verify"],
+    );
+    const url = new URL(request.url);
+    const message = `${timestamp}\n${request.method}\n${url.pathname}${url.search}`;
+    return await crypto.subtle.verify(
+      { name: "ECDSA", hash: "SHA-256" },
+      key,
+      base64urlBytes(signature),
+      new TextEncoder().encode(message),
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function passthroughJson(response: Response, stage: string) {
@@ -240,7 +281,7 @@ export async function handleVercelIngestionControl(
   if (request.method !== "GET" && request.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
-  if (!cronAuthorized(request, env)) {
+  if (!(await cronAuthorized(request, env))) {
     return new Response(JSON.stringify({ error: "Unauthorized ingestion controller." }), {
       status: 401,
       headers: {
