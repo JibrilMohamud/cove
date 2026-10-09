@@ -347,9 +347,10 @@ CREATE TRIGGER trg_publishing_asset_current_version
 BEFORE UPDATE OF current_version_id ON publishing_assets
 WHEN NEW.current_version_id IS NOT NULL
 BEGIN
-  SELECT CASE WHEN NOT EXISTS(
+  SELECT RAISE(ABORT,'publishing asset current version must belong to asset')
+  WHERE NOT EXISTS(
     SELECT 1 FROM publishing_asset_versions v WHERE v.id=NEW.current_version_id AND v.asset_id=NEW.id
-  ) THEN RAISE(ABORT,'publishing asset current version must belong to asset') END;
+  );
 END;
 
 -- Submission snapshots are legal/audit evidence and may never be edited after submission except lifecycle timestamps/status.
