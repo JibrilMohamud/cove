@@ -52,9 +52,9 @@ async function backendTokenHash(env: BackendEnv) {
   if (/^[a-f0-9]{64}$/.test(configured)) return configured;
 
   try {
-    const row = await env.DB
-      .prepare("SELECT value FROM cove_runtime_config WHERE key='backend_token_sha256'")
-      .first<{ value?: string }>();
+    const row = await env.DB.prepare(
+      "SELECT value FROM cove_runtime_config WHERE key='backend_token_sha256'",
+    ).first<{ value?: string }>();
     const persisted = String(row?.value || "").toLowerCase();
     return /^[a-f0-9]{64}$/.test(persisted) ? persisted : "";
   } catch {
