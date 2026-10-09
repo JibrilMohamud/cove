@@ -1,0 +1,31 @@
+name: stage-cloudflare-worker-once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/stage-cloudflare-worker-once.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Stage tested Worker bundle into private R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors             https://cove-persistence-backend.cove-jibrilmohamuds-projects.workers.dev/__cove/stage-c32dd26b 2>/dev/null || true)"
+          if [ -z "$response" ]; then
+            response="$(curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors               https://cove-persistence-backend.cove-jibrilmohamud.workers.dev/__cove/stage-c32dd26b)"
+          fi
+          printf '%s\n' "$response"
+          RESPONSE="$response" node --input-type=module - <<'NODE'
+          const payload = JSON.parse(process.env.RESPONSE);
+          if (payload.ok !== true || Number(payload.bytes) < 1_000_000) {
+            throw new Error("Cove Worker staging did not complete");
+          }
+          NODE
