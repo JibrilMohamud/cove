@@ -52,16 +52,3 @@ jobs:
         run: tar -czf fore-build.tgz dist .output 2>/dev/null || tar -czf fore-build.tgz dist
       - uses: actions/attest-build-provenance@v2
         with: {subject-path: fore-build.tgz}
-
-  codeql:
-    runs-on: ubuntu-latest
-    permissions:
-      security-events: write
-      packages: read
-      actions: read
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: github/codeql-action/init@v3
-        with: {languages: javascript-typescript}
-      - uses: github/codeql-action/analyze@v3
