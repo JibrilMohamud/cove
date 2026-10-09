@@ -200,11 +200,19 @@ def run(config,args):
     cache.mkdir(parents=True,exist_ok=True)
     os.environ.setdefault('FORE_RDF_CACHE',str(cache/'rdf'))
 
-    if not args.no_discovery:
+    run_discovery=not args.no_discovery
+    if args.kind=='discover' and args.no_discovery:
+        status=api.call('/audio-status')
+        # A brand-new persistent backend has no source scan yet. Bootstrap once
+        # instead of waiting for the daily scan schedule; completed/skipped job
+        # history remains in D1 and prevents this from repeating every 10 minutes.
+        run_discovery=not status.get('lastSuccessAt') and not status.get('jobs')
+
+    if run_discovery:
         items=bulk(cache)
         for i in range(0,len(items),100):
             api.call('/pipeline/discover','POST',{'items':items[i:i+100]})
-        print(json.dumps({'discovered':len(items)}),flush=True)
+        print(json.dumps({'discovered':len(items),'bootstrap':bool(args.no_discovery)}),flush=True)
 
     deadline=time.monotonic()+args.minutes*60
     done=0
