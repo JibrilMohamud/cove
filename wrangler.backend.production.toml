@@ -1,0 +1,39 @@
+# Cove production persistence backend.
+# Non-secret resource identifiers are intentionally committed.
+# Secrets remain in Cloudflare/Vercel secret stores and must never be added here.
+name = "cove-persistence-backend"
+main = "backend-dist/worker.js"
+compatibility_date = "2026-10-09"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cove-production"
+database_id = "8aec0c75-e17b-4b07-9f77-d8e2ead64bbd"
+migrations_dir = "drizzle"
+
+# R2 account activation is still required before this bucket can be created.
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "cove-production-media"
+
+[vars]
+# Set this to Cove's canonical Vercel production origin before the real backend deploy.
+FORE_PUBLIC_URL = "https://REPLACE_WITH_COVE_VERCEL_PRODUCTION_ORIGIN"
+FORE_ENVIRONMENT = "production"
+FORE_DEFAULT_TERRITORY = "US"
+FORE_CATALOG_PAGES_PER_TICK = "5"
+FORE_CATALOG_EPUBS_PER_TICK = "2"
+
+[triggers]
+crons = ["*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]
+
+# Cloudflare account:
+#   account_id: d26430caa63ec55f6612e32f36aca5e9
+#   workers.dev: cove-jibrilmohamud.workers.dev
+#   backend origin: https://cove-persistence-backend.cove-jibrilmohamud.workers.dev
+#
+# Required Worker secrets:
+#   FORE_BACKEND_TOKEN
+#   FORE_INGESTION_TRIGGER_TOKEN
+# plus Cove's enabled provider secrets (Supabase, Stripe, etc.).
