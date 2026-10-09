@@ -44,11 +44,18 @@ assert.match(gateway, /cf-ipcountry/);
 assert.match(gateway, /safePublicFallback/);
 assert.match(gateway, /COVE_AUDIO_PIPELINE_URL/);
 assert.match(gateway, /CRON_SECRET/);
+assert.match(gateway, /FORE_INGESTION_VERIFY_JWK/);
+assert.match(gateway, /x-cove-ingestion-signature/);
+assert.match(gateway, /ECDSA/);
 assert.doesNotMatch(gateway, /\bas any\b/);
 
 assert.match(worker, /x-cove-backend-token/);
 assert.doesNotMatch(worker, /\bas any\b/);
 assert.match(worker, /safeEqual/);
+assert.match(worker, /FORE_BACKEND_TOKEN_SHA256/);
+assert.match(worker, /FORE_INGESTION_SIGNING_KEY/);
+assert.match(worker, /x-cove-ingestion-signature/);
+assert.match(worker, /ECDSA/);
 assert.match(worker, /caches\?\.default|caches\?\.default/);
 assert.match(worker, /__cove_country/);
 assert.match(worker, /__cove_language/);
