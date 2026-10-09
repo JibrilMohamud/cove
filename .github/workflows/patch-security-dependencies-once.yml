@@ -72,5 +72,8 @@ jobs:
             exit 0
           fi
           git commit -m "Patch audited dependency vulnerabilities"
+          # Build tooling may update generated files; they are not part of this patch.
+          git reset --hard HEAD
+          git clean -fd
           git pull --rebase origin main
           git push origin HEAD:main
