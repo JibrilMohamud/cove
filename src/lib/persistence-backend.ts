@@ -47,28 +47,43 @@ function backendUrl(env: PersistenceEnv, requestUrl: URL) {
 
 function gatewayHeaders(request: Request, env: PersistenceEnv, target: URL) {
   const headers = new Headers(request.headers);
+
+  // Cloudflare owns the cf-* namespace. Forwarding client-supplied or upstream
+  // cf-* headers to workers.dev can be rejected at the edge before Cove runs.
+  for (const name of Array.from(headers.keys())) {
+    if (name.toLowerCase().startsWith("cf-")) headers.delete(name);
+  }
   for (const name of [
     "host",
     "content-length",
+    "connection",
+    "transfer-encoding",
+    "forwarded",
+    "x-forwarded-for",
+    "x-forwarded-host",
+    "x-forwarded-proto",
+    "x-real-ip",
     "x-cove-backend-token",
     "x-cove-public-url",
-    "cf-ipcountry",
-    "cf-connecting-ip",
+    "x-cove-client-country",
+    "x-cove-client-ip",
+    "x-cove-backend-host",
   ]) {
     headers.delete(name);
   }
+
   headers.set(gatewayHeader, env.FORE_BACKEND_TOKEN!);
   headers.set("x-cove-public-url", request.url);
-  headers.set("x-forwarded-host", new URL(request.url).host);
-  headers.set("x-forwarded-proto", new URL(request.url).protocol.replace(":", ""));
-  const country = request.headers.get("x-vercel-ip-country");
+
+  const country = request.headers.get("x-vercel-ip-country")?.trim().toUpperCase();
   if (country && /^[A-Z]{2}$/.test(country)) {
-    headers.set("cf-ipcountry", country);
+    headers.set("x-cove-client-country", country);
   }
+
   const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) {
-    headers.set("cf-connecting-ip", forwarded.split(",")[0].trim());
-  }
+  const clientIp = forwarded?.split(",")[0]?.trim() || request.headers.get("x-real-ip")?.trim();
+  if (clientIp) headers.set("x-cove-client-ip", clientIp.slice(0, 128));
+
   headers.set("x-cove-backend-host", target.host);
   return headers;
 }
