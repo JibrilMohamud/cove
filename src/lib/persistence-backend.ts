@@ -88,7 +88,7 @@ function gatewayHeaders(request: Request, env: PersistenceEnv, target: URL) {
   return headers;
 }
 
-function rewriteResponse(response: Response, env: PersistenceEnv) {
+async function rewriteResponse(response: Response, env: PersistenceEnv) {
   const headers = new Headers(response.headers);
   headers.set("x-cove-persistence", "remote-d1-r2");
   const location = headers.get("location");
@@ -107,6 +107,27 @@ function rewriteResponse(response: Response, env: PersistenceEnv) {
       // Ignore malformed or non-HTTP redirect locations from the private backend.
     }
   }
+
+  // Vercel's TanStack/Nitro handoff can lose a nested fetch ReadableStream even
+  // though status and headers survive. Materialize bounded textual API responses
+  // before crossing that handoff; keep EPUB/audio/binary payloads streamed.
+  const contentType = (headers.get("content-type") || "").toLowerCase();
+  const materialize =
+    contentType.includes("application/json") ||
+    contentType.startsWith("text/") ||
+    contentType.includes("+json");
+
+  if (materialize && !["HEAD", "204", "304"].includes(String(response.status))) {
+    const body = await response.arrayBuffer();
+    headers.delete("content-length");
+    headers.delete("content-encoding");
+    return new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  }
+
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -157,7 +178,7 @@ export async function proxyPersistenceApi(
       console.warn("Persistent backend unavailable; using public-domain fallback", response.status);
       return null;
     }
-    return rewriteResponse(response, env);
+    return await rewriteResponse(response, env);
   } catch (error) {
     if (safePublicFallback(request)) {
       console.warn("Persistent backend request failed; using public-domain fallback", error);
