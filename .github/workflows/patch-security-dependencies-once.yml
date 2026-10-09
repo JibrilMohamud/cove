@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   # Re-run after CodeQL regression alignment
+  # Re-run after persistence trust-model regression alignment
   patch:
     runs-on: ubuntu-latest
     timeout-minutes: 25
