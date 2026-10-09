@@ -4,6 +4,7 @@ import {
   canonicalizeRegionalDocument,
   canonicalizeRegionalEpub,
   fetchRegionalCatalog,
+  fetchRegionalResource,
   regionalSourceConfig,
   sha256Hex,
   trustedRegionalAssetUrl,
@@ -495,8 +496,7 @@ const catalogBase = (env: CoveEnv) => {
   const raw = (env.GUTENDEX_BASE_URL || "https://gutendex.com").replace(/\/+$/, "");
   return raw.endsWith("/books") ? raw.slice(0, -6) : raw;
 };
-const firstCatalogUrl = (env: CoveEnv) =>
-  catalogBase(env) + "/books/?copyright=false&mime_type=application%2Fepub%2Bzip";
+const firstCatalogUrl = (env: CoveEnv) => catalogBase(env) + "/books/?page=1";
 const parseJsonArray = (value: unknown): any[] => {
   try {
     const parsed = JSON.parse(String(value ?? "[]"));
@@ -877,8 +877,37 @@ function pageFromUrl(value: string) {
   }
 }
 async function fetchGutenbergAsset(source: string, env: CoveEnv, sourceId: "pg_us" | RegionalSourceId, mimeType: "application/epub+zip" | "text/html") {
-  const sourceUrl = sourceId === "pg_us" ? mirrorUrl(source, env.GUTENBERG_MIRROR_BASE_URL) : trustedRegionalAssetUrl(sourceId, source, env);
-  return fetch(sourceUrl, { redirect: "error", headers: { Accept: mimeType === "text/html" ? "text/html,application/xhtml+xml;q=0.9" : "application/epub+zip" }, signal: AbortSignal.timeout(60000) });
+  const headers = { Accept: mimeType === "text/html" ? "text/html,application/xhtml+xml;q=0.9" : "application/epub+zip" };
+  if (sourceId !== "pg_us") {
+    const sourceUrl = trustedRegionalAssetUrl(sourceId, source, env);
+    return fetchRegionalResource(sourceId, sourceUrl, env, {
+      headers,
+      signal: AbortSignal.timeout(60000),
+    });
+  }
+
+  const sourceUrl = mirrorUrl(source, env.GUTENBERG_MIRROR_BASE_URL);
+  const initial = new URL(sourceUrl);
+  let target = initial;
+  for (let hop = 0; hop < 5; hop++) {
+    const trusted =
+      target.protocol === "https:" &&
+      !target.username &&
+      !target.password &&
+      !target.port &&
+      (target.origin === initial.origin || ["www.gutenberg.org", "gutenberg.org"].includes(target.hostname));
+    if (!trusted) throw new Error("Gutenberg asset redirect left the trusted mirror set.");
+    const response = await fetch(target, {
+      redirect: "manual",
+      headers,
+      signal: AbortSignal.timeout(60000),
+    });
+    if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+    const location = response.headers.get("location");
+    if (!location) throw new Error("Gutenberg asset redirect omitted Location.");
+    target = new URL(location, target);
+  }
+  throw new Error("Gutenberg asset exceeded the redirect limit.");
 }
 async function fetchGutenbergEpub(source: string, env: CoveEnv, sourceId: "pg_us" | RegionalSourceId = "pg_us") {
   return fetchGutenbergAsset(source, env, sourceId, "application/epub+zip");
@@ -1175,7 +1204,10 @@ export async function runCatalogIngestion(env: CoveEnv, epubLimit = 1) {
   const db = database(env);
   const state = await db.prepare("SELECT * FROM catalog_state WHERE id=1").first<any>();
   const current = Date.now();
-  if (state?.next_run_at && Date.parse(state.next_run_at) > current) return { skipped: "backoff", regional };
+  if (state?.next_run_at && Date.parse(state.next_run_at) > current) {
+    const epubs = await cachePendingEpubs(env, epubLimit);
+    return { skipped: "backoff", epubs, regional };
+  }
   if (
     state?.status === "running" &&
     state.last_run_at &&
@@ -1204,14 +1236,16 @@ export async function runCatalogIngestion(env: CoveEnv, epubLimit = 1) {
         Accept: "application/json",
         "User-Agent": "CoveReader/1.0 (persistent Gutenberg catalog harvester)",
       },
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(45000),
     });
     if (!response.ok) throw new Error("Catalog source returned " + response.status);
     const payload = (await response.json()) as any;
     if (!Array.isArray(payload.results))
       throw new Error("Catalog source returned an invalid page.");
     const at = now();
-    const accepted = payload.results.filter((book: any) => book.copyright === false);
+    const accepted = payload.results.filter(
+      (book: any) => book.copyright === false && Boolean(epubSource(book.formats || {})),
+    );
     const statements = accepted.map((book: any) =>
       catalogInsert(
         db,
@@ -1261,17 +1295,20 @@ export async function runCatalogIngestion(env: CoveEnv, epubLimit = 1) {
     const retryAt = new Date(
       Date.now() + Math.min(24 * 60 * 60 * 1000, Math.pow(2, attempts) * 5 * 60 * 1000),
     ).toISOString();
+    const message = error instanceof Error ? error.message.slice(0, 1000) : String(error).slice(0, 1000);
     await db
       .prepare(
         "UPDATE catalog_state SET status='failed',last_error=?,attempts=?,next_run_at=? WHERE id=1",
       )
-      .bind(
-        error instanceof Error ? error.message.slice(0, 1000) : String(error).slice(0, 1000),
-        attempts,
-        retryAt,
-      )
+      .bind(message, attempts, retryAt)
       .run();
-    throw error;
+    return {
+      failed: true,
+      error: message,
+      retryAt,
+      epubs: await cachePendingEpubs(env, epubLimit),
+      regional,
+    };
   }
 }
 let ingestionInFlight: Promise<any> | null = null;
