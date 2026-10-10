@@ -1,8 +1,8 @@
 """Vercel Services HTTP wrapper for Cove's bounded audio worker.
 
-The service is internal by default. The worker itself calls the Cove app through
-the COVE_APP_INTERNAL_URL service binding. Long-running orchestration/scheduling
-is intentionally left outside this wrapper until deployment limits are confirmed.
+The service is internal by default. It calls Cove's persistent D1/R2 backend
+directly using the scoped gateway and service credentials. Cloudflare owns the
+durable schedule; each invocation stays bounded by Vercel's compute window.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ app = FastAPI(title="Cove audio pipeline", docs_url=None, redoc_url=None)
 
 class RunRequest(BaseModel):
     kind: Literal["discover", "track", "align"] | None = None
-    max_jobs: int = Field(default=1, ge=0, le=3)
+    max_jobs: int = Field(default=1, ge=0, le=24)
     minutes: int = Field(default=4, ge=1, le=10)
     no_discovery: bool = True
     threads: int = Field(default=2, ge=1, le=4)
