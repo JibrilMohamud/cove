@@ -15,7 +15,14 @@ export function mirrorUrl(source: string, base = "https://gutenberg.pglaf.org") 
     throw Error("A secure mirror URL is required.");
   let path = u.pathname;
   const generated=path.match(/^\/ebooks\/(\d+)\.(epub3?)(?:\.(noimages|images))?$/);
-  if(generated)path=`/cache/epub/${generated[1]}/pg${generated[1]}.${generated[2]}${generated[3]==='images'?'-images':''}`;
+  if (generated) {
+    const [, id, format, variant] = generated;
+    const filename =
+      variant === "images"
+        ? `pg${id}-images${format === "epub3" ? "-3" : ""}.epub`
+        : `pg${id}.epub`;
+    path = `/cache/epub/${id}/${filename}`;
+  }
   const files = path.match(/^\/(?:files|ebooks)\/(\d+)\/(.*)$/);
   if (files) {
     const id = files[1];
