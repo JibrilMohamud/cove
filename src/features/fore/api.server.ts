@@ -973,7 +973,10 @@ async function cachePendingEpubs(env: CoveEnv, limit = 1) {
     .bind(now(), staleDownloadBefore).run();
   const queued = await db.prepare(`WITH ranked AS (
       SELECT id,title,authors_json,languages_json,source_id,source_item_id,formats_json,epub_attempts,rights_territories_json,rights_evidence_url,source_url,content_hash,source_metadata_json,
-        ROW_NUMBER() OVER(PARTITION BY source_id ORDER BY updated_at ASC,id ASC) source_rank
+        ROW_NUMBER() OVER(
+          PARTITION BY source_id
+          ORDER BY CASE epub_status WHEN 'retry' THEN 0 ELSE 1 END,updated_at ASC,id ASC
+        ) source_rank
       FROM gutenberg_source_cache WHERE epub_status IN ('pending','retry') AND ingest_status<>'quarantined'
         AND (epub_next_attempt_at='' OR epub_next_attempt_at<=?)
     ) SELECT id,title,authors_json,languages_json,source_id,source_item_id,formats_json,epub_attempts,rights_territories_json,rights_evidence_url,source_url,content_hash,source_metadata_json
