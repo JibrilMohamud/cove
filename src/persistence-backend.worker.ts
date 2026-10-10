@@ -349,13 +349,13 @@ function isD1QuotaError(error: unknown) {
 }
 
 async function d1QuotaBlocked() {
-  const runtimeCache = (globalThis as any).caches?.default as Cache | undefined;
+  const runtimeCache = (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default;
   if (!runtimeCache) return false;
   return Boolean(await runtimeCache.match(D1_QUOTA_CACHE_KEY));
 }
 
 async function markD1QuotaBlocked() {
-  const runtimeCache = (globalThis as any).caches?.default as Cache | undefined;
+  const runtimeCache = (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default;
   if (!runtimeCache) return;
   await runtimeCache.put(
     D1_QUOTA_CACHE_KEY,
@@ -372,28 +372,28 @@ async function runScheduled(cron: string, env: BackendEnv) {
   }
   try {
     if (cron === "*/5 * * * *") {
-    await Promise.all([
-      scheduledCatalog(env),
-      triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-track"),
-    ]);
-    return;
-  }
-  if (cron === "*/10 * * * *") {
-    await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-discover");
-    return;
-  }
-  if (cron === "23 * * * *") {
-    await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align");
-    return;
-  }
-  if (cron === "17 3 * * *") {
-    await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-scan");
-    return;
-  }
-  if (cron === "41 4 * * *") {
-    await scheduledMaintenance(env);
-    return;
-  }
+      await Promise.all([
+        scheduledCatalog(env),
+        triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-track"),
+      ]);
+      return;
+    }
+    if (cron === "*/10 * * * *") {
+      await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-discover");
+      return;
+    }
+    if (cron === "23 * * * *") {
+      await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align");
+      return;
+    }
+    if (cron === "17 3 * * *") {
+      await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-scan");
+      return;
+    }
+    if (cron === "41 4 * * *") {
+      await scheduledMaintenance(env);
+      return;
+    }
     console.warn("Unknown Cove scheduled trigger", cron);
   } catch (error) {
     if (isD1QuotaError(error)) {
