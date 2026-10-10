@@ -337,7 +337,7 @@ async function scheduledMaintenance(env: BackendEnv) {
 }
 
 const D1_QUOTA_CACHE_KEY = new Request(
-  "https://cove-persistence-backend.cove-jibrilmohamud.workers.dev/__cove/internal/d1-quota-block",
+  "https://cove-persistence-backend.cove-jibrilmohamud.workers.dev/__cove/internal/d1-quota-block-v2",
 );
 
 function isD1QuotaError(error: unknown) {
