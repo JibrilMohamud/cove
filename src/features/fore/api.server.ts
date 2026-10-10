@@ -966,6 +966,11 @@ async function quarantineRegionalItem(env: CoveEnv, id: string, message: string)
 async function cachePendingEpubs(env: CoveEnv, limit = 1) {
   if (!env.BUCKET) return { attempted: 0, downloaded: 0, failed: 0, quarantined: 0 };
   const db = database(env);
+  const staleDownloadBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  await db.prepare(`UPDATE gutenberg_source_cache
+    SET epub_status='retry',epub_next_attempt_at='',epub_last_error='Recovered after an interrupted EPUB download.',updated_at=?
+    WHERE epub_status='downloading' AND updated_at<?`)
+    .bind(now(), staleDownloadBefore).run();
   const queued = await db.prepare(`WITH ranked AS (
       SELECT id,title,authors_json,languages_json,source_id,source_item_id,formats_json,epub_attempts,rights_territories_json,rights_evidence_url,source_url,content_hash,source_metadata_json,
         ROW_NUMBER() OVER(PARTITION BY source_id ORDER BY updated_at ASC,id ASC) source_rank
@@ -986,7 +991,7 @@ async function cachePendingEpubs(env: CoveEnv, limit = 1) {
       await db.prepare("UPDATE gutenberg_source_cache SET epub_status='unavailable',epub_last_error='No supported source asset was provided.' WHERE id=?").bind(id).run();
       continue;
     }
-    await db.prepare("UPDATE gutenberg_source_cache SET epub_status='downloading',epub_last_error='' WHERE id=?").bind(id).run();
+    await db.prepare("UPDATE gutenberg_source_cache SET epub_status='downloading',epub_last_error='',updated_at=? WHERE id=?").bind(now(),id).run();
     try {
       if (sourceId === "pg_eu") {
         const metadata = parseJsonObject(row.source_metadata_json || "{}");
