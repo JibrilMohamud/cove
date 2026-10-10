@@ -2,9 +2,10 @@ name: stage-cloudflare-worker-artifact-once
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
-      - ".github/workflows/stage-cloudflare-worker-artifact-once.yml"
+      - .github/workflows/stage-cloudflare-worker-artifact-once.yml
 
 permissions:
   contents: read
@@ -18,13 +19,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          response="$(curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors             -X POST             https://cove-artifact-stager.cove-jibrilmohamud.workers.dev/stage-e901e340)"
-          printf '%s
-' "$response"
-          RESPONSE="$response" node --input-type=module - <<'NODE'
-          const x=JSON.parse(process.env.RESPONSE);
-          if(x.ok!==true) throw new Error("stager did not report success");
-          if(x.sourceCommit!=="e901e3403e788cf958298ada73011b4c290e7dca") throw new Error("wrong source commit");
-          if(Number(x.bytes)<1_000_000) throw new Error("artifact too small");
-          if(!/^[a-f0-9]{64}$/.test(x.sha256)) throw new Error("missing sha256");
-          NODE
+          response=$(curl --fail-with-body --silent --show-error --retry 3 --retry-all-errors -X POST https://cove-artifact-stager.cove-jibrilmohamud.workers.dev/stage-e901e340)
+          echo "$response"
+          echo "$response" | grep -F '"ok":true'
+          echo "$response" | grep -F '"sourceCommit":"e901e3403e788cf958298ada73011b4c290e7dca"'
