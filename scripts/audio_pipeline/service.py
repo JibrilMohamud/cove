@@ -6,6 +6,7 @@ durable schedule; each invocation stays bounded by Vercel's compute window.
 """
 from __future__ import annotations
 
+import logging
 import os
 from types import SimpleNamespace
 from typing import Literal
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field
 from .runner import run
 
 app = FastAPI(title="Cove audio pipeline", docs_url=None, redoc_url=None)
+logger = logging.getLogger("cove.audio_pipeline")
 
 
 class RunRequest(BaseModel):
@@ -88,7 +90,27 @@ def run_pipeline(request: RunRequest) -> dict[str, object]:
         no_discovery=request.no_discovery,
         threads=request.threads,
     )
-    run(config, args)
+    try:
+        run(config, args)
+    except HTTPException:
+        raise
+    except Exception as error:
+        message = str(error).replace("\n", " ").replace("\r", " ")[:700]
+        logger.exception(
+            "Cove audio pipeline run failed kind=%s max_jobs=%s",
+            request.kind,
+            request.max_jobs,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "audio_pipeline_unavailable",
+                "stage": request.kind or "mixed",
+                "type": type(error).__name__,
+                "message": message or "Audio pipeline execution failed",
+                "retryable": True,
+            },
+        ) from error
     return {
         "ok": True,
         "requestedMaxJobs": request.max_jobs,
