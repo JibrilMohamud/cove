@@ -336,8 +336,42 @@ async function scheduledMaintenance(env: BackendEnv) {
   if (!response.ok) throw new Error("Scheduled Cove maintenance failed.");
 }
 
+const D1_QUOTA_CACHE_KEY = new Request(
+  "https://cove-persistence-backend.cove-jibrilmohamud.workers.dev/__cove/internal/d1-quota-block",
+);
+
+function isD1QuotaError(error: unknown) {
+  const message = String(error instanceof Error ? error.message : error).toLowerCase();
+  return (
+    message.includes("exceeded d1's free tier daily row write limit") ||
+    message.includes("exceeded d1's free tier daily row read limit")
+  );
+}
+
+async function d1QuotaBlocked() {
+  const runtimeCache = (globalThis as any).caches?.default as Cache | undefined;
+  if (!runtimeCache) return false;
+  return Boolean(await runtimeCache.match(D1_QUOTA_CACHE_KEY));
+}
+
+async function markD1QuotaBlocked() {
+  const runtimeCache = (globalThis as any).caches?.default as Cache | undefined;
+  if (!runtimeCache) return;
+  await runtimeCache.put(
+    D1_QUOTA_CACHE_KEY,
+    new Response("quota-backoff", {
+      headers: { "cache-control": "public, max-age=900" },
+    }),
+  );
+}
+
 async function runScheduled(cron: string, env: BackendEnv) {
-  if (cron === "*/5 * * * *") {
+  if (await d1QuotaBlocked()) {
+    console.warn("Cove ingestion paused briefly after a D1 quota limit.");
+    return;
+  }
+  try {
+    if (cron === "*/5 * * * *") {
     await Promise.all([
       scheduledCatalog(env),
       triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-track"),
@@ -360,7 +394,15 @@ async function runScheduled(cron: string, env: BackendEnv) {
     await scheduledMaintenance(env);
     return;
   }
-  console.warn("Unknown Cove scheduled trigger", cron);
+    console.warn("Unknown Cove scheduled trigger", cron);
+  } catch (error) {
+    if (isD1QuotaError(error)) {
+      await markD1QuotaBlocked();
+      console.warn("Cove ingestion hit a D1 quota limit; backing off for 15 minutes.");
+      return;
+    }
+    throw error;
+  }
 }
 
 export default {
