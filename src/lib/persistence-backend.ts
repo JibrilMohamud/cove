@@ -349,7 +349,7 @@ export async function handleVercelIngestionControl(
     },
     "/api/fore/internal/ingestion/audio-discover": {
       kind: "discover",
-      max_jobs: 3,
+      max_jobs: 12,
       minutes: 4,
       no_discovery: true,
       threads: 2,
