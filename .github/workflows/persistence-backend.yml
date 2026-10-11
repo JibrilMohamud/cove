@@ -78,9 +78,9 @@ jobs:
           npm run test:legal
           npm run test:account-experience
       - name: Personal library and highlights regressions
-        run: |
-          npm run test:service
-          npm run test:store
+        # The separate storefront search suite requires a seeded FTS catalog;
+        # the persistence test runner intentionally starts with empty D1.
+        run: npm run test:service
       - name: Catalog network recovery
         run: node scripts/check-catalog-fetch.mjs
       - name: Python syntax
