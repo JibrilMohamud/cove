@@ -108,17 +108,19 @@ def main() -> None:
     if row["status"] == "running":
         raise RuntimeError("Refusing to override an active BioSync job lease")
     audio_sha, epub_sha = track["sha256"], row["epub_sha256"]
-    if query("SELECT 1 FROM audio_timing WHERE edition_id=? AND track_id=? AND audio_sha256=? AND epub_sha256=? LIMIT 1",
-             [EDITION, TRACK, audio_sha, epub_sha]):
-        print("BioSync canary already published and verified in D1")
+    existing = query("SELECT map_sha256 FROM audio_timing WHERE edition_id=? AND track_id=? AND audio_sha256=? AND epub_sha256=? LIMIT 1",
+             [EDITION, TRACK, audio_sha, epub_sha])
+    if existing:
+        map_hash = existing[0]["map_sha256"]
+        download_verified(f"biosync/maps/{map_hash}.json", map_hash)
+        print("BioSync canary already published and verified in D1 and R2")
         return
 
-    transcript = json.loads(download_verified(
-        f"biosync/transcripts/cloudflare-whisper-v1/{audio_sha}.json",
-        # The pinned transcript is authenticated by its R2 key and checked
-        # against its embedded prepared-audio SHA-256 below. R2 exposes no
-        # separate content-hash field for this generated transcript.
-        hashlib.sha256(authorized_request("GET", r2_url(f"biosync/transcripts/cloudflare-whisper-v1/{audio_sha}.json"))).hexdigest(),
+    # The R2 cache object key includes the pinned audio digest. Its JSON
+    # identity and hosted engine must match that same audio digest; unlike
+    # published timing maps, a transcript has no separate stored blob digest.
+    transcript = json.loads(authorized_request(
+        "GET", r2_url(f"biosync/transcripts/cloudflare-whisper-v1/{audio_sha}.json")
     ))
     if (transcript.get("identity", {}).get("audioSha256") != audio_sha
             or transcript.get("engine") != "cloudflare-workers-ai-whisper"
@@ -136,6 +138,16 @@ def main() -> None:
         raise RuntimeError("EPUB CFI index identity mismatch")
 
     mapping = align(index, transcript, TRACK, audio_sha)
+    # Audit every returned EPUB anchor against the reindexed, exact file.
+    # This prevents accidentally publishing a text/Cfi pair which merely
+    # looks syntactically valid but refers to a different word or book.
+    for cue in mapping.get("words", []):
+        n = cue["wordIndex"]
+        if not 0 <= n < len(index["words"]):
+            raise RuntimeError("Checked word index exceeds EPUB word count")
+        source = index["words"][n]
+        if any(cue[k] != source[k] for k in ("cfi", "endCfi", "href", "text")):
+            raise RuntimeError("Checked cue does not match pinned EPUB contents")
     mapping["duration"] = float(track["duration"])
     if mapping["status"] != "checked":
         raise RuntimeError("Canary not publishable: " + mapping.get("reason", "insufficient evidence"))
@@ -146,6 +158,7 @@ def main() -> None:
     upload = json.loads(authorized_request("PUT", r2_url(key), contents))
     if not upload.get("success"):
         raise RuntimeError(f"R2 rejected checked BioSync map: {upload.get('errors')}")
+    download_verified(key, map_sha)  # Verify exact published R2 bytes before D1 points at them.
 
     # Re-check the exact identities before exposing a new map to readers.
     fresh = query("SELECT epub_sha256,tracks_json FROM audio_editions WHERE id=?", [EDITION])[0]
