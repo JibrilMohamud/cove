@@ -366,7 +366,7 @@ export async function handleVercelIngestionControl(
       max_jobs: 1,
       minutes: 4,
       no_discovery: true,
-      threads: 2,
+      threads: 4,
     },
   };
   const payload = jobs[path];
