@@ -372,10 +372,16 @@ async function runScheduled(cron: string, env: BackendEnv) {
   }
   try {
     if (cron === "*/5 * * * *") {
-      await Promise.all([
+      const [catalogResult, audioResult] = await Promise.allSettled([
         scheduledCatalog(env),
         triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-track"),
       ]);
+      if (audioResult.status === "rejected") {
+        console.error("Cove scheduled audio-track trigger failed", audioResult.reason);
+      }
+      if (catalogResult.status === "rejected") {
+        throw catalogResult.reason;
+      }
       return;
     }
     if (cron === "*/10 * * * *") {
