@@ -631,7 +631,7 @@ export default {
     }
 
     const path = new URL(request.url).pathname;
-    const hostedTranscript = path.match(/^\\/api\\/fore\\/pipeline\\/hosted-transcript\\/(pg-[1-9][0-9]{0,8})\\/([a-zA-Z0-9_-]{1,100})$/);
+    const hostedTranscript = path.match(/^\/api\/fore\/pipeline\/hosted-transcript\/(pg-[1-9][0-9]{0,8})\/([a-zA-Z0-9_-]{1,100})$/);
     if (hostedTranscript) return hostedBiosyncTranscript(request, env, hostedTranscript[1], hostedTranscript[2]);
     if (path === "/__cove/health" && request.method === "GET") {
       try {
