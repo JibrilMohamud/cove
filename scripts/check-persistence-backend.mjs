@@ -9,6 +9,7 @@ const [
   worker,
   pipeline,
   runner,
+  media,
   service,
   audioWorker,
   audioSubscriber,
@@ -25,6 +26,7 @@ const [
   read("src/persistence-backend.worker.ts"),
   read("src/features/fore/pipeline.server.ts"),
   read("scripts/audio_pipeline/runner.py"),
+  read("scripts/audio_pipeline/media.py"),
   read("scripts/audio_pipeline/service.py"),
   read("scripts/audio_pipeline/worker.py"),
   read("scripts/audio_pipeline/subscriber.py"),
@@ -92,6 +94,13 @@ assert.match(alignBody, /transcribe\(/);
 assert.match(alignBody, /pipeline\/alignment/);
 assert.match(runner, /choices=\['discover','track','align'\]/);
 assert.match(runner, /stop\.wait\(120\)/);
+assert.match(media, /file\.unlink\(missing_ok=True\)/);
+assert.match(media, /parts\.rmdir\(\)/);
+assert.ok(
+  media.indexOf("file.unlink(missing_ok=True)") <
+    media.indexOf("temporary.replace(target)"),
+  "range files must be released before the reconstructed file is promoted",
+);
 
 assert.match(audioWorker, /Literal\["discover", "track", "align"\]/);
 assert.match(audioWorker, /execution_mode: Literal\["inherit", "direct", "queue"\]/);
@@ -111,6 +120,9 @@ assert.match(audioWorker, /os\.environ\["NUMBA_CACHE_DIR"\]/);
 assert.match(audioWorker, /STALE_RUN_SECONDS = 20 \* 60/);
 assert.match(audioWorker, /tempfile\.mkdtemp/);
 assert.match(audioWorker, /shutil\.rmtree\(cache, ignore_errors=True\)/);
+assert.match(audioWorker, /def _disk_snapshot\(\)/);
+assert.match(audioWorker, /Cove audio pipeline disk before/);
+assert.match(audioWorker, /Cove audio pipeline disk after/);
 assert.match(service, /from vercel\.queue import QueueClient/);
 assert.doesNotMatch(service, /ALL_DEPLOYMENTS/);
 assert.match(
