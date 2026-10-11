@@ -95,6 +95,9 @@ jobs:
           compatibility_date = "2026-09-01"
           workers_dev = true
 
+          [limits]
+          cpu_ms = 300_000
+
           [[d1_databases]]
           binding = "DB"
           database_name = "$D1_DATABASE_NAME"
