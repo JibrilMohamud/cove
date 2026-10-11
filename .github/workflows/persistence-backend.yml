@@ -10,6 +10,7 @@ on:
       - "scripts/audio_pipeline/**"
       - "scripts/build-persistence-backend.mjs"
       - "scripts/check-persistence-backend.mjs"
+      - "scripts/check-catalog-fetch.mjs"
       - "vercel.json"
       - "wrangler.backend.example.toml"
       - "wrangler.backend.production.toml"
@@ -28,6 +29,7 @@ on:
       - "scripts/audio_pipeline/**"
       - "scripts/build-persistence-backend.mjs"
       - "scripts/check-persistence-backend.mjs"
+      - "scripts/check-catalog-fetch.mjs"
       - "vercel.json"
       - "wrangler.backend.example.toml"
       - "wrangler.backend.production.toml"
@@ -50,15 +52,26 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
       - run: npm ci
       - name: Persistence TypeScript lint
         run: npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts
       - name: Persistence architecture
         run: npm run test:persistence-backend
+      - name: Catalog network recovery
+        run: node scripts/check-catalog-fetch.mjs
       - name: Python syntax
         run: python3 -m py_compile scripts/audio_pipeline/*.py
+      - name: Audio runtime regressions
+        run: |
+          python3 -m pip install 'fastapi==0.141.1' 'vercel-queue==0.9.0' 'huggingface-hub>=0.21,<2' httpx
+          python3 -m unittest discover -s scripts/audio_pipeline/tests -v
       - name: Vercel application build
         run: npm run build
+        env:
+          VERCEL: "1"
       - name: Persistence Worker build
         run: npm run build:backend
       - name: Upload persistence Worker bundle

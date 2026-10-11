@@ -29,16 +29,23 @@ app = FastAPI(
 )
 
 
-@app.get("/health")
 def execution_mode() -> str:
     mode = os.environ.get("COVE_AUDIO_EXECUTION_MODE", "direct").strip().lower()
     return mode if mode in {"direct", "queue"} else "direct"
 
 
+@app.get("/health")
 def health() -> dict[str, object]:
+    try:
+        pipeline_config()
+    except Exception as error:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "audio_pipeline_configuration_unavailable"},
+        ) from error
     return {
         "ok": True,
-        "persistenceBackend": bool(pipeline_config()),
+        "persistenceBackend": True,
         "queueProducer": True,
         "queueMode": "push",
         "executionMode": execution_mode(),

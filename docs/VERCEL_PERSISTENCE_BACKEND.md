@@ -246,6 +246,35 @@ Because cursor, attempts and next-run state live in D1, a timed-out invocation r
 
 Alignment failure moves independently through retry/review. It never rolls back playable audio.
 
+Before downloading a transcription model, the Python worker requests its file
+manifest, pins the returned model revision, and counts only files absent from
+the local cache. It requires the missing bytes plus 96 MiB of working space.
+Downloads use the regular Hugging Face HTTP path, one file at a time. A model
+which cannot fit moves its alignment job to `review`; source/network failures
+retain normal retries. The worker does not replace the requested model with a
+less accurate one or publish unverified timings. In particular, the larger
+`small.en` fallback can require a worker with more storage than the Vercel
+runtime. Resume those reviewed jobs only after providing sufficient capacity.
+
+The private audio service's `GET /health` returns a JSON diagnostic object and
+HTTP 503 if its backend credentials are missing. This checks configuration,
+not live connectivity to D1/R2 or the completion of a transcription.
+
+After changing the audio runtime, verify one Pride and Prejudice alignment job
+through `audio_timing` and its R2 map before restoring broad alignment/discovery
+schedules. Some previously paused jobs have `next_attempt_at` set in 2099;
+release only the chosen canary initially and leave their attempt history intact.
+If Vercel rejects builds because of its deployment limit, the committed Python
+fixes are not live until a subsequent successful production deployment.
+
+Runtime regression checks (no model weights or backend credentials needed):
+
+```sh
+python3 -m pip install 'fastapi==0.141.1' 'vercel-queue==0.9.0' 'huggingface-hub>=0.21,<2' httpx
+python3 -m unittest discover -s scripts/audio_pipeline/tests -v
+node scripts/check-catalog-fetch.mjs
+```
+
 ### Lease semantics
 
 Audio jobs are leased in D1. Workers heartbeat every two minutes; a lease is ten minutes. Expired jobs can be reclaimed, attempts are bounded, retries use backoff, and repeatedly failing jobs move to review.

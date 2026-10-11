@@ -4,6 +4,7 @@ from .catalog import bulk,edition,epub_source,text_record
 from .media import download,mirror_url,sha256
 from .epub_index import build
 from .align import transcribe,align
+from .model_storage import ModelStorageUnavailable
 
 class Api:
     def __init__(self,config):
@@ -238,6 +239,11 @@ def run(config,args):
             status,error=process(api,job,cache,args.threads)
             api.finish(job,status,error)
             print(json.dumps({'job':job['id'],'kind':job['kind'],'status':status,'detail':error}),flush=True)
+        except ModelStorageUnavailable as error:
+            # Capacity does not improve by retrying the same model on this
+            # runtime. Keep the audio playable and make the blocker reviewable.
+            api.finish(job,'review',str(error)[:900])
+            print(json.dumps({'job':job['id'],'kind':job['kind'],'status':'review','detail':str(error)[:900]}),flush=True)
         except Exception as error:
             detail=str(error)[:900]
             try:

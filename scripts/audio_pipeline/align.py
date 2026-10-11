@@ -2,6 +2,7 @@
 import collections,difflib,json,pathlib,time,os
 from .epub_index import normalize
 from .media import sha256
+from .model_storage import prepare_model
 
 def _install_pyav_compat():
     """Bridge faster-whisper 1.2.1 to PyAV 19 without masking unrelated failures."""
@@ -20,13 +21,14 @@ def _install_pyav_compat():
     av.open=compatible_open
 
 def transcribe(path,output,model='base.en',language='en',threads=4):
-    _install_pyav_compat()
-    from faster_whisper import WhisperModel
     target=pathlib.Path(output);identity={'audioSha256':sha256(path),'model':model,'language':language}
     if target.exists():
         cached=json.loads(target.read_text())
         if cached.get('identity')==identity:return cached
-    engine=WhisperModel(model,device='cpu',compute_type='int8',cpu_threads=threads,download_root=os.environ.get('FORE_MODEL_CACHE','.sites-runtime/models'))
+    model_path=prepare_model(model,os.environ.get('FORE_MODEL_CACHE','.sites-runtime/models'))
+    _install_pyav_compat()
+    from faster_whisper import WhisperModel
+    engine=WhisperModel(model_path,device='cpu',compute_type='int8',cpu_threads=threads,local_files_only=True)
     segments,info=engine.transcribe(str(path),language=language,beam_size=5,word_timestamps=True,vad_filter=True,condition_on_previous_text=False)
     words=[]
     for segment in segments:
