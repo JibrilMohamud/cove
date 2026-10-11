@@ -38,7 +38,11 @@ def transcribe(path,output,model='base.en',language='en',threads=4):
     result={'identity':identity,'engine':'faster-whisper/'+model,'language':info.language,'duration':info.duration,'words':words};tmp=target.with_suffix('.tmp');tmp.write_text(json.dumps(result));tmp.replace(target);return result
 
 def align(index,transcript,track_id,audio_sha):
-    book=index['words'];speech=transcript['words'];a=[w['norm'] for w in book];b=[w['norm'] for w in speech];anchors=collections.defaultdict(list)
+    book=index['words'];speech=transcript['words']
+    confidence_unreported=transcript.get('confidenceMode')=='unreported'
+    if confidence_unreported and transcript.get('engine')!='cloudflare-workers-ai-whisper':
+        raise ValueError('Unreported ASR confidence only allowed for the reviewed hosted speech engine')
+    a=[w['norm'] for w in book];b=[w.get('norm') or normalize(w['text']) for w in speech];anchors=collections.defaultdict(list)
     for i in range(len(a)-4):anchors[tuple(a[i:i+5])].append(i)
     votes=collections.Counter()
     for j in range(len(b)-4):
@@ -52,10 +56,12 @@ def align(index,transcript,track_id,audio_sha):
         if block.size<8 and len(anchors.get(tuple(a[absolute:absolute+5]),[]))!=1:continue
         for k in range(block.size):
             n=absolute+k;spoken=speech[block.b+k];written=book[n]
-            if spoken['probability']<.72 or spoken['start']<last:continue
-            accepted.append({key:written[key] for key in ('cfi','endCfi','href','text')}|{key:spoken[key] for key in ('start','end','probability')}|{'wordIndex':n});last=spoken['end']
+            probability=spoken.get('probability')
+            if (probability is None and not confidence_unreported) or (probability is not None and probability < .72) or spoken['start']<last:continue
+            accepted.append({key:written[key] for key in ('cfi','endCfi','href','text')}|{key:spoken[key] for key in ('start','end')}|{'probability':probability,'wordIndex':n});last=spoken['end']
     interior=[w for w in speech if accepted and w['start']>=accepted[0]['start'] and w['end']<=accepted[-1]['end']];coverage=len(accepted)/max(1,len(interior))
-    result={'version':2,'trackId':track_id,'epubSha256':index['epubSha256'],'audioSha256':audio_sha,'duration':transcript['duration'],'engine':transcript['engine'],'words':accepted,'verification':{'method':'independent-asr-exact-text','automatic':True,'minWordProbability':.72,'matchedWords':len(accepted),'spokenWords':len(speech),'coverage':round(min(1,coverage),4),'checkedAt':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}}
-    result['status']='checked' if len(accepted)>=30 and coverage>=.8 else 'needs-review'
-    if result['status']!='checked':result['reason']='Less than 80% of the spoken passage passed exact word checks'
+    result={'version':2,'trackId':track_id,'epubSha256':index['epubSha256'],'audioSha256':audio_sha,'duration':transcript['duration'],'engine':transcript['engine'],'words':accepted,'verification':{'method':'independent-asr-exact-text','automatic':True,'minWordProbability':None if confidence_unreported else .72,'confidenceMode':'unreported' if confidence_unreported else 'word-probability','matchedWords':len(accepted),'spokenWords':len(speech),'coverage':round(min(1,coverage),4),'checkedAt':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}}
+    minimum_coverage=.9 if confidence_unreported else .8
+    result['status']='checked' if len(accepted)>=30 and coverage>=minimum_coverage else 'needs-review'
+    if result['status']!='checked':result['reason']=f'Less than {minimum_coverage:.0%} of the spoken passage passed exact word checks'
     return result
