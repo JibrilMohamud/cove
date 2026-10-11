@@ -132,6 +132,9 @@ export function SiteShell({
           {store.t("shell.tagline2","always a beginning.")}
         </p>
         <span>{store.t("shell.tagline3","YOUR BOOKSTORE. YOUR READING ROOM.")}</span>
+        <nav className="sidebar-legal-links" aria-label="Legal information">
+          <a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/copyright">Copyright</a>
+        </nav>
       </div>
     </>
   );
@@ -162,6 +165,10 @@ export function SiteShell({
           <div className="topbar-actions"><StorefrontLocaleControl/><AccountButton /></div>
         </header>
         <main id="fore-main" tabIndex={-1} className="content">{children}</main>
+        <footer className="cove-site-footer" aria-label="Cove legal and account links">
+          <span>© {new Date().getFullYear()} Cove</span>
+          <nav aria-label="Footer"><a href="/terms">Terms of Service</a><a href="/privacy">Privacy Policy</a><a href="/copyright">Copyright &amp; DMCA</a><a href="/privacy#contact-us">Contact</a></nav>
+        </footer>
       </div>
     </div>
   );
