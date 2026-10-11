@@ -135,6 +135,8 @@ assert.match(runner, /FORE_BACKEND_URL/);
 assert.equal(vercel.crons, undefined, "frequent ingestion must not depend on Vercel plan-specific cron intervals");
 assert.match(worker, /async scheduled/);
 assert.match(worker, /FORE_INGESTION_TRIGGER_TOKEN/);
+assert.match(worker, /audio_trigger_last_timeout/);
+assert.match(worker, /response\.status === 524/);
 for (const cron of ["*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]) {
   assert.ok(wrangler.includes(cron), "missing backend Worker cron " + cron);
 }
