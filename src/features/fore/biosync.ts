@@ -1,6 +1,6 @@
 import type {AudioEdition} from './domain';
-export type TimingWord={cfi:string;endCfi:string;href:string;text:string;start:number;end:number;wordIndex:number;probability:number};
-export type TimingMap={version:2;status:'checked';trackId:string;epubSha256:string;audioSha256:string;duration:number;engine:string;words:TimingWord[];verification:{method:'independent-asr-exact-text';automatic:true;minWordProbability:number;matchedWords:number;spokenWords:number;coverage:number;checkedAt:string}};
+export type TimingWord={cfi:string;endCfi:string;href:string;text:string;start:number;end:number;wordIndex:number;probability:number|null};
+export type TimingMap={version:2;status:'checked';trackId:string;epubSha256:string;audioSha256:string;duration:number;engine:string;words:TimingWord[];verification:{method:'independent-asr-exact-text';automatic:true;minWordProbability:number|null;confidenceMode?:'word-probability'|'unreported';matchedWords:number;spokenWords:number;coverage:number;checkedAt:string}};
 export type TimingSummary={trackId:string;sha256:string;wordCount:number;coverage:number;firstCfi:string;lastCfi:string;firstSecond:number;lastSecond:number};
 export function compareCfi(a:string,b:string){const parts=(s:string)=>s.replace(/\[[^\]]*\]/g,'').match(/\d+/g)?.map(Number)||[];const x=parts(a),y=parts(b);for(let i=0;i<Math.max(x.length,y.length);i++){const d=(x[i]||0)-(y[i]||0);if(d)return d;}return 0;}
 export function wordAtAudio(map:TimingMap,seconds:number){let lo=0,hi=map.words.length-1;while(lo<=hi){const mid=(lo+hi)>>1;if(map.words[mid].start<=seconds)lo=mid+1;else hi=mid-1;}const w=map.words[hi],n=map.words[hi+1];return w&&(seconds<=w.end||(n&&n.wordIndex===w.wordIndex+1&&n.start-w.end<=1&&seconds<n.start))?w:null;}
