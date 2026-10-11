@@ -119,7 +119,7 @@ assert.match(audioSubscriber, /Message\[dict\[str, object\]\]/);
 assert.match(audioPyproject, /\[tool\.vercel\]/);
 assert.match(audioPyproject, /entrypoint = "audio_pipeline\.service:app"/);
 assert.match(audioPyproject, /\[\[tool\.vercel\.subscribers\]\]/);
-assert.match(audioPyproject, /entrypoint = "audio_pipeline\.subscriber"/);
+assert.match(audioPyproject, /entrypoint = "audio_pipeline\.subscriber:consume_audio_trigger"/);
 
 assert.equal(vercel.services.app.framework, "tanstack-start");
 assert.equal(vercel.services.audio_pipeline.root, "scripts");
