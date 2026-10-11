@@ -118,6 +118,8 @@ def _prepare_runtime_cache() -> pathlib.Path:
         except OSError:
             logger.warning("Unable to clear a stale Gutenberg RDF cache entry")
 
+    cache = pathlib.Path(tempfile.mkdtemp(prefix="run-", dir=RUN_ROOT))
+
     # Vercel's deployed source tree is read-only. ML/runtime dependencies may
     # consult HOME/XDG/Hugging Face defaults even when faster-whisper receives
     # an explicit download_root, so force every writable cache under /tmp.
@@ -146,7 +148,7 @@ def _prepare_runtime_cache() -> pathlib.Path:
     # tempfile caches its chosen directory process-wide. Reset it after forcing
     # every temp-related environment variable into Vercel's writable /tmp tree.
     tempfile.tempdir = str(RUN_ROOT)
-    return pathlib.Path(tempfile.mkdtemp(prefix="run-", dir=RUN_ROOT))
+    return cache
 
 
 def pipeline_args(request: RunRequest, cache: pathlib.Path) -> SimpleNamespace:
