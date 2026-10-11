@@ -142,13 +142,9 @@ export async function createAuth(request: Request, env: CoveEnv) {
     if (!row) {
       const chosen = usernameSchema.safeParse(u.user_metadata?.username);
       const username = chosen.success ? chosen.data : null;
-      const trustedId = request.headers.get("oai-authenticated-user-id"),
-        trustedEmail = request.headers.get("oai-authenticated-user-email");
-      // Preserve existing reading data only when both independently authenticated identities agree.
-      const appId =
-        trustedId && trustedEmail?.toLowerCase() === u.email.toLowerCase()
-          ? trustedId
-          : "sb:" + u.id;
+      // Never merge into a different identity namespace based on request
+      // headers: the only account owner is the verified Supabase subject.
+      const appId = "sb:" + u.id;
       await env.DB.prepare(
         "INSERT OR IGNORE INTO auth_accounts(provider_id,app_id,email,username,created_at) VALUES(?,?,?,?,?)",
       )
@@ -169,13 +165,19 @@ export async function createAuth(request: Request, env: CoveEnv) {
     const displayName = String(row.username || u.user_metadata?.full_name || "Reader").trim().slice(0, 80) || "Reader";
     await env.DB.prepare("INSERT OR IGNORE INTO profiles(user_id,name,created_at) VALUES(?,?,?)")
       .bind(row.app_id, displayName, now()).run();
-    // Only an explicit email-signup consent token may produce a consent row.
-    // The date comes from the trusted server, not client-supplied metadata.
-    if (u.user_metadata?.cove_terms_version === "2026-10-11" &&
-        u.user_metadata?.cove_privacy_version === "2026-10-11") {
+    // An independently verified provider user may claim a consent that the
+    // server recorded when this exact provider ID and email signed up.
+    // Supabase user_metadata is self-editable and never proves consent.
+    const pending = await env.DB.prepare(
+      "SELECT terms_version,privacy_version,accepted_at FROM pending_account_legal_consents WHERE provider_id=? AND email=? AND expires_at>?"
+    ).bind(u.id, u.email.toLowerCase(), now()).first<any>();
+    if (pending) {
       await env.DB.prepare(
         "INSERT OR IGNORE INTO account_legal_consents(user_id,terms_version,privacy_version,accepted_at,source) VALUES(?,?,?,?,'email-signup')"
-      ).bind(row.app_id, "2026-10-11", "2026-10-11", now()).run();
+      ).bind(row.app_id, pending.terms_version, pending.privacy_version, pending.accepted_at).run();
+      await env.DB.prepare(
+        "DELETE FROM pending_account_legal_consents WHERE provider_id=? AND email=?"
+      ).bind(u.id, u.email.toLowerCase()).run();
     }
     await env.DB.prepare("UPDATE auth_accounts SET email=? WHERE provider_id=?")
       .bind(u.email.toLowerCase(), u.id)
@@ -317,7 +319,7 @@ export async function createAuth(request: Request, env: CoveEnv) {
         password: input.password,
         options: {
           emailRedirectTo: callback,
-          data: { username: input.username, cove_terms_version: "2026-10-11", cove_privacy_version: "2026-10-11" },
+          data: { username: input.username },
         },
       });
       if (error)
@@ -331,6 +333,13 @@ export async function createAuth(request: Request, env: CoveEnv) {
       if (data.session) {
         await client.auth.signOut({ scope: "local" });
         throw new ApiError(503, "Email verification must be enabled before registration can open.");
+      }
+      if (data.user?.id && data.user.email?.toLowerCase() === input.email) {
+        const acceptedAt = now();
+        const expiry = new Date(Date.now() + 7 * 86400_000).toISOString();
+        await env.DB.prepare(
+          "INSERT INTO pending_account_legal_consents(provider_id,email,terms_version,privacy_version,accepted_at,expires_at) VALUES(?,?,?,?,?,?) ON CONFLICT(provider_id,email) DO UPDATE SET terms_version=excluded.terms_version,privacy_version=excluded.privacy_version,accepted_at=excluded.accepted_at,expires_at=excluded.expires_at"
+        ).bind(data.user.id, input.email, "2026-10-11", "2026-10-11", acceptedAt, expiry).run();
       }
       return json({
         verificationRequired: true,
