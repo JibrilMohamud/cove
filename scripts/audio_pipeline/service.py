@@ -20,7 +20,7 @@ from vercel.queue import QueueClient
 from .worker import AUDIO_TRIGGER_TOPIC, RunRequest, execute_pipeline, pipeline_config
 
 logger = logging.getLogger("cove.audio_pipeline")
-queue = QueueClient()
+queue = QueueClient(region=os.environ.get("COVE_AUDIO_QUEUE_REGION", "iad1"))
 
 app = FastAPI(
     title="Cove audio pipeline",
