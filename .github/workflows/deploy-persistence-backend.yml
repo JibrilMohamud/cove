@@ -121,6 +121,9 @@ jobs:
           binding = "BUCKET"
           bucket_name = "$R2_BUCKET_NAME"
 
+          [ai]
+          binding = "AI"
+
           [vars]
           FORE_PUBLIC_URL = "$PUBLIC_URL"
           FORE_ENVIRONMENT = "production"
