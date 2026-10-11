@@ -23,7 +23,7 @@ FORE_CATALOG_PAGES_PER_TICK = "5"
 FORE_CATALOG_EPUBS_PER_TICK = "2"
 
 [triggers]
-crons = ["*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]
+crons = ["*/5 * * * *", "*/7 * * * *", "9 * * * *", "39 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]
 
 # Production authentication:
 # - Vercel holds FORE_BACKEND_TOKEN; Cloudflare verifies its SHA-256 fingerprint
