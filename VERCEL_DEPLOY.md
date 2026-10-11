@@ -33,6 +33,7 @@ The persistence backend is intentionally the system of record. Vercel never pret
 - `audio_pipeline`: `scripts/`, FastAPI, internal only.
 - `app -> audio_pipeline`: `COVE_AUDIO_PIPELINE_URL`.
 - `audio_pipeline -> persistence backend`: direct HTTPS using `FORE_BACKEND_URL`, `FORE_BACKEND_TOKEN`, and its scoped `FORE_SERVICE_TOKEN`.
+- Production sets `COVE_AUDIO_EXECUTION_MODE=queue`, so Cloudflare scheduler calls enqueue quickly and Vercel Queue push subscribers perform heavyweight track/BioSync work. Preview deployments intentionally omit this variable and retain direct execution as a fallback.
 
 The Vercel binding is used only by authenticated ingestion controllers and should not be configured manually. The audio service deliberately calls the persistence backend directly, avoiding a circular service dependency.
 
@@ -103,6 +104,8 @@ Audio is deliberately staged:
 5. **retry/review**: D1 leases, attempts, exponential retry, and review states make every stage restartable.
 
 Playback therefore does not depend on BioSync succeeding. A transcription timeout cannot hide an otherwise valid audiobook.
+
+Each queue delivery uses a disposable `/tmp/cove-audio-runs/run-*` work directory that is deleted after the job. Warm instances retain only the bounded RDF/model caches; stale abandoned run directories are pruned after 20 minutes. Production queue messages stay partitioned to the current deployment rather than `ALL_DEPLOYMENTS`.
 
 The Python service receives the universal 300-second Fluid Compute window. Heavier alignment can later move to Vercel Workflow or dedicated worker compute without changing the D1 job contract.
 
