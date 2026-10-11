@@ -27,6 +27,9 @@ FORE_ENVIRONMENT = "production"
 FORE_DEFAULT_TERRITORY = "US"
 FORE_CATALOG_PAGES_PER_TICK = "5"
 FORE_CATALOG_EPUBS_PER_TICK = "2"
+# Temporary media-drain fallback while Vercel Queue push consumption is being repaired.
+# Remove after queue subscriber delivery is verified.
+FORE_AUDIO_TRACK_DIRECT_URL = "https://cove-3v6omsilq-jibrilmohamuds-projects.vercel.app"
 
 [triggers]
 crons = ["*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]
