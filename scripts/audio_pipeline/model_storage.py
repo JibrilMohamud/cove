@@ -15,6 +15,8 @@ class ModelStorageUnavailable(RuntimeError):
 
 MODEL_REPOSITORIES = {
     "base.en": "Systran/faster-whisper-base.en",
+    "base": "Systran/faster-whisper-base",
+    "tiny.en": "Systran/faster-whisper-tiny.en",
     "small.en": "Systran/faster-whisper-small.en",
     "small": "Systran/faster-whisper-small",
 }
@@ -78,6 +80,18 @@ def prepare_model(model: str, cache_dir: str | pathlib.Path) -> str:
                     missing_bytes += file.size
 
             free_bytes = shutil.disk_usage(cache).free
+            if missing_bytes + RESERVE_BYTES > free_bytes:
+                # /tmp is shared by warm invocations. Large models from an
+                # earlier job can make a smaller model look unavailable even
+                # though the older snapshot is no longer being used. Cove
+                # schedules only one active alignment lease at a time.
+                for other_repo in MODEL_REPOSITORIES.values():
+                    if other_repo == repo_id:
+                        continue
+                    obsolete = cache / ("models--" + other_repo.replace("/", "--"))
+                    if obsolete.is_dir():
+                        shutil.rmtree(obsolete)
+                free_bytes = shutil.disk_usage(cache).free
             if missing_bytes + RESERVE_BYTES > free_bytes:
                 raise ModelStorageUnavailable(
                     f"BioSync model {model} needs {missing_bytes} download bytes plus "
