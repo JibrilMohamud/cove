@@ -424,7 +424,10 @@ async function runScheduled(cron: string, env: BackendEnv) {
       ).first<{ count?: number }>();
       const pendingTracks = Number(backlog?.count || 0);
       if (pendingTracks >= 96) {
-        console.info(`Cove audio discovery paused with ${pendingTracks} pending track jobs.`);
+        console.info(
+          `Cove audio discovery paused with ${pendingTracks} pending track jobs; draining one BioSync alignment instead.`,
+        );
+        await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align");
         return;
       }
       await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-discover");
