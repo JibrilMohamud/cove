@@ -5,6 +5,13 @@ on:
     branches: [main]
     paths:
       - 'src/persistence-backend.worker.ts'
+      - 'src/features/fore/**'
+      - 'src/lib/persistence-backend.ts'
+      - 'src/server.ts'
+      - 'scripts/build-persistence-backend.mjs'
+      - 'wrangler.backend.production.toml'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/deploy-persistence-backend.yml'
   workflow_dispatch:
     inputs:
