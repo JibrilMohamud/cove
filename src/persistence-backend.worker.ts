@@ -469,7 +469,7 @@ async function warmOneShortBiosyncTranscript(env: BackendEnv) {
       "AND CAST(json_extract(t.value,'$.duration') AS REAL)<=240 " +
       "AND json_extract(t.value,'$.sha256') IS NOT NULL ORDER BY j.updated_at,j.id LIMIT 40",
   ).all<{ edition_id: string; track_id: string; audio_sha: string }>();
-  const options = rows.results.filter(r => /^[a-f0-9]{64}$/.test(r.audio_sha));
+  const options = rows.results.filter((r) => /^[a-f0-9]{64}$/.test(r.audio_sha));
   // Rotate across short tracks so an unavailable or corrupt recording cannot
   // permanently block progress for every other eligible track.
   if (!options.length) return;
@@ -479,13 +479,20 @@ async function warmOneShortBiosyncTranscript(env: BackendEnv) {
     const row = options[(first + offset) % options.length];
     const key = `biosync/transcripts/cloudflare-whisper-v1/${row.audio_sha}.json`;
     if (await env.BUCKET.head(key)) continue;
-    const request = new Request(origin + "/api/fore/pipeline/hosted-transcript", { method: "POST" });
+    const request = new Request(origin + "/api/fore/pipeline/hosted-transcript", {
+      method: "POST",
+    });
     const response = await hostedBiosyncTranscript(request, env, row.edition_id, row.track_id);
     if (response.ok) {
       console.info("Cove BioSync short-track transcript cached", row.edition_id, row.track_id);
       return;
     }
-    console.warn("BioSync short-track ASR warm-up skipped", row.edition_id, row.track_id, response.status);
+    console.warn(
+      "BioSync short-track ASR warm-up skipped",
+      row.edition_id,
+      row.track_id,
+      response.status,
+    );
   }
 }
 
