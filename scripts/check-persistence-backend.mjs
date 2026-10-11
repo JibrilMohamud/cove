@@ -105,6 +105,7 @@ assert.match(audioWorker, /RUNTIME_HOME = pathlib\.Path\("\/tmp\/cove-runtime-ho
 assert.match(audioWorker, /HF_HOME = pathlib\.Path\("\/tmp\/cove-huggingface"\)/);
 assert.match(audioWorker, /os\.environ\["HOME"\] = str\(RUNTIME_HOME\)/);
 assert.match(audioWorker, /os\.environ\["HF_HOME"\] = str\(HF_HOME\)/);
+assert.match(audioWorker, /os\.environ\["HF_HUB_DISABLE_XET"\] = "1"/);
 assert.match(audioWorker, /os\.environ\["HF_HUB_CACHE"\]/);
 assert.match(audioWorker, /os\.environ\["NUMBA_CACHE_DIR"\]/);
 assert.match(audioWorker, /STALE_RUN_SECONDS = 20 \* 60/);
