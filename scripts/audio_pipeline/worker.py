@@ -24,7 +24,7 @@ RUNTIME_HOME = pathlib.Path("/tmp/cove-runtime-home")
 XDG_CACHE = pathlib.Path("/tmp/cove-xdg-cache")
 HF_HOME = pathlib.Path("/tmp/cove-huggingface")
 NUMBA_CACHE = pathlib.Path("/tmp/cove-numba-cache")
-STALE_RUN_SECONDS = 20 * 60
+STALE_RUN_SECONDS = 6 * 60  # Function executions are capped at five minutes.
 logger = logging.getLogger("cove.audio_pipeline.worker")
 
 
@@ -95,6 +95,10 @@ def _prepare_runtime_cache() -> pathlib.Path:
     NUMBA_CACHE.mkdir(parents=True, exist_ok=True)
 
     cutoff = time.time() - STALE_RUN_SECONDS
+    # An interrupted five-minute invocation can otherwise pin hundreds of MB
+    # for twenty minutes and prevent the next BioSync model preflight.
+    # Never delete a run less than six minutes old: another invocation may
+    # still be processing its leased audio.
     for path in RUN_ROOT.glob("run-*"):
         try:
             if path.is_dir() and path.stat().st_mtime < cutoff:
