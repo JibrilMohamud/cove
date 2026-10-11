@@ -593,41 +593,6 @@ export async function handleCommunity(
       .run();
     return json({ saved: true });
   }
-  if (path === "/export" && method === "GET") {
-    const uid = requireIdentity(userId);
-    const tables = [
-      "reading_states",
-      "entitlements",
-      "personal_imports",
-      "annotations",
-      "definitions",
-      "reviews",
-      "shelves",
-      "reading_sessions",
-      "book_metrics",
-      "completion_events",
-      "reading_goals",
-      "playback",
-    ];
-    const result: Record<string, unknown> = {
-      format: "fore-personal-data",
-      version: 2,
-      exportedAt: now(),
-    };
-    for (const table of tables)
-      result[table] = (
-        await db.prepare(`SELECT * FROM ${table} WHERE user_id=?`).bind(uid).all()
-      ).results;
-    result.shelf_items = (
-      await db
-        .prepare(
-          "SELECT b.* FROM shelf_items b JOIN shelves s ON s.id=b.shelf_id WHERE s.user_id=?",
-        )
-        .bind(uid)
-        .all()
-    ).results;
-    return json(result);
-  }
   return null;
 }
 async function readingStats(env: CoveEnv, userId: string, url: URL) {
