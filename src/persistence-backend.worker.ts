@@ -322,8 +322,7 @@ async function triggerVercelAudio(env: BackendEnv, path: string) {
   }
 
   const targetBase =
-    path === "/api/fore/internal/ingestion/audio-track" &&
-    env.FORE_AUDIO_TRACK_DIRECT_URL
+    path === "/api/fore/internal/ingestion/audio-track" && env.FORE_AUDIO_TRACK_DIRECT_URL
       ? env.FORE_AUDIO_TRACK_DIRECT_URL
       : env.FORE_PUBLIC_URL;
   const target = new URL(path, targetBase);
