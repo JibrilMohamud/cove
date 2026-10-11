@@ -40,7 +40,8 @@
     "test:social-reading": "node scripts/check-social-reading.mjs",
     "build:backend": "node scripts/build-persistence-backend.mjs",
     "test:persistence-backend": "node scripts/check-persistence-backend.mjs",
-    "test:legal": "node scripts/check-legal-contact.mjs"
+    "test:legal": "node scripts/check-legal-contact.mjs",
+    "test:account-experience": "node scripts/check-account-experience.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
