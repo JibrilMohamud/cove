@@ -63,7 +63,7 @@ async function requireEmailConfirmation(env: CoveEnv) {
 export async function createAuth(request: Request, env: CoveEnv) {
   const changes: { name: string; value: string; options: any }[] = [],
     url = new URL(request.url);
-  const configured = !!env.SUPABASE_URL && !!env.SUPABASE_PUBLISHABLE_KEY;
+  const configured = env.FORE_AUTH_MODE === "supabase" && !!env.SUPABASE_URL && !!env.SUPABASE_PUBLISHABLE_KEY;
   const client = configured
     ? createServerClient(env.SUPABASE_URL!, env.SUPABASE_PUBLISHABLE_KEY!, {
         auth: { experimental: { passkey: true } },
@@ -163,6 +163,19 @@ export async function createAuth(request: Request, env: CoveEnv) {
       row = await env.DB.prepare("SELECT * FROM auth_accounts WHERE provider_id=?")
         .bind(u.id)
         .first<any>();
+    }
+    // Provision a usable personal reading profile on the first verified
+    // provider login. Existing display names are never overwritten.
+    const displayName = String(row.username || u.user_metadata?.full_name || "Reader").trim().slice(0, 80) || "Reader";
+    await env.DB.prepare("INSERT OR IGNORE INTO profiles(user_id,name,created_at) VALUES(?,?,?)")
+      .bind(row.app_id, displayName, now()).run();
+    // Only an explicit email-signup consent token may produce a consent row.
+    // The date comes from the trusted server, not client-supplied metadata.
+    if (u.user_metadata?.cove_terms_version === "2026-10-11" &&
+        u.user_metadata?.cove_privacy_version === "2026-10-11") {
+      await env.DB.prepare(
+        "INSERT OR IGNORE INTO account_legal_consents(user_id,terms_version,privacy_version,accepted_at,source) VALUES(?,?,?,?,'email-signup')"
+      ).bind(row.app_id, "2026-10-11", "2026-10-11", now()).run();
     }
     await env.DB.prepare("UPDATE auth_accounts SET email=? WHERE provider_id=?")
       .bind(u.email.toLowerCase(), u.id)
@@ -290,7 +303,7 @@ export async function createAuth(request: Request, env: CoveEnv) {
     if (path === "/auth/signup") {
       await budget("signup", 5);
       const input = z
-        .object({ username: usernameSchema, email: emailSchema, password: passwordSchema })
+        .object({ username: usernameSchema, email: emailSchema, password: passwordSchema, acceptTerms: z.literal(true) })
         .parse(await readBody(request, 5000));
       await requireEmailConfirmation(env);
       if (
@@ -302,7 +315,10 @@ export async function createAuth(request: Request, env: CoveEnv) {
       const { data, error } = await client.auth.signUp({
         email: input.email,
         password: input.password,
-        options: { emailRedirectTo: callback, data: { username: input.username } },
+        options: {
+          emailRedirectTo: callback,
+          data: { username: input.username, cove_terms_version: "2026-10-11", cove_privacy_version: "2026-10-11" },
+        },
       });
       if (error)
         throw new ApiError(
