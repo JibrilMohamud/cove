@@ -113,6 +113,7 @@ assert.doesNotMatch(service, /lifespan=/);
 assert.match(audioSubscriber, /@subscribe\(/);
 assert.match(audioSubscriber, /AUDIO_TRIGGER_TOPIC/);
 assert.match(audioSubscriber, /max_concurrency=2/);
+assert.match(pyproject, /entrypoint = "audio_pipeline\.subscriber:consume_audio_trigger"/);
 assert.match(audioSubscriber, /max_attempts=8/);
 assert.match(audioSubscriber, /Message\[dict\[str, object\]\]/);
 assert.match(audioPyproject, /\[tool\.vercel\]/);
