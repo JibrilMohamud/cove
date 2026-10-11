@@ -113,14 +113,14 @@ assert.doesNotMatch(service, /lifespan=/);
 assert.match(audioSubscriber, /@subscribe\(/);
 assert.match(audioSubscriber, /AUDIO_TRIGGER_TOPIC/);
 assert.match(audioSubscriber, /max_concurrency=2/);
-assert.match(audioPyproject, /entrypoint = "audio_pipeline\\.subscriber"/);
+assert.match(audioPyproject, /entrypoint = "audio_pipeline\.subscriber"/);
 assert.match(audioSubscriber, /max_attempts=8/);
 assert.match(audioSubscriber, /Message\[dict\[str, object\]\]/);
 assert.match(audioPyproject, /\[tool\.vercel\]/);
 assert.match(audioPyproject, /entrypoint = "audio_pipeline\.service:app"/);
 assert.match(audioPyproject, /\[\[tool\.vercel\.subscribers\]\]/);
 assert.match(audioPyproject, /topics = \["cove-audio-pipeline-v2"\]/);
-assert.match(audioPyproject, /entrypoint = "audio_pipeline\\.subscriber"/);
+assert.match(audioPyproject, /entrypoint = "audio_pipeline\.subscriber"/);
 
 assert.equal(vercel.services.app.framework, "tanstack-start");
 assert.equal(vercel.services.audio_pipeline.root, "scripts");
