@@ -1,6 +1,7 @@
 """Shared execution contract for Cove audio queue producers and subscribers."""
 from __future__ import annotations
 
+import logging
 import os
 import pathlib
 import shutil
@@ -24,6 +25,16 @@ XDG_CACHE = pathlib.Path("/tmp/cove-xdg-cache")
 HF_HOME = pathlib.Path("/tmp/cove-huggingface")
 NUMBA_CACHE = pathlib.Path("/tmp/cove-numba-cache")
 STALE_RUN_SECONDS = 20 * 60
+logger = logging.getLogger("cove.audio_pipeline.worker")
+
+
+def _disk_snapshot() -> dict[str, int]:
+    usage = shutil.disk_usage("/tmp")
+    return {
+        "total_mb": usage.total // (1024 * 1024),
+        "used_mb": usage.used // (1024 * 1024),
+        "free_mb": usage.free // (1024 * 1024),
+    }
 
 
 class RunRequest(BaseModel):
@@ -98,6 +109,12 @@ def _prepare_runtime_cache() -> pathlib.Path:
     os.environ["HF_HUB_CACHE"] = str(HF_HOME / "hub")
     os.environ["HUGGINGFACE_HUB_CACHE"] = str(HF_HOME / "hub")
     os.environ["TRANSFORMERS_CACHE"] = str(HF_HOME / "transformers")
+    # Xet's reconstruction workspace is optimized for durable local disks and
+    # can consume substantial ephemeral storage. Serverless workers benefit
+    # from the regular Hub download path instead.
+    os.environ["HF_HUB_DISABLE_XET"] = "1"
+    os.environ["HF_XET_CHUNK_CACHE_SIZE_BYTES"] = "0"
+    os.environ["HF_XET_RECONSTRUCT_WRITE_SEQUENTIALLY"] = "1"
     os.environ["TORCH_HOME"] = str(XDG_CACHE / "torch")
     os.environ["NUMBA_CACHE_DIR"] = str(NUMBA_CACHE)
     os.environ["FORE_RDF_CACHE"] = str(RDF_CACHE)
@@ -124,9 +141,26 @@ def pipeline_args(request: RunRequest, cache: pathlib.Path) -> SimpleNamespace:
 
 def execute_pipeline(request: RunRequest) -> None:
     cache = _prepare_runtime_cache()
+    logger.info(
+        "Cove audio pipeline disk before kind=%s stats=%s",
+        request.kind,
+        _disk_snapshot(),
+    )
     try:
         run(pipeline_config(), pipeline_args(request, cache))
+    except Exception:
+        logger.exception(
+            "Cove audio pipeline failed kind=%s disk=%s",
+            request.kind,
+            _disk_snapshot(),
+        )
+        raise
     finally:
         # Audio/EPUB/transcript intermediates are per delivery. Model and RDF
         # caches live outside RUN_ROOT so warm consumers can reuse them safely.
         shutil.rmtree(cache, ignore_errors=True)
+        logger.info(
+            "Cove audio pipeline disk after kind=%s stats=%s",
+            request.kind,
+            _disk_snapshot(),
+        )
