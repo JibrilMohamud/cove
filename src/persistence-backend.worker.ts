@@ -321,8 +321,7 @@ async function triggerVercelAudio(env: BackendEnv, path: string) {
   }
 }
 
-const CATALOG_METADATA_CRON =
-  "2,7,12,17,22,27,32,37,42,47,52,57 * * * *";
+const CATALOG_METADATA_CRON = "*/7 * * * *";
 const EPUB_HYDRATION_CRON = "9 * * * *";
 const REGIONAL_CATALOG_CRON = "39 * * * *";
 
