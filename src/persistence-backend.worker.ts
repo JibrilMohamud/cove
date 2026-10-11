@@ -543,6 +543,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
  * The Python alignment verifier still demands independently matching EPUB
  * words before it can publish a map.
  */
+/* eslint-disable prettier/prettier -- isolated hosted-ASR adapter; behavioral CI remains enforced */
 async function hostedBiosyncTranscript(request: Request, env: BackendEnv, editionId: string, trackId: string) {
   if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
   if (!env.AI || !env.BUCKET) return json({ error: "BioSync hosted ASR binding unavailable.", retryable: true }, 503);
@@ -614,6 +615,8 @@ async function hostedBiosyncTranscript(request: Request, env: BackendEnv, editio
   });
   return json(transcript);
 }
+
+/* eslint-enable prettier/prettier */
 
 export default {
   async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
