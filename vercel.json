@@ -15,8 +15,7 @@
     },
     "audio_pipeline": {
       "root": "scripts",
-      "runtime": "container",
-      "entrypoint": "Dockerfile.vercel"
+      "framework": "fastapi"
     }
   },
   "rewrites": [
