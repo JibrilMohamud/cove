@@ -401,13 +401,13 @@ async function markD1QuotaBlocked() {
 
 async function audioTrackTriggerSlots(env: BackendEnv) {
   const at = new Date().toISOString();
-  const row = await env.DB.prepare(`
-    SELECT
+  const row = await env.DB.prepare(
+    `SELECT
       SUM(CASE WHEN status='queued' AND next_attempt_at<=? THEN 1 ELSE 0 END) queued,
       SUM(CASE WHEN status='running' AND lease_until>? THEN 1 ELSE 0 END) running
     FROM audio_jobs
-    WHERE kind='track'
-  `)
+    WHERE kind='track'`,
+  )
     .bind(at, at)
     .first<{ queued?: number; running?: number }>();
   const queued = Number(row?.queued || 0);
