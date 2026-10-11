@@ -15,8 +15,6 @@ type BackendEnv = CoveEnv & {
   FORE_CATALOG_EPUBS_PER_TICK?: string;
   FORE_INGESTION_TRIGGER_TOKEN?: string;
   FORE_INGESTION_SIGNING_KEY?: string;
-  FORE_AUDIO_TRACK_DIRECT_URL?: string;
-  FORE_AUDIO_ALIGN_DIRECT_URL?: string;
 };
 
 type ExecutionContextLike = {
@@ -322,14 +320,7 @@ async function triggerVercelAudio(env: BackendEnv, path: string) {
     throw new Error("FORE_PUBLIC_URL is required for audio scheduling.");
   }
 
-  const targetBase =
-    path === "/api/fore/internal/ingestion/audio-track" && env.FORE_AUDIO_TRACK_DIRECT_URL
-      ? env.FORE_AUDIO_TRACK_DIRECT_URL
-      : path === "/api/fore/internal/ingestion/audio-align" &&
-          (env.FORE_AUDIO_ALIGN_DIRECT_URL || env.FORE_AUDIO_TRACK_DIRECT_URL)
-        ? env.FORE_AUDIO_ALIGN_DIRECT_URL || env.FORE_AUDIO_TRACK_DIRECT_URL
-        : env.FORE_PUBLIC_URL;
-  const target = new URL(path, targetBase);
+  const target = new URL(path, env.FORE_PUBLIC_URL);
   const response = await fetch(target, {
     method: "POST",
     headers: await ingestionTriggerHeaders(env, target),
