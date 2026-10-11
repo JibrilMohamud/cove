@@ -156,6 +156,9 @@ assert.match(worker, /async scheduled/);
 assert.match(worker, /FORE_INGESTION_TRIGGER_TOKEN/);
 assert.match(worker, /audio_trigger_last_timeout/);
 assert.match(worker, /response\.status === 524/);
+assert.doesNotMatch(worker, /FORE_AUDIO_TRACK_DIRECT_URL/);
+assert.doesNotMatch(worker, /FORE_AUDIO_ALIGN_DIRECT_URL/);
+assert.match(worker, /new URL\(path, env\.FORE_PUBLIC_URL\)/);
 for (const cron of ["*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]) {
   assert.ok(wrangler.includes(cron), "missing backend Worker cron " + cron);
 }
@@ -176,8 +179,10 @@ assert.match(deployWorkflow, /npm run build:backend/);
 const audioRequirements = await read("scripts/audio_pipeline/requirements.txt");
 const audioPyprojectText = audioPyproject;
 assert.match(audioRequirements, /^faster-whisper==1\.2\.1$/m);
-assert.match(audioRequirements, /^av==18\.1\.0$/m);
-assert.match(audioPyprojectText, /"av==18\.1\.0"/);
+assert.match(audioRequirements, /^av>=11,<19$/m);
+assert.match(audioPyprojectText, /"av>=11,<19"/);
+assert.match(aligner, /metadata_errors/);
+assert.match(aligner, /retry\.pop\('metadata_errors',None\)/);
 assert.match(audioWorker, /RUN_ROOT = pathlib\.Path\("\/tmp\/cove-audio-runs"\)/);
 assert.match(audioWorker, /tempfile\.tempdir = str\(RUN_ROOT\)/);
 assert.match(audioWorker, /os\.environ\["HF_HOME"\] = str\(HF_HOME\)/);
