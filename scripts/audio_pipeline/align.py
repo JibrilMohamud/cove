@@ -76,6 +76,19 @@ def align(index,transcript,track_id,audio_sha):
             probability=spoken.get('probability')
             if (probability is None and not confidence_unreported) or (probability is not None and probability < .72) or spoken['start']<last:continue
             accepted.append({key:written[key] for key in ('cfi','endCfi','href','text')}|{key:spoken[key] for key in ('start','end')}|{'probability':probability,'wordIndex':n});last=spoken['end']
+    # Long audiobook forewords, LibriVox introductions and end credits may
+    # exactly match isolated EPUB metadata or boilerplate. They are separate
+    # from the narrated passage and must not lower its coverage or become
+    # false location cues. Keep the largest time/text-contiguous checked run;
+    # a future multi-chapter map may retain multiple independently verified
+    # runs once each passes the same checks.
+    clusters=[];current=[]
+    for word in accepted:
+        if current and (word['wordIndex']-current[-1]['wordIndex']>24 or word['start']-current[-1]['end']>12):
+            clusters.append(current);current=[]
+        current.append(word)
+    if current:clusters.append(current)
+    if clusters:accepted=max(clusters,key=len)
     interior=[w for w in speech if accepted and w['start']>=accepted[0]['start'] and w['end']<=accepted[-1]['end']];coverage=len(accepted)/max(1,len(interior))
     result={'version':2,'trackId':track_id,'epubSha256':index['epubSha256'],'audioSha256':audio_sha,'duration':transcript['duration'],'engine':transcript['engine'],'words':accepted,'verification':{'method':'independent-asr-exact-text','automatic':True,'minWordProbability':None if confidence_unreported else .72,'confidenceMode':'unreported' if confidence_unreported else 'word-probability','matchedWords':len(accepted),'spokenWords':len(speech),'coverage':round(min(1,coverage),4),'checkedAt':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}}
     minimum_coverage=.9 if confidence_unreported else .8
