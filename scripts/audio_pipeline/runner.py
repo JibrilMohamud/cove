@@ -148,23 +148,44 @@ def process_alignment(api,job,cache,threads):
     )
 
     model='base.en' if e['language']=='en' else 'base'
-    transcript=transcribe(
-        audio,
-        folder/(expected+'.transcript.json'),
-        model=model,
-        language=e['language'],
-        threads=threads,
-    )
-    result=align(index,transcript,t['id'],expected)
-    if result['status']!='checked' and model=='base.en':
+    try:
+        transcript=transcribe(
+            audio,
+            folder/(expected+'.transcript.json'),
+            model=model,
+            language=e['language'],
+            threads=threads,
+        )
+    except ModelStorageUnavailable:
+        # A short spoken passage can still be independently verified with
+        # a compact model when the preferred English model cannot fit.
+        # Never fabricate word times: align() retains exact-word checks.
+        if e['language']!='en':
+            raise
+        model='tiny.en'
         transcript=transcribe(
             audio,
             folder/(expected+'.tiny.transcript.json'),
-            model='tiny.en',
+            model=model,
             language='en',
             threads=threads,
         )
-        result=align(index,transcript,t['id'],expected)
+    result=align(index,transcript,t['id'],expected)
+    if result['status']!='checked' and model=='base.en':
+        try:
+            transcript=transcribe(
+                audio,
+                folder/(expected+'.tiny.transcript.json'),
+                model='tiny.en',
+                language='en',
+                threads=threads,
+            )
+        except ModelStorageUnavailable:
+            # The primary model ran but exact matches were insufficient;
+            # leave the result reviewable rather than claim a checked map.
+            pass
+        else:
+            result=align(index,transcript,t['id'],expected)
     result['duration']=t.get('duration') or 0
     (folder/(t['id']+'.map.json')).write_text(json.dumps(result))
     if result['status']!='checked':
@@ -240,10 +261,13 @@ def run(config,args):
             api.finish(job,status,error)
             print(json.dumps({'job':job['id'],'kind':job['kind'],'status':status,'detail':error}),flush=True)
         except ModelStorageUnavailable as error:
-            # Capacity does not improve by retrying the same model on this
-            # runtime. Keep the audio playable and make the blocker reviewable.
-            api.finish(job,'review',str(error)[:900])
-            print(json.dumps({'job':job['id'],'kind':job['kind'],'status':'review','detail':str(error)[:900]}),flush=True)
+            # Out-of-disk is usually transient on a reused serverless worker.
+            # Give the leased D1 job an exponential retry instead of treating
+            # infrastructure capacity as an incorrect or unalignable book.
+            # D1 caps repeated attempts and sends persistent failures to
+            # review after the configured limit.
+            api.finish(job,'retry',str(error)[:900])
+            print(json.dumps({'job':job['id'],'kind':job['kind'],'status':'retry','detail':str(error)[:900]}),flush=True)
         except Exception as error:
             detail=str(error)[:900]
             try:
