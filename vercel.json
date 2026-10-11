@@ -15,7 +15,12 @@
     },
     "audio_pipeline": {
       "root": "scripts",
-      "framework": "fastapi"
+      "framework": "fastapi",
+      "functions": {
+        "**/*.py": {
+          "maxDuration": 300
+        }
+      }
     }
   },
   "rewrites": [
