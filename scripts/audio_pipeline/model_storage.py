@@ -17,6 +17,7 @@ MODEL_REPOSITORIES = {
     "base.en": "Systran/faster-whisper-base.en",
     "base": "Systran/faster-whisper-base",
     "tiny.en": "Systran/faster-whisper-tiny.en",
+    "tiny": "Systran/faster-whisper-tiny",
     "small.en": "Systran/faster-whisper-small.en",
     "small": "Systran/faster-whisper-small",
 }
