@@ -60,6 +60,10 @@ jobs:
         run: npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts
       - name: Persistence architecture
         run: npm run test:persistence-backend
+      - name: Account sign-up and privacy requests
+        run: |
+          npm run test:auth
+          npm run test:legal
       - name: Catalog network recovery
         run: node scripts/check-catalog-fetch.mjs
       - name: Python syntax
