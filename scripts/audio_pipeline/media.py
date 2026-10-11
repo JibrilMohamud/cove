@@ -135,14 +135,21 @@ def download(url, target, headers=None, workers=3, chunk_size=1024 * 1024):
         files = list(pool.map(piece, range(0, size, chunk_size)))
 
     temporary = pathlib.Path(str(target) + ".tmp")
+    temporary.unlink(missing_ok=True)
     with temporary.open("wb") as output:
         for file in files:
             with file.open("rb") as source:
                 for block in iter(lambda: source.read(1024 * 1024), b""):
                     output.write(block)
+            # Free each verified range as soon as it has been reconstructed.
+            # Keeping every part until the full temporary file existed doubled
+            # peak disk usage for large audio tracks on ephemeral runtimes.
+            file.unlink(missing_ok=True)
 
     temporary.replace(target)
     stamp.write_text(json.dumps(identity))
-    for file in files:
-        file.unlink()
+    try:
+        parts.rmdir()
+    except OSError:
+        pass
     return target
