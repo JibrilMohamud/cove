@@ -20,7 +20,7 @@ logger = logging.getLogger("cove.audio_pipeline.subscriber")
     topic=AUDIO_TRIGGER_TOPIC,
     consumer_group=AUDIO_TRIGGER_GROUP,
     retry_after=30,
-    max_concurrency=1,
+    max_concurrency=2,
     max_attempts=8,
 )
 async def consume_audio_trigger(message: Message[dict[str, object]]) -> None:
