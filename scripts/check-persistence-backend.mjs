@@ -169,7 +169,6 @@ assert.match(deployWorkflow, /npm run build:backend/);
 
 // Audio/BioSync runtime compatibility contract.
 const audioRequirements = await read("scripts/audio_pipeline/requirements.txt");
-const audioWorker = await read("scripts/audio_pipeline/worker.py");
 assert.match(audioRequirements, /^faster-whisper==1\.2\.1$/m);
 assert.match(audioRequirements, /^av==18\.1\.0$/m);
 assert.match(audioWorker, /RUN_ROOT = pathlib\.Path\("\/tmp\/cove-audio-runs"\)/);
