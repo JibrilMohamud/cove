@@ -487,7 +487,14 @@ async function runScheduled(cron: string, env: BackendEnv) {
       // alignment and track acquisition. Never start a track while an
       // alignment lease is active: both need significant transient storage.
       const alignmentState = await audioAlignmentTriggerSlots(env);
-      const alignmentWindow = new Date().getUTCMinutes() % 30 < 15;
+      // Bootstrap one short real timing map before returning to alternating
+      // acquisition windows. Keeps early BioSync health failures visible without
+      // starving the long-running track backlog indefinitely.
+      const firstMapPending = await env.DB.prepare("SELECT 1 FROM audio_timing LIMIT 1").first();
+      const shortBootstrap = firstMapPending ? null : await env.DB.prepare(
+        "SELECT j.id FROM audio_jobs j JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') WHERE j.kind='align' AND j.status='queued' AND j.attempts<3 AND j.next_attempt_at<=? AND CAST(json_extract(t.value,'$.duration') AS REAL)<=120 LIMIT 1"
+      ).bind(new Date().toISOString()).first();
+      const alignmentWindow = new Date().getUTCMinutes() % 30 < 15 || Boolean(shortBootstrap);
       if (alignmentState.running > 0 || (alignmentWindow && alignmentState.queued > 0)) {
         const work: Promise<unknown>[] = [scheduledCatalog(env)];
         if (alignmentState.slots > 0) {
