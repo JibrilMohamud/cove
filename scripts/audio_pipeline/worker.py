@@ -98,7 +98,12 @@ def _prepare_runtime_cache() -> pathlib.Path:
     os.environ["NUMBA_CACHE_DIR"] = str(NUMBA_CACHE)
     os.environ["FORE_RDF_CACHE"] = str(RDF_CACHE)
     os.environ["FORE_MODEL_CACHE"] = str(MODEL_CACHE)
-    os.environ.setdefault("TMPDIR", "/tmp")
+    os.environ["TMPDIR"] = str(RUN_ROOT)
+    os.environ["TMP"] = str(RUN_ROOT)
+    os.environ["TEMP"] = str(RUN_ROOT)
+    # tempfile caches its chosen directory process-wide. Reset it after forcing
+    # every temp-related environment variable into Vercel's writable /tmp tree.
+    tempfile.tempdir = str(RUN_ROOT)
     return pathlib.Path(tempfile.mkdtemp(prefix="run-", dir=RUN_ROOT))
 
 
