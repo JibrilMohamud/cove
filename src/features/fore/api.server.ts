@@ -1636,6 +1636,7 @@ async function handleCoveRequest(request: Request, env: CoveEnv, auth:Awaited<Re
         throw new ApiError(403, "This request could not be verified.");
       if (
         path !== "/upload" && path !== "/publishing/assets/upload" && path !== "/publishing/rights-evidence/upload" && path !== "/publishing/audio/upload" && !/^\/pipeline\/(media|text)\//.test(path) &&
+        request.method !== "DELETE" &&
         !request.headers.get("content-type")?.startsWith("application/json")
       )
         throw new ApiError(415, "JSON is required for this action.");
