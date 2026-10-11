@@ -1,0 +1,30 @@
+name: biosync-production-canary
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/audio_pipeline/biosync_canary.py'
+      - '.github/workflows/biosync-canary.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-biosync-production-canary
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Publish independently verified BioSync canary
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: python3 -m scripts.audio_pipeline.biosync_canary
