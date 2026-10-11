@@ -33,6 +33,42 @@ RESERVE_BYTES = 96 * 1024 * 1024
 _download_lock = threading.Lock()
 
 
+
+def _scratch_usage_diagnostic(model_cache: pathlib.Path) -> str:
+    """Bounded, secret-free /tmp footprint for capacity failures in D1 jobs.
+
+    Never list arbitrary temporary files: only Cove-owned cache directories.
+    Approximate sizes exclude symlink targets to avoid double-counting the
+    Hugging Face cache's snapshot links.
+    """
+    roots = {
+        "models": model_cache,
+        "runs": pathlib.Path("/tmp/cove-audio-runs"),
+        "rdf": pathlib.Path("/tmp/cove-rdf-cache"),
+        "hf": pathlib.Path("/tmp/cove-huggingface"),
+        "xdg": pathlib.Path("/tmp/cove-xdg-cache"),
+    }
+    usage = []
+    for label, root in roots.items():
+        size = 0
+        seen = 0
+        if root.is_dir():
+            for parent, _, names in os.walk(root):
+                for name in names:
+                    seen += 1
+                    if seen > 12000:
+                        break
+                    try:
+                        file = pathlib.Path(parent) / name
+                        if not file.is_symlink():
+                            size += file.stat().st_size
+                    except OSError:
+                        pass
+                if seen > 12000:
+                    break
+        usage.append(f"{label}={size // (1024 * 1024)}MB")
+    return "cove_tmp(" + ",".join(usage) + ")"
+
 def prepare_model(model: str, cache_dir: str | pathlib.Path) -> str:
     """Download only required files, pinned to the revision whose sizes we checked.
 
@@ -97,6 +133,7 @@ def prepare_model(model: str, cache_dir: str | pathlib.Path) -> str:
                 raise ModelStorageUnavailable(
                     f"BioSync model {model} needs {missing_bytes} download bytes plus "
                     f"{RESERVE_BYTES} reserve bytes; only {free_bytes} bytes are free. "
+                    + _scratch_usage_diagnostic(cache) + ". "
                     "Resume alignment on a worker with sufficient storage; playback is unaffected."
                 )
             return snapshot_download(
