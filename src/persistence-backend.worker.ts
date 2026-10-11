@@ -300,7 +300,7 @@ async function ingestionTriggerHeaders(env: BackendEnv, target: URL) {
 
 async function persistAudioTriggerDiagnostic(
   env: BackendEnv,
-  key: "audio_trigger_last_error" | "audio_trigger_last_success",
+  key: "audio_trigger_last_error" | "audio_trigger_last_success" | "audio_trigger_last_timeout",
   value: Record<string, unknown>,
 ) {
   const at = new Date().toISOString();
@@ -328,6 +328,18 @@ async function triggerVercelAudio(env: BackendEnv, path: string) {
   });
   if (!response.ok) {
     const body = (await response.text()).replace(/[\r\n\t]+/g, " ").slice(0, 900);
+    if (response.status === 524) {
+      await persistAudioTriggerDiagnostic(env, "audio_trigger_last_timeout", {
+        path,
+        status: response.status,
+        body,
+        disposition: "in-flight",
+      });
+      console.warn(
+        `Cove audio trigger timed out at the transport boundary for ${path}; D1 lease recovery remains authoritative.`,
+      );
+      return;
+    }
     await persistAudioTriggerDiagnostic(env, "audio_trigger_last_error", {
       path,
       status: response.status,
