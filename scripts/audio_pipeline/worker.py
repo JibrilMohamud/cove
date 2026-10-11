@@ -19,6 +19,10 @@ AUDIO_TRIGGER_GROUP = "cove-audio-pipeline-worker-v2"
 RUN_ROOT = pathlib.Path("/tmp/cove-audio-runs")
 RDF_CACHE = pathlib.Path("/tmp/cove-rdf-cache")
 MODEL_CACHE = pathlib.Path("/tmp/cove-model-cache")
+RUNTIME_HOME = pathlib.Path("/tmp/cove-runtime-home")
+XDG_CACHE = pathlib.Path("/tmp/cove-xdg-cache")
+HF_HOME = pathlib.Path("/tmp/cove-huggingface")
+NUMBA_CACHE = pathlib.Path("/tmp/cove-numba-cache")
 STALE_RUN_SECONDS = 20 * 60
 
 
@@ -68,6 +72,10 @@ def _prepare_runtime_cache() -> pathlib.Path:
     RUN_ROOT.mkdir(parents=True, exist_ok=True)
     RDF_CACHE.mkdir(parents=True, exist_ok=True)
     MODEL_CACHE.mkdir(parents=True, exist_ok=True)
+    RUNTIME_HOME.mkdir(parents=True, exist_ok=True)
+    XDG_CACHE.mkdir(parents=True, exist_ok=True)
+    HF_HOME.mkdir(parents=True, exist_ok=True)
+    NUMBA_CACHE.mkdir(parents=True, exist_ok=True)
 
     cutoff = time.time() - STALE_RUN_SECONDS
     for path in RUN_ROOT.glob("run-*"):
@@ -77,8 +85,20 @@ def _prepare_runtime_cache() -> pathlib.Path:
         except FileNotFoundError:
             continue
 
-    os.environ.setdefault("FORE_RDF_CACHE", str(RDF_CACHE))
-    os.environ.setdefault("FORE_MODEL_CACHE", str(MODEL_CACHE))
+    # Vercel's deployed source tree is read-only. ML/runtime dependencies may
+    # consult HOME/XDG/Hugging Face defaults even when faster-whisper receives
+    # an explicit download_root, so force every writable cache under /tmp.
+    os.environ["HOME"] = str(RUNTIME_HOME)
+    os.environ["XDG_CACHE_HOME"] = str(XDG_CACHE)
+    os.environ["HF_HOME"] = str(HF_HOME)
+    os.environ["HF_HUB_CACHE"] = str(HF_HOME / "hub")
+    os.environ["HUGGINGFACE_HUB_CACHE"] = str(HF_HOME / "hub")
+    os.environ["TRANSFORMERS_CACHE"] = str(HF_HOME / "transformers")
+    os.environ["TORCH_HOME"] = str(XDG_CACHE / "torch")
+    os.environ["NUMBA_CACHE_DIR"] = str(NUMBA_CACHE)
+    os.environ["FORE_RDF_CACHE"] = str(RDF_CACHE)
+    os.environ["FORE_MODEL_CACHE"] = str(MODEL_CACHE)
+    os.environ.setdefault("TMPDIR", "/tmp")
     return pathlib.Path(tempfile.mkdtemp(prefix="run-", dir=RUN_ROOT))
 
 
