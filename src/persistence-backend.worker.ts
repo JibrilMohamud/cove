@@ -455,6 +455,40 @@ async function audioAlignmentTriggerSlots(env: BackendEnv) {
   };
 }
 
+async function warmOneShortBiosyncTranscript(env: BackendEnv) {
+  // The first end-to-end map proved hosted Whisper works on short tracks.
+  // Warm one independent ASR transcript per hour; the existing Vercel/GitHub
+  // verifier still has to match the exact EPUB before publishing any map.
+  if (!env.AI || !env.BUCKET) return;
+  const rows = await env.DB.prepare(
+    "SELECT e.id edition_id,json_extract(t.value,'$.id') track_id,json_extract(t.value,'$.sha256') audio_sha " +
+      "FROM audio_jobs j JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') " +
+      "JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') " +
+      "WHERE j.kind='align' AND j.status='queued' " +
+      "AND CAST(json_extract(t.value,'$.duration') AS REAL)>0 " +
+      "AND CAST(json_extract(t.value,'$.duration') AS REAL)<=240 " +
+      "AND json_extract(t.value,'$.sha256') IS NOT NULL ORDER BY j.updated_at,j.id LIMIT 40",
+  ).all<{ edition_id: string; track_id: string; audio_sha: string }>();
+  const options = rows.results.filter(r => /^[a-f0-9]{64}$/.test(r.audio_sha));
+  // Rotate across short tracks so an unavailable or corrupt recording cannot
+  // permanently block progress for every other eligible track.
+  if (!options.length) return;
+  const origin = "https://cove-persistence.internal";
+  const first = Math.floor(Date.now() / 3600000) % options.length;
+  for (let offset = 0; offset < Math.min(4, options.length); offset++) {
+    const row = options[(first + offset) % options.length];
+    const key = `biosync/transcripts/cloudflare-whisper-v1/${row.audio_sha}.json`;
+    if (await env.BUCKET.head(key)) continue;
+    const request = new Request(origin + "/api/fore/pipeline/hosted-transcript", { method: "POST" });
+    const response = await hostedBiosyncTranscript(request, env, row.edition_id, row.track_id);
+    if (response.ok) {
+      console.info("Cove BioSync short-track transcript cached", row.edition_id, row.track_id);
+      return;
+    }
+    console.warn("BioSync short-track ASR warm-up skipped", row.edition_id, row.track_id, response.status);
+  }
+}
+
 async function runScheduled(cron: string, env: BackendEnv) {
   if (await d1QuotaBlocked()) {
     console.warn("Cove ingestion paused briefly after a D1 quota limit.");
@@ -535,7 +569,10 @@ async function runScheduled(cron: string, env: BackendEnv) {
       return;
     }
     if (cron === "23 * * * *") {
-      await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align");
+      await Promise.allSettled([
+        warmOneShortBiosyncTranscript(env),
+        triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align"),
+      ]);
       return;
     }
     if (cron === "17 3 * * *") {
