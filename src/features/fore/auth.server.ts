@@ -280,12 +280,21 @@ export async function createAuth(request: Request, env: CoveEnv) {
     }
     if (path === "/auth/callback" && request.method === "GET") {
       const code = url.searchParams.get("code");
-      if (!code)
+      const tokenHash = url.searchParams.get("token_hash");
+      const otpType = url.searchParams.get("type");
+      // SSR email templates may use token_hash + verifyOtp, while the
+      // browser/provider OAuth callback returns an authorization code.
+      // Only the exact, provider-supported callback types are accepted.
+      const tokenType = otpType && ["email", "signup", "recovery"].includes(otpType)
+        ? otpType as "email" | "signup" | "recovery" : null;
+      if ((!code || tokenHash) && (!tokenHash || !tokenType))
         return new Response(null, {
           status: 303,
           headers: { Location: "/?auth=login&authError=link", "Cache-Control": "no-store" },
         });
-      const { data, error } = await client.auth.exchangeCodeForSession(code);
+      const { data, error } = tokenHash && tokenType
+        ? await client.auth.verifyOtp({ token_hash: tokenHash, type: tokenType })
+        : await client.auth.exchangeCodeForSession(code!);
       if (error || !data.user?.email_confirmed_at)
         return new Response(null, {
           status: 303,
@@ -296,7 +305,7 @@ export async function createAuth(request: Request, env: CoveEnv) {
         status: 303,
         headers: {
           Location:
-            url.searchParams.get("flow") === "recovery" ? "/?auth=new-password" : "/profile",
+            url.searchParams.get("flow") === "recovery" || tokenType === "recovery" ? "/?auth=new-password" : "/profile",
           "Cache-Control": "no-store",
         },
       });
