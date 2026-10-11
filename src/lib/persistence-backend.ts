@@ -68,6 +68,13 @@ function gatewayHeaders(request: Request, env: PersistenceEnv, target: URL) {
     "x-cove-client-country",
     "x-cove-client-ip",
     "x-cove-backend-host",
+    // Only a trusted platform may assert these identities. Never proxy
+    // client-controlled headers into D1 account authorization.
+    "oai-authenticated-user-id",
+    "oai-authenticated-user-email",
+    "oai-authenticated-user-full-name",
+    "oai-authenticated-user-full-name-encoding",
+    "oai-authentication-assurance-level",
   ]) {
     headers.delete(name);
   }
