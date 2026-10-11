@@ -90,9 +90,54 @@ def check_map(mapping: dict, audio_sha: str, epub_sha: str, duration: float) -> 
         previous = word
 
 
+def choose_queued_short_track() -> bool:
+    """Pick an independently transcribed and pinned short queued track."""
+    global EDITION, TRACK, JOB
+    prefix = "biosync/transcripts/cloudflare-whisper-v1/"
+    try:
+        result = json.loads(authorized_request(
+            "GET", f"{BASE}/r2/buckets/{BUCKET}/objects?prefix={urllib.parse.quote(prefix)}&per_page=1000"
+        ))
+    except RuntimeError as error:
+        print(f"Short BioSync auto-selector unavailable: {error}")
+        return False
+    objects = result.get("result", [])
+    if isinstance(objects, dict):
+        objects = objects.get("objects", [])
+    cached = {str(item.get("key", "")) for item in objects if isinstance(item, dict)}
+    if not cached:
+        print("No independently hosted short-track ASR transcript is cached yet.")
+        return False
+    candidates = query(
+        "SELECT j.id job_id,e.id edition_id,json_extract(t.value,'$.id') track_id,"
+        "json_extract(t.value,'$.sha256') audio_sha FROM audio_jobs j "
+        "JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') "
+        "JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') "
+        "LEFT JOIN audio_timing m ON m.edition_id=e.id AND m.track_id=json_extract(t.value,'$.id') "
+        "WHERE j.kind='align' AND j.status='queued' AND j.attempts<6 "
+        "AND e.epub_sha256 IS NOT NULL "
+        "AND CAST(json_extract(t.value,'$.duration') AS REAL)>0 "
+        "AND CAST(json_extract(t.value,'$.duration') AS REAL)<=240 "
+        "AND m.map_sha256 IS NULL ORDER BY CAST(json_extract(t.value,'$.duration') AS REAL),j.id LIMIT 250"
+    )
+    possible = [x for x in candidates
+                if f"{prefix}{x['audio_sha']}.json" in cached]
+    if not possible:
+        print("No queued short BioSync tracks have a complete hosted transcript and EPUB yet.")
+        return False
+    # Rotate only among actually transcribed candidates. A track failing
+    # exact-text verification never blocks other candidates indefinitely.
+    chosen = possible[(int(datetime.now(timezone.utc).timestamp()) // 3600) % len(possible)]
+    EDITION, TRACK, JOB = chosen["edition_id"], chosen["track_id"], chosen["job_id"]
+    print(f"Checking short BioSync candidate: {EDITION} / {TRACK}")
+    return True
+
+
 def main() -> None:
     if not os.environ.get("CLOUDFLARE_API_TOKEN"):
         raise RuntimeError("Configure CLOUDFLARE_API_TOKEN in GitHub Actions")
+    if os.environ.get("BIOSYNC_AUTO_SHORT") == "1" and not choose_queued_short_track():
+        return
     meta = query(
         "SELECT e.book_id,e.epub_sha256,e.language,e.tracks_json,a.status "
         "FROM audio_editions e JOIN audio_jobs a ON a.id=? "
@@ -150,7 +195,11 @@ def main() -> None:
             raise RuntimeError("Checked cue does not match pinned EPUB contents")
     mapping["duration"] = float(track["duration"])
     if mapping["status"] != "checked":
-        raise RuntimeError("Canary not publishable: " + mapping.get("reason", "insufficient evidence"))
+        explanation = "BioSync not publishable: " + mapping.get("reason", "insufficient evidence")
+        if os.environ.get("BIOSYNC_AUTO_SHORT") == "1":
+            print(explanation + ". Kept unpublished for review.")
+            return
+        raise RuntimeError(explanation)
     check_map(mapping, audio_sha, epub_sha, mapping["duration"])
     contents = json.dumps(mapping, separators=(",", ":"), ensure_ascii=False).encode()
     map_sha = hashlib.sha256(contents).hexdigest()
