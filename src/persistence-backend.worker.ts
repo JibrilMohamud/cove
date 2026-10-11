@@ -15,6 +15,7 @@ type BackendEnv = CoveEnv & {
   FORE_CATALOG_EPUBS_PER_TICK?: string;
   FORE_INGESTION_TRIGGER_TOKEN?: string;
   FORE_INGESTION_SIGNING_KEY?: string;
+  AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
 };
 
 type ExecutionContextLike = {
@@ -534,6 +535,86 @@ async function runScheduled(cron: string, env: BackendEnv) {
   }
 }
 
+
+/**
+ * Server-to-server BioSync speech recognition. R2 is authoritative for the
+ * prepared audio. Nothing here fabricates per-word confidence: Cloudflare's
+ * Whisper API returns actual word timestamps, but not probability values.
+ * The Python alignment verifier still demands independently matching EPUB
+ * words before it can publish a map.
+ */
+async function hostedBiosyncTranscript(request: Request, env: BackendEnv, editionId: string, trackId: string) {
+  if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
+  if (!env.AI || !env.BUCKET) return json({ error: "BioSync hosted ASR binding unavailable.", retryable: true }, 503);
+  if (!/^pg-[1-9][0-9]{0,8}$/.test(editionId) || !/^[a-zA-Z0-9_-]{1,100}$/.test(trackId)) {
+    return json({ error: "Invalid audio identity." }, 400);
+  }
+  const row = await env.DB.prepare("SELECT language,tracks_json FROM audio_editions WHERE id=?")
+    .bind(editionId).first<{ language: string; tracks_json: string }>();
+  if (!row) return json({ error: "Unknown audio edition." }, 404);
+  let tracks: Array<{ id: string; sha256?: string; duration?: number; url: string }>;
+  try {
+    tracks = JSON.parse(row.tracks_json);
+  } catch {
+    return json({ error: "Invalid edition metadata." }, 409);
+  }
+  const track = tracks.find(t => t.id === trackId);
+  if (!track || !track.sha256 || !/^[a-f0-9]{64}$/.test(track.sha256) || !track.duration) {
+    return json({ error: "Prepared audio is required." }, 409);
+  }
+  const cacheKey = `biosync/transcripts/cloudflare-whisper-v1/${track.sha256}.json`;
+  const cached = await env.BUCKET.get(cacheKey);
+  if (cached) return json(await cached.json());
+  const audioKey = `audio/${editionId}/${track.id}-${track.sha256}`;
+  const object = await env.BUCKET.get(audioKey);
+  if (!object) return json({ error: "Prepared audio object is missing.", retryable: true }, 503);
+  // This model is for bounded short recordings. Don't load long MP3s into
+  // the Worker heap; large tracks require a separate chunked ASR pathway.
+  if (object.size > 8 * 1024 * 1024 || track.duration > 240) {
+    return json({ error: "Hosted Whisper chunking required for this track.", retryable: true, reason: "track_exceeds_single_inference_limit" }, 422);
+  }
+  const audio = new Uint8Array(await object.arrayBuffer());
+  const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", audio))]
+    .map(b => b.toString(16).padStart(2, "0")).join("");
+  if (hash !== track.sha256) return json({ error: "Prepared audio digest mismatch." }, 409);
+  let result: { words?: Array<{ word?: string; start?: number; end?: number }>; text?: string };
+  try {
+    result = await env.AI.run("@cf/openai/whisper", { audio: Array.from(audio) }) as typeof result;
+  } catch (error) {
+    console.error("Hosted BioSync transcription failed", editionId, trackId, error);
+    return json({ error: "Hosted transcription unavailable.", retryable: true }, 503);
+  }
+  if (!Array.isArray(result?.words)) {
+    return json({ error: "Speech engine did not return word timestamps.", retryable: true }, 503);
+  }
+  const words = result.words
+    .filter(w => w && typeof w.word === "string" && w.word.trim().length > 0
+      && Number.isFinite(w.start) && Number.isFinite(w.end)
+      && (w.start as number) >= 0 && (w.end as number) > (w.start as number)
+      && (w.end as number) <= (track.duration as number) + 1)
+    .map(w => ({
+      text: (w.word as string).trim(),
+      start: w.start,
+      end: w.end,
+      probability: null,
+    }));
+  if (words.length < 30) {
+    return json({ error: "Speech transcript has fewer than thirty timed words.", retryable: true, timedWords: words.length }, 503);
+  }
+  const transcript = {
+    identity: { audioSha256: track.sha256, model: "cloudflare-whisper-v1", language: row.language },
+    engine: "cloudflare-workers-ai-whisper",
+    confidenceMode: "unreported",
+    language: row.language,
+    duration: track.duration,
+    words,
+  };
+  await env.BUCKET.put(cacheKey, JSON.stringify(transcript), {
+    httpMetadata: { contentType: "application/json" },
+  });
+  return json(transcript);
+}
+
 export default {
   async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
     ctx.waitUntil?.(
@@ -550,6 +631,8 @@ export default {
     }
 
     const path = new URL(request.url).pathname;
+    const hostedTranscript = path.match(/^\\/api\\/fore\\/pipeline\\/hosted-transcript\\/(pg-[1-9][0-9]{0,8})\\/([a-zA-Z0-9_-]{1,100})$/);
+    if (hostedTranscript) return hostedBiosyncTranscript(request, env, hostedTranscript[1], hostedTranscript[2]);
     if (path === "/__cove/health" && request.method === "GET") {
       try {
         const row = await env.DB.prepare("SELECT 1 ok").first<{ ok?: number }>();
