@@ -10,6 +10,9 @@ const [
   pipeline,
   runner,
   service,
+  audioWorker,
+  audioSubscriber,
+  audioPyproject,
   vercelRaw,
   packageRaw,
   wrangler,
@@ -22,6 +25,9 @@ const [
   read("src/features/fore/pipeline.server.ts"),
   read("scripts/audio_pipeline/runner.py"),
   read("scripts/audio_pipeline/service.py"),
+  read("scripts/audio_pipeline/worker.py"),
+  read("scripts/audio_pipeline/subscriber.py"),
+  read("scripts/pyproject.toml"),
   read("vercel.json"),
   read("package.json"),
   read("wrangler.backend.example.toml"),
@@ -85,19 +91,32 @@ assert.match(alignBody, /pipeline\/alignment/);
 assert.match(runner, /choices=\['discover','track','align'\]/);
 assert.match(runner, /stop\.wait\(120\)/);
 
-assert.match(service, /Literal\["discover", "track", "align"\]/);
-assert.match(service, /ge=0/);
+assert.match(audioWorker, /Literal\["discover", "track", "align"\]/);
+assert.match(audioWorker, /ge=0/);
+assert.match(audioWorker, /le=5/);
+assert.match(audioWorker, /cove-audio-pipeline-v2/);
+assert.match(service, /QueueClient\(\)/);
+assert.match(service, /queueMode": "push"/);
+assert.doesNotMatch(service, /poll_and_handle/);
+assert.doesNotMatch(service, /lifespan=/);
+assert.match(audioSubscriber, /@subscribe\(/);
+assert.match(audioSubscriber, /AUDIO_TRIGGER_TOPIC/);
+assert.match(audioSubscriber, /max_concurrency=1/);
+assert.match(audioSubscriber, /max_attempts=8/);
+assert.match(audioSubscriber, /Message\[dict\[str, object\]\]/);
+assert.match(audioPyproject, /\[tool\.vercel\]/);
+assert.match(audioPyproject, /entrypoint = "audio_pipeline\.service:app"/);
+assert.match(audioPyproject, /\[\[tool\.vercel\.subscribers\]\]/);
+assert.match(audioPyproject, /entrypoint = "audio_pipeline\.subscriber"/);
 
 assert.equal(vercel.services.app.framework, "tanstack-start");
 assert.equal(vercel.services.audio_pipeline.root, "scripts");
-assert.equal(vercel.services.audio_pipeline.runtime, "container");
-assert.equal(vercel.services.audio_pipeline.entrypoint, "Dockerfile.vercel");
-assert.equal(vercel.services.audio_pipeline.framework, undefined);
+assert.equal(vercel.services.audio_pipeline.framework, "fastapi");
+assert.equal(vercel.services.audio_pipeline.runtime, undefined);
+assert.equal(vercel.services.audio_pipeline.entrypoint, undefined);
 assert.equal(vercel.services.audio_pipeline.functions, undefined);
 assert.match(audioDockerfile, /FROM python:3\.12-slim/);
 assert.match(audioDockerfile, /libgomp1/);
-assert.match(audioDockerfile, /uvicorn audio_pipeline\.service:app/);
-assert.match(audioDockerfile, /\$\{PORT:-3000\}/);
 assert.ok(
   vercel.services.app.bindings.some(
     (x) => x.service === "audio_pipeline" && x.env === "COVE_AUDIO_PIPELINE_URL",
