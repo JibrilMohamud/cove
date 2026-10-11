@@ -188,7 +188,7 @@ assert.match(aligner, /retry\.pop\('metadata_errors',None\)/);
 assert.match(audioWorker, /RUN_ROOT = pathlib\.Path\("\/tmp\/cove-audio-runs"\)/);
 assert.match(audioWorker, /tempfile\.tempdir = str\(RUN_ROOT\)/);
 assert.match(audioWorker, /os\.environ\["HF_HOME"\] = str\(HF_HOME\)/);
-assert.match(gateway, /"\/api\/fore\/internal\/ingestion\/audio-align":[\s\S]*?execution_mode:\s*"direct"[\s\S]*?threads:\s*4/);
+assert.match(gateway, /"\/api\/fore\/internal\/ingestion\/audio-align":[\s\S]*?execution_mode:\s*"queue"[\s\S]*?threads:\s*4/);
 assert.match(gateway, /"\/api\/fore\/internal\/ingestion\/audio-track":[\s\S]*?execution_mode:\s*"direct"/);
 assert.match(gateway, /"\/api\/fore\/internal\/ingestion\/audio-discover":[\s\S]*?execution_mode:\s*"direct"/);
 
