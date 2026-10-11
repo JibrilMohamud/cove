@@ -342,6 +342,7 @@ export async function handleVercelIngestionControl(
 
   const jobs: Record<string, Record<string, unknown>> = {
     "/api/fore/internal/ingestion/audio-scan": {
+      execution_mode: "direct",
       max_jobs: 0,
       minutes: 4,
       no_discovery: false,
@@ -349,6 +350,7 @@ export async function handleVercelIngestionControl(
     },
     "/api/fore/internal/ingestion/audio-discover": {
       kind: "discover",
+      execution_mode: "direct",
       max_jobs: 12,
       minutes: 4,
       no_discovery: true,
@@ -356,6 +358,7 @@ export async function handleVercelIngestionControl(
     },
     "/api/fore/internal/ingestion/audio-track": {
       kind: "track",
+      execution_mode: "direct",
       max_jobs: 1,
       minutes: 4,
       no_discovery: true,
@@ -363,6 +366,7 @@ export async function handleVercelIngestionControl(
     },
     "/api/fore/internal/ingestion/audio-align": {
       kind: "align",
+      execution_mode: "direct",
       max_jobs: 1,
       minutes: 4,
       no_discovery: true,
