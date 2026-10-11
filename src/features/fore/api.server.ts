@@ -964,7 +964,8 @@ async function quarantineRegionalItem(env: CoveEnv, id: string, message: string)
 }
 
 async function cachePendingEpubs(env: CoveEnv, limit = 1) {
-  if (!env.BUCKET) return { attempted: 0, downloaded: 0, failed: 0, quarantined: 0 };
+  if (limit <= 0 || !env.BUCKET)
+    return { attempted: 0, downloaded: 0, failed: 0, quarantined: 0 };
   const db = database(env);
   const staleDownloadBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   await db.prepare(`UPDATE gutenberg_source_cache
@@ -981,7 +982,7 @@ async function cachePendingEpubs(env: CoveEnv, limit = 1) {
         AND (epub_next_attempt_at='' OR epub_next_attempt_at<=?)
     ) SELECT id,title,authors_json,languages_json,source_id,source_item_id,formats_json,epub_attempts,rights_territories_json,rights_evidence_url,source_url,content_hash,source_metadata_json
       FROM ranked ORDER BY source_rank ASC,source_id ASC,id ASC LIMIT ?`)
-    .bind(now(), Math.max(4, Math.min(16, limit))).all<any>();
+    .bind(now(), Math.max(1, Math.min(16, limit))).all<any>();
   let downloaded = 0, failed = 0, quarantined = 0;
   for (const row of queued.results) {
     const id = String(row.id);
@@ -1206,9 +1207,18 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
   }
 }
 
-export async function runCatalogIngestion(env: CoveEnv, epubLimit = 1) {
+export async function runCatalogIngestion(
+  env: CoveEnv,
+  epubLimit = 1,
+  includeRegional = true,
+) {
   await seedCatalog(env);
-  const regional = await runRegionalCatalogIngestion(env, Math.max(1, epubLimit)).catch((error) => ({ failed: true, error: error instanceof Error ? error.message : String(error) }));
+  const regional = includeRegional
+    ? await runRegionalCatalogIngestion(env, epubLimit).catch((error) => ({
+        failed: true,
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    : { skipped: "regional-deferred" };
   const db = database(env);
   const state = await db.prepare("SELECT * FROM catalog_state WHERE id=1").first<any>();
   const current = Date.now();
@@ -1319,10 +1329,21 @@ export async function runCatalogIngestion(env: CoveEnv, epubLimit = 1) {
     };
   }
 }
+
+export async function runCatalogAssetIngestion(env: CoveEnv, limit = 12) {
+  await seedCatalog(env);
+  return cachePendingEpubs(env, Math.max(1, Math.min(16, limit)));
+}
+
+export async function runRegionalCatalogMaintenance(env: CoveEnv) {
+  await seedCatalog(env);
+  return runRegionalCatalogIngestion(env, 0);
+}
+
 let ingestionInFlight: Promise<any> | null = null;
 export function kickCatalogIngestion(env: CoveEnv) {
   if (ingestionInFlight) return ingestionInFlight;
-  ingestionInFlight = runCatalogIngestion(env, 1)
+  ingestionInFlight = runCatalogIngestion(env, 0, false)
     .catch((error) => {
       console.warn(
         "Catalog ingestion failed",
