@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch
 
 from fastapi.testclient import TestClient
 
-from scripts.audio_pipeline import model_storage, runner, service
+from scripts.audio_pipeline import model_storage, runner, service, worker
 
 
 class ModelStorageTests(unittest.TestCase):
@@ -97,10 +97,47 @@ class ModelStorageTests(unittest.TestCase):
         with self.assertRaises(model_storage.ModelStorageUnavailable):
             self.prepare()
 
+    def test_compact_multilingual_model_is_supported(self):
+        self.assertEqual(model_storage.MODEL_REPOSITORIES["tiny"], "Systran/faster-whisper-tiny")
+
     def test_network_failure_remains_retryable(self):
         self.download.side_effect = TimeoutError("network timeout")
         with self.assertRaises(TimeoutError):
             self.prepare()
+
+
+class WorkerCacheTests(unittest.TestCase):
+    def test_audio_run_owns_rdf_cache_and_preserves_active_legacy_entries(self):
+        with tempfile.TemporaryDirectory() as root_text:
+            root = pathlib.Path(root_text)
+            with patch.multiple(
+                worker,
+                RUN_ROOT=root / "runs",
+                RDF_CACHE=root / "rdf",
+                MODEL_CACHE=root / "models",
+                RUNTIME_HOME=root / "runtime",
+                XDG_CACHE=root / "xdg",
+                HF_HOME=root / "hf",
+                NUMBA_CACHE=root / "numba",
+            ), patch.dict(os.environ):
+                worker.RDF_CACHE.mkdir()
+                stale = worker.RDF_CACHE / "old.rdf"
+                active = worker.RDF_CACHE / "current.rdf"
+                stale.write_text("stale")
+                active.write_text("current")
+                import time
+                old_time = time.time() - worker.STALE_RUN_SECONDS - 120
+                os.utime(stale, (old_time, old_time))
+                original_tempdir = tempfile.tempdir
+                try:
+                    scratch = worker._prepare_runtime_cache()
+                    self.assertTrue(scratch.exists())
+                    self.assertEqual(os.environ["FORE_RDF_CACHE"], str(scratch / "rdf"))
+                    self.assertFalse(stale.exists())
+                    self.assertTrue(active.exists())
+                    self.assertEqual(worker.MODEL_CACHE, pathlib.Path(os.environ["FORE_MODEL_CACHE"]))
+                finally:
+                    tempfile.tempdir = original_tempdir
 
 
 class PipelineTests(unittest.TestCase):
