@@ -120,7 +120,6 @@ assert.equal(vercel.services.audio_pipeline.framework, "fastapi");
 assert.equal(vercel.services.audio_pipeline.functions["**/*.py"].maxDuration, 300);
 assert.equal(vercel.services.audio_pipeline.runtime, undefined);
 assert.equal(vercel.services.audio_pipeline.entrypoint, undefined);
-assert.equal(vercel.services.audio_pipeline.functions, undefined);
 assert.match(audioDockerfile, /FROM python:3\.12-slim/);
 assert.match(audioDockerfile, /libgomp1/);
 assert.ok(
