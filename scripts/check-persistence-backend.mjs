@@ -96,6 +96,8 @@ assert.match(audioWorker, /ge=0/);
 assert.match(audioWorker, /le=5/);
 assert.match(audioWorker, /cove-audio-pipeline-v2/);
 assert.match(service, /QueueClient\(\)/);
+assert.match(service, /QueueClient\\(deployment=ALL_DEPLOYMENTS\\)/);
+assert.match(service, /from vercel\\.queue import ALL_DEPLOYMENTS, QueueClient/);
 assert.match(service, /queueMode": "push"/);
 assert.doesNotMatch(service, /poll_and_handle/);
 assert.doesNotMatch(service, /lifespan=/);
