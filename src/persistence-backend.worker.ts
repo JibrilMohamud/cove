@@ -444,35 +444,6 @@ async function audioAlignmentTriggerSlots(env: BackendEnv) {
   };
 }
 
-/* eslint-disable prettier/prettier -- temporary isolated canary inspection */
-async function diagnoseBioSyncCanary(env: BackendEnv) {
-  // Temporary, public-domain-only debug snapshot. Never stores tokens, secrets,
-  // user text, or private recordings. Removed once first map is verified.
-  try {
-    const row = await env.DB.prepare(
-      "SELECT json_extract(j.value,'$.sha256') sha FROM audio_editions e,json_each(e.tracks_json) j WHERE e.id='pg-19504' AND json_extract(j.value,'$.id')='02'"
-    ).first<{ sha?: string }>();
-    if (!row?.sha) return;
-    const object = await env.BUCKET?.get(`biosync/transcripts/cloudflare-whisper-v1/${row.sha}.json`);
-    if (!object) return;
-    const transcript = await object.json() as { words?: Array<{ text?: string; start?: number; end?: number }> };
-    const words = transcript.words || [];
-    const diagnostic = JSON.stringify({
-      words: words.slice(0, 160).map(w => w.text),
-      count: words.length,
-      first: words[0]?.start,
-      last: words.at(-1)?.end,
-    });
-    const at = new Date().toISOString();
-    await env.DB.prepare(
-      "INSERT INTO cove_runtime_config(key,value,updated_at) VALUES('biosync_canary_asr_debug',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at"
-    ).bind(diagnostic, at).run();
-  } catch (error) {
-    console.warn("BioSync canary diagnostics could not be recorded", error);
-  }
-}
-
-/* eslint-enable prettier/prettier */
 async function runScheduled(cron: string, env: BackendEnv) {
   if (await d1QuotaBlocked()) {
     console.warn("Cove ingestion paused briefly after a D1 quota limit.");
@@ -480,7 +451,6 @@ async function runScheduled(cron: string, env: BackendEnv) {
   }
   try {
     if (cron === "*/5 * * * *") {
-      await diagnoseBioSyncCanary(env);
       // This is the reliable primary cron, so it must make forward progress
       // even if a secondary alignment trigger is delayed or never fires.
       // Reserve alternating 15-minute windows for independent BioSync
