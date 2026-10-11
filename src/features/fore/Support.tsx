@@ -4,6 +4,46 @@ import {toast} from "sonner";
 import {api,useAccount} from "./client";
 
 const sections=["users","orders","products","publishers","refunds","devices","entitlements","offlineLicenses","payments"] as const;
+type LegalRequest={id:string;category:string;email:string;message:string;state:string;created_at:string};
+function PrivacyRequestQueue(){
+  const [state,setState]=useState("open"),[items,setItems]=useState<LegalRequest[]|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState("");
+  async function load(next=state){
+    setBusy(true);setError("");
+    try{const result=await api<{requests:LegalRequest[]}>(`/admin/support/legal?state=${encodeURIComponent(next)}`);setItems(result.requests);}
+    catch(e){setError((e as Error).message);setItems(null);}
+    finally{setBusy(false);}
+  }
+  async function change(row:LegalRequest,next:string){
+    if(!confirm(`Mark privacy request ${row.id} as ${next}? Only record a request as resolved after identity and completion have been independently verified.`))return;
+    setBusy(true);setError("");
+    try{await api("/admin/support/legal/state","POST",{id:row.id,state:next});await load();}
+    catch(e){setError((e as Error).message);setBusy(false);}
+  }
+  return <section className="publishing-section" aria-label="Privacy and legal requests">
+    <h2>Privacy &amp; legal request inbox</h2>
+    <p className="small muted">Restricted to MFA-verified support staff. A contact form alone does not verify identity, authorize disclosure, or perform deletion.</p>
+    <div className="inline-actions">
+      <select aria-label="Request status" value={state} onChange={e=>{setState(e.target.value);setItems(null);}}>
+        {["open","in-review","resolved","closed"].map(s=><option key={s} value={s}>{s}</option>)}
+      </select>
+      <button className="button outline" disabled={busy} onClick={()=>load()}>{busy?"Loading…":"Load requests"}</button>
+    </div>
+    {error&&<p role="alert" className="notice">{error}</p>}
+    {items?.length===0&&<p>No requests with this status.</p>}
+    {items?.map(row=><article className="publishing-onboard-card" key={row.id}>
+      <strong>{row.category} · {row.state}</strong>
+      <p className="small">{new Date(row.created_at).toLocaleString()} · {row.id}</p>
+      <p><a href={`mailto:${encodeURIComponent(row.email)}`}>{row.email}</a></p>
+      <p style={{whiteSpace:"pre-wrap",overflowWrap:"anywhere"}}>{row.message}</p>
+      <div className="inline-actions">
+        {row.state==="open"&&<button className="button outline compact" disabled={busy} onClick={()=>change(row,"in-review")}>Mark in review</button>}
+        {row.state==="in-review"&&<button className="button outline compact" disabled={busy} onClick={()=>change(row,"resolved")}>Mark resolved</button>}
+        {(row.state==="resolved"||row.state==="open")&&<button className="button outline compact" disabled={busy} onClick={()=>change(row,"closed")}>Close request</button>}
+      </div>
+    </article>)}
+  </section>;
+}
+
 export function SupportAdminPage(){
   const {data,signIn}=useAccount(),[q,setQ]=useState(""),[results,setResults]=useState<any>(null),[caseData,setCaseData]=useState<any>(null),[busy,setBusy]=useState(false),[selected,setSelected]=useState<any>({});
   if(!data.user)return <div className="staff-console"><div className="staff-auth"><ShieldCheck/><h1>Customer support operations</h1><p>Sign in with an individually provisioned staff account. MFA and RBAC are enforced server-side.</p><button className="button gold" onClick={signIn}>Sign in</button></div></div>;
@@ -18,7 +58,7 @@ export function SupportAdminPage(){
     <section className="publishing-section"><h2>Support timeline</h2><form className="fore-form" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget);try{await api("/admin/support/note","POST",{caseId:caseData.case.id,note:f.get("note"),status:f.get("status")});(e.currentTarget as HTMLFormElement).reset();await openCase(caseData.case.id);}catch(err){toast.error((err as Error).message);}}}><label>Moderator note<textarea name="note" required maxLength={10000}/></label><label>Status<select name="status" defaultValue={caseData.case.status}><option value="open">Open</option><option value="pending_customer">Pending customer</option><option value="pending_internal">Pending internal</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select></label><button className="button gold">Add note</button></form>{caseData.timeline?.map((e:any)=><div className="publishing-admin-row" key={e.id}><div><strong>{e.event_type}</strong><span>{e.note}</span><span>{new Date(e.created_at).toLocaleString()}</span></div></div>)}</section>
     <section className="publishing-section"><h2>Audited actions</h2>{caseData.actions?.map((a:any)=><div className="publishing-admin-row" key={a.id}><div><strong>{a.action_type}</strong><span>{a.target_type}: {a.target_id}</span><span>{a.reason_code} · {a.rationale}</span><span>{new Date(a.created_at).toLocaleString()}</span></div></div>)}</section>
   </div>;
-  return <div className="staff-console"><div className="publishing-section-head"><div><span className="small-label">CUSTOMER SUPPORT</span><h1>Support operations</h1><p className="muted">Search customer and commerce records without exposing raw payment payloads. Every privileged change requires a scoped case and creates immutable audit evidence.</p></div></div><div className="catalog-search"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="User, order, invoice, transaction, entitlement, book, publisher, refund, device…" onKeyDown={e=>{if(e.key==='Enter')void search();}}/><button className="button gold" disabled={busy||q.trim().length<2} onClick={search}>Search</button></div>
+  return <div className="staff-console"><div className="publishing-section-head"><div><span className="small-label">CUSTOMER SUPPORT</span><h1>Support operations</h1><p className="muted">Search customer and commerce records without exposing raw payment payloads. Every privileged change requires a scoped case and creates immutable audit evidence.</p></div></div><PrivacyRequestQueue/><div className="catalog-search"><Search/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="User, order, invoice, transaction, entitlement, book, publisher, refund, device…" onKeyDown={e=>{if(e.key==='Enter')void search();}}/><button className="button gold" disabled={busy||q.trim().length<2} onClick={search}>Search</button></div>
     {results&&<><div className="inline-actions"><button className="button gold" disabled={!Object.keys(selected).length} onClick={createCase}>Open case from selection</button><span className="small muted">Selected: {Object.entries(selected).map(([k,v])=>`${k}=${v}`).join(" · ")||"nothing"}</span></div>{sections.map(name=>results[name]?.length?<section className="publishing-section" key={name}><h2>{name}</h2><div className="publishing-title-list">{results[name].map((r:any)=><button className="publishing-admin-row" key={r.id} onClick={()=>{const next={...selected};if(name==="users")next.userId=r.id;if(name==="orders"){next.orderId=r.id;next.userId=r.user_id;}if(name==="products")next.productId=r.id;if(name==="publishers")next.publisherAccountId=r.id;if(name==="devices")next.userId=r.user_id;if(name==="entitlements"){next.userId=r.user_id;next.productId=r.product_id;}setSelected(next);}}><div><strong>{r.id}</strong><span>{r.email||r.invoice_number||r.title||r.display_name||r.name||r.status||r.product_id||""}</span><span>{r.user_id?`user ${r.user_id}`:""}</span></div></button>)}</div></section>:null)}</>}
   </div>;
 }
