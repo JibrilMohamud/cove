@@ -115,7 +115,9 @@ function logicalRequest(request: Request, env: BackendEnv) {
     "oai-authenticated-user-full-name",
     "oai-authenticated-user-full-name-encoding",
     "oai-authentication-assurance-level",
-  ]) headers.delete(name);
+  ]) {
+    headers.delete(name);
+  }
   return new Request(publicUrl, {
     method: request.method,
     headers,
