@@ -399,6 +399,27 @@ async function markD1QuotaBlocked() {
   );
 }
 
+async function audioTrackTriggerSlots(env: BackendEnv) {
+  const at = new Date().toISOString();
+  const row = await env.DB.prepare(`
+    SELECT
+      SUM(CASE WHEN status='queued' AND next_attempt_at<=? THEN 1 ELSE 0 END) queued,
+      SUM(CASE WHEN status='running' AND lease_until>? THEN 1 ELSE 0 END) running
+    FROM audio_jobs
+    WHERE kind='track'
+  `)
+    .bind(at, at)
+    .first<{ queued?: number; running?: number }>();
+  const queued = Number(row?.queued || 0);
+  const running = Number(row?.running || 0);
+  const targetConcurrency = queued >= 128 ? 2 : 1;
+  return {
+    queued,
+    running,
+    slots: Math.max(0, Math.min(2, targetConcurrency - running)),
+  };
+}
+
 async function runScheduled(cron: string, env: BackendEnv) {
   if (await d1QuotaBlocked()) {
     console.warn("Cove ingestion paused briefly after a D1 quota limit.");
@@ -406,12 +427,21 @@ async function runScheduled(cron: string, env: BackendEnv) {
   }
   try {
     if (cron === "*/5 * * * *") {
-      const [catalogResult, audioResult] = await Promise.allSettled([
-        scheduledCatalog(env),
-        triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-track"),
-      ]);
-      if (audioResult.status === "rejected") {
-        console.error("Cove scheduled audio-track trigger failed", audioResult.reason);
+      const trackState = await audioTrackTriggerSlots(env);
+      const work: Promise<unknown>[] = [scheduledCatalog(env)];
+      for (let index = 0; index < trackState.slots; index += 1) {
+        work.push(triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-track"));
+      }
+      const [catalogResult, ...audioResults] = await Promise.allSettled(work);
+      for (const result of audioResults) {
+        if (result.status === "rejected") {
+          console.error("Cove scheduled audio-track trigger failed", result.reason);
+        }
+      }
+      if (trackState.slots > 1) {
+        console.info(
+          `Cove track backlog ${trackState.queued}; filling ${trackState.slots} of 2 preparation slots.`,
+        );
       }
       if (catalogResult.status === "rejected") {
         throw catalogResult.reason;
