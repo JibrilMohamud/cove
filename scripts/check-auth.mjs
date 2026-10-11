@@ -45,6 +45,7 @@ try {
         username: "reader_one",
         email: "not-an-email",
         password: "a-good-password-123",
+        acceptTerms: true,
       })
     ).status,
     400,
@@ -80,10 +81,25 @@ try {
     username: "reader_one",
     email: "reader@example.com",
     password: "a-good-password-123",
+    acceptTerms: true,
   });
   assert.equal(created.status, 200, JSON.stringify(created));
   assert.equal(created.data.verificationRequired, true);
   assert.equal(signupCalls, 1);
+  const missingConsent = await request(env, "/auth/signup", {
+    username: "reader_two", email: "two@example.com",
+    password: "a-good-password-123",
+  });
+  assert.equal(missingConsent.status, 400);
+  assert.equal(signupCalls, 1, "A signup without consent must not reach the provider");
+  const forged = await handleCoveApi(
+    new Request("https://fore.test/api/fore/account", {
+      headers: { "oai-authenticated-user-id": "forged-user", "oai-authenticated-user-email": "forged@example.com" },
+    }),
+    env,
+  );
+  assert.equal(forged.status, 200);
+  assert.equal((await forged.json()).user, null, "The verified provider must ignore spoofed legacy identities");
   const unsafe = localBindings(folder);
   Object.assign(unsafe, {
     FORE_AUTH_MODE: "supabase",
@@ -98,6 +114,7 @@ try {
     username: "reader_two",
     email: "two@example.com",
     password: "another-password-123",
+    acceptTerms: true,
   });
   assert.equal(blocked.status, 503);
   assert.match(blocked.data.error, /Email verification must be enabled/);
