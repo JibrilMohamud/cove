@@ -50,10 +50,27 @@ def align(index,transcript,track_id,audio_sha):
         if len(positions)==1:votes[(positions[0]-j)//100]+=1
     if not votes:return {'status':'needs-review','reason':'No unique text/audio anchors','words':[]}
     offset=votes.most_common(1)[0][0]*100;lo=max(0,offset-600);hi=min(len(a),offset+len(b)+1000);accepted=[];last=-1
-    for block in difflib.SequenceMatcher(None,a[lo:hi],b,autojunk=False).get_matching_blocks():
-        if block.size<5:continue
+    blocks=[block for block in difflib.SequenceMatcher(None,a[lo:hi],b,autojunk=False).get_matching_blocks() if block.size]
+    def trusted_long(block):
+        if block.size<5:return False
         absolute=lo+block.a
-        if block.size<8 and len(anchors.get(tuple(a[absolute:absolute+5]),[]))!=1:continue
+        return block.size>=8 or len(anchors.get(tuple(a[absolute:absolute+5]),[]))==1
+    strong=[i for i,block in enumerate(blocks) if trusted_long(block)]
+    # ASR homophone errors break a poem into small exact matching islands.
+    # A short island is only accepted *between* independent long matching
+    # anchors with a bounded gap on both the book and audio axes. A stray
+    # word in the spoken intro/outro can never become an accepted cue.
+    for block_index,block in enumerate(blocks):
+        if not trusted_long(block):
+            left=next((blocks[i] for i in reversed(strong) if i<block_index),None)
+            right=next((blocks[i] for i in strong if i>block_index),None)
+            if not left or not right:
+                continue
+            gap_text=right.a-(left.a+left.size)
+            gap_speech=right.b-(left.b+left.size)
+            if not (0<=gap_text<=24 and 0<=gap_speech<=24):
+                continue
+        absolute=lo+block.a
         for k in range(block.size):
             n=absolute+k;spoken=speech[block.b+k];written=book[n]
             probability=spoken.get('probability')
@@ -63,5 +80,5 @@ def align(index,transcript,track_id,audio_sha):
     result={'version':2,'trackId':track_id,'epubSha256':index['epubSha256'],'audioSha256':audio_sha,'duration':transcript['duration'],'engine':transcript['engine'],'words':accepted,'verification':{'method':'independent-asr-exact-text','automatic':True,'minWordProbability':None if confidence_unreported else .72,'confidenceMode':'unreported' if confidence_unreported else 'word-probability','matchedWords':len(accepted),'spokenWords':len(speech),'coverage':round(min(1,coverage),4),'checkedAt':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}}
     minimum_coverage=.9 if confidence_unreported else .8
     result['status']='checked' if len(accepted)>=30 and coverage>=minimum_coverage else 'needs-review'
-    if result['status']!='checked':result['reason']=f'Less than {minimum_coverage:.0%} of the spoken passage passed exact word checks'
+    if result['status']!='checked':result['reason']=f'Exact-word coverage {coverage:.1%} ({len(accepted)} of {len(interior)} spoken words in anchored passage), below {minimum_coverage:.0%} minimum'
     return result
