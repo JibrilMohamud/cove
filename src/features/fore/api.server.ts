@@ -1,5 +1,6 @@
 import {createAuth,resolvedIdentity} from "./auth.server";
 import { handleLegalContact } from "./legal.server";
+import { handleReadingStatistics } from "./stats.server";
 import {mirrorUrl} from './gutenberg-source';
 import { fetchCatalogPage } from "./catalog-fetch.server";
 import {
@@ -2117,6 +2118,9 @@ async function handleCoveRequest(request: Request, env: CoveEnv, auth:Awaited<Re
     }
     const user = requiredUser(request);
     const db = database(env);
+    const readingStats = await handleReadingStatistics(request,env,path,user.id);
+    if(readingStats)return readingStats;
+    if (request.method === "GET" && path === "/export") return json(await accountDataExport(db,user.id));
     const requirePublisherMfa=()=>{ if(user.authProvider!=="openai-host"&&user.aal!=="aal2") throw new ApiError(403,"This publishing action requires multi-factor authentication. Verify a second factor in Account Security, then try again."); };
     if(request.method!=="GET" && path.startsWith("/publishing/")) requirePublisherMfa();
     if (request.method === "GET" && path === "/account/management") return json(await accountOverview(db,user.id,request,user.sessionFingerprint));
