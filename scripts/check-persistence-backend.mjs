@@ -92,6 +92,7 @@ assert.match(runner, /choices=\['discover','track','align'\]/);
 assert.match(runner, /stop\.wait\(120\)/);
 
 assert.match(audioWorker, /Literal\["discover", "track", "align"\]/);
+assert.match(audioWorker, /execution_mode: Literal\["inherit", "direct", "queue"\]/);
 assert.match(audioWorker, /ge=0/);
 assert.match(audioWorker, /le=5/);
 assert.match(audioWorker, /cove-audio-pipeline-v2/);
@@ -115,6 +116,7 @@ assert.match(
 );
 assert.match(service, /execution_mode/);
 assert.match(service, /COVE_AUDIO_EXECUTION_MODE/);
+assert.match(service, /request\.execution_mode if request\.execution_mode != "inherit" else execution_mode\(\)/);
 assert.match(service, /asyncio\.to_thread\(execute_pipeline, request\)/);
 assert.match(service, /queueMode": "push"/);
 assert.doesNotMatch(service, /poll_and_handle/);
@@ -179,7 +181,9 @@ assert.match(audioPyprojectText, /"av==18\.1\.0"/);
 assert.match(audioWorker, /RUN_ROOT = pathlib\.Path\("\/tmp\/cove-audio-runs"\)/);
 assert.match(audioWorker, /tempfile\.tempdir = str\(RUN_ROOT\)/);
 assert.match(audioWorker, /os\.environ\["HF_HOME"\] = str\(HF_HOME\)/);
-assert.match(gateway, /"\/api\/fore\/internal\/ingestion\/audio-align":[\s\S]*?threads:\s*4/);
+assert.match(gateway, /"\/api\/fore\/internal\/ingestion\/audio-align":[\s\S]*?execution_mode:\s*"direct"[\s\S]*?threads:\s*4/);
+assert.match(gateway, /"\/api\/fore\/internal\/ingestion\/audio-track":[\s\S]*?execution_mode:\s*"direct"/);
+assert.match(gateway, /"\/api\/fore\/internal\/ingestion\/audio-discover":[\s\S]*?execution_mode:\s*"direct"/);
 
 assert.equal(pkg.scripts["build:backend"], "node scripts/build-persistence-backend.mjs");
 console.log("Persistent backend architecture checks passed.");
