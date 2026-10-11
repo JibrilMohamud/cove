@@ -1206,6 +1206,48 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
   }
 }
 
+function catalogRetryDelayMs(response: Response | null, attempt: number) {
+  const raw = response?.headers.get("retry-after")?.trim() || "";
+  if (raw) {
+    const seconds = Number(raw);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.min(10_000, seconds * 1000);
+    const at = Date.parse(raw);
+    if (Number.isFinite(at)) return Math.min(10_000, Math.max(0, at - Date.now()));
+  }
+  return attempt === 0 ? 1_000 : 3_000;
+}
+
+async function fetchCatalogPage(sourceUrl: string) {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let response: Response | null = null;
+    try {
+      response = await fetch(sourceUrl, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "CoveReader/1.0 (persistent Gutenberg catalog harvester)",
+        },
+        signal: AbortSignal.timeout(30_000),
+      });
+      const retryable =
+        response.status === 429 ||
+        response.status === 500 ||
+        response.status === 502 ||
+        response.status === 503 ||
+        response.status === 504;
+      if (response.ok || !retryable || attempt === 2) return response;
+      await response.body?.cancel().catch(() => {});
+    } catch (error) {
+      lastError = error;
+      if (attempt === 2) throw error;
+    }
+    await new Promise((resolve) =>
+      setTimeout(resolve, catalogRetryDelayMs(response, attempt)),
+    );
+  }
+  throw lastError instanceof Error ? lastError : new Error("Catalog source request failed.");
+}
+
 export async function runCatalogIngestion(env: CoveEnv, epubLimit = 1) {
   await seedCatalog(env);
   const regional = await runRegionalCatalogIngestion(env, Math.max(1, epubLimit)).catch((error) => ({ failed: true, error: error instanceof Error ? error.message : String(error) }));
@@ -1239,13 +1281,7 @@ export async function runCatalogIngestion(env: CoveEnv, epubLimit = 1) {
   const sourceUrl = state?.next_url || firstCatalogUrl(env);
   const page = pageFromUrl(sourceUrl);
   try {
-    const response = await fetch(sourceUrl, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "CoveReader/1.0 (persistent Gutenberg catalog harvester)",
-      },
-      signal: AbortSignal.timeout(45000),
-    });
+    const response = await fetchCatalogPage(sourceUrl);
     if (!response.ok) throw new Error("Catalog source returned " + response.status);
     const payload = (await response.json()) as any;
     if (!Array.isArray(payload.results))
