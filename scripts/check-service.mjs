@@ -130,7 +130,11 @@ assert.equal(
   ).status,
   200,
 );
-await req("/annotations/" + added.data.id, "DELETE", {});
+const currentAnnotation=(await req("/account")).data.annotations[0];
+assert.equal(
+  (await req("/annotations/" + added.data.id, "DELETE", { expectedVersion:currentAnnotation.version })).status,
+  200,
+);
 assert.equal((await req("/account")).data.annotations.length, 0);
 assert.equal((await req("/library/1342", "DELETE", {})).status, 200);
 assert.equal((await req("/account")).data.library.length, 0);
