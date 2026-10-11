@@ -92,6 +92,9 @@ def _prepare_runtime_cache() -> pathlib.Path:
     os.environ["HOME"] = str(RUNTIME_HOME)
     os.environ["XDG_CACHE_HOME"] = str(XDG_CACHE)
     os.environ["HF_HOME"] = str(HF_HOME)
+    # hf-xet reconstructs model files in scratch space and can exhaust Vercel's
+    # 512 MB /tmp filesystem. Use normal Hub downloads for faster-whisper models.
+    os.environ["HF_HUB_DISABLE_XET"] = "1"
     os.environ["HF_HUB_CACHE"] = str(HF_HOME / "hub")
     os.environ["HUGGINGFACE_HUB_CACHE"] = str(HF_HOME / "hub")
     os.environ["TRANSFORMERS_CACHE"] = str(HF_HOME / "transformers")
