@@ -1,2 +1,3 @@
 -r audio_pipeline/requirements.txt
 fastapi[standard]>=0.141.1
+vercel-queue==0.9.0
