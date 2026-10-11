@@ -2,6 +2,10 @@
 from __future__ import annotations
 
 import os
+import pathlib
+import shutil
+import tempfile
+import time
 from types import SimpleNamespace
 from typing import Literal
 
@@ -11,6 +15,11 @@ from .runner import run
 
 AUDIO_TRIGGER_TOPIC = "cove-audio-pipeline-v2"
 AUDIO_TRIGGER_GROUP = "cove-audio-pipeline-worker-v2"
+
+RUN_ROOT = pathlib.Path("/tmp/cove-audio-runs")
+RDF_CACHE = pathlib.Path("/tmp/cove-rdf-cache")
+MODEL_CACHE = pathlib.Path("/tmp/cove-model-cache")
+STALE_RUN_SECONDS = 20 * 60
 
 
 class RunRequest(BaseModel):
@@ -55,9 +64,27 @@ def pipeline_config() -> dict[str, str]:
     }
 
 
-def pipeline_args(request: RunRequest) -> SimpleNamespace:
+def _prepare_runtime_cache() -> pathlib.Path:
+    RUN_ROOT.mkdir(parents=True, exist_ok=True)
+    RDF_CACHE.mkdir(parents=True, exist_ok=True)
+    MODEL_CACHE.mkdir(parents=True, exist_ok=True)
+
+    cutoff = time.time() - STALE_RUN_SECONDS
+    for path in RUN_ROOT.glob("run-*"):
+        try:
+            if path.is_dir() and path.stat().st_mtime < cutoff:
+                shutil.rmtree(path, ignore_errors=True)
+        except FileNotFoundError:
+            continue
+
+    os.environ.setdefault("FORE_RDF_CACHE", str(RDF_CACHE))
+    os.environ.setdefault("FORE_MODEL_CACHE", str(MODEL_CACHE))
+    return pathlib.Path(tempfile.mkdtemp(prefix="run-", dir=RUN_ROOT))
+
+
+def pipeline_args(request: RunRequest, cache: pathlib.Path) -> SimpleNamespace:
     return SimpleNamespace(
-        cache="/tmp/cove-audio-pipeline",
+        cache=str(cache),
         minutes=request.minutes,
         max_jobs=request.max_jobs,
         kind=request.kind,
@@ -67,4 +94,10 @@ def pipeline_args(request: RunRequest) -> SimpleNamespace:
 
 
 def execute_pipeline(request: RunRequest) -> None:
-    run(pipeline_config(), pipeline_args(request))
+    cache = _prepare_runtime_cache()
+    try:
+        run(pipeline_config(), pipeline_args(request, cache))
+    finally:
+        # Audio/EPUB/transcript intermediates are per delivery. Model and RDF
+        # caches live outside RUN_ROOT so warm consumers can reuse them safely.
+        shutil.rmtree(cache, ignore_errors=True)
