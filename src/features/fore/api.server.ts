@@ -1751,6 +1751,30 @@ async function handleCoveRequest(request: Request, env: CoveEnv, auth:Awaited<Re
       if (request.method === "POST" && path === "/admin/tax/reporting/refresh") { await requireStaffPermission(db,who,"tax.compliance.manage"); return json(await refreshPublisherTaxReportingPeriod(db,await body(request))); }
       if (request.method === "POST" && path === "/admin/tax/reporting/update") { await requireStaffPermission(db,who,"tax.compliance.manage"); return json(await updatePublisherTaxReportingPeriod(db,await body(request))); }
       if (request.method === "GET" && path === "/admin/support/search") { const staff=await requireStaffPermission(db,who,"support.read"); return json(await supportSearch(db,url.searchParams.get("q")||"",staff.permissions.has("support.payment.read")||staff.permissions.has("staff.manage"))); }
+      // Privacy-rights requests must never become a public search endpoint.
+      // Only MFA-verified support staff with scoped RBAC may inspect messages
+      // or change their processing state; requests are not fulfilled
+      // automatically without separate identity verification.
+      if (request.method === "GET" && path === "/admin/support/legal") {
+        await requireStaffPermission(db,who,"support.read");
+        const state = z.enum(["open","in-review","resolved","closed"]).parse(url.searchParams.get("state") || "open");
+        const limit = z.coerce.number().int().min(1).max(100).parse(url.searchParams.get("limit") || "50");
+        const rows = await db.prepare("SELECT id,category,email,message,state,created_at,updated_at,resolved_at FROM legal_contact_requests WHERE state=? ORDER BY created_at ASC LIMIT ?").bind(state,limit).all<any>();
+        return json({ requests: rows.results });
+      }
+      if (request.method === "POST" && path === "/admin/support/legal/state") {
+        await requireStaffPermission(db,who,"support.case.manage");
+        const input = z.object({
+          id: z.string().regex(/^legal_[0-9a-f-]{36}$/),
+          state: z.enum(["open","in-review","resolved","closed"]),
+        }).parse(await body(request));
+        const at=now();
+        const changed=await db.prepare(
+          "UPDATE legal_contact_requests SET state=?,updated_at=?,resolved_at=CASE WHEN ? IN ('resolved','closed') THEN ? ELSE NULL END WHERE id=? RETURNING id,state,updated_at"
+        ).bind(input.state,at,input.state,at,input.id).first<any>();
+        if(!changed)throw new ApiError(404,"Request not found.");
+        return json({updated:true,request:changed});
+      }
       if (request.method === "POST" && path === "/admin/support/cases") { const staff=await requireStaffPermission(db,who,"support.case.manage"); return json(await createSupportCase(db,staff,await body(request))); }
       if (request.method === "GET" && path.startsWith("/admin/support/cases/")) { const staff=await requireStaffPermission(db,who,"support.read"); return json(await supportCaseDetail(db,decodeURIComponent(path.slice("/admin/support/cases/".length)),staff.permissions.has("support.payment.read")||staff.permissions.has("staff.manage"))); }
       if (request.method === "POST" && path === "/admin/support/note") { const staff=await requireStaffPermission(db,who,"support.case.manage"); return json(await addSupportNote(db,staff,await body(request))); }
