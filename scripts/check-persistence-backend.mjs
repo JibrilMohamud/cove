@@ -117,7 +117,7 @@ assert.match(audioWorker, /os\.environ\["HF_HOME"\] = str\(HF_HOME\)/);
 assert.match(audioWorker, /os\.environ\["HF_HUB_DISABLE_XET"\] = "1"/);
 assert.match(audioWorker, /os\.environ\["HF_HUB_CACHE"\]/);
 assert.match(audioWorker, /os\.environ\["NUMBA_CACHE_DIR"\]/);
-assert.match(audioWorker, /STALE_RUN_SECONDS = 20 \* 60/);
+assert.match(audioWorker, /STALE_RUN_SECONDS = 6 \* 60/);
 assert.match(audioWorker, /for path in \(RUNTIME_HOME, HF_HOME\)/);
 assert.match(audioWorker, /tempfile\.mkdtemp/);
 assert.match(audioWorker, /shutil\.rmtree\(cache, ignore_errors=True\)/);
