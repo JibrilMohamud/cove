@@ -13,12 +13,12 @@ import time
 from datetime import timedelta
 
 from fastapi import FastAPI, HTTPException
-from vercel.queue import QueueClient
+from vercel.queue import ALL_DEPLOYMENTS, QueueClient
 
 from .worker import AUDIO_TRIGGER_TOPIC, RunRequest, pipeline_config
 
 logger = logging.getLogger("cove.audio_pipeline")
-queue = QueueClient()
+queue = QueueClient(deployment=ALL_DEPLOYMENTS)
 
 app = FastAPI(
     title="Cove audio pipeline",
