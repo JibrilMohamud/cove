@@ -21,3 +21,10 @@
 .legal-success{display:flex;align-items:center;gap:8px;flex-wrap:wrap;overflow-wrap:anywhere}
 .legal-contact-form button{justify-self:start}
 @media print{.legal-document{color:#121212;padding:0}.legal-contact-form,.legal-shortcuts{display:none}.legal-document a{color:#164b88}}
+
+.cove-site-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px 24px;padding:20px clamp(16px,3vw,45px) 30px;border-top:1px solid rgba(150,170,190,.17);font-size:.8rem;color:inherit;opacity:.7}
+.cove-site-footer nav,.sidebar-legal-links{display:flex;gap:11px 20px;flex-wrap:wrap}
+.cove-site-footer a,.sidebar-legal-links a{color:inherit;text-decoration:none}
+.cove-site-footer a:hover,.sidebar-legal-links a:hover{text-decoration:underline}
+.sidebar-legal-links{font-size:.78rem;margin-top:12px;opacity:.78}
+@media(max-width:700px){.cove-site-footer{align-items:flex-start}}
