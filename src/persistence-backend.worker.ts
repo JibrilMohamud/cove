@@ -535,7 +535,6 @@ async function runScheduled(cron: string, env: BackendEnv) {
   }
 }
 
-
 /**
  * Server-to-server BioSync speech recognition. R2 is authoritative for the
  * prepared audio. Nothing here fabricates per-word confidence: Cloudflare's
@@ -634,8 +633,11 @@ export default {
     }
 
     const path = new URL(request.url).pathname;
-    const hostedTranscript = path.match(/^\/api\/fore\/pipeline\/hosted-transcript\/(pg-[1-9][0-9]{0,8})\/([a-zA-Z0-9_-]{1,100})$/);
-    if (hostedTranscript) return hostedBiosyncTranscript(request, env, hostedTranscript[1], hostedTranscript[2]);
+    const hostedTranscript = path.match(
+      /^\/api\/fore\/pipeline\/hosted-transcript\/(pg-[1-9][0-9]{0,8})\/([a-zA-Z0-9_-]{1,100})$/,
+    );
+    if (hostedTranscript)
+      return hostedBiosyncTranscript(request, env, hostedTranscript[1], hostedTranscript[2]);
     if (path === "/__cove/health" && request.method === "GET") {
       try {
         const row = await env.DB.prepare("SELECT 1 ok").first<{ ok?: number }>();
