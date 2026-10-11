@@ -17,7 +17,10 @@
       "root": "scripts",
       "framework": "fastapi",
       "functions": {
-        "**/*.py": {
+        "audio_pipeline/service.py": {
+          "maxDuration": 300
+        },
+        "audio_pipeline/subscriber.py": {
           "maxDuration": 300
         }
       }
