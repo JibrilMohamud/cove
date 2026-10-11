@@ -28,6 +28,7 @@ STALE_RUN_SECONDS = 20 * 60
 
 class RunRequest(BaseModel):
     kind: Literal["discover", "track", "align"] | None = None
+    execution_mode: Literal["inherit", "direct", "queue"] = "inherit"
     max_jobs: int = Field(default=1, ge=0, le=24)
     minutes: int = Field(default=4, ge=1, le=5)
     no_discovery: bool = True
