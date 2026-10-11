@@ -82,8 +82,8 @@ def check_map(mapping: dict, audio_sha: str, epub_sha: str, duration: float) -> 
         if (word["probability"] is not None or
                 not (0 <= word["start"] < word["end"] <= duration) or
                 not word["href"] or ".." in word["href"] or
-                not re.match(r"^epubcfi\\(", word["cfi"]) or
-                not re.match(r"^epubcfi\\(", word["endCfi"]) or
+                not re.match(r"^epubcfi\(", word["cfi"]) or
+                not re.match(r"^epubcfi\(", word["endCfi"]) or
                 (previous and (word["wordIndex"] <= previous["wordIndex"]
                                or word["start"] < previous["end"]))):
             raise RuntimeError("A word cue failed monotonicity or provenance validation")
