@@ -38,7 +38,7 @@ jobs:
         run: npm run build:backend
       - name: CycloneDX SBOM
         run: npm run security:sbom
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with: {name: security-sbom, path: artifacts/sbom.cdx.json, if-no-files-found: error}
   provenance:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
