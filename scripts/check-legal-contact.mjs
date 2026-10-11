@@ -22,7 +22,7 @@ try {
   const good=await req({data:payload});
   assert.equal(good.status,201,JSON.stringify(good));
   assert.match(good.data.reference,/^legal_[a-f0-9-]+$/);
-  const rows=env.DB.prepare("SELECT * FROM legal_contact_requests").all();
+  const rows=(await env.DB.prepare("SELECT * FROM legal_contact_requests").all()).results;
   assert.equal(rows.length,1);
   assert.equal(rows[0].email,"reader@example.com");
   assert.equal(rows[0].category,"privacy-access");
@@ -30,7 +30,7 @@ try {
   assert.equal((await req({origin:"https://attacker.example",data:payload,ip:"198.51.100.10"})).status,403);
   assert.equal((await req({data:{...payload,message:"tiny"},ip:"198.51.100.11"})).status,400);
   assert.equal((await req({data:{...payload,website:"spam.example"},ip:"198.51.100.12"})).status,200);
-  assert.equal(env.DB.prepare("SELECT COUNT(*) n FROM legal_contact_requests").get().n,1);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM legal_contact_requests").first()).n,1);
   for(let i=0;i<4;i++)assert.equal((await req({data:payload})).status,201);
   assert.equal((await req({data:payload})).status,429);
   console.log("PASS: durable anonymous privacy requests, origin isolation, validation, spam trap and rate limiting.");
