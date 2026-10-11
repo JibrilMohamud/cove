@@ -321,15 +321,27 @@ async function triggerVercelAudio(env: BackendEnv, path: string) {
   }
 }
 
-async function scheduledCatalog(env: BackendEnv) {
-  const request = new Request("https://cove.internal/__cove/ingestion/catalog", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ maxPages: 5, epubLimit: 2, maxMillis: 220_000 }),
-  });
-  const response = await catalogBatch(request, env);
-  if (!response.ok) {
-    throw new Error("Scheduled catalog ingestion failed.");
+const CATALOG_METADATA_CRON =
+  "2,7,12,17,22,27,32,37,42,47,52,57 * * * *";
+const EPUB_HYDRATION_CRON = "9 * * * *";
+const REGIONAL_CATALOG_CRON = "39 * * * *";
+
+async function scheduledCatalogMetadata(env: BackendEnv) {
+  const result = await runCatalogIngestion(env, 0, false);
+  if ((result as { failed?: unknown }).failed) {
+    console.warn("Scheduled primary catalog page failed; retry state was persisted.");
+  }
+}
+
+async function scheduledEpubHydration(env: BackendEnv) {
+  const result = await runCatalogAssetIngestion(env, 12);
+  console.info("Scheduled EPUB hydration completed", result);
+}
+
+async function scheduledRegionalCatalog(env: BackendEnv) {
+  const result = await runRegionalCatalogMaintenance(env);
+  if ((result as { failed?: unknown }).failed) {
+    console.warn("Scheduled regional catalog refresh failed; retry state was persisted.");
   }
 }
 
