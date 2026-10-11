@@ -356,7 +356,7 @@ export async function handleVercelIngestionControl(
     },
     "/api/fore/internal/ingestion/audio-track": {
       kind: "track",
-      max_jobs: 2,
+      max_jobs: 1,
       minutes: 4,
       no_discovery: true,
       threads: 2,
