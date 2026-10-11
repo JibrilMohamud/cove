@@ -86,6 +86,13 @@ try {
   assert.equal(created.status, 200, JSON.stringify(created));
   assert.equal(created.data.verificationRequired, true);
   assert.equal(signupCalls, 1);
+  const pending = await env.DB.prepare("SELECT email,terms_version,privacy_version,accepted_at FROM pending_account_legal_consents WHERE provider_id=?")
+    .bind("00000000-0000-4000-8000-000000000001").first();
+  assert.equal(pending?.email, "reader@example.com");
+  assert.equal(pending?.terms_version, "2026-10-11");
+  assert.equal(pending?.privacy_version, "2026-10-11");
+  assert.ok(pending?.accepted_at, "Consent evidence must be recorded in server-owned D1");
+
   const missingConsent = await request(env, "/auth/signup", {
     username: "reader_two", email: "two@example.com",
     password: "a-good-password-123",
