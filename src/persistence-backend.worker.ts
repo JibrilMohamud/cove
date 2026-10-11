@@ -450,6 +450,27 @@ async function runScheduled(cron: string, env: BackendEnv) {
   }
   try {
     if (cron === "*/5 * * * *") {
+      // This is the reliable primary cron, so it must make forward progress
+      // even if a secondary alignment trigger is delayed or never fires.
+      // Reserve alternating 15-minute windows for independent BioSync
+      // alignment and track acquisition. Never start a track while an
+      // alignment lease is active: both need significant transient storage.
+      const alignmentState = await audioAlignmentTriggerSlots(env);
+      const alignmentWindow = new Date().getUTCMinutes() % 30 < 15;
+      if (alignmentState.running > 0 || (alignmentWindow && alignmentState.queued > 0)) {
+        const work: Promise<unknown>[] = [scheduledCatalog(env)];
+        if (alignmentState.slots > 0) {
+          work.push(triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align"));
+        }
+        const [catalogResult, ...audioResults] = await Promise.allSettled(work);
+        for (const result of audioResults) {
+          if (result.status === "rejected") {
+            console.error("Cove scheduled BioSync trigger failed", result.reason);
+          }
+        }
+        if (catalogResult.status === "rejected") throw catalogResult.reason;
+        return;
+      }
       const trackState = await audioTrackTriggerSlots(env);
       const work: Promise<unknown>[] = [scheduledCatalog(env)];
       for (let index = 0; index < trackState.slots; index += 1) {
