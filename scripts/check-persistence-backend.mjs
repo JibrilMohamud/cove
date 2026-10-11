@@ -109,7 +109,10 @@ assert.match(audioWorker, /tempfile\.mkdtemp/);
 assert.match(audioWorker, /shutil\.rmtree\(cache, ignore_errors=True\)/);
 assert.match(service, /from vercel\.queue import QueueClient/);
 assert.doesNotMatch(service, /ALL_DEPLOYMENTS/);
-assert.match(service, /queue = QueueClient\(\)/);
+assert.match(
+  service,
+  /queue = QueueClient\(region=os\.environ\.get\("COVE_AUDIO_QUEUE_REGION", "iad1"\)\)/,
+);
 assert.match(service, /execution_mode/);
 assert.match(service, /COVE_AUDIO_EXECUTION_MODE/);
 assert.match(service, /asyncio\.to_thread\(execute_pipeline, request\)/);
