@@ -99,7 +99,7 @@ assert.equal(a.annotations.length, 1);
 assert.equal(a.definitions.length, 1);
 assert.equal((await req("/account", "GET", undefined, "test-reader-b")).data.annotations.length, 0);
 assert.equal(
-  (await req("/annotations/" + added.data.id, "PATCH", { note: "Revised note", color: "blue" }))
+  (await req("/annotations/" + added.data.id, "PATCH", { note: "Revised note", color: "blue", expectedVersion: added.data.version }))
     .status,
   200,
 );
