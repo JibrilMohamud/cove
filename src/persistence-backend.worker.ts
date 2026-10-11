@@ -420,6 +420,22 @@ async function audioTrackTriggerSlots(env: BackendEnv) {
   };
 }
 
+async function audioAlignmentTriggerSlots(env: BackendEnv) {
+  const at = new Date().toISOString();
+  const row = await env.DB.prepare(
+    `SELECT
+      SUM(CASE WHEN status='queued' AND next_attempt_at<=? AND attempts<6 THEN 1 ELSE 0 END) queued,
+      SUM(CASE WHEN status='running' AND lease_until>? THEN 1 ELSE 0 END) running
+    FROM audio_jobs
+    WHERE kind='align'`,
+  )
+    .bind(at, at)
+    .first<{ queued?: number; running?: number }>();
+  const queued = Number(row?.queued || 0);
+  const running = Number(row?.running || 0);
+  return { queued, running, slots: queued > 0 && running === 0 ? 1 : 0 };
+}
+
 async function runScheduled(cron: string, env: BackendEnv) {
   if (await d1QuotaBlocked()) {
     console.warn("Cove ingestion paused briefly after a D1 quota limit.");
@@ -427,15 +443,21 @@ async function runScheduled(cron: string, env: BackendEnv) {
   }
   try {
     if (cron === "*/5 * * * *") {
-      const trackState = await audioTrackTriggerSlots(env);
+      const [trackState, alignmentState] = await Promise.all([
+        audioTrackTriggerSlots(env),
+        audioAlignmentTriggerSlots(env),
+      ]);
       const work: Promise<unknown>[] = [scheduledCatalog(env)];
       for (let index = 0; index < trackState.slots; index += 1) {
         work.push(triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-track"));
       }
+      if (alignmentState.slots > 0) {
+        work.push(triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align"));
+      }
       const [catalogResult, ...audioResults] = await Promise.allSettled(work);
       for (const result of audioResults) {
         if (result.status === "rejected") {
-          console.error("Cove scheduled audio-track trigger failed", result.reason);
+          console.error("Cove scheduled audio trigger failed", result.reason);
         }
       }
       if (trackState.slots > 1) {

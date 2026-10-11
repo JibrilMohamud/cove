@@ -366,7 +366,7 @@ export async function handleVercelIngestionControl(
     },
     "/api/fore/internal/ingestion/audio-align": {
       kind: "align",
-      execution_mode: "queue",
+      execution_mode: "direct",
       max_jobs: 1,
       minutes: 4,
       no_discovery: true,
