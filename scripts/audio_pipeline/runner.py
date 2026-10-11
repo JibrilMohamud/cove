@@ -157,27 +157,26 @@ def process_alignment(api,job,cache,threads):
             threads=threads,
         )
     except ModelStorageUnavailable:
-        # A short spoken passage can still be independently verified with
-        # a compact model when the preferred English model cannot fit.
-        # Never fabricate word times: align() retains exact-word checks.
-        if e['language']!='en':
-            raise
-        model='tiny.en'
+        # When the primary model cannot fit, use the compact variant in the
+        # same language family. Never create timing without independent ASR
+        # and exact text verification through align().
+        model='tiny.en' if e['language']=='en' else 'tiny'
         transcript=transcribe(
             audio,
             folder/(expected+'.tiny.transcript.json'),
             model=model,
-            language='en',
+            language=e['language'],
             threads=threads,
         )
     result=align(index,transcript,t['id'],expected)
-    if result['status']!='checked' and model=='base.en':
+    if result['status']!='checked' and model in ('base.en', 'base'):
+        fallback='tiny.en' if e['language']=='en' else 'tiny'
         try:
             transcript=transcribe(
                 audio,
                 folder/(expected+'.tiny.transcript.json'),
-                model='tiny.en',
-                language='en',
+                model=fallback,
+                language=e['language'],
                 threads=threads,
             )
         except ModelStorageUnavailable:
