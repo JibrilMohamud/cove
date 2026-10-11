@@ -102,15 +102,24 @@ def process_alignment(api,job,cache,threads):
 
     folder=cache/e['id']
     folder.mkdir(parents=True,exist_ok=True)
-    audio=download(
-        api.base+f"/audio/{e['id']}/tracks/{t['id']}",
-        folder/(expected+'.prepared.audio'),
-        headers=api.headers,
-        workers=2,
-        chunk_size=2*1024*1024,
-    )
-    if sha256(audio)!=expected:
-        raise RuntimeError('Prepared audio checksum changed before alignment')
+    hosted=os.environ.get('FORE_BIOSYNC_ASR','hosted')!='local'
+    # Hosted ASR works directly from R2 and does not duplicate the audio or
+    # download Whisper model weights into Vercel's severely limited /tmp.
+    if hosted:
+        transcript=api.call(f"/pipeline/hosted-transcript/{e['id']}/{t['id']}",'POST',{'audioSha256':expected})
+        identity=transcript.get('identity') or {}
+        if identity.get('audioSha256')!=expected or transcript.get('engine')!='cloudflare-workers-ai-whisper' or transcript.get('confidenceMode')!='unreported':
+            raise RuntimeError('Hosted BioSync transcript did not match the prepared audio identity')
+    else:
+        audio=download(
+            api.base+f"/audio/{e['id']}/tracks/{t['id']}",
+            folder/(expected+'.prepared.audio'),
+            headers=api.headers,
+            workers=2,
+            chunk_size=2*1024*1024,
+        )
+        if sha256(audio)!=expected:
+            raise RuntimeError('Prepared audio checksum changed before alignment')
 
     api.call('/pipeline/book','PUT',text_record(e['bookId']))
     text=folder/'book.epub'
@@ -147,44 +156,47 @@ def process_alignment(api,job,cache,threads):
         },
     )
 
-    model='base.en' if e['language']=='en' else 'base'
-    try:
-        transcript=transcribe(
-            audio,
-            folder/(expected+'.transcript.json'),
-            model=model,
-            language=e['language'],
-            threads=threads,
-        )
-    except ModelStorageUnavailable:
-        # When the primary model cannot fit, use the compact variant in the
-        # same language family. Never create timing without independent ASR
-        # and exact text verification through align().
-        model='tiny.en' if e['language']=='en' else 'tiny'
-        transcript=transcribe(
-            audio,
-            folder/(expected+'.tiny.transcript.json'),
-            model=model,
-            language=e['language'],
-            threads=threads,
-        )
-    result=align(index,transcript,t['id'],expected)
-    if result['status']!='checked' and model in ('base.en', 'base'):
-        fallback='tiny.en' if e['language']=='en' else 'tiny'
+    if hosted:
+        result=align(index,transcript,t['id'],expected)
+    else:
+        model='base.en' if e['language']=='en' else 'base'
         try:
             transcript=transcribe(
                 audio,
-                folder/(expected+'.tiny.transcript.json'),
-                model=fallback,
+                folder/(expected+'.transcript.json'),
+                model=model,
                 language=e['language'],
                 threads=threads,
             )
         except ModelStorageUnavailable:
-            # The primary model ran but exact matches were insufficient;
-            # leave the result reviewable rather than claim a checked map.
-            pass
-        else:
-            result=align(index,transcript,t['id'],expected)
+            # When the primary model cannot fit, use the compact variant in the
+            # same language family. Never create timing without independent ASR
+            # and exact text verification through align().
+            model='tiny.en' if e['language']=='en' else 'tiny'
+            transcript=transcribe(
+                audio,
+                folder/(expected+'.tiny.transcript.json'),
+                model=model,
+                language=e['language'],
+                threads=threads,
+            )
+        result=align(index,transcript,t['id'],expected)
+        if result['status']!='checked' and model in ('base.en', 'base'):
+            fallback='tiny.en' if e['language']=='en' else 'tiny'
+            try:
+                transcript=transcribe(
+                    audio,
+                    folder/(expected+'.tiny.transcript.json'),
+                    model=fallback,
+                    language=e['language'],
+                    threads=threads,
+                )
+            except ModelStorageUnavailable:
+                # The primary model ran but exact matches were insufficient;
+                # leave the result reviewable rather than claim a checked map.
+                pass
+            else:
+                result=align(index,transcript,t['id'],expected)
     result['duration']=t.get('duration') or 0
     (folder/(t['id']+'.map.json')).write_text(json.dumps(result))
     if result['status']!='checked':
