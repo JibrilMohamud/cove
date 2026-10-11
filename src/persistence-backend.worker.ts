@@ -386,16 +386,19 @@ async function runScheduled(cron: string, env: BackendEnv) {
   }
   try {
     if (cron === "*/5 * * * *") {
-      const [catalogResult, audioResult] = await Promise.allSettled([
-        scheduledCatalog(env),
-        triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-track"),
-      ]);
-      if (audioResult.status === "rejected") {
-        console.error("Cove scheduled audio-track trigger failed", audioResult.reason);
-      }
-      if (catalogResult.status === "rejected") {
-        throw catalogResult.reason;
-      }
+      await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-track");
+      return;
+    }
+    if (cron === CATALOG_METADATA_CRON) {
+      await scheduledCatalogMetadata(env);
+      return;
+    }
+    if (cron === EPUB_HYDRATION_CRON) {
+      await scheduledEpubHydration(env);
+      return;
+    }
+    if (cron === REGIONAL_CATALOG_CRON) {
+      await scheduledRegionalCatalog(env);
       return;
     }
     if (cron === "*/10 * * * *") {
