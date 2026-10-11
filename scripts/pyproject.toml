@@ -18,4 +18,5 @@ package = false
 entrypoint = "audio_pipeline.service:app"
 
 [[tool.vercel.subscribers]]
-entrypoint = "audio_pipeline.subscriber:consume_audio_trigger"
+entrypoint = "audio_pipeline.subscriber"
+topics = ["cove-audio-pipeline-v2"]
