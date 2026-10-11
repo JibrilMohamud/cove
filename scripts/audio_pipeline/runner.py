@@ -147,7 +147,7 @@ def process_alignment(api,job,cache,threads):
         },
     )
 
-    model='base.en' if e['language']=='en' else 'small'
+    model='base.en' if e['language']=='en' else 'base'
     transcript=transcribe(
         audio,
         folder/(expected+'.transcript.json'),
@@ -159,8 +159,8 @@ def process_alignment(api,job,cache,threads):
     if result['status']!='checked' and model=='base.en':
         transcript=transcribe(
             audio,
-            folder/(expected+'.small.transcript.json'),
-            model='small.en',
+            folder/(expected+'.tiny.transcript.json'),
+            model='tiny.en',
             language='en',
             threads=threads,
         )
