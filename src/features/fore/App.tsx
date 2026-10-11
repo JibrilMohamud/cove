@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { AccountContext, api, type AccountData } from "./client";
 import "./fore.css";
+import "./legal.css";
 import { registerReadingTools } from "./webmcp";
 import { StorefrontLocaleControl, StorefrontLocaleProvider, useStorefrontLocale } from "./localization";
 const nav = [
