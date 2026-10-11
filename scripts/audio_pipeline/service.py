@@ -6,16 +6,18 @@ push-mode subscriber functions perform heavyweight audio and BioSync work.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
+import os
 import time
 from datetime import timedelta
 
 from fastapi import FastAPI, HTTPException
 from vercel.queue import ALL_DEPLOYMENTS, QueueClient
 
-from .worker import AUDIO_TRIGGER_TOPIC, RunRequest, pipeline_config
+from .worker import AUDIO_TRIGGER_TOPIC, RunRequest, execute_pipeline, pipeline_config
 
 logger = logging.getLogger("cove.audio_pipeline")
 queue = QueueClient(deployment=ALL_DEPLOYMENTS)
@@ -28,17 +30,22 @@ app = FastAPI(
 
 
 @app.get("/health")
+def execution_mode() -> str:
+    mode = os.environ.get("COVE_AUDIO_EXECUTION_MODE", "direct").strip().lower()
+    return mode if mode in {"direct", "queue"} else "direct"
+
+
 def health() -> dict[str, object]:
     return {
         "ok": True,
         "persistenceBackend": bool(pipeline_config()),
         "queueProducer": True,
         "queueMode": "push",
+        "executionMode": execution_mode(),
         "topic": AUDIO_TRIGGER_TOPIC,
     }
 
 
-@app.post("/run")
 async def enqueue_pipeline(request: RunRequest) -> dict[str, object]:
     # Fail at the scheduler boundary when execution credentials are missing.
     try:
@@ -90,3 +97,49 @@ async def enqueue_pipeline(request: RunRequest) -> dict[str, object]:
         "requestedMinutes": request.minutes,
         "queueMode": "push",
     }
+
+
+async def execute_direct(request: RunRequest) -> dict[str, object]:
+    try:
+        await asyncio.to_thread(execute_pipeline, request)
+    except Exception as error:
+        logger.exception("Cove direct audio pipeline execution failed")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "audio_pipeline_unavailable",
+                "stage": request.kind or "mixed",
+                "type": type(error).__name__,
+                "message": str(error).replace("\n", " ").replace("\r", " ")[:700],
+                "retryable": True,
+            },
+        ) from error
+
+    return {
+        "ok": True,
+        "queued": False,
+        "kind": request.kind,
+        "requestedMaxJobs": request.max_jobs,
+        "requestedMinutes": request.minutes,
+        "executionMode": "direct",
+    }
+
+
+@app.post("/run")
+async def run_pipeline(request: RunRequest) -> dict[str, object]:
+    # Validate server-side credentials before either execution mode.
+    try:
+        pipeline_config()
+    except Exception as error:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "audio_pipeline_configuration_unavailable",
+                "message": str(error)[:500],
+                "retryable": True,
+            },
+        ) from error
+
+    if execution_mode() == "queue":
+        return await enqueue_pipeline(request)
+    return await execute_direct(request)
