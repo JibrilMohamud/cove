@@ -444,6 +444,7 @@ async function audioAlignmentTriggerSlots(env: BackendEnv) {
   };
 }
 
+/* eslint-disable prettier/prettier -- temporary isolated canary inspection */
 async function diagnoseBioSyncCanary(env: BackendEnv) {
   // Temporary, public-domain-only debug snapshot. Never stores tokens, secrets,
   // user text, or private recordings. Removed once first map is verified.
@@ -471,6 +472,7 @@ async function diagnoseBioSyncCanary(env: BackendEnv) {
   }
 }
 
+/* eslint-enable prettier/prettier */
 async function runScheduled(cron: string, env: BackendEnv) {
   if (await d1QuotaBlocked()) {
     console.warn("Cove ingestion paused briefly after a D1 quota limit.");
