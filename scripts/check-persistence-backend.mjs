@@ -166,5 +166,16 @@ assert.match(deployWorkflow, /database_id = "\$D1_DATABASE_ID"/);
 assert.match(deployWorkflow, /bucket_name = "\$R2_BUCKET_NAME"/);
 assert.match(deployWorkflow, /npm run build:backend/);
 
+
+// Audio/BioSync runtime compatibility contract.
+const audioRequirements = await read("scripts/audio_pipeline/requirements.txt");
+const audioWorker = await read("scripts/audio_pipeline/worker.py");
+assert.match(audioRequirements, /^faster-whisper==1\.2\.1$/m);
+assert.match(audioRequirements, /^av==18\.1\.0$/m);
+assert.match(audioWorker, /RUN_ROOT = pathlib\.Path\("\/tmp\/cove-audio-runs"\)/);
+assert.match(audioWorker, /tempfile\.tempdir = str\(RUN_ROOT\)/);
+assert.match(audioWorker, /os\.environ\["HF_HOME"\] = str\(HF_HOME\)/);
+assert.match(gateway, /"\/api\/fore\/internal\/ingestion\/audio-align":[\s\S]*?threads:\s*4/);
+
 assert.equal(pkg.scripts["build:backend"], "node scripts/build-persistence-backend.mjs");
 console.log("Persistent backend architecture checks passed.");
