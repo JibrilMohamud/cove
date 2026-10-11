@@ -50,9 +50,9 @@ The workflow validates resource identifiers, builds `backend-dist/worker.js`, ap
 
 If you deploy under a brand-new Worker name instead of the existing owner Worker, separately copy all enabled server-side provider secrets (Supabase, Stripe, search, notifications, tax, publishing/operations, observability, etc.) into the new Worker before cutover.
 
-### Required one-time R2 account activation
+### R2 account activation
 
-Cloudflare currently returns API error `10042: Please enable R2 through the Cloudflare Dashboard` for this account. Before the production persistence Worker can be deployed with its `BUCKET` binding:
+R2 is active for Cove production, and the private `cove-production-media` bucket is bound to the live persistence Worker. The original setup encountered API error `10042: Please enable R2 through the Cloudflare Dashboard`. On a new account that returns this error:
 
 1. Open the Cloudflare dashboard.
 2. Select **R2 Object Storage**.
@@ -291,12 +291,16 @@ Current defaults:
 | --- | --- |
 | eBook catalog batches | every 5 min |
 | audio bulk/daily scan | 03:17 UTC daily |
-| audio discovery drain | every 10 min |
+| audio discovery drain | every 10 min; pause while at least 96 tracks are pending |
 | audio media drain | every 5 min |
 | BioSync alignment | minute 23 hourly |
 | recommendations/publishing maintenance | 04:41 UTC daily |
 
 These are deliberately staggered. Increase batch sizes only after observing upstream rate limits, D1 write load, R2 traffic and Vercel active CPU.
+
+Discovery backpressure does not trigger alignment. The hourly alignment schedule
+can remain disabled during BioSync recovery while discovery and track preparation
+continue independently.
 
 ## 10. Rollback
 
@@ -311,8 +315,28 @@ The gateway makes rollback simple:
 
 The persistence-specific CI gate verifies the changed TypeScript surfaces with ESLint, runs `test:persistence-backend`, compiles the Python worker modules, builds the Vercel application, and independently bundles the persistence Worker.
 
-The repository's broader supply-chain workflow is intentionally separate. At the time this backend was introduced, that older workflow also surfaced dependency advisories before reaching later checks; those advisories should be remediated rather than bypassed.
+The repository's broader supply-chain workflow is intentionally separate. For commit `2111654`, its dependency audit and secret scan passed, but repository-wide static analysis failed. The modified legacy `api.server.ts` had the same 869 lint errors as its parent before the follow-up import-format cleanup; the new catalog retry module passed ESLint. The separate `persistence-backend` workflow passed the catalog retry regressions, Python runtime regressions, and both deployment builds. Do not treat that focused gate as a passing repository-wide security workflow.
 
 ## 12. Future evolution
 
 If Cove later moves off D1/R2, put the replacement behind the same persistence boundary first. The public app should not gain direct vendor-specific database calls. That keeps a future Turso/Postgres/Blob migration isolated to one backend instead of re-coupling the UI and domain code to hosting infrastructure.
+
+## Production checkpoint — 2026-10-11 07:15 UTC
+
+- Fix commit: `2111654fce0bf5d4cc438c55929e9a199932b791`.
+- Cloudflare Worker version: `8c112fba-3af6-49cf-b4e1-a66f1b3984a8`, deployed at 06:59:50 UTC. The prior version is `bb6d1549-db12-4639-85d4-b2036f2281ce`. Existing bindings, secrets, and limits were preserved.
+- Vercel reported a successful deployment: `dpl_DgVrxMAshq3rVBJLuQEigzWjtq8r`. Its earlier build-limit rejection no longer describes this release.
+- Latest observed inventory at 07:14 UTC: 2,416 normalized works, 69 completed track jobs, and 129 queued track jobs. All 35 Pride and Prejudice tracks were prepared. `audio_timing` still contained zero maps at 07:15 UTC.
+- Active Cloudflare schedules were restored to `*/5 * * * *`, `17 3 * * *`, and `41 4 * * *`. The ten-minute discovery/alignment and hourly alignment schedules remain disabled.
+- A temporary ten-minute trigger received HTTP 200 from `audio-align` at 07:10:08 UTC, but no alignment job was claimed during the following five minutes. The selected job, `align-pg-20686-01-843723ef63d63aa5`, was returned to its prior `2099-01-01T00:00:00.000Z` pause; its three previous attempts and error history were preserved. No alignment lease remained active.
+- Queue acceptance is not evidence of transcription completion. The accepted queue message may remain retained for six hours; inspect its delivery state before issuing another test. The subscriber configuration matches the Python SDK documentation and imports successfully locally, but live consumer execution remains unverified.
+- The connected Vercel account returned team/project access errors (HTTP 403) when reading this deployment and its protected URL. The affected project is `prj_bq7hKQw8JKWE6vpfdOgwowa8cjjM` under `team_CfIbAlLf4fFzRdoPtD3eOeai` (`jibrilmohamuds-projects`). Restore authorized runtime access, inspect the deployed queue consumer and its errors, and verify one stored timing map before restarting broader alignment.
+
+## Discovery recovery — 2026-10-11 16:51 UTC
+
+- At 16:48 UTC, the catalog contained 5,337 normalized works; 182 track jobs were done, 15 queued, and one running. There were still no timing maps. Discovery had 931 queued jobs, so leaving its schedule disabled would eventually stop new audiobook intake.
+- Discovery backpressure now only pauses discovery. It no longer submits an alignment request when 96 or more tracks are pending. Alignment retains its independent hourly trigger.
+- Cloudflare Worker version `f2ade63f-99f1-4c38-8f96-69c082bf8221` was deployed at 16:51:22 UTC, preserving all bindings and runtime settings. Roll back to `8c112fba-3af6-49cf-b4e1-a66f1b3984a8` if necessary, and disable the ten-minute schedule when rolling back because that version couples discovery backpressure to alignment.
+- The ten-minute discovery schedule is active again, alongside the existing catalog/media, scan, and maintenance schedules. The hourly `23 * * * *` alignment schedule remains disabled. The first restored discovery tick has not yet been observed at this checkpoint.
+- Verification passed: the backend architecture checks, Worker build, targeted ESLint, and an execution check of the compiled scheduled handler. With 95 pending tracks it invoked discovery; at 96 and 200 it invoked neither discovery nor alignment; the separate hourly trigger still selected alignment.
+- The Vercel connection's deployment-context lookup returned an empty team list at 16:48 UTC. Runtime access remains the blocker to diagnosing why accepted queue requests do not claim BioSync jobs. Do not mark BioSync operational from deployment success or queue acceptance alone.

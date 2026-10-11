@@ -1,6 +1,6 @@
 import {createAuth,resolvedIdentity} from "./auth.server";
 import {mirrorUrl} from './gutenberg-source';
-import {fetchCatalogPage} from './catalog-fetch.server';
+import { fetchCatalogPage } from "./catalog-fetch.server";
 import {
   canonicalizeRegionalDocument,
   canonicalizeRegionalEpub,
