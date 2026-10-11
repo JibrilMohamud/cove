@@ -140,6 +140,91 @@ class WorkerCacheTests(unittest.TestCase):
                     tempfile.tempdir = original_tempdir
 
 
+class HostedBiosyncTests(unittest.TestCase):
+    def test_hosted_words_match_exact_epub_without_fabricating_confidence(self):
+        from scripts.audio_pipeline.align import align
+        index_words = [
+            {
+                "text": f"word{i}",
+                "norm": f"word{i}",
+                "cfi": f"epubcfi(/6/2!/4/2:{i * 8})",
+                "endCfi": f"epubcfi(/6/2!/4/2:{i * 8 + 5})",
+                "href": "OPS/chapter.xhtml",
+            }
+            for i in range(55)
+        ]
+        transcript = {
+            "engine": "cloudflare-workers-ai-whisper",
+            "confidenceMode": "unreported",
+            "duration": 35.0,
+            "words": [
+                {
+                    "text": f"word{i}",
+                    "start": i * 0.5,
+                    "end": i * 0.5 + 0.4,
+                    "probability": None,
+                }
+                for i in range(55)
+            ],
+        }
+        checked = align(
+            {"words": index_words, "epubSha256": "a" * 64},
+            transcript,
+            "02",
+            "b" * 64,
+        )
+        self.assertEqual(checked["status"], "checked")
+        self.assertEqual(checked["verification"]["confidenceMode"], "unreported")
+        self.assertIsNone(checked["verification"]["minWordProbability"])
+        self.assertTrue(all(w["probability"] is None for w in checked["words"]))
+        self.assertGreaterEqual(checked["verification"]["coverage"], .9)
+        transcript["engine"] = "untrusted-external-timing"
+        with self.assertRaisesRegex(ValueError, "only allowed"):
+            align({"words": index_words, "epubSha256": "a" * 64}, transcript, "02", "b" * 64)
+
+    def test_hosted_alignment_does_not_download_audio_or_models(self):
+        import pathlib
+        identity = "b" * 64
+        edition = {
+            "id": "pg-19504",
+            "bookId": "9825",
+            "language": "en",
+            "epubSha256": None,
+            "tracks": [{"id": "02", "sha256": identity, "duration": 74.3}],
+        }
+        transcript = {
+            "identity": {"audioSha256": identity},
+            "engine": "cloudflare-workers-ai-whisper",
+            "confidenceMode": "unreported",
+            "duration": 74.3,
+            "words": [],
+        }
+        checked = {"status": "checked", "version": 2}
+        api = Mock()
+        api.call.side_effect = lambda path, *args, **kwargs: (
+            edition if path == "/audio/pg-19504"
+            else transcript if path == "/pipeline/hosted-transcript/pg-19504/02"
+            else {}
+        )
+        job = {"payload": {"editionId": "pg-19504", "trackId": "02", "audioSha256": identity}}
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"FORE_BIOSYNC_ASR": "hosted"}), patch.object(
+            runner, "text_record", return_value={"id": "9825"}
+        ), patch.object(runner, "epub_source", return_value="https://www.gutenberg.org/ebooks/9825.epub"), patch.object(
+            runner, "mirror_url", return_value="https://gutenberg.pglaf.org/9825.epub"
+        ), patch.object(runner, "sha256", return_value="a" * 64), patch.object(
+            runner, "download", side_effect=lambda url, target, **kw: (pathlib.Path(target).write_bytes(b"epub"), pathlib.Path(target))[1]
+        ) as download_mock, patch.object(
+            runner, "build", return_value={"epubSha256": "a" * 64, "words": []}
+        ), patch.object(runner, "align", return_value=checked) as align_mock, patch.object(
+            runner, "transcribe", side_effect=AssertionError("Local model must not run")
+        ):
+            result = runner.process_alignment(api, job, pathlib.Path(directory), 2)
+        self.assertEqual(result[0], "done")
+        self.assertEqual(download_mock.call_count, 1)
+        self.assertEqual(align_mock.call_count, 1)
+        self.assertTrue(any(call.args[0] == "/pipeline/alignment/pg-19504/02" for call in api.call.call_args_list))
+
+
 class PipelineTests(unittest.TestCase):
     def test_capacity_failure_retries_only_alignment(self):
         job = {"id": "align-canary", "kind": "align", "lease_token": "test-lease"}
