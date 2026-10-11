@@ -73,7 +73,7 @@ jobs:
           [[ "$WORKER_NAME" =~ ^[a-zA-Z0-9_-]{1,63}$ ]] || { echo "Invalid Worker name"; exit 1; }
           [[ "$D1_DATABASE_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]] || { echo "Invalid D1 database ID"; exit 1; }
           [[ "$D1_DATABASE_NAME" =~ ^[a-zA-Z0-9_-]{1,64}$ ]] || { echo "Invalid D1 database name"; exit 1; }
-          [[ "$R2_BUCKET_NAME" =~ ^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$ ]] || { echo "Invalid R2 bucket name"; exit 1; }
+          [[ "$R2_BUCKET_NAME" =~ ^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$ ]] || { echo "Invalid R2 bucket name"; exit 1; }
           node -e '
             const u = new URL(process.env.PUBLIC_URL);
             if (u.protocol !== "https:" || u.username || u.password || u.pathname !== "/" || u.search || u.hash) {
