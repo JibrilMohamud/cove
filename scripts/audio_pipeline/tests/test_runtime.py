@@ -182,6 +182,41 @@ class HostedBiosyncTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "only allowed"):
             align({"words": index_words, "epubSha256": "a" * 64}, transcript, "02", "b" * 64)
 
+    def test_short_exact_islands_between_long_anchors_are_retained(self):
+        from scripts.audio_pipeline.align import align
+        book = [
+            {
+                "text": f"word{i}",
+                "norm": f"word{i}",
+                "cfi": f"epubcfi(/6/2!/4/2:{i * 8})",
+                "endCfi": f"epubcfi(/6/2!/4/2:{i * 8 + 5})",
+                "href": "OPS/chapter.xhtml",
+            }
+            for i in range(80)
+        ]
+        errors = {20, 24, 34, 38}
+        speech = [
+            {
+                "text": f"wrong{i}" if i in errors else f"word{i}",
+                "start": i * 0.4,
+                "end": i * 0.4 + 0.3,
+                "probability": None,
+            }
+            for i in range(80)
+        ]
+        transcript = {
+            "engine": "cloudflare-workers-ai-whisper",
+            "confidenceMode": "unreported",
+            "duration": 36,
+            "words": speech,
+        }
+        checked = align({"words": book, "epubSha256": "a" * 64}, transcript, "02", "b" * 64)
+        self.assertEqual(checked["status"], "checked")
+        recovered = {word["wordIndex"] for word in checked["words"]}
+        self.assertTrue({21, 22, 23, 35, 36, 37}.issubset(recovered))
+        self.assertTrue(errors.isdisjoint(recovered))
+        self.assertGreaterEqual(checked["verification"]["coverage"], .9)
+
     def test_hosted_alignment_does_not_download_audio_or_models(self):
         import pathlib
         identity = "b" * 64
