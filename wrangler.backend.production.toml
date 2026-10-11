@@ -6,6 +6,9 @@ main = "backend-dist/worker.js"
 compatibility_date = "2026-10-09"
 workers_dev = true
 
+[limits]
+cpu_ms = 300_000
+
 [[d1_databases]]
 binding = "DB"
 database_name = "cove-production"
