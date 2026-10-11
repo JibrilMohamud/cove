@@ -1,8 +1,10 @@
 import {
   handleCoveApi,
   kickCatalogIngestion,
+  runCatalogAssetIngestion,
   runCatalogIngestion,
   runPublishingReleaseMaintenance,
+  runRegionalCatalogMaintenance,
   runRecommendationMaintenance,
   type CoveEnv,
 } from "./features/fore/api.server";
@@ -307,7 +309,7 @@ async function triggerVercelAudio(env: BackendEnv, path: string) {
   const response = await fetch(target, {
     method: "POST",
     headers: await ingestionTriggerHeaders(env, target),
-    signal: AbortSignal.timeout(290_000),
+    signal: AbortSignal.timeout(20_000),
   });
   if (!response.ok) {
     throw new Error(
