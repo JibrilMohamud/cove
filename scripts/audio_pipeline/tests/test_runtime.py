@@ -104,7 +104,7 @@ class ModelStorageTests(unittest.TestCase):
 
 
 class PipelineTests(unittest.TestCase):
-    def test_capacity_failure_finishes_only_alignment_as_review(self):
+    def test_capacity_failure_retries_only_alignment(self):
         job = {"id": "align-canary", "kind": "align", "lease_token": "test-lease"}
         api = Mock()
         api.call.side_effect = [job, {}]
@@ -114,7 +114,7 @@ class PipelineTests(unittest.TestCase):
                 runner, "process", side_effect=model_storage.ModelStorageUnavailable("model exceeds storage")
             ), patch.dict(os.environ), redirect_stdout(io.StringIO()):
                 runner.run({}, args)
-        api.finish.assert_called_once_with(job, "review", "model exceeds storage")
+        api.finish.assert_called_once_with(job, "retry", "model exceeds storage")
         self.assertEqual([call.args[0] for call in api.call.call_args_list], ["/pipeline/claim", "/audio-status"])
 
     def test_health_returns_diagnostics_instead_of_execution_mode_string(self):
