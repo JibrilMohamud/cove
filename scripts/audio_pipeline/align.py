@@ -3,7 +3,24 @@ import collections,difflib,json,pathlib,time,os
 from .epub_index import normalize
 from .media import sha256
 
+def _install_pyav_compat():
+    """Bridge faster-whisper 1.2.1 to PyAV 19 without masking unrelated failures."""
+    import av
+    current=av.open
+    if getattr(current,'__cove_metadata_errors_compat__',False):return
+    def compatible_open(*args,**kwargs):
+        try:
+            return current(*args,**kwargs)
+        except TypeError as error:
+            if 'metadata_errors' not in kwargs or 'metadata_errors' not in str(error):
+                raise
+            retry=dict(kwargs);retry.pop('metadata_errors',None)
+            return current(*args,**retry)
+    compatible_open.__cove_metadata_errors_compat__=True
+    av.open=compatible_open
+
 def transcribe(path,output,model='base.en',language='en',threads=4):
+    _install_pyav_compat()
     from faster_whisper import WhisperModel
     target=pathlib.Path(output);identity={'audioSha256':sha256(path),'model':model,'language':language}
     if target.exists():
