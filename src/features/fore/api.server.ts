@@ -1050,9 +1050,15 @@ async function cachePendingEpubs(env: CoveEnv, limit = 1) {
       downloaded++;
     } catch (error) {
       const attempts = Number(row.epub_attempts || 0) + 1;
-      const retryAt = new Date(Date.now() + Math.min(24 * 60 * 60 * 1000, Math.pow(2, attempts) * 5 * 60 * 1000)).toISOString();
+      const message = error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500);
+      const deterministicOversize = /file is too large|epub limit is 25 mb/i.test(message);
+      const persistentMissingAsset = /(?:epub|html) source returned 404/i.test(message) && attempts >= 3;
+      const terminal = deterministicOversize || persistentMissingAsset || attempts >= 8;
+      const retryAt = terminal
+        ? ""
+        : new Date(Date.now() + Math.min(24 * 60 * 60 * 1000, Math.pow(2, attempts) * 5 * 60 * 1000)).toISOString();
       await db.prepare("UPDATE gutenberg_source_cache SET epub_status=?,epub_attempts=?,epub_next_attempt_at=?,epub_last_error=? WHERE id=?")
-        .bind(attempts >= 8 ? "failed" : "retry", attempts, retryAt, error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500), id).run();
+        .bind(terminal ? "failed" : "retry", attempts, retryAt, message, id).run();
       failed++;
     }
   }
