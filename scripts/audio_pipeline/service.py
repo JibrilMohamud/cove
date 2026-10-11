@@ -140,6 +140,7 @@ async def run_pipeline(request: RunRequest) -> dict[str, object]:
             },
         ) from error
 
-    if execution_mode() == "queue":
+    mode = request.execution_mode if request.execution_mode != "inherit" else execution_mode()
+    if mode == "queue":
         return await enqueue_pipeline(request)
     return await execute_direct(request)
