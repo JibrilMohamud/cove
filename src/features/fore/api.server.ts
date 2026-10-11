@@ -1,4 +1,5 @@
 import {createAuth,resolvedIdentity} from "./auth.server";
+import { handleLegalContact } from "./legal.server";
 import {mirrorUrl} from './gutenberg-source';
 import { fetchCatalogPage } from "./catalog-fetch.server";
 import {
@@ -1642,6 +1643,8 @@ async function handleCoveRequest(request: Request, env: CoveEnv, auth:Awaited<Re
       const publicResponse = await handleVercelPublicRequest(request, env, path);
       if (publicResponse) return publicResponse;
     }
+    const legalResponse=await handleLegalContact(request,env,path);
+    if(legalResponse)return legalResponse;
     const authResponse=await auth.handle(path);
     if(authResponse)return authResponse;
     await auth.identify();
