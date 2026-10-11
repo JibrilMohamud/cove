@@ -1,19 +1,34 @@
 # Cove production accounts launch checklist
 
 Updated 2026-10-11. Cove's ebook and audiobook persistence runs on Cloudflare
-D1/R2; Supabase is only the authentication/identity provider. **Use a dedicated
-Cove Supabase project; do not reuse the Jammed application's Auth tenant.**
+D1/R2; Supabase is only the authentication/identity provider.
+
+**Existing Cove Supabase project confirmed and connected:**
+- Project name: `Cove`
+- Project ref: `qhympmfucmfdtylxpfcx`
+- Region: `us-east-1`
+- Project API URL: `https://qhympmfucmfdtylxpfcx.supabase.co`
+- Organization: `suznzzzjzsixclryaqcf` (not Jammed)
+- Cloudflare Worker bindings `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`
+  and `FORE_AUTH_MODE=supabase`: **configured and confirmed**, with D1,
+  R2, AI, audio bindings and Cove's original signing secret preserved.
+- Registration and email-confirmation redirects: **still require an
+  authenticated end-to-end browser test** before claiming public readiness.
+- Public website deployment: Vercel currently reports a GitHub deploy rate
+  limit, and the connected Vercel scope returns HTTP 403. Check/reconnect
+  its `jibrilmohamuds-projects` scope and verify the subsequent deployment.
+- Provider users at connection time: **0**. No Jammed users were merged.
 
 ## Required platform setup
 
-1. Create a dedicated Supabase project in the authorized organization and region.
-   Review the live monthly price and explicitly approve the organization before
-   creating it. Store no secrets in Git or public front-end environment variables.
-2. In Supabase Auth > Providers > Email, enable email/password and **require email
+1. **Project already exists and is connected.** Do not create a second
+   Supabase project or move user records into another organization's Auth tenant.
+   Keep any admin/service-role keys out of Git and public environment variables.
+2. In [Cove Supabase Auth settings](https://supabase.com/dashboard/project/qhympmfucmfdtylxpfcx/auth/providers), > Providers > Email, enable email/password and **require email
    confirmation**. Keep anonymous sign-ins disabled unless independently designed.
    Configure a domain-authenticated SMTP sender for dependable production delivery
    and test both registration and password recovery across major email providers.
-3. Configure the Site URL to `https://cove-puce-theta.vercel.app` (replace with
+3. In [Cove URL configuration](https://supabase.com/dashboard/project/qhympmfucmfdtylxpfcx/auth/url-configuration), configure the Site URL to `https://cove-puce-theta.vercel.app` (replace with
    Cove's custom domain when live), and explicitly allow this redirect:
    `https://cove-puce-theta.vercel.app/api/fore/auth/callback`.
    Do not use broad wildcard redirect domains in production.
@@ -29,13 +44,12 @@ Cove Supabase project; do not reuse the Jammed application's Auth tenant.**
    The server also accepts normal `?code=` provider PKCE OAuth responses. Recovery
    templates should use `type=recovery` if using token hashes and must be
    tested with a real link. Links must remain under Cove's exact HTTPS origin.
-5. Add these bindings to the **Cloudflare Worker** `cove-persistence-backend`:
-   `FORE_AUTH_MODE=supabase` (already set), `SUPABASE_URL` (Supabase
-   project API URL), and `SUPABASE_PUBLISHABLE_KEY` (publishable key, not
-   service_role or a secret/admin key). In a reviewable deployment, retain the
-   existing signing key, R2/D1/Workers AI bindings, cron triggers, and worker URL.
-   Never print or copy credential values into CI logs.
-6. Apply D1 migrations through
+5. **Completed:** The **Cloudflare Worker** `cove-persistence-backend`
+   contains `FORE_AUTH_MODE=supabase`, `SUPABASE_URL`, and
+   `SUPABASE_PUBLISHABLE_KEY` as production bindings. Its signing key,
+   R2/D1/Workers AI bindings, cron triggers and audio integrations were all
+   confirmed preserved. Avoid logging any credentials in deployment jobs.
+6. **Completed:** D1 migrations were applied through
    `.github/workflows/deploy-persistence-backend.yml`. In particular
    `0041_legal_privacy_contact_inbox.sql`,
    `0042_account_legal_consents.sql`, and
