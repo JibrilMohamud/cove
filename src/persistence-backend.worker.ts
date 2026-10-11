@@ -491,9 +491,13 @@ async function runScheduled(cron: string, env: BackendEnv) {
       // acquisition windows. Keeps early BioSync health failures visible without
       // starving the long-running track backlog indefinitely.
       const firstMapPending = await env.DB.prepare("SELECT 1 FROM audio_timing LIMIT 1").first();
-      const shortBootstrap = firstMapPending ? null : await env.DB.prepare(
-        "SELECT j.id FROM audio_jobs j JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') WHERE j.kind='align' AND j.status='queued' AND j.attempts<3 AND j.next_attempt_at<=? AND CAST(json_extract(t.value,'$.duration') AS REAL)<=120 LIMIT 1"
-      ).bind(new Date().toISOString()).first();
+      const shortBootstrap = firstMapPending
+        ? null
+        : await env.DB.prepare(
+            "SELECT j.id FROM audio_jobs j JOIN audio_editions e ON e.id=json_extract(j.payload_json,'$.editionId') JOIN json_each(e.tracks_json) t ON json_extract(t.value,'$.id')=json_extract(j.payload_json,'$.trackId') WHERE j.kind='align' AND j.status='queued' AND j.attempts<3 AND j.next_attempt_at<=? AND CAST(json_extract(t.value,'$.duration') AS REAL)<=120 LIMIT 1",
+          )
+            .bind(new Date().toISOString())
+            .first();
       const alignmentWindow = new Date().getUTCMinutes() % 30 < 15 || Boolean(shortBootstrap);
       if (alignmentState.running > 0 || (alignmentWindow && alignmentState.queued > 0)) {
         const work: Promise<unknown>[] = [scheduledCatalog(env)];
