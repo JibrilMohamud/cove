@@ -107,6 +107,15 @@ function logicalRequest(request: Request, env: BackendEnv) {
   headers.delete("x-cove-backend-token");
   headers.delete("x-cove-backend-host");
   headers.delete("x-cove-public-url");
+  // Browser requests cannot impersonate a user by supplying platform identity
+  // headers. Cove account identity must come from a verified Supabase session.
+  for (const name of [
+    "oai-authenticated-user-id",
+    "oai-authenticated-user-email",
+    "oai-authenticated-user-full-name",
+    "oai-authenticated-user-full-name-encoding",
+    "oai-authentication-assurance-level",
+  ]) headers.delete(name);
   return new Request(publicUrl, {
     method: request.method,
     headers,
