@@ -106,6 +106,18 @@ def _prepare_runtime_cache() -> pathlib.Path:
         except FileNotFoundError:
             continue
 
+    # The previous worker kept every Gutenberg RDF response in a shared cache
+    # for 20 hours. Thousands of discovery requests could exhaust the same
+    # small /tmp filesystem needed by BioSync's speech model. New requests use
+    # their own run-scoped RDF cache, so only reclaim legacy responses that
+    # cannot belong to an invocation still inside the five-minute limit.
+    for path in RDF_CACHE.glob("*.rdf"):
+        try:
+            if path.is_file() and path.stat().st_mtime < cutoff:
+                path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("Unable to clear a stale Gutenberg RDF cache entry")
+
     # Vercel's deployed source tree is read-only. ML/runtime dependencies may
     # consult HOME/XDG/Hugging Face defaults even when faster-whisper receives
     # an explicit download_root, so force every writable cache under /tmp.
@@ -126,7 +138,7 @@ def _prepare_runtime_cache() -> pathlib.Path:
     os.environ["HF_XET_RECONSTRUCT_WRITE_SEQUENTIALLY"] = "1"
     os.environ["TORCH_HOME"] = str(XDG_CACHE / "torch")
     os.environ["NUMBA_CACHE_DIR"] = str(NUMBA_CACHE)
-    os.environ["FORE_RDF_CACHE"] = str(RDF_CACHE)
+    os.environ["FORE_RDF_CACHE"] = str(cache / "rdf")
     os.environ["FORE_MODEL_CACHE"] = str(MODEL_CACHE)
     os.environ["TMPDIR"] = str(RUN_ROOT)
     os.environ["TMP"] = str(RUN_ROOT)
