@@ -65,6 +65,10 @@ jobs:
           npm run test:auth
           npm run test:legal
           npm run test:account-experience
+      - name: Personal library and highlights regressions
+        run: |
+          npm run test:service
+          npm run test:store
       - name: Catalog network recovery
         run: node scripts/check-catalog-fetch.mjs
       - name: Python syntax
