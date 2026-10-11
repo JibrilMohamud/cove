@@ -118,6 +118,7 @@ assert.match(audioWorker, /os\.environ\["HF_HUB_DISABLE_XET"\] = "1"/);
 assert.match(audioWorker, /os\.environ\["HF_HUB_CACHE"\]/);
 assert.match(audioWorker, /os\.environ\["NUMBA_CACHE_DIR"\]/);
 assert.match(audioWorker, /STALE_RUN_SECONDS = 20 \* 60/);
+assert.match(audioWorker, /for path in \(RUNTIME_HOME, HF_HOME\)/);
 assert.match(audioWorker, /tempfile\.mkdtemp/);
 assert.match(audioWorker, /shutil\.rmtree\(cache, ignore_errors=True\)/);
 assert.match(audioWorker, /def _disk_snapshot\(\)/);
@@ -174,7 +175,7 @@ assert.match(worker, /response\.status === 524/);
 assert.doesNotMatch(worker, /FORE_AUDIO_TRACK_DIRECT_URL/);
 assert.doesNotMatch(worker, /FORE_AUDIO_ALIGN_DIRECT_URL/);
 assert.match(worker, /new URL\(path, env\.FORE_PUBLIC_URL\)/);
-for (const cron of ["*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]) {
+for (const cron of ["*/5 * * * *", "*/10 * * * *", "2-59/5 * * * *", "17 3 * * *", "41 4 * * *"]) {
   assert.ok(wrangler.includes(cron), "missing backend Worker cron " + cron);
 }
 assert.match(wrangler, /FORE_INGESTION_SIGNING_KEY/);
@@ -206,6 +207,7 @@ assert.match(gateway, /"\/api\/fore\/internal\/ingestion\/audio-track":[\s\S]*?e
 assert.match(gateway, /"\/api\/fore\/internal\/ingestion\/audio-discover":[\s\S]*?execution_mode:\s*"direct"/);
 assert.match(worker, /audioAlignmentTriggerSlots/);
 assert.match(worker, /alignmentState\.slots > 0/);
+assert.match(worker, /cron === "2-59\/5 \* \* \* \*"/);
 
 assert.equal(pkg.scripts["build:backend"], "node scripts/build-persistence-backend.mjs");
 console.log("Persistent backend architecture checks passed.");

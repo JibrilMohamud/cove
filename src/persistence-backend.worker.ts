@@ -424,16 +424,23 @@ async function audioAlignmentTriggerSlots(env: BackendEnv) {
   const at = new Date().toISOString();
   const row = await env.DB.prepare(
     `SELECT
-      SUM(CASE WHEN status='queued' AND next_attempt_at<=? AND attempts<6 THEN 1 ELSE 0 END) queued,
-      SUM(CASE WHEN status='running' AND lease_until>? THEN 1 ELSE 0 END) running
+      SUM(CASE WHEN kind='align' AND status='queued' AND next_attempt_at<=? AND attempts<6 THEN 1 ELSE 0 END) queued,
+      SUM(CASE WHEN kind='align' AND status='running' AND lease_until>? THEN 1 ELSE 0 END) running,
+      SUM(CASE WHEN kind='track' AND status='running' AND lease_until>? THEN 1 ELSE 0 END) active_tracks
     FROM audio_jobs
-    WHERE kind='align'`,
+    WHERE kind IN ('align','track')`,
   )
-    .bind(at, at)
-    .first<{ queued?: number; running?: number }>();
+    .bind(at, at, at)
+    .first<{ queued?: number; running?: number; active_tracks?: number }>();
   const queued = Number(row?.queued || 0);
   const running = Number(row?.running || 0);
-  return { queued, running, slots: queued > 0 && running === 0 ? 1 : 0 };
+  const activeTracks = Number(row?.active_tracks || 0);
+  return {
+    queued,
+    running,
+    activeTracks,
+    slots: queued > 0 && running === 0 && activeTracks === 0 ? 1 : 0,
+  };
 }
 
 async function runScheduled(cron: string, env: BackendEnv) {
@@ -443,16 +450,10 @@ async function runScheduled(cron: string, env: BackendEnv) {
   }
   try {
     if (cron === "*/5 * * * *") {
-      const [trackState, alignmentState] = await Promise.all([
-        audioTrackTriggerSlots(env),
-        audioAlignmentTriggerSlots(env),
-      ]);
+      const trackState = await audioTrackTriggerSlots(env);
       const work: Promise<unknown>[] = [scheduledCatalog(env)];
       for (let index = 0; index < trackState.slots; index += 1) {
         work.push(triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-track"));
-      }
-      if (alignmentState.slots > 0) {
-        work.push(triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align"));
       }
       const [catalogResult, ...audioResults] = await Promise.allSettled(work);
       for (const result of audioResults) {
@@ -467,6 +468,13 @@ async function runScheduled(cron: string, env: BackendEnv) {
       }
       if (catalogResult.status === "rejected") {
         throw catalogResult.reason;
+      }
+      return;
+    }
+    if (cron === "2-59/5 * * * *") {
+      const alignmentState = await audioAlignmentTriggerSlots(env);
+      if (alignmentState.slots > 0) {
+        await triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align");
       }
       return;
     }

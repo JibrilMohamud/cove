@@ -81,6 +81,11 @@ def pipeline_config() -> dict[str, str]:
 
 
 def _prepare_runtime_cache() -> pathlib.Path:
+    # These caches are disposable and have previously retained failed Xet/model
+    # reconstruction data across warm invocations. Clear them before acquiring
+    # new media so a completed track cannot starve BioSync of model space.
+    for path in (RUNTIME_HOME, HF_HOME):
+        shutil.rmtree(path, ignore_errors=True)
     RUN_ROOT.mkdir(parents=True, exist_ok=True)
     RDF_CACHE.mkdir(parents=True, exist_ok=True)
     MODEL_CACHE.mkdir(parents=True, exist_ok=True)
