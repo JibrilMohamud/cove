@@ -127,6 +127,7 @@ jobs:
           [vars]
           FORE_PUBLIC_URL = "$PUBLIC_URL"
           FORE_ENVIRONMENT = "production"
+          FORE_AUTH_MODE = "supabase"
           FORE_DEFAULT_TERRITORY = "US"
           FORE_CATALOG_PAGES_PER_TICK = "5"
           FORE_CATALOG_EPUBS_PER_TICK = "2"
