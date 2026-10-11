@@ -298,6 +298,23 @@ async function ingestionTriggerHeaders(env: BackendEnv, target: URL) {
   };
 }
 
+async function persistAudioTriggerDiagnostic(
+  env: BackendEnv,
+  key: "audio_trigger_last_error" | "audio_trigger_last_success",
+  value: Record<string, unknown>,
+) {
+  const at = new Date().toISOString();
+  try {
+    await env.DB.prepare(
+      "INSERT INTO cove_runtime_config(key,value,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at",
+    )
+      .bind(key, JSON.stringify({ ...value, at }), at)
+      .run();
+  } catch (error) {
+    console.warn("Unable to persist Cove audio trigger diagnostic", error);
+  }
+}
+
 async function triggerVercelAudio(env: BackendEnv, path: string) {
   if (!env.FORE_PUBLIC_URL) {
     throw new Error("FORE_PUBLIC_URL is required for audio scheduling.");
@@ -310,13 +327,18 @@ async function triggerVercelAudio(env: BackendEnv, path: string) {
     signal: AbortSignal.timeout(290_000),
   });
   if (!response.ok) {
-    throw new Error(
-      `Audio ingestion trigger failed (${response.status}): ${(await response.text()).slice(
-        0,
-        500,
-      )}`,
-    );
+    const body = (await response.text()).replace(/[\r\n\t]+/g, " ").slice(0, 900);
+    await persistAudioTriggerDiagnostic(env, "audio_trigger_last_error", {
+      path,
+      status: response.status,
+      body,
+    });
+    throw new Error(`Audio ingestion trigger failed (${response.status}) for ${path}`);
   }
+  await persistAudioTriggerDiagnostic(env, "audio_trigger_last_success", {
+    path,
+    status: response.status,
+  });
 }
 
 async function scheduledCatalog(env: BackendEnv) {
