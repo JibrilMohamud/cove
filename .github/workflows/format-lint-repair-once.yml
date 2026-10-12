@@ -1,0 +1,48 @@
+name: one-time lint autoformat
+# Temporary, restricted maintenance job. Delete after the source formatting is committed.
+on:
+  push:
+    paths:
+      - ".github/workflows/format-lint-repair-once.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  format:
+    if: github.repository == 'JibrilMohamud/cove' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Apply actual repository ESLint/Prettier autofixes
+        run: |
+          npm exec -- prettier --write db/schema.ts
+          npm exec -- eslint . --fix --format json > /tmp/cove-lint-fix.json || true
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          const files=JSON.parse(readFileSync('/tmp/cove-lint-fix.json','utf8'));
+          const errors=files.flatMap(f=>f.messages.filter(x=>x.severity===2).map(x=>({file:f.filePath.split('/').slice(-4).join('/'),rule:x.ruleId,line:x.line,message:x.message.slice(0,170)})));
+          const warnings=files.flatMap(f=>f.messages.filter(x=>x.severity===1).map(x=>({file:f.filePath.split('/').slice(-4).join('/'),rule:x.ruleId,line:x.line})));
+          console.log('Remaining lint errors:',errors.length,'warnings:',warnings.length);
+          for(const e of errors.slice(0,55))console.log(JSON.stringify(e));
+          for(const w of warnings.slice(0,25))console.log('Warning:',JSON.stringify(w));
+          JS
+          git diff --check
+      - name: Commit source formatting without suppressing lint rules
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- 'db/schema.ts' 'src/**/*.ts' 'src/**/*.tsx' 'db/**/*.ts' 'scripts/**/*.ts' 'scripts/**/*.tsx'
+          if git diff --cached --quiet; then
+            echo 'No formatting changes needed.'
+            exit 0
+          fi
+          git diff --cached --stat | tail -35
+          git commit -m "style: fix Prettier and safe ESLint formatting violations"
+          git push origin HEAD:main
