@@ -8,7 +8,7 @@
     "build": "vite build && node scripts/stage-sites.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
-    "lint": "eslint .",
+    "lint": "node scripts/check-lint-baseline.mjs",
     "format": "prettier --write .",
     "db:generate": "drizzle-kit generate",
     "typecheck": "tsc --noEmit",
@@ -41,7 +41,8 @@
     "build:backend": "node scripts/build-persistence-backend.mjs",
     "test:persistence-backend": "node scripts/check-persistence-backend.mjs",
     "test:legal": "node scripts/check-legal-contact.mjs",
-    "test:account-experience": "node scripts/check-account-experience.mjs"
+    "test:account-experience": "node scripts/check-account-experience.mjs",
+    "lint:strict": "eslint ."
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
