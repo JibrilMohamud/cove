@@ -38,7 +38,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- 'db/schema.ts' 'src/**/*.ts' 'src/**/*.tsx' 'db/**/*.ts' 'scripts/**/*.ts' 'scripts/**/*.tsx'
+          git add -u -- db src scripts
           if git diff --cached --quiet; then
             echo 'No formatting changes needed.'
             exit 0
