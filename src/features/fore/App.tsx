@@ -98,7 +98,7 @@ export function CoveProvider({ children }: { children: ReactNode }) {
     flush();
     window.addEventListener("online", flush);
     return () => window.removeEventListener("online", flush);
-  }, [data.user?.id]);
+  }, [data.user]);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (
