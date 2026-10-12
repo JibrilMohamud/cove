@@ -86,27 +86,38 @@ try {
   assert.equal(created.status, 200, JSON.stringify(created));
   assert.equal(created.data.verificationRequired, true);
   assert.equal(signupCalls, 1);
-  const pending = await env.DB.prepare("SELECT email,terms_version,privacy_version,accepted_at FROM pending_account_legal_consents WHERE provider_id=?")
-    .bind("00000000-0000-4000-8000-000000000001").first();
+  const pending = await env.DB.prepare(
+    "SELECT email,terms_version,privacy_version,accepted_at FROM pending_account_legal_consents WHERE provider_id=?",
+  )
+    .bind("00000000-0000-4000-8000-000000000001")
+    .first();
   assert.equal(pending?.email, "reader@example.com");
   assert.equal(pending?.terms_version, "2026-10-11");
   assert.equal(pending?.privacy_version, "2026-10-11");
   assert.ok(pending?.accepted_at, "Consent evidence must be recorded in server-owned D1");
 
   const missingConsent = await request(env, "/auth/signup", {
-    username: "reader_two", email: "two@example.com",
+    username: "reader_two",
+    email: "two@example.com",
     password: "a-good-password-123",
   });
   assert.equal(missingConsent.status, 400);
   assert.equal(signupCalls, 1, "A signup without consent must not reach the provider");
   const forged = await handleCoveApi(
     new Request("https://fore.test/api/fore/account", {
-      headers: { "oai-authenticated-user-id": "forged-user", "oai-authenticated-user-email": "forged@example.com" },
+      headers: {
+        "oai-authenticated-user-id": "forged-user",
+        "oai-authenticated-user-email": "forged@example.com",
+      },
     }),
     env,
   );
   assert.equal(forged.status, 200);
-  assert.equal((await forged.json()).user, null, "The verified provider must ignore spoofed legacy identities");
+  assert.equal(
+    (await forged.json()).user,
+    null,
+    "The verified provider must ignore spoofed legacy identities",
+  );
   const unsafe = localBindings(folder);
   Object.assign(unsafe, {
     FORE_AUTH_MODE: "supabase",

@@ -25,12 +25,18 @@ import { RATINGS, RATING_LABELS, type Review } from "./domain";
 
 function provenanceLabel(review: Review) {
   switch (review.provenance?.type) {
-    case "verified_purchase": return "Verified purchase";
-    case "subscription_reader": return "Subscription reader";
-    case "free_promotional_copy": return "Promotional copy";
-    case "gifted": return "Gifted copy";
-    case "publisher_author_copy": return "Publisher/author copy";
-    default: return "Access not verified";
+    case "verified_purchase":
+      return "Verified purchase";
+    case "subscription_reader":
+      return "Subscription reader";
+    case "free_promotional_copy":
+      return "Promotional copy";
+    case "gifted":
+      return "Gifted copy";
+    case "publisher_author_copy":
+      return "Publisher/author copy";
+    default:
+      return "Access not verified";
   }
 }
 
@@ -322,7 +328,10 @@ export function Reviews({ bookId, personal = false }: { bookId: string; personal
                       {r.mine ? " · you" : ""}
                     </strong>
                     <time dateTime={r.createdAt}>{new Date(r.createdAt).toLocaleDateString()}</time>
-                    <span className={`review-provenance ${r.provenance?.verified ? "verified" : "unverified"}`} title="Access status is frozen when the review is first submitted.">
+                    <span
+                      className={`review-provenance ${r.provenance?.verified ? "verified" : "unverified"}`}
+                      title="Access status is frozen when the review is first submitted."
+                    >
                       {provenanceLabel(r)}
                     </span>
                   </div>

@@ -63,7 +63,8 @@ async function requireEmailConfirmation(env: CoveEnv) {
 export async function createAuth(request: Request, env: CoveEnv) {
   const changes: { name: string; value: string; options: any }[] = [],
     url = new URL(request.url);
-  const configured = env.FORE_AUTH_MODE === "supabase" && !!env.SUPABASE_URL && !!env.SUPABASE_PUBLISHABLE_KEY;
+  const configured =
+    env.FORE_AUTH_MODE === "supabase" && !!env.SUPABASE_URL && !!env.SUPABASE_PUBLISHABLE_KEY;
   const client = configured
     ? createServerClient(env.SUPABASE_URL!, env.SUPABASE_PUBLISHABLE_KEY!, {
         auth: { experimental: { passkey: true } },
@@ -109,30 +110,97 @@ export async function createAuth(request: Request, env: CoveEnv) {
       try {
         const payload = token.split(".")[1] || "";
         const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-        const decoded = JSON.parse(atob(normalized + "=".repeat((4 - normalized.length % 4) % 4)));
+        const decoded = JSON.parse(
+          atob(normalized + "=".repeat((4 - (normalized.length % 4)) % 4)),
+        );
         stable = String(decoded.session_id || token);
       } catch {}
-      const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stable)));
+      const digest = new Uint8Array(
+        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stable)),
+      );
       return [...digest].map((x) => x.toString(16).padStart(2, "0")).join("");
-    } catch { return ""; }
+    } catch {
+      return "";
+    }
   }
-  async function securityEvent(userId:string,eventType:string,detail:any={}) {
-    const eventId=`secevt_${crypto.randomUUID()}`,at=now();
+  async function securityEvent(userId: string, eventType: string, detail: any = {}) {
+    const eventId = `secevt_${crypto.randomUUID()}`,
+      at = now();
     try {
-      await env.DB.prepare("INSERT INTO account_security_events(id,user_id,event_type,actor_type,actor_user_id,session_fingerprint,ip_country,user_agent_summary,event_json,created_at) VALUES(?,?,?,'user',?,?,?,?,?,?)").bind(eventId,userId,eventType,userId,await sessionFingerprint(),(request.headers.get("cf-ipcountry")||"").slice(0,2),(request.headers.get("user-agent")||"").slice(0,240),JSON.stringify(detail||{}),at).run();
-      const labels:Record<string,{title:string;body:string}>={
-        login_succeeded:{title:"Sign-in to your Cove account",body:"A sign-in to your Cove account was recorded."},
-        email_change_requested:{title:"Email change requested",body:"A change to your Cove account email was requested."},
-        password_changed:{title:"Password changed",body:"Your Cove account password was changed and other sessions were signed out."},
-        mfa_enrollment_started:{title:"Authenticator setup started",body:"Multi-factor authentication setup was started on your Cove account."},
-        mfa_verified:{title:"Authenticator verified",body:"A multi-factor authenticator was verified on your Cove account."},
-        mfa_factor_removed:{title:"Authenticator removed",body:"A multi-factor authentication factor was removed from your Cove account."},
-        passkey_registered:{title:"Passkey added",body:"A new passkey was added to your Cove account."},
-        passkey_deleted:{title:"Passkey removed",body:"A passkey was removed from your Cove account."},
-        other_sessions_revoked:{title:"Other sessions signed out",body:"Other active Cove sessions were revoked."},
-      },copy=labels[eventType]||{title:"Cove account security alert",body:"A security-related change was recorded on your Cove account."};
-      await emitNotification(env.DB,{userId,eventType:"account_security_alert",dedupeKey:`security:${eventId}`,title:copy.title,body:copy.body,topic:"security",urgency:eventType==="login_succeeded"?"normal":"high",subjectType:"account_security_event",subjectId:eventId,actionUrl:"/account",payload:{securityEventType:eventType,...detail},forceChannels:eventType==="login_succeeded"?["in_app"]:["in_app","email"],allowedChannels:eventType==="login_succeeded"?["in_app","web_push","mobile_push"]:undefined});
-      await assessAccountTakeoverRisk(env.DB as any,userId,eventType);
+      await env.DB.prepare(
+        "INSERT INTO account_security_events(id,user_id,event_type,actor_type,actor_user_id,session_fingerprint,ip_country,user_agent_summary,event_json,created_at) VALUES(?,?,?,'user',?,?,?,?,?,?)",
+      )
+        .bind(
+          eventId,
+          userId,
+          eventType,
+          userId,
+          await sessionFingerprint(),
+          (request.headers.get("cf-ipcountry") || "").slice(0, 2),
+          (request.headers.get("user-agent") || "").slice(0, 240),
+          JSON.stringify(detail || {}),
+          at,
+        )
+        .run();
+      const labels: Record<string, { title: string; body: string }> = {
+          login_succeeded: {
+            title: "Sign-in to your Cove account",
+            body: "A sign-in to your Cove account was recorded.",
+          },
+          email_change_requested: {
+            title: "Email change requested",
+            body: "A change to your Cove account email was requested.",
+          },
+          password_changed: {
+            title: "Password changed",
+            body: "Your Cove account password was changed and other sessions were signed out.",
+          },
+          mfa_enrollment_started: {
+            title: "Authenticator setup started",
+            body: "Multi-factor authentication setup was started on your Cove account.",
+          },
+          mfa_verified: {
+            title: "Authenticator verified",
+            body: "A multi-factor authenticator was verified on your Cove account.",
+          },
+          mfa_factor_removed: {
+            title: "Authenticator removed",
+            body: "A multi-factor authentication factor was removed from your Cove account.",
+          },
+          passkey_registered: {
+            title: "Passkey added",
+            body: "A new passkey was added to your Cove account.",
+          },
+          passkey_deleted: {
+            title: "Passkey removed",
+            body: "A passkey was removed from your Cove account.",
+          },
+          other_sessions_revoked: {
+            title: "Other sessions signed out",
+            body: "Other active Cove sessions were revoked.",
+          },
+        },
+        copy = labels[eventType] || {
+          title: "Cove account security alert",
+          body: "A security-related change was recorded on your Cove account.",
+        };
+      await emitNotification(env.DB, {
+        userId,
+        eventType: "account_security_alert",
+        dedupeKey: `security:${eventId}`,
+        title: copy.title,
+        body: copy.body,
+        topic: "security",
+        urgency: eventType === "login_succeeded" ? "normal" : "high",
+        subjectType: "account_security_event",
+        subjectId: eventId,
+        actionUrl: "/account",
+        payload: { securityEventType: eventType, ...detail },
+        forceChannels: eventType === "login_succeeded" ? ["in_app"] : ["in_app", "email"],
+        allowedChannels:
+          eventType === "login_succeeded" ? ["in_app", "web_push", "mobile_push"] : undefined,
+      });
+      await assessAccountTakeoverRisk(env.DB as any, userId, eventType);
     } catch {}
   }
   async function bindIdentity(u: any) {
@@ -162,22 +230,32 @@ export async function createAuth(request: Request, env: CoveEnv) {
     }
     // Provision a usable personal reading profile on the first verified
     // provider login. Existing display names are never overwritten.
-    const displayName = String(row.username || u.user_metadata?.full_name || "Reader").trim().slice(0, 80) || "Reader";
+    const displayName =
+      String(row.username || u.user_metadata?.full_name || "Reader")
+        .trim()
+        .slice(0, 80) || "Reader";
     await env.DB.prepare("INSERT OR IGNORE INTO profiles(user_id,name,created_at) VALUES(?,?,?)")
-      .bind(row.app_id, displayName, now()).run();
+      .bind(row.app_id, displayName, now())
+      .run();
     // An independently verified provider user may claim a consent that the
     // server recorded when this exact provider ID and email signed up.
     // Supabase user_metadata is self-editable and never proves consent.
     const pending = await env.DB.prepare(
-      "SELECT terms_version,privacy_version,accepted_at FROM pending_account_legal_consents WHERE provider_id=? AND email=? AND expires_at>?"
-    ).bind(u.id, u.email.toLowerCase(), now()).first<any>();
+      "SELECT terms_version,privacy_version,accepted_at FROM pending_account_legal_consents WHERE provider_id=? AND email=? AND expires_at>?",
+    )
+      .bind(u.id, u.email.toLowerCase(), now())
+      .first<any>();
     if (pending) {
       await env.DB.prepare(
-        "INSERT OR IGNORE INTO account_legal_consents(user_id,terms_version,privacy_version,accepted_at,source) VALUES(?,?,?,?,'email-signup')"
-      ).bind(row.app_id, pending.terms_version, pending.privacy_version, pending.accepted_at).run();
+        "INSERT OR IGNORE INTO account_legal_consents(user_id,terms_version,privacy_version,accepted_at,source) VALUES(?,?,?,?,'email-signup')",
+      )
+        .bind(row.app_id, pending.terms_version, pending.privacy_version, pending.accepted_at)
+        .run();
       await env.DB.prepare(
-        "DELETE FROM pending_account_legal_consents WHERE provider_id=? AND email=?"
-      ).bind(u.id, u.email.toLowerCase()).run();
+        "DELETE FROM pending_account_legal_consents WHERE provider_id=? AND email=?",
+      )
+        .bind(u.id, u.email.toLowerCase())
+        .run();
     }
     await env.DB.prepare("UPDATE auth_accounts SET email=? WHERE provider_id=?")
       .bind(u.email.toLowerCase(), u.id)
@@ -208,12 +286,50 @@ export async function createAuth(request: Request, env: CoveEnv) {
       const u = await user();
       if (u) {
         identity = await bindIdentity(u);
-        const fp=await sessionFingerprint();
-        if(fp){
+        const fp = await sessionFingerprint();
+        if (fp) {
           try {
-            const blocked=await env.DB.prepare("SELECT id FROM account_sessions WHERE user_id=? AND provider_session_id_hash=? AND revoked_at IS NOT NULL").bind(identity.id,fp).first<any>();
-            if(blocked){identity=null;}
-            else {const at=now(),existing=await env.DB.prepare("SELECT id,last_seen_at FROM account_sessions WHERE user_id=? AND provider_session_id_hash=?").bind(identity.id,fp).first<any>();if(existing)await env.DB.prepare("UPDATE account_sessions SET last_seen_at=?,user_agent_summary=?,ip_country=? WHERE id=?").bind(at,(request.headers.get("user-agent")||"").slice(0,240),(request.headers.get("cf-ipcountry")||"").slice(0,2),existing.id).run();else await env.DB.prepare("INSERT INTO account_sessions(id,user_id,provider_session_id_hash,user_agent_summary,ip_country,created_at,last_seen_at) VALUES(?,?,?,?,?,?,?)").bind(`sess_${crypto.randomUUID()}`,identity.id,fp,(request.headers.get("user-agent")||"").slice(0,240),(request.headers.get("cf-ipcountry")||"").slice(0,2),at,at).run();identity.sessionFingerprint=fp;}
+            const blocked = await env.DB.prepare(
+              "SELECT id FROM account_sessions WHERE user_id=? AND provider_session_id_hash=? AND revoked_at IS NOT NULL",
+            )
+              .bind(identity.id, fp)
+              .first<any>();
+            if (blocked) {
+              identity = null;
+            } else {
+              const at = now(),
+                existing = await env.DB.prepare(
+                  "SELECT id,last_seen_at FROM account_sessions WHERE user_id=? AND provider_session_id_hash=?",
+                )
+                  .bind(identity.id, fp)
+                  .first<any>();
+              if (existing)
+                await env.DB.prepare(
+                  "UPDATE account_sessions SET last_seen_at=?,user_agent_summary=?,ip_country=? WHERE id=?",
+                )
+                  .bind(
+                    at,
+                    (request.headers.get("user-agent") || "").slice(0, 240),
+                    (request.headers.get("cf-ipcountry") || "").slice(0, 2),
+                    existing.id,
+                  )
+                  .run();
+              else
+                await env.DB.prepare(
+                  "INSERT INTO account_sessions(id,user_id,provider_session_id_hash,user_agent_summary,ip_country,created_at,last_seen_at) VALUES(?,?,?,?,?,?,?)",
+                )
+                  .bind(
+                    `sess_${crypto.randomUUID()}`,
+                    identity.id,
+                    fp,
+                    (request.headers.get("user-agent") || "").slice(0, 240),
+                    (request.headers.get("cf-ipcountry") || "").slice(0, 2),
+                    at,
+                    at,
+                  )
+                  .run();
+              identity.sessionFingerprint = fp;
+            }
           } catch {}
         }
       }
@@ -257,8 +373,26 @@ export async function createAuth(request: Request, env: CoveEnv) {
         n,
       );
     if (path === "/auth/security" && request.method === "GET") {
-      const u=await user();if(!u)throw new ApiError(401,"Sign in to manage account security.");const assurance=await client.auth.mfa.getAuthenticatorAssuranceLevel();const factors=await client.auth.mfa.listFactors();let passkeys:any[]=[];try{const result=await (client.auth as any).passkey.list();if(!result?.error)passkeys=result?.data||[];}catch{}
-      return json({email:u.email,provider:String(u.app_metadata?.provider||u.identities?.[0]?.provider||"email"),aal:{current:assurance.data?.currentLevel||null,next:assurance.data?.nextLevel||null},factors:factors.data||{all:[],totp:[],phone:[]},passkeys,passkeysExperimental:true});
+      const u = await user();
+      if (!u) throw new ApiError(401, "Sign in to manage account security.");
+      const assurance = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+      const factors = await client.auth.mfa.listFactors();
+      let passkeys: any[] = [];
+      try {
+        const result = await (client.auth as any).passkey.list();
+        if (!result?.error) passkeys = result?.data || [];
+      } catch {}
+      return json({
+        email: u.email,
+        provider: String(u.app_metadata?.provider || u.identities?.[0]?.provider || "email"),
+        aal: {
+          current: assurance.data?.currentLevel || null,
+          next: assurance.data?.nextLevel || null,
+        },
+        factors: factors.data || { all: [], totp: [], phone: [] },
+        passkeys,
+        passkeysExperimental: true,
+      });
     }
     if (path === "/auth/google" && request.method === "GET") {
       if (env.FORE_GOOGLE_ENABLED !== "true")
@@ -285,16 +419,19 @@ export async function createAuth(request: Request, env: CoveEnv) {
       // SSR email templates may use token_hash + verifyOtp, while the
       // browser/provider OAuth callback returns an authorization code.
       // Only the exact, provider-supported callback types are accepted.
-      const tokenType = otpType && ["email", "signup", "recovery"].includes(otpType)
-        ? otpType as "email" | "signup" | "recovery" : null;
+      const tokenType =
+        otpType && ["email", "signup", "recovery"].includes(otpType)
+          ? (otpType as "email" | "signup" | "recovery")
+          : null;
       if ((!code || tokenHash) && (!tokenHash || !tokenType))
         return new Response(null, {
           status: 303,
           headers: { Location: "/?auth=login&authError=link", "Cache-Control": "no-store" },
         });
-      const { data, error } = tokenHash && tokenType
-        ? await client.auth.verifyOtp({ token_hash: tokenHash, type: tokenType })
-        : await client.auth.exchangeCodeForSession(code!);
+      const { data, error } =
+        tokenHash && tokenType
+          ? await client.auth.verifyOtp({ token_hash: tokenHash, type: tokenType })
+          : await client.auth.exchangeCodeForSession(code!);
       if (error || !data.user?.email_confirmed_at)
         return new Response(null, {
           status: 303,
@@ -305,7 +442,9 @@ export async function createAuth(request: Request, env: CoveEnv) {
         status: 303,
         headers: {
           Location:
-            url.searchParams.get("flow") === "recovery" || tokenType === "recovery" ? "/?auth=new-password" : "/profile",
+            url.searchParams.get("flow") === "recovery" || tokenType === "recovery"
+              ? "/?auth=new-password"
+              : "/profile",
           "Cache-Control": "no-store",
         },
       });
@@ -314,7 +453,12 @@ export async function createAuth(request: Request, env: CoveEnv) {
     if (path === "/auth/signup") {
       await budget("signup", 5);
       const input = z
-        .object({ username: usernameSchema, email: emailSchema, password: passwordSchema, acceptTerms: z.literal(true) })
+        .object({
+          username: usernameSchema,
+          email: emailSchema,
+          password: passwordSchema,
+          acceptTerms: z.literal(true),
+        })
         .parse(await readBody(request, 5000));
       await requireEmailConfirmation(env);
       if (
@@ -347,8 +491,10 @@ export async function createAuth(request: Request, env: CoveEnv) {
         const acceptedAt = now();
         const expiry = new Date(Date.now() + 7 * 86400_000).toISOString();
         await env.DB.prepare(
-          "INSERT INTO pending_account_legal_consents(provider_id,email,terms_version,privacy_version,accepted_at,expires_at) VALUES(?,?,?,?,?,?) ON CONFLICT(provider_id,email) DO UPDATE SET terms_version=excluded.terms_version,privacy_version=excluded.privacy_version,accepted_at=excluded.accepted_at,expires_at=excluded.expires_at"
-        ).bind(data.user.id, input.email, "2026-10-11", "2026-10-11", acceptedAt, expiry).run();
+          "INSERT INTO pending_account_legal_consents(provider_id,email,terms_version,privacy_version,accepted_at,expires_at) VALUES(?,?,?,?,?,?) ON CONFLICT(provider_id,email) DO UPDATE SET terms_version=excluded.terms_version,privacy_version=excluded.privacy_version,accepted_at=excluded.accepted_at,expires_at=excluded.expires_at",
+        )
+          .bind(data.user.id, input.email, "2026-10-11", "2026-10-11", acceptedAt, expiry)
+          .run();
       }
       return json({
         verificationRequired: true,
@@ -380,8 +526,17 @@ export async function createAuth(request: Request, env: CoveEnv) {
           401,
           "Sign-in failed. Check your username/email and password, and verify your email first.",
         );
-      const bound=await bindIdentity(data.user);const assurance=await client.auth.mfa.getAuthenticatorAssuranceLevel();await securityEvent(bound.id,"login_succeeded",{provider:"password",nextLevel:assurance.data?.nextLevel||null});
-      return json({ signedIn: true, mfaRequired: assurance.data?.nextLevel === "aal2" && assurance.data?.currentLevel !== "aal2" });
+      const bound = await bindIdentity(data.user);
+      const assurance = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+      await securityEvent(bound.id, "login_succeeded", {
+        provider: "password",
+        nextLevel: assurance.data?.nextLevel || null,
+      });
+      return json({
+        signedIn: true,
+        mfaRequired:
+          assurance.data?.nextLevel === "aal2" && assurance.data?.currentLevel !== "aal2",
+      });
     }
     if (path === "/auth/verify") {
       await budget("verify", 8);
@@ -425,27 +580,163 @@ export async function createAuth(request: Request, env: CoveEnv) {
       });
     }
     if (path === "/auth/email") {
-      const u=await user();if(!u)throw new ApiError(401,"Sign in first.");const input=z.object({email:emailSchema}).parse(await readBody(request,2000));const {error}=await (client.auth as any).updateUser({email:input.email},{emailRedirectTo:callback});if(error)throw new ApiError(400,"The email change could not be started.");const bound=await bindIdentity(u);await securityEvent(bound.id,"email_change_requested",{newEmail:input.email});return json({verificationRequired:true,message:"Confirm the change using the verification email sent by the identity provider."});
+      const u = await user();
+      if (!u) throw new ApiError(401, "Sign in first.");
+      const input = z.object({ email: emailSchema }).parse(await readBody(request, 2000));
+      const { error } = await (client.auth as any).updateUser(
+        { email: input.email },
+        { emailRedirectTo: callback },
+      );
+      if (error) throw new ApiError(400, "The email change could not be started.");
+      const bound = await bindIdentity(u);
+      await securityEvent(bound.id, "email_change_requested", { newEmail: input.email });
+      return json({
+        verificationRequired: true,
+        message: "Confirm the change using the verification email sent by the identity provider.",
+      });
     }
     if (path === "/auth/change-password") {
-      const u=await user();if(!u?.email)throw new ApiError(401,"Sign in first.");const input=z.object({currentPassword:z.string().min(1).max(128),newPassword:passwordSchema}).parse(await readBody(request,3000));const reauth=await client.auth.signInWithPassword({email:u.email,password:input.currentPassword});if(reauth.error)throw new ApiError(401,"Current password is incorrect.");const updated=await client.auth.updateUser({password:input.newPassword});if(updated.error)throw new ApiError(400,"The password could not be updated.");const bound=await bindIdentity(updated.data.user||u);await securityEvent(bound.id,"password_changed",{});await client.auth.signOut({scope:"global"});return json({updated:true,signedOut:true});
+      const u = await user();
+      if (!u?.email) throw new ApiError(401, "Sign in first.");
+      const input = z
+        .object({ currentPassword: z.string().min(1).max(128), newPassword: passwordSchema })
+        .parse(await readBody(request, 3000));
+      const reauth = await client.auth.signInWithPassword({
+        email: u.email,
+        password: input.currentPassword,
+      });
+      if (reauth.error) throw new ApiError(401, "Current password is incorrect.");
+      const updated = await client.auth.updateUser({ password: input.newPassword });
+      if (updated.error) throw new ApiError(400, "The password could not be updated.");
+      const bound = await bindIdentity(updated.data.user || u);
+      await securityEvent(bound.id, "password_changed", {});
+      await client.auth.signOut({ scope: "global" });
+      return json({ updated: true, signedOut: true });
     }
     if (path === "/auth/mfa/enroll") {
-      const u=await user();if(!u)throw new ApiError(401,"Sign in first.");const input=z.object({friendlyName:z.string().trim().min(1).max(80).default("Cove authenticator")}).parse(await readBody(request,2000));const result=await client.auth.mfa.enroll({factorType:"totp",friendlyName:input.friendlyName});if(result.error)throw new ApiError(400,result.error.message||"MFA enrollment failed.");const bound=await bindIdentity(u);await securityEvent(bound.id,"mfa_enrollment_started",{factorId:result.data.id});return json({id:result.data.id,type:result.data.type,totp:result.data.totp});
+      const u = await user();
+      if (!u) throw new ApiError(401, "Sign in first.");
+      const input = z
+        .object({ friendlyName: z.string().trim().min(1).max(80).default("Cove authenticator") })
+        .parse(await readBody(request, 2000));
+      const result = await client.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: input.friendlyName,
+      });
+      if (result.error) throw new ApiError(400, result.error.message || "MFA enrollment failed.");
+      const bound = await bindIdentity(u);
+      await securityEvent(bound.id, "mfa_enrollment_started", { factorId: result.data.id });
+      return json({ id: result.data.id, type: result.data.type, totp: result.data.totp });
     }
     if (path === "/auth/mfa/verify") {
-      const u=await user();if(!u)throw new ApiError(401,"Sign in first.");const input=z.object({factorId:z.string().min(1),code:z.string().regex(/^\d{6,10}$/)}).parse(await readBody(request,2000));const result=await (client.auth.mfa as any).challengeAndVerify({factorId:input.factorId,code:input.code});if(result.error)throw new ApiError(401,"The authentication code was invalid or expired.");const bound=await bindIdentity(u);await securityEvent(bound.id,"mfa_verified",{factorId:input.factorId});return json({verified:true});
+      const u = await user();
+      if (!u) throw new ApiError(401, "Sign in first.");
+      const input = z
+        .object({ factorId: z.string().min(1), code: z.string().regex(/^\d{6,10}$/) })
+        .parse(await readBody(request, 2000));
+      const result = await (client.auth.mfa as any).challengeAndVerify({
+        factorId: input.factorId,
+        code: input.code,
+      });
+      if (result.error) throw new ApiError(401, "The authentication code was invalid or expired.");
+      const bound = await bindIdentity(u);
+      await securityEvent(bound.id, "mfa_verified", { factorId: input.factorId });
+      return json({ verified: true });
     }
     if (path === "/auth/mfa/unenroll") {
-      const u=await user();if(!u)throw new ApiError(401,"Sign in first.");const assurance=await client.auth.mfa.getAuthenticatorAssuranceLevel();if(assurance.data?.currentLevel!=="aal2")throw new ApiError(403,"Verify MFA before removing a factor.");const input=z.object({factorId:z.string().min(1)}).parse(await readBody(request,2000));const result=await client.auth.mfa.unenroll({factorId:input.factorId});if(result.error)throw new ApiError(400,"The MFA factor could not be removed.");const bound=await bindIdentity(u);await securityEvent(bound.id,"mfa_factor_removed",{factorId:input.factorId});return json({removed:true});
+      const u = await user();
+      if (!u) throw new ApiError(401, "Sign in first.");
+      const assurance = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (assurance.data?.currentLevel !== "aal2")
+        throw new ApiError(403, "Verify MFA before removing a factor.");
+      const input = z.object({ factorId: z.string().min(1) }).parse(await readBody(request, 2000));
+      const result = await client.auth.mfa.unenroll({ factorId: input.factorId });
+      if (result.error) throw new ApiError(400, "The MFA factor could not be removed.");
+      const bound = await bindIdentity(u);
+      await securityEvent(bound.id, "mfa_factor_removed", { factorId: input.factorId });
+      return json({ removed: true });
     }
-    if (path === "/auth/passkey/registration/start") {const u=await user();if(!u)throw new ApiError(401,"Sign in first.");const result=await (client.auth as any).passkey.startRegistration();if(result.error)throw new ApiError(400,result.error.message||"Passkey enrollment could not start.");return json(result.data);}
-    if (path === "/auth/passkey/registration/verify") {const u=await user();if(!u)throw new ApiError(401,"Sign in first.");const input=z.object({challengeId:z.string().min(1),credential:z.any()}).parse(await readBody(request,64000));const result=await (client.auth as any).passkey.verifyRegistration({challengeId:input.challengeId,credential:input.credential});if(result.error)throw new ApiError(400,result.error.message||"Passkey verification failed.");const bound=await bindIdentity(u);await securityEvent(bound.id,"passkey_registered",{passkeyId:result.data?.id||null});return json(result.data||{registered:true});}
-    if (path === "/auth/passkey/authentication/start") {const result=await (client.auth as any).passkey.startAuthentication();if(result.error)throw new ApiError(400,result.error.message||"Passkey sign-in could not start.");return json(result.data);}
-    if (path === "/auth/passkey/authentication/verify") {const input=z.object({challengeId:z.string().min(1),credential:z.any()}).parse(await readBody(request,64000));const result=await (client.auth as any).passkey.verifyAuthentication({challengeId:input.challengeId,credential:input.credential});if(result.error||!result.data?.user)throw new ApiError(401,"Passkey sign-in failed.");const bound=await bindIdentity(result.data.user);await securityEvent(bound.id,"login_succeeded",{provider:"passkey"});return json({signedIn:true});}
-    if (path === "/auth/passkey/update") {const u=await user();if(!u)throw new ApiError(401,"Sign in first.");const input=z.object({passkeyId:z.string().min(1),friendlyName:z.string().trim().min(1).max(120)}).parse(await readBody(request,2000));const result=await (client.auth as any).passkey.update(input);if(result.error)throw new ApiError(400,"Passkey could not be renamed.");return json(result.data||{updated:true});}
-    if (path === "/auth/passkey/delete") {const u=await user();if(!u)throw new ApiError(401,"Sign in first.");const assurance=await client.auth.mfa.getAuthenticatorAssuranceLevel();if(assurance.data?.nextLevel==="aal2"&&assurance.data?.currentLevel!=="aal2")throw new ApiError(403,"Verify MFA before deleting a passkey.");const input=z.object({passkeyId:z.string().min(1)}).parse(await readBody(request,2000));const result=await (client.auth as any).passkey.delete({passkeyId:input.passkeyId});if(result.error)throw new ApiError(400,"Passkey could not be deleted.");const bound=await bindIdentity(u);await securityEvent(bound.id,"passkey_deleted",{passkeyId:input.passkeyId});return json({deleted:true});}
-    if (path === "/auth/sessions/signout-others") {const u=await user();if(!u)throw new ApiError(401,"Sign in first.");const current=await sessionFingerprint();const bound=await bindIdentity(u);const result=await client.auth.signOut({scope:"others"});if(result.error)throw new ApiError(502,"Other provider sessions could not be revoked.");await env.DB.prepare("UPDATE account_sessions SET revoked_at=COALESCE(revoked_at,?),revoked_reason='user_signout_others' WHERE user_id=? AND provider_session_id_hash<>? AND revoked_at IS NULL").bind(now(),bound.id,current).run();await securityEvent(bound.id,"other_sessions_revoked",{});return json({revoked:true});}
+    if (path === "/auth/passkey/registration/start") {
+      const u = await user();
+      if (!u) throw new ApiError(401, "Sign in first.");
+      const result = await (client.auth as any).passkey.startRegistration();
+      if (result.error)
+        throw new ApiError(400, result.error.message || "Passkey enrollment could not start.");
+      return json(result.data);
+    }
+    if (path === "/auth/passkey/registration/verify") {
+      const u = await user();
+      if (!u) throw new ApiError(401, "Sign in first.");
+      const input = z
+        .object({ challengeId: z.string().min(1), credential: z.any() })
+        .parse(await readBody(request, 64000));
+      const result = await (client.auth as any).passkey.verifyRegistration({
+        challengeId: input.challengeId,
+        credential: input.credential,
+      });
+      if (result.error)
+        throw new ApiError(400, result.error.message || "Passkey verification failed.");
+      const bound = await bindIdentity(u);
+      await securityEvent(bound.id, "passkey_registered", { passkeyId: result.data?.id || null });
+      return json(result.data || { registered: true });
+    }
+    if (path === "/auth/passkey/authentication/start") {
+      const result = await (client.auth as any).passkey.startAuthentication();
+      if (result.error)
+        throw new ApiError(400, result.error.message || "Passkey sign-in could not start.");
+      return json(result.data);
+    }
+    if (path === "/auth/passkey/authentication/verify") {
+      const input = z
+        .object({ challengeId: z.string().min(1), credential: z.any() })
+        .parse(await readBody(request, 64000));
+      const result = await (client.auth as any).passkey.verifyAuthentication({
+        challengeId: input.challengeId,
+        credential: input.credential,
+      });
+      if (result.error || !result.data?.user) throw new ApiError(401, "Passkey sign-in failed.");
+      const bound = await bindIdentity(result.data.user);
+      await securityEvent(bound.id, "login_succeeded", { provider: "passkey" });
+      return json({ signedIn: true });
+    }
+    if (path === "/auth/passkey/update") {
+      const u = await user();
+      if (!u) throw new ApiError(401, "Sign in first.");
+      const input = z
+        .object({ passkeyId: z.string().min(1), friendlyName: z.string().trim().min(1).max(120) })
+        .parse(await readBody(request, 2000));
+      const result = await (client.auth as any).passkey.update(input);
+      if (result.error) throw new ApiError(400, "Passkey could not be renamed.");
+      return json(result.data || { updated: true });
+    }
+    if (path === "/auth/passkey/delete") {
+      const u = await user();
+      if (!u) throw new ApiError(401, "Sign in first.");
+      const assurance = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (assurance.data?.nextLevel === "aal2" && assurance.data?.currentLevel !== "aal2")
+        throw new ApiError(403, "Verify MFA before deleting a passkey.");
+      const input = z.object({ passkeyId: z.string().min(1) }).parse(await readBody(request, 2000));
+      const result = await (client.auth as any).passkey.delete({ passkeyId: input.passkeyId });
+      if (result.error) throw new ApiError(400, "Passkey could not be deleted.");
+      const bound = await bindIdentity(u);
+      await securityEvent(bound.id, "passkey_deleted", { passkeyId: input.passkeyId });
+      return json({ deleted: true });
+    }
+    if (path === "/auth/sessions/signout-others") {
+      const u = await user();
+      if (!u) throw new ApiError(401, "Sign in first.");
+      const current = await sessionFingerprint();
+      const bound = await bindIdentity(u);
+      const result = await client.auth.signOut({ scope: "others" });
+      if (result.error) throw new ApiError(502, "Other provider sessions could not be revoked.");
+      await env.DB.prepare(
+        "UPDATE account_sessions SET revoked_at=COALESCE(revoked_at,?),revoked_reason='user_signout_others' WHERE user_id=? AND provider_session_id_hash<>? AND revoked_at IS NULL",
+      )
+        .bind(now(), bound.id, current)
+        .run();
+      await securityEvent(bound.id, "other_sessions_revoked", {});
+      return json({ revoked: true });
+    }
     if (path === "/auth/logout") {
       await client.auth.signOut({ scope: "local" });
       return json({ signedOut: true });

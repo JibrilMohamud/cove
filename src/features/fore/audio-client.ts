@@ -1,4 +1,4 @@
-import {matchingEpub,loadTiming,timingKey} from "./biosync-client";
+import { matchingEpub, loadTiming, timingKey } from "./biosync-client";
 import { api, type CatalogBook } from "./client";
 import type { AudioEdition, AudioTrack } from "./domain";
 import { getRecord, putRecord, sha256 } from "./offline";
@@ -14,8 +14,11 @@ export async function loadEdition(id: string): Promise<AudioEdition> {
     const local = await getRecord("downloads", "audio:" + id);
     if (local) {
       if (local.edition?.commercial) {
-        const expiresAt=local.commercialLicense?.expiresAt;
-        if(!expiresAt||Date.parse(expiresAt)<=Date.now()) throw new Error("This audiobook's offline license has expired. Reconnect to Cove to refresh access.");
+        const expiresAt = local.commercialLicense?.expiresAt;
+        if (!expiresAt || Date.parse(expiresAt) <= Date.now())
+          throw new Error(
+            "This audiobook's offline license has expired. Reconnect to Cove to refresh access.",
+          );
       }
       return local.edition;
     }
@@ -23,20 +26,63 @@ export async function loadEdition(id: string): Promise<AudioEdition> {
   }
 }
 
-function deviceIdentity(){
-  const keyName="fore.device.key"; let key=localStorage.getItem(keyName);
-  if(!key){key=crypto.randomUUID()+crypto.randomUUID();localStorage.setItem(keyName,key);}
-  const platform=(navigator as any).userAgentData?.platform||navigator.platform||"Web";
-  const name=`${platform} browser`;return{deviceKey:key,name,platform:String(platform).slice(0,80)};
+function deviceIdentity() {
+  const keyName = "fore.device.key";
+  let key = localStorage.getItem(keyName);
+  if (!key) {
+    key = crypto.randomUUID() + crypto.randomUUID();
+    localStorage.setItem(keyName, key);
+  }
+  const platform = (navigator as any).userAgentData?.platform || navigator.platform || "Web";
+  const name = `${platform} browser`;
+  return { deviceKey: key, name, platform: String(platform).slice(0, 80) };
 }
-export async function saveCommercialAudioOffline(edition:AudioEdition,signal:AbortSignal,progress:(text:string)=>void){
-  if(!edition.commercial) return saveAudioOffline(edition,signal,progress);
-  if(!edition.hasAccess) throw Error("Purchase access is required before saving this audiobook offline.");
-  if(!edition.offlineEligible) throw Error("This audiobook's license does not permit offline listening.");
-  const device=await api("/account/device/register","POST",deviceIdentity());
-  const license=await api(`/audio/${encodeURIComponent(edition.id)}/offline-license`,"POST",{deviceId:device.id});
-  await navigator.storage?.persist?.();let bytes=0;const assetIds:string[]=[];
-  for(let i=0;i<edition.tracks.length;i++){if(signal.aborted)throw new DOMException("Canceled","AbortError");const track=edition.tracks[i];progress(`Saving licensed track ${i+1} of ${edition.tracks.length}`);const blob=await audioBlob(edition,track.id,signal);if(track.sha256&&(await sha256(await blob.arrayBuffer()))!==track.sha256)throw Error("Audio integrity check failed. Please try again.");const key=audioAssetKey(edition,track);await putRecord("assets",{id:key,blob});assetIds.push(key);bytes+=blob.size;await putRecord("downloads",{id:"audio:"+edition.id,title:edition.title,edition,kind:"audio",bytes,assetIds,complete:i===edition.tracks.length-1,updatedAt:new Date().toISOString(),commercialLicense:{licenseId:license.licenseId,token:license.token,expiresAt:license.expiresAt,manifestHash:license.manifestHash,deviceId:device.id}});}
+export async function saveCommercialAudioOffline(
+  edition: AudioEdition,
+  signal: AbortSignal,
+  progress: (text: string) => void,
+) {
+  if (!edition.commercial) return saveAudioOffline(edition, signal, progress);
+  if (!edition.hasAccess)
+    throw Error("Purchase access is required before saving this audiobook offline.");
+  if (!edition.offlineEligible)
+    throw Error("This audiobook's license does not permit offline listening.");
+  const device = await api("/account/device/register", "POST", deviceIdentity());
+  const license = await api(`/audio/${encodeURIComponent(edition.id)}/offline-license`, "POST", {
+    deviceId: device.id,
+  });
+  await navigator.storage?.persist?.();
+  let bytes = 0;
+  const assetIds: string[] = [];
+  for (let i = 0; i < edition.tracks.length; i++) {
+    if (signal.aborted) throw new DOMException("Canceled", "AbortError");
+    const track = edition.tracks[i];
+    progress(`Saving licensed track ${i + 1} of ${edition.tracks.length}`);
+    const blob = await audioBlob(edition, track.id, signal);
+    if (track.sha256 && (await sha256(await blob.arrayBuffer())) !== track.sha256)
+      throw Error("Audio integrity check failed. Please try again.");
+    const key = audioAssetKey(edition, track);
+    await putRecord("assets", { id: key, blob });
+    assetIds.push(key);
+    bytes += blob.size;
+    await putRecord("downloads", {
+      id: "audio:" + edition.id,
+      title: edition.title,
+      edition,
+      kind: "audio",
+      bytes,
+      assetIds,
+      complete: i === edition.tracks.length - 1,
+      updatedAt: new Date().toISOString(),
+      commercialLicense: {
+        licenseId: license.licenseId,
+        token: license.token,
+        expiresAt: license.expiresAt,
+        manifestHash: license.manifestHash,
+        deviceId: device.id,
+      },
+    });
+  }
 }
 
 export async function audioBlob(edition: AudioEdition, trackId: string, signal?: AbortSignal) {
@@ -59,7 +105,16 @@ export async function saveAudioOffline(
   await navigator.storage?.persist?.();
   let bytes = 0;
   const assetIds: string[] = [];
-  if(edition.alignment?.version===2){progress("Saving matching text and Biosync timing…");const text=await matchingEpub(edition);bytes+=text.byteLength;assetIds.push('epub:sha:'+edition.epubSha256);for(const map of edition.alignment.maps||[]){await loadTiming(edition,map.trackId,signal);assetIds.push(timingKey(map.sha256));}}
+  if (edition.alignment?.version === 2) {
+    progress("Saving matching text and Biosync timing…");
+    const text = await matchingEpub(edition);
+    bytes += text.byteLength;
+    assetIds.push("epub:sha:" + edition.epubSha256);
+    for (const map of edition.alignment.maps || []) {
+      await loadTiming(edition, map.trackId, signal);
+      assetIds.push(timingKey(map.sha256));
+    }
+  }
 
   for (let i = 0; i < edition.tracks.length; i++) {
     if (signal.aborted) throw new DOMException("Canceled", "AbortError");
@@ -95,7 +150,11 @@ export async function downloadAudioPackage(
     format: "fore-media-package",
     version: 3,
     createdAt: new Date().toISOString(),
-    privacy: { containsPersonalData: false, containsBookContent: !!book, containsAudioContent: true },
+    privacy: {
+      containsPersonalData: false,
+      containsBookContent: !!book,
+      containsAudioContent: true,
+    },
     source: { type: "project-gutenberg", url: edition.sourceUrl, rights: edition.rights },
     book: book ? { id: String(book.id), title: book.title, file: "book.epub" } : null,
     audio: {
@@ -118,15 +177,20 @@ export async function downloadAudioPackage(
       open: async () => {
         const response = await fetch("/api/fore/books/" + book.id + "/download/epub", { signal });
         if (!response.ok) {
-          const detail=await response.json().catch(()=>null);
-          throw Error(detail?.error||"This edition cannot be exported with the audiobook package.");
+          const detail = await response.json().catch(() => null);
+          throw Error(
+            detail?.error || "This edition cannot be exported with the audiobook package.",
+          );
         }
         const bytes = await response.arrayBuffer();
         manifest.book.sha256 = await sha256(bytes);
         manifest.book.bytes = bytes.byteLength;
         if (edition.alignment && manifest.book.sha256 !== edition.epubSha256) {
           manifest.biosync.status = "edition-mismatch";
-          if(edition.alignment.version===2)throw Error("The downloadable EPUB does not match this BioSync recording, so Cove will not create a misleading text + audio package.");
+          if (edition.alignment.version === 2)
+            throw Error(
+              "The downloadable EPUB does not match this BioSync recording, so Cove will not create a misleading text + audio package.",
+            );
         } else if (edition.alignment) manifest.biosync.status = "verified";
         return new Blob([bytes], { type: "application/epub+zip" });
       },
@@ -145,7 +209,14 @@ export async function downloadAudioPackage(
       open: async () => new Blob([JSON.stringify(value(), null, 2)], { type: "application/json" }),
     });
   if (edition.alignment) jsonFile("alignment.json", () => edition.alignment);
-  for(const map of edition.alignment?.maps||[])files.push({name:`timing/${map.trackId}.json`,open:async()=>new Blob([JSON.stringify(await loadTiming(edition,map.trackId,signal))],{type:'application/json'})});
+  for (const map of edition.alignment?.maps || [])
+    files.push({
+      name: `timing/${map.trackId}.json`,
+      open: async () =>
+        new Blob([JSON.stringify(await loadTiming(edition, map.trackId, signal))], {
+          type: "application/json",
+        }),
+    });
   jsonFile("manifest.json", () => manifest);
   files.push({
     name: "README.txt",

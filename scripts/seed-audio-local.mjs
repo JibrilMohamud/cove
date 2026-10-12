@@ -20,10 +20,34 @@ await build({
 const { handleCoveApi } = await import(entry + "?v=" + Date.now());
 const env = localBindings(root);
 Object.assign(env, { FORE_AUTH_MODE: "supabase" });
-const localSecret=randomBytes(32).toString("base64url"),localPrefix=randomBytes(6).toString("hex"),serviceToken=`fore_svc_${localPrefix}.${localSecret}`,at=new Date().toISOString();
-await env.DB.prepare("INSERT OR IGNORE INTO service_principals(id,name,description,owner_team,environment,status,created_at,updated_at) VALUES('svc_local_seed','local-seed','Local integration fixture only','development','development','active',?,?)").bind(at,at).run();
-for(const scope of ["catalog.ingest","audio.prepare"])await env.DB.prepare("INSERT OR IGNORE INTO service_principal_scopes(principal_id,scope,granted_at) VALUES('svc_local_seed',?,?)").bind(scope,at).run();
-await env.DB.prepare("INSERT INTO service_principal_credentials(id,principal_id,token_prefix,token_sha256,status,not_before,expires_at,created_at) VALUES(?,?,?,?, 'active',?,?,?)").bind(`cred_${crypto.randomUUID()}`,'svc_local_seed',localPrefix,createHash('sha256').update(serviceToken).digest('hex'),at,new Date(Date.now()+3600000).toISOString(),at).run();
+const localSecret = randomBytes(32).toString("base64url"),
+  localPrefix = randomBytes(6).toString("hex"),
+  serviceToken = `fore_svc_${localPrefix}.${localSecret}`,
+  at = new Date().toISOString();
+await env.DB.prepare(
+  "INSERT OR IGNORE INTO service_principals(id,name,description,owner_team,environment,status,created_at,updated_at) VALUES('svc_local_seed','local-seed','Local integration fixture only','development','development','active',?,?)",
+)
+  .bind(at, at)
+  .run();
+for (const scope of ["catalog.ingest", "audio.prepare"])
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO service_principal_scopes(principal_id,scope,granted_at) VALUES('svc_local_seed',?,?)",
+  )
+    .bind(scope, at)
+    .run();
+await env.DB.prepare(
+  "INSERT INTO service_principal_credentials(id,principal_id,token_prefix,token_sha256,status,not_before,expires_at,created_at) VALUES(?,?,?,?, 'active',?,?,?)",
+)
+  .bind(
+    `cred_${crypto.randomUUID()}`,
+    "svc_local_seed",
+    localPrefix,
+    createHash("sha256").update(serviceToken).digest("hex"),
+    at,
+    new Date(Date.now() + 3600000).toISOString(),
+    at,
+  )
+  .run();
 async function call(route, method = "GET", body, headers = {}) {
   const binary = body instanceof Uint8Array;
   const response = await handleCoveApi(

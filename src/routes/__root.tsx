@@ -144,7 +144,9 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <CoveProvider><Outlet /></CoveProvider>
+      <CoveProvider>
+        <Outlet />
+      </CoveProvider>
     </QueryClientProvider>
   );
 }

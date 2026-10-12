@@ -1,27 +1,51 @@
 import { z } from "zod";
 import type { CoveEnv } from "./api.server";
 import type { CatalogBook } from "./client";
-import {
-  ApiError,
-  bookIdSchema,
-  json,
-  now,
-  rateLimit,
-  readBody,
-  requireIdentity,
-} from "./service";
+import { ApiError, bookIdSchema, json, now, rateLimit, readBody, requireIdentity } from "./service";
 import { countWords } from "./domain";
 import { getCanonicalBook, resolveProduct } from "./catalog-model.server";
 import { refreshSearchQualitySignals } from "./search.server";
 import { createModerationCase } from "./moderation.server";
-import { deriveReviewProvenance, evaluateReviewHeart, evaluateReviewIntegrity, recordRetailEvent } from "./retail-intelligence.server";
+import {
+  deriveReviewProvenance,
+  evaluateReviewHeart,
+  evaluateReviewIntegrity,
+  recordRetailEvent,
+} from "./retail-intelligence.server";
 import { recordSyncProjection } from "./sync.server";
 import { recordSocialEvent } from "./social.server";
 type GetBook = (env: CoveEnv, id: string, userId?: string) => Promise<CatalogBook>;
-async function syncShelfProjection(db:CoveEnv["DB"],userId:string,shelfId:string,tombstone=false,explicitVersion?:number){
-  const shelf=await db.prepare("SELECT id,name,visibility,version FROM shelves WHERE id=? AND user_id=?").bind(shelfId,userId).first<any>();
-  const items=tombstone?[]:(await db.prepare("SELECT product_id FROM shelf_items WHERE shelf_id=? ORDER BY position,added_at").bind(shelfId).all<any>()).results;
-  await recordSyncProjection(db,{userId,entityType:"shelf",entityId:shelfId,payload:{name:String(shelf?.name||""),visibility:String(shelf?.visibility||"private"),productIds:items.map((x:any)=>String(x.product_id))},tombstone,explicitVersion:explicitVersion??Number(shelf?.version||1)});
+async function syncShelfProjection(
+  db: CoveEnv["DB"],
+  userId: string,
+  shelfId: string,
+  tombstone = false,
+  explicitVersion?: number,
+) {
+  const shelf = await db
+    .prepare("SELECT id,name,visibility,version FROM shelves WHERE id=? AND user_id=?")
+    .bind(shelfId, userId)
+    .first<any>();
+  const items = tombstone
+    ? []
+    : (
+        await db
+          .prepare("SELECT product_id FROM shelf_items WHERE shelf_id=? ORDER BY position,added_at")
+          .bind(shelfId)
+          .all<any>()
+      ).results;
+  await recordSyncProjection(db, {
+    userId,
+    entityType: "shelf",
+    entityId: shelfId,
+    payload: {
+      name: String(shelf?.name || ""),
+      visibility: String(shelf?.visibility || "private"),
+      productIds: items.map((x: any) => String(x.product_id)),
+    },
+    tombstone,
+    explicitVersion: explicitVersion ?? Number(shelf?.version || 1),
+  });
 }
 const visibility = z.enum(["public", "private"]);
 const reviewInput = z.object({
@@ -49,7 +73,12 @@ const toReview = (r: any, userId?: string | null) => ({
   mine: r.user_id === userId,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
-  provenance: { type: r.provenance_type || "sideloaded_unverified", verified: ["verified_purchase","subscription_reader"].includes(String(r.provenance_type || "")) },
+  provenance: {
+    type: r.provenance_type || "sideloaded_unverified",
+    verified: ["verified_purchase", "subscription_reader"].includes(
+      String(r.provenance_type || ""),
+    ),
+  },
 });
 const toShelf = (r: any) => ({
   id: r.id,
@@ -66,7 +95,9 @@ const reviewSelect = `SELECT r.*,p.name,
   CASE WHEN r.ranking_status='excluded' THEN 0 ELSE (0.5 + r.trust_score*r.provenance_weight) * (1 + (SELECT COUNT(*) FROM review_hearts h WHERE h.review_id=r.id AND NOT EXISTS(SELECT 1 FROM review_vote_signals vs WHERE vs.review_id=h.review_id AND vs.voter_user_id=h.user_id AND vs.score>=60 AND vs.disposition IN ('open','confirmed')))) END review_rank_score
   FROM reviews r LEFT JOIN profiles p ON p.user_id=r.user_id`;
 export async function migrateLegacy(env: CoveEnv, userId: string) {
-  const rows = await env.DB.prepare("SELECT * FROM reading_states WHERE user_id=? AND review_migrated=0")
+  const rows = await env.DB.prepare(
+    "SELECT * FROM reading_states WHERE user_id=? AND review_migrated=0",
+  )
     .bind(userId)
     .all<any>();
   for (const row of rows.results) {
@@ -104,13 +135,20 @@ export async function migrateLegacy(env: CoveEnv, userId: string) {
       statements.push(
         env.DB.prepare(
           "INSERT INTO completion_events(id,user_id,product_id,external_book_id,finished_at) SELECT ?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM completion_events WHERE user_id=? AND product_id=?)",
-        ).bind(crypto.randomUUID(), userId, row.product_id, row.external_book_id, row.updated_at, userId, row.product_id),
+        ).bind(
+          crypto.randomUUID(),
+          userId,
+          row.product_id,
+          row.external_book_id,
+          row.updated_at,
+          userId,
+          row.product_id,
+        ),
       );
     statements.push(
-      env.DB.prepare("UPDATE reading_states SET review_migrated=1 WHERE user_id=? AND product_id=?").bind(
-        userId,
-        row.product_id,
-      ),
+      env.DB.prepare(
+        "UPDATE reading_states SET review_migrated=1 WHERE user_id=? AND product_id=?",
+      ).bind(userId, row.product_id),
     );
     await env.DB.batch(statements);
   }
@@ -132,7 +170,9 @@ export async function handleCommunity(
     const resolvedBook = await getBook(env, id, userId || undefined);
     // Reviews remain linked to the normalized product_id; book_id is a compatibility/source alias
     // so legacy Gutenberg reviews and canonical /books/prd_... URLs share one discussion thread.
-    const reviewKey = String((resolvedBook as any).sourceExternalId || (resolvedBook as any).id || id);
+    const reviewKey = String(
+      (resolvedBook as any).sourceExternalId || (resolvedBook as any).id || id,
+    );
     if (method === "GET") {
       const rating = url.searchParams.get("rating");
       if (rating !== null) z.coerce.number().min(0.5).max(5).multipleOf(0.5).parse(rating);
@@ -213,7 +253,9 @@ export async function handleCommunity(
       const input = reviewInput.parse(await readBody(request));
       if ((resolvedBook as any).uploaded && input.visibility === "public")
         throw new ApiError(400, "Reviews of personal imports stay private.");
-      const at = now(), provenance = await deriveReviewProvenance(db, uid, id), proposedId = crypto.randomUUID();
+      const at = now(),
+        provenance = await deriveReviewProvenance(db, uid, id),
+        proposedId = crypto.randomUUID();
       await db.batch([
         db
           .prepare(
@@ -235,21 +277,90 @@ export async function handleCommunity(
             provenance.productId,
           ),
         db
-          .prepare("UPDATE reading_states SET review_migrated=1 WHERE user_id=? AND external_book_id=?")
+          .prepare(
+            "UPDATE reading_states SET review_migrated=1 WHERE user_id=? AND external_book_id=?",
+          )
           .bind(uid, reviewKey),
       ]);
-      const savedReview = await db.prepare("SELECT id,provenance_type,provenance_weight,product_id FROM reviews WHERE user_id=? AND book_id=?").bind(uid,reviewKey).first<any>();
-      await db.prepare("INSERT OR IGNORE INTO review_provenance_snapshots(review_id,provenance_type,product_id,entitlement_id,order_item_id,evidence_json,captured_at) VALUES(?,?,?,?,?,?,?)")
-        .bind(savedReview.id,provenance.type,provenance.productId,provenance.entitlementId,provenance.orderItemId,JSON.stringify(provenance.evidence),at).run();
-      await db.prepare("DELETE FROM review_abuse_signals WHERE review_id=? AND disposition='open' AND model_version='fore-review-integrity-v1'").bind(savedReview.id).run();
-      const integrity = await evaluateReviewIntegrity(db,savedReview.id,uid,savedReview.product_id?String(savedReview.product_id):provenance.productId,input.body,input.rating*2,String(savedReview.provenance_type||provenance.type));
-      if (savedReview.product_id || provenance.productId) await recordRetailEvent(db,uid,{eventType:"review_submitted",productId:String(savedReview.product_id||provenance.productId),externalBookId:reviewKey,sourceSurface:"reviews",territory:"US",properties:{rating:input.rating,provenanceType:String(savedReview.provenance_type||provenance.type),weight:Number(savedReview.provenance_weight||provenance.weight)*integrity.trustScore},dedupeKey:`review:${savedReview.id}:${at}`});
-      if(input.visibility==="public"&&(savedReview.product_id||provenance.productId)){
-        const productId=String(savedReview.product_id||provenance.productId), work=await db.prepare("SELECT e.work_id FROM products p JOIN editions e ON e.id=p.edition_id WHERE p.id=?").bind(productId).first<any>(), sp=await db.prepare("SELECT activity_visibility FROM social_profiles WHERE user_id=?").bind(uid).first<any>();
-        await recordSocialEvent(db,{userId:uid,type:"review_published",entityType:"review",entityId:String(savedReview.id),productId,workId:work?.work_id?String(work.work_id):null,visibility:String(sp?.activity_visibility||"followers"),payload:{rating:input.rating,excerpt:input.body.slice(0,300)},dedupeKey:`review-social:${savedReview.id}:${at}`});
+      const savedReview = await db
+        .prepare(
+          "SELECT id,provenance_type,provenance_weight,product_id FROM reviews WHERE user_id=? AND book_id=?",
+        )
+        .bind(uid, reviewKey)
+        .first<any>();
+      await db
+        .prepare(
+          "INSERT OR IGNORE INTO review_provenance_snapshots(review_id,provenance_type,product_id,entitlement_id,order_item_id,evidence_json,captured_at) VALUES(?,?,?,?,?,?,?)",
+        )
+        .bind(
+          savedReview.id,
+          provenance.type,
+          provenance.productId,
+          provenance.entitlementId,
+          provenance.orderItemId,
+          JSON.stringify(provenance.evidence),
+          at,
+        )
+        .run();
+      await db
+        .prepare(
+          "DELETE FROM review_abuse_signals WHERE review_id=? AND disposition='open' AND model_version='fore-review-integrity-v1'",
+        )
+        .bind(savedReview.id)
+        .run();
+      const integrity = await evaluateReviewIntegrity(
+        db,
+        savedReview.id,
+        uid,
+        savedReview.product_id ? String(savedReview.product_id) : provenance.productId,
+        input.body,
+        input.rating * 2,
+        String(savedReview.provenance_type || provenance.type),
+      );
+      if (savedReview.product_id || provenance.productId)
+        await recordRetailEvent(db, uid, {
+          eventType: "review_submitted",
+          productId: String(savedReview.product_id || provenance.productId),
+          externalBookId: reviewKey,
+          sourceSurface: "reviews",
+          territory: "US",
+          properties: {
+            rating: input.rating,
+            provenanceType: String(savedReview.provenance_type || provenance.type),
+            weight:
+              Number(savedReview.provenance_weight || provenance.weight) * integrity.trustScore,
+          },
+          dedupeKey: `review:${savedReview.id}:${at}`,
+        });
+      if (input.visibility === "public" && (savedReview.product_id || provenance.productId)) {
+        const productId = String(savedReview.product_id || provenance.productId),
+          work = await db
+            .prepare(
+              "SELECT e.work_id FROM products p JOIN editions e ON e.id=p.edition_id WHERE p.id=?",
+            )
+            .bind(productId)
+            .first<any>(),
+          sp = await db
+            .prepare("SELECT activity_visibility FROM social_profiles WHERE user_id=?")
+            .bind(uid)
+            .first<any>();
+        await recordSocialEvent(db, {
+          userId: uid,
+          type: "review_published",
+          entityType: "review",
+          entityId: String(savedReview.id),
+          productId,
+          workId: work?.work_id ? String(work.work_id) : null,
+          visibility: String(sp?.activity_visibility || "followers"),
+          payload: { rating: input.rating, excerpt: input.body.slice(0, 300) },
+          dedupeKey: `review-social:${savedReview.id}:${at}`,
+        });
       }
       await refreshSearchQualitySignals(db, reviewKey);
-      return json({ saved: true, provenance: String(savedReview.provenance_type||provenance.type) });
+      return json({
+        saved: true,
+        provenance: String(savedReview.provenance_type || provenance.type),
+      });
     }
     if (method === "DELETE") {
       await db.batch([
@@ -276,13 +387,21 @@ export async function handleCommunity(
     if (r.user_id === uid) throw new ApiError(400, "You cannot react to your own review.");
     await rateLimit(env, "reaction:" + uid, 60);
     if (reviewAction[2] === "heart" && method === "PUT") {
-      const heartAt=now();
+      const heartAt = now();
       await db
         .prepare("INSERT OR IGNORE INTO review_hearts(review_id,user_id,created_at) VALUES(?,?,?)")
         .bind(id, uid, heartAt)
         .run();
-      await evaluateReviewHeart(db,id,uid);
-      if(r.product_id) await recordRetailEvent(db,uid,{eventType:"review_hearted",productId:String(r.product_id),externalBookId:String(r.book_id),sourceSurface:"reviews",territory:"US",dedupeKey:`review-heart:${id}:${uid}`});
+      await evaluateReviewHeart(db, id, uid);
+      if (r.product_id)
+        await recordRetailEvent(db, uid, {
+          eventType: "review_hearted",
+          productId: String(r.product_id),
+          externalBookId: String(r.book_id),
+          sourceSurface: "reviews",
+          territory: "US",
+          dedupeKey: `review-heart:${id}:${uid}`,
+        });
       return json({ hearted: true });
     }
     if (reviewAction[2] === "heart" && method === "DELETE") {
@@ -296,18 +415,35 @@ export async function handleCommunity(
       const { reason } = z
         .object({ reason: z.enum(["spam", "harassment", "spoilers", "other"]) })
         .parse(await readBody(request));
-      const reportedAt=now(),inserted=await db
-        .prepare(
-          "INSERT INTO review_reports(review_id,user_id,reason,created_at) VALUES(?,?,?,?) ON CONFLICT(review_id,user_id) DO NOTHING RETURNING review_id",
-        )
-        .bind(id, uid, reason, reportedAt)
-        .first<any>();
-      if(inserted) await createModerationCase(db as any,{subjectType:"review",subjectId:id,category:reason,queue:"reviews",priority:"normal",sourceType:"user_report",riskScore:20,summary:`${reason} report for reader review ${id}`,reporterUserId:uid,reasonCode:reason,details:"Reader-submitted review report."});
+      const reportedAt = now(),
+        inserted = await db
+          .prepare(
+            "INSERT INTO review_reports(review_id,user_id,reason,created_at) VALUES(?,?,?,?) ON CONFLICT(review_id,user_id) DO NOTHING RETURNING review_id",
+          )
+          .bind(id, uid, reason, reportedAt)
+          .first<any>();
+      if (inserted)
+        await createModerationCase(db as any, {
+          subjectType: "review",
+          subjectId: id,
+          category: reason,
+          queue: "reviews",
+          priority: "normal",
+          sourceType: "user_report",
+          riskScore: 20,
+          summary: `${reason} report for reader review ${id}`,
+          reporterUserId: uid,
+          reasonCode: reason,
+          details: "Reader-submitted review report.",
+        });
       return json({ reported: true });
     }
   }
   if (path === "/admin/reports") {
-    throw new ApiError(410, "The legacy operator-token moderation endpoint has been retired. Use the identity-bound staff moderation console.");
+    throw new ApiError(
+      410,
+      "The legacy operator-token moderation endpoint has been retired. Use the identity-bound staff moderation console.",
+    );
   }
   if (path === "/shelves") {
     const uid = requireIdentity(userId);
@@ -341,7 +477,7 @@ export async function handleCommunity(
         )
         .bind(id, uid, input.name, input.description, input.visibility, at, at)
         .run();
-      await syncShelfProjection(db,uid,id);
+      await syncShelfProjection(db, uid, id);
       return json({ id, version: 1 }, 201);
     }
   }
@@ -359,11 +495,15 @@ export async function handleCommunity(
     const mine = s.user_id === userId;
     if (method === "GET" && !shelfRoute[2]) {
       const rows = await db
-        .prepare("SELECT * FROM shelf_items WHERE shelf_id=? ORDER BY position,added_at,external_book_id")
+        .prepare(
+          "SELECT * FROM shelf_items WHERE shelf_id=? ORDER BY position,added_at,external_book_id",
+        )
         .bind(id)
         .all<any>();
       const books = [];
-      for (const r of rows.results.filter((r) => mine || !r.external_book_id.startsWith("upload_"))) {
+      for (const r of rows.results.filter(
+        (r) => mine || !r.external_book_id.startsWith("upload_"),
+      )) {
         const book = await getBook(env, r.external_book_id, mine ? userId! : undefined);
         books.push({ bookId: r.external_book_id, book, position: r.position, note: r.note });
       }
@@ -381,8 +521,11 @@ export async function handleCommunity(
     if (!mine) throw new ApiError(404, "This shelf is unavailable.");
     await rateLimit(env, "shelf:" + userId, 60);
     if (method === "PATCH" && !shelfRoute[2]) {
-      const input = shelfInput.extend({expectedVersion:z.number().int().min(1)}).parse(await readBody(request));
-      if(Number(s.version)!==input.expectedVersion) throw new ApiError(409,"This shelf changed on another device. Refresh before editing it.");
+      const input = shelfInput
+        .extend({ expectedVersion: z.number().int().min(1) })
+        .parse(await readBody(request));
+      if (Number(s.version) !== input.expectedVersion)
+        throw new ApiError(409, "This shelf changed on another device. Refresh before editing it.");
       if (
         input.visibility === "public" &&
         (await db
@@ -400,28 +543,76 @@ export async function handleCommunity(
           .first()
       )
         throw new ApiError(409, "You already have a shelf with this name.");
-      const changed=await db
-        .prepare("UPDATE shelves SET name=?,description=?,visibility=?,updated_at=?,version=version+1 WHERE id=? AND user_id=? AND version=? RETURNING version")
-        .bind(input.name, input.description, input.visibility, now(), id, userId, input.expectedVersion)
+      const changed = await db
+        .prepare(
+          "UPDATE shelves SET name=?,description=?,visibility=?,updated_at=?,version=version+1 WHERE id=? AND user_id=? AND version=? RETURNING version",
+        )
+        .bind(
+          input.name,
+          input.description,
+          input.visibility,
+          now(),
+          id,
+          userId,
+          input.expectedVersion,
+        )
         .first<any>();
-      if(!changed) throw new ApiError(409,"This shelf changed on another device. Refresh before editing it.");
-      await syncShelfProjection(db,userId!,id,false,Number(changed.version));
-      return json({ saved: true, version:Number(changed.version) });
+      if (!changed)
+        throw new ApiError(409, "This shelf changed on another device. Refresh before editing it.");
+      await syncShelfProjection(db, userId!, id, false, Number(changed.version));
+      return json({ saved: true, version: Number(changed.version) });
     }
     if (method === "DELETE" && !shelfRoute[2]) {
-      const input=z.object({expectedVersion:z.number().int().min(1)}).parse(await readBody(request));
-      if(Number(s.version)!==input.expectedVersion) throw new ApiError(409,"This shelf changed on another device. Refresh before deleting it.");
-      const items=(await db.prepare("SELECT product_id FROM shelf_items WHERE shelf_id=? ORDER BY position,added_at").bind(id).all<any>()).results;
-      const removed=await db.prepare("DELETE FROM shelves WHERE id=? AND user_id=? AND version=? RETURNING id").bind(id,userId,input.expectedVersion).first<any>();
-      if(!removed) throw new ApiError(409,"This shelf changed on another device. Refresh before deleting it.");
-      await recordSyncProjection(db,{userId:userId!,entityType:"shelf",entityId:id,payload:{name:String(s.name||""),visibility:String(s.visibility||"private"),productIds:items.map((x:any)=>String(x.product_id))},tombstone:true,explicitVersion:input.expectedVersion+1});
-      return json({ deleted: true, version:input.expectedVersion+1 });
+      const input = z
+        .object({ expectedVersion: z.number().int().min(1) })
+        .parse(await readBody(request));
+      if (Number(s.version) !== input.expectedVersion)
+        throw new ApiError(
+          409,
+          "This shelf changed on another device. Refresh before deleting it.",
+        );
+      const items = (
+        await db
+          .prepare("SELECT product_id FROM shelf_items WHERE shelf_id=? ORDER BY position,added_at")
+          .bind(id)
+          .all<any>()
+      ).results;
+      const removed = await db
+        .prepare("DELETE FROM shelves WHERE id=? AND user_id=? AND version=? RETURNING id")
+        .bind(id, userId, input.expectedVersion)
+        .first<any>();
+      if (!removed)
+        throw new ApiError(
+          409,
+          "This shelf changed on another device. Refresh before deleting it.",
+        );
+      await recordSyncProjection(db, {
+        userId: userId!,
+        entityType: "shelf",
+        entityId: id,
+        payload: {
+          name: String(s.name || ""),
+          visibility: String(s.visibility || "private"),
+          productIds: items.map((x: any) => String(x.product_id)),
+        },
+        tombstone: true,
+        explicitVersion: input.expectedVersion + 1,
+      });
+      return json({ deleted: true, version: input.expectedVersion + 1 });
     }
     if (method === "PUT" && shelfRoute[2] === "books") {
       const input = z
-        .object({ bookId: bookIdSchema, note: z.string().max(2000).default(""), expectedVersion:z.number().int().min(1) })
+        .object({
+          bookId: bookIdSchema,
+          note: z.string().max(2000).default(""),
+          expectedVersion: z.number().int().min(1),
+        })
         .parse(await readBody(request));
-      if(Number(s.version)!==input.expectedVersion) throw new ApiError(409,"This shelf changed on another device. Refresh before adding a book.");
+      if (Number(s.version) !== input.expectedVersion)
+        throw new ApiError(
+          409,
+          "This shelf changed on another device. Refresh before adding a book.",
+        );
       const b = await getBook(env, input.bookId, userId!);
       if (b.uploaded && s.visibility === "public")
         throw new ApiError(400, "Personal imports can only be added to private shelves.");
@@ -432,31 +623,57 @@ export async function handleCommunity(
             "INSERT INTO shelf_items(shelf_id,product_id,external_book_id,position,note,added_at) VALUES(?,?,?,(SELECT COALESCE(MAX(position),-1)+1 FROM shelf_items WHERE shelf_id=?),?,?) ON CONFLICT(shelf_id,product_id) DO UPDATE SET note=excluded.note",
           )
           .bind(id, product.id, input.bookId, id, input.note, now()),
-        db.prepare("UPDATE shelves SET updated_at=?,version=version+1 WHERE id=? AND user_id=? AND version=?").bind(now(), id, userId, input.expectedVersion),
+        db
+          .prepare(
+            "UPDATE shelves SET updated_at=?,version=version+1 WHERE id=? AND user_id=? AND version=?",
+          )
+          .bind(now(), id, userId, input.expectedVersion),
       ]);
-      await syncShelfProjection(db,userId!,id,false,input.expectedVersion+1);
-      return json({ saved: true, version:input.expectedVersion+1 });
+      await syncShelfProjection(db, userId!, id, false, input.expectedVersion + 1);
+      return json({ saved: true, version: input.expectedVersion + 1 });
     }
     if (method === "DELETE" && shelfRoute[2] === "books") {
-      const input=z.object({expectedVersion:z.number().int().min(1)}).parse(await readBody(request));
-      if(Number(s.version)!==input.expectedVersion) throw new ApiError(409,"This shelf changed on another device. Refresh before removing a book.");
+      const input = z
+        .object({ expectedVersion: z.number().int().min(1) })
+        .parse(await readBody(request));
+      if (Number(s.version) !== input.expectedVersion)
+        throw new ApiError(
+          409,
+          "This shelf changed on another device. Refresh before removing a book.",
+        );
       const bookId = bookIdSchema.parse(shelfRoute[3]);
       await db
         .prepare("DELETE FROM shelf_items WHERE shelf_id=? AND external_book_id=?")
         .bind(id, bookId)
         .run();
-      const changed=await db.prepare("UPDATE shelves SET updated_at=?,version=version+1 WHERE id=? AND user_id=? AND version=? RETURNING version").bind(now(),id,userId,input.expectedVersion).first<any>();
-      if(!changed) throw new ApiError(409,"This shelf changed on another device. Refresh before removing a book.");
-      await syncShelfProjection(db,userId!,id,false,Number(changed.version));
-      return json({ deleted: true, version:Number(changed.version) });
+      const changed = await db
+        .prepare(
+          "UPDATE shelves SET updated_at=?,version=version+1 WHERE id=? AND user_id=? AND version=? RETURNING version",
+        )
+        .bind(now(), id, userId, input.expectedVersion)
+        .first<any>();
+      if (!changed)
+        throw new ApiError(
+          409,
+          "This shelf changed on another device. Refresh before removing a book.",
+        );
+      await syncShelfProjection(db, userId!, id, false, Number(changed.version));
+      return json({ deleted: true, version: Number(changed.version) });
     }
     if (method === "PUT" && shelfRoute[2] === "order") {
       const { bookIds, expectedVersion } = z
-        .object({ bookIds: z.array(bookIdSchema).max(1000), expectedVersion:z.number().int().min(1) })
-.parse(await readBody(request));
-      if(Number(s.version)!==expectedVersion) throw new ApiError(409,"This shelf changed on another device. Refresh before reordering.");
+        .object({
+          bookIds: z.array(bookIdSchema).max(1000),
+          expectedVersion: z.number().int().min(1),
+        })
+        .parse(await readBody(request));
+      if (Number(s.version) !== expectedVersion)
+        throw new ApiError(409, "This shelf changed on another device. Refresh before reordering.");
       const rows = (
-        await db.prepare("SELECT external_book_id FROM shelf_items WHERE shelf_id=?").bind(id).all<any>()
+        await db
+          .prepare("SELECT external_book_id FROM shelf_items WHERE shelf_id=?")
+          .bind(id)
+          .all<any>()
       ).results.map((r) => r.external_book_id);
       if (
         new Set(bookIds).size !== rows.length ||
@@ -472,10 +689,16 @@ export async function handleCommunity(
               .bind(i, id, b),
           ),
         );
-      const changed=await db.prepare("UPDATE shelves SET updated_at=?,version=version+1 WHERE id=? AND user_id=? AND version=? RETURNING version").bind(now(),id,userId,expectedVersion).first<any>();
-      if(!changed) throw new ApiError(409,"This shelf changed on another device. Refresh before reordering.");
-      await syncShelfProjection(db,userId!,id,false,Number(changed.version));
-      return json({ saved: true, version:Number(changed.version) });
+      const changed = await db
+        .prepare(
+          "UPDATE shelves SET updated_at=?,version=version+1 WHERE id=? AND user_id=? AND version=? RETURNING version",
+        )
+        .bind(now(), id, userId, expectedVersion)
+        .first<any>();
+      if (!changed)
+        throw new ApiError(409, "This shelf changed on another device. Refresh before reordering.");
+      await syncShelfProjection(db, userId!, id, false, Number(changed.version));
+      return json({ saved: true, version: Number(changed.version) });
     }
   }
   if (path === "/sessions" && method === "PUT") {
@@ -502,10 +725,12 @@ export async function handleCommunity(
       input.wordsRead > input.activeSeconds * 25 + 100
     )
       throw new ApiError(400, "Session timing is invalid.");
-    let sessionBookId=input.bookId;
-    if(input.mode === "read") {
-      const resolved=await getBook(env,input.bookId,uid);
-      sessionBookId=String((resolved as any).sourceExternalId||(resolved as any).id||input.bookId);
+    let sessionBookId = input.bookId;
+    if (input.mode === "read") {
+      const resolved = await getBook(env, input.bookId, uid);
+      sessionBookId = String(
+        (resolved as any).sourceExternalId || (resolved as any).id || input.bookId,
+      );
     }
     const existing = await db
       .prepare("SELECT book_id,mode,started_at FROM reading_sessions WHERE user_id=? AND id=?")
@@ -543,8 +768,19 @@ export async function handleCommunity(
     if (!existing) {
       try {
         const product = await resolveProduct(db, input.bookId, uid);
-        await recordRetailEvent(db, uid, { eventType: "book_opened", productId: String(product.id), externalBookId: String(product.source_external_id||sessionBookId), sessionId: input.id, sourceSurface: input.mode === "listen" ? "audiobook-player" : "reader", occurredAt: input.startedAt, properties: { mode: input.mode }, dedupeKey: `book-open:${uid}:${input.id}` });
-      } catch { /* personal/imported sessions may not resolve to a retail product */ }
+        await recordRetailEvent(db, uid, {
+          eventType: "book_opened",
+          productId: String(product.id),
+          externalBookId: String(product.source_external_id || sessionBookId),
+          sessionId: input.id,
+          sourceSurface: input.mode === "listen" ? "audiobook-player" : "reader",
+          occurredAt: input.startedAt,
+          properties: { mode: input.mode },
+          dedupeKey: `book-open:${uid}:${input.id}`,
+        });
+      } catch {
+        /* personal/imported sessions may not resolve to a retail product */
+      }
     }
     return json({ saved: true });
   }
@@ -717,12 +953,14 @@ async function readingStats(env: CoveEnv, userId: string, url: URL) {
       target: goal?.books || null,
       finished: yearCompleted.count,
     },
-    completed: completed.results.map((c, i) => ({
-      id: c.id,
-      book: completedBooks[i],
-      finishedAt: c.finished_at,
-      wordCount: c.word_count,
-      readingLevel: c.reading_level,
-    })).filter((c) => c.book),
+    completed: completed.results
+      .map((c, i) => ({
+        id: c.id,
+        book: completedBooks[i],
+        finishedAt: c.finished_at,
+        wordCount: c.word_count,
+        readingLevel: c.reading_level,
+      }))
+      .filter((c) => c.book),
   };
 }

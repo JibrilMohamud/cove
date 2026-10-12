@@ -49,11 +49,16 @@ export async function deleteRecord(store: string, id: string) {
 }
 export async function removeDownload(id: string) {
   const record = await getRecord("downloads", id);
-  const others=(await getRecords("downloads")).filter(r=>r.id!==id);
-  for(const key of record?.assetIds||[])if(!others.some(r=>r.assetIds?.includes(key)))await deleteRecord("assets",key);
+  const others = (await getRecords("downloads")).filter((r) => r.id !== id);
+  for (const key of record?.assetIds || [])
+    if (!others.some((r) => r.assetIds?.includes(key))) await deleteRecord("assets", key);
   await deleteRecord("downloads", id);
 }
 export const sha256 = async (bytes: ArrayBuffer) =>
-  Array.from(crypto.subtle ? new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)) : (await import("@noble/hashes/sha2.js")).sha256(new Uint8Array(bytes)))
+  Array.from(
+    crypto.subtle
+      ? new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))
+      : (await import("@noble/hashes/sha2.js")).sha256(new Uint8Array(bytes)),
+  )
     .map((x) => x.toString(16).padStart(2, "0"))
     .join("");

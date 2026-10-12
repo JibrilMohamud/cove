@@ -60,7 +60,10 @@ export function registerReadingTools(reload: () => Promise<void>) {
         properties: {
           bookIds: {
             type: "array",
-            items: { type: "string", pattern: "^(?:[1-9][0-9]{0,8}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,100})$" },
+            items: {
+              type: "string",
+              pattern: "^(?:[1-9][0-9]{0,8}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,100})$",
+            },
             minItems: 1,
             maxItems: 10,
           },
@@ -77,7 +80,11 @@ export function registerReadingTools(reload: () => Promise<void>) {
           v.bookIds.length < 1 ||
           v.bookIds.length > 10 ||
           Object.keys(v).some((k) => k !== "bookIds") ||
-          v.bookIds.some((id: any) => typeof id !== "string" || !/^(?:[1-9][0-9]{0,8}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,100})$/.test(id))
+          v.bookIds.some(
+            (id: any) =>
+              typeof id !== "string" ||
+              !/^(?:[1-9][0-9]{0,8}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,100})$/.test(id),
+          )
         )
           throw Error("Provide 1–10 valid book IDs.");
         const saved = [];

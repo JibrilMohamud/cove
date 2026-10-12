@@ -97,8 +97,7 @@ assert.match(runner, /stop\.wait\(120\)/);
 assert.match(media, /file\.unlink\(missing_ok=True\)/);
 assert.match(media, /parts\.rmdir\(\)/);
 assert.ok(
-  media.indexOf("file.unlink(missing_ok=True)") <
-    media.indexOf("temporary.replace(target)"),
+  media.indexOf("file.unlink(missing_ok=True)") < media.indexOf("temporary.replace(target)"),
   "range files must be released before the reconstructed file is promoted",
 );
 
@@ -132,7 +131,10 @@ assert.match(
 );
 assert.match(service, /execution_mode/);
 assert.match(service, /COVE_AUDIO_EXECUTION_MODE/);
-assert.match(service, /request\.execution_mode if request\.execution_mode != "inherit" else execution_mode\(\)/);
+assert.match(
+  service,
+  /request\.execution_mode if request\.execution_mode != "inherit" else execution_mode\(\)/,
+);
 assert.match(service, /asyncio\.to_thread\(execute_pipeline, request\)/);
 assert.match(service, /queueMode": "push"/);
 assert.doesNotMatch(service, /poll_and_handle/);
@@ -152,8 +154,14 @@ assert.match(audioPyproject, /entrypoint = "audio_pipeline\.subscriber"/);
 assert.equal(vercel.services.app.framework, "tanstack-start");
 assert.equal(vercel.services.audio_pipeline.root, "scripts");
 assert.equal(vercel.services.audio_pipeline.framework, "fastapi");
-assert.equal(vercel.services.audio_pipeline.functions["audio_pipeline/service.py"].maxDuration, 300);
-assert.equal(vercel.services.audio_pipeline.functions["audio_pipeline/subscriber.py"].maxDuration, 300);
+assert.equal(
+  vercel.services.audio_pipeline.functions["audio_pipeline/service.py"].maxDuration,
+  300,
+);
+assert.equal(
+  vercel.services.audio_pipeline.functions["audio_pipeline/subscriber.py"].maxDuration,
+  300,
+);
 assert.equal(vercel.services.audio_pipeline.runtime, undefined);
 assert.equal(vercel.services.audio_pipeline.entrypoint, undefined);
 assert.match(audioDockerfile, /FROM python:3\.12-slim/);
@@ -167,7 +175,11 @@ assert.equal(vercel.services.audio_pipeline.bindings, undefined);
 assert.match(runner, /x-cove-backend-token/);
 assert.match(runner, /FORE_BACKEND_URL/);
 
-assert.equal(vercel.crons, undefined, "frequent ingestion must not depend on Vercel plan-specific cron intervals");
+assert.equal(
+  vercel.crons,
+  undefined,
+  "frequent ingestion must not depend on Vercel plan-specific cron intervals",
+);
 assert.match(worker, /async scheduled/);
 assert.match(worker, /FORE_INGESTION_TRIGGER_TOKEN/);
 assert.match(worker, /audio_trigger_last_timeout/);
@@ -190,7 +202,6 @@ assert.match(deployWorkflow, /database_id = "\$D1_DATABASE_ID"/);
 assert.match(deployWorkflow, /bucket_name = "\$R2_BUCKET_NAME"/);
 assert.match(deployWorkflow, /npm run build:backend/);
 
-
 // Audio/BioSync runtime compatibility contract.
 const audioRequirements = await read("scripts/audio_pipeline/requirements.txt");
 const audioPyprojectText = audioPyproject;
@@ -202,9 +213,18 @@ assert.match(aligner, /retry\.pop\('metadata_errors',None\)/);
 assert.match(audioWorker, /RUN_ROOT = pathlib\.Path\("\/tmp\/cove-audio-runs"\)/);
 assert.match(audioWorker, /tempfile\.tempdir = str\(RUN_ROOT\)/);
 assert.match(audioWorker, /os\.environ\["HF_HOME"\] = str\(HF_HOME\)/);
-assert.match(gateway, /"\/api\/fore\/internal\/ingestion\/audio-align":[\s\S]*?execution_mode:\s*"direct"[\s\S]*?threads:\s*4/);
-assert.match(gateway, /"\/api\/fore\/internal\/ingestion\/audio-track":[\s\S]*?execution_mode:\s*"direct"/);
-assert.match(gateway, /"\/api\/fore\/internal\/ingestion\/audio-discover":[\s\S]*?execution_mode:\s*"direct"/);
+assert.match(
+  gateway,
+  /"\/api\/fore\/internal\/ingestion\/audio-align":[\s\S]*?execution_mode:\s*"direct"[\s\S]*?threads:\s*4/,
+);
+assert.match(
+  gateway,
+  /"\/api\/fore\/internal\/ingestion\/audio-track":[\s\S]*?execution_mode:\s*"direct"/,
+);
+assert.match(
+  gateway,
+  /"\/api\/fore\/internal\/ingestion\/audio-discover":[\s\S]*?execution_mode:\s*"direct"/,
+);
 assert.match(worker, /audioAlignmentTriggerSlots/);
 assert.match(worker, /alignmentState\.slots > 0/);
 assert.match(worker, /cron === "2-59\/5 \* \* \* \*"/);

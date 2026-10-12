@@ -39,17 +39,48 @@ await req("/profile", "POST", { name: "Bob" }, "bob");
 let catalogSearch = await req("/catalog?search=pride&language=en", "GET", undefined, null);
 eq(catalogSearch.status, 200, "FTS catalog search responds");
 eq(catalogSearch.body.search.backend, "d1-fts5", "D1 FTS5 is the local resilient search backend");
-eq(catalogSearch.body.results.some((b) => String(b.id) === "1342"), true, "Title search finds Pride and Prejudice");
-eq(catalogSearch.body.facets.languages.some((x) => x.value === "en"), true, "Search returns language facets");
+eq(
+  catalogSearch.body.results.some((b) => String(b.id) === "1342"),
+  true,
+  "Title search finds Pride and Prejudice",
+);
+eq(
+  catalogSearch.body.facets.languages.some((x) => x.value === "en"),
+  true,
+  "Search returns language facets",
+);
 let authorSearch = await req("/catalog?search=Austen&language=en", "GET", undefined, null);
-eq(authorSearch.body.results.some((b) => String(b.id) === "1342"), true, "Author matching is indexed");
+eq(
+  authorSearch.body.results.some((b) => String(b.id) === "1342"),
+  true,
+  "Author matching is indexed",
+);
 let idSearch = await req("/catalog?search=1342&language=en", "GET", undefined, null);
 eq(idSearch.body.results[0]?.id?.toString(), "1342", "Exact external identifier lookup is boosted");
 let suggestions = await req("/search/suggest?q=prid", "GET", undefined, null);
 eq(suggestions.status, 200, "Autocomplete endpoint responds");
-eq(suggestions.body.suggestions.some((x) => String(x.bookId) === "1342"), true, "Autocomplete returns matching title");
+eq(
+  suggestions.body.suggestions.some((x) => String(x.bookId) === "1342"),
+  true,
+  "Autocomplete returns matching title",
+);
 if (catalogSearch.body.search.queryId && catalogSearch.body.results[0]?.productId) {
-  eq((await req("/search/click", "POST", { queryId: catalogSearch.body.search.queryId, productId: catalogSearch.body.results[0].productId, position: 1 }, null)).status, 200, "Search result click attribution persists");
+  eq(
+    (
+      await req(
+        "/search/click",
+        "POST",
+        {
+          queryId: catalogSearch.body.search.queryId,
+          productId: catalogSearch.body.results[0].productId,
+          position: 1,
+        },
+        null,
+      )
+    ).status,
+    200,
+    "Search result click attribution persists",
+  );
 }
 eq(
   (await req("/books/1342/reviews", "PUT", { rating: 0.5 }, null)).status,

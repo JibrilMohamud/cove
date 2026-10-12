@@ -15,5 +15,9 @@ export const Route = createFileRoute("/campaign/$slug")({
 
 function CampaignPage() {
   const { slug } = Route.useParams();
-  return <SiteShell title="Cove collection"><StorePage landingPath={`/campaign/${slug}`} /></SiteShell>;
+  return (
+    <SiteShell title="Cove collection">
+      <StorePage landingPath={`/campaign/${slug}`} />
+    </SiteShell>
+  );
 }

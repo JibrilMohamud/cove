@@ -9,7 +9,11 @@ export type CatalogBook = {
   publicProductId?: string;
   publicEditionId?: string;
   publicWorkId?: string;
-  externalIdentifiers?: { product?: Record<string,string>; edition?: Record<string,string>; work?: Record<string,string> };
+  externalIdentifiers?: {
+    product?: Record<string, string>;
+    edition?: Record<string, string>;
+    work?: Record<string, string>;
+  };
   sourceName?: string;
   sourceProject?: string;
   sourceUrl?: string;
@@ -54,11 +58,27 @@ export type CatalogBook = {
   libraryEligible?: boolean;
   publisherDescription?: string;
   editorialReviews?: string;
-  series?: { id: string; slug?: string; name: string; position?: number; label?: string; relationship?: string; readingOrder?: number }[];
+  series?: {
+    id: string;
+    slug?: string;
+    name: string;
+    position?: number;
+    label?: string;
+    relationship?: string;
+    readingOrder?: number;
+  }[];
   accessibility?: Record<string, unknown>;
   formatProfile?: Record<string, unknown>;
   offer?: { type?: string; currency?: string; amountMinor?: number };
-  aiDisclosure?: { policyVersion?: string; textOrigin?: string; coverOrigin?: string; narrationOrigin?: string; translationOrigin?: string; syntheticVoiceLabel?: string; publicBadges?: { key: string; label: string }[] };
+  aiDisclosure?: {
+    policyVersion?: string;
+    textOrigin?: string;
+    coverOrigin?: string;
+    narrationOrigin?: string;
+    translationOrigin?: string;
+    syntheticVoiceLabel?: string;
+    publicBadges?: { key: string; label: string }[];
+  };
 };
 export type LibraryBook = {
   bookId: string;
@@ -115,7 +135,13 @@ export type Definition = {
   source: string;
   createdAt: string;
 };
-export type User = { id: string; email: string; name: string; registered: boolean; username?:string };
+export type User = {
+  id: string;
+  email: string;
+  name: string;
+  registered: boolean;
+  username?: string;
+};
 export type AccountData = {
   user: User | null;
   library: LibraryBook[];
@@ -194,13 +220,30 @@ export const coverOf = (b: CatalogBook) => {
     ? "/covers/" + sourceRef + ".jpg"
     : b.formats?.["image/jpeg"] || b.formats?.["image/png"] || "";
 };
-export const bookPath = (id: string | number) => { const ref=String(id); return (ref.startsWith("prd_") ? "/books/" : "/book/") + encodeURIComponent(ref); };
-export const productPath = (book: Pick<CatalogBook,"id"|"publicProductId">) => book.publicProductId ? "/books/" + encodeURIComponent(book.publicProductId) : bookPath(book.id);
-export const editionPath = (book: Pick<CatalogBook,"id"|"editionId"|"publicEditionId"|"publicProductId">) => book.publicEditionId ? "/edition/" + encodeURIComponent(book.publicEditionId) : book.editionId ? "/edition/" + encodeURIComponent(book.editionId) : productPath(book);
-export const authorPath = (author:{id?:string;slug?:string}) => author.id ? "/author/" + encodeURIComponent(author.slug||author.id) : "/store";
-export const publisherPath = (book:Pick<CatalogBook,"publisherId"|"publisherSlug">) => book.publisherId ? "/publisher/" + encodeURIComponent(book.publisherSlug||book.publisherId) : "/store";
-export const imprintPath = (book:Pick<CatalogBook,"imprintId"|"imprintSlug">) => book.imprintId ? "/imprint/" + encodeURIComponent(book.imprintSlug||book.imprintId) : "/store";
-export const seriesPath = (series:{id:string;slug?:string}) => "/series/" + encodeURIComponent(series.slug||series.id);
+export const bookPath = (id: string | number) => {
+  const ref = String(id);
+  return (ref.startsWith("prd_") ? "/books/" : "/book/") + encodeURIComponent(ref);
+};
+export const productPath = (book: Pick<CatalogBook, "id" | "publicProductId">) =>
+  book.publicProductId ? "/books/" + encodeURIComponent(book.publicProductId) : bookPath(book.id);
+export const editionPath = (
+  book: Pick<CatalogBook, "id" | "editionId" | "publicEditionId" | "publicProductId">,
+) =>
+  book.publicEditionId
+    ? "/edition/" + encodeURIComponent(book.publicEditionId)
+    : book.editionId
+      ? "/edition/" + encodeURIComponent(book.editionId)
+      : productPath(book);
+export const authorPath = (author: { id?: string; slug?: string }) =>
+  author.id ? "/author/" + encodeURIComponent(author.slug || author.id) : "/store";
+export const publisherPath = (book: Pick<CatalogBook, "publisherId" | "publisherSlug">) =>
+  book.publisherId
+    ? "/publisher/" + encodeURIComponent(book.publisherSlug || book.publisherId)
+    : "/store";
+export const imprintPath = (book: Pick<CatalogBook, "imprintId" | "imprintSlug">) =>
+  book.imprintId ? "/imprint/" + encodeURIComponent(book.imprintSlug || book.imprintId) : "/store";
+export const seriesPath = (series: { id: string; slug?: string }) =>
+  "/series/" + encodeURIComponent(series.slug || series.id);
 export const readPath = (id: string | number, cfi?: string) =>
   "/read/" + encodeURIComponent(id) + (cfi ? "?cfi=" + encodeURIComponent(cfi) : "");
 export const colors: Record<string, string> = {

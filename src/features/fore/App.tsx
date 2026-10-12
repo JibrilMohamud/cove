@@ -1,5 +1,15 @@
-import {AuthDialog,type AuthMode} from "./Auth";
-import { Headphones, LibraryBig, BarChart3, Heart, ShoppingCart, ReceiptText, Building2, Bell, Users } from "lucide-react";
+import { AuthDialog, type AuthMode } from "./Auth";
+import {
+  Headphones,
+  LibraryBig,
+  BarChart3,
+  Heart,
+  ShoppingCart,
+  ReceiptText,
+  Building2,
+  Bell,
+  Users,
+} from "lucide-react";
 import { flushSessions } from "./reading-activity";
 import { useState, useEffect, useCallback, type ReactNode } from "react";
 import {
@@ -22,7 +32,11 @@ import { AccountContext, api, type AccountData } from "./client";
 import "./fore.css";
 import "./legal.css";
 import { registerReadingTools } from "./webmcp";
-import { StorefrontLocaleControl, StorefrontLocaleProvider, useStorefrontLocale } from "./localization";
+import {
+  StorefrontLocaleControl,
+  StorefrontLocaleProvider,
+  useStorefrontLocale,
+} from "./localization";
 const nav = [
   ["/", "nav.bookstore", "Bookstore", BookOpen],
   ["/audiobooks", "nav.audiobooks", "Audiobooks", Headphones],
@@ -49,8 +63,19 @@ export function CoveProvider({ children }: { children: ReactNode }) {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [auth, setAuth] = useState<AuthMode|null>(null);
-  useEffect(()=>{const p=new URLSearchParams(location.search);const mode=p.get('auth');if(['login','signup','new-password'].includes(mode||'')){setAuth(mode as AuthMode);if(p.get('authError'))toast.error('The sign-in link could not be used. Try signing in with your verified email or request a new link.');history.replaceState(null,'',location.pathname);}},[]);
+  const [auth, setAuth] = useState<AuthMode | null>(null);
+  useEffect(() => {
+    const p = new URLSearchParams(location.search);
+    const mode = p.get("auth");
+    if (["login", "signup", "new-password"].includes(mode || "")) {
+      setAuth(mode as AuthMode);
+      if (p.get("authError"))
+        toast.error(
+          "The sign-in link could not be used. Try signing in with your verified email or request a new link.",
+        );
+      history.replaceState(null, "", location.pathname);
+    }
+  }, []);
   const reload = useCallback(async () => {
     try {
       const next = await api<AccountData>("/account");
@@ -92,8 +117,21 @@ export function CoveProvider({ children }: { children: ReactNode }) {
     return () => document.removeEventListener("keydown", k);
   }, []);
   return (
-    <AccountContext.Provider value={{ data, loading, error, reload, signIn: () => setAuth("login"),signUp:()=>setAuth("signup") }}>
-      <StorefrontLocaleProvider>{children}<AuthDialog mode={auth} onChange={setAuth} onSuccess={reload}/><Toaster theme="dark" position="bottom-right" richColors /></StorefrontLocaleProvider>
+    <AccountContext.Provider
+      value={{
+        data,
+        loading,
+        error,
+        reload,
+        signIn: () => setAuth("login"),
+        signUp: () => setAuth("signup"),
+      }}
+    >
+      <StorefrontLocaleProvider>
+        {children}
+        <AuthDialog mode={auth} onChange={setAuth} onSuccess={reload} />
+        <Toaster theme="dark" position="bottom-right" richColors />
+      </StorefrontLocaleProvider>
     </AccountContext.Provider>
   );
 }
@@ -107,7 +145,7 @@ export function SiteShell({
   title?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const store=useStorefrontLocale();
+  const store = useStorefrontLocale();
   const links = (
     <>
       <a href="/" className="brand">
@@ -116,35 +154,44 @@ export function SiteShell({
         </span>
         cove<span className="brand-period">.</span>
       </a>
-      <div className="nav-label">{store.t("shell.yourReadingRoom","YOUR READING ROOM")}</div>
+      <div className="nav-label">{store.t("shell.yourReadingRoom", "YOUR READING ROOM")}</div>
       <nav className="main-nav" aria-label="Primary">
         {nav.map(([href, key, fallback, Icon]) => (
           <a href={href} className={active === href ? "active" : ""} key={href}>
             <Icon size={19} strokeWidth={1.7} />
-            {store.t(key,fallback)}
+            {store.t(key, fallback)}
             {active === href && <ChevronRight size={15} className="nav-chevron" />}
           </a>
         ))}
       </nav>
       <div className="sidebar-bottom">
         <p>
-          {store.t("shell.tagline1","A good book is")}
+          {store.t("shell.tagline1", "A good book is")}
           <br />
-          {store.t("shell.tagline2","always a beginning.")}
+          {store.t("shell.tagline2", "always a beginning.")}
         </p>
-        <span>{store.t("shell.tagline3","YOUR BOOKSTORE. YOUR READING ROOM.")}</span>
+        <span>{store.t("shell.tagline3", "YOUR BOOKSTORE. YOUR READING ROOM.")}</span>
         <nav className="sidebar-legal-links" aria-label="Legal information">
-          <a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/copyright">Copyright</a>
+          <a href="/terms">Terms</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/copyright">Copyright</a>
         </nav>
       </div>
     </>
   );
   return (
     <div className="fore-app">
-      <a className="skip-link" href="#fore-main">{store.t("shell.skip","Skip to main content")}</a>
-      <aside className="sidebar" aria-label="Desktop navigation">{links}</aside>
+      <a className="skip-link" href="#fore-main">
+        {store.t("shell.skip", "Skip to main content")}
+      </a>
+      <aside className="sidebar" aria-label="Desktop navigation">
+        {links}
+      </aside>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side={store.direction==="rtl"?"right":"left"} className="mobile-sidebar">
+        <SheetContent
+          side={store.direction === "rtl" ? "right" : "left"}
+          className="mobile-sidebar"
+        >
           <SheetTitle className="sr-only">Navigation</SheetTitle>
           {links}
         </SheetContent>
@@ -155,20 +202,30 @@ export function SiteShell({
             <button
               className="icon-button mobile-only"
               onClick={() => setOpen(true)}
-              aria-label={store.t("shell.openNav","Open navigation")}
+              aria-label={store.t("shell.openNav", "Open navigation")}
             >
               <Menu size={22} />
             </button>
-            <span>{store.t("shell.readingRoom","Reading room")}</span>
+            <span>{store.t("shell.readingRoom", "Reading room")}</span>
             <ChevronRight size={13} />
             <strong>{title}</strong>
           </div>
-          <div className="topbar-actions"><StorefrontLocaleControl/><AccountButton /></div>
+          <div className="topbar-actions">
+            <StorefrontLocaleControl />
+            <AccountButton />
+          </div>
         </header>
-        <main id="fore-main" tabIndex={-1} className="content">{children}</main>
+        <main id="fore-main" tabIndex={-1} className="content">
+          {children}
+        </main>
         <footer className="cove-site-footer" aria-label="Cove legal and account links">
           <span>© {new Date().getFullYear()} Cove</span>
-          <nav aria-label="Footer"><a href="/terms">Terms of Service</a><a href="/privacy">Privacy Policy</a><a href="/copyright">Copyright &amp; DMCA</a><a href="/privacy#contact-us">Contact</a></nav>
+          <nav aria-label="Footer">
+            <a href="/terms">Terms of Service</a>
+            <a href="/privacy">Privacy Policy</a>
+            <a href="/copyright">Copyright &amp; DMCA</a>
+            <a href="/privacy#contact-us">Contact</a>
+          </nav>
         </footer>
       </div>
     </div>
@@ -176,20 +233,20 @@ export function SiteShell({
 }
 import { useAccount } from "./client";
 function AccountButton() {
-  const { data, signIn,signUp } = useAccount();
-  const store=useStorefrontLocale();
+  const { data, signIn, signUp } = useAccount();
+  const store = useStorefrontLocale();
   return data.user ? (
     <a href="/profile" className="account-button">
       <span className="avatar">{(data.user.name || data.user.email || "R")[0].toUpperCase()}</span>
-      <span>{data.user.name || store.t("account.mine","My account")}</span>
+      <span>{data.user.name || store.t("account.mine", "My account")}</span>
     </a>
   ) : (
     <div className="account-actions">
       <button className="text-link" onClick={signIn}>
-        {store.t("account.login","Log in")}
+        {store.t("account.login", "Log in")}
       </button>
       <button className="button gold compact" onClick={signUp}>
-        {store.t("account.create","Create account")} <ArrowUpRight size={15} />
+        {store.t("account.create", "Create account")} <ArrowUpRight size={15} />
       </button>
     </div>
   );

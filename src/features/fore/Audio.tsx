@@ -1,5 +1,5 @@
-import {openBiosync,resolveText,resolveAudio,editionBook} from "./biosync-client";
-import {timingSummary} from "./biosync";
+import { openBiosync, resolveText, resolveAudio, editionBook } from "./biosync-client";
+import { timingSummary } from "./biosync";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -70,7 +70,10 @@ export function AudiobooksPage() {
           <h1>
             Let the story come to you<span className="gold-text">.</span>
           </h1>
-          <p>Commercial and public-domain audiobooks, with narration and rights information clearly marked.</p>
+          <p>
+            Commercial and public-domain audiobooks, with narration and rights information clearly
+            marked.
+          </p>
         </div>
         <Headphones className="audio-heading-icon" size={48} />
       </div>
@@ -113,7 +116,10 @@ export function AudiobooksPage() {
           </SelectContent>
         </Select>
       </div>
-      <p className="small muted">{r.data?.count || 0} audiobook editions · Commercial titles and verified public-domain recordings</p>
+      <p className="small muted">
+        {r.data?.count || 0} audiobook editions · Commercial titles and verified public-domain
+        recordings
+      </p>
       {r.error ? (
         <p className="notice">
           {r.error.message} <button onClick={() => r.refetch()}>Retry</button>
@@ -133,9 +139,19 @@ export function AudiobooksPage() {
                 <h2>{e.title}</h2>
                 <p>{e.authors.map((a) => a.name).join(", ")}</p>
                 <span className="small muted">
-                  {e.narrator || "Narrator not listed"} · {e.tracks.length ? `${e.tracks.length} tracks` : "Tracks load when opened"}{e.commercial&&e.audioPublisher?` · ${e.audioPublisher}`:""}
+                  {e.narrator || "Narrator not listed"} ·{" "}
+                  {e.tracks.length ? `${e.tracks.length} tracks` : "Tracks load when opened"}
+                  {e.commercial && e.audioPublisher ? ` · ${e.audioPublisher}` : ""}
                 </span>
-                {e.commercial&&<span className="small muted">{e.hasAccess?"In your library":e.offer?`${new Intl.NumberFormat(undefined,{style:"currency",currency:e.offer.currency}).format(e.offer.amountMinor/100)}`:"Commercial edition"}</span>}
+                {e.commercial && (
+                  <span className="small muted">
+                    {e.hasAccess
+                      ? "In your library"
+                      : e.offer
+                        ? `${new Intl.NumberFormat(undefined, { style: "currency", currency: e.offer.currency }).format(e.offer.amountMinor / 100)}`
+                        : "Commercial edition"}
+                  </span>
+                )}
                 {e.alignment && (
                   <span className="biosync-badge">
                     <Link2 size={13} />
@@ -150,7 +166,10 @@ export function AudiobooksPage() {
         <div className="empty-state">
           <Headphones />
           <h2>No recordings match yet.</h2>
-          <p>Try another voice or search. Availability follows your storefront and each edition’s rights.</p>
+          <p>
+            Try another voice or search. Availability follows your storefront and each edition’s
+            rights.
+          </p>
           <a
             href="https://www.gutenberg.org/browse/categories/2"
             target="_blank"
@@ -201,9 +220,16 @@ export function AudioDownloads({
     abort.current = controller;
     setBusy(kind);
     try {
-      if (kind === "offline") await (edition.commercial?saveCommercialAudioOffline(edition,controller.signal,setProgress):saveAudioOffline(edition, controller.signal, setProgress));
-      else if(edition.commercial) throw Error("Commercial audiobooks use device-bound offline licenses and cannot be exported as unrestricted ZIP archives.");
-      else await downloadAudioPackage(
+      if (kind === "offline")
+        await (edition.commercial
+          ? saveCommercialAudioOffline(edition, controller.signal, setProgress)
+          : saveAudioOffline(edition, controller.signal, setProgress));
+      else if (edition.commercial)
+        throw Error(
+          "Commercial audiobooks use device-bound offline licenses and cannot be exported as unrestricted ZIP archives.",
+        );
+      else
+        await downloadAudioPackage(
           edition,
           kind === "both" ? book : null,
           controller.signal,
@@ -226,9 +252,11 @@ export function AudioDownloads({
           <Download size={16} />
           Save audio offline
         </button>
-        {!edition.commercial&&<button className="button outline" disabled={!!busy} onClick={() => run("audio")}>
-          Audio ZIP
-        </button>}
+        {!edition.commercial && (
+          <button className="button outline" disabled={!!busy} onClick={() => run("audio")}>
+            Audio ZIP
+          </button>
+        )}
         {book && !edition.commercial && (
           <button className="button gold" disabled={!!busy} onClick={() => run("both")}>
             <BookOpen size={16} />
@@ -309,11 +337,60 @@ export function AudioPlayerPage({ id }: { id: string }) {
     );
   return <AudioPlayer key={id} edition={r.data} />;
 }
-function AudioPlayer({edition:e}:{edition:AudioEdition}){
-  if(e.commercial&&!e.hasAccess)return <CommercialAudioPreview edition={e}/>;
-  return <EntitledAudioPlayer edition={e}/>;
+function AudioPlayer({ edition: e }: { edition: AudioEdition }) {
+  if (e.commercial && !e.hasAccess) return <CommercialAudioPreview edition={e} />;
+  return <EntitledAudioPlayer edition={e} />;
 }
-function CommercialAudioPreview({edition:e}:{edition:AudioEdition}){const price=e.offer?new Intl.NumberFormat(undefined,{style:"currency",currency:e.offer.currency}).format(e.offer.amountMinor/100):"See price";return <><a className="text-link" href="/audiobooks">← Audiobooks</a><div className="listening-layout"><div className="listen-art"><Headphones size={55}/><h1>{e.title}</h1><p>{e.authors.map(a=>a.name).join(", ")}</p><span className={"voice-badge "+e.narration}>{narrationLabel(e)}</span></div><section className="player-panel"><span className="page-eyebrow">COMMERCIAL AUDIOBOOK</span><h2>{price}</h2><p>{e.audioPublisher||"Audio publisher"}{e.narrator?` · Narrated by ${e.narrator}`:""}</p>{e.previewAvailable?<><h3>Preview</h3><audio controls preload="metadata" src={`/api/fore/audio/${encodeURIComponent(e.id)}/preview`}/></>:<p className="muted">A preview is not available for this edition.</p>}<a className="button gold" href={e.sourceUrl}><BookOpen size={17}/>View book & purchase options</a><p className="small muted">Full playback is unlocked only by an active purchase or eligible subscription entitlement. Offline copies use renewable device-bound licenses.</p></section></div></>;}
+function CommercialAudioPreview({ edition: e }: { edition: AudioEdition }) {
+  const price = e.offer
+    ? new Intl.NumberFormat(undefined, { style: "currency", currency: e.offer.currency }).format(
+        e.offer.amountMinor / 100,
+      )
+    : "See price";
+  return (
+    <>
+      <a className="text-link" href="/audiobooks">
+        ← Audiobooks
+      </a>
+      <div className="listening-layout">
+        <div className="listen-art">
+          <Headphones size={55} />
+          <h1>{e.title}</h1>
+          <p>{e.authors.map((a) => a.name).join(", ")}</p>
+          <span className={"voice-badge " + e.narration}>{narrationLabel(e)}</span>
+        </div>
+        <section className="player-panel">
+          <span className="page-eyebrow">COMMERCIAL AUDIOBOOK</span>
+          <h2>{price}</h2>
+          <p>
+            {e.audioPublisher || "Audio publisher"}
+            {e.narrator ? ` · Narrated by ${e.narrator}` : ""}
+          </p>
+          {e.previewAvailable ? (
+            <>
+              <h3>Preview</h3>
+              <audio
+                controls
+                preload="metadata"
+                src={`/api/fore/audio/${encodeURIComponent(e.id)}/preview`}
+              />
+            </>
+          ) : (
+            <p className="muted">A preview is not available for this edition.</p>
+          )}
+          <a className="button gold" href={e.sourceUrl}>
+            <BookOpen size={17} />
+            View book & purchase options
+          </a>
+          <p className="small muted">
+            Full playback is unlocked only by an active purchase or eligible subscription
+            entitlement. Offline copies use renewable device-bound licenses.
+          </p>
+        </section>
+      </div>
+    </>
+  );
+}
 function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
   const { data, signIn, loading } = useAccount(),
     audio = useRef<HTMLAudioElement>(null),
@@ -329,8 +406,8 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
     [conflict, setConflict] = useState(false),
     [playing, setPlaying] = useState(false);
   const track = e.tracks[index],
-    sync=useRef<Awaited<ReturnType<typeof openBiosync>>|null>(null),
-    conflictFlag=useRef(false),
+    sync = useRef<Awaited<ReturnType<typeof openBiosync>> | null>(null),
+    conflictFlag = useRef(false),
     version = useRef(0),
     seek = useRef(0),
     resume = useRef(false),
@@ -349,7 +426,20 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
     const localId = `playback:${data.user?.id || "guest"}:${e.id}`;
     const local = { id: localId, ...value, version: version.current, pending: true };
     await putRecord("assets", local).catch(() => {});
-    if(!e.commercial&&e.alignment?.version===2&&sync.current){try{const m=await resolveAudio(e,value.trackId,value.seconds);if(m)await sync.current.save(e,m,"audio");}catch(error){setSaveState((error as Error).message);if((error as any).status===409){conflictFlag.current=true;setConflict(true);audio.current?.pause();return;}}}
+    if (!e.commercial && e.alignment?.version === 2 && sync.current) {
+      try {
+        const m = await resolveAudio(e, value.trackId, value.seconds);
+        if (m) await sync.current.save(e, m, "audio");
+      } catch (error) {
+        setSaveState((error as Error).message);
+        if ((error as any).status === 409) {
+          conflictFlag.current = true;
+          setConflict(true);
+          audio.current?.pause();
+          return;
+        }
+      }
+    }
     if (!data.user) return;
     setSaveState("Saving…");
     chain.current = chain.current
@@ -368,7 +458,8 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
         } catch (err) {
           setSaveState((err as Error).message);
           if ((err as any).status === 409) {
-            conflictFlag.current=true;setConflict(true);
+            conflictFlag.current = true;
+            setConflict(true);
             audio.current?.pause();
           }
         }
@@ -399,8 +490,33 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
       let at = p?.seconds || 0;
       version.current = p?.version || 0;
       setSpeed(p?.speed || 1);
-      if(!e.commercial&&e.bookId){sync.current=await openBiosync(e.bookId,data.user?.id||null);const pos=sync.current.current;if(pos&&pos.edition_id===e.id&&pos.epub_sha256===e.epubSha256&&e.tracks.some(t=>t.id===pos.track_id&&t.sha256===pos.audio_sha256)){next=e.tracks.findIndex(t=>t.id===pos.track_id);at=pos.seconds;}}
-      if(!e.commercial&&params.get("fromText")==="1"){const cfi=params.get("cfi"),hash=params.get("hash")||"";const m=cfi?await resolveText(e,cfi,hash):null;if(m){next=e.tracks.findIndex(t=>t.id===m.trackId);at=m.seconds;resume.current=true;toast.message("Biosync: continuing from your text passage");}else toast.message("No checked audio match for this passage. Your listening bookmark is preserved.");}
+      if (!e.commercial && e.bookId) {
+        sync.current = await openBiosync(e.bookId, data.user?.id || null);
+        const pos = sync.current.current;
+        if (
+          pos &&
+          pos.edition_id === e.id &&
+          pos.epub_sha256 === e.epubSha256 &&
+          e.tracks.some((t) => t.id === pos.track_id && t.sha256 === pos.audio_sha256)
+        ) {
+          next = e.tracks.findIndex((t) => t.id === pos.track_id);
+          at = pos.seconds;
+        }
+      }
+      if (!e.commercial && params.get("fromText") === "1") {
+        const cfi = params.get("cfi"),
+          hash = params.get("hash") || "";
+        const m = cfi ? await resolveText(e, cfi, hash) : null;
+        if (m) {
+          next = e.tracks.findIndex((t) => t.id === m.trackId);
+          at = m.seconds;
+          resume.current = true;
+          toast.message("Biosync: continuing from your text passage");
+        } else
+          toast.message(
+            "No checked audio match for this passage. Your listening bookmark is preserved.",
+          );
+      }
       if (canceled) return;
       seek.current = at;
       setSeconds(at);
@@ -669,7 +785,7 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
                 event.preventDefault();
                 audio.current?.pause();
                 await save();
-                if(conflictFlag.current)return;
+                if (conflictFlag.current) return;
                 location.href = readHref;
               }}
             >
@@ -679,10 +795,11 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
           )}
           <p className="small muted">
             {e.alignment
-              ? timingSummary(e)+". Timing is checked automatically. Introductions and unmatched passages are excluded."
+              ? timingSummary(e) +
+                ". Timing is checked automatically. Introductions and unmatched passages are excluded."
               : "This recording has no verified text alignment yet. Your text and listening bookmarks are kept separately."}
           </p>
-          <AudioDownloads edition={e} book={book.data || (e.bookId?editionBook(e):null)} />
+          <AudioDownloads edition={e} book={book.data || (e.bookId ? editionBook(e) : null)} />
           <a className="text-link small" href={e.sourceUrl} target="_blank" rel="noreferrer">
             Recording / edition details
           </a>
@@ -703,9 +820,11 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
                 {index === i && playing ? " · Playing" : ""}
               </span>
             </button>
-            {!e.commercial&&<a href={trackUrl(e.id, t.id)} download aria-label={"Download " + t.title}>
-              <Download size={17} />
-            </a>}
+            {!e.commercial && (
+              <a href={trackUrl(e.id, t.id)} download aria-label={"Download " + t.title}>
+                <Download size={17} />
+              </a>
+            )}
           </div>
         ))}
       </section>

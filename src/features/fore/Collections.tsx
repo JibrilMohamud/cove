@@ -508,7 +508,11 @@ export function HighlightsPage() {
               if (!edit) return;
               setSaving(true);
               try {
-                await api("/annotations/" + edit.id, "PATCH", { note, color: editColor, expectedVersion: edit.version });
+                await api("/annotations/" + edit.id, "PATCH", {
+                  note,
+                  color: editColor,
+                  expectedVersion: edit.version,
+                });
                 await reload();
                 setEdit(null);
                 toast.success("Your note is saved");
@@ -528,8 +532,8 @@ export function HighlightsPage() {
         setOpen={() => setRemove("")}
         description="This removes the highlight and its note from your notebook."
         onConfirm={async () => {
-          const target=data.annotations.find((a)=>a.id===remove);
-          if(!target) return setRemove("");
+          const target = data.annotations.find((a) => a.id === remove);
+          if (!target) return setRemove("");
           await api("/annotations/" + remove, "DELETE", { expectedVersion: target.version });
           await reload();
           setRemove("");
@@ -776,17 +780,26 @@ export function DownloadsPage() {
         <div>
           <FileDown size={25} />
           <h2>Download book</h2>
-          <p>The entitled EPUB only. It never includes your highlights, notes, vocabulary, positions, or reading history.</p>
+          <p>
+            The entitled EPUB only. It never includes your highlights, notes, vocabulary, positions,
+            or reading history.
+          </p>
         </div>
         <div>
           <Download size={25} />
           <h2>Export reading data</h2>
-          <p>A private ZIP containing your annotations, saved words, reading position, completion history, and reading sessions. It contains no ebook.</p>
+          <p>
+            A private ZIP containing your annotations, saved words, reading position, completion
+            history, and reading sessions. It contains no ebook.
+          </p>
         </div>
         <div className="private-backup-option">
           <ShieldCheck size={25} />
           <h2>Cove backup package</h2>
-          <p><strong>Private archive:</strong> combines both the EPUB and your reading data. Review it before sharing or transferring it to another person.</p>
+          <p>
+            <strong>Private archive:</strong> combines both the EPUB and your reading data. Review
+            it before sharing or transferring it to another person.
+          </p>
           <span className="small muted">Cove private backup v2 · ebook + personal data</span>
         </div>
       </div>
@@ -805,31 +818,62 @@ export function DownloadsPage() {
                 </div>
                 <div className="download-buttons">
                   {(["book", "data", "backup"] as const).map((kind) => {
-                    const contentExport=kind!=="data";
-                    if(contentExport&&e.book.downloadable===false)return <span className="export-unavailable" key={kind}>{kind==="book"?"Book download":"Private backup"}: Cove reader only</span>;
+                    const contentExport = kind !== "data";
+                    if (contentExport && e.book.downloadable === false)
+                      return (
+                        <span className="export-unavailable" key={kind}>
+                          {kind === "book" ? "Book download" : "Private backup"}: Cove reader only
+                        </span>
+                      );
                     return (
-                    <button
-                      className="button outline"
-                      disabled={!!busy}
-                      onClick={async () => {
-                        if(kind==="backup"&&!window.confirm("Create a private Cove backup? This ZIP includes the ebook together with your highlights, notes, vocabulary, reading positions, and reading history. Do not share it as if it were only a book file."))return;
-                        setBusy(e.bookId + kind);
-                        try {
-                          if(kind==="book")await downloadBook(e.book);
-                          else if(kind==="data")await exportReadingData(e.book);
-                          else await downloadCoveBackup(e.book);
-                          toast.success(kind==="book"?"Book downloaded":kind==="data"?"Reading data exported":"Private backup created");
-                        } catch (e) {
-                          toast.error((e as Error).message);
-                        } finally {
-                          setBusy("");
-                        }
-                      }}
-                      key={kind}
-                    >
-                      {busy === e.bookId + kind ? <Loader2 className="spin" size={16} /> : kind==="backup"?<ShieldCheck size={16}/>:kind==="data"?<FileDown size={16}/>:<Download size={16} />} {kind === "book" ? "Download book" : kind==="data"?"Export reading data":"Private backup"}
-                    </button>
-                  )})}
+                      <button
+                        className="button outline"
+                        disabled={!!busy}
+                        onClick={async () => {
+                          if (
+                            kind === "backup" &&
+                            !window.confirm(
+                              "Create a private Cove backup? This ZIP includes the ebook together with your highlights, notes, vocabulary, reading positions, and reading history. Do not share it as if it were only a book file.",
+                            )
+                          )
+                            return;
+                          setBusy(e.bookId + kind);
+                          try {
+                            if (kind === "book") await downloadBook(e.book);
+                            else if (kind === "data") await exportReadingData(e.book);
+                            else await downloadCoveBackup(e.book);
+                            toast.success(
+                              kind === "book"
+                                ? "Book downloaded"
+                                : kind === "data"
+                                  ? "Reading data exported"
+                                  : "Private backup created",
+                            );
+                          } catch (e) {
+                            toast.error((e as Error).message);
+                          } finally {
+                            setBusy("");
+                          }
+                        }}
+                        key={kind}
+                      >
+                        {busy === e.bookId + kind ? (
+                          <Loader2 className="spin" size={16} />
+                        ) : kind === "backup" ? (
+                          <ShieldCheck size={16} />
+                        ) : kind === "data" ? (
+                          <FileDown size={16} />
+                        ) : (
+                          <Download size={16} />
+                        )}{" "}
+                        {kind === "book"
+                          ? "Download book"
+                          : kind === "data"
+                            ? "Export reading data"
+                            : "Private backup"}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -852,10 +896,37 @@ export function ProfilePage() {
   const { data, reload } = useAccount();
   const [name, setName] = useState(""),
     [busy, setBusy] = useState(false);
-  const [recSettings,setRecSettings]=useState<{personalizationEnabled:boolean;activityPersonalizationEnabled:boolean;personalizedSearchEnabled:boolean}|null>(null);
-  const [recBusy,setRecBusy]=useState(false);
-  useEffect(()=>{if(!data.user)return;let cancelled=false;api<any>("/recommendations/account").then((x)=>{if(!cancelled)setRecSettings(x.privacy);}).catch(()=>{});return()=>{cancelled=true;};},[data.user?.id]);
-  async function saveRecommendationSettings(next: typeof recSettings){if(!next)return;setRecBusy(true);try{const saved=await api<any>("/recommendations/privacy","POST",next);setRecSettings(saved);toast.success("Recommendation preferences saved");}catch(e){toast.error((e as Error).message);}finally{setRecBusy(false);}}
+  const [recSettings, setRecSettings] = useState<{
+    personalizationEnabled: boolean;
+    activityPersonalizationEnabled: boolean;
+    personalizedSearchEnabled: boolean;
+  } | null>(null);
+  const [recBusy, setRecBusy] = useState(false);
+  useEffect(() => {
+    if (!data.user) return;
+    let cancelled = false;
+    api<any>("/recommendations/account")
+      .then((x) => {
+        if (!cancelled) setRecSettings(x.privacy);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [data.user?.id]);
+  async function saveRecommendationSettings(next: typeof recSettings) {
+    if (!next) return;
+    setRecBusy(true);
+    try {
+      const saved = await api<any>("/recommendations/privacy", "POST", next);
+      setRecSettings(saved);
+      toast.success("Recommendation preferences saved");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRecBusy(false);
+    }
+  }
   return (
     <>
       <div className="page-eyebrow">YOUR READING ROOM</div>
@@ -905,21 +976,127 @@ export function ProfilePage() {
                   : "Create my reading profile"}
             </button>
           </form>
-          {!data.user?.username&&<form className="fore-form" onSubmit={async(event)=>{event.preventDefault();const form=new FormData(event.currentTarget);try{await api('/auth/username','POST',{username:form.get('username')});await reload();toast.success('Username saved');}catch(e){toast.error((e as Error).message);}}}><label>Choose your username<input name="username" required pattern="[a-zA-Z][a-zA-Z0-9_]{2,29}" minLength={3} maxLength={30} autoComplete="username" placeholder="Your unique reading name"/></label><button className="button outline">Save username</button></form>}
+          {!data.user?.username && (
+            <form
+              className="fore-form"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+                try {
+                  await api("/auth/username", "POST", { username: form.get("username") });
+                  await reload();
+                  toast.success("Username saved");
+                } catch (e) {
+                  toast.error((e as Error).message);
+                }
+              }}
+            >
+              <label>
+                Choose your username
+                <input
+                  name="username"
+                  required
+                  pattern="[a-zA-Z][a-zA-Z0-9_]{2,29}"
+                  minLength={3}
+                  maxLength={30}
+                  autoComplete="username"
+                  placeholder="Your unique reading name"
+                />
+              </label>
+              <button className="button outline">Save username</button>
+            </form>
+          )}
           <div className="profile-info">
             <Check size={18} />
             <p>
-              Your email is verified. Your books, notes, and definitions are saved to your Cove account.
+              Your email is verified. Your books, notes, and definitions are saved to your Cove
+              account.
             </p>
           </div>
           <section className="recommendation-privacy-panel">
-            <div><span className="small-label">PERSONALIZATION & PRIVACY</span><h3>Recommendation controls</h3><p className="muted">Cove can use your reading, ratings, wishlist, follows, and recommendation interactions to personalize discovery. Turning this off does not affect your library or reading history.</p></div>
-            {recSettings ? <div className="recommendation-privacy-controls">
-              <label><input type="checkbox" checked={recSettings.personalizationEnabled} onChange={(e)=>setRecSettings({...recSettings,personalizationEnabled:e.target.checked})}/> Personalized recommendations</label>
-              <label><input type="checkbox" checked={recSettings.activityPersonalizationEnabled} onChange={(e)=>setRecSettings({...recSettings,activityPersonalizationEnabled:e.target.checked})}/> Learn from my reading activity</label>
-              <label><input type="checkbox" checked={recSettings.personalizedSearchEnabled} onChange={(e)=>setRecSettings({...recSettings,personalizedSearchEnabled:e.target.checked})}/> Personalize search ranking</label>
-              <div className="recommendation-privacy-actions"><button className="button outline" disabled={recBusy} onClick={()=>saveRecommendationSettings(recSettings)}>{recBusy?"Saving…":"Save recommendation settings"}</button><button className="text-link" disabled={recBusy} onClick={async()=>{if(!confirm("Reset Cove's learned recommendation profile? Your library, ratings, wishlist, and author follows will remain."))return;setRecBusy(true);try{await api("/recommendations/reset","POST",{scope:"learned"});toast.success("Learned recommendation profile reset");}catch(e){toast.error((e as Error).message);}finally{setRecBusy(false);}}}>Reset learned profile</button></div>
-            </div> : <p className="muted">Loading recommendation preferences…</p>}
+            <div>
+              <span className="small-label">PERSONALIZATION & PRIVACY</span>
+              <h3>Recommendation controls</h3>
+              <p className="muted">
+                Cove can use your reading, ratings, wishlist, follows, and recommendation
+                interactions to personalize discovery. Turning this off does not affect your library
+                or reading history.
+              </p>
+            </div>
+            {recSettings ? (
+              <div className="recommendation-privacy-controls">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={recSettings.personalizationEnabled}
+                    onChange={(e) =>
+                      setRecSettings({ ...recSettings, personalizationEnabled: e.target.checked })
+                    }
+                  />{" "}
+                  Personalized recommendations
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={recSettings.activityPersonalizationEnabled}
+                    onChange={(e) =>
+                      setRecSettings({
+                        ...recSettings,
+                        activityPersonalizationEnabled: e.target.checked,
+                      })
+                    }
+                  />{" "}
+                  Learn from my reading activity
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={recSettings.personalizedSearchEnabled}
+                    onChange={(e) =>
+                      setRecSettings({
+                        ...recSettings,
+                        personalizedSearchEnabled: e.target.checked,
+                      })
+                    }
+                  />{" "}
+                  Personalize search ranking
+                </label>
+                <div className="recommendation-privacy-actions">
+                  <button
+                    className="button outline"
+                    disabled={recBusy}
+                    onClick={() => saveRecommendationSettings(recSettings)}
+                  >
+                    {recBusy ? "Saving…" : "Save recommendation settings"}
+                  </button>
+                  <button
+                    className="text-link"
+                    disabled={recBusy}
+                    onClick={async () => {
+                      if (
+                        !confirm(
+                          "Reset Cove's learned recommendation profile? Your library, ratings, wishlist, and author follows will remain.",
+                        )
+                      )
+                        return;
+                      setRecBusy(true);
+                      try {
+                        await api("/recommendations/reset", "POST", { scope: "learned" });
+                        toast.success("Learned recommendation profile reset");
+                      } catch (e) {
+                        toast.error((e as Error).message);
+                      } finally {
+                        setRecBusy(false);
+                      }
+                    }}
+                  >
+                    Reset learned profile
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="muted">Loading recommendation preferences…</p>
+            )}
           </section>
           <AccountManagementPanel />
           <button
@@ -934,7 +1111,13 @@ export function ProfilePage() {
             <Download size={16} />
             Export my reading data
           </button>
-          <button className="text-link signout" onClick={async()=>{await api("/auth/logout","POST",{});location.assign("/");}}>
+          <button
+            className="text-link signout"
+            onClick={async () => {
+              await api("/auth/logout", "POST", {});
+              location.assign("/");
+            }}
+          >
             <LogOut size={16} />
             Log out
           </button>

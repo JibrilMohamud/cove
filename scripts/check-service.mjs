@@ -54,11 +54,19 @@ assert.equal(canonicalBook.data.editionId, "ed_gutenberg_1342");
 assert.equal(canonicalBook.data.workId, "wrk_gutenberg_1342");
 assert.equal(canonicalBook.data.offer.amountMinor, 0);
 assert.equal(
-  (await env.DB.prepare("SELECT entitlement_type FROM entitlements WHERE user_id=? AND product_id=? AND status='active'").bind("test-reader-a", "prd_gutenberg_1342").first()).entitlement_type,
+  (
+    await env.DB.prepare(
+      "SELECT entitlement_type FROM entitlements WHERE user_id=? AND product_id=? AND status='active'",
+    )
+      .bind("test-reader-a", "prd_gutenberg_1342")
+      .first()
+  ).entitlement_type,
   "public-domain",
 );
 assert.equal(
-  await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='library'").first(),
+  await env.DB.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='library'",
+  ).first(),
   null,
 );
 const added = await req("/annotations", "POST", {
@@ -99,8 +107,13 @@ assert.equal(a.annotations.length, 1);
 assert.equal(a.definitions.length, 1);
 assert.equal((await req("/account", "GET", undefined, "test-reader-b")).data.annotations.length, 0);
 assert.equal(
-  (await req("/annotations/" + added.data.id, "PATCH", { note: "Revised note", color: "blue", expectedVersion: added.data.version }))
-    .status,
+  (
+    await req("/annotations/" + added.data.id, "PATCH", {
+      note: "Revised note",
+      color: "blue",
+      expectedVersion: added.data.version,
+    })
+  ).status,
   200,
 );
 assert.equal((await req("/account")).data.annotations[0].note, "Revised note");
@@ -130,16 +143,24 @@ assert.equal(
   ).status,
   200,
 );
-const currentAnnotation=(await req("/account")).data.annotations[0];
+const currentAnnotation = (await req("/account")).data.annotations[0];
 assert.equal(
-  (await req("/annotations/" + added.data.id, "DELETE", { expectedVersion:currentAnnotation.version })).status,
+  (
+    await req("/annotations/" + added.data.id, "DELETE", {
+      expectedVersion: currentAnnotation.version,
+    })
+  ).status,
   200,
 );
 assert.equal((await req("/account")).data.annotations.length, 0);
 assert.equal((await req("/library/1342", "DELETE", {})).status, 200);
 assert.equal((await req("/account")).data.library.length, 0);
 assert.equal(
-  (await env.DB.prepare("SELECT status FROM entitlements WHERE user_id=? AND product_id=?").bind("test-reader-a", "prd_gutenberg_1342").first()).status,
+  (
+    await env.DB.prepare("SELECT status FROM entitlements WHERE user_id=? AND product_id=?")
+      .bind("test-reader-a", "prd_gutenberg_1342")
+      .first()
+  ).status,
   "active",
 );
 assert.equal((await req("/library", "POST", { bookId: "1342" })).status, 200);

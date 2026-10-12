@@ -18,7 +18,11 @@ export const json = (data: unknown, status = 200) =>
       "X-Content-Type-Options": "nosniff",
     },
   });
-export const bookIdSchema = z.string().regex(/^(?:[1-9][0-9]{0,8}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,100}|(?:upload|fore)_[a-f0-9-]{36}|prd_[a-f0-9]{32})$/);
+export const bookIdSchema = z
+  .string()
+  .regex(
+    /^(?:[1-9][0-9]{0,8}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,100}|(?:upload|fore)_[a-f0-9-]{36}|prd_[a-f0-9]{32})$/,
+  );
 export async function readBody(request: Request, max = 100_000) {
   if (Number(request.headers.get("content-length") || 0) > max)
     throw new ApiError(413, "This request is too large.");
@@ -65,4 +69,3 @@ export function requireIdentity(userId?: string | null) {
   if (!userId) throw new ApiError(401, "Sign in to save your reading life.");
   return userId;
 }
-

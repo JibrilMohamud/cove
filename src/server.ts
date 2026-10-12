@@ -51,13 +51,22 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
-      const runtimeEnv = (env && typeof env === "object")
-        ? env
-        : (typeof process !== "undefined" ? process.env : {});
-      const foreEnv=runtimeEnv as {
-        DB?:any;BUCKET?:any;FORE_PUBLIC_URL?:string;FORE_ENVIRONMENT?:string;
-        FORE_CSP_REPORT_URI?:string;FORE_SECURITY_CONTACT_EMAIL?:string;FORE_SECURITY_POLICY_URL?:string;
-        FORE_BACKEND_URL?:string;FORE_BACKEND_TOKEN?:string;COVE_AUDIO_PIPELINE_URL?:string;CRON_SECRET?:string;FORE_INGESTION_TRIGGER_TOKEN?:string;FORE_INGESTION_VERIFY_JWK?:string;
+      const runtimeEnv =
+        env && typeof env === "object" ? env : typeof process !== "undefined" ? process.env : {};
+      const foreEnv = runtimeEnv as {
+        DB?: any;
+        BUCKET?: any;
+        FORE_PUBLIC_URL?: string;
+        FORE_ENVIRONMENT?: string;
+        FORE_CSP_REPORT_URI?: string;
+        FORE_SECURITY_CONTACT_EMAIL?: string;
+        FORE_SECURITY_POLICY_URL?: string;
+        FORE_BACKEND_URL?: string;
+        FORE_BACKEND_TOKEN?: string;
+        COVE_AUDIO_PIPELINE_URL?: string;
+        CRON_SECRET?: string;
+        FORE_INGESTION_TRIGGER_TOKEN?: string;
+        FORE_INGESTION_VERIFY_JWK?: string;
       };
       const ingestionControl = await handleVercelIngestionControl(request, foreEnv);
       if (ingestionControl) return applySecurityHeaders(request, ingestionControl, foreEnv);
@@ -66,26 +75,48 @@ export default {
       const apiResponse = await handleCoveApi(request, foreEnv as any);
       if (apiResponse) {
         if (foreEnv.DB && new URL(request.url).pathname === "/api/fore/catalog") {
-          const waitUntil = (ctx as { waitUntil?: (promise: Promise<unknown>) => void } | undefined)?.waitUntil;
-          const ingestion = kickCatalogIngestion(foreEnv as any).catch((error) => console.warn("Catalog ingestion kick failed", error));
+          const waitUntil = (ctx as { waitUntil?: (promise: Promise<unknown>) => void } | undefined)
+            ?.waitUntil;
+          const ingestion = kickCatalogIngestion(foreEnv as any).catch((error) =>
+            console.warn("Catalog ingestion kick failed", error),
+          );
           if (waitUntil) waitUntil(ingestion);
         }
         return applySecurityHeaders(request, apiResponse, foreEnv);
       }
-      const securityDocument=securityTxt(request,foreEnv); if(securityDocument)return applySecurityHeaders(request,securityDocument,foreEnv);
-      if(foreEnv.DB){const seo=await handleSeoDocumentRequest(request,foreEnv.DB,foreEnv.FORE_PUBLIC_URL);if(seo)return applySecurityHeaders(request,seo,foreEnv);}
-      const publicOrigin=foreEnv.FORE_PUBLIC_URL?new URL(foreEnv.FORE_PUBLIC_URL).origin:new URL(request.url).origin;
-      const forwardedHeaders=new Headers(request.headers);forwardedHeaders.set("x-fore-public-origin",publicOrigin);
-      const routedRequest=new Request(request,{headers:forwardedHeaders});
+      const securityDocument = securityTxt(request, foreEnv);
+      if (securityDocument) return applySecurityHeaders(request, securityDocument, foreEnv);
+      if (foreEnv.DB) {
+        const seo = await handleSeoDocumentRequest(request, foreEnv.DB, foreEnv.FORE_PUBLIC_URL);
+        if (seo) return applySecurityHeaders(request, seo, foreEnv);
+      }
+      const publicOrigin = foreEnv.FORE_PUBLIC_URL
+        ? new URL(foreEnv.FORE_PUBLIC_URL).origin
+        : new URL(request.url).origin;
+      const forwardedHeaders = new Headers(request.headers);
+      forwardedHeaders.set("x-fore-public-origin", publicOrigin);
+      const routedRequest = new Request(request, { headers: forwardedHeaders });
       const handler = await getServerEntry();
       const response = await handler.fetch(routedRequest, runtimeEnv, ctx);
-      return applySecurityHeaders(request,await normalizeCatastrophicSsrResponse(response),foreEnv);
+      return applySecurityHeaders(
+        request,
+        await normalizeCatastrophicSsrResponse(response),
+        foreEnv,
+      );
     } catch (error) {
       console.error(error);
-      return applySecurityHeaders(request,new Response(renderErrorPage(), {
-        status: 500,
-        headers: { "content-type": "text/html; charset=utf-8" },
-      }),((env && typeof env === "object") ? env : (typeof process !== "undefined" ? process.env : {})) as any);
+      return applySecurityHeaders(
+        request,
+        new Response(renderErrorPage(), {
+          status: 500,
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+        (env && typeof env === "object"
+          ? env
+          : typeof process !== "undefined"
+            ? process.env
+            : {}) as any,
+      );
     }
   },
 };

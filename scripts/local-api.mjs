@@ -70,9 +70,19 @@ export function localBindings(root) {
       async get(key, options) {
         const p = objectPath(key);
         if (!fs.existsSync(p)) return null;
-        const size=fs.statSync(p).size;
+        const size = fs.statSync(p).size;
         return {
-          body:Readable.toWeb(fs.createReadStream(p,options?.range?{start:options.range.offset,end:options.range.offset+options.range.length-1}:{})),
+          body: Readable.toWeb(
+            fs.createReadStream(
+              p,
+              options?.range
+                ? {
+                    start: options.range.offset,
+                    end: options.range.offset + options.range.length - 1,
+                  }
+                : {},
+            ),
+          ),
           size,
         };
       },
@@ -106,16 +116,16 @@ export function foreApiDevPlugin() {
     configureServer(server) {
       env = {
         ...localBindings(server.config.root),
-        FORE_AUTH_MODE: process.env.FORE_AUTH_MODE||"supabase",
-        SUPABASE_URL:process.env.SUPABASE_URL,
-        SUPABASE_PUBLISHABLE_KEY:process.env.SUPABASE_PUBLISHABLE_KEY,
-        FORE_GOOGLE_ENABLED:process.env.FORE_GOOGLE_ENABLED,
-        FORE_PUBLIC_URL:process.env.FORE_PUBLIC_URL,
-        FORE_STAFF_BOOTSTRAP_TOKEN:process.env.FORE_STAFF_BOOTSTRAP_TOKEN,
-        FORE_ALERT_WEBHOOK_URL:process.env.FORE_ALERT_WEBHOOK_URL,
-        FORE_ALERT_WEBHOOK_TOKEN:process.env.FORE_ALERT_WEBHOOK_TOKEN,
-        FORE_ERROR_REPORTING_URL:process.env.FORE_ERROR_REPORTING_URL,
-        FORE_ERROR_REPORTING_TOKEN:process.env.FORE_ERROR_REPORTING_TOKEN,
+        FORE_AUTH_MODE: process.env.FORE_AUTH_MODE || "supabase",
+        SUPABASE_URL: process.env.SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY,
+        FORE_GOOGLE_ENABLED: process.env.FORE_GOOGLE_ENABLED,
+        FORE_PUBLIC_URL: process.env.FORE_PUBLIC_URL,
+        FORE_STAFF_BOOTSTRAP_TOKEN: process.env.FORE_STAFF_BOOTSTRAP_TOKEN,
+        FORE_ALERT_WEBHOOK_URL: process.env.FORE_ALERT_WEBHOOK_URL,
+        FORE_ALERT_WEBHOOK_TOKEN: process.env.FORE_ALERT_WEBHOOK_TOKEN,
+        FORE_ERROR_REPORTING_URL: process.env.FORE_ERROR_REPORTING_URL,
+        FORE_ERROR_REPORTING_TOKEN: process.env.FORE_ERROR_REPORTING_TOKEN,
         GUTENBERG_MIRROR_BASE_URL: process.env.GUTENBERG_MIRROR_BASE_URL,
         GUTENDEX_BASE_URL: process.env.GUTENDEX_BASE_URL,
         FORE_SEARCH_BACKEND: process.env.FORE_SEARCH_BACKEND,
@@ -131,7 +141,12 @@ export function foreApiDevPlugin() {
       server.middlewares.use(async (req, res, next) => {
         if (!req.url?.startsWith("/api/fore/")) return next();
         try {
-          const request=new Request(`http://${req.headers.host}${req.url}`,{method:req.method,headers:req.headers,body:["GET","HEAD"].includes(req.method)?undefined:Readable.toWeb(req),duplex:"half"});
+          const request = new Request(`http://${req.headers.host}${req.url}`, {
+            method: req.method,
+            headers: req.headers,
+            body: ["GET", "HEAD"].includes(req.method) ? undefined : Readable.toWeb(req),
+            duplex: "half",
+          });
           const { handleCoveApi } = await server.ssrLoadModule("/src/features/fore/api.server.ts");
           const response = await handleCoveApi(request, env);
           res.statusCode = response.status;

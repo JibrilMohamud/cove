@@ -152,11 +152,21 @@ export function insertEdition(env: CoveEnv, e: AudioEdition, seed = false) {
     now(),
   );
 }
-async function hydrateEdition(env:CoveEnv,e:AudioEdition){
-  const rows=await env.DB.prepare('SELECT * FROM audio_timing WHERE edition_id=? AND epub_sha256=?').bind(e.id,e.epubSha256||'').all<any>();
-  const maps=rows.results.filter(r=>e.tracks.some(t=>t.id===r.track_id&&t.sha256===r.audio_sha256)).map(r=>JSON.parse(r.summary_json));
-  maps.sort((a,b)=>e.tracks.findIndex(t=>t.id===a.trackId)-e.tracks.findIndex(t=>t.id===b.trackId));
-  if(maps.length)e.alignment={version:2,precision:'word',verified:true,cues:[],maps};return e;
+async function hydrateEdition(env: CoveEnv, e: AudioEdition) {
+  const rows = await env.DB.prepare(
+    "SELECT * FROM audio_timing WHERE edition_id=? AND epub_sha256=?",
+  )
+    .bind(e.id, e.epubSha256 || "")
+    .all<any>();
+  const maps = rows.results
+    .filter((r) => e.tracks.some((t) => t.id === r.track_id && t.sha256 === r.audio_sha256))
+    .map((r) => JSON.parse(r.summary_json));
+  maps.sort(
+    (a, b) =>
+      e.tracks.findIndex((t) => t.id === a.trackId) - e.tracks.findIndex((t) => t.id === b.trackId),
+  );
+  if (maps.length) e.alignment = { version: 2, precision: "word", verified: true, cues: [], maps };
+  return e;
 }
 async function seedAudio(env: CoveEnv) {
   const missing = await env.DB.prepare("SELECT id FROM audio_editions LIMIT 1").first();
@@ -167,8 +177,9 @@ export async function getEdition(env: CoveEnv, id: string) {
   idSchema.parse(id);
   await seedAudio(env);
   const row = await env.DB.prepare("SELECT * FROM audio_editions WHERE id=?").bind(id).first<any>();
-  if (!row || row.rights!=="Public domain in the USA.") throw new ApiError(404,"This audiobook is unavailable.");
-  return hydrateEdition(env,rowEdition(row));
+  if (!row || row.rights !== "Public domain in the USA.")
+    throw new ApiError(404, "This audiobook is unavailable.");
+  return hydrateEdition(env, rowEdition(row));
 }
 export function objectKey(e: AudioEdition, t: AudioTrack) {
   return `audio/${e.id}/${t.id}-${t.sha256 || encodeURIComponent(t.url)}`;
@@ -195,7 +206,7 @@ export function parseRange(
 async function cacheTrack(env: CoveEnv, e: AudioEdition, t: AudioTrack) {
   if (!env.BUCKET) throw new ApiError(503, "Audio storage is unavailable.");
   const key = objectKey(e, t);
-  let meta = await env.BUCKET.head?.(key);
+  const meta = await env.BUCKET.head?.(key);
   if (meta) return { key, size: meta.size };
   // Fetch original media through a listed Gutenberg mirror, then serve from R2.
   const upstream = mirrorUrl(t.url, env.GUTENBERG_MIRROR_BASE_URL);
@@ -258,7 +269,7 @@ export async function handleAudio(
   // audiobook is normalized as a commercial product with its own format-specific grant, never
   // infer rights from the linked ebook or expose media outside that territory.
   if (storefrontTerritory !== "US" && path.startsWith("/audio/") && !path.startsWith("/audio/ca_"))
-    throw new ApiError(404,"This audiobook is not available in your storefront.");
+    throw new ApiError(404, "This audiobook is not available in your storefront.");
   if (path === "/audiobooks" && method === "GET") {
     await seedAudio(env);
     const q = (url.searchParams.get("search") || "").trim().slice(0, 160),
@@ -283,11 +294,16 @@ export async function handleAudio(
       args.push(kind);
     }
     if (url.searchParams.get("bookId")) {
-      const requestedBookId=String(url.searchParams.get("bookId"));
-      const product=await db.prepare(`SELECT source_external_id FROM products WHERE public_id=? OR id=?
-        UNION SELECT p.source_external_id FROM catalog_public_aliases a JOIN products p ON p.id=a.entity_id WHERE a.entity_type='product' AND a.alias=? LIMIT 1`).bind(requestedBookId,requestedBookId,requestedBookId).first<any>();
+      const requestedBookId = String(url.searchParams.get("bookId"));
+      const product = await db
+        .prepare(
+          `SELECT source_external_id FROM products WHERE public_id=? OR id=?
+        UNION SELECT p.source_external_id FROM catalog_public_aliases a JOIN products p ON p.id=a.entity_id WHERE a.entity_type='product' AND a.alias=? LIMIT 1`,
+        )
+        .bind(requestedBookId, requestedBookId, requestedBookId)
+        .first<any>();
       where.push("book_id=?");
-      args.push(String(product?.source_external_id||requestedBookId));
+      args.push(String(product?.source_external_id || requestedBookId));
     }
     const clause = where.join(" AND ");
     const [rows, total] = await Promise.all([
@@ -306,15 +322,21 @@ export async function handleAudio(
         .bind(...args)
         .first<any>(),
     ]);
-    const legacyResults = storefrontTerritory === "US"
-      ? await Promise.all(rows.results.map(row=>hydrateEdition(env,rowEdition(row))))
-      : [];
-    const commercial = await listCommercialAudiobooks(db,userId,storefrontTerritory,{
-      search:q,page,sort,bookId:url.searchParams.get("bookId")||undefined,narration:kind==='human'?'human':kind==='computer'?'computer':undefined,
+    const legacyResults =
+      storefrontTerritory === "US"
+        ? await Promise.all(rows.results.map((row) => hydrateEdition(env, rowEdition(row))))
+        : [];
+    const commercial = await listCommercialAudiobooks(db, userId, storefrontTerritory, {
+      search: q,
+      page,
+      sort,
+      bookId: url.searchParams.get("bookId") || undefined,
+      narration: kind === "human" ? "human" : kind === "computer" ? "computer" : undefined,
     });
-    const combined = [...commercial.results, ...legacyResults].slice(0,24);
-    const count = Number(commercial.count||0) + (storefrontTerritory === "US" ? Number(total.count||0) : 0);
-    return json({results:combined,count,page,pages:Math.max(1,Math.ceil(count/24))});
+    const combined = [...commercial.results, ...legacyResults].slice(0, 24);
+    const count =
+      Number(commercial.count || 0) + (storefrontTerritory === "US" ? Number(total.count || 0) : 0);
+    return json({ results: combined, count, page, pages: Math.max(1, Math.ceil(count / 24)) });
   }
   const match = path.match(/^\/audio\/([^/]+)(?:\/(tracks|playback|prepare)(?:\/([^/]+))?)?$/);
   if (!match) return null;
@@ -456,7 +478,23 @@ export async function handleAudio(
           409,
           "Your listening position changed on another device. Reload to choose the latest position.",
         );
-      try{const product=await resolveProduct(db,String(e.bookId||e.gutenbergId),uid),idx=e.tracks.findIndex(t=>t.id===input.trackId),total=e.tracks.reduce((n,t)=>n+Number(t.duration||0),0),prior=idx>0?e.tracks.slice(0,idx).reduce((n,t)=>n+Number(t.duration||0),0):0;if(total>0)await recordReadingProgress(db,uid,String(product.id),{source:"audiobook",progress:Math.max(0,Math.min(1,(prior+input.seconds)/total)),chapter:String(track.title||""),at:String(row.updated_at),dedupeKey:`gutenberg-audio-progress:${uid}:${e.id}:${row.version}`});}catch(err){console.error("Reading Journey audio progress snapshot failed",err);}
+      try {
+        const product = await resolveProduct(db, String(e.bookId || e.gutenbergId), uid),
+          idx = e.tracks.findIndex((t) => t.id === input.trackId),
+          total = e.tracks.reduce((n, t) => n + Number(t.duration || 0), 0),
+          prior =
+            idx > 0 ? e.tracks.slice(0, idx).reduce((n, t) => n + Number(t.duration || 0), 0) : 0;
+        if (total > 0)
+          await recordReadingProgress(db, uid, String(product.id), {
+            source: "audiobook",
+            progress: Math.max(0, Math.min(1, (prior + input.seconds) / total)),
+            chapter: String(track.title || ""),
+            at: String(row.updated_at),
+            dedupeKey: `gutenberg-audio-progress:${uid}:${e.id}:${row.version}`,
+          });
+      } catch (err) {
+        console.error("Reading Journey audio progress snapshot failed", err);
+      }
       return json({ version: row.version, updatedAt: row.updated_at });
     }
   }

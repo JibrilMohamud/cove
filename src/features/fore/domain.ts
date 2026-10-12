@@ -28,7 +28,16 @@ export type Review = {
   mine: boolean;
   createdAt: string;
   updatedAt: string;
-  provenance?: { type: "verified_purchase" | "subscription_reader" | "free_promotional_copy" | "gifted" | "sideloaded_unverified" | "publisher_author_copy"; verified: boolean };
+  provenance?: {
+    type:
+      | "verified_purchase"
+      | "subscription_reader"
+      | "free_promotional_copy"
+      | "gifted"
+      | "sideloaded_unverified"
+      | "publisher_author_copy";
+    verified: boolean;
+  };
 };
 export type Shelf = {
   id: string;
@@ -93,8 +102,19 @@ export type AudioEdition = {
   previewAvailable?: boolean;
   offer?: { currency: string; amountMinor: number; type: string } | null;
   hasAccess?: boolean;
-  narrators?: Array<{ id?: string; display_name?: string; displayName?: string; narration_type?: string; narrationType?: string }>;
-  biosync?: { linkId: string; ebookProductId: string; coverageBps: number; timingSha256: string } | null;
+  narrators?: Array<{
+    id?: string;
+    display_name?: string;
+    displayName?: string;
+    narration_type?: string;
+    narrationType?: string;
+  }>;
+  biosync?: {
+    linkId: string;
+    ebookProductId: string;
+    coverageBps: number;
+    timingSha256: string;
+  } | null;
 };
 export type Playback = {
   trackId: string;

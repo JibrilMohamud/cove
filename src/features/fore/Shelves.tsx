@@ -76,7 +76,12 @@ export function ShelfEditor({
               const r = await api(
                 "/shelves" + (shelf?.id ? "/" + shelf.id : ""),
                 shelf?.id ? "PATCH" : "POST",
-                { name, description, visibility, ...(shelf?.id ? {expectedVersion:shelf.version} : {}) },
+                {
+                  name,
+                  description,
+                  visibility,
+                  ...(shelf?.id ? { expectedVersion: shelf.version } : {}),
+                },
               );
               onSaved(r.id);
               onClose();
@@ -179,7 +184,10 @@ export function ShelfPage({ id }: { id: string }) {
     [ids[index], ids[index + delta]] = [ids[index + delta], ids[index]];
     setBusy(true);
     try {
-      await api("/shelves/" + id + "/order", "PUT", { bookIds: ids, expectedVersion:result.data.shelf.version });
+      await api("/shelves/" + id + "/order", "PUT", {
+        bookIds: ids,
+        expectedVersion: result.data.shelf.version,
+      });
       await result.refetch();
     } catch (e) {
       toast.error((e as Error).message);
@@ -266,7 +274,10 @@ export function ShelfPage({ id }: { id: string }) {
             onClick={async () => {
               setBusy(true);
               try {
-                await api("/shelves/" + id + "/books", "PUT", { bookId: choose, expectedVersion:shelf.version });
+                await api("/shelves/" + id + "/books", "PUT", {
+                  bookId: choose,
+                  expectedVersion: shelf.version,
+                });
                 setChoose("");
                 await result.refetch();
               } catch (e) {
@@ -322,7 +333,9 @@ export function ShelfPage({ id }: { id: string }) {
                   onClick={async () => {
                     setBusy(true);
                     try {
-                      await api("/shelves/" + id + "/books/" + row.bookId, "DELETE", {expectedVersion:shelf.version});
+                      await api("/shelves/" + id + "/books/" + row.bookId, "DELETE", {
+                        expectedVersion: shelf.version,
+                      });
                       await result.refetch();
                     } catch (e) {
                       toast.error((e as Error).message);
@@ -355,7 +368,7 @@ export function ShelfPage({ id }: { id: string }) {
             <AlertDialogAction
               onClick={async () => {
                 try {
-                  await api("/shelves/" + id, "DELETE", {expectedVersion:shelf.version});
+                  await api("/shelves/" + id, "DELETE", { expectedVersion: shelf.version });
                   location.assign("/shelves");
                 } catch (e) {
                   toast.error((e as Error).message);
