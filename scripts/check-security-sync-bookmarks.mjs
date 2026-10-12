@@ -104,7 +104,11 @@ for (const token of [
   "capabilities_json",
 ])
   assert.ok(sync.includes(token), `sync missing ${token}`);
-assert.match(sync, /entityType:\\s*"text_bookmark"/, "text bookmark sync projection must exist");
+assert.match(
+  sync,
+  /entityType:\s*"text_bookmark"/,
+  "text bookmark sync projection must exist",
+);
 assert.ok(
   sync.includes(
     "SELECT id,name,platform,app_version,capabilities_json,status,last_seen_at,created_at,revoked_at FROM sync_clients",
@@ -115,7 +119,7 @@ assert.doesNotMatch(sync, /last[-_ ]write[-_ ]wins/i);
 const account = read("src/features/fore/account-management.server.ts");
 assert.doesNotMatch(
   account,
-  /entityType:\\s*"device_state"/,
+  /entityType:\s*"device_state"/,
   "account/offline-license devices must not impersonate sync clients",
 );
 const headers = read("src/lib/security-headers.ts");
@@ -135,7 +139,11 @@ for (const token of [
   "updateSecurityFinding",
 ])
   assert.ok(sec.includes(token), `security runtime missing ${token}`);
-assert.match(sec, /180\\s*\\*\\s*86400000/, "security retention policy must retain its 180-day bound");
+assert.match(
+  sec,
+  /180\s*\*\s*86400000/,
+  "security retention policy must retain its 180-day bound",
+);
 const workflow = read(".github/workflows/security.yml");
 for (const token of [
   "npm audit",
@@ -166,7 +174,7 @@ assert.match(ops, /security_build_provenance/);
 assert.match(ops, /security_sboms/);
 const retail = read("src/features/fore/retail.server.ts");
 assert.ok(
-  retail.includes("move_to_cart") && /entityType:\\s*"wishlist"/.test(retail),
+  retail.includes("move_to_cart") && /entityType:\s*"wishlist"/.test(retail),
   "move-to-cart must emit a wishlist tombstone for other devices",
 );
 const community = read("src/features/fore/community.server.ts");
