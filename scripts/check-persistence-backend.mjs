@@ -78,8 +78,8 @@ assert.match(worker, /"cache-control", "no-store"/);
 assert.match(worker, /runCatalogIngestion/);
 assert.match(worker, /__cove\/ingestion\/catalog/);
 
-assert.match(pipeline, /z\.enum\(\['discover','track','align'\]\)/);
-assert.match(pipeline, /10\*60000/);
+assert.match(pipeline, /z\.enum\(\[\s*["']discover["'],\s*["']track["'],\s*["']align["']\s*\]\)/);
+assert.match(pipeline, /10\s*\*\s*60000/);
 assert.match(pipeline, /alignmentQueued/);
 assert.match(pipeline, /align-\$\{e\.id\}-\$\{t\.id\}/);
 
