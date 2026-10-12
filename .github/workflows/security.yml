@@ -21,7 +21,7 @@ jobs:
         run: npm audit --audit-level=high
       - name: Secret scan
         run: npm run security:secret-scan
-      - name: Static analysis
+      - name: Static analysis (strict formatting plus legacy-error non-regression)
         run: npm run lint
       - name: Typecheck debt report
         continue-on-error: true
