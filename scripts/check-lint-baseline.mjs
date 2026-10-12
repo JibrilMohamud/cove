@@ -63,9 +63,12 @@ console.log(
   `ESLint: ${currentErrors} known errors, ${currentWarnings} warnings; ${regressions.length} new or increased error groups.`,
 );
 if (regressions.length) {
-  for (const issue of regressions.slice(0, 80)) console.error("NEW LINT ERROR:", JSON.stringify(issue));
+  for (const issue of regressions.slice(0, 80))
+    console.error("NEW LINT ERROR:", JSON.stringify(issue));
   if (regressions.length > 80) console.error(`And ${regressions.length - 80} further groups.`);
   process.exitCode = 1;
 } else {
-  console.log("PASS: no unbaselined lint errors. Prettier and restricted imports remain strictly enforced.");
+  console.log(
+    "PASS: no unbaselined lint errors. Prettier and restricted imports remain strictly enforced.",
+  );
 }
