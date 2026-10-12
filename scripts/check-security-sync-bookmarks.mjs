@@ -104,11 +104,7 @@ for (const token of [
   "capabilities_json",
 ])
   assert.ok(sync.includes(token), `sync missing ${token}`);
-assert.match(
-  sync,
-  /entityType:\s*"text_bookmark"/,
-  "text bookmark sync projection must exist",
-);
+assert.match(sync, /entityType:\s*"text_bookmark"/, "text bookmark sync projection must exist");
 assert.ok(
   sync.includes(
     "SELECT id,name,platform,app_version,capabilities_json,status,last_seen_at,created_at,revoked_at FROM sync_clients",
@@ -139,11 +135,7 @@ for (const token of [
   "updateSecurityFinding",
 ])
   assert.ok(sec.includes(token), `security runtime missing ${token}`);
-assert.match(
-  sec,
-  /180\s*\*\s*86400000/,
-  "security retention policy must retain its 180-day bound",
-);
+assert.match(sec, /180\s*\*\s*86400000/, "security retention policy must retain its 180-day bound");
 const workflow = read(".github/workflows/security.yml");
 for (const token of [
   "npm audit",
