@@ -529,7 +529,7 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
     return () => {
       canceled = true;
     };
-  }, [e.id, data.user?.id, loading]);
+  }, [e, data.user, loading]);
   useEffect(() => {
     if (!ready) return;
     let canceled = false,
@@ -548,7 +548,7 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
       canceled = true;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [track.id, e.id, ready]);
+  }, [e, track, ready]);
   useEffect(() => {
     if (!ready) return;
     const a = createActivity(e.bookId || e.gutenbergId, data.user?.id || null, "listen");
