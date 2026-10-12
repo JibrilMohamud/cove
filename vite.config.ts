@@ -6,13 +6,20 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-import {foreApiDevPlugin} from "./scripts/local-api.mjs";
+import { foreApiDevPlugin } from "./scripts/local-api.mjs";
 
 const isVercelBuild = Boolean(process.env.VERCEL && process.env.VERCEL !== "0");
 
 export default defineConfig({
   plugins: [foreApiDevPlugin()],
-  vite: { server: {host: "0.0.0.0", port: 4173, strictPort: true, allowedHosts: ["terminal.local"]} },
+  vite: {
+    server: {
+      host: "0.0.0.0",
+      port: 4173,
+      strictPort: true,
+      allowedHosts: ["terminal.local"],
+    },
+  },
   nitro: isVercelBuild ? { preset: "vercel" } : true,
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
