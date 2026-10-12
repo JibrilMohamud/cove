@@ -81,16 +81,14 @@ self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = event.notification.data?.url || "/notifications";
   event.waitUntil(
-    self.clients
-      .matchAll({ type: "window", includeUncontrolled: true })
-      .then((clients) => {
-        for (const c of clients) {
-          if ("focus" in c) {
-            c.navigate?.(url);
-            return c.focus();
-          }
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const c of clients) {
+        if ("focus" in c) {
+          c.navigate?.(url);
+          return c.focus();
         }
-        return self.clients.openWindow(url);
-      }),
+      }
+      return self.clients.openWindow(url);
+    }),
   );
 });
