@@ -3,7 +3,7 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { handleSeoDocumentRequest } from "./features/fore/seo.server";
-import { handleCoveApi, kickCatalogIngestion } from "./features/fore/api.server";
+import { handleCoveApi } from "./features/fore/api.server";
 import { applySecurityHeaders, securityTxt } from "./lib/security-headers";
 import { handleVercelIngestionControl, proxyPersistenceApi } from "./lib/persistence-backend";
 
@@ -74,14 +74,6 @@ export default {
       if (persistenceResponse) return applySecurityHeaders(request, persistenceResponse, foreEnv);
       const apiResponse = await handleCoveApi(request, foreEnv as any);
       if (apiResponse) {
-        if (foreEnv.DB && new URL(request.url).pathname === "/api/fore/catalog") {
-          const waitUntil = (ctx as { waitUntil?: (promise: Promise<unknown>) => void } | undefined)
-            ?.waitUntil;
-          const ingestion = kickCatalogIngestion(foreEnv as any).catch((error) =>
-            console.warn("Catalog ingestion kick failed", error),
-          );
-          if (waitUntil) waitUntil(ingestion);
-        }
         return applySecurityHeaders(request, apiResponse, foreEnv);
       }
       const securityDocument = securityTxt(request, foreEnv);

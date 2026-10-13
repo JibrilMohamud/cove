@@ -1,12 +1,12 @@
 import {
   handleCoveApi,
-  kickCatalogIngestion,
   runCatalogIngestion,
   runPublishingReleaseMaintenance,
   runRecommendationMaintenance,
   type CoveEnv,
 } from "./features/fore/api.server";
 import { hostedBiosyncChunks } from "./features/fore/hosted-biosync-chunks.server";
+import { cachedPublicApi, prunePublicCache } from "./features/fore/public-api-cache.server";
 import { refreshPublicStatus } from "./features/fore/public-status.server";
 
 type BackendEnv = CoveEnv & {
@@ -128,91 +128,6 @@ function logicalRequest(request: Request, env: BackendEnv) {
   });
 }
 
-function cachePolicy(path: string) {
-  if (path === "/api/fore/service-status") return 30;
-  if (path === "/api/fore/catalog") return 90;
-  if (path === "/api/fore/taxonomy") return 900;
-  if (path === "/api/fore/storefront/page") return 300;
-  if (path === "/api/fore/search/suggest") return 60;
-  if (path === "/api/fore/audiobooks") return 300;
-  if (/^\/api\/fore\/audio\/[^/]+$/.test(path)) return 900;
-  if (/^\/api\/fore\/books\/[^/]+(?:\/detail)?$/.test(path)) return 300;
-  return 0;
-}
-
-function anonymousCacheable(request: Request) {
-  if (request.method !== "GET") return false;
-  if (request.headers.get("authorization")) return false;
-  if (request.headers.get("cookie")) return false;
-  if (request.headers.get("oai-authenticated-user-id")) return false;
-  if (request.headers.get("range")) return false;
-  return cachePolicy(new URL(request.url).pathname) > 0;
-}
-
-function cacheKey(request: Request) {
-  const url = new URL(request.url);
-  const country = (
-    request.headers.get("x-cove-client-country") ||
-    request.headers.get("cf-ipcountry") ||
-    "ZZ"
-  ).toUpperCase();
-  const language = (request.headers.get("accept-language") || "").split(",")[0].trim().slice(0, 24);
-  url.searchParams.set("__cove_country", country);
-  if (language) url.searchParams.set("__cove_language", language);
-  return new Request(url.toString(), { method: "GET" });
-}
-
-function edgeResponse(response: Response, state: "HIT" | "MISS") {
-  const headers = new Headers(response.headers);
-  headers.set("cache-control", "no-store");
-  headers.set("x-cove-backend-cache", state);
-  headers.set("x-cove-persistence", "d1-r2");
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
-}
-
-async function cachedApi(
-  request: Request,
-  cacheRequest: Request,
-  env: BackendEnv,
-  ctx: ExecutionContextLike,
-) {
-  const runtimeCache = (globalThis as CoveCacheGlobal).caches?.default;
-  const ttl = cachePolicy(new URL(request.url).pathname);
-  const canCache = runtimeCache && ttl > 0 && anonymousCacheable(request);
-  const key = canCache ? cacheKey(cacheRequest) : null;
-
-  if (runtimeCache && key) {
-    const hit = await runtimeCache.match(key);
-    if (hit) return edgeResponse(hit, "HIT");
-  }
-
-  const response = await handleCoveApi(request, env);
-  if (!response) return null;
-
-  if (runtimeCache && key && response.ok && !response.headers.has("set-cookie")) {
-    const storageHeaders = new Headers(response.headers);
-    storageHeaders.set("cache-control", `public, max-age=${ttl}`);
-    storageHeaders.set("x-cove-backend-cache", "STORED");
-    const storage = new Response(response.clone().body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: storageHeaders,
-    });
-    ctx.waitUntil?.(
-      runtimeCache.put(key, storage).catch((error) => {
-        console.warn("Cove edge cache write failed", error);
-      }),
-    );
-    return edgeResponse(response, "MISS");
-  }
-
-  return edgeResponse(response, "MISS");
-}
-
 function catalogInput(value: unknown): CatalogBatchInput {
   return value && typeof value === "object" ? (value as CatalogBatchInput) : {};
 }
@@ -249,7 +164,7 @@ async function catalogBatch(request: Request, env: BackendEnv) {
   const results: unknown[] = [];
 
   for (let i = 0; i < maxPages && Date.now() < deadline; i++) {
-    const result = await runCatalogIngestion(env, epubLimit);
+    const result = await runCatalogIngestion(env, epubLimit, { deadlineMs: deadline });
     results.push(result);
     if (terminalIngestionResult(result)) break;
   }
@@ -509,6 +424,9 @@ async function runScheduled(cron: string, env: BackendEnv) {
       // Customer health evidence must not wait for, or depend on, ingestion.
       await refreshPublicStatus(env).catch((error) =>
         console.warn("Public service status refresh failed", error),
+      );
+      await prunePublicCache(env).catch((error) =>
+        console.warn("Public cache cleanup failed", error),
       );
       // This is the reliable primary cron, so it must make forward progress
       // even if a secondary alignment trigger is delayed or never fires.
@@ -784,16 +702,8 @@ export default {
     }
 
     const logical = logicalRequest(request, env);
-    const response = await cachedApi(logical, request, env, ctx);
+    const response = await cachedPublicApi(logical, request, env, ctx, handleCoveApi);
     if (!response) return json({ error: "Not found." }, 404);
-
-    if (new URL(logical.url).pathname === "/api/fore/catalog") {
-      ctx.waitUntil?.(
-        kickCatalogIngestion(env).catch((error) => {
-          console.warn("Opportunistic catalog ingestion failed", error);
-        }),
-      );
-    }
 
     return response;
   },

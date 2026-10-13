@@ -29,7 +29,6 @@ export type SearchInput = {
   topic?: string;
   taxonomy: string[];
   categories: string[];
-  subjects: string[];
   languages: string[];
   formats: string[];
   publishers: string[];
@@ -123,7 +122,7 @@ type SearchDocument = {
 const SEARCH_SETTINGS_VERSION = 9;
 const DEFAULT_INDEX = "fore_books";
 const DAY = 86_400_000;
-let synonymCache: { expires: number; values: Map<string, string[]> } | null = null;
+const synonymCaches = new WeakMap<CatalogDB, { expires: number; values: Map<string, string[]> }>();
 
 function cleanText(value: string, max = 160) {
   return value
@@ -197,10 +196,9 @@ function numberParam(value: string | null, min: number, max: number) {
   return n;
 }
 function listParam(params: URLSearchParams, key: string, max = 10) {
-  const raw = [
-    ...params.getAll(key),
-    ...(params.get(key)?.includes(",") ? String(params.get(key)).split(",") : []),
-  ];
+  // Human-readable labels can contain commas; multi-select those with repeated keys.
+  const literal = ["publisher", "category", "series", "subject"].includes(key);
+  const raw = params.getAll(key).flatMap((value) => (literal ? [value] : value.split(",")));
   return uniq(raw, max);
 }
 function moneyParam(value: string | null) {
@@ -301,6 +299,7 @@ export function parseSearchInput(url: URL): SearchInput {
 
 async function synonyms(db: CatalogDB) {
   const now = Date.now();
+  const synonymCache = synonymCaches.get(db);
   if (synonymCache && synonymCache.expires > now) return synonymCache.values;
   const rows = await db
     .prepare("SELECT term,synonyms_json FROM search_synonyms WHERE enabled=1")
@@ -308,7 +307,7 @@ async function synonyms(db: CatalogDB) {
   const map = new Map<string, string[]>();
   for (const row of rows.results)
     map.set(normalizeQuery(row.term), uniq(parseJsonArray(row.synonyms_json), 12));
-  synonymCache = { expires: now + 5 * 60_000, values: map };
+  synonymCaches.set(db, { expires: now + 5 * 60_000, values: map });
   return map;
 }
 
@@ -593,6 +592,41 @@ async function d1Facets(
   input: SearchInput,
   expression: string,
 ): Promise<SearchFacets> {
+  // Facets are independent of pagination and personalization. Cache their
+  // public projection briefly while every result page still checks live rights.
+  const cacheId = [
+    ...new Uint8Array(
+      await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(JSON.stringify({ ...input, page: 1, limit: 1, expression })),
+      ),
+    ),
+  ]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  const cacheKey = `search-facets:v1:${cacheId}`;
+  try {
+    const cached = await db
+      .prepare("SELECT body FROM api_cache WHERE key=? AND expires_at>?")
+      .bind(cacheKey, Date.now())
+      .first<{ body: string }>();
+    if (cached) {
+      const value = JSON.parse(cached.body) as SearchFacets;
+      if (
+        [
+          value.categories,
+          value.languages,
+          value.formats,
+          value.publishers,
+          value.series,
+          value.availability,
+        ].every(Array.isArray)
+      )
+        return value;
+    }
+  } catch {
+    /* Cache availability never decides search availability. */
+  }
   // Disjunctive facets intentionally omit their own active filter so shoppers can switch/add
   // facet values without first clearing the current selection. Other filters remain applied.
   const categoryCandidate = d1FacetCandidate(input, expression, "categories");
@@ -653,7 +687,7 @@ async function d1Facets(
     rows
       .map((r) => ({ value: String(r.value), count: Number(r.count || 0) }))
       .filter((r) => r.value);
-  return {
+  const result: SearchFacets = {
     categories: values(categories.results),
     languages: values(languages.results),
     formats: values(formats.results),
@@ -669,6 +703,17 @@ async function d1Facets(
           }
         : null,
   };
+  try {
+    await db
+      .prepare(
+        "INSERT INTO api_cache(key,body,expires_at) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM api_cache WHERE key=?) OR (SELECT count(*) FROM api_cache WHERE key>='search-facets:v1:' AND key<'search-facets:v2:')<128 ON CONFLICT(key) DO UPDATE SET body=excluded.body,expires_at=excluded.expires_at",
+      )
+      .bind(cacheKey, JSON.stringify(result), Date.now() + 30_000, cacheKey)
+      .run();
+  } catch {
+    /* Cache writes are best effort. */
+  }
+  return result;
 }
 
 function levenshtein(a: string, b: string) {
@@ -745,7 +790,7 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
   let part = candidateParts(input, expression);
   const runIds = async () => {
     const clause = part.where.join(" AND ");
-    const sql = `${part.prefix} SELECT d.product_id,${part.rank} FROM ${part.from} WHERE ${clause} ORDER BY ${d1Sort(input, part.hasFts)} LIMIT ? OFFSET ?`;
+    const sql = `${part.prefix} SELECT d.product_id,${part.rank} FROM ${part.from} WHERE ${clause} ORDER BY ${d1Sort(input, part.hasFts)},d.product_id ASC LIMIT ? OFFSET ?`;
     const orderedBinds = part.hasFts
       ? [
           part.binds[0],
@@ -759,22 +804,22 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
       .bind(...orderedBinds)
       .all<any>();
   };
-  let rows = await runIds();
-  if (!rows.results.length && input.query && input.page === 1) {
+  const runCount = () =>
+    env.DB.prepare(
+      `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
+    )
+      .bind(...part.binds)
+      .first<{ count: number }>();
+  let [rows, count] = await Promise.all([runIds(), runCount()]);
+  if (!count?.count && input.query) {
     const correction = await typoCorrection(env.DB, input.query);
     if (correction) {
-      correctedQuery = correction;
       expression = await ftsExpression(env.DB, input, correction);
       part = candidateParts(input, expression);
-      rows = await runIds();
+      [rows, count] = await Promise.all([runIds(), runCount()]);
+      if (count?.count) correctedQuery = correction;
     }
   }
-  const clause = part.where.join(" AND ");
-  const count = await env.DB.prepare(
-    `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${clause}`,
-  )
-    .bind(...part.binds)
-    .first<any>();
   const ids = rows.results.map((r: any) => String(r.product_id));
   const [books, facets] = await Promise.all([
     canonicalBooksByProductIds(env.DB, ids),
@@ -1242,6 +1287,7 @@ async function logQuery(
   const hasSearchIntent =
     !!input.query ||
     !!input.topic ||
+    input.taxonomy.length > 0 ||
     input.categories.length > 0 ||
     input.languages.length > 0 ||
     input.formats.length > 0 ||
@@ -1266,6 +1312,7 @@ async function logQuery(
   if (!hasSearchIntent) return null;
   const id = crypto.randomUUID();
   const filters = {
+    taxonomy: input.taxonomy,
     categories: input.categories,
     languages: input.languages,
     formats: input.formats,
@@ -1321,6 +1368,24 @@ export async function searchCatalog(
   input: SearchInput,
   userId: string | null,
 ): Promise<SearchResult> {
+  if (input.query && !queryTokens(input.query).length)
+    return {
+      books: [],
+      count: 0,
+      facets: {
+        categories: [],
+        languages: [],
+        formats: [],
+        publishers: [],
+        series: [],
+        availability: [],
+        price: null,
+      },
+      queryId: null,
+      backend: "d1-fts5",
+      processingTimeMs: 0,
+      limit: input.limit,
+    };
   const personalizeWindow =
     !!input.query &&
     input.sort === "relevance" &&
@@ -1343,7 +1408,10 @@ export async function searchCatalog(
       result = await searchD1(env, searchInputForBackend);
       await env.DB.prepare("UPDATE search_index_state SET last_error=? WHERE id=1")
         .bind(error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500))
-        .run();
+        .run()
+        .catch((failure: unknown) =>
+          console.warn("Search fallback diagnostics unavailable", failure),
+        );
     }
   } else result = await searchD1(env, searchInputForBackend);
   const backendName = backend === "meilisearch" ? "meilisearch" : "d1-fts5";
@@ -1362,6 +1430,9 @@ export async function searchCatalog(
     duration: result.duration,
     correctedQuery: "correctedQuery" in result ? result.correctedQuery : undefined,
     productIds: visibleBooks.map((book) => String(book.productId || "")).filter(Boolean),
+  }).catch((error: unknown) => {
+    console.warn("Search analytics unavailable", error);
+    return null;
   });
   return {
     books: visibleBooks,
@@ -1374,6 +1445,32 @@ export async function searchCatalog(
     limit: input.limit,
     personalizationApplied: personalized.applied,
   };
+}
+
+/** Cached public results still need a new impression identity per request. */
+export async function recordCachedSearchQuery(
+  env: SearchEnv,
+  url: URL,
+  data: {
+    results: Array<{ productId?: string }>;
+    count: number;
+    search: {
+      backend: string;
+      correctedQuery?: string | null;
+      queryId: string | null;
+      pageSize?: number;
+    };
+  },
+  territory: string,
+) {
+  const input = { ...parseSearchInput(url), territory };
+  return logQuery(env.DB, input, null, {
+    count: data.count,
+    backend: data.search.backend,
+    duration: 0,
+    correctedQuery: data.search.correctedQuery || undefined,
+    productIds: data.results.map((book) => book.productId || "").filter(Boolean),
+  });
 }
 
 async function searchDocuments(db: CatalogDB, productIds: string[]): Promise<SearchDocument[]> {
@@ -1466,10 +1563,17 @@ export async function syncSearchIndex(env: SearchEnv, limit = 100) {
   if (!meiliConfigured(env) || !env.FORE_SEARCH_ADMIN_KEY)
     return { backend: "d1-fts5", synced: 0, pending: 0 };
   const safeLimit = Math.max(1, Math.min(500, Math.floor(limit)));
+  const lease = crypto.randomUUID();
+  const claim = await env.DB.prepare(
+    "UPDATE search_index_state SET sync_lease_token=?,sync_lease_until=? WHERE id=1 AND (sync_lease_until IS NULL OR sync_lease_until<=?) RETURNING id",
+  )
+    .bind(lease, new Date(Date.now() + 10 * 60_000).toISOString(), new Date().toISOString())
+    .first();
+  if (!claim) return { backend: "meilisearch", synced: 0, skipped: "running" };
   try {
     await configureMeili(env);
     const pending = await env.DB.prepare(
-      "SELECT product_id,operation FROM search_index_outbox ORDER BY queued_at LIMIT ?",
+      "SELECT product_id,operation,change_token FROM search_index_outbox ORDER BY queued_at,product_id LIMIT ?",
     )
       .bind(safeLimit)
       .all<any>();
@@ -1495,24 +1599,26 @@ export async function syncSearchIndex(env: SearchEnv, limit = 100) {
       if (task?.taskUid !== undefined) await awaitMeiliTask(env, task.taskUid);
       accepted += docs.length;
     }
-    for (const id of [...deleteIds, ...missingOrPrivate]) {
+    const removals = [...new Set([...deleteIds, ...missingOrPrivate])];
+    if (removals.length) {
       const task = await meiliRequest(
         env,
-        `/indexes/${encodeURIComponent(searchIndex(env))}/documents/${encodeURIComponent(id)}`,
-        { method: "DELETE" },
+        `/indexes/${encodeURIComponent(searchIndex(env))}/documents/delete-batch`,
+        { method: "POST", body: JSON.stringify(removals) },
         true,
         true,
       );
       if (task?.taskUid !== undefined) await awaitMeiliTask(env, task.taskUid);
-      accepted++;
+      accepted += removals.length;
     }
     if (pending.results.length) {
-      const ids = pending.results.map((x: any) => String(x.product_id));
-      await env.DB.prepare(
-        `DELETE FROM search_index_outbox WHERE product_id IN (${ids.map(() => "?").join(",")})`,
-      )
-        .bind(...ids)
-        .run();
+      await env.DB.batch(
+        pending.results.map((row: { product_id: string; change_token: string }) =>
+          env.DB.prepare(
+            "DELETE FROM search_index_outbox WHERE product_id=? AND change_token=?",
+          ).bind(row.product_id, row.change_token),
+        ),
+      );
     }
     const remaining = await env.DB.prepare(
       "SELECT COUNT(*) count FROM search_index_outbox",
@@ -1541,6 +1647,12 @@ export async function syncSearchIndex(env: SearchEnv, limit = 100) {
         .bind(message, row.product_id)
         .run();
     throw error;
+  } finally {
+    await env.DB.prepare(
+      "UPDATE search_index_state SET sync_lease_token=NULL,sync_lease_until=NULL WHERE id=1 AND sync_lease_token=?",
+    )
+      .bind(lease)
+      .run();
   }
 }
 
@@ -1567,7 +1679,7 @@ export async function refreshSearchQualitySignals(db: CatalogDB, externalBookId:
 
 export async function searchSuggestions(env: SearchEnv, query: string, territory = "US") {
   const q = cleanText(query, 100);
-  if (q.length < 2) return [];
+  if (q.length < 2 || !queryTokens(q).length) return [];
   const externalQuery = isbnLike(q) ? compactIdentifier(q) : q;
   if (preferredBackend(env) === "meilisearch") {
     try {
@@ -1639,7 +1751,7 @@ export async function searchSuggestions(env: SearchEnv, query: string, territory
   const expression = await ftsExpression(env.DB, input);
   const part = candidateParts(input, expression);
   const rows = await env.DB.prepare(
-    `${part.prefix} SELECT d.product_id,d.external_book_id,p.public_id public_product_id,d.title,d.contributors_text FROM ${part.from} WHERE ${part.where.join(" AND ")} ORDER BY m.text_rank ASC,d.fore_trending_score DESC,d.fore_bestseller_score DESC LIMIT 8`,
+    `${part.prefix} SELECT d.product_id,d.external_book_id,p.public_id public_product_id,d.title,d.contributors_text FROM ${part.from} WHERE ${part.where.join(" AND ")} ORDER BY ${part.hasFts ? "m.text_rank ASC," : ""}d.fore_trending_score DESC,d.fore_bestseller_score DESC,d.product_id ASC LIMIT 8`,
   )
     .bind(...part.binds)
     .all<any>();

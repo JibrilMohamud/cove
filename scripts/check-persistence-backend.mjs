@@ -72,9 +72,10 @@ assert.match(worker, /FORE_INGESTION_SIGNING_KEY/);
 assert.match(worker, /x-cove-ingestion-signature/);
 assert.match(worker, /ECDSA/);
 assert.match(worker, /caches\?\.default|caches\?\.default/);
-assert.match(worker, /__cove_country/);
-assert.match(worker, /__cove_language/);
-assert.match(worker, /"cache-control", "no-store"/);
+const cache = await read("src/features/fore/public-api-cache.server.ts");
+assert.match(cache, /__cove_country/);
+assert.match(cache, /__cove_language/);
+assert.match(cache, /"cache-control", "no-store"/);
 assert.match(worker, /runCatalogIngestion/);
 assert.match(worker, /__cove\/ingestion\/catalog/);
 

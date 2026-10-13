@@ -17,6 +17,7 @@ on:
       - "scripts/check-account-experience.mjs"
       - "scripts/check-service.mjs"
       - "scripts/check-commercial-experience.mjs"
+      - "scripts/check-search-updater-cache.mjs"
       - "scripts/check-store.mjs"
       - "drizzle/*.sql"
       - "vercel.json"
@@ -44,6 +45,7 @@ on:
       - "scripts/check-account-experience.mjs"
       - "scripts/check-service.mjs"
       - "scripts/check-commercial-experience.mjs"
+      - "scripts/check-search-updater-cache.mjs"
       - "scripts/check-store.mjs"
       - "drizzle/*.sql"
       - "vercel.json"
@@ -89,6 +91,8 @@ jobs:
         run: npm run test:service
       - name: Customer support, status and recovery
         run: npm run test:commercial-experience
+      - name: Search, updater and public caching
+        run: npm run test:search-updater-cache
       - name: Catalog network recovery
         run: node scripts/check-catalog-fetch.mjs
       - name: Python syntax

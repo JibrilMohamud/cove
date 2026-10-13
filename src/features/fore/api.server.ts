@@ -1,7 +1,7 @@
 import { createAuth, resolvedIdentity } from "./auth.server";
 import { handleLegalContact } from "./legal.server";
 import { mirrorUrl } from "./gutenberg-source";
-import { fetchCatalogPage } from "./catalog-fetch.server";
+import { fetchCatalogPage, CatalogSourceError } from "./catalog-fetch.server";
 import {
   canonicalizeRegionalDocument,
   canonicalizeRegionalEpub,
@@ -778,7 +778,7 @@ export function catalogInsert(
         rights_checked_at=CASE WHEN gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json
           AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'') THEN COALESCE(gutenberg_source_cache.rights_checked_at,excluded.rights_checked_at) ELSE excluded.rights_checked_at END,
         canonicalization_version=CASE WHEN gutenberg_source_cache.formats_json=excluded.formats_json AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'') THEN gutenberg_source_cache.canonicalization_version ELSE excluded.canonicalization_version END,
-        epub_status=CASE WHEN gutenberg_source_cache.epub_status='completed' AND gutenberg_source_cache.formats_json=excluded.formats_json
+        epub_status=CASE WHEN gutenberg_source_cache.epub_status='downloading' AND gutenberg_source_cache.formats_json=excluded.formats_json THEN 'downloading' WHEN gutenberg_source_cache.epub_status='completed' AND gutenberg_source_cache.formats_json=excluded.formats_json
           AND gutenberg_source_cache.rights_territories_json=excluded.rights_territories_json AND gutenberg_source_cache.rights_evidence_url=excluded.rights_evidence_url AND COALESCE(json_extract(gutenberg_source_cache.source_metadata_json,'$.rightsFingerprint'),'')=COALESCE(json_extract(excluded.source_metadata_json,'$.rightsFingerprint'),'')
           THEN 'completed' WHEN excluded.epub_status='unavailable' THEN 'unavailable' ELSE 'pending' END,
         epub_next_attempt_at=CASE WHEN gutenberg_source_cache.epub_status='completed' AND gutenberg_source_cache.formats_json=excluded.formats_json
@@ -840,8 +840,8 @@ async function ensureCatalogState(env: CoveEnv) {
 async function seedCatalog(env: CoveEnv) {
   const db = database(env);
   await ensureCatalogState(env);
-  const row = await db.prepare("SELECT COUNT(*) AS count FROM gutenberg_source_cache").first<any>();
-  if (Number(row?.count || 0) > 0) return;
+  const row = await db.prepare("SELECT 1 present FROM gutenberg_source_cache LIMIT 1").first<any>();
+  if (row) return;
   const at = now();
   const books = seed.results as unknown as CatalogBook[];
   const statements = books.map((book) =>
@@ -1017,14 +1017,25 @@ async function catalog(
     await seedCatalog(env);
     const input = { ...parseSearchInput(url), territory: storefrontTerritory };
     const result = await searchCatalog(env, input, userId);
-    const state = await ingestionStatus(env);
+    // Operations counters do not belong on every search request.
+    const state = await database(env)
+      .prepare(
+        "SELECT status,page,last_success_at,total_catalog_count FROM catalog_state WHERE id=1",
+      )
+      .first<{
+        status: string;
+        page: number;
+        last_success_at: string | null;
+        total_catalog_count: number;
+      }>();
     const next =
       input.page * result.limit < result.count
         ? "/api/fore/catalog?" +
-          new URLSearchParams({
-            ...Object.fromEntries(url.searchParams),
-            page: String(input.page + 1),
-          })
+          (() => {
+            const nextParams = new URLSearchParams(url.searchParams);
+            nextParams.set("page", String(input.page + 1));
+            return nextParams.toString();
+          })()
         : null;
     return {
       results: result.books,
@@ -1039,8 +1050,13 @@ async function catalog(
         correctedQuery: result.correctedQuery || null,
         pageSize: result.limit,
       },
-      ingestion: state,
-      ...(state.status === "failed"
+      ingestion: {
+        status: state?.status || "idle",
+        page: state?.page || 1,
+        lastSuccessAt: state?.last_success_at || null,
+        totalCatalogCount: state?.total_catalog_count || 0,
+      },
+      ...(state?.status === "failed"
         ? {
             warning:
               "The catalog updater is retrying in the background; cached books remain available.",
@@ -1159,7 +1175,11 @@ async function fetchGutenbergAsset(
   env: CoveEnv,
   sourceId: "pg_us" | RegionalSourceId,
   mimeType: "application/epub+zip" | "text/html",
+  deadlineMs = Infinity,
 ) {
+  const remaining = deadlineMs - Date.now();
+  if (remaining <= 0) throw new Error("Catalog batch deadline reached.");
+  const signal = AbortSignal.timeout(Math.max(1, Math.min(60000, Math.floor(remaining))));
   const headers = {
     Accept:
       mimeType === "text/html" ? "text/html,application/xhtml+xml;q=0.9" : "application/epub+zip",
@@ -1168,7 +1188,7 @@ async function fetchGutenbergAsset(
     const sourceUrl = trustedRegionalAssetUrl(sourceId, source, env);
     return fetchRegionalResource(sourceId, sourceUrl, env, {
       headers,
-      signal: AbortSignal.timeout(60000),
+      signal,
     });
   }
 
@@ -1187,7 +1207,7 @@ async function fetchGutenbergAsset(
     const response = await fetch(target, {
       redirect: "manual",
       headers,
-      signal: AbortSignal.timeout(60000),
+      signal,
     });
     if (![301, 302, 303, 307, 308].includes(response.status)) return response;
     const location = response.headers.get("location");
@@ -1304,7 +1324,7 @@ async function quarantineRegionalItem(env: CoveEnv, id: string, message: string)
     .run();
 }
 
-async function cachePendingEpubs(env: CoveEnv, limit = 1) {
+async function cachePendingEpubs(env: CoveEnv, limit = 1, deadlineMs = Infinity) {
   if (!env.BUCKET) return { attempted: 0, downloaded: 0, failed: 0, quarantined: 0 };
   const db = database(env);
   const staleDownloadBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
@@ -1326,15 +1346,18 @@ async function cachePendingEpubs(env: CoveEnv, limit = 1) {
         ) source_rank
       FROM gutenberg_source_cache WHERE epub_status IN ('pending','retry') AND ingest_status<>'quarantined'
         AND (epub_next_attempt_at='' OR epub_next_attempt_at<=?)
-    ) SELECT id,title,authors_json,languages_json,source_id,source_item_id,formats_json,epub_attempts,rights_territories_json,rights_evidence_url,source_url,content_hash,source_metadata_json
-      FROM ranked ORDER BY source_rank ASC,source_id ASC,id ASC LIMIT ?`,
+    ) SELECT r.id,r.title,r.authors_json,r.languages_json,r.source_id,r.source_item_id,r.formats_json,r.epub_attempts,r.rights_territories_json,r.rights_evidence_url,r.source_url,r.content_hash,r.source_metadata_json
+      FROM ranked r LEFT JOIN gutenberg_source_states st ON st.source_id=r.source_id
+      ORDER BY r.source_rank ASC,COALESCE(st.epub_last_attempt_at,'') ASC,r.source_id ASC,r.id ASC LIMIT ?`,
     )
-    .bind(now(), Math.max(4, Math.min(16, limit)))
+    .bind(now(), Math.max(1, Math.min(16, limit)))
     .all<any>();
   let downloaded = 0,
     failed = 0,
-    quarantined = 0;
+    quarantined = 0,
+    attempted = 0;
   for (const row of queued.results) {
+    if (Date.now() >= deadlineMs) break;
     const id = String(row.id);
     const sourceId = String(row.source_id || "pg_us") as "pg_us" | RegionalSourceId;
     const formats = parseJsonObject(row.formats_json);
@@ -1353,11 +1376,17 @@ async function cachePendingEpubs(env: CoveEnv, limit = 1) {
         .run();
       continue;
     }
-    await db
+    const claim = await db
       .prepare(
-        "UPDATE gutenberg_source_cache SET epub_status='downloading',epub_last_error='',updated_at=? WHERE id=?",
+        "UPDATE gutenberg_source_cache SET epub_status='downloading',epub_last_error='',updated_at=? WHERE id=? AND epub_status IN ('pending','retry') AND (epub_next_attempt_at='' OR epub_next_attempt_at<=?) RETURNING id",
       )
-      .bind(now(), id)
+      .bind(now(), id, now())
+      .first<{ id: string }>();
+    if (!claim) continue;
+    attempted++;
+    await db
+      .prepare("UPDATE gutenberg_source_states SET epub_last_attempt_at=? WHERE source_id=?")
+      .bind(now(), sourceId)
       .run();
     try {
       if (sourceId === "pg_eu") {
@@ -1373,6 +1402,7 @@ async function cachePendingEpubs(env: CoveEnv, limit = 1) {
         env,
         sourceId,
         sourceAsset.mimeType,
+        deadlineMs,
       );
       if (!response.ok)
         throw new Error(
@@ -1496,7 +1526,7 @@ async function cachePendingEpubs(env: CoveEnv, limit = 1) {
       failed++;
     }
   }
-  return { attempted: queued.results.length, downloaded, failed, quarantined };
+  return { attempted, downloaded, failed, quarantined };
 }
 
 function regionalBook(item: RegionalCatalogItem) {
@@ -1514,7 +1544,7 @@ function regionalBook(item: RegionalCatalogItem) {
   };
 }
 
-async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
+async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1, deadlineMs = Infinity) {
   const db = database(env);
   const current = now();
   const due = await db
@@ -1529,19 +1559,19 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
     )
     .bind(current, current)
     .first<any>();
-  if (!due)
-    return { skipped: "regional-sources-fresh", epubs: await cachePendingEpubs(env, epubLimit) };
+  if (!due) return { skipped: "regional-sources-fresh" };
   const sourceId = String(due.id) as RegionalSourceId;
   const lease = crypto.randomUUID();
   const leaseUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString();
   const runId = `gir_${crypto.randomUUID()}`;
   let cursorBefore = Math.max(0, Number.parseInt(String(due.cursor || "0"), 10) || 0);
-  await db
+  const acquired = await db
     .prepare(
-      `UPDATE gutenberg_source_states SET status='running',lease_token=?,lease_until=?,last_run_at=?,last_error='',updated_at=? WHERE source_id=?`,
+      `UPDATE gutenberg_source_states SET status='running',lease_token=?,lease_until=?,last_run_at=?,last_error='',updated_at=? WHERE source_id=? AND (lease_until IS NULL OR lease_until='' OR lease_until<?) AND (next_run_at IS NULL OR next_run_at='' OR next_run_at<=?) RETURNING source_id`,
     )
-    .bind(lease, leaseUntil, current, current, sourceId)
-    .run();
+    .bind(lease, leaseUntil, current, current, sourceId, current, current)
+    .first<{ source_id: string }>();
+  if (!acquired) return { skipped: "regional-source-running" };
   await db
     .prepare(
       `INSERT INTO gutenberg_ingest_runs(id,source_id,started_at,status,cursor_before,error) VALUES(?,?,?,'running',?,'')`,
@@ -1554,14 +1584,14 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
     // needs the body in order to address its cursor, even when the upstream ETag is unchanged.
     if (cursorBefore === 0 && due.etag) headers["If-None-Match"] = due.etag;
     if (cursorBefore === 0 && due.last_modified) headers["If-Modified-Since"] = due.last_modified;
-    const result = await fetchRegionalCatalog(sourceId, env, headers);
+    const result = await fetchRegionalCatalog(sourceId, env, headers, deadlineMs);
     if (result.status === "degraded") {
       const next = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
       await db
         .prepare(
-          `UPDATE gutenberg_source_states SET status='degraded',last_error=?,next_run_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE source_id=?`,
+          `UPDATE gutenberg_source_states SET status='degraded',last_error=?,next_run_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE source_id=? AND lease_token=?`,
         )
-        .bind(result.warning, next, now(), sourceId)
+        .bind(result.warning, next, now(), sourceId, lease)
         .run();
       await db
         .prepare(
@@ -1573,7 +1603,7 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
         sourceId,
         degraded: true,
         warning: result.warning,
-        epubs: await cachePendingEpubs(env, epubLimit),
+        epubs: await cachePendingEpubs(env, epubLimit, deadlineMs),
       };
     }
     if (result.status === "not-modified") {
@@ -1581,9 +1611,9 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
       await db
         .prepare(
           `UPDATE gutenberg_source_states SET status='idle',cursor=NULL,cycle_started_at=NULL,last_success_at=?,attempts=0,next_run_at=?,lease_token=NULL,lease_until=NULL,
-        etag=COALESCE(NULLIF(?,''),etag),last_modified=COALESCE(NULLIF(?,''),last_modified),updated_at=? WHERE source_id=?`,
+        etag=COALESCE(NULLIF(?,''),etag),last_modified=COALESCE(NULLIF(?,''),last_modified),updated_at=? WHERE source_id=? AND lease_token=?`,
         )
-        .bind(now(), next, result.etag, result.lastModified, now(), sourceId)
+        .bind(now(), next, result.etag, result.lastModified, now(), sourceId, lease)
         .run();
       await db
         .prepare(
@@ -1591,7 +1621,11 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
         )
         .bind(now(), result.etag, result.lastModified, runId)
         .run();
-      return { sourceId, notModified: true, epubs: await cachePendingEpubs(env, epubLimit) };
+      return {
+        sourceId,
+        notModified: true,
+        epubs: await cachePendingEpubs(env, epubLimit, deadlineMs),
+      };
     }
     // Multi-document catalogs such as PGA A-M/N-Z cannot rely on one upstream ETag. The combined
     // snapshot hash gives us equivalent no-op behavior after fetching the small index documents,
@@ -1607,7 +1641,7 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
       await db
         .prepare(
           `UPDATE gutenberg_source_states SET status='idle',cursor=NULL,cycle_started_at=NULL,last_success_at=?,last_error='',attempts=0,next_run_at=?,lease_token=NULL,lease_until=NULL,
-        etag=?,last_modified=?,content_hash=?,updated_at=? WHERE source_id=?`,
+        etag=?,last_modified=?,content_hash=?,updated_at=? WHERE source_id=? AND lease_token=?`,
         )
         .bind(
           completed,
@@ -1617,6 +1651,7 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
           result.bodyHash,
           completed,
           sourceId,
+          lease,
         )
         .run();
       await db
@@ -1636,7 +1671,7 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
         sourceId,
         notModified: true,
         snapshotHash: result.bodyHash,
-        epubs: await cachePendingEpubs(env, epubLimit),
+        epubs: await cachePendingEpubs(env, epubLimit, deadlineMs),
       };
     }
 
@@ -1653,10 +1688,19 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
     }
     const cfg = regionalSourceConfig(sourceId, env);
     const batchLimit = Math.max(1, Math.min(5000, Number(due.max_items_per_run || 500)));
-    const items = result.items.slice(cursorBefore, cursorBefore + batchLimit);
+    const availableItems = result.items.slice(cursorBefore, cursorBefore + batchLimit);
+    const items: RegionalCatalogItem[] = [];
     let accepted = 0;
-    for (let i = 0; i < items.length; i += 50) {
-      const chunk = items.slice(i, i + 50);
+    for (let i = 0; i < availableItems.length && Date.now() < deadlineMs; i += 50) {
+      const activeLease = await db
+        .prepare(
+          "SELECT 1 ok FROM gutenberg_source_states WHERE source_id=? AND lease_token=? AND lease_until>?",
+        )
+        .bind(sourceId, lease, now())
+        .first();
+      if (!activeLease) throw new Error("Regional catalog lease expired.");
+      const chunk = availableItems.slice(i, i + 50);
+      items.push(...chunk);
       const at = now();
       const statements = chunk.map((item) =>
         catalogInsert(db, regionalBook(item), item.sourceUrl, at, {
@@ -1740,7 +1784,7 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
       .prepare(
         `UPDATE gutenberg_source_states SET status='idle',cursor=?,cycle_started_at=?,last_success_at=?,last_error='',attempts=0,total_catalog_count=?,
       seen_count=seen_count+?,accepted_count=accepted_count+?,quarantined_count=quarantined_count+?,next_run_at=?,lease_token=NULL,lease_until=NULL,
-      etag=?,last_modified=?,content_hash=?,updated_at=? WHERE source_id=?`,
+      etag=?,last_modified=?,content_hash=?,updated_at=? WHERE source_id=? AND lease_token=?`,
       )
       .bind(
         cursorAfter,
@@ -1756,6 +1800,7 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
         result.bodyHash,
         completed,
         sourceId,
+        lease,
       )
       .run();
     await db
@@ -1778,7 +1823,7 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
       )
       .run();
 
-    const epubs = await cachePendingEpubs(env, Math.max(epubLimit, 2));
+    const epubs = await cachePendingEpubs(env, epubLimit, deadlineMs);
     if (epubs.downloaded || staleCount)
       await syncSearchIndex(
         env,
@@ -1799,13 +1844,17 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
     const message =
       error instanceof Error ? error.message.slice(0, 1000) : String(error).slice(0, 1000);
     const retryAt = new Date(
-      Date.now() + Math.min(24 * 60 * 60 * 1000, Math.pow(2, attempts) * 5 * 60 * 1000),
+      Date.now() +
+        Math.max(
+          error instanceof CatalogSourceError ? error.retryAfterMs : 0,
+          Math.min(24 * 60 * 60 * 1000, Math.pow(2, attempts) * 5 * 60 * 1000),
+        ),
     ).toISOString();
     await db
       .prepare(
-        `UPDATE gutenberg_source_states SET status='failed',last_error=?,attempts=?,next_run_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE source_id=?`,
+        `UPDATE gutenberg_source_states SET status='failed',last_error=?,attempts=?,next_run_at=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE source_id=? AND lease_token=?`,
       )
-      .bind(message, attempts, retryAt, now(), sourceId)
+      .bind(message, attempts, retryAt, now(), sourceId, lease)
       .run();
     await db
       .prepare(
@@ -1824,21 +1873,28 @@ async function runRegionalCatalogIngestion(env: CoveEnv, epubLimit = 1) {
       failed: true,
       error: message,
       retryAt,
-      epubs: await cachePendingEpubs(env, epubLimit),
+      epubs: await cachePendingEpubs(env, epubLimit, deadlineMs),
     };
   }
 }
 
-export async function runCatalogIngestion(env: CoveEnv, epubLimit = 1) {
+export async function runCatalogIngestion(
+  env: CoveEnv,
+  epubLimit = 1,
+  options: { deadlineMs?: number } = {},
+) {
+  const deadlineMs = options.deadlineMs ?? Infinity;
+  if (Date.now() >= deadlineMs) return { skipped: "deadline" };
   await seedCatalog(env);
-  const regional = await runRegionalCatalogIngestion(env, Math.max(1, epubLimit)).catch(
+  const regional = await runRegionalCatalogIngestion(env, Math.max(1, epubLimit), deadlineMs).catch(
     (error) => ({ failed: true, error: error instanceof Error ? error.message : String(error) }),
   );
+  if (Date.now() >= deadlineMs) return { skipped: "deadline", regional };
   const db = database(env);
   const state = await db.prepare("SELECT * FROM catalog_state WHERE id=1").first<any>();
   const current = Date.now();
   if (state?.next_run_at && Date.parse(state.next_run_at) > current) {
-    const epubs = await cachePendingEpubs(env, epubLimit);
+    const epubs = await cachePendingEpubs(env, epubLimit, deadlineMs);
     return { skipped: "backoff", epubs, regional };
   }
   if (
@@ -1853,20 +1909,38 @@ export async function runCatalogIngestion(env: CoveEnv, epubLimit = 1) {
     state?.last_success_at &&
     current - Date.parse(state.last_success_at) < 24 * 60 * 60 * 1000
   ) {
-    const epubs = await cachePendingEpubs(env, epubLimit);
+    const epubs = await cachePendingEpubs(env, epubLimit, deadlineMs);
     return { skipped: "fresh", page: Number(state.page || 1), epubs, regional };
   }
   const started = now();
-  await db
-    .prepare("UPDATE catalog_state SET status='running',last_run_at=?,last_error='' WHERE id=1")
-    .bind(started)
-    .run();
-  const sourceUrl = state?.next_url || firstCatalogUrl(env);
+  const lease = crypto.randomUUID();
+  const leaseUntil = new Date(Date.now() + 10 * 60_000).toISOString();
+  const claim = await db
+    .prepare(
+      "UPDATE catalog_state SET status='running',last_run_at=?,last_error='',lease_token=?,lease_until=? WHERE id=1 AND (lease_until IS NULL OR lease_until='' OR lease_until<=?) AND (next_run_at IS NULL OR next_run_at='' OR next_run_at<=?) AND (status<>'running' OR last_run_at IS NULL OR last_run_at<=?) AND (COALESCE(next_url,'')<>'' OR last_success_at IS NULL OR last_success_at<=? OR status='failed') RETURNING next_url,page,attempts",
+    )
+    .bind(
+      started,
+      lease,
+      leaseUntil,
+      started,
+      started,
+      new Date(Date.now() - 10 * 60_000).toISOString(),
+      new Date(Date.now() - 24 * 60 * 60_000).toISOString(),
+    )
+    .first<{ next_url: string | null; page: number; attempts: number }>();
+  if (!claim) return { skipped: "running", regional };
+  const sourceUrl = claim.next_url || firstCatalogUrl(env);
   const page = pageFromUrl(sourceUrl);
   try {
-    const payload = (await fetchCatalogPage(sourceUrl)) as any;
+    const payload = (await fetchCatalogPage(sourceUrl, { deadlineMs })) as any;
     if (!Array.isArray(payload.results))
       throw new Error("Catalog source returned an invalid page.");
+    const owned = await db
+      .prepare("SELECT 1 ok FROM catalog_state WHERE id=1 AND lease_token=? AND lease_until>?")
+      .bind(lease, now())
+      .first();
+    if (!owned) return { skipped: "lease-lost", regional };
     const at = now();
     const accepted = payload.results.filter(
       (book: any) => book.copyright === false && Boolean(epubSource(book.formats || {})),
@@ -1893,7 +1967,7 @@ export async function runCatalogIngestion(env: CoveEnv, epubLimit = 1) {
     const success = now();
     await db
       .prepare(
-        "UPDATE catalog_state SET next_url=?,page=?,status='idle',last_run_at=?,last_success_at=?,last_error='',attempts=0,total_catalog_count=?,cycle_started_at=CASE WHEN ?=1 THEN ? ELSE cycle_started_at END,next_run_at=? WHERE id=1",
+        "UPDATE catalog_state SET next_url=?,page=?,status='idle',last_run_at=?,last_success_at=?,last_error='',attempts=0,total_catalog_count=?,cycle_started_at=CASE WHEN ?=1 THEN ? ELSE cycle_started_at END,next_run_at=?,lease_token=NULL,lease_until=NULL WHERE id=1 AND lease_token=?",
       )
       .bind(
         nextUrl,
@@ -1904,9 +1978,10 @@ export async function runCatalogIngestion(env: CoveEnv, epubLimit = 1) {
         page,
         success,
         nextUrl ? "" : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        lease,
       )
       .run();
-    const epubs = await cachePendingEpubs(env, epubLimit);
+    const epubs = await cachePendingEpubs(env, epubLimit, deadlineMs);
     return {
       page,
       sourceUrl,
@@ -1918,41 +1993,30 @@ export async function runCatalogIngestion(env: CoveEnv, epubLimit = 1) {
       regional,
     };
   } catch (error) {
-    const attempts = Number(state?.attempts || 0) + 1;
+    const attempts = Number(claim.attempts || 0) + 1;
     const retryAt = new Date(
-      Date.now() + Math.min(24 * 60 * 60 * 1000, Math.pow(2, attempts) * 5 * 60 * 1000),
+      Date.now() +
+        Math.max(
+          error instanceof CatalogSourceError ? error.retryAfterMs : 0,
+          Math.min(24 * 60 * 60 * 1000, Math.pow(2, attempts) * 5 * 60 * 1000),
+        ),
     ).toISOString();
     const message =
       error instanceof Error ? error.message.slice(0, 1000) : String(error).slice(0, 1000);
     await db
       .prepare(
-        "UPDATE catalog_state SET status='failed',last_error=?,attempts=?,next_run_at=? WHERE id=1",
+        "UPDATE catalog_state SET status='failed',last_error=?,attempts=?,next_run_at=?,lease_token=NULL,lease_until=NULL WHERE id=1 AND lease_token=?",
       )
-      .bind(message, attempts, retryAt)
+      .bind(message, attempts, retryAt, lease)
       .run();
     return {
       failed: true,
       error: message,
       retryAt,
-      epubs: await cachePendingEpubs(env, epubLimit),
+      epubs: await cachePendingEpubs(env, epubLimit, deadlineMs),
       regional,
     };
   }
-}
-let ingestionInFlight: Promise<any> | null = null;
-export function kickCatalogIngestion(env: CoveEnv) {
-  if (ingestionInFlight) return ingestionInFlight;
-  ingestionInFlight = runCatalogIngestion(env, 1)
-    .catch((error) => {
-      console.warn(
-        "Catalog ingestion failed",
-        error instanceof Error ? error.message : String(error),
-      );
-    })
-    .finally(() => {
-      ingestionInFlight = null;
-    });
-  return ingestionInFlight;
 }
 function zipJoin(base: string, href: string) {
   const raw = href.split("#")[0].split("?")[0];
@@ -2428,7 +2492,7 @@ function clientIp(request: Request) {
   );
 }
 
-async function rateLimitSearchRequest(
+export async function rateLimitSearchRequest(
   request: Request,
   env: CoveEnv,
   userId: string | null,
@@ -3711,7 +3775,6 @@ async function handleCoveRequest(
       const searchUserId = identity(request)?.id || null;
       await rateLimitSearchRequest(request, env, searchUserId, "catalog", 180);
       const result = await catalog(env, url, searchUserId, storefrontTerritory);
-      kickCatalogIngestion(env);
       return json(result);
     }
     if (request.method === "GET" && path === "/search/suggest") {

@@ -303,7 +303,8 @@ assert(
   "multi-document catalogs must hash-dedupe unchanged snapshots",
 );
 assert(
-  api.includes("ROW_NUMBER() OVER(PARTITION BY source_id"),
+  /ROW_NUMBER\(\) OVER\(\s*PARTITION BY source_id/.test(api) &&
+    api.includes("epub_last_attempt_at"),
   "asset queue must fair-share work across sources",
 );
 assert(

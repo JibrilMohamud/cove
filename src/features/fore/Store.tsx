@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import seed from "./catalog-seed.json";
+import { useStorefrontLocale } from "./localization";
 import { useQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import {
@@ -704,6 +704,7 @@ function TaxonomyBrowse({
 }
 
 export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
+  const storefront = useStorefrontLocale();
   const { params: url, update } = useUrlSearch(landingPath);
   const routePreset = pathPreset(landingPath);
   const q = url.get("q") || url.get("search") || "";
@@ -713,7 +714,7 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
   const [visitor, setVisitor] = useState("");
   const [pageViewId, setPageViewId] = useState("");
   const storefrontPage = useQuery<StorefrontPage>({
-    queryKey: ["storefront-page", landingPath],
+    queryKey: ["storefront-page", landingPath, storefront.rightsCountry, storefront.locale],
     queryFn: () => api("/storefront/page?path=" + encodeURIComponent(landingPath)),
     retry: 0,
   });
@@ -830,7 +831,12 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
     };
   }, [storefrontPage.data, landingPath, url.toString()]);
 
-  const params = new URLSearchParams({ search: q, sort, page: String(page) });
+  const params = new URLSearchParams({
+    search: q,
+    sort,
+    page: String(page),
+    currency: storefront.currency,
+  });
   if (taxonomyPath) params.set("taxonomy", taxonomyPath);
   if (language !== "all") params.set("language", language);
   if (format !== "all") params.set("format", format);
@@ -852,26 +858,10 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
   if (publishedBefore) params.set("publishedBefore", publishedBefore);
 
   const result = useQuery<CatalogResponse>({
-    queryKey: ["catalog", params.toString()],
-    queryFn: () => api("/catalog?" + params),
-    retry: 1,
-    placeholderData:
-      !q &&
-      !taxonomyPath &&
-      page === 1 &&
-      language === "all" &&
-      format === "all" &&
-      publisher === "all" &&
-      series === "all" &&
-      !authorId &&
-      !seriesId &&
-      !publisherId &&
-      !imprintId &&
-      !deals &&
-      !preorders &&
-      !newReleases
-        ? { results: seed.results as unknown as CatalogBook[], count: 24, next: null }
-        : undefined,
+    queryKey: ["catalog", params.toString(), storefront.rightsCountry, storefront.locale],
+    queryFn: ({ signal }) => api("/catalog?" + params, "GET", undefined, { signal }),
+    staleTime: 30_000,
+    retry: false,
   });
   useEffect(() => {
     const queryId = result.data?.search?.queryId;
@@ -894,8 +884,9 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
       sublabel: string;
     }[];
   }>({
-    queryKey: ["catalog-suggestions", suggestQuery],
-    queryFn: () => api("/search/suggest?q=" + encodeURIComponent(suggestQuery)),
+    queryKey: ["catalog-suggestions", suggestQuery, storefront.rightsCountry, storefront.locale],
+    queryFn: ({ signal }) =>
+      api("/search/suggest?q=" + encodeURIComponent(suggestQuery), "GET", undefined, { signal }),
     enabled: searchFocused && suggestQuery.length >= 2,
     staleTime: 30_000,
     retry: 0,

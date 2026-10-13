@@ -603,7 +603,10 @@ async function fetchCatalogDocument(
   url: string,
   env: FederationEnv,
   headers: Record<string, string> = {},
+  deadlineMs = Infinity,
 ) {
+  const remaining = deadlineMs - Date.now();
+  if (remaining <= 0) throw new Error("Catalog batch deadline reached.");
   const target = trustedRegionalUrl(sourceId, url, env);
   const response = await fetchRegionalResource(sourceId, target.href, env, {
     headers: {
@@ -611,7 +614,7 @@ async function fetchCatalogDocument(
       "User-Agent": "CoveReader/1.0 (regional public-domain catalog harvester)",
       ...headers,
     },
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(Math.max(1, Math.min(30000, Math.floor(remaining)))),
   });
   if (response.status === 304)
     return {
@@ -638,6 +641,7 @@ export async function fetchRegionalCatalog(
   sourceId: RegionalSourceId,
   env: FederationEnv = {},
   headers: Record<string, string> = {},
+  deadlineMs = Infinity,
 ) {
   const cfg = regionalSourceConfig(sourceId, env);
   if (!cfg.catalog)
@@ -655,7 +659,9 @@ export async function fetchRegionalCatalog(
   const urls =
     sourceId === "pg_au" && "catalogShards" in cfg ? [...cfg.catalogShards] : [cfg.catalog];
   const documents = await Promise.all(
-    urls.map((url) => fetchCatalogDocument(sourceId, url, env, urls.length === 1 ? headers : {})),
+    urls.map((url) =>
+      fetchCatalogDocument(sourceId, url, env, urls.length === 1 ? headers : {}, deadlineMs),
+    ),
   );
   if (documents.length === 1 && documents[0].status === "not-modified") {
     return {
