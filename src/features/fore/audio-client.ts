@@ -1,27 +1,64 @@
 import { matchingEpub, loadTiming, timingKey } from "./biosync-client";
 import { api, type CatalogBook } from "./client";
 import type { AudioEdition, AudioTrack } from "./domain";
-import { getRecord, putRecord, sha256 } from "./offline";
+import { getRecord, putRecord, removeDownload, sha256 } from "./offline";
+import { offlineAccountId, canUseOfflineFallback, putOwnedRecord } from "./offline-account";
+import { verifyOfflineAudioLicense, type OfflineAudioLicense } from "./offline-audio-license";
+import {
+  currentAudioDeviceKey,
+  encryptAudioTrack,
+  licensedAudioAssetKey,
+  licensedAudioBlob,
+  licensedAudioDownloadKey,
+  openLicensedAudio,
+  pinAudioVerificationKey,
+  storedLicensedAudio,
+} from "./offline-audio-client";
 import { downloadZip, type ZipEntry } from "./zip-stream";
 export const trackUrl = (id: string, trackId: string) =>
   `/api/fore/audio/${encodeURIComponent(id)}/tracks/${encodeURIComponent(trackId)}`;
-export const audioAssetKey = (edition: AudioEdition, track: AudioTrack) =>
-  `audio:${edition.id}:${track.id}:${track.sha256 || track.url}`;
-export async function loadEdition(id: string): Promise<AudioEdition> {
+export const audioAssetKey = (
+  edition: AudioEdition,
+  track: AudioTrack,
+  userId = offlineAccountId(),
+) =>
+  edition.commercial
+    ? licensedAudioAssetKey(edition, track, userId)
+    : `audio:${edition.id}:${track.id}:${track.sha256 || track.url}`;
+export async function loadEdition(id: string, userId = offlineAccountId()): Promise<AudioEdition> {
   try {
-    return await api("/audio/" + id);
-  } catch (error) {
-    const local = await getRecord("downloads", "audio:" + id);
-    if (local) {
-      if (local.edition?.commercial) {
-        const expiresAt = local.commercialLicense?.expiresAt;
-        if (!expiresAt || Date.parse(expiresAt) <= Date.now())
-          throw new Error(
-            "This audiobook's offline license has expired. Reconnect to Cove to refresh access.",
-          );
+    const edition = await api<AudioEdition>("/audio/" + id);
+    if (edition.commercial) {
+      const local = await storedLicensedAudio(id, userId);
+      if (local) {
+        if (!edition.hasAccess || !edition.offlineEligible) await removeDownload(local.id);
+        else
+          try {
+            await api(
+              `/audio/${encodeURIComponent(id)}/offline-license/verify`,
+              "POST",
+              {
+                licenseId: local.commercialLicense.licenseId,
+                token: local.commercialLicense.token,
+              },
+              { timeoutMs: 10000 },
+            );
+          } catch (error) {
+            if (!canUseOfflineFallback(error)) await removeDownload(local.id);
+          }
       }
-      return local.edition;
     }
+    return edition;
+  } catch (error) {
+    if (!canUseOfflineFallback(error)) {
+      const local = await storedLicensedAudio(id, userId);
+      if (local) await removeDownload(local.id);
+      throw error;
+    }
+    if (id.startsWith("ca_")) return openLicensedAudio(id, userId);
+    const local = await getRecord("downloads", "audio:" + id);
+    if (local?.edition && !local.edition.commercial && local.edition.id === id)
+      return local.edition;
     throw error;
   }
 }
@@ -41,32 +78,85 @@ export async function saveCommercialAudioOffline(
   edition: AudioEdition,
   signal: AbortSignal,
   progress: (text: string) => void,
-) {
+): Promise<void> {
   if (!edition.commercial) return saveAudioOffline(edition, signal, progress);
   if (!edition.hasAccess)
     throw Error("Purchase access is required before saving this audiobook offline.");
   if (!edition.offlineEligible)
     throw Error("This audiobook's license does not permit offline listening.");
+  const userId = offlineAccountId();
+  if (!userId) throw Error("Sign in before saving licensed audio offline.");
   const device = await api("/account/device/register", "POST", deviceIdentity());
-  const license = await api(`/audio/${encodeURIComponent(edition.id)}/offline-license`, "POST", {
-    deviceId: device.id,
+  const license = await api<OfflineAudioLicense>(
+    `/audio/${encodeURIComponent(edition.id)}/offline-license`,
+    "POST",
+    {
+      deviceId: device.id,
+      protocolVersion: 1,
+    },
+  );
+  await verifyOfflineAudioLicense(license, license.verificationKey, {
+    userId,
+    deviceKey: currentAudioDeviceKey(),
+    edition,
   });
+  await pinAudioVerificationKey(license);
+  const encryptionKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
+    "encrypt",
+    "decrypt",
+  ]);
+  const keyId = `offline-audio-key:${userId}:${edition.id}:${license.licenseId}`;
+  const existing = await storedLicensedAudio(edition.id, userId);
+  if (existing) await removeDownload(existing.id);
+  await putOwnedRecord("assets", { id: keyId, ownerId: userId, key: encryptionKey });
   await navigator.storage?.persist?.();
   let bytes = 0;
-  const assetIds: string[] = [];
+  const assetIds: string[] = [
+    keyId,
+    `offline-audio-clock:${userId}:${edition.id}:${license.licenseId}`,
+  ];
+  await putOwnedRecord("downloads", {
+    id: licensedAudioDownloadKey(edition.id, userId),
+    ownerId: userId,
+    title: edition.title,
+    edition,
+    kind: "audio",
+    bytes,
+    assetIds,
+    keyId,
+    complete: false,
+    updatedAt: new Date().toISOString(),
+    commercialLicense: license,
+  });
   for (let i = 0; i < edition.tracks.length; i++) {
     if (signal.aborted) throw new DOMException("Canceled", "AbortError");
     const track = edition.tracks[i];
     progress(`Saving licensed track ${i + 1} of ${edition.tracks.length}`);
-    const blob = await audioBlob(edition, track.id, signal);
+    if (offlineAccountId() !== userId)
+      throw Error("Your account changed. Save this recording again after signing in.");
+    const response = await fetch(trackUrl(edition.id, track.id), {
+      signal,
+      credentials: "same-origin",
+    });
+    if (!response.ok) throw Error("This licensed track could not be downloaded.");
+    const blob = await response.blob();
     if (track.sha256 && (await sha256(await blob.arrayBuffer())) !== track.sha256)
       throw Error("Audio integrity check failed. Please try again.");
-    const key = audioAssetKey(edition, track);
-    await putRecord("assets", { id: key, blob });
+    const key = licensedAudioAssetKey(edition, track, userId);
+    if (offlineAccountId() !== userId)
+      throw Error("Your account changed. Save this recording again after signing in.");
+    await putOwnedRecord("assets", {
+      id: key,
+      ownerId: userId,
+      licenseId: license.licenseId,
+      ...(await encryptAudioTrack(blob, encryptionKey, key, license.licenseId)),
+    });
     assetIds.push(key);
     bytes += blob.size;
-    await putRecord("downloads", {
-      id: "audio:" + edition.id,
+    await putOwnedRecord("downloads", {
+      id: licensedAudioDownloadKey(edition.id, userId),
+      ownerId: userId,
+      keyId,
       title: edition.title,
       edition,
       kind: "audio",
@@ -74,21 +164,22 @@ export async function saveCommercialAudioOffline(
       assetIds,
       complete: i === edition.tracks.length - 1,
       updatedAt: new Date().toISOString(),
-      commercialLicense: {
-        licenseId: license.licenseId,
-        token: license.token,
-        expiresAt: license.expiresAt,
-        manifestHash: license.manifestHash,
-        deviceId: device.id,
-      },
+      commercialLicense: license,
     });
   }
 }
 
 export async function audioBlob(edition: AudioEdition, trackId: string, signal?: AbortSignal) {
   const track = edition.tracks.find((t) => t.id === trackId)!;
+  if (!track) throw Error("Audio track not found.");
+  if (edition.commercial) {
+    if (!edition.hasAccess || !offlineAccountId())
+      throw Error("Purchase access is required for this recording.");
+    const local = await licensedAudioBlob(edition, track);
+    if (local) return local;
+  }
   const key = audioAssetKey(edition, track),
-    stored = await getRecord("assets", key).catch(() => null);
+    stored = edition.commercial ? null : await getRecord("assets", key).catch(() => null);
   if (stored) return stored.blob as Blob;
   const r = await fetch(trackUrl(edition.id, trackId), { signal });
   if (!r.ok) {
@@ -101,7 +192,8 @@ export async function saveAudioOffline(
   edition: AudioEdition,
   signal: AbortSignal,
   progress: (text: string) => void,
-) {
+): Promise<void> {
+  if (edition.commercial) return saveCommercialAudioOffline(edition, signal, progress);
   await navigator.storage?.persist?.();
   let bytes = 0;
   const assetIds: string[] = [];
@@ -145,6 +237,8 @@ export async function downloadAudioPackage(
   signal: AbortSignal,
   progress: (text: string) => void,
 ) {
+  if (edition.commercial)
+    throw Error("Licensed recordings cannot be exported as unrestricted archives.");
   const files: ZipEntry[] = [];
   const manifest: any = {
     format: "fore-media-package",

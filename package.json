@@ -45,6 +45,7 @@
     "test:account-experience": "node scripts/check-account-experience.mjs",
     "test:commercial-experience": "node scripts/check-commercial-experience.mjs",
     "test:search-updater-cache": "node scripts/check-search-updater-cache.mjs",
+    "test:reader-sharing-offline": "node scripts/check-reader-sharing-offline.mjs",
     "lint:strict": "eslint ."
   },
   "dependencies": {

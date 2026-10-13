@@ -122,6 +122,6 @@ assert.match(book, /Preview/);
 assert.match(book, /Currently unavailable/);
 assert.match(reader, /previewMode/);
 assert.match(reader, /\/preview\/state/);
-assert.match(reader, /epubBytes\(id,previewMode,data\.user\?\.id\|\|""\)/);
+assert.match(reader, /epubBytes\(id,\s*previewMode\)/);
 assert.match(store, /if \(!offer\) return "Unavailable"/);
 console.log("commercial retail regression checks passed");

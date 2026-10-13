@@ -1,4 +1,10 @@
-import { getRecord, putRecord, sha256 } from "./offline";
+import { canUseOfflineFallback } from "./offline-account";
+import {
+  isPublicEpubBook,
+  publicEpubBytes,
+  publicEpubDownload,
+  savePublicEpub,
+} from "./offline-epub-client";
 import JSZip from "jszip";
 import { api, downloadBlob, authorOf, type CatalogBook } from "./client";
 export async function inspectEpub(bytes: ArrayBuffer | Uint8Array) {
@@ -143,18 +149,11 @@ export async function prepareEpub(bytes: ArrayBuffer) {
     metadata: info,
   };
 }
-export async function epubBytes(bookId: string, preview = false, cacheScope = "") {
-  // Public Gutenberg files may use a device-wide cache. Commercial offline files must be account-scoped
-  // so signing into another Cove account on the same browser cannot bypass the server entitlement check.
-  const publicCache = /^\d+$/.test(bookId); // legacy source-ID cache keys remain readable; new canonical IDs are account/source aware below.
-  const cacheKey = publicCache
-    ? `epub:${bookId}`
-    : cacheScope
-      ? `epub:${cacheScope}:${bookId}`
-      : "";
-  if (!preview && cacheKey) {
-    const cached = await getRecord("assets", cacheKey).catch(() => null);
-    if (cached) return (cached.blob as Blob).arrayBuffer();
+export async function epubBytes(bookId: string, preview = false) {
+  // Canonical IDs are never assumed public: a registered Gutenberg manifest authorizes shared lookup.
+  if (!preview) {
+    const cached = await publicEpubBytes(bookId).catch(() => null);
+    if (cached) return cached;
   }
   const r = await fetch(
     `/api/fore/books/${encodeURIComponent(bookId)}/${preview ? "preview/epub" : "epub"}`,
@@ -323,38 +322,25 @@ export async function downloadCoveBackup(book: CatalogBook) {
   );
 }
 
-export async function saveEpubOffline(book: CatalogBook, userId = "") {
+export async function saveEpubOffline(book: CatalogBook) {
   if (book.uploaded) throw Error("Personal imports already live in your private Cove library.");
-  const id = String(book.id),
-    isPublic = book.sourceName === "gutenberg" || /^\d+$/.test(id);
-  if (!isPublic)
+  const id = String(book.id);
+  if (!isPublicEpubBook(book))
     throw Error(
       "In-app offline storage for licensed editions requires Cove's future protected offline-license layer. Use the publisher-permitted EPUB download instead.",
     );
-  const bytes = await epubBytes(id, false, "");
+  const bytes = await epubBytes(id, false);
   await inspectEpub(bytes);
-  const key = `epub:${id}`;
   await navigator.storage?.persist?.();
-  await putRecord("assets", { id: key, blob: new Blob([bytes], { type: "application/epub+zip" }) });
-  await putRecord("downloads", {
-    id: key,
-    title: book.title,
-    kind: "epub",
-    book,
-    bytes: bytes.byteLength,
-    assetIds: [key],
-    complete: true,
-    updatedAt: new Date().toISOString(),
-  });
+  await savePublicEpub(book, bytes);
 }
 export async function loadBookMetadata(id: string): Promise<CatalogBook> {
   try {
     return await api("/books/" + id);
   } catch (error) {
-    const local = await getRecord("downloads", "epub:" + id);
-    if (local?.book) return local.book;
-    const meta = await getRecord("assets", "book-meta:" + id).catch(() => null);
-    if (meta?.book) return meta.book;
+    if (!canUseOfflineFallback(error)) throw error;
+    const local = await publicEpubDownload(id).catch(() => null);
+    if (local && (await publicEpubBytes(id))) return local.book;
     throw error;
   }
 }

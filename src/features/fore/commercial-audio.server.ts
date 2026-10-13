@@ -4,6 +4,8 @@ import { ApiError, now } from "./service";
 import { resolveProductRights } from "./rights.server";
 import { recordSyncProjection } from "./sync.server";
 import { recordReadingProgress } from "./social.server";
+import { signOfflineAudioLicense, verifyStoredAudioLicense } from "./offline-audio.server";
+import { hashText, audioManifestHash } from "./offline-audio-license";
 
 const id = (p: string) => `${p}_${crypto.randomUUID()}`;
 const safe = (s: string) => s.replace(/[^A-Za-z0-9_-]/g, "_");
@@ -1479,6 +1481,29 @@ export async function handleCommercialAudio(
     return new Response(JSON.stringify(edition), {
       headers: { "Content-Type": "application/json", "Cache-Control": "private, no-store" },
     });
+  if (match[2] === "offline-license" && match[3] === "verify" && request.method === "POST") {
+    if (!userId) throw new ApiError(401, "Sign in to verify offline audio access.");
+    const input = z
+      .object({ licenseId: z.string().min(1).max(120), token: z.string().min(48).max(200) })
+      .parse(await request.json());
+    if (!edition.hasAccess || !edition.offlineEligible)
+      throw new ApiError(
+        403,
+        "This offline license is no longer active. Save the recording again if access is available.",
+      );
+    await assertCommercialAudioRiskAccess(db, userId, String(row.product_id));
+    const verified = await verifyStoredAudioLicense(
+      env,
+      userId,
+      String(row.product_id),
+      input.licenseId,
+      input.token,
+      await audioManifestHash(edition),
+    );
+    return new Response(JSON.stringify(verified), {
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    });
+  }
   const frozen = await activeCommercialAudioManifest(db, String(row.product_id));
   if (match[2] === "preview" && ["GET", "HEAD"].includes(request.method)) {
     const f = frozen?.preview;
@@ -1717,12 +1742,17 @@ export async function handleCommercialAudio(
       });
     }
   }
-  if (match[2] === "offline-license" && request.method === "POST") {
+  if (match[2] === "offline-license" && !match[3] && request.method === "POST") {
     if (!userId) throw new ApiError(401, "Sign in to save commercial audio offline.");
     await assertCommercialAudioRiskAccess(db, userId, String(row.product_id));
     if (!edition.offlineEligible)
       throw new ApiError(403, "This audiobook license does not permit offline use.");
-    const body = z.object({ deviceId: z.string().min(1) }).parse(await request.json()),
+    const raw = await request.json();
+    if (raw?.protocolVersion !== 1)
+      throw new ApiError(409, "Update Cove before saving licensed audio offline.");
+    const body = z
+        .object({ deviceId: z.string().min(1), protocolVersion: z.literal(1) })
+        .parse(raw),
       device = await db
         .prepare("SELECT * FROM devices WHERE id=? AND user_id=? AND revoked_at IS NULL")
         .bind(body.deviceId, userId)
@@ -1731,9 +1761,9 @@ export async function handleCommercialAudio(
       throw new ApiError(409, "Register an active device before requesting an offline license.");
     const ent = await db
       .prepare(
-        "SELECT * FROM entitlements WHERE user_id=? AND product_id=? AND entitlement_type='purchase' AND status='active' ORDER BY granted_at DESC LIMIT 1",
+        "SELECT * FROM entitlements WHERE user_id=? AND product_id=? AND entitlement_type='purchase' AND status='active' AND (starts_at IS NULL OR starts_at<=?) AND (ends_at IS NULL OR ends_at>?) ORDER BY granted_at DESC LIMIT 1",
       )
-      .bind(userId, row.product_id)
+      .bind(userId, row.product_id, now(), now())
       .first<any>();
     if (!ent) throw new ApiError(403, "A purchase entitlement is required for offline audio.");
     const licensePolicy = await db
@@ -1754,38 +1784,51 @@ export async function handleCommercialAudio(
           `This purchase allows offline audio on ${maxDevices} device${maxDevices === 1 ? "" : "s"}. Revoke another device first.`,
         );
     }
-    await db
-      .prepare(
-        "UPDATE audio_offline_licenses SET status='revoked',revoked_at=?,revocation_reason='license_refreshed' WHERE entitlement_id=? AND device_id=? AND status='active'",
-      )
-      .bind(now(), ent.id, device.id)
-      .run();
     const rawToken = crypto.randomUUID() + crypto.randomUUID(),
       tokenHash = await hash(new TextEncoder().encode(rawToken)),
-      manifestHash = await hash(
-        new TextEncoder().encode(JSON.stringify(edition.tracks.map((t: any) => [t.id, t.sha256]))),
-      ),
+      manifestHash = await audioManifestHash(edition),
       licenseId = id("audiolic"),
-      expires = new Date(Date.now() + 30 * 86400000).toISOString();
-    await db
-      .prepare(
-        "INSERT INTO audio_offline_licenses(id,user_id,product_id,entitlement_id,device_id,token_hash,manifest_hash,status,issued_at,expires_at,last_refreshed_at) VALUES(?,?,?,?,?,?,?,'active',?,?,?)",
-      )
-      .bind(
-        licenseId,
-        userId,
-        row.product_id,
-        ent.id,
-        device.id,
-        tokenHash,
-        manifestHash,
-        now(),
-        expires,
-        now(),
-      )
-      .run();
+      issued = now(),
+      expires = new Date(
+        Math.min(Date.now() + 30 * 86400000, ent.ends_at ? Date.parse(ent.ends_at) : Infinity),
+      ).toISOString();
+    const signed = await signOfflineAudioLicense(env, {
+      licenseId,
+      userId,
+      productId: String(row.product_id),
+      editionId: edition.id,
+      deviceId: String(device.id),
+      deviceKeyHash: await hashText(String(device.device_key)),
+      tokenHash,
+      manifestHash,
+      issuedAt: issued,
+      expiresAt: expires,
+    });
+    await db.batch([
+      db
+        .prepare(
+          "UPDATE audio_offline_licenses SET status='revoked',revoked_at=?,revocation_reason='license_refreshed' WHERE entitlement_id=? AND device_id=? AND status='active'",
+        )
+        .bind(issued, ent.id, device.id),
+      db
+        .prepare(
+          "INSERT INTO audio_offline_licenses(id,user_id,product_id,entitlement_id,device_id,token_hash,manifest_hash,status,issued_at,expires_at,last_refreshed_at) VALUES(?,?,?,?,?,?,?,'active',?,?,?)",
+        )
+        .bind(
+          licenseId,
+          userId,
+          row.product_id,
+          ent.id,
+          device.id,
+          tokenHash,
+          manifestHash,
+          issued,
+          expires,
+          issued,
+        ),
+    ]);
     return new Response(
-      JSON.stringify({ licenseId, token: rawToken, expiresAt: expires, manifestHash }),
+      JSON.stringify({ licenseId, token: rawToken, expiresAt: expires, manifestHash, ...signed }),
       { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } },
     );
   }

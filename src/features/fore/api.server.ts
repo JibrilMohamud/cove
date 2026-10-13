@@ -480,6 +480,8 @@ export type CoveEnv = {
   SUPABASE_URL?: string;
   SUPABASE_PUBLISHABLE_KEY?: string;
   SUPABASE_SECRET_KEY?: string;
+  FORE_OFFLINE_AUDIO_SIGNING_JWK?: string;
+  FORE_INGESTION_SIGNING_KEY?: string;
   FORE_AUTH_MODE?: string;
   FORE_GOOGLE_ENABLED?: string;
   FORE_PUBLIC_URL?: string;

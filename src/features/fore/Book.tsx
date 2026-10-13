@@ -1076,7 +1076,7 @@ export function BookPage({ id }: { id: string }) {
                   onClick={async () => {
                     setBusy("offline");
                     try {
-                      await saveEpubOffline(b, data.user?.id || "");
+                      await saveEpubOffline(b);
                       toast.success("Book saved for offline reading");
                     } catch (e) {
                       toast.error((e as Error).message);

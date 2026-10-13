@@ -1,6 +1,6 @@
 import { openBiosync, resolveText, resolveAudio, editionBook } from "./biosync-client";
 import { timingSummary } from "./biosync";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Headphones,
@@ -33,6 +33,12 @@ import {
   downloadAudioPackage,
   audioAssetKey,
 } from "./audio-client";
+import {
+  licensedAudioBlob,
+  storedLicensedAudio,
+  validateLicensedDownload,
+} from "./offline-audio-client";
+import { offlineAccountId } from "./offline-account";
 import { getRecord, getRecords, removeDownload, putRecord } from "./offline";
 import { createActivity } from "./reading-activity";
 export const narrationLabel = (e: AudioEdition) =>
@@ -326,16 +332,27 @@ export function BookAudio({ book }: { book: CatalogBook }) {
   );
 }
 export function AudioPlayerPage({ id }: { id: string }) {
-  const r = useQuery<AudioEdition>({ queryKey: ["audio", id], queryFn: () => loadEdition(id) });
-  if (!r.data)
+  const { data, loading, error } = useAccount();
+  const ownerId = data.user?.id || (error ? offlineAccountId() : "");
+  const r = useQuery<AudioEdition>({
+    queryKey: ["audio", id, ownerId],
+    queryFn: () => loadEdition(id, ownerId),
+    enabled: !loading,
+  });
+  if (r.error || !r.data)
     return (
       <div className="empty-state">
         <Headphones />
         <h2>{r.error ? "Recording unavailable" : "Opening recording…"}</h2>
         {r.error && <p>{r.error.message}</p>}
+        {r.error && (
+          <button className="button outline" onClick={() => void r.refetch()}>
+            Retry
+          </button>
+        )}
       </div>
     );
-  return <AudioPlayer key={id} edition={r.data} />;
+  return <AudioPlayer key={`${id}:${ownerId}`} edition={r.data} />;
 }
 function AudioPlayer({ edition: e }: { edition: AudioEdition }) {
   if (e.commercial && !e.hasAccess) return <CommercialAudioPreview edition={e} />;
@@ -420,8 +437,28 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
     queryFn: () => api("/books/" + e.bookId),
     enabled: !!e.bookId,
   });
+  useEffect(() => {
+    if (!e.commercial) return;
+    const owner = data.user?.id || offlineAccountId(),
+      element = audio.current;
+    const changed = () => {
+      if (offlineAccountId() !== owner) {
+        element?.pause();
+        setSource("");
+        setReady(false);
+        setError("Your account changed. Reopen this recording after signing in.");
+      }
+    };
+    window.addEventListener("storage", changed);
+    window.addEventListener("cove-offline-account-change", changed);
+    return () => {
+      window.removeEventListener("storage", changed);
+      window.removeEventListener("cove-offline-account-change", changed);
+    };
+  }, [e.commercial, data.user?.id]);
   async function save() {
     if (!ready || conflict) return;
+    if (e.commercial && data.user?.id && offlineAccountId() !== data.user.id) return;
     const value = { ...state.current };
     const localId = `playback:${data.user?.id || "guest"}:${e.id}`;
     const local = { id: localId, ...value, version: version.current, pending: true };
@@ -468,6 +505,7 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
   }
   useEffect(() => {
     if (loading) return;
+    const element = audio.current;
     let canceled = false;
     (async () => {
       let p: Playback | null = null;
@@ -528,6 +566,7 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
     });
     return () => {
       canceled = true;
+      element?.pause();
     };
   }, [e, data.user, loading]);
   useEffect(() => {
@@ -537,18 +576,59 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
     setError("");
     setSource("");
     (async () => {
-      const cached = await getRecord("assets", audioAssetKey(e, track)).catch(() => null);
+      const cached = e.commercial
+        ? await licensedAudioBlob(e, track)
+        : (await getRecord("assets", audioAssetKey(e, track)).catch(() => null))?.blob;
       if (canceled) return;
       if (cached) {
-        blobUrl = URL.createObjectURL(cached.blob);
+        blobUrl = URL.createObjectURL(cached);
         setSource(blobUrl);
       } else setSource(trackUrl(e.id, track.id));
-    })();
+    })().catch((failure: unknown) => {
+      audio.current?.pause();
+      if (!canceled)
+        setError(
+          failure instanceof Error ? failure.message : "Offline audio could not be verified.",
+        );
+    });
     return () => {
       canceled = true;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
   }, [e, track, ready]);
+  useEffect(() => {
+    if (!e.commercial || !source.startsWith("blob:")) return;
+    let checking = false,
+      canceled = false;
+    const check = async () => {
+      if (checking || canceled) return;
+      checking = true;
+      try {
+        const record = await storedLicensedAudio(e.id);
+        if (!record) throw new Error("Offline access ended. Reconnect to Cove to continue.");
+        await validateLicensedDownload(record, offlineAccountId(), e);
+      } catch (failure) {
+        audio.current?.pause();
+        if (!canceled) {
+          setSource("");
+          setError(failure instanceof Error ? failure.message : "Offline access ended.");
+        }
+      } finally {
+        checking = false;
+      }
+    };
+    const timer = setInterval(() => void check(), 15_000);
+    const accountChanged = () => void check();
+    window.addEventListener("storage", accountChanged);
+    window.addEventListener("cove-offline-account-change", accountChanged);
+    void check();
+    return () => {
+      canceled = true;
+      clearInterval(timer);
+      window.removeEventListener("storage", accountChanged);
+      window.removeEventListener("cove-offline-account-change", accountChanged);
+    };
+  }, [e, source]);
   useEffect(() => {
     if (!ready) return;
     const a = createActivity(e.bookId || e.gutenbergId, data.user?.id || null, "listen");
@@ -832,38 +912,75 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
   );
 }
 export function OfflineDownloads() {
+  const { data, error } = useAccount();
+  const ownerId = data.user?.id || (error ? offlineAccountId() : "");
   const [rows, setRows] = useState<any[]>([]);
-  const load = () => getRecords("downloads").then(setRows);
+  const load = useCallback(async () => {
+    const records = (await getRecords("downloads")).filter((row) =>
+      row.edition?.commercial || row.edition?.id?.startsWith("ca_")
+        ? !!ownerId && row.ownerId === ownerId && !!row.commercialLicense?.receipt
+        : true,
+    );
+    const visible = await Promise.all(
+      records.map(async (row) => {
+        if (!row.edition?.commercial) return row;
+        try {
+          await validateLicensedDownload(row, ownerId);
+          return { ...row, offlineReady: true };
+        } catch {
+          return { ...row, offlineReady: false };
+        }
+      }),
+    );
+    setRows(visible);
+  }, [ownerId]);
   useEffect(() => {
-    void load();
-  }, []);
+    void load().catch((failure: unknown) =>
+      toast.error(
+        failure instanceof Error ? failure.message : "Saved downloads could not be loaded.",
+      ),
+    );
+  }, [load]);
   return (
     <section className="offline-downloads">
       <h2>Saved on this device</h2>
-      {rows.length ? (
-        rows.map((r) => (
-          <div className="offline-item" key={r.id}>
-            <div>
-              <a href={r.kind === "audio" ? "/listen/" + r.edition.id : "/read/" + r.book.id}>
-                {r.title}
-              </a>
-              <p className="small muted">
-                {(r.bytes / 1024 / 1024).toFixed(1)} MB ·{" "}
-                {r.complete ? "Available offline" : "Partially downloaded · open to resume"}
-              </p>
+      {rows.filter((row) => !row.edition?.commercial || row.ownerId === ownerId).length ? (
+        rows
+          .filter((row) => !row.edition?.commercial || row.ownerId === ownerId)
+          .map((r) => (
+            <div className="offline-item" key={r.id}>
+              <div>
+                <a href={r.kind === "audio" ? "/listen/" + r.edition.id : "/read/" + r.book.id}>
+                  {r.title}
+                </a>
+                <p className="small muted">
+                  {(r.bytes / 1024 / 1024).toFixed(1)} MB ·{" "}
+                  {r.offlineReady === false
+                    ? "Reconnect and save again to renew access"
+                    : r.complete
+                      ? "Available offline"
+                      : "Partially downloaded · open to resume"}
+                  {r.commercialLicense?.expiresAt && (
+                    <>
+                      {" "}
+                      · Access expires{" "}
+                      {new Date(r.commercialLicense.expiresAt).toLocaleDateString()}
+                    </>
+                  )}
+                </p>
+              </div>
+              <button
+                className="text-link"
+                onClick={() =>
+                  removeDownload(r.id)
+                    .then(load)
+                    .catch((e) => toast.error(e.message))
+                }
+              >
+                Remove download
+              </button>
             </div>
-            <button
-              className="text-link"
-              onClick={() =>
-                removeDownload(r.id)
-                  .then(load)
-                  .catch((e) => toast.error(e.message))
-              }
-            >
-              Remove download
-            </button>
-          </div>
-        ))
+          ))
       ) : (
         <p className="muted">
           Use “Save offline” on a book or recording. Downloads stay in this browser until you remove

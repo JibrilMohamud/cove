@@ -15,6 +15,7 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { flushSessions } from "./reading-activity";
+import { setOfflineAccount } from "./offline-account";
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import {
   BookOpen,
@@ -91,6 +92,8 @@ export function CoveProvider({ children }: { children: ReactNode }) {
       const next = await api<AccountData>("/account");
       if (version !== reloadVersion.current) return;
       const nextAccount = next.user?.id || null;
+      await setOfflineAccount(nextAccount).catch(() => {});
+      if (version !== reloadVersion.current) return;
       if (lastAccount.current !== undefined && lastAccount.current !== nextAccount) {
         await queryClient.cancelQueries();
         if (version !== reloadVersion.current) return;
@@ -105,6 +108,7 @@ export function CoveProvider({ children }: { children: ReactNode }) {
       setError((e as Error).message);
       setErrorRequestId(e instanceof CoveRequestError ? e.requestId : null);
       if (e instanceof CoveRequestError && [401, 403].includes(e.status)) {
+        await setOfflineAccount(null).catch(() => {});
         queryClient.clear();
         lastAccount.current = null;
         setData({ user: null, library: [], annotations: [], bookmarks: [], definitions: [] });
@@ -116,6 +120,13 @@ export function CoveProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
     reload();
+  }, [reload]);
+  useEffect(() => {
+    const changed = (event: StorageEvent) => {
+      if (event.key === "cove:offline-account:v1") void reload();
+    };
+    window.addEventListener("storage", changed);
+    return () => window.removeEventListener("storage", changed);
   }, [reload]);
   useEffect(() => registerReadingTools(reload), [reload]);
   useEffect(() => {

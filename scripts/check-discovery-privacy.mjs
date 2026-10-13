@@ -243,7 +243,7 @@ assert.match(dataOnly, /history\.json/);
 assert.match(backup, /downloadableEpubBytes/);
 assert.match(backup, /purpose=private-backup/);
 assert.match(backup, /README-PRIVATE\.txt/);
-assert.match(backup, /containsPersonalData:true/);
+assert.match(backup, /containsPersonalData:\s*true/);
 assert.match(book, /Download book/);
 assert.match(book, /Export reading data/);
 assert.match(book, /Cove backup package/);
@@ -278,7 +278,7 @@ assert.match(
   "book export response should identify its privacy/content class",
 );
 assert.match(discovery, /personal_export_events/);
-assert.match(discovery, /containsBookContent:false/);
+assert.match(discovery, /containsBookContent:\s*false/);
 const readingExportServer = discovery.slice(
   discovery.indexOf("export async function readingDataExport"),
 );
@@ -317,27 +317,27 @@ assert.match(seriesPage, /Novellas/);
 assert.match(seriesPage, /Related works/);
 assert.match(seriesPage, /wishlist/);
 assert.match(seriesPage, /subscriptionAvailable/);
-assert.match(seriesPage, /Add series to cart/);
+assert.match(seriesPage, /Add series to\s+cart/);
 assert.match(discovery, /entitlements/, "series ownership must consult durable entitlements");
-assert.match(discovery, /main\.length<=25/, "series bundle eligibility must cap main-title count");
+assert.match(discovery, /main\.length\s*<=\s*25/, "series bundle eligibility must cap main-title count");
 assert.match(
   discovery,
-  /uniqueWorks\.size===main\.length/,
+  /uniqueWorks\.size\s*===\s*main\.length/,
   "series bundle must reject duplicate-work editions",
 );
-assert.match(taxonomy, /resolveEntityId\(db,"author"/);
-assert.match(taxonomy, /resolveEntityId\(db,"publisher"/);
-assert.match(taxonomy, /resolveEntityId\(db,"imprint"/);
-assert.match(taxonomy, /resolveEntityId\(db,"series"/);
+assert.match(taxonomy, /resolveEntityId\(db,\s*"author"/);
+assert.match(taxonomy, /resolveEntityId\(db,\s*"publisher"/);
+assert.match(taxonomy, /resolveEntityId\(db,\s*"imprint"/);
+assert.match(taxonomy, /resolveEntityId\(db,\s*"series"/);
 assert.match(
   taxonomy,
-  /redirectTo:path!==canonical\?canonical:undefined/,
+  /redirectTo:\s*path\s*!==\s*canonical\s*\?\s*canonical\s*:\s*undefined/,
   "legacy entity IDs/slugs should canonicalize to stable public routes",
 );
 assert.match(taxonomy, /seriesRows/, "entity pages should expose related series discovery");
 assert.match(
   collections,
-  /e\.book\.downloadable===false/,
+  /e\.book\.downloadable\s*===\s*false/,
   "library exports must not present combined/content export as available for reader-only editions",
 );
 

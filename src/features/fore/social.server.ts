@@ -809,7 +809,7 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
     shares = (
       await db
         .prepare(
-          `SELECT s.*,a.cfi,a.chapter,a.quote,a.note,p.name FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id LEFT JOIN profiles p ON p.user_id=s.user_id WHERE s.product_id=? AND s.progress<=? AND s.moderation_status='visible' ${chapter ? "AND a.chapter=?" : ""} ORDER BY s.updated_at DESC LIMIT 300`,
+          `SELECT s.*,a.cfi,a.chapter,a.quote,a.note,p.name FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL LEFT JOIN profiles p ON p.user_id=s.user_id WHERE s.product_id=? AND s.progress<=? AND s.moderation_status='visible' ${chapter ? "AND a.chapter=?" : ""} ORDER BY s.updated_at DESC LIMIT 300`,
         )
         .bind(
           ...(chapter ? [product.id, progress + 0.002, chapter] : [product.id, progress + 0.002]),
@@ -1211,10 +1211,46 @@ export async function handleSocial(
       out = [];
     for (const e of rows) {
       if (await canSee(db, uidv, String(e.user_id), String(e.visibility))) {
+        let payload = asJson(e.payload_json, {});
+        const actor = await person(db, String(e.user_id));
+        if (e.event_type === "shared_highlight") {
+          const share = await db
+            .prepare(
+              "SELECT s.visibility,s.audience_group_id,a.quote,a.chapter FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL WHERE s.annotation_id=? AND s.user_id=? AND s.moderation_status='visible'",
+            )
+            .bind(e.entity_id, e.user_id)
+            .first<{
+              visibility: string;
+              audience_group_id: string | null;
+              quote: string;
+              chapter: string;
+            }>();
+          if (!share || !actor) continue;
+          const currentVisibility = feedVisibility(
+            String(share.visibility),
+            actor.activityVisibility,
+            actor.profileVisibility,
+          );
+          if (
+            !currentVisibility ||
+            !(await canSee(db, uidv, String(e.user_id), currentVisibility.visibility)) ||
+            !(await canSee(
+              db,
+              uidv,
+              String(e.user_id),
+              String(share.visibility),
+              share.audience_group_id,
+            ))
+          )
+            continue;
+          payload = { quote: String(share.quote).slice(0, 280), chapter: share.chapter };
+        }
         out.push({
           ...e,
-          payload: asJson(e.payload_json, {}),
-          user: await person(db, String(e.user_id)),
+          // Do not return the stored historical payload alongside the live projection.
+          payload_json: JSON.stringify(payload),
+          payload,
+          user: actor,
           book: e.product_id ? await productSnapshot(db, String(e.product_id)) : null,
         });
         if (out.length >= limit) break;
@@ -2019,7 +2055,7 @@ export async function handleSocial(
   if (shareMatch) {
     const annotationId = decodeURIComponent(shareMatch[1]),
       a = await db
-        .prepare("SELECT * FROM annotations WHERE id=? AND user_id=? AND deleted_at IS NULL")
+        .prepare("SELECT * FROM annotations WHERE id=? AND user_id=?")
         .bind(annotationId, uidv)
         .first<any>();
     if (!a) throw new ApiError(404, "Highlight not found.");
@@ -2032,6 +2068,7 @@ export async function handleSocial(
       return json({ shared: false });
     }
     if (method === "POST") {
+      if (a.deleted_at) throw new ApiError(404, "Highlight not found.");
       const x = z
         .object({
           visibility: z.enum(["public", "followers", "friends", "group"]),
@@ -2084,7 +2121,7 @@ export async function handleSocial(
           workId: snap?.internalWorkId,
           visibility: shareFeed.visibility,
           payload: { quote: String(a.quote).slice(0, 280), chapter: a.chapter },
-          dedupeKey: `shared-highlight:${annotationId}:${now().slice(0, 16)}`,
+          dedupeKey: `shared-highlight:${annotationId}:${crypto.randomUUID()}`,
         });
       await auditSocial(
         db,

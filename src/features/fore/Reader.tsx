@@ -7,6 +7,7 @@ import { cueForAudio, type AudioEdition } from "./domain";
 import { loadBookMetadata } from "./epub";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouterState } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -146,7 +147,8 @@ const themes = {
   oled: { bg: "#000000", fg: "#d6d7d9" },
 };
 export function ReaderPage({ id }: { id: string }) {
-  const previewMode = new URLSearchParams(window.location.search).get("preview") === "1";
+  const searchString = useRouterState({ select: (state) => state.location.searchStr || "" });
+  const previewMode = new URLSearchParams(searchString).get("preview") === "1";
   const bookQuery = useQuery<CatalogBook>({
     queryKey: ["book", id],
     queryFn: () => loadBookMetadata(id),
@@ -219,7 +221,7 @@ export function ReaderPage({ id }: { id: string }) {
     [socialShareNote, setSocialShareNote] = useState(false),
     [socialAnnotationId, setSocialAnnotationId] = useState<string | null>(null),
     [socialBusy, setSocialBusy] = useState(false),
-    [activeSocial, setActiveSocial] = useState<any | null>(null),
+    [activeSocialHash, setActiveSocialHash] = useState<string | null>(null),
     [finishedJourney, setFinishedJourney] = useState<string | null>(null),
     [chromeVisible, setChromeVisible] = useState(false),
     [formatInfo, setFormatInfo] = useState<{
@@ -284,8 +286,13 @@ export function ReaderPage({ id }: { id: string }) {
       ),
     enabled: !!data.user && !previewMode,
     staleTime: 4000,
+    refetchInterval: 30_000,
     refetchOnWindowFocus: false,
   });
+  const activeSocial =
+    socialReader.data?.indicators?.find(
+      (indicator: any) => indicator.passageHash === activeSocialHash,
+    ) || null;
   const socialAccount = useQuery<any>({
     queryKey: ["social-me-reader", data.user?.id],
     queryFn: () => api("/social/me"),
@@ -471,7 +478,7 @@ export function ReaderPage({ id }: { id: string }) {
         import("epubjs"),
         !previewMode && syncEdition.current
           ? matchingEpub(syncEdition.current)
-          : epubBytes(id, previewMode, data.user?.id || ""),
+          : epubBytes(id, previewMode),
       ]);
       if (canceled) return;
       epubHash.current = await sha256(bytes);
@@ -1140,7 +1147,7 @@ export function ReaderPage({ id }: { id: string }) {
               <button
                 key={indicator.passageHash}
                 onClick={() => {
-                  setActiveSocial(indicator);
+                  setActiveSocialHash(indicator.passageHash);
                   setPanel("social");
                 }}
                 title={`${indicator.discussionCount || 0} discussions · ${indicator.highlightCount || 0} shared highlights`}
@@ -1566,7 +1573,7 @@ export function ReaderPage({ id }: { id: string }) {
                     </p>
                     {activeSocial && (
                       <section className="margin-conversation-card">
-                        <button className="text-link" onClick={() => setActiveSocial(null)}>
+                        <button className="text-link" onClick={() => setActiveSocialHash(null)}>
                           ← All visible activity
                         </button>
                         <h3>
@@ -1601,7 +1608,10 @@ export function ReaderPage({ id }: { id: string }) {
                           in the margin right now.
                         </p>
                         {socialReader.data?.indicators?.map((x: any) => (
-                          <button key={x.passageHash} onClick={() => setActiveSocial(x)}>
+                          <button
+                            key={x.passageHash}
+                            onClick={() => setActiveSocialHash(x.passageHash)}
+                          >
                             <span>• {(x.discussionCount || 0) + (x.highlightCount || 0)}</span>
                             <strong>{x.chapter || "This passage"}</strong>
                             <small>

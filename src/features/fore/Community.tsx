@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { useRouterState } from "@tanstack/react-router";
 import {
   Activity,
   BookHeart,
@@ -282,26 +283,27 @@ export function DiscussionThread({
   );
 }
 function Feed() {
-  const q = useQuery<any>({
-    queryKey: ["social-feed"],
-    queryFn: () => api("/social/feed?limit=40"),
+  const { data } = useAccount();
+  const q = useInfiniteQuery({
+    queryKey: ["social-feed", data.user?.id],
+    initialPageParam: "",
+    queryFn: ({ pageParam }) =>
+      api<any>(
+        `/social/feed?limit=40${pageParam ? `&before=${encodeURIComponent(pageParam)}` : ""}`,
+      ),
+    getNextPageParam: (page: any) => page.nextCursor || undefined,
+    enabled: !!data.user,
+    refetchInterval: 30_000,
   });
-  const [more, setMore] = useState<any[]>([]);
-  const [cursor, setCursor] = useState<string | null | undefined>(undefined);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const next = cursor === undefined ? q.data?.nextCursor : cursor,
-    items = [...(q.data?.items || []), ...more];
+  const loadingMore = q.isFetchingNextPage;
+  const next = q.hasNextPage;
+  const items = q.data?.pages.flatMap((page) => page.items || []) || [];
   async function loadMore() {
     if (!next || loadingMore) return;
-    setLoadingMore(true);
     try {
-      const r = await api<any>(`/social/feed?limit=40&before=${encodeURIComponent(next)}`);
-      setMore((v) => [...v, ...(r.items || [])]);
-      setCursor(r.nextCursor || null);
+      await q.fetchNextPage();
     } catch (e) {
       toast.error((e as Error).message);
-    } finally {
-      setLoadingMore(false);
     }
   }
   return (
@@ -2042,7 +2044,8 @@ function MyCommunity() {
 }
 export function CommunityPage() {
   const { data, signIn } = useAccount();
-  const params = new URLSearchParams(location.search),
+  const searchString = useRouterState({ select: (state) => state.location.searchStr || "" });
+  const params = new URLSearchParams(searchString),
     profile = params.get("profile"),
     journey = params.get("journey"),
     list = params.get("list"),

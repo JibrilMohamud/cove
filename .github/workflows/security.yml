@@ -34,6 +34,8 @@ jobs:
         run: npm run test:commercial-experience
       - name: Search, updater and public caching regressions
         run: npm run test:search-updater-cache
+      - name: Reader, sharing privacy and offline authorization regressions
+        run: npm run test:reader-sharing-offline
       - name: Hosted BioSync chunk regressions
         run: npm run test:biosync-chunks
       - name: Python audio pipeline syntax
