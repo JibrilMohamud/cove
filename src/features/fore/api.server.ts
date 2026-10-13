@@ -4260,7 +4260,7 @@ async function handleCoveRequest(
         const saved = await db
           .prepare("SELECT * FROM biosync_positions WHERE user_id=? AND book_id=?")
           .bind(user.id, canonicalBookId)
-          .first<any>();
+          .first<Record<string, unknown>>();
         return json(saved || null);
       }
       if (request.method === "PUT") {
@@ -4269,7 +4269,7 @@ async function handleCoveRequest(
             editionId: z.string().min(1).max(100),
             trackId: z.string().min(1).max(100),
             seconds: z.number().finite().min(0).max(86400),
-            cfi: z.string().min(1).max(3000).regex(/^epubcfi\\(.+\\)$/),
+            cfi: z.string().min(1).max(3000).regex(/^epubcfi\(.+\)$/),
             mode: z.enum(["text", "audio"]),
             epubSha256: z.string().regex(/^[a-f0-9]{64}$/),
             audioSha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -4281,11 +4281,21 @@ async function handleCoveRequest(
             "SELECT book_id,epub_sha256,tracks_json,alignment_json FROM audio_editions WHERE id=?",
           )
           .bind(x.editionId)
-          .first<any>();
-        let tracks: any[] = [];
-        let alignment: any = null;
+          .first<{
+            book_id: string | null;
+            epub_sha256: string | null;
+            tracks_json: string;
+            alignment_json: string | null;
+          }>();
+        let tracks: Array<{ id?: string; sha256?: string }> = [];
+        let alignment: {
+          version?: number;
+          verified?: boolean;
+          maps?: Array<{ trackId: string }>;
+        } | null = null;
         try {
-          tracks = JSON.parse(edition?.tracks_json || "[]");
+          const parsedTracks: unknown = JSON.parse(edition?.tracks_json || "[]");
+          tracks = Array.isArray(parsedTracks) ? parsedTracks : [];
           alignment = JSON.parse(edition?.alignment_json || "null");
         } catch {
           throw new ApiError(422, "Biosync edition metadata is invalid.");
@@ -4298,7 +4308,7 @@ async function handleCoveRequest(
           !tracks.some((track) => track.id === x.trackId && track.sha256 === x.audioSha256) ||
           alignment?.version !== 2 ||
           alignment?.verified !== true ||
-          !alignment.maps?.some((map: any) => map.trackId === x.trackId)
+          !alignment.maps?.some((map) => map.trackId === x.trackId)
         )
           throw new ApiError(422, "Biosync requires a verified matching text and audio edition.");
         const at = now();
@@ -4320,7 +4330,7 @@ async function handleCoveRequest(
                   x.audioSha256,
                   at,
                 )
-                .first<any>()
+                .first<{ version: number; updated_at: string }>()
             : await db
                 .prepare(
                   "UPDATE biosync_positions SET edition_id=?,mode=?,cfi=?,track_id=?,seconds=?,epub_sha256=?,audio_sha256=?,version=version+1,updated_at=? WHERE user_id=? AND book_id=? AND version=? RETURNING version,updated_at",
@@ -4338,9 +4348,8 @@ async function handleCoveRequest(
                   canonicalBookId,
                   x.version,
                 )
-                .first<any>();
-        if (!saved)
-          throw new ApiError(409, "Biosync changed on another device. Reload before saving.");
+                .first<{ version: number; updated_at: string }>();
+        if (!saved) throw new ApiError(409, "Biosync changed on another device. Reload before saving.");
         return json(saved);
       }
       throw new ApiError(405, "This Biosync method is not supported.");
