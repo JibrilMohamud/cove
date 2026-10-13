@@ -66,10 +66,33 @@ test("guest navigation stays private and fits the device", async ({ page }, test
       page.locator(".community-tabs").getByRole("link", { name, exact: true }),
     ).toBeVisible();
   await noOverflow(page);
-  await page
+  const sharingTab = page
     .locator(".community-tabs")
-    .getByRole("link", { name: "My sharing", exact: true })
-    .click();
+    .getByRole("link", { name: "My sharing", exact: true });
+  const tabHref = await sharingTab.getAttribute("href");
+  expect(tabHref).toContain("tab=sharing");
+  await page.evaluate(() => {
+    window.__coveQaNavEvents = [];
+    document.addEventListener(
+      "click",
+      (event) => {
+        const href = event.target?.closest?.("a")?.getAttribute("href");
+        if (href) window.__coveQaNavEvents.push({ href, prevented: event.defaultPrevented });
+      },
+      true,
+    );
+  });
+  await sharingTab.click();
+  console.log(
+    "Cove Community navigation diagnostic:",
+    testInfo.project.name,
+    JSON.stringify({
+      requested: tabHref,
+      actual: page.url(),
+      events: await page.evaluate(() => window.__coveQaNavEvents || []),
+      errors,
+    }),
+  );
   await expect(page).toHaveURL(/\/community\?tab=sharing$/);
   await expect(page.getByRole("heading", { name: "Manage your sharing" })).toBeVisible();
   await expect(page.getByText(note)).toHaveCount(0);
