@@ -59,7 +59,10 @@ async function noOverflow(page) {
 test("guest navigation stays private and fits the device", async ({ page }, testInfo) => {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/community?tab=received");
+  const documentResponse = await page.goto("/community?tab=received");
+  expect(documentResponse?.headers()["content-security-policy"]).not.toContain(
+    "upgrade-insecure-requests",
+  );
   await expect(page.getByText("Sign in to see your private sharing.")).toBeVisible();
   for (const name of ["Activity", "Discover", "Shared with me", "My sharing", "My profile"])
     await expect(
