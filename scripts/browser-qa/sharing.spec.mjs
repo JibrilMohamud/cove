@@ -68,6 +68,9 @@ test("guest navigation stays private and fits the device", async ({ page }, test
     await expect(
       page.locator(".community-tabs").getByRole("link", { name, exact: true }),
     ).toBeVisible();
+  // The SSR links are visible before Vite finishes hydrating in the QA server.
+  // Wait for the actual client before navigating to avoid canceled dev imports.
+  await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
   await noOverflow(page);
   const sharingTab = page
     .locator(".community-tabs")
