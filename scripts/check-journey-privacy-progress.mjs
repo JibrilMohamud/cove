@@ -213,6 +213,9 @@ try {
     .run();
   const reached = await call("/social/reader/1342?mode=public&progress=0", "GET", undefined, "bob");
   assert.equal(reached.progress, 0.4);
+  const reachedPosts = await call("/social/posts?contextType=margin&contextId=1342&progress=0", "GET", undefined, "bob");
+  assert.ok(reachedPosts.posts.some((post) => post.body === "Secret passage"),
+    "saved progress overrides caller under-reporting");
   const report = await call(
     "/social/report",
     "POST",

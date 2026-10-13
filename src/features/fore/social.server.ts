@@ -835,9 +835,7 @@ async function visiblePosts(
         await currentProductProgress(db, viewer, String(r.product_id), env),
       );
     const effectiveProgress =
-      r.product_id && viewer
-        ? Math.min(viewerProgress, reached.get(String(r.product_id)) || 0)
-        : viewerProgress;
+      r.product_id && viewer ? reached.get(String(r.product_id)) || 0 : 0;
     const locked =
       r.user_id !== viewer && progress !== null && progress > effectiveProgress + 0.002;
     if (locked) {

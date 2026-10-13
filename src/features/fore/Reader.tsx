@@ -389,6 +389,8 @@ export function ReaderPage({ id }: { id: string }) {
                 rect.height > 0 &&
                 rect.left >= 0 &&
                 rect.left < frameRect.width &&
+                frameRect.left + rect.left >= stageRect.left &&
+                frameRect.left + rect.left < stageRect.right &&
                 rect.top >= 0 &&
                 rect.top < frameRect.height,
             );

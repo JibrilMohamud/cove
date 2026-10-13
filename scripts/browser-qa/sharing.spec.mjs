@@ -326,6 +326,10 @@ test("EPUB reader opens and joined members receive group margin discussions", as
     await expect(bob.getByText("Report sent to moderation")).toBeVisible();
     await noOverflow(bob);
     await bob.screenshot({ path: testInfo.outputPath("group-reader.png"), fullPage: true });
+    await bob.getByRole("button", { name: "Close", exact: true }).click();
+    await bob.getByRole("button", { name: "Next page", exact: true }).click();
+    await expect(chapterFrame.locator("#passage")).not.toBeInViewport();
+    await expect(bob.locator(".reader-social-gutter button")).toHaveCount(0);
     await inventory(outsider);
     await expect(outsider.getByText(discussion, { exact: true })).toHaveCount(0);
     const response = await outsider.request.get("/api/fore/social/sharing?view=received");
@@ -343,6 +347,7 @@ test("native browser storage persists nonextractable offline encryption keys", a
   try {
     const page = await fixture.pageFor(null);
     await page.goto("/community?tab=received");
+    await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await page.evaluate(async () => {
       const { putRecord } = await import("/src/features/fore/offline.ts");
       const id = "qa-key",
@@ -359,6 +364,7 @@ test("native browser storage persists nonextractable offline encryption keys", a
       await putRecord("assets", { id, key, iv, cipher });
     });
     await page.reload();
+    await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     const result = await page.evaluate(async () => {
       const { getRecord, deleteRecord } = await import("/src/features/fore/offline.ts");
       const id = "qa-key",
