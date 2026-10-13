@@ -963,7 +963,7 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
   }
   // A reader who belongs to several audiences should see one copy of a highlight.
   // Prefer the publication that explicitly includes the note, then the newest publication.
-  const displayShares = new Map<string, any>();
+  const displayShares = new Map<string, (typeof filteredShares)[number]>();
   for (const s of pref.show_highlights ? filteredShares : []) {
     const annotationId = String(s.annotation_id),
       previous = displayShares.get(annotationId);
@@ -1033,7 +1033,18 @@ async function ensureReaderPrefs(db: DB, userId: string) {
   const row = await db
     .prepare("SELECT * FROM social_reader_preferences WHERE user_id=?")
     .bind(userId)
-    .first<any>();
+    .first<{
+      user_id: string;
+      enabled: number;
+      audience_mode: string;
+      group_id: string | null;
+      show_discussions: number;
+      show_highlights: number;
+      show_reactions: number;
+      density: number;
+      version: number;
+      updated_at: string;
+    }>();
   if (row) return row;
   const at = now();
   await db
@@ -2374,7 +2385,7 @@ export async function handleSocial(
       annotation = await db
         .prepare("SELECT note,deleted_at FROM annotations WHERE id=? AND user_id=?")
         .bind(annotationId, uidv)
-        .first<any>();
+        .first<{ note: string | null; deleted_at: string | null }>();
     if (!annotation || annotation.deleted_at) throw new ApiError(404, "Highlight not found.");
     const x = z
       .object({
@@ -2416,7 +2427,7 @@ export async function handleSocial(
           ...expected,
           x.shares.length,
         )
-        .all<any>();
+        .all<{ id: string; version: number }>();
     if (updated.results.length !== x.shares.length)
       throw new ApiError(
         409,
@@ -2442,7 +2453,13 @@ export async function handleSocial(
       a = await db
         .prepare("SELECT * FROM annotations WHERE id=? AND user_id=?")
         .bind(annotationId, uidv)
-        .first<any>();
+        .first<{
+          book_id: string;
+          quote: string;
+          note: string | null;
+          progress: number | null;
+          deleted_at: string | null;
+        }>();
     if (!a) throw new ApiError(404, "Highlight not found.");
     if (method === "GET") {
       const rows = (
@@ -2456,7 +2473,17 @@ export async function handleSocial(
              ORDER BY s.updated_at DESC,s.id DESC`,
           )
           .bind(annotationId, uidv)
-          .all<any>()
+          .all<{
+            id: string;
+            share_key: string;
+            visibility: string;
+            recipient_user_id: string | null;
+            audience_group_id: string | null;
+            share_note: number;
+            updated_at: string;
+            version: number;
+            group_name: string | null;
+          }>()
       ).results;
       const shares = await Promise.all(
         rows.map(async (share) => ({
@@ -2504,7 +2531,7 @@ export async function handleSocial(
             "SELECT id,version FROM social_annotation_shares WHERE id=? AND annotation_id=? AND user_id=?",
           )
           .bind(x.shareId, annotationId, uidv)
-          .first<any>();
+          .first<{ id: string; version: number }>();
         if (!current) throw new ApiError(404, "Shared audience not found.");
         if (x.expectedVersion !== undefined && Number(current.version) !== x.expectedVersion)
           throw new ApiError(409, "Sharing changed on another device. Refresh before unsharing.");
@@ -2513,7 +2540,7 @@ export async function handleSocial(
             "DELETE FROM social_annotation_shares WHERE id=? AND annotation_id=? AND user_id=? AND version=? RETURNING id",
           )
           .bind(x.shareId, annotationId, uidv, Number(current.version))
-          .first<any>();
+          .first<{ id: string }>();
         if (!removed)
           throw new ApiError(409, "Sharing changed on another device. Refresh before unsharing.");
       } else if (x.expectedVersion !== undefined) {
@@ -2523,7 +2550,7 @@ export async function handleSocial(
               "SELECT id,version FROM social_annotation_shares WHERE annotation_id=? AND user_id=?",
             )
             .bind(annotationId, uidv)
-            .all<any>()
+            .all<{ id: string; version: number }>()
         ).results;
         if (current.length !== 1)
           throw new ApiError(409, "Choose a specific audience to withdraw.");
@@ -2532,7 +2559,7 @@ export async function handleSocial(
         const removed = await db
           .prepare("DELETE FROM social_annotation_shares WHERE id=? AND version=? RETURNING id")
           .bind(current[0].id, x.expectedVersion)
-          .first<any>();
+          .first<{ id: string }>();
         if (!removed)
           throw new ApiError(409, "Sharing changed on another device. Refresh before unsharing.");
       } else {
@@ -2547,7 +2574,7 @@ export async function handleSocial(
           "SELECT COUNT(*) count FROM social_annotation_shares WHERE annotation_id=? AND user_id=?",
         )
         .bind(annotationId, uidv)
-        .first<any>();
+        .first<{ count: number }>();
       await auditSocial(
         db,
         uidv,
@@ -2607,7 +2634,7 @@ export async function handleSocial(
             "SELECT id,share_key,share_note,note_snapshot,version FROM social_annotation_shares WHERE id=? AND annotation_id=? AND user_id=?",
           )
           .bind(x.shareId, annotationId, uidv)
-          .first<any>();
+          .first<{ id: string; share_key: string; share_note: number; note_snapshot: string | null; version: number }>();
         if (!current) throw new ApiError(404, "Shared audience not found.");
         if (x.expectedVersion !== undefined && Number(current.version) !== x.expectedVersion)
           throw new ApiError(
@@ -2619,7 +2646,7 @@ export async function handleSocial(
             "SELECT id FROM social_annotation_shares WHERE annotation_id=? AND share_key=? AND id<>? LIMIT 1",
           )
           .bind(annotationId, shareKey, x.shareId)
-          .first<any>();
+          .first<{ id: string }>();
         if (collision)
           throw new ApiError(
             409,
@@ -2669,7 +2696,7 @@ export async function handleSocial(
             "SELECT id,version FROM social_annotation_shares WHERE annotation_id=? AND user_id=? AND share_key=?",
           )
           .bind(annotationId, uidv, shareKey)
-          .first<any>();
+          .first<{ id: string; version: number }>();
         if (
           x.expectedVersion !== undefined &&
           (!current || Number(current.version) !== x.expectedVersion)

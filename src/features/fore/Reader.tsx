@@ -309,19 +309,22 @@ export function ReaderPage({ id }: { id: string }) {
     socialReader.data?.indicators?.find(
       (indicator: any) => indicator.passageHash === activeSocialHash,
     ) || null;
-  const socialAccount = useQuery<any>({
+  const socialAccount = useQuery<{
+    groups: { id: string; name: string; member_status: string }[];
+    profile?: { highlight_visibility_default?: string | null } | null;
+  }>({
     queryKey: ["social-me-reader", data.user?.id],
     queryFn: () => api("/social/me"),
     enabled: !!data.user && !previewMode,
     staleTime: 15000,
   });
   const activeGroups = (socialAccount.data?.groups || []).filter(
-    (group: any) => group.member_status === "active",
+    (group) => group.member_status === "active",
   );
   const discussionGroupName = activeGroups.find(
-    (group: any) => group.id === discussionGroupId,
+    (group) => group.id === discussionGroupId,
   )?.name;
-  const highlightGroupName = activeGroups.find((group: any) => group.id === socialGroupId)?.name;
+  const highlightGroupName = activeGroups.find((group) => group.id === socialGroupId)?.name;
   const discussionAudienceLabel = discussionDirect
     ? `@${discussionMember?.username || "selected member"}`
     : discussionVisibility === "group"
@@ -1887,7 +1890,7 @@ export function ReaderPage({ id }: { id: string }) {
                 Publish audience
                 <Select
                   value={discussionVisibility}
-                  onValueChange={(value: any) => {
+                  onValueChange={(value: "public" | "followers" | "friends" | "group") => {
                     setDiscussionVisibility(value);
                     setDiscussionAudienceConfirmed(false);
                   }}
@@ -1917,7 +1920,7 @@ export function ReaderPage({ id }: { id: string }) {
                       <SelectValue placeholder="Choose a group" />
                     </SelectTrigger>
                     <SelectContent>
-                      {activeGroups.map((group: any) => (
+                      {activeGroups.map((group) => (
                         <SelectItem value={group.id} key={group.id}>
                           {group.name}
                         </SelectItem>
@@ -2041,7 +2044,7 @@ export function ReaderPage({ id }: { id: string }) {
             Audience
             <Select
               value={socialVisibility}
-              onValueChange={(value: any) => {
+              onValueChange={(value: "private" | "public" | "followers" | "friends" | "group" | "member") => {
                 setSocialVisibility(value);
                 setSocialAudienceConfirmed(false);
               }}
@@ -2082,7 +2085,7 @@ export function ReaderPage({ id }: { id: string }) {
                   <SelectValue placeholder="Choose a reading group" />
                 </SelectTrigger>
                 <SelectContent>
-                  {activeGroups.map((group: any) => (
+                  {activeGroups.map((group) => (
                     <SelectItem value={group.id} key={group.id}>
                       {group.name}
                     </SelectItem>

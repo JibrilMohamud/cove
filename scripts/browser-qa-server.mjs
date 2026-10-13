@@ -96,7 +96,12 @@ async function seed(progress = 1) {
   await invoke(
     `/social/highlights/${annotation.id}/share`,
     "POST",
-    { visibility: "member", recipientUserId: people.bob.id, shareNote: true, audienceConfirmed: true },
+    {
+      visibility: "member",
+      recipientUserId: people.bob.id,
+      shareNote: true,
+      audienceConfirmed: true,
+    },
     people.alice,
   );
   const group = await invoke(
