@@ -33,13 +33,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-type ReaderHighlightVisibility =
-  | "private"
-  | "public"
-  | "followers"
-  | "friends"
-  | "group"
-  | "member";
+type ReaderHighlightVisibility = HighlightShareAudience["visibility"] | "private";
 import {
   Sheet,
   SheetContent,
