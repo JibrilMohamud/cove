@@ -106,6 +106,13 @@ try {
   assert.equal((await run(request("POST", audio, { "x-content-sha256": pcmHash }), 0)).status, 503);
   assert.equal(stored.size, 0, "invalid speech timestamps cannot be cached");
   invalidWords = false;
+  const asr = env.AI.run;
+  env.AI.run = async () => {
+    const result = await asr();
+    result.words[5].start = result.words[4].end - 0.1;
+    result.words[6].end = result.words[6].start;
+    return result;
+  };
   for (const index of [0, 1, 2, 3])
     assert.equal(
       (await run(request("POST", audio, { "x-content-sha256": pcmHash }), index)).status,
@@ -126,6 +133,11 @@ try {
   const transcript = await response.json();
   assert.equal(transcript.words.length, 80);
   assert.equal(transcript.words[20].start, 60, "second chunk must retain its recording offset");
+  assert.equal(
+    transcript.words[6].end,
+    transcript.words[6].start,
+    "untimed ASR tokens stay in the raw transcript for honest coverage counting",
+  );
   assert.ok(transcript.words.every((word) => word.probability === null));
   assert.equal(transcript.identity.audioSha256, hash);
   assert.equal((await (await run(request())).json()).complete, true);

@@ -176,11 +176,21 @@ export async function hostedBiosyncChunks(
         !Number.isFinite(word.start) ||
         !Number.isFinite(word.end) ||
         word.start < 0 ||
-        word.end <= word.start ||
+        word.end < word.start ||
         word.end > chunkDuration ||
-        (words.length > 0 && word.start < words[words.length - 1].end)
+        word.start > chunkDuration
       )
-        return reply({ error: "Speech engine returned invalid or overlapping timestamps." }, 503);
+        return reply(
+          {
+            error: "Speech engine returned invalid timestamps.",
+            word: { text: word?.word, start: word?.start, end: word?.end },
+            chunkDuration,
+          },
+          503,
+        );
+      // Preserve the independent transcript, including zero-length and
+      // overlapping tokens. The exact-text verifier counts them but cannot
+      // publish a cue unless its duration and ordering are valid.
       words.push({ text: word.word.trim(), start: word.start, end: word.end, probability: null });
     }
     const chunk: Chunk = {
@@ -219,9 +229,8 @@ export async function hostedBiosyncChunks(
         !Number.isFinite(end) ||
         word.start < 0 ||
         word.end > chunk.duration ||
-        end <= start ||
-        word.probability !== null ||
-        (words.length > 0 && start < words[words.length - 1].end)
+        end < start ||
+        word.probability !== null
       )
         return reply({ error: "Cached word timestamps are invalid." }, 409);
       words.push({ ...word, start, end });

@@ -74,7 +74,7 @@ def align(index,transcript,track_id,audio_sha):
         for k in range(block.size):
             n=absolute+k;spoken=speech[block.b+k];written=book[n]
             probability=spoken.get('probability')
-            if (probability is None and not confidence_unreported) or (probability is not None and probability < .72) or spoken['start']<last:continue
+            if (probability is None and not confidence_unreported) or (probability is not None and probability < .72) or spoken['start']<last or spoken['end']<=spoken['start']:continue
             accepted.append({key:written[key] for key in ('cfi','endCfi','href','text')}|{key:spoken[key] for key in ('start','end')}|{'probability':probability,'wordIndex':n});last=spoken['end']
     # Long audiobook forewords, LibriVox introductions and end credits may
     # exactly match isolated EPUB metadata or boilerplate. They are separate

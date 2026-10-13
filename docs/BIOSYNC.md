@@ -58,6 +58,9 @@ uses the existing bounded retry and review policy. The final transcript is
 assembled only when every interval is present; cue timestamps receive the
 interval's exact recording offset. Publication still requires the existing
 independent ASR/exact EPUB verification contract and minimum coverage.
+Zero-length or overlapping ASR tokens remain in the transcript and coverage
+count. They cannot become published cues: the verifier requires positive cue
+duration and monotonic ordering without adjusting the engine's timestamps.
 
 Tests: `npm run test:biosync-chunks` and
 `python3 -m unittest scripts.audio_pipeline.tests.test_hosted_chunks`.

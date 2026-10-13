@@ -178,6 +178,16 @@ class HostedBiosyncTests(unittest.TestCase):
         self.assertIsNone(checked["verification"]["minWordProbability"])
         self.assertTrue(all(w["probability"] is None for w in checked["words"]))
         self.assertGreaterEqual(checked["verification"]["coverage"], .9)
+        # Independent ASR may return zero-length or overlapping token spans.
+        # Keep those tokens in the speech/coverage count, but publish neither.
+        transcript["words"][20]["end"] = transcript["words"][20]["start"]
+        transcript["words"][21]["start"] = transcript["words"][19]["end"] - .1
+        repaired = align({"words": index_words, "epubSha256": "a" * 64}, transcript, "02", "b" * 64)
+        self.assertEqual(repaired["status"], "checked")
+        self.assertTrue({20, 21}.isdisjoint({word["wordIndex"] for word in repaired["words"]}))
+        self.assertEqual(repaired["verification"]["spokenWords"], 55)
+        self.assertLess(repaired["verification"]["coverage"], 1)
+        self.assertTrue(all(word["end"] > word["start"] for word in repaired["words"]))
         transcript["engine"] = "untrusted-external-timing"
         with self.assertRaisesRegex(ValueError, "only allowed"):
             align({"words": index_words, "epubSha256": "a" * 64}, transcript, "02", "b" * 64)
