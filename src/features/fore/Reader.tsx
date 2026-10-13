@@ -32,6 +32,8 @@ import {
   Eye,
 } from "lucide-react";
 import { toast } from "sonner";
+
+type ReaderHighlightVisibility = "private" | "public" | "followers" | "friends" | "group" | "member";
 import {
   Sheet,
   SheetContent,
@@ -2044,9 +2046,7 @@ export function ReaderPage({ id }: { id: string }) {
             Audience
             <Select
               value={socialVisibility}
-              onValueChange={(
-                value: "private" | "public" | "followers" | "friends" | "group" | "member",
-              ) => {
+              onValueChange={(value: ReaderHighlightVisibility) => {
                 setSocialVisibility(value);
                 setSocialAudienceConfirmed(false);
               }}
