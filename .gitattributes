@@ -1,0 +1,2 @@
+# D1 migrations with trigger bodies must remain LF-normalized across platforms.
+drizzle/*.sql text eol=lf
