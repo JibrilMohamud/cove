@@ -2367,7 +2367,7 @@ export async function handleSocial(
     if (!saved) throw new ApiError(409, "Social Reading settings changed on another device.");
     return json({ saved: true, version: Number(saved.version) });
   }
-  const republishMatch = path.match(/^\\/social\\/highlights\\/([^/]+)\\/republish-note$/);
+  const republishMatch = path.match(/^\/social\/highlights\/([^/]+)\/republish-note$/);
   if (republishMatch && method === "POST") {
     const annotationId = decodeURIComponent(republishMatch[1]),
       annotation = await db
@@ -2427,7 +2427,7 @@ export async function handleSocial(
     });
     return json({ published: true, updatedCount: updated.results.length });
   }
-  const shareMatch = path.match(/^\\/social\\/highlights\\/([^/]+)\\/share$/);
+  const shareMatch = path.match(/^\/social\/highlights\/([^/]+)\/share$/);
   if (shareMatch) {
     const annotationId = decodeURIComponent(shareMatch[1]),
       a = await db
