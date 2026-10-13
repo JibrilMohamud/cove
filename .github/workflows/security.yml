@@ -6,7 +6,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '17 7 * * 1'
+    - cron: "17 7 * * 1"
 permissions:
   contents: read
 jobs:
@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
-        with: {node-version: '22', cache: npm}
+        with: { node-version: "22", cache: npm }
       - run: npm ci
       - name: Dependency vulnerability audit
         run: npm audit --audit-level=high
@@ -30,6 +30,8 @@ jobs:
         run: npm run test:security-sync
       - name: Persistence backend regressions
         run: npm run test:persistence-backend
+      - name: Hosted BioSync chunk regressions
+        run: npm run test:biosync-chunks
       - name: Python audio pipeline syntax
         run: python3 -m py_compile scripts/audio_pipeline/*.py
       - name: Build
@@ -39,7 +41,7 @@ jobs:
       - name: CycloneDX SBOM
         run: npm run security:sbom
       - uses: actions/upload-artifact@v4
-        with: {name: security-sbom, path: artifacts/sbom.cdx.json, if-no-files-found: error}
+        with: { name: security-sbom, path: artifacts/sbom.cdx.json, if-no-files-found: error }
   provenance:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: supply-chain
@@ -51,9 +53,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
-        with: {node-version: '22', cache: npm}
+        with: { node-version: "22", cache: npm }
       - run: npm ci && npm run build
       - name: Package build output
         run: tar -czf fore-build.tgz dist .output 2>/dev/null || tar -czf fore-build.tgz dist
       - uses: actions/attest-build-provenance@v2
-        with: {subject-path: fore-build.tgz}
+        with: { subject-path: fore-build.tgz }

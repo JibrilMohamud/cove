@@ -265,7 +265,8 @@ export async function handlePipeline(
     const p = z
       .object({
         leaseToken: z.string().uuid(),
-        status: z.enum(["done", "review", "skipped", "retry", "heartbeat"]),
+        status: z.enum(["done", "review", "skipped", "retry", "heartbeat", "checkpoint"]),
+        checkpointIndex: z.number().int().min(0).max(359).optional(),
         error: z.string().max(1000).default(""),
       })
       .parse(await readBody(r));
@@ -282,6 +283,31 @@ export async function handlePipeline(
         .bind(new Date(Date.now() + 10 * 60000).toISOString(), job.id, p.leaseToken)
         .run();
       return json({ renewed: true });
+    }
+    if (p.status === "checkpoint") {
+      if (job.kind !== "align" || p.checkpointIndex === undefined || !env.BUCKET)
+        throw new ApiError(400, "Only saved ASR chunk progress can checkpoint a job.");
+      const payload = JSON.parse(job.payload_json);
+      if (!/^[a-f0-9]{64}$/.test(payload.audioSha256 || ""))
+        throw new ApiError(409, "Prepared recording identity is invalid.");
+      const object = await env.BUCKET.get(
+        `biosync/transcripts/cloudflare-whisper-chunks-v1/${payload.audioSha256}/${p.checkpointIndex}.json`,
+      );
+      const chunk = object ? await object.json() : null;
+      if (
+        !chunk ||
+        chunk.leaseToken !== job.lease_token ||
+        chunk.audioSha256 !== payload.audioSha256 ||
+        chunk.index !== p.checkpointIndex
+      )
+        throw new ApiError(409, "This lease has not saved the claimed ASR chunk.");
+      await db
+        .prepare(
+          "UPDATE audio_jobs SET status='queued',attempts=MAX(0,attempts-1),next_attempt_at=?,last_error=?,lease_token=NULL,lease_until=NULL,updated_at=? WHERE id=? AND lease_token=?",
+        )
+        .bind(now(), p.error, now(), job.id, p.leaseToken)
+        .run();
+      return json({ status: "queued", checkpoint: p.checkpointIndex });
     }
     const status = p.status === "retry" ? (job.attempts >= 6 ? "review" : "queued") : p.status,
       next = new Date(

@@ -5,6 +5,7 @@ from .media import download,mirror_url,sha256
 from .epub_index import build
 from .align import transcribe,align
 from .model_storage import ModelStorageUnavailable
+from .hosted_chunks import transcribe_chunks,TranscriptionPending
 
 class Api:
     def __init__(self,config):
@@ -40,11 +41,14 @@ class Api:
             if file:
                 payload.close()
 
-    def finish(self,job,status,error=''):
+    def finish(self,job,status,error='',checkpoint_index=None):
+        data={'leaseToken':job['lease_token'],'status':status,'error':error[:1000]}
+        if checkpoint_index is not None:
+            data['checkpointIndex']=checkpoint_index
         return self.call(
             '/pipeline/jobs/'+job['id'],
             'PUT',
-            {'leaseToken':job['lease_token'],'status':status,'error':error[:1000]},
+            data,
         )
 
 def process_discovery(api,job):
@@ -106,7 +110,15 @@ def process_alignment(api,job,cache,threads):
     # Hosted ASR works directly from R2 and does not duplicate the audio or
     # download Whisper model weights into Vercel's severely limited /tmp.
     if hosted:
-        transcript=api.call(f"/pipeline/hosted-transcript/{e['id']}/{t['id']}",'POST',{'audioSha256':expected})
+        if (t.get('duration') or 0)>240:
+            transcript=transcribe_chunks(api,job,e,t,folder)
+        else:
+            try:
+                transcript=api.call(f"/pipeline/hosted-transcript/{e['id']}/{t['id']}",'POST',{'audioSha256':expected})
+            except RuntimeError as error:
+                if 'track_exceeds_single_inference_limit' not in str(error):
+                    raise
+                transcript=transcribe_chunks(api,job,e,t,folder)
         identity=transcript.get('identity') or {}
         if identity.get('audioSha256')!=expected or transcript.get('engine')!='cloudflare-workers-ai-whisper' or transcript.get('confidenceMode')!='unreported':
             raise RuntimeError('Hosted BioSync transcript did not match the prepared audio identity')
@@ -248,6 +260,7 @@ def run(config,args):
         print(json.dumps({'discovered':len(items),'bootstrap':bool(args.no_discovery)}),flush=True)
 
     deadline=time.monotonic()+args.minutes*60
+    api.deadline=deadline
     done=0
     default_kinds=('track','discover','align')
     while time.monotonic()<deadline and done<args.max_jobs:
@@ -271,6 +284,9 @@ def run(config,args):
             status,error=process(api,job,cache,args.threads)
             api.finish(job,status,error)
             print(json.dumps({'job':job['id'],'kind':job['kind'],'status':status,'detail':error}),flush=True)
+        except TranscriptionPending as error:
+            api.finish(job,'checkpoint',str(error),checkpoint_index=error.index)
+            print(json.dumps({'job':job['id'],'kind':job['kind'],'status':'checkpoint','detail':str(error)}),flush=True)
         except ModelStorageUnavailable as error:
             # Out-of-disk is usually transient on a reused serverless worker.
             # Give the leased D1 job an exponential retry instead of treating

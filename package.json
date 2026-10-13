@@ -17,6 +17,7 @@
     "test:packages": "node scripts/check-packages.mjs",
     "test:service": "node scripts/check-service.mjs",
     "test:biosync": "node scripts/check-biosync.mjs",
+    "test:biosync-chunks": "node scripts/check-hosted-biosync-chunks.mjs",
     "test:auth": "node scripts/check-auth.mjs",
     "test:recommendations": "node scripts/check-recommendations.mjs",
     "test:retail": "node scripts/check-retail.mjs",

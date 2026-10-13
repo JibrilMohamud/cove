@@ -6,6 +6,7 @@ import {
   runRecommendationMaintenance,
   type CoveEnv,
 } from "./features/fore/api.server";
+import { hostedBiosyncChunks } from "./features/fore/hosted-biosync-chunks.server";
 
 type BackendEnv = CoveEnv & {
   FORE_BACKEND_TOKEN?: string;
@@ -609,14 +610,21 @@ async function runScheduled(cron: string, env: BackendEnv) {
  * words before it can publish a map.
  */
 /* eslint-disable prettier/prettier -- isolated hosted-ASR adapter; behavioral CI remains enforced */
-async function hostedBiosyncTranscript(request: Request, env: BackendEnv, editionId: string, trackId: string) {
+async function hostedBiosyncTranscript(
+  request: Request,
+  env: BackendEnv,
+  editionId: string,
+  trackId: string,
+) {
   if (request.method !== "POST") return json({ error: "Method not allowed." }, 405);
-  if (!env.AI || !env.BUCKET) return json({ error: "BioSync hosted ASR binding unavailable.", retryable: true }, 503);
+  if (!env.AI || !env.BUCKET)
+    return json({ error: "BioSync hosted ASR binding unavailable.", retryable: true }, 503);
   if (!/^pg-[1-9][0-9]{0,8}$/.test(editionId) || !/^[a-zA-Z0-9_-]{1,100}$/.test(trackId)) {
     return json({ error: "Invalid audio identity." }, 400);
   }
   const row = await env.DB.prepare("SELECT language,tracks_json FROM audio_editions WHERE id=?")
-    .bind(editionId).first<{ language: string; tracks_json: string }>();
+    .bind(editionId)
+    .first<{ language: string; tracks_json: string }>();
   if (!row) return json({ error: "Unknown audio edition." }, 404);
   let tracks: Array<{ id: string; sha256?: string; duration?: number; url: string }>;
   try {
@@ -624,7 +632,7 @@ async function hostedBiosyncTranscript(request: Request, env: BackendEnv, editio
   } catch {
     return json({ error: "Invalid edition metadata." }, 409);
   }
-  const track = tracks.find(t => t.id === trackId);
+  const track = tracks.find((t) => t.id === trackId);
   if (!track || !track.sha256 || !/^[a-f0-9]{64}$/.test(track.sha256) || !track.duration) {
     return json({ error: "Prepared audio is required." }, 409);
   }
@@ -637,15 +645,25 @@ async function hostedBiosyncTranscript(request: Request, env: BackendEnv, editio
   // This model is for bounded short recordings. Don't load long MP3s into
   // the Worker heap; large tracks require a separate chunked ASR pathway.
   if (object.size > 8 * 1024 * 1024 || track.duration > 240) {
-    return json({ error: "Hosted Whisper chunking required for this track.", retryable: true, reason: "track_exceeds_single_inference_limit" }, 422);
+    return json(
+      {
+        error: "Hosted Whisper chunking required for this track.",
+        retryable: true,
+        reason: "track_exceeds_single_inference_limit",
+      },
+      422,
+    );
   }
   const audio = new Uint8Array(await object.arrayBuffer());
   const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", audio))]
-    .map(b => b.toString(16).padStart(2, "0")).join("");
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
   if (hash !== track.sha256) return json({ error: "Prepared audio digest mismatch." }, 409);
   let result: { words?: Array<{ word?: string; start?: number; end?: number }>; text?: string };
   try {
-    result = await env.AI.run("@cf/openai/whisper", { audio: Array.from(audio) }) as typeof result;
+    result = (await env.AI.run("@cf/openai/whisper", {
+      audio: Array.from(audio),
+    })) as typeof result;
   } catch (error) {
     console.error("Hosted BioSync transcription failed", editionId, trackId, error);
     return json({ error: "Hosted transcription unavailable.", retryable: true }, 503);
@@ -654,18 +672,32 @@ async function hostedBiosyncTranscript(request: Request, env: BackendEnv, editio
     return json({ error: "Speech engine did not return word timestamps.", retryable: true }, 503);
   }
   const words = result.words
-    .filter(w => w && typeof w.word === "string" && w.word.trim().length > 0
-      && Number.isFinite(w.start) && Number.isFinite(w.end)
-      && (w.start as number) >= 0 && (w.end as number) > (w.start as number)
-      && (w.end as number) <= (track.duration as number) + 1)
-    .map(w => ({
+    .filter(
+      (w) =>
+        w &&
+        typeof w.word === "string" &&
+        w.word.trim().length > 0 &&
+        Number.isFinite(w.start) &&
+        Number.isFinite(w.end) &&
+        (w.start as number) >= 0 &&
+        (w.end as number) > (w.start as number) &&
+        (w.end as number) <= (track.duration as number) + 1,
+    )
+    .map((w) => ({
       text: (w.word as string).trim(),
       start: w.start,
       end: w.end,
       probability: null,
     }));
   if (words.length < 30) {
-    return json({ error: "Speech transcript has fewer than thirty timed words.", retryable: true, timedWords: words.length }, 503);
+    return json(
+      {
+        error: "Speech transcript has fewer than thirty timed words.",
+        retryable: true,
+        timedWords: words.length,
+      },
+      503,
+    );
   }
   const transcript = {
     identity: { audioSha256: track.sha256, model: "cloudflare-whisper-v1", language: row.language },
@@ -699,6 +731,17 @@ export default {
     }
 
     const path = new URL(request.url).pathname;
+    const chunkTranscript = path.match(
+      /^\/api\/fore\/pipeline\/hosted-transcript\/(pg-[1-9][0-9]{0,8})\/([a-zA-Z0-9_-]{1,100})\/chunks(?:\/([0-9]{1,3}))?$/,
+    );
+    if (chunkTranscript)
+      return hostedBiosyncChunks(
+        request,
+        env,
+        chunkTranscript[1],
+        chunkTranscript[2],
+        chunkTranscript[3] === undefined ? undefined : Number(chunkTranscript[3]),
+      );
     const hostedTranscript = path.match(
       /^\/api\/fore\/pipeline\/hosted-transcript\/(pg-[1-9][0-9]{0,8})\/([a-zA-Z0-9_-]{1,100})$/,
     );

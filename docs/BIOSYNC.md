@@ -38,3 +38,26 @@ The EPUB hash, track hashes, and checked map travel in the combined download. Co
 ## Content and product work remaining
 
 Automatic checks establish file identity and a conservative exact-text match; they are not a claim of human editorial review. Recordings or tracks that fail the threshold remain playable and enter review. A reviewer workspace, richer quality reporting, native-device integration, and the later recommendation engine are still separate work.
+
+# Resumable hosted transcription
+
+Long prepared recordings use SHA-256-pinned source audio and fixed 120-second
+mono 16-kHz PCM WAV intervals. The trusted Python audio worker verifies the
+entire source digest before decoding. The persistence Worker requires the
+matching active alignment lease, bounds each upload to 3,840,044 bytes, checks
+its PCM format and digest, then transcribes it with hosted Whisper. Actual
+word timestamps and unknown confidence values are retained. No text prompt
+or fabricated confidence is used.
+
+Chunk ASR results live under
+`biosync/transcripts/cloudflare-whisper-chunks-v1/<audio-sha256>/<index>.json`.
+After a timeout, the next invocation skips those saved intervals. A deliberate
+checkpoint refunds only the current claim attempt, and only after D1 verifies
+that this exact lease saved the reported R2 chunk. Failed processing still
+uses the existing bounded retry and review policy. The final transcript is
+assembled only when every interval is present; cue timestamps receive the
+interval's exact recording offset. Publication still requires the existing
+independent ASR/exact EPUB verification contract and minimum coverage.
+
+Tests: `npm run test:biosync-chunks` and
+`python3 -m unittest scripts.audio_pipeline.tests.test_hosted_chunks`.
