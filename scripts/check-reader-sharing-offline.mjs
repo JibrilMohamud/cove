@@ -68,6 +68,15 @@ try {
       )
       .bind(follower, at)
       .run();
+  const product = await db
+    .prepare("SELECT id FROM products WHERE source_external_id='1342'")
+    .first();
+  await db
+    .prepare(
+      "INSERT INTO reading_states(user_id,product_id,external_book_id,progress,cfi,updated_at) VALUES('bob',?,'1342',1,'',?)",
+    )
+    .bind(product.id, at)
+    .run();
   const made = await api.handleCoveApi(
     request("/annotations", "POST", {
       bookId: "1342",

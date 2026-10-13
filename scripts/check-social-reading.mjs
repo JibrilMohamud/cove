@@ -141,7 +141,7 @@ assert.ok(
   "replies must inherit parent spoiler anchor",
 );
 assert.ok(
-  social.replace(/\s+/g, "").includes("constprogress=a.progress==null?awaitcurrentProductProgress"),
+  social.replace(/\s+/g, "").includes("a.progress==null?awaitcurrentProductProgress"),
   "shared highlight progress must use stored/server state",
 );
 assert.ok(

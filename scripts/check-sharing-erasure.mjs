@@ -75,6 +75,12 @@ try {
   const product = (
     await db.prepare("SELECT id FROM products WHERE source_external_id='1342'").first()
   ).id;
+  await db
+    .prepare(
+      "INSERT INTO reading_states(user_id,product_id,external_book_id,progress,cfi,updated_at) VALUES('bob',?,'1342',0.1,'',?),('alice',?,'1342',0.1,'',?)",
+    )
+    .bind(product, at, product, at)
+    .run();
   const group = (
     await call("/social/groups", "POST", { name: "Private club", visibility: "private" })
   ).id;
@@ -218,7 +224,7 @@ try {
   assert.ok(!(await inventory("charlie")).items.some((x) => x.id === saved.id));
   await db
     .prepare(
-      "INSERT INTO reading_states(user_id,product_id,external_book_id,progress,cfi,updated_at) VALUES(?,?,?,1,'',?)",
+      "INSERT OR REPLACE INTO reading_states(user_id,product_id,external_book_id,progress,cfi,updated_at) VALUES(?,?,?,1,'',?)",
     )
     .bind("bob", product, "1342", at)
     .run();

@@ -66,51 +66,83 @@ export function DiscussionThread({
   title = "Discussion & questions",
   groupId,
   onChanged,
+  postId,
+  parentId,
 }: {
-  contextType: "work" | "group" | "list" | "profile";
+  contextType: "work" | "margin" | "group" | "list" | "profile";
   contextId: string;
   progress?: number;
   title?: string;
   groupId?: string;
   onChanged?: () => void;
+  postId?: string;
+  parentId?: string;
 }) {
   const { data, signIn } = useAccount();
   const [body, setBody] = useState("");
   const [kind, setKind] = useState<"discussion" | "question">("discussion");
   const [spoiler, setSpoiler] = useState(false);
   const [replying, setReplying] = useState<string | null>(null);
-  const [reply, setReply] = useState("");
-  const q = useQuery<{ posts: Post[] }>({
-    queryKey: ["social-posts", contextType, contextId, progress],
-    queryFn: () =>
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const q = useInfiniteQuery<{ posts: Post[]; nextCursor: string | null }>({
+    queryKey: ["social-posts", data.user?.id, contextType, contextId, progress, postId, parentId],
+    initialPageParam: "",
+    queryFn: ({ pageParam }) =>
       api(
-        `/social/posts?contextType=${encodeURIComponent(contextType)}&contextId=${encodeURIComponent(contextId)}&progress=${progress}`,
+        `/social/posts?contextType=${contextType}&contextId=${encodeURIComponent(contextId)}&progress=${progress}${postId ? `&postId=${encodeURIComponent(postId)}` : ""}${parentId ? `&parentId=${encodeURIComponent(parentId)}` : ""}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
       ),
+    getNextPageParam: (page) => page.nextCursor || undefined,
   });
-  async function publish(parentId?: string) {
+  const posts = [
+    ...new Map((q.data?.pages.flatMap((page) => page.posts) || []).map((p) => [p.id, p])).values(),
+  ];
+  async function saveEdit(p: Post) {
+    if (busy || !editBody.trim()) return;
+    setBusy(true);
+    try {
+      await api(`/social/posts/${encodeURIComponent(p.id)}`, "PATCH", {
+        body: editBody,
+        expectedVersion: p.version || 1,
+      });
+      setEditing(null);
+      await q.refetch();
+      onChanged?.();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function publish() {
+    const targetParent = parentId;
+    if (busy) return;
     if (!data.user) return signIn();
-    const text = parentId ? reply : body;
+    const text = body;
     if (!text.trim()) return;
+    setBusy(true);
     try {
       await api("/social/posts", "POST", {
         contextType,
         contextId,
-        parentId: parentId || null,
-        postType: parentId ? "reply" : kind,
+        parentId: targetParent || null,
+        postType: targetParent ? "reply" : kind,
         body: text,
         visibility: contextType === "group" ? "group" : "public",
         spoiler: parentId ? false : spoiler,
         progress: !parentId && contextType === "group" && spoiler ? progress : undefined,
       });
       setBody("");
-      setReply("");
       setReplying(null);
       setSpoiler(false);
       await q.refetch();
       onChanged?.();
-      toast.success(parentId ? "Reply posted" : "Posted to the discussion");
+      toast.success(targetParent ? "Reply posted" : "Posted to the discussion");
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
   async function react(p: Post) {
@@ -122,6 +154,7 @@ export function DiscussionThread({
         active,
       });
       await q.refetch();
+      onChanged?.();
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -133,6 +166,7 @@ export function DiscussionThread({
         expectedVersion: p.version || 1,
       });
       await q.refetch();
+      onChanged?.();
       toast.success("Discussion removed");
     } catch (e) {
       toast.error((e as Error).message);
@@ -166,49 +200,76 @@ export function DiscussionThread({
     </>
   );
   return (
-    <section className="social-thread" aria-labelledby={`${contextType}-${contextId}-discussion`}>
+    <section
+      className="social-thread"
+      aria-labelledby={`${contextType}-${contextId}-${postId || parentId || "root"}-discussion`}
+    >
       <div className="section-heading">
         <div>
           <span className="small-label">CONVERSATION</span>
-          <h2 id={`${contextType}-${contextId}-discussion`}>{title}</h2>
+          <h2 id={`${contextType}-${contextId}-${postId || parentId || "root"}-discussion`}>
+            {title}
+          </h2>
         </div>
       </div>
-      <div className="social-composer">
-        <div className="social-composer-tabs">
-          <button
-            className={kind === "discussion" ? "selected" : ""}
-            onClick={() => setKind("discussion")}
-          >
-            Discussion
-          </button>
-          <button
-            className={kind === "question" ? "selected" : ""}
-            onClick={() => setKind("question")}
-          >
-            Question
+      {(contextType !== "margin" || !!parentId) && (
+        <div className="social-composer">
+          {!parentId && (
+            <div className="social-composer-tabs">
+              <button
+                className={kind === "discussion" ? "selected" : ""}
+                onClick={() => setKind("discussion")}
+              >
+                Discussion
+              </button>
+              <button
+                className={kind === "question" ? "selected" : ""}
+                onClick={() => setKind("question")}
+              >
+                Question
+              </button>
+            </div>
+          )}
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            aria-label={parentId ? "Write a reply" : "Start a conversation"}
+            placeholder={
+              data.user
+                ? parentId
+                  ? "Write a reply…"
+                  : "Start a conversation…"
+                : "Sign in to join the conversation"
+            }
+            maxLength={12000}
+          />
+          {!parentId && (
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={spoiler}
+                onChange={(e) => setSpoiler(e.target.checked)}
+              />{" "}
+              {contextType === "group"
+                ? "Spoiler — hide from members who have not reached my current progress"
+                : "Hide this post behind a spoiler warning"}
+            </label>
+          )}
+          {parentId && (
+            <p className="small muted">
+              Your reply uses the original discussion’s audience and spoiler settings.
+            </p>
+          )}
+          <button className="button gold" disabled={busy || !body.trim()} onClick={() => publish()}>
+            <MessageCircle size={16} /> {parentId ? "Reply" : "Post"}
           </button>
         </div>
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder={data.user ? "Start a conversation…" : "Sign in to join the conversation"}
-          maxLength={12000}
-        />
-        <label className="check-row">
-          <input type="checkbox" checked={spoiler} onChange={(e) => setSpoiler(e.target.checked)} />{" "}
-          {contextType === "group"
-            ? "Spoiler — hide from members who have not reached my current progress"
-            : "Hide this post behind a spoiler warning"}
-        </label>
-        <button className="button gold" disabled={!body.trim()} onClick={() => publish()}>
-          <MessageCircle size={16} /> Post
-        </button>
-      </div>
+      )}
       <div className="social-post-list">
         {q.isLoading ? (
           <p className="muted">Loading discussion…</p>
-        ) : q.data?.posts?.length ? (
-          q.data.posts.map((p) =>
+        ) : posts.length ? (
+          posts.map((p) =>
             p.locked ? (
               <article className="social-post locked" key={p.id}>
                 <LockKeyhole size={16} />
@@ -229,7 +290,25 @@ export function DiscussionThread({
                     {p.editedAt ? " · edited" : ""}
                   </span>
                 </header>
-                {postBody(p)}
+                {editing === p.id ? (
+                  <div>
+                    <label>
+                      Edit published discussion
+                      <textarea
+                        aria-label="Edit discussion"
+                        maxLength={12000}
+                        value={editBody}
+                        onChange={(e) => setEditBody(e.target.value)}
+                      />
+                    </label>
+                    <button disabled={busy || !editBody.trim()} onClick={() => saveEdit(p)}>
+                      Save published edit
+                    </button>
+                    <button onClick={() => setEditing(null)}>Cancel</button>
+                  </div>
+                ) : (
+                  postBody(p)
+                )}
                 <footer>
                   <button
                     className={(p.myReactions || []).includes("heart") ? "selected" : ""}
@@ -242,42 +321,50 @@ export function DiscussionThread({
                     <MessageCircle size={14} /> {p.replies || 0}
                   </button>
                   {data.user?.id === p.user?.id ? (
-                    <button onClick={() => remove(p)}>Delete</button>
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditing(p.id);
+                          setEditBody(p.body || "");
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button onClick={() => remove(p)}>Delete</button>
+                    </>
                   ) : (
                     <button onClick={() => report(p)}>Report</button>
                   )}
                   <span>{when(p.createdAt)}</span>
                 </footer>
-                {p.replyItems?.map((r) => (
-                  <div className="social-reply" key={r.id}>
-                    <strong>{r.user?.name || "Reader"}</strong>
-                    {r.spoiler ? (
-                      <details className="spoiler-disclosure">
-                        <summary>Spoiler — reveal</summary>
-                        <p>{r.body}</p>
-                      </details>
-                    ) : (
-                      <p>{r.body}</p>
-                    )}
-                  </div>
-                ))}
                 {replying === p.id && (
-                  <div className="social-reply-composer">
-                    <input
-                      value={reply}
-                      onChange={(e) => setReply(e.target.value)}
-                      placeholder="Reply…"
-                    />
-                    <button className="button outline" onClick={() => publish(p.id)}>
-                      Reply
-                    </button>
-                  </div>
+                  <DiscussionThread
+                    contextType={contextType}
+                    contextId={contextId}
+                    parentId={p.id}
+                    progress={progress}
+                    title="Replies"
+                    onChanged={() => {
+                      void q.refetch();
+                      onChanged?.();
+                    }}
+                  />
                 )}
               </article>
             ),
           )
         ) : (
           <p className="muted">No discussion yet. You can start the first one.</p>
+        )}
+        {q.isError && (
+          <p role="alert">
+            Could not load discussion. <button onClick={() => q.refetch()}>Retry</button>
+          </p>
+        )}
+        {q.hasNextPage && (
+          <button disabled={q.isFetchingNextPage} onClick={() => q.fetchNextPage()}>
+            Load older discussion
+          </button>
         )}
       </div>
     </section>
@@ -290,7 +377,7 @@ function Feed() {
     initialPageParam: "",
     queryFn: ({ pageParam }) =>
       api<any>(
-        `/social/feed?limit=40${pageParam ? `&before=${encodeURIComponent(pageParam)}` : ""}`,
+        `/social/feed?limit=40${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
       ),
     getNextPageParam: (page: any) => page.nextCursor || undefined,
     enabled: !!data.user,
@@ -384,6 +471,21 @@ function eventSentence(e: any) {
 }
 
 function Discover() {
+  const [search, setSearch] = useState("");
+  const [term, setTerm] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setTerm(search.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+  const people = useInfiniteQuery<any>({
+    queryKey: ["member-search", term],
+    initialPageParam: "",
+    queryFn: ({ pageParam }) =>
+      api(
+        `/social/discover?q=${encodeURIComponent(term)}&after=${encodeURIComponent(String(pageParam))}`,
+      ),
+    getNextPageParam: (page) => page.nextPeopleCursor || undefined,
+  });
   const q = useQuery<any>({
     queryKey: ["social-discover"],
     queryFn: () => api("/social/discover"),
@@ -401,23 +503,48 @@ function Discover() {
         </div>
       </div>
       <h2>Readers</h2>
+      <label>
+        Find a member
+        <input
+          type="search"
+          maxLength={100}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Name or @username"
+        />
+      </label>
+      {people.isError && (
+        <p role="alert">
+          Search failed. <button onClick={() => people.refetch()}>Retry</button>
+        </p>
+      )}
       <div className="people-grid">
-        {q.data?.people?.map((p: any) => (
-          <a
-            className="person-card"
-            href={`/community?profile=${encodeURIComponent(p.username || p.user_id)}`}
-            key={p.user_id}
-          >
-            <span className="social-avatar large">
-              {String(p.name || p.username || "R").slice(0, 1)}
-            </span>
-            <strong>{p.name || p.username}</strong>
-            <span>@{p.username}</span>
-            <p>{p.bio || "Reader on Cove"}</p>
-            <small>{Number(p.followers || 0).toLocaleString()} followers</small>
-          </a>
-        ))}
+        {people.data?.pages
+          .flatMap((page) => page.people)
+          .map((p: any) => (
+            <a
+              className="person-card"
+              href={`/community?profile=${encodeURIComponent(p.username || p.user_id)}`}
+              key={p.user_id}
+            >
+              <span className="social-avatar large">
+                {String(p.name || p.username || "R").slice(0, 1)}
+              </span>
+              <strong>{p.name || p.username}</strong>
+              <span>@{p.username}</span>
+              <p>{p.bio || "Reader on Cove"}</p>
+              <small>{Number(p.followers || 0).toLocaleString()} followers</small>
+            </a>
+          ))}
       </div>
+      {people.hasNextPage && (
+        <button disabled={people.isFetchingNextPage} onClick={() => people.fetchNextPage()}>
+          More members
+        </button>
+      )}
+      {!people.isLoading && !people.data?.pages.some((page) => page.people.length) && (
+        <p>No members found.</p>
+      )}
       <h2>Reading lists</h2>
       <div className="social-card-grid">
         {q.data?.lists?.map((l: any) => (

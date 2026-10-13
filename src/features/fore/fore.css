@@ -2825,3 +2825,5 @@ a svg {
 .sharing-inventory label { display: grid; gap: 6px; }
 .sharing-inventory .check-row { display: flex; align-items: center; gap: 8px; }
 .sharing-inventory select { width: 100%; max-width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: inherit; font: inherit; }
+
+.reader-social-gutter{top:0;bottom:0;display:block}

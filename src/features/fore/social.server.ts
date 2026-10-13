@@ -790,7 +790,12 @@ async function visiblePosts(db: DB, viewer: string | null, rows: any[], viewerPr
     )
       continue;
     const progress = r.progress == null ? null : Number(r.progress);
-    const locked = progress !== null && progress > viewerProgress + 0.002;
+    const effectiveProgress =
+      r.product_id && viewer
+        ? Math.min(viewerProgress, await currentProductProgress(db, viewer, String(r.product_id)))
+        : viewerProgress;
+    const locked =
+      r.user_id !== viewer && progress !== null && progress > effectiveProgress + 0.002;
     if (locked) {
       out.push({
         id: r.id,
@@ -842,11 +847,30 @@ async function visiblePosts(db: DB, viewer: string | null, rows: any[], viewerPr
   return out;
 }
 
+// Cursors advance over scanned rows, including entries hidden by current permissions.
+function socialCursor(raw: string | null): { at: string; id: string } | null {
+  if (!raw) return null;
+  try {
+    return z
+      .object({ at: z.string().max(80), id: z.string().min(1).max(300) })
+      .parse(JSON.parse(atob(raw)));
+  } catch {
+    throw new ApiError(400, "Invalid activity cursor.");
+  }
+}
+const cursorFor = (
+  row: { id: string; created_at?: string; updated_at?: string } | undefined,
+  field: "created_at" | "updated_at" = "created_at",
+) => (row ? btoa(JSON.stringify({ at: String(row[field]), id: String(row.id) })) : null);
+
 async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
   const product = await resolveProduct(db, ref, userId);
   await requireProductAccess(db, userId, String(product.id));
   const pref = await ensureReaderPrefs(db, userId),
-    progress = Math.max(0, Math.min(1, Number(url.searchParams.get("progress") || 0))),
+    progress = Math.min(
+      await currentProductProgress(db, userId, String(product.id)),
+      Math.max(0, Math.min(1, Number(url.searchParams.get("progress") || 0))),
+    ),
     mode = z
       .enum(["friends", "following", "group", "public"])
       .catch(String(pref.audience_mode || "friends") as any)
@@ -859,22 +883,55 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
     chapter = (url.searchParams.get("chapter") || "").slice(0, 300);
   if (mode === "group" && !(await isGroupMember(db, userId, groupId)))
     throw new ApiError(403, "Join this group before showing its margin conversation.");
+  const cursor = socialCursor(url.searchParams.get("cursor"));
+  const candidates = (
+    await db
+      .prepare(
+        `
+    SELECT * FROM (
+      SELECT 'post:'||id id,created_at FROM social_posts WHERE context_type='margin' AND product_id=? AND parent_id IS NULL AND deleted_at IS NULL AND moderation_status='visible' AND progress<=?
+      UNION ALL
+      SELECT 'share:'||s.id id,s.created_at FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.deleted_at IS NULL WHERE s.product_id=? AND s.progress<=? AND s.moderation_status='visible'
+    ) ${cursor ? "WHERE (created_at<? OR (created_at=? AND id<?))" : ""}
+    ORDER BY created_at DESC,id DESC LIMIT 101
+  `,
+      )
+      .bind(
+        product.id,
+        progress + 0.002,
+        product.id,
+        progress + 0.002,
+        ...(cursor ? [cursor.at, cursor.at, cursor.id] : []),
+      )
+      .all<{ id: string; created_at: string }>()
+  ).results;
+  const ids = candidates.slice(0, 100).map((r) => String(r.id));
+  const postIds = ids
+    .filter((id: string) => id.startsWith("post:"))
+    .map((id: string) => id.slice(5));
+  const shareIds = ids
+    .filter((id: string) => id.startsWith("share:"))
+    .map((id: string) => id.slice(6));
   const rows = (
     await db
       .prepare(
-        `SELECT sp.*,COALESCE((SELECT COUNT(*) FROM social_post_reactions r WHERE r.post_id=sp.id),0) reaction_count FROM social_posts sp WHERE sp.context_type='margin' AND sp.product_id=? AND sp.parent_id IS NULL AND sp.deleted_at IS NULL AND sp.moderation_status='visible' AND sp.progress<=? ${chapter ? "AND lower(rtrim(sp.chapter, ' .'))=lower(rtrim(?, ' .'))" : ""} ORDER BY sp.created_at DESC LIMIT 300`,
+        `SELECT sp.*,COALESCE((SELECT COUNT(*) FROM social_post_reactions r WHERE r.post_id=sp.id),0) reaction_count FROM social_posts sp WHERE sp.context_type='margin' AND sp.product_id=? AND sp.parent_id IS NULL AND sp.deleted_at IS NULL AND sp.moderation_status='visible' AND sp.progress<=? ${chapter ? "AND lower(rtrim(sp.chapter, ' .'))=lower(rtrim(?, ' .'))" : ""} AND sp.id IN (${postIds.map(() => "?").join(",") || "NULL"}) ORDER BY sp.created_at DESC,sp.id DESC`,
       )
-      .bind(...(chapter ? [product.id, progress + 0.002, chapter] : [product.id, progress + 0.002]))
+      .bind(
+        ...(chapter ? [product.id, progress + 0.002, chapter] : [product.id, progress + 0.002]),
+        ...postIds,
+      )
       .all<any>()
   ).results;
   const posts = await visiblePosts(db, userId, rows, progress),
     shares = (
       await db
         .prepare(
-          `SELECT s.*,a.cfi,a.chapter,a.quote,s.note_snapshot note,p.name FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL LEFT JOIN profiles p ON p.user_id=s.user_id WHERE s.product_id=? AND s.progress<=? AND s.moderation_status='visible' ${chapter ? "AND lower(rtrim(a.chapter, ' .'))=lower(rtrim(?, ' .'))" : ""} ORDER BY s.updated_at DESC LIMIT 300`,
+          `SELECT s.*,a.cfi,a.chapter,a.quote,s.note_snapshot note,p.name FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL LEFT JOIN profiles p ON p.user_id=s.user_id WHERE s.product_id=? AND s.progress<=? AND s.moderation_status='visible' ${chapter ? "AND lower(rtrim(a.chapter, ' .'))=lower(rtrim(?, ' .'))" : ""} AND s.id IN (${shareIds.map(() => "?").join(",") || "NULL"}) ORDER BY s.updated_at DESC,s.id DESC`,
         )
         .bind(
           ...(chapter ? [product.id, progress + 0.002, chapter] : [product.id, progress + 0.002]),
+          ...shareIds,
         )
         .all<any>()
     ).results;
@@ -1003,16 +1060,7 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
     });
     aggregate.set(key, a);
   }
-  const max = density < 20 ? 1 : density < 67 ? 2 : 3,
-    indicators = [...aggregate.values()]
-      .sort(
-        (a, b) =>
-          b.discussionCount * 3 +
-          b.highlightCount +
-          b.reactionCount -
-          (a.discussionCount * 3 + a.highlightCount + a.reactionCount),
-      )
-      .slice(0, max);
+  const indicators = [...aggregate.values()];
   return {
     preferences: {
       enabled: !!pref.enabled,
@@ -1026,6 +1074,7 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
     },
     indicators,
     totalVisible: aggregate.size,
+    nextCursor: candidates.length > 100 ? cursorFor(candidates[99]) : null,
     progress,
   };
 }
@@ -1381,13 +1430,27 @@ export async function handleSocial(
     }
   }
   if (method === "GET" && path === "/social/discover") {
-    const people = (
+    const term = (url.searchParams.get("q") || "").trim().replace(/^@/, "").slice(0, 100),
+      after = (url.searchParams.get("after") || "").slice(0, 240);
+    const peopleRows = (
       await db
         .prepare(
-          `SELECT a.app_id user_id,a.username,p.name,sp.bio,(SELECT COUNT(*) FROM social_follows f WHERE f.followed_user_id=a.app_id) followers FROM auth_accounts a JOIN social_profiles sp ON sp.user_id=a.app_id LEFT JOIN profiles p ON p.user_id=a.app_id WHERE sp.profile_visibility='public' AND a.username IS NOT NULL ORDER BY followers DESC,a.created_at DESC LIMIT 30`,
+          `
+      SELECT a.app_id user_id,a.username,p.name,sp.bio,(SELECT COUNT(*) FROM social_follows f WHERE f.followed_user_id=a.app_id) followers
+      FROM auth_accounts a JOIN social_profiles sp ON sp.user_id=a.app_id LEFT JOIN profiles p ON p.user_id=a.app_id
+      WHERE sp.profile_visibility='public' AND a.username IS NOT NULL AND a.app_id>?
+      AND (?='' OR instr(lower(a.username),lower(?))>0 OR instr(lower(COALESCE(p.name,'')),lower(?))>0)
+      AND NOT EXISTS(SELECT 1 FROM social_blocks b WHERE (b.blocker_user_id=? AND b.blocked_user_id=a.app_id) OR (b.blocked_user_id=? AND b.blocker_user_id=a.app_id))
+      AND NOT EXISTS(SELECT 1 FROM social_mutes m WHERE m.muter_user_id=? AND m.muted_user_id=a.app_id)
+      ORDER BY a.app_id LIMIT 31
+    `,
         )
+        .bind(after, term, term, term, userId || "", userId || "", userId || "")
         .all<any>()
     ).results;
+    const people = peopleRows.slice(0, 30),
+      nextPeopleCursor = peopleRows.length > 30 ? people[29].user_id : null;
+    if (url.searchParams.has("q")) return json({ people, nextPeopleCursor });
     const lists = (
       await db
         .prepare(
@@ -1402,7 +1465,7 @@ export async function handleSocial(
         )
         .all<any>()
     ).results;
-    if (!userId) return json({ people, lists, groups });
+    if (!userId) return json({ people, lists, groups, nextPeopleCursor });
     const hiddenRows = (
         await db
           .prepare(
@@ -1413,6 +1476,7 @@ export async function handleSocial(
       ).results,
       hidden = new Set(hiddenRows.map((x: any) => String(x.id)));
     return json({
+      nextPeopleCursor,
       people: people.filter((x: any) => !hidden.has(String(x.user_id))),
       lists: lists.filter((x: any) => !hidden.has(String(x.user_id))),
       groups: groups.filter((x: any) => !hidden.has(String(x.owner_user_id))),
@@ -1513,24 +1577,22 @@ export async function handleSocial(
   if (method === "GET" && path === "/social/feed") {
     const uidv = requireIdentity(userId),
       limit = Math.max(1, Math.min(100, Number(url.searchParams.get("limit") || 40))),
-      before = url.searchParams.get("before"),
+      cursor = socialCursor(url.searchParams.get("cursor") || url.searchParams.get("before")),
       rows = (
-        before
-          ? await db
-              .prepare(
-                `SELECT e.* FROM social_events e WHERE e.moderation_status='visible' AND e.created_at<? AND (e.user_id=? OR e.user_id IN (SELECT followed_user_id FROM social_follows WHERE follower_user_id=?)) ORDER BY e.created_at DESC LIMIT ?`,
-              )
-              .bind(before, uidv, uidv, limit * 3)
-              .all<any>()
-          : await db
-              .prepare(
-                `SELECT e.* FROM social_events e WHERE e.moderation_status='visible' AND (e.user_id=? OR e.user_id IN (SELECT followed_user_id FROM social_follows WHERE follower_user_id=?)) ORDER BY e.created_at DESC LIMIT ?`,
-              )
-              .bind(uidv, uidv, limit * 3)
-              .all<any>()
+        await db
+          .prepare(
+            `SELECT e.* FROM social_events e WHERE e.moderation_status='visible'
+         AND (e.user_id=? OR e.user_id IN (SELECT followed_user_id FROM social_follows WHERE follower_user_id=?))
+         ${cursor ? "AND (e.created_at<? OR (e.created_at=? AND e.id<?))" : ""}
+         ORDER BY e.created_at DESC,e.id DESC LIMIT ?`,
+          )
+          .bind(uidv, uidv, ...(cursor ? [cursor.at, cursor.at, cursor.id] : []), limit * 3 + 1)
+          .all<any>()
       ).results,
       out = [];
-    for (const e of rows) {
+    let lastScanned: any = null;
+    for (const e of rows.slice(0, limit * 3)) {
+      lastScanned = e;
       if (await canSee(db, uidv, String(e.user_id), String(e.visibility))) {
         let payload = asJson(e.payload_json, {});
         const actor = await person(db, String(e.user_id));
@@ -1586,7 +1648,10 @@ export async function handleSocial(
     }
     return json({
       items: out,
-      nextCursor: out.length === limit ? String(out.at(-1)?.created_at || "") : null,
+      nextCursor:
+        lastScanned && (out.length === limit || rows.length > limit * 3)
+          ? cursorFor(lastScanned)
+          : null,
     });
   }
   if (method === "GET" && path === "/social/me") {
@@ -1657,30 +1722,57 @@ export async function handleSocial(
     if (contextType === "margin") {
       const p = await resolveProduct(db, rawContext, userId || undefined);
       contextId = String(p.id);
+      await requireProductAccess(db, requireIdentity(userId), contextId);
     }
     if (["group", "list", "profile"].includes(contextType))
       await assertContextReadable(db, userId, contextType, contextId);
+    const postId = url.searchParams.get("postId"),
+      parentId = url.searchParams.get("parentId"),
+      cursor = socialCursor(url.searchParams.get("cursor"));
+    if (parentId) {
+      const parent = await db
+        .prepare(
+          "SELECT * FROM social_posts WHERE id=? AND context_type=? AND context_id=? AND deleted_at IS NULL",
+        )
+        .bind(parentId, contextType, contextId)
+        .first<any>();
+      const visible = parent ? await visiblePosts(db, userId, [parent], viewerProgress) : [];
+      if (!visible.length || visible[0].locked) throw new ApiError(404, "Discussion not found.");
+    }
     const rows = (
       await db
         .prepare(
-          "SELECT * FROM social_posts WHERE context_type=? AND context_id=? AND parent_id IS NULL AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 100",
+          `SELECT * FROM social_posts WHERE context_type=? AND context_id=? AND ${parentId ? "parent_id=?" : "parent_id IS NULL"} AND deleted_at IS NULL ${postId ? "AND id=?" : ""}
+       ${cursor ? "AND (created_at<? OR (created_at=? AND id<?))" : ""}
+       ORDER BY created_at DESC,id DESC LIMIT 51`,
         )
-        .bind(contextType, contextId)
+        .bind(
+          contextType,
+          contextId,
+          ...(parentId ? [parentId] : []),
+          ...(postId ? [postId] : []),
+          ...(cursor ? [cursor.at, cursor.at, cursor.id] : []),
+        )
         .all<any>()
     ).results;
-    const posts = await visiblePosts(db, userId, rows, viewerProgress);
-    for (const p of posts.filter((p: any) => !p.locked)) {
-      const replies = (
-        await db
-          .prepare(
-            "SELECT * FROM social_posts WHERE parent_id=? AND deleted_at IS NULL ORDER BY created_at LIMIT 100",
-          )
-          .bind(p.id)
-          .all<any>()
-      ).results;
-      p.replyItems = await visiblePosts(db, userId, replies, viewerProgress);
-    }
-    return json({ posts });
+    const posts: (Awaited<ReturnType<typeof visiblePosts>>[number] & {
+      replyItems?: Awaited<ReturnType<typeof visiblePosts>>;
+      replyNextCursor?: string | null;
+    })[] = await visiblePosts(db, userId, rows.slice(0, 50), viewerProgress);
+    if (!parentId)
+      for (const post of posts.filter((post) => !post.locked)) {
+        const replies = (
+          await db
+            .prepare(
+              "SELECT * FROM social_posts WHERE parent_id=? AND deleted_at IS NULL ORDER BY created_at DESC,id DESC LIMIT 21",
+            )
+            .bind(post.id)
+            .all<any>()
+        ).results;
+        post.replyItems = await visiblePosts(db, userId, replies.slice(0, 20), viewerProgress);
+        post.replyNextCursor = replies.length > 20 ? cursorFor(replies[19]) : null;
+      }
+    return json({ posts, nextCursor: rows.length > 50 ? cursorFor(rows[49]) : null });
   }
   if (method === "GET" && path.startsWith("/social/lists/")) {
     const id = decodeURIComponent(path.slice("/social/lists/".length)),
@@ -2938,6 +3030,9 @@ export async function handleSocial(
         ))
       )
         throw new ApiError(404, "Reply target was not found.");
+      const readableParent = await visiblePosts(db, uidv, [parent], 1);
+      if (!readableParent.length || readableParent[0].locked)
+        throw new ApiError(403, "Reach this passage before replying.");
       x.visibility = parent.visibility;
       recipientId = parent.recipient_user_id
         ? parent.user_id === uidv
@@ -3128,6 +3223,9 @@ export async function handleSocial(
       ))
     )
       throw new ApiError(404, "Discussion not found.");
+    const readablePost = await visiblePosts(db, uidv, [p], 1);
+    if (!readablePost.length || readablePost[0].locked)
+      throw new ApiError(403, "Reach this passage before reacting.");
     if (x.active)
       await db
         .prepare(

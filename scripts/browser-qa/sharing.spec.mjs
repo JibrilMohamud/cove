@@ -279,6 +279,30 @@ test("EPUB reader opens and joined members receive group margin discussions", as
     const chapterFrame = bob.frameLocator(".reader-stage .epub-container iframe");
     await expect(bob.locator(".reader-stage .epub-container iframe")).toBeVisible();
     await expect(chapterFrame.locator("#passage")).toContainText("Browser QA passage for sharing.");
+    const markerBox = await bob.locator(".reader-social-gutter button").first().boundingBox();
+    const passageBox = await chapterFrame.locator("#passage").boundingBox();
+    expect(Math.abs(markerBox.y - passageBox.y), "Marker is beside its passage").toBeLessThan(40);
+    const thread = bob.locator(".reader-social-panel .social-thread").first();
+    const post = thread.locator(".social-post").first();
+    const reaction = post.locator("footer button").first();
+    await reaction.click();
+    await expect(reaction).toHaveAttribute("aria-pressed", "true");
+    await post.locator("footer button").nth(1).click();
+    await thread.getByLabel("Write a reply").fill("A reply from the margin panel.");
+    await thread.getByRole("button", { name: "Reply", exact: true }).click();
+    await expect(thread.getByText("A reply from the margin panel.", { exact: true })).toBeVisible();
+    const replyCard = thread
+      .locator(".social-post")
+      .filter({ has: bob.getByText("A reply from the margin panel.", { exact: true }) })
+      .last();
+    await replyCard.getByRole("button", { name: "Edit", exact: true }).click();
+    await replyCard.getByLabel("Edit discussion").fill("An edited margin reply.");
+    await replyCard.getByRole("button", { name: "Save published edit", exact: true }).click();
+    await expect(thread.getByText("An edited margin reply.", { exact: true })).toBeVisible();
+    await replyCard.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(thread.getByText("An edited margin reply.", { exact: true })).toHaveCount(0);
+    await post.getByRole("button", { name: "Report", exact: true }).click();
+    await expect(bob.getByText("Report sent to moderation")).toBeVisible();
     await noOverflow(bob);
     await bob.screenshot({ path: testInfo.outputPath("group-reader.png"), fullPage: true });
     await inventory(outsider);

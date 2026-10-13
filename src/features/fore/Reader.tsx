@@ -1,3 +1,4 @@
+import { DiscussionThread } from "./Community";
 import { MemberPicker, type HighlightShareAudience, type ShareMember } from "./Sharing";
 import { openBiosync, resolveAudio, resolveText, matchingEpub } from "./biosync-client";
 import { Headphones } from "lucide-react";
@@ -7,7 +8,7 @@ import { loadEdition } from "./audio-client";
 import { cueForAudio, type AudioEdition } from "./domain";
 import { loadBookMetadata } from "./epub";
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -296,21 +297,130 @@ export function ReaderPage({ id }: { id: string }) {
     queryFn: () => api(`/social/highlights/${encodeURIComponent(socialAnnotationId!)}/share`),
     enabled: !!data.user && !!socialAnnotationId && socialCompose === "share",
   });
-  const socialReader = useQuery<any>({
+  const socialReaderQuery = useInfiniteQuery<any>({
     queryKey: ["social-reader", id, data.user?.id, percent, chapter],
-    queryFn: () =>
+    initialPageParam: "",
+    queryFn: ({ pageParam }) =>
       api(
-        `/social/reader/${encodeURIComponent(id)}?progress=${Math.max(0, Math.min(1, position.current.progress || percent / 100))}&chapter=${encodeURIComponent(chapter || "")}`,
+        `/social/reader/${encodeURIComponent(id)}?progress=${Math.max(0, Math.min(1, position.current.progress || percent / 100))}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
       ),
+    getNextPageParam: (page) => page.nextCursor || undefined,
     enabled: !!data.user && !previewMode,
     staleTime: 4000,
     refetchInterval: 30_000,
     refetchOnWindowFocus: false,
   });
-  const activeSocial =
-    socialReader.data?.indicators?.find(
-      (indicator: any) => indicator.passageHash === activeSocialHash,
-    ) || null;
+  const clusters = new Map<string, any>();
+  for (const page of socialReaderQuery.data?.pages || [])
+    for (const cluster of page.indicators || []) {
+      const previous = clusters.get(cluster.passageHash);
+      const posts = [
+        ...new Map(
+          [...(previous?.posts || []), ...cluster.posts].map((p: any) => [p.id, p]),
+        ).values(),
+      ];
+      const highlights = [
+        ...new Map(
+          [...(previous?.highlights || []), ...cluster.highlights].map((h: any) => [
+            h.annotationId,
+            h,
+          ]),
+        ).values(),
+      ];
+      clusters.set(cluster.passageHash, {
+        ...cluster,
+        posts,
+        highlights,
+        discussionCount: posts.length,
+        highlightCount: highlights.length,
+      });
+    }
+  const socialReader = {
+    ...socialReaderQuery,
+    data: socialReaderQuery.data
+      ? {
+          ...socialReaderQuery.data.pages[0],
+          indicators: [...clusters.values()],
+          totalVisible: clusters.size,
+        }
+      : undefined,
+  };
+  const activeSocial = clusters.get(activeSocialHash || "") || null;
+  const [passageMarkers, setPassageMarkers] = useState<
+    { hash: string; top: number; count: number }[]
+  >([]);
+  useEffect(() => {
+    if (!socialReader.data?.preferences?.enabled) {
+      setPassageMarkers([]);
+      return;
+    }
+    let canceled = false;
+    function measure() {
+      const stage = container.current?.closest(".reader-stage");
+      if (!stage || !rendition.current) return;
+      const stageRect = stage.getBoundingClientRect(),
+        markers: { hash: string; top: number; count: number }[] = [];
+      for (const cluster of socialReader.data?.indicators || []) {
+        if (!cluster.cfi) continue;
+        for (const contents of rendition.current.getContents()) {
+          try {
+            const parsed = new contents.epubcfi.constructor(cluster.cfi);
+            if (parsed.spinePos !== contents.sectionIndex) continue;
+            const range = contents.range(cluster.cfi),
+              frame = contents.window.frameElement;
+            if (!range || !frame) continue;
+            if (range.collapsed && range.startContainer.nodeType === 3) {
+              const length = range.startContainer.textContent?.length || 0;
+              if (range.startOffset < length)
+                range.setEnd(range.startContainer, range.startOffset + 1);
+              else if (range.startOffset > 0)
+                range.setStart(range.startContainer, range.startOffset - 1);
+            }
+            const rects = Array.from(range.getClientRects()) as DOMRect[];
+            const frameRect = frame.getBoundingClientRect();
+            const rect = rects.find(
+              (rect) =>
+                rect.width > 0 &&
+                rect.height > 0 &&
+                rect.left >= 0 &&
+                rect.left < frameRect.width &&
+                rect.top >= 0 &&
+                rect.top < frameRect.height,
+            );
+            if (!rect) continue;
+            const top = frameRect.top + rect.top - stageRect.top;
+            if (top < 0 || top > stageRect.height - 30) continue;
+            markers.push({
+              hash: cluster.passageHash,
+              top,
+              count: cluster.discussionCount + cluster.highlightCount,
+            });
+            break;
+          } catch {
+            /* CFI belongs to a different spine document. */
+          }
+        }
+      }
+      const density = Number(socialReader.data?.preferences?.density || 35),
+        max = density < 20 ? 1 : density < 67 ? 2 : 3;
+      const visible: typeof markers = [];
+      for (const marker of markers.sort((a, b) => b.count - a.count))
+        if (visible.length < max && !visible.some((m) => Math.abs(m.top - marker.top) < 32))
+          visible.push(marker);
+      if (!canceled)
+        setPassageMarkers((previous) =>
+          JSON.stringify(previous) === JSON.stringify(visible) ? previous : visible,
+        );
+    }
+    measure();
+    const timer = setInterval(measure, 500);
+    window.addEventListener("resize", measure);
+    return () => {
+      canceled = true;
+      clearInterval(timer);
+      window.removeEventListener("resize", measure);
+    };
+  }, [socialReaderQuery.data, percent, chapter, ready]);
   const socialAccount = useQuery<{
     groups: { id: string; name: string; member_status: string }[];
     profile?: { highlight_visibility_default?: string | null } | null;
@@ -1247,19 +1357,21 @@ export function ReaderPage({ id }: { id: string }) {
             </a>
           </div>
         )}
-        {!!socialReader.data?.preferences?.enabled && !!socialReader.data?.indicators?.length && (
+        {!!socialReader.data?.preferences?.enabled && !!passageMarkers.length && (
           <aside className="reader-social-gutter" aria-label="Social reading indicators">
-            {socialReader.data.indicators.map((indicator: any) => (
+            {passageMarkers.map((marker) => (
               <button
-                key={indicator.passageHash}
+                key={marker.hash}
+                style={{ position: "absolute", top: marker.top, right: 0 }}
                 onClick={() => {
-                  setActiveSocialHash(indicator.passageHash);
+                  setActiveSocialHash(marker.hash);
                   setPanel("social");
                 }}
-                title={`${indicator.discussionCount || 0} discussions · ${indicator.highlightCount || 0} shared highlights`}
+                title={`${marker.count} contributions at this passage`}
+                aria-label={`Open ${marker.count} contributions at this passage`}
               >
                 <span>•</span>
-                <small>{(indicator.discussionCount || 0) + (indicator.highlightCount || 0)}</small>
+                <small>{marker.count}</small>
               </button>
             ))}
           </aside>
@@ -1345,10 +1457,11 @@ export function ReaderPage({ id }: { id: string }) {
             {!previewMode && (
               <button
                 onClick={() => {
-                  const savedDefault = socialAccount.data?.profile?.highlight_visibility_default;
+                  const savedDefault =
+                    socialAccount.data?.profile?.highlight_visibility_default || "private";
                   setSocialVisibility(
                     ["public", "followers", "friends", "private"].includes(savedDefault)
-                      ? savedDefault
+                      ? (savedDefault as ReaderHighlightVisibility)
                       : "private",
                   );
                   setSocialGroupId("");
@@ -1392,7 +1505,8 @@ export function ReaderPage({ id }: { id: string }) {
               <button
                 className="text-link"
                 onClick={() => {
-                  const savedDefault = socialAccount.data?.profile?.highlight_visibility_default;
+                  const savedDefault =
+                    socialAccount.data?.profile?.highlight_visibility_default || "private";
                   setSelection({
                     text: activeAnnotation.quote,
                     cfi: activeAnnotation.cfi,
@@ -1400,7 +1514,7 @@ export function ReaderPage({ id }: { id: string }) {
                   });
                   setSocialVisibility(
                     ["public", "followers", "friends", "private"].includes(savedDefault)
-                      ? savedDefault
+                      ? (savedDefault as ReaderHighlightVisibility)
                       : "private",
                   );
                   setSocialGroupId("");
@@ -1691,12 +1805,17 @@ export function ReaderPage({ id }: { id: string }) {
                           {activeSocial.highlightCount || 0} highlights
                         </h3>
                         {activeSocial.posts?.map((p: any) => (
-                          <article key={p.id}>
-                            <strong>{p.user?.name || "Reader"}</strong>
-                            {p.passageText && <blockquote>“{p.passageText}”</blockquote>}
-                            <p>{p.body}</p>
-                            <small>{p.chapter}</small>
-                          </article>
+                          <DiscussionThread
+                            key={p.id}
+                            contextType="margin"
+                            contextId={id}
+                            postId={p.id}
+                            progress={position.current.progress || percent / 100}
+                            title="Passage discussion"
+                            onChanged={() => {
+                              void socialReader.refetch();
+                            }}
+                          />
                         ))}
                         {activeSocial.highlights?.map((h: any) => (
                           <article key={h.id}>
@@ -1707,6 +1826,21 @@ export function ReaderPage({ id }: { id: string }) {
                         ))}
                       </section>
                     )}
+                    {socialReader.isError && (
+                      <p role="alert">
+                        Could not load activity.{" "}
+                        <button onClick={() => socialReader.refetch()}>Retry</button>
+                      </p>
+                    )}
+                    {socialReader.hasNextPage && (
+                      <button
+                        className="button outline"
+                        disabled={socialReader.isFetchingNextPage}
+                        onClick={() => socialReader.fetchNextPage()}
+                      >
+                        Load older passage activity
+                      </button>
+                    )}
                     {!activeSocial && (
                       <div className="reader-social-summary">
                         <strong>
@@ -1714,8 +1848,8 @@ export function ReaderPage({ id }: { id: string }) {
                           clusters reached so far
                         </strong>
                         <p className="small muted">
-                          Only the strongest {socialReader.data?.indicators?.length || 0} are marked
-                          in the margin right now.
+                          Markers appear beside passages on the visible page. Browse all loaded
+                          activity here.
                         </p>
                         {socialReader.data?.indicators?.map((x: any) => (
                           <button

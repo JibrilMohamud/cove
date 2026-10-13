@@ -48,7 +48,8 @@
     "test:reader-sharing-offline": "node scripts/check-reader-sharing-offline.mjs",
     "test:sharing-erasure": "node scripts/check-sharing-erasure.mjs",
     "lint:strict": "eslint .",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "test:social-pagination": "node scripts/check-social-pagination.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
