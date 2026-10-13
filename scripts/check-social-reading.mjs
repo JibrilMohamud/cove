@@ -127,23 +127,25 @@ assert.ok(
   "club discussions must honor the group spoiler policy",
 );
 assert.ok(
-  social.includes("x.progress=await currentProductProgress"),
+  social.replace(/\s+/g, "").includes("x.progress=awaitcurrentProductProgress"),
   "group progress gating must be derived on the server",
 );
 assert.ok(
-  social.includes("x.visibility=parent.visibility"),
+  social.replace(/\s+/g, "").includes("x.visibility=parent.visibility"),
   "replies must inherit parent audience",
 );
 assert.ok(
-  social.includes("x.progress=parent.progress==null?x.progress:Number(parent.progress)"),
+  social
+    .replace(/\s+/g, "")
+    .includes("x.progress=parent.progress==null?x.progress:Number(parent.progress)"),
   "replies must inherit parent spoiler anchor",
 );
 assert.ok(
-  social.includes("const progress=a.progress==null?await currentProductProgress"),
+  social.replace(/\s+/g, "").includes("constprogress=a.progress==null?awaitcurrentProductProgress"),
   "shared highlight progress must use stored/server state",
 );
 assert.ok(
-  social.includes("blockedReaders:blocked.results"),
+  social.replace(/\s+/g, "").includes("blockedReaders:blocked.results"),
   "blocked-reader management must remain reversible",
 );
 
@@ -192,7 +194,7 @@ assert.ok(
 assert.ok(api.includes("processAuthorSocialFanoutJobs"), "author fanout worker must be wired");
 const commercialAudio = read("src/features/fore/commercial-audio.server.ts");
 assert.ok(
-  commercialAudio.includes('source:"biosync"'),
+  commercialAudio.replace(/\s+/g, "").includes('source:"biosync"'),
   "Biosync handoffs must contribute to Reading Journey progress evidence",
 );
 const account = read("src/features/fore/account-management.server.ts");

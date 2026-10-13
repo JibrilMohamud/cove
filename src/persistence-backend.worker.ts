@@ -1,3 +1,4 @@
+import { processAccountDeletionQueue } from "./features/fore/account-management.server";
 import {
   handleCoveApi,
   runCatalogIngestion,
@@ -655,6 +656,16 @@ async function hostedBiosyncTranscript(
 
 export default {
   async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
+    if (controller.cron === "23 * * * *")
+      ctx.waitUntil?.(
+        processAccountDeletionQueue(env, 5)
+          .then((result) =>
+            console.info(JSON.stringify({ event: "account_erasure_tick", ...result })),
+          )
+          .catch(() =>
+            console.error("Account erasure tick failed; queued requests will be retried."),
+          ),
+      );
     ctx.waitUntil?.(
       runScheduled(controller.cron, env).catch((error) => {
         console.error("Cove scheduled ingestion failed", controller.cron, error);

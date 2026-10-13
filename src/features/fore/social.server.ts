@@ -230,10 +230,19 @@ async function canSee(
   owner: string,
   visibility: string,
   groupId?: string | null,
+  recipientId?: string | null,
 ) {
+  if (
+    await db
+      .prepare("SELECT 1 disabled FROM auth_accounts WHERE app_id=? AND disabled_at IS NOT NULL")
+      .bind(owner)
+      .first()
+  )
+    return false;
   if (viewer === owner) return true;
   const rel = await relationship(db, viewer, owner);
   if (rel.blocked || rel.muted) return false;
+  if (recipientId) return viewer === recipientId;
   if (visibility === "public") return true;
   if (visibility === "private") return false;
   if (visibility === "followers") return rel.following;
@@ -727,7 +736,17 @@ async function visiblePosts(db: DB, viewer: string | null, rows: any[], viewerPr
   const out = [];
   for (const r of rows) {
     if (r.deleted_at || r.moderation_status !== "visible") continue;
-    if (!(await canSee(db, viewer, String(r.user_id), String(r.visibility), r.group_id))) continue;
+    if (
+      !(await canSee(
+        db,
+        viewer,
+        String(r.user_id),
+        String(r.visibility),
+        r.group_id,
+        r.recipient_user_id,
+      ))
+    )
+      continue;
     const progress = r.progress == null ? null : Number(r.progress);
     const locked = progress !== null && progress > viewerProgress + 0.002;
     if (locked) {
@@ -765,7 +784,8 @@ async function visiblePosts(db: DB, viewer: string | null, rows: any[], viewerPr
       progress,
       passageText: r.passage_text,
       body: r.body,
-      visibility: r.visibility,
+      visibility: r.recipient_user_id ? "member" : r.visibility,
+      recipientUserId: r.recipient_user_id,
       spoiler: !!r.spoiler,
       replies: Number(r.reply_count || 0),
       reactions: Number(r.reaction_count || 0),
@@ -818,10 +838,26 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
     ).results;
   const visibleShares = [];
   for (const s of shares) {
-    if (await canSee(db, userId, String(s.user_id), String(s.visibility), s.audience_group_id))
+    if (
+      await canSee(
+        db,
+        userId,
+        String(s.user_id),
+        String(s.visibility),
+        s.audience_group_id,
+        s.recipient_user_id,
+      )
+    )
       visibleShares.push(s);
   }
-  async function audienceAllows(owner: string, visibility: string, audienceGroup?: string | null) {
+  async function audienceAllows(
+    owner: string,
+    visibility: string,
+    audienceGroup?: string | null,
+    recipientId?: string | null,
+  ) {
+    if (recipientId)
+      return mode !== "public" && mode !== "group" && (owner === userId || recipientId === userId);
     if (mode === "public") return visibility === "public";
     if (mode === "group") return visibility === "group" && audienceGroup === groupId;
     if (owner === userId) return true;
@@ -841,12 +877,26 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
   const filteredPosts = [];
   for (const p of posts) {
     if (p.locked) continue;
-    if (await audienceAllows(String(p.user?.id || ""), String(p.visibility), p.groupId))
+    if (
+      await audienceAllows(
+        String(p.user?.id || ""),
+        String(p.visibility),
+        p.groupId,
+        p.recipientUserId,
+      )
+    )
       filteredPosts.push(p);
   }
   const filteredShares = [];
   for (const s of visibleShares)
-    if (await audienceAllows(String(s.user_id), String(s.visibility), s.audience_group_id))
+    if (
+      await audienceAllows(
+        String(s.user_id),
+        String(s.visibility),
+        s.audience_group_id,
+        s.recipient_user_id,
+      )
+    )
       filteredShares.push(s);
   const aggregate = new Map<string, any>();
   for (const p of pref.show_discussions ? filteredPosts : []) {
@@ -890,7 +940,7 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
       quote: s.quote,
       chapter: s.chapter,
       cfi: s.cfi,
-      visibility: s.visibility,
+      visibility: s.recipient_user_id ? "member" : s.visibility,
       shareNote: !!s.share_note,
       note: s.share_note ? String(s.note || "") : "",
     });
@@ -1049,6 +1099,146 @@ export async function processAuthorSocialFanoutJobs(db: DB, limit = 10, batchSiz
   return { processed, delivered, failed };
 }
 
+async function assertDirectRecipient(db: DB, sender: string, recipient?: string | null) {
+  if (!recipient || recipient === sender) throw new ApiError(400, "Choose a fellow member.");
+  const target = await db
+    .prepare(
+      "SELECT a.app_id,COALESCE(p.direct_sharing_policy,'members') policy FROM auth_accounts a LEFT JOIN social_profiles p ON p.user_id=a.app_id WHERE a.app_id=? AND a.username IS NOT NULL AND a.disabled_at IS NULL",
+    )
+    .bind(recipient)
+    .first<{ app_id: string; policy: string }>();
+  const rel = await relationship(db, recipient, sender);
+  if (
+    !target ||
+    rel.blocked ||
+    rel.muted ||
+    target.policy === "none" ||
+    (target.policy === "following" && !rel.following) ||
+    (target.policy === "mutuals" && !rel.mutual)
+  )
+    throw new ApiError(403, "This member is not accepting shares from your account.");
+  return recipient;
+}
+async function sharingPerson(db: DB, viewer: string, target: string) {
+  const member = await person(db, target);
+  if (!member) return null;
+  return {
+    id: member.id,
+    username: member.username,
+    name: (await canSee(db, viewer, target, member.profileVisibility))
+      ? member.name
+      : member.username,
+  };
+}
+
+type ShareInventoryRow = {
+  kind: "highlight" | "discussion";
+  id: string;
+  user_id: string;
+  product_id: string;
+  visibility: string;
+  group_id: string | null;
+  recipient_user_id: string | null;
+  share_note: number;
+  progress: number | null;
+  updated_at: string;
+  quote: string;
+  note: string;
+  chapter: string;
+  cfi: string;
+  body: string;
+  moderation_status: string;
+  version: number;
+};
+async function sharingInventory(db: DB, viewer: string, url: URL) {
+  const sent = url.searchParams.get("view") === "sent";
+  const limit = 30;
+  let cursor: { at: string; kind: string; id: string } | null = null;
+  if (url.searchParams.get("cursor")) {
+    try {
+      cursor = JSON.parse(atob(url.searchParams.get("cursor")!));
+    } catch {
+      throw new ApiError(400, "Invalid sharing cursor.");
+    }
+    if (
+      !cursor ||
+      typeof cursor.at !== "string" ||
+      typeof cursor.kind !== "string" ||
+      typeof cursor.id !== "string"
+    )
+      throw new ApiError(400, "Invalid sharing cursor.");
+  }
+  const audience = sent
+    ? "user_id=?"
+    : `user_id<>? AND (recipient_user_id=? OR (recipient_user_id IS NULL AND ((visibility='group' AND EXISTS(SELECT 1 FROM reading_group_members m WHERE m.group_id=inventory.group_id AND m.user_id=? AND m.status='active')) OR (visibility IN ('public','followers','friends') AND EXISTS(SELECT 1 FROM social_follows f WHERE f.follower_user_id=? AND f.followed_user_id=inventory.user_id))))) AND NOT EXISTS(SELECT 1 FROM social_blocks b WHERE (b.blocker_user_id=? AND b.blocked_user_id=inventory.user_id) OR (b.blocker_user_id=inventory.user_id AND b.blocked_user_id=?)) AND NOT EXISTS(SELECT 1 FROM social_mutes m WHERE m.muter_user_id=? AND m.muted_user_id=inventory.user_id)`;
+  const bindings: (string | number)[] = sent
+    ? [viewer]
+    : [viewer, viewer, viewer, viewer, viewer, viewer, viewer];
+  if (cursor) bindings.push(cursor.at, cursor.at, cursor.kind, cursor.kind, cursor.id);
+  bindings.push(limit + 1);
+  const rows = (
+    await db
+      .prepare(
+        `SELECT * FROM (
+    SELECT 'highlight' kind,s.annotation_id id,s.user_id,s.product_id,s.visibility,s.audience_group_id group_id,s.recipient_user_id,s.share_note,s.progress,s.updated_at,a.quote,a.note,a.chapter,a.cfi,'' body,s.moderation_status,s.version FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL
+    UNION ALL SELECT 'discussion' kind,p.id,p.user_id,p.product_id,p.visibility,p.group_id,p.recipient_user_id,0 share_note,p.progress,p.updated_at,p.passage_text quote,'' note,p.chapter,p.cfi,p.body,p.moderation_status,p.version FROM social_posts p WHERE p.context_type='margin' AND p.parent_id IS NULL AND p.deleted_at IS NULL AND (p.visibility<>'private' OR p.recipient_user_id IS NOT NULL)
+  ) inventory WHERE ${audience} ${sent ? "" : "AND moderation_status='visible'"} ${cursor ? "AND (updated_at<? OR (updated_at=? AND (kind<? OR (kind=? AND id<?))))" : ""} ORDER BY updated_at DESC,kind DESC,id DESC LIMIT ?`,
+      )
+      .bind(...bindings)
+      .all<ShareInventoryRow>()
+  ).results;
+  const items = [];
+  for (const row of rows.slice(0, limit)) {
+    if (
+      !sent &&
+      !(await canSee(db, viewer, row.user_id, row.visibility, row.group_id, row.recipient_user_id))
+    )
+      continue;
+    const progress = sent ? 1 : await currentProductProgress(db, viewer, row.product_id);
+    const locked = !sent && row.progress !== null && row.progress > progress + 0.002;
+    items.push({
+      kind: row.kind,
+      id: row.id,
+      owner: await sharingPerson(db, viewer, row.user_id),
+      recipient: row.recipient_user_id
+        ? await sharingPerson(db, viewer, row.recipient_user_id)
+        : null,
+      audience: row.recipient_user_id ? "member" : row.visibility,
+      group: row.group_id
+        ? await db
+            .prepare("SELECT id,name FROM reading_groups WHERE id=? AND deleted_at IS NULL")
+            .bind(row.group_id)
+            .first<{ id: string; name: string }>()
+        : null,
+      book: await productSnapshot(db, row.product_id),
+      productId: row.product_id,
+      shareNote: !!row.share_note,
+      progress: row.progress,
+      updatedAt: row.updated_at,
+      moderationStatus: row.moderation_status,
+      version: row.version,
+      locked,
+      ...(locked
+        ? {}
+        : {
+            quote: row.quote,
+            note: row.share_note ? row.note : "",
+            body: row.body,
+            chapter: row.chapter,
+            cfi: row.cfi,
+          }),
+    });
+  }
+  const last = rows.slice(0, limit).at(-1);
+  return {
+    items,
+    nextCursor:
+      rows.length > limit && last
+        ? btoa(JSON.stringify({ at: last.updated_at, kind: last.kind, id: last.id }))
+        : null,
+  };
+}
+
 export async function handleSocial(
   request: Request,
   env: CoveEnv,
@@ -1059,6 +1249,58 @@ export async function handleSocial(
   const db = env.DB,
     url = new URL(request.url),
     method = request.method;
+  if (
+    userId &&
+    (await db
+      .prepare("SELECT 1 disabled FROM auth_accounts WHERE app_id=? AND disabled_at IS NOT NULL")
+      .bind(userId)
+      .first())
+  )
+    throw new ApiError(403, "This account is being erased.");
+  if (path === "/social/sharing") {
+    const viewer = requireIdentity(userId);
+    if (method === "GET") return json(await sharingInventory(db, viewer, url));
+  }
+  if (method === "GET" && path === "/social/members") {
+    const viewer = requireIdentity(userId);
+    await rateLimit(env, `member-lookup:${viewer}`, 60);
+    const username = (url.searchParams.get("username") || "")
+      .replace(/^@/, "")
+      .trim()
+      .toLowerCase();
+    if (!/^[a-z0-9_]{3,30}$/.test(username))
+      throw new ApiError(400, "Enter the member's exact username.");
+    const row = await db
+      .prepare(
+        "SELECT a.app_id id,a.username,COALESCE(p.name,a.username) name FROM auth_accounts a LEFT JOIN profiles p ON p.user_id=a.app_id WHERE lower(a.username)=? AND a.disabled_at IS NULL",
+      )
+      .bind(username)
+      .first<{ id: string; username: string; name: string }>();
+    if (!row) throw new ApiError(404, "Member not found.");
+    await assertDirectRecipient(db, viewer, row.id);
+    return json({ member: await sharingPerson(db, viewer, row.id) });
+  }
+  if (path === "/social/sharing/preferences") {
+    const viewer = requireIdentity(userId);
+    await ensureSocialProfile(db, viewer);
+    if (method === "GET")
+      return json(
+        await db
+          .prepare("SELECT direct_sharing_policy policy FROM social_profiles WHERE user_id=?")
+          .bind(viewer)
+          .first<{ policy: string }>(),
+      );
+    if (method === "POST") {
+      const x = z
+        .object({ policy: z.enum(["members", "following", "mutuals", "none"]) })
+        .parse(await readBody(request));
+      await db
+        .prepare("UPDATE social_profiles SET direct_sharing_policy=?,updated_at=? WHERE user_id=?")
+        .bind(x.policy, now(), viewer)
+        .run();
+      return json({ saved: true });
+    }
+  }
   if (method === "GET" && path === "/social/discover") {
     const people = (
       await db
@@ -1216,16 +1458,17 @@ export async function handleSocial(
         if (e.event_type === "shared_highlight") {
           const share = await db
             .prepare(
-              "SELECT s.visibility,s.audience_group_id,a.quote,a.chapter FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL WHERE s.annotation_id=? AND s.user_id=? AND s.moderation_status='visible'",
+              "SELECT s.visibility,s.audience_group_id,s.recipient_user_id,a.quote,a.chapter FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL WHERE s.annotation_id=? AND s.user_id=? AND s.moderation_status='visible'",
             )
             .bind(e.entity_id, e.user_id)
             .first<{
               visibility: string;
               audience_group_id: string | null;
+              recipient_user_id: string | null;
               quote: string;
               chapter: string;
             }>();
-          if (!share || !actor) continue;
+          if (!share || !actor || share.recipient_user_id) continue;
           const currentVisibility = feedVisibility(
             String(share.visibility),
             actor.activityVisibility,
@@ -2059,11 +2302,54 @@ export async function handleSocial(
         .bind(annotationId, uidv)
         .first<any>();
     if (!a) throw new ApiError(404, "Highlight not found.");
-    if (method === "DELETE") {
-      await db
-        .prepare("DELETE FROM social_annotation_shares WHERE annotation_id=? AND user_id=?")
+    if (method === "GET") {
+      const share = await db
+        .prepare(
+          "SELECT visibility,recipient_user_id,audience_group_id,share_note,updated_at,version FROM social_annotation_shares WHERE annotation_id=? AND user_id=?",
+        )
         .bind(annotationId, uidv)
-        .run();
+        .first<{
+          visibility: string;
+          recipient_user_id: string | null;
+          audience_group_id: string | null;
+          share_note: number;
+          updated_at: string;
+          version: number;
+        }>();
+      return json({
+        shared: !!share,
+        ...(share
+          ? {
+              visibility: share.recipient_user_id ? "member" : share.visibility,
+              recipientUserId: share.recipient_user_id,
+              groupId: share.audience_group_id,
+              shareNote: !!share.share_note,
+              updatedAt: share.updated_at,
+              version: share.version,
+            }
+          : {}),
+      });
+    }
+    if (method === "DELETE") {
+      const x = z
+        .object({ expectedVersion: z.number().int().min(1).optional() })
+        .parse(await readBody(request).catch(() => ({})));
+      const removed = await db
+        .prepare(
+          "DELETE FROM social_annotation_shares WHERE annotation_id=? AND user_id=? AND (? IS NULL OR version=?) RETURNING annotation_id",
+        )
+        .bind(annotationId, uidv, x.expectedVersion ?? null, x.expectedVersion ?? null)
+        .first<{ annotation_id: string }>();
+      if (
+        !removed &&
+        (await db
+          .prepare(
+            "SELECT 1 present FROM social_annotation_shares WHERE annotation_id=? AND user_id=?",
+          )
+          .bind(annotationId, uidv)
+          .first())
+      )
+        throw new ApiError(409, "Sharing changed on another device. Refresh before unsharing.");
       await auditSocial(db, uidv, "highlight.unshared", "highlight", annotationId);
       return json({ shared: false });
     }
@@ -2071,9 +2357,11 @@ export async function handleSocial(
       if (a.deleted_at) throw new ApiError(404, "Highlight not found.");
       const x = z
         .object({
-          visibility: z.enum(["public", "followers", "friends", "group"]),
+          visibility: z.enum(["public", "followers", "friends", "group", "member"]),
+          recipientUserId: z.string().min(1).max(180).nullable().optional(),
           groupId: z.string().nullable().optional(),
           shareNote: z.boolean().default(false),
+          expectedVersion: z.number().int().min(1).optional(),
           progress: z.number().min(0).max(1).optional(),
         })
         .parse(await readBody(request));
@@ -2081,37 +2369,51 @@ export async function handleSocial(
       await requireProductAccess(db, uidv, String(p.id));
       if (x.visibility === "group" && !(await isGroupMember(db, uidv, x.groupId)))
         throw new ApiError(403, "Join this group before sharing into it.");
+      const recipientId =
+        x.visibility === "member" ? await assertDirectRecipient(db, uidv, x.recipientUserId) : null;
       const snap = await productSnapshot(db, String(p.id)),
         hash = await sha256(String(a.quote).trim().toLowerCase());
       const progress =
         a.progress == null
           ? await currentProductProgress(db, uidv, String(p.id))
           : Math.max(0, Math.min(1, Number(a.progress)));
-      await db
+      const saved = await db
         .prepare(
-          `INSERT INTO social_annotation_shares(annotation_id,user_id,product_id,work_id,visibility,audience_group_id,share_note,progress,passage_hash,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(annotation_id) DO UPDATE SET visibility=excluded.visibility,audience_group_id=excluded.audience_group_id,share_note=excluded.share_note,progress=excluded.progress,passage_hash=excluded.passage_hash,updated_at=excluded.updated_at`,
+          `INSERT INTO social_annotation_shares(annotation_id,user_id,product_id,work_id,visibility,audience_group_id,share_note,progress,passage_hash,created_at,updated_at,recipient_user_id) SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE (? IS NULL OR EXISTS(SELECT 1 FROM social_annotation_shares WHERE annotation_id=? AND user_id=? AND version=?)) ON CONFLICT(annotation_id) DO UPDATE SET version=social_annotation_shares.version+1,recipient_user_id=excluded.recipient_user_id,visibility=excluded.visibility,audience_group_id=excluded.audience_group_id,share_note=excluded.share_note,progress=excluded.progress,passage_hash=excluded.passage_hash,updated_at=excluded.updated_at WHERE (? IS NULL OR social_annotation_shares.version=?) RETURNING version`,
         )
         .bind(
           annotationId,
           uidv,
           p.id,
           snap?.internalWorkId || null,
-          x.visibility,
+          x.visibility === "member" ? "friends" : x.visibility,
           x.visibility === "group" ? x.groupId : null,
           x.shareNote ? 1 : 0,
           progress,
           hash,
           now(),
           now(),
+          recipientId,
+          x.expectedVersion ?? null,
+          annotationId,
+          uidv,
+          x.expectedVersion ?? null,
+          x.expectedVersion ?? null,
+          x.expectedVersion ?? null,
         )
-        .run();
+        .first<{ version: number }>();
+      if (!saved)
+        throw new ApiError(
+          409,
+          "Sharing changed on another device. Refresh before changing permissions.",
+        );
       const profile = await ensureSocialProfile(db, uidv),
         shareFeed = feedVisibility(
           x.visibility,
           String(profile.activity_visibility || "followers"),
           String(profile.profile_visibility || "public"),
         );
-      if (shareFeed)
+      if (shareFeed && !recipientId)
         await recordSocialEvent(db, {
           userId: uidv,
           type: "shared_highlight",
@@ -2123,6 +2425,23 @@ export async function handleSocial(
           payload: { quote: String(a.quote).slice(0, 280), chapter: a.chapter },
           dedupeKey: `shared-highlight:${annotationId}:${crypto.randomUUID()}`,
         });
+      if (recipientId) {
+        try {
+          await emitNotification(db, {
+            userId: recipientId,
+            eventType: "social_reply",
+            dedupeKey: `direct-highlight:${annotationId}:${recipientId}:${now()}`,
+            title: "A highlight was shared with you",
+            body: "View the passage and any included note in Shared with me.",
+            subjectType: "highlight",
+            subjectId: annotationId,
+            actionUrl: "/community?tab=received",
+            allowedChannels: ["in_app"],
+          });
+        } catch {
+          console.warn("Direct highlight notification enqueue failed");
+        }
+      }
       await auditSocial(
         db,
         uidv,
@@ -2133,11 +2452,12 @@ export async function handleSocial(
         {
           visibility: x.visibility,
           groupId: x.visibility === "group" ? x.groupId : null,
+          recipientUserId: recipientId,
           shareNote: x.shareNote,
           progress,
         },
       );
-      return json({ shared: true, passageHash: hash, progress });
+      return json({ shared: true, passageHash: hash, progress, version: saved.version });
     }
   }
   if (method === "POST" && path === "/social/posts") {
@@ -2150,13 +2470,15 @@ export async function handleSocial(
           .enum(["discussion", "question", "reply", "comment", "prompt"])
           .default("discussion"),
         bookId: bookIdSchema.optional(),
+        groupId: z.string().min(1).max(180).nullable().optional(),
+        recipientUserId: z.string().min(1).max(180).nullable().optional(),
         cfi: z.string().max(4000).default(""),
         chapter: z.string().max(300).default(""),
         progress: z.number().min(0).max(1).nullable().optional(),
         passageText: z.string().max(2000).default(""),
         body: z.string().trim().min(1).max(12000),
         visibility: z
-          .enum(["public", "followers", "friends", "group", "private"])
+          .enum(["public", "followers", "friends", "group", "private", "member"])
           .default("public"),
         spoiler: z.boolean().default(false),
       })
@@ -2166,7 +2488,8 @@ export async function handleSocial(
       productId: string | null = null,
       groupId: string | null = null,
       listId: string | null = null,
-      targetUserId: string | null = null;
+      targetUserId: string | null = null,
+      recipientId: string | null = null;
     if (x.contextType === "work") {
       const w = await resolveWork(db, x.contextId);
       contextId = workId = String(w.id);
@@ -2179,6 +2502,17 @@ export async function handleSocial(
       workId = snap?.internalWorkId || null;
       if (!x.cfi || x.progress == null || !x.passageText)
         throw new ApiError(400, "Margin discussions require a passage and reading location.");
+    }
+    if (x.contextType === "margin" && !x.parentId && x.visibility === "group") {
+      if (!(await isGroupMember(db, uidv, x.groupId)))
+        throw new ApiError(403, "Select a group you have joined before posting.");
+      groupId = x.groupId || null;
+    }
+    if (x.visibility === "member" && !x.parentId) {
+      if (x.contextType !== "margin")
+        throw new ApiError(400, "Direct sharing is available for margin discussions.");
+      recipientId = await assertDirectRecipient(db, uidv, x.recipientUserId);
+      x.visibility = "private";
     }
     if (x.contextType === "group") {
       groupId = contextId;
@@ -2262,10 +2596,16 @@ export async function handleSocial(
           String(parent.user_id),
           String(parent.visibility),
           parent.group_id,
+          parent.recipient_user_id,
         ))
       )
         throw new ApiError(404, "Reply target was not found.");
       x.visibility = parent.visibility;
+      recipientId = parent.recipient_user_id
+        ? parent.user_id === uidv
+          ? parent.recipient_user_id
+          : parent.user_id
+        : null;
       x.spoiler = !!parent.spoiler;
       workId = parent.work_id || workId;
       productId = parent.product_id || productId;
@@ -2282,7 +2622,7 @@ export async function handleSocial(
       passageHash = x.passageText ? await sha256(x.passageText.trim().toLowerCase()) : "";
     await db
       .prepare(
-        `INSERT INTO social_posts(id,user_id,context_type,context_id,parent_id,root_id,post_type,work_id,product_id,group_id,list_id,target_user_id,cfi,chapter,progress,passage_text,passage_hash,body,visibility,spoiler,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT INTO social_posts(id,user_id,context_type,context_id,parent_id,root_id,post_type,work_id,product_id,group_id,list_id,target_user_id,cfi,chapter,progress,passage_text,passage_hash,body,visibility,spoiler,created_at,updated_at,recipient_user_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .bind(
         id,
@@ -2307,6 +2647,7 @@ export async function handleSocial(
         x.spoiler ? 1 : 0,
         at,
         at,
+        recipientId,
       )
       .run();
     const duplicateSince = new Date(Date.now() - 600000).toISOString(),
@@ -2356,7 +2697,7 @@ export async function handleSocial(
         String(profile.activity_visibility || "followers"),
         String(profile.profile_visibility || "public"),
       );
-    if (!parent && postFeed)
+    if (!parent && postFeed && !recipientId)
       await recordSocialEvent(db, {
         userId: uidv,
         type: "discussion_started",
@@ -2375,10 +2716,15 @@ export async function handleSocial(
           eventType: "social_reply",
           dedupeKey: `social-reply:${id}`,
           title: "Someone replied to your discussion",
-          body: `${(await person(db, uidv))?.name || "A reader"} replied: ${x.body.slice(0, 120)}`,
+          body: recipientId
+            ? "A member replied to your private margin conversation."
+            : `${(await person(db, uidv))?.name || "A reader"} replied: ${x.body.slice(0, 120)}`,
           subjectType: "social_post",
           subjectId: id,
-          actionUrl: `/community?post=${encodeURIComponent(id)}`,
+          actionUrl:
+            recipientId && productId
+              ? `/read/${encodeURIComponent(productId)}?cfi=${encodeURIComponent(x.cfi)}`
+              : `/community?post=${encodeURIComponent(id)}`,
           allowedChannels: ["in_app", "web_push", "mobile_push"],
         });
       } catch {}
@@ -2432,7 +2778,17 @@ export async function handleSocial(
       .prepare("SELECT * FROM social_posts WHERE id=? AND deleted_at IS NULL")
       .bind(postId)
       .first<any>();
-    if (!p || !(await canSee(db, uidv, String(p.user_id), String(p.visibility), p.group_id)))
+    if (
+      !p ||
+      !(await canSee(
+        db,
+        uidv,
+        String(p.user_id),
+        String(p.visibility),
+        p.group_id,
+        p.recipient_user_id,
+      ))
+    )
       throw new ApiError(404, "Discussion not found.");
     if (x.active)
       await db
@@ -3434,7 +3790,17 @@ export async function handleSocial(
         .prepare("SELECT * FROM social_posts WHERE id=? AND deleted_at IS NULL")
         .bind(x.subjectId)
         .first<any>();
-      if (!p || !(await canSee(db, uidv, String(p.user_id), String(p.visibility), p.group_id)))
+      if (
+        !p ||
+        !(await canSee(
+          db,
+          uidv,
+          String(p.user_id),
+          String(p.visibility),
+          p.group_id,
+          p.recipient_user_id,
+        ))
+      )
         throw new ApiError(404, "Discussion not found.");
     } else if (x.subjectType === "social_list")
       await assertContextReadable(db, uidv, "list", x.subjectId);

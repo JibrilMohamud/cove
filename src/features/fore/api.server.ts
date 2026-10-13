@@ -455,6 +455,10 @@ export type CoveEnv = {
   BUCKET?: {
     get(key: string, options?: any): Promise<any>;
     head?(key: string): Promise<any>;
+    list?(options: {
+      prefix: string;
+      cursor?: string;
+    }): Promise<{ objects: { key: string }[]; truncated: boolean; cursor?: string }>;
     put(key: string, value: any, opts?: any): Promise<any>;
     delete(key: string): Promise<void>;
   };
@@ -4235,6 +4239,13 @@ async function handleCoveRequest(
     }
     const user = requiredUser(request);
     const db = database(env);
+    if (
+      await db
+        .prepare("SELECT 1 blocked FROM auth_accounts WHERE app_id=? AND disabled_at IS NOT NULL")
+        .bind(user.id)
+        .first()
+    )
+      throw new ApiError(403, "This account is being erased.");
     if (path === "/support/tickets") {
       if (request.method === "GET")
         return json(await supportInbox(db, user.id, url.searchParams.get("cursor")));

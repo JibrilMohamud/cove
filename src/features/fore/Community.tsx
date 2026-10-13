@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, authorOf, useAccount, type CatalogBook } from "./client";
+import { SharingPage } from "./Sharing";
 import { useStorefrontLocale } from "./localization";
 
 type Post = {
@@ -2074,6 +2075,8 @@ export function CommunityPage() {
         {[
           ["feed", Activity, "Activity"],
           ["discover", Users, "Discover"],
+          ["received", BookHeart, "Shared with me"],
+          ["sharing", Share2, "My sharing"],
           ["me", CircleUserRound, "My profile"],
         ].map(([key, Icon, label]: any) => (
           <a className={tab === key ? "active" : ""} href={`/community?tab=${key}`} key={key}>
@@ -2082,7 +2085,11 @@ export function CommunityPage() {
           </a>
         ))}
       </nav>
-      {tab === "discover" ? (
+      {tab === "sharing" ? (
+        <SharingPage sent />
+      ) : tab === "received" ? (
+        <SharingPage />
+      ) : tab === "discover" ? (
         <Discover />
       ) : tab === "me" ? (
         <MyCommunity />

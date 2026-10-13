@@ -36,6 +36,8 @@ jobs:
         run: npm run test:search-updater-cache
       - name: Reader, sharing privacy and offline authorization regressions
         run: npm run test:reader-sharing-offline
+      - name: Direct sharing, group discussions and account erasure
+        run: npm run test:sharing-erasure
       - name: Hosted BioSync chunk regressions
         run: npm run test:biosync-chunks
       - name: Python audio pipeline syntax

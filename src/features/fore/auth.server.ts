@@ -228,6 +228,7 @@ export async function createAuth(request: Request, env: CoveEnv) {
         .bind(u.id)
         .first<any>();
     }
+    if (row.disabled_at) throw new ApiError(403, "This account is being erased.");
     // Provision a usable personal reading profile on the first verified
     // provider login. Existing display names are never overwritten.
     const displayName =
@@ -287,7 +288,7 @@ export async function createAuth(request: Request, env: CoveEnv) {
       if (u) {
         identity = await bindIdentity(u);
         const fp = await sessionFingerprint();
-        if (fp) {
+        if (identity && fp) {
           try {
             const blocked = await env.DB.prepare(
               "SELECT id FROM account_sessions WHERE user_id=? AND provider_session_id_hash=? AND revoked_at IS NOT NULL",

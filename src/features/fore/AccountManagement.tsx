@@ -710,6 +710,15 @@ export function AccountManagementPanel() {
                   ? `Scheduled after ${new Date(overview.deletion.execute_after).toLocaleString()}.`
                   : ""}{" "}
                 {overview.deletion.legal_hold_reason || ""}
+                {overview.deletion.last_error_code && (
+                  <span>
+                    {" "}
+                    Cleanup is delayed and will be retried automatically. It has not completed.
+                    {overview.deletion.next_retry_at
+                      ? ` Retry eligible after ${new Date(overview.deletion.next_retry_at).toLocaleString()}.`
+                      : ""}
+                  </span>
+                )}
               </p>
               {["requested", "cooling_off", "queued"].includes(overview.deletion.status) && (
                 <button

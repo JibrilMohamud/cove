@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";
 import { emitNotification } from "./notifications.server";
+import { eraseProviderIdentity } from "./account-erasure.server";
 import { exportCustomerSupport } from "./customer-support.server";
 
 export type AccountDB = CoveEnv["DB"];
@@ -183,7 +184,7 @@ export async function accountOverview(
       .all<any>(),
     db
       .prepare(
-        "SELECT id,status,requested_at,execute_after,canceled_at,completed_at,legal_hold_reason FROM account_deletion_requests WHERE user_id=? ORDER BY requested_at DESC LIMIT 1",
+        "SELECT id,status,requested_at,execute_after,canceled_at,completed_at,legal_hold_reason,cleanup_phase,attempts,next_retry_at,last_error_code FROM account_deletion_requests WHERE user_id=? ORDER BY requested_at DESC LIMIT 1",
       )
       .bind(userId)
       .first<any>(),
@@ -761,233 +762,388 @@ export async function accountDataExport(db: AccountDB, userId: string) {
   };
 }
 
+type ErasureJob = {
+  id: string;
+  user_id: string;
+  attempts: number;
+  object_keys_json: string;
+  storage_erased_at: string | null;
+  database_erased_at: string | null;
+  identity_erased_at: string | null;
+};
+async function maintainErasureLease(db: AccountDB, requestId: string, token: string) {
+  const renewed = await db
+    .prepare(
+      "UPDATE account_deletion_requests SET lease_expires_at=? WHERE id=? AND lease_token=? AND status='executing' AND lease_expires_at>? RETURNING id",
+    )
+    .bind(new Date(Date.now() + 600000).toISOString(), requestId, token, now())
+    .first<{ id: string }>();
+  if (!renewed) throw new ApiError(409, "erasure_lease_lost");
+}
 export async function processAccountDeletionQueue(env: CoveEnv, limit = 25) {
   const db = env.DB,
-    rows = (
-      await db
-        .prepare(
-          "SELECT * FROM account_deletion_requests WHERE status IN ('cooling_off','queued') AND execute_after<=? ORDER BY execute_after LIMIT ?",
-        )
-        .bind(now(), Math.max(1, Math.min(100, limit)))
-        .all<any>()
-    ).results;
+    current = now();
+  const rows = (
+    await db
+      .prepare(
+        "SELECT id FROM account_deletion_requests WHERE status IN ('cooling_off','queued','executing','blocked_legal_hold') AND execute_after<=? AND (next_retry_at IS NULL OR next_retry_at<=?) AND (lease_expires_at IS NULL OR lease_expires_at<=?) ORDER BY execute_after LIMIT ?",
+      )
+      .bind(current, current, current, Math.max(1, Math.min(25, limit)))
+      .all<{ id: string }>()
+  ).results;
   let completed = 0,
-    blocked = 0;
-  for (const r of rows) {
-    const chargeback = await db
+    blocked = 0,
+    retrying = 0;
+  for (const candidate of rows) {
+    const lease = crypto.randomUUID(),
+      leaseUntil = new Date(Date.now() + 600000).toISOString();
+    const r = await db
       .prepare(
-        "SELECT 1 ok FROM commerce_orders WHERE user_id=? AND status IN ('disputed','chargeback_lost') LIMIT 1",
+        "UPDATE account_deletion_requests SET status='executing',lease_expires_at=?,lease_token=?,attempts=attempts+1,updated_at=? WHERE id=? AND status IN ('cooling_off','queued','executing','blocked_legal_hold') AND execute_after<=? AND (next_retry_at IS NULL OR next_retry_at<=?) AND (lease_expires_at IS NULL OR lease_expires_at<=?) RETURNING *",
       )
-      .bind(r.user_id)
-      .first<any>();
-    const activeSubscription = await db
-      .prepare(
-        "SELECT 1 ok FROM subscriptions WHERE user_id=? AND status IN ('active','trialing','past_due') LIMIT 1",
-      )
-      .bind(r.user_id)
-      .first<any>();
-    const activeStaff = await db
-      .prepare("SELECT 1 ok FROM staff_principals WHERE user_id=? AND status='active' LIMIT 1")
-      .bind(r.user_id)
-      .first<any>();
-    const publisherAuthority = await db
-      .prepare(
-        "SELECT 1 ok FROM publishing_account_members WHERE user_id=? AND status='active' AND role IN ('owner','admin') LIMIT 1",
-      )
-      .bind(r.user_id)
-      .first<any>();
-    const socialGroupOwner = await db
-      .prepare(
-        "SELECT 1 ok FROM reading_groups g WHERE g.owner_user_id=? AND g.deleted_at IS NULL AND g.status='active' AND (SELECT COUNT(*) FROM reading_group_members m WHERE m.group_id=g.id AND m.status='active')>1 LIMIT 1",
-      )
-      .bind(r.user_id)
-      .first<any>();
-    const legalReason = chargeback
-      ? "Open payment dispute/chargeback record"
-      : activeSubscription
-        ? "Active subscription must be canceled before erasure"
-        : activeStaff
-          ? "Active staff identity must be deprovisioned before erasure"
-          : publisherAuthority
-            ? "Publisher ownership/admin authority must be transferred or removed before erasure"
-            : socialGroupOwner
-              ? "Reading-group ownership must be transferred before erasure"
-              : "";
-    if (legalReason) {
-      await db
+      .bind(leaseUntil, lease, now(), candidate.id, current, current, current)
+      .first<ErasureJob>();
+    if (!r) continue;
+    try {
+      const chargeback = await db
         .prepare(
-          "UPDATE account_deletion_requests SET status='blocked_legal_hold',legal_hold_reason=?,updated_at=? WHERE id=?",
+          "SELECT 1 ok FROM commerce_orders WHERE user_id=? AND status IN ('disputed','chargeback_lost') LIMIT 1",
         )
-        .bind(legalReason, now(), r.id)
-        .run();
-      blocked++;
-      continue;
-    }
-    await db
-      .prepare("UPDATE account_deletion_requests SET status='executing',updated_at=? WHERE id=?")
-      .bind(now(), r.id)
-      .run();
-    const importedObjects = (
-        await db
-          .prepare("SELECT object_key FROM personal_imports WHERE user_id=?")
-          .bind(r.user_id)
-          .all<any>()
-      ).results
-        .map((x: any) => String(x.object_key || ""))
-        .filter(Boolean),
-      at = now();
-    const ownedLists = (
-      await db.prepare("SELECT id FROM social_lists WHERE user_id=?").bind(r.user_id).all<any>()
-    ).results.map((x: any) => String(x.id));
-    const ownedGroups = (
-      await db
-        .prepare("SELECT id FROM reading_groups WHERE owner_user_id=?")
         .bind(r.user_id)
-        .all<any>()
-    ).results.map((x: any) => String(x.id));
-    for (const id of ownedLists)
-      await db
+        .first<any>();
+      const activeSubscription = await db
         .prepare(
-          "UPDATE social_posts SET deleted_at=COALESCE(deleted_at,?),body='[list removed]',updated_at=? WHERE context_type='list' AND context_id=?",
+          "SELECT 1 ok FROM subscriptions WHERE user_id=? AND status IN ('active','trialing','past_due') LIMIT 1",
         )
-        .bind(at, at, id)
-        .run();
-    for (const id of ownedGroups)
-      await db
+        .bind(r.user_id)
+        .first<any>();
+      const activeStaff = await db
+        .prepare("SELECT 1 ok FROM staff_principals WHERE user_id=? AND status='active' LIMIT 1")
+        .bind(r.user_id)
+        .first<any>();
+      const publisherAuthority = await db
         .prepare(
-          "UPDATE social_posts SET deleted_at=COALESCE(deleted_at,?),body='[group removed]',updated_at=? WHERE context_type='group' AND context_id=?",
+          "SELECT 1 ok FROM publishing_account_members WHERE user_id=? AND status='active' AND role IN ('owner','admin') LIMIT 1",
         )
-        .bind(at, at, id)
-        .run();
-    await db.batch([
-      db.prepare("DELETE FROM customer_support_tickets WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM social_post_reactions WHERE user_id=?").bind(r.user_id),
-      db
-        .prepare("DELETE FROM social_follows WHERE follower_user_id=? OR followed_user_id=?")
-        .bind(r.user_id, r.user_id),
-      db
-        .prepare("DELETE FROM social_follow_requests WHERE requester_user_id=? OR target_user_id=?")
-        .bind(r.user_id, r.user_id),
-      db
-        .prepare("DELETE FROM social_blocks WHERE blocker_user_id=? OR blocked_user_id=?")
-        .bind(r.user_id, r.user_id),
-      db
-        .prepare("DELETE FROM social_mutes WHERE muter_user_id=? OR muted_user_id=?")
-        .bind(r.user_id, r.user_id),
-      db.prepare("DELETE FROM profile_top_books WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM social_annotation_shares WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM social_events WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM social_reader_preferences WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM social_list_likes WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM social_list_saves WHERE user_id=?").bind(r.user_id),
-      db
+        .bind(r.user_id)
+        .first<any>();
+      const socialGroupOwner = await db
         .prepare(
-          "UPDATE social_posts SET user_id='deleted:'||substr(id,1,24),body='[deleted account]',passage_text='',updated_at=? WHERE user_id=?",
+          "SELECT 1 ok FROM reading_groups g WHERE g.owner_user_id=? AND g.deleted_at IS NULL AND g.status='active' AND (SELECT COUNT(*) FROM reading_group_members m WHERE m.group_id=g.id AND m.status='active')>1 LIMIT 1",
         )
-        .bind(at, r.user_id),
-      db
-        .prepare("UPDATE social_audit_events SET actor_user_id=NULL WHERE actor_user_id=?")
-        .bind(r.user_id),
-      db
-        .prepare(
-          "UPDATE author_social_posts SET created_by_user_id='deleted:'||substr(id,1,24) WHERE created_by_user_id=?",
-        )
-        .bind(r.user_id),
-      db.prepare("DELETE FROM social_lists WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM reading_groups WHERE owner_user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM reading_group_members WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM social_profiles WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM review_hearts WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM reviews WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM annotations WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM definitions WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM reading_sessions WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM reading_states WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM reading_goals WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM book_metrics WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM completion_events WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM playback WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM biosync_positions WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM commercial_audio_playback WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM commercial_biosync_positions WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM author_follow_preferences WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM author_follows WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM wishlist_events WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM wishlist_items WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM wishlist_profiles WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM preview_states WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM shopping_carts WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM shelves WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM recommendation_feedback WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM recommendation_requests WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM recommendation_events WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM recommendation_user_features WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM recommendation_privacy WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM search_query_events WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM merch_events WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM personal_export_events WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM personal_imports WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM account_addresses WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM account_preferences WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM account_billing_methods WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM account_gift_card_wallet WHERE user_id=?").bind(r.user_id),
-      db.prepare("DELETE FROM profiles WHERE user_id=?").bind(r.user_id),
-      db
-        .prepare(
-          "UPDATE audio_offline_licenses SET status='revoked',revoked_at=COALESCE(revoked_at,?),revocation_reason=CASE WHEN revocation_reason='' THEN 'account_deleted' ELSE revocation_reason END WHERE user_id=? AND status='active'",
-        )
-        .bind(at, r.user_id),
-      db
-        .prepare("UPDATE commerce_customers SET email='',updated_at=? WHERE user_id=?")
-        .bind(at, r.user_id),
-      db
-        .prepare(
-          "UPDATE account_sessions SET revoked_at=COALESCE(revoked_at,?),revoked_reason='account_deleted' WHERE user_id=?",
-        )
-        .bind(at, r.user_id),
-      db
-        .prepare(
-          "UPDATE devices SET device_key='deleted:'||id,name='',platform='',revoked_at=COALESCE(revoked_at,?) WHERE user_id=?",
-        )
-        .bind(at, r.user_id),
-      db
-        .prepare("UPDATE auth_accounts SET email=?,username=NULL WHERE app_id=?")
-        .bind(`deleted+${r.user_id.replace(/[^a-zA-Z0-9]/g, "")}@invalid.fore`, r.user_id),
-    ]);
-    if (env.BUCKET)
-      for (const objectKey of importedObjects) {
-        try {
-          await env.BUCKET.delete(objectKey);
-        } catch {}
+        .bind(r.user_id)
+        .first<any>();
+      const legalReason = chargeback
+        ? "Open payment dispute/chargeback record"
+        : activeSubscription
+          ? "Active subscription must be canceled before erasure"
+          : activeStaff
+            ? "Active staff identity must be deprovisioned before erasure"
+            : publisherAuthority
+              ? "Publisher ownership/admin authority must be transferred or removed before erasure"
+              : socialGroupOwner
+                ? "Reading-group ownership must be transferred before erasure"
+                : "";
+      if (legalReason) {
+        await db
+          .prepare(
+            "UPDATE account_deletion_requests SET status='blocked_legal_hold',legal_hold_reason=?,updated_at=?,lease_expires_at=NULL,lease_token=NULL,next_retry_at=? WHERE id=?",
+          )
+          .bind(legalReason, now(), new Date(Date.now() + 86400000).toISOString(), r.id)
+          .run();
+        blocked++;
+        continue;
       }
-    const authRow = await db
-      .prepare("SELECT provider_id FROM auth_accounts WHERE app_id=?")
-      .bind(r.user_id)
-      .first<any>();
-    if (env.SUPABASE_URL && env.SUPABASE_SECRET_KEY && authRow?.provider_id) {
-      try {
-        await fetch(
-          env.SUPABASE_URL.replace(/\/$/, "") +
-            "/auth/v1/admin/users/" +
-            encodeURIComponent(authRow.provider_id),
-          {
-            method: "DELETE",
-            headers: {
-              apikey: env.SUPABASE_SECRET_KEY,
-              Authorization: `Bearer ${env.SUPABASE_SECRET_KEY}`,
-            },
-            signal: AbortSignal.timeout(10000),
-          },
-        );
-      } catch {}
-    }
-    await db
-      .prepare(
-        "UPDATE account_deletion_requests SET status='completed',completed_at=?,updated_at=? WHERE id=?",
+
+      const authRow = await db
+        .prepare("SELECT provider_id FROM auth_accounts WHERE app_id=?")
+        .bind(r.user_id)
+        .first<{ provider_id: string }>();
+      if (
+        env.FORE_AUTH_MODE === "supabase" &&
+        (!authRow?.provider_id ||
+          !env.SUPABASE_URL ||
+          (!env.FORE_INGESTION_SIGNING_KEY && !env.SUPABASE_SECRET_KEY))
       )
-      .bind(now(), now(), r.id)
-      .run();
-    completed++;
+        throw new ApiError(503, "identity_configuration_missing");
+      const at = now();
+      await db
+        .prepare("UPDATE auth_accounts SET disabled_at=COALESCE(disabled_at,?) WHERE app_id=?")
+        .bind(at, r.user_id)
+        .run();
+      if (!r.storage_erased_at) {
+        await maintainErasureLease(db, r.id, lease);
+        const recorded = JSON.parse(r.object_keys_json) as string[];
+        const imports = (
+          await db
+            .prepare("SELECT object_key FROM personal_imports WHERE user_id=?")
+            .bind(r.user_id)
+            .all<{ object_key: string }>()
+        ).results
+          .map((x) => x.object_key)
+          .filter(Boolean);
+        const orphaned: string[] = [];
+        if (env.BUCKET?.list) {
+          let cursor: string | undefined;
+          do {
+            await maintainErasureLease(db, r.id, lease);
+            const page = await env.BUCKET.list({ prefix: `uploads/${r.user_id}/`, cursor });
+            orphaned.push(...page.objects.map((object) => object.key));
+            cursor = page.truncated ? page.cursor : undefined;
+            if (page.truncated && !cursor) throw new ApiError(503, "storage_listing_incomplete");
+          } while (cursor);
+        }
+        const keys = [...new Set([...recorded, ...imports, ...orphaned])];
+        if (keys.length && !env.BUCKET) throw new ApiError(503, "storage_configuration_missing");
+        await db
+          .prepare(
+            "UPDATE account_deletion_requests SET object_keys_json=?,cleanup_phase='storage',updated_at=? WHERE id=? AND lease_token=?",
+          )
+          .bind(JSON.stringify(keys), now(), r.id, lease)
+          .run();
+        for (const [index, key] of keys.entries()) {
+          if (index % 25 === 0) await maintainErasureLease(db, r.id, lease);
+          await env.BUCKET!.delete(key);
+        }
+        await db
+          .prepare(
+            "UPDATE account_deletion_requests SET storage_erased_at=?,updated_at=? WHERE id=? AND lease_token=?",
+          )
+          .bind(now(), now(), r.id, lease)
+          .run();
+      }
+      if (!r.database_erased_at) {
+        await maintainErasureLease(db, r.id, lease);
+        const privateProducts = (
+          await db
+            .prepare(
+              "SELECT p.id,p.edition_id,e.work_id,p.source_external_id FROM products p JOIN editions e ON e.id=p.edition_id AND e.release_status='private' WHERE p.source_name='upload' AND (EXISTS(SELECT 1 FROM personal_imports i WHERE i.product_id=p.id AND i.user_id=?) OR EXISTS(SELECT 1 FROM digital_assets a JOIN asset_versions v ON v.asset_id=a.id WHERE a.edition_id=e.id AND substr(v.object_key,1,length(?))=?)) AND NOT EXISTS(SELECT 1 FROM personal_imports other WHERE other.product_id=p.id AND other.user_id<>?)",
+            )
+            .bind(r.user_id, `uploads/${r.user_id}/`, `uploads/${r.user_id}/`, r.user_id)
+            .all<{ id: string; edition_id: string; work_id: string; source_external_id: string }>()
+        ).results;
+        const ownedLists = (
+          await db.prepare("SELECT id FROM social_lists WHERE user_id=?").bind(r.user_id).all<any>()
+        ).results.map((x: any) => String(x.id));
+        const ownedGroups = (
+          await db
+            .prepare("SELECT id FROM reading_groups WHERE owner_user_id=?")
+            .bind(r.user_id)
+            .all<any>()
+        ).results.map((x: any) => String(x.id));
+        for (const id of ownedLists)
+          await db
+            .prepare(
+              "UPDATE social_posts SET deleted_at=COALESCE(deleted_at,?),body='[list removed]',updated_at=? WHERE context_type='list' AND context_id=?",
+            )
+            .bind(at, at, id)
+            .run();
+        for (const id of ownedGroups)
+          await db
+            .prepare(
+              "UPDATE social_posts SET deleted_at=COALESCE(deleted_at,?),body='[group removed]',updated_at=? WHERE context_type='group' AND context_id=?",
+            )
+            .bind(at, at, id)
+            .run();
+        await db.batch([
+          db.prepare("DELETE FROM notification_inbox WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM notification_delivery_jobs WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM storefront_user_preferences WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM notification_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM notification_push_endpoints WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM notification_preferences WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM text_bookmarks WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM sync_records WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM sync_mutations WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM sync_conflicts WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reader_settings WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM sync_clients WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reading_journeys WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reading_progress_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM account_legal_consents WHERE user_id=?").bind(r.user_id),
+          db
+            .prepare("DELETE FROM pending_account_legal_consents WHERE provider_id=?")
+            .bind(authRow?.provider_id || ""),
+          db
+            .prepare("DELETE FROM social_annotation_shares WHERE recipient_user_id=?")
+            .bind(r.user_id),
+          db
+            .prepare(
+              "UPDATE social_posts SET deleted_at=COALESCE(deleted_at,?),body='[withdrawn]',passage_text='',recipient_user_id=NULL,moderation_status='removed',updated_at=? WHERE recipient_user_id=? OR user_id=?",
+            )
+            .bind(at, at, r.user_id, r.user_id),
+          db.prepare("DELETE FROM customer_support_tickets WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM social_post_reactions WHERE user_id=?").bind(r.user_id),
+          db
+            .prepare("DELETE FROM social_follows WHERE follower_user_id=? OR followed_user_id=?")
+            .bind(r.user_id, r.user_id),
+          db
+            .prepare(
+              "DELETE FROM social_follow_requests WHERE requester_user_id=? OR target_user_id=?",
+            )
+            .bind(r.user_id, r.user_id),
+          db
+            .prepare("DELETE FROM social_blocks WHERE blocker_user_id=? OR blocked_user_id=?")
+            .bind(r.user_id, r.user_id),
+          db
+            .prepare("DELETE FROM social_mutes WHERE muter_user_id=? OR muted_user_id=?")
+            .bind(r.user_id, r.user_id),
+          db.prepare("DELETE FROM profile_top_books WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM social_annotation_shares WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM social_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM social_reader_preferences WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM social_list_likes WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM social_list_saves WHERE user_id=?").bind(r.user_id),
+          db
+            .prepare(
+              "UPDATE social_posts SET user_id='deleted:'||substr(id,1,24),body='[deleted account]',passage_text='',updated_at=? WHERE user_id=?",
+            )
+            .bind(at, r.user_id),
+          db
+            .prepare("UPDATE social_audit_events SET actor_user_id=NULL WHERE actor_user_id=?")
+            .bind(r.user_id),
+          db
+            .prepare(
+              "UPDATE author_social_posts SET created_by_user_id='deleted:'||substr(id,1,24) WHERE created_by_user_id=?",
+            )
+            .bind(r.user_id),
+          db.prepare("DELETE FROM social_lists WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reading_groups WHERE owner_user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reading_group_members WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM social_profiles WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM review_hearts WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reviews WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM annotations WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM definitions WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reading_sessions WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reading_states WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM reading_goals WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM book_metrics WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM completion_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM playback WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM biosync_positions WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM commercial_audio_playback WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM commercial_biosync_positions WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM author_follow_preferences WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM author_follows WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM wishlist_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM wishlist_items WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM wishlist_profiles WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM preview_states WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM shopping_carts WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM shelves WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM recommendation_feedback WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM recommendation_requests WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM recommendation_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM recommendation_user_features WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM recommendation_privacy WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM search_query_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM merch_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM personal_export_events WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM personal_imports WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM account_addresses WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM account_preferences WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM account_billing_methods WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM account_gift_card_wallet WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM profiles WHERE user_id=?").bind(r.user_id),
+          db
+            .prepare(
+              "UPDATE audio_offline_licenses SET status='revoked',revoked_at=COALESCE(revoked_at,?),revocation_reason=CASE WHEN revocation_reason='' THEN 'account_deleted' ELSE revocation_reason END WHERE user_id=? AND status='active'",
+            )
+            .bind(at, r.user_id),
+          db
+            .prepare("UPDATE commerce_customers SET email='',updated_at=? WHERE user_id=?")
+            .bind(at, r.user_id),
+          db
+            .prepare(
+              "UPDATE account_sessions SET revoked_at=COALESCE(revoked_at,?),revoked_reason='account_deleted' WHERE user_id=?",
+            )
+            .bind(at, r.user_id),
+          db
+            .prepare(
+              "UPDATE devices SET device_key='deleted:'||id,name='',platform='',revoked_at=COALESCE(revoked_at,?) WHERE user_id=?",
+            )
+            .bind(at, r.user_id),
+          ...privateProducts.flatMap((product) => [
+            db
+              .prepare(
+                "DELETE FROM external_identifiers WHERE entity_type='product' AND entity_id=?",
+              )
+              .bind(product.id),
+            db.prepare("DELETE FROM products WHERE id=? AND source_name='upload'").bind(product.id),
+            db
+              .prepare("DELETE FROM editions WHERE id=? AND release_status='private'")
+              .bind(product.edition_id),
+            db
+              .prepare(
+                "DELETE FROM works WHERE id=? AND NOT EXISTS(SELECT 1 FROM editions WHERE work_id=?)",
+              )
+              .bind(product.work_id, product.work_id),
+            db
+              .prepare(
+                "DELETE FROM contributors WHERE id=? AND NOT EXISTS(SELECT 1 FROM edition_contributors WHERE contributor_id=?)",
+              )
+              .bind(
+                `con_upload_${product.source_external_id}`,
+                `con_upload_${product.source_external_id}`,
+              ),
+          ]),
+          db
+            .prepare(
+              "UPDATE auth_accounts SET email=?,username=NULL,disabled_at=COALESCE(disabled_at,?) WHERE app_id=?",
+            )
+            .bind(`deleted+${r.user_id.replace(/[^a-zA-Z0-9]/g, "")}@invalid.fore`, at, r.user_id),
+        ]);
+
+        await db
+          .prepare(
+            "UPDATE account_deletion_requests SET database_erased_at=?,cleanup_phase='identity',updated_at=? WHERE id=? AND lease_token=?",
+          )
+          .bind(now(), now(), r.id, lease)
+          .run();
+      }
+      if (!r.identity_erased_at) {
+        await maintainErasureLease(db, r.id, lease);
+        if (env.FORE_AUTH_MODE === "supabase")
+          await eraseProviderIdentity(env, authRow!.provider_id, r.user_id, r.id);
+        await db
+          .prepare(
+            "UPDATE account_deletion_requests SET identity_erased_at=?,updated_at=? WHERE id=? AND lease_token=?",
+          )
+          .bind(now(), now(), r.id, lease)
+          .run();
+      }
+      const done = await db
+        .prepare(
+          "UPDATE account_deletion_requests SET status='completed',cleanup_phase='complete',completed_at=?,updated_at=?,lease_expires_at=NULL,lease_token=NULL,next_retry_at=NULL,last_error_code='',legal_hold_reason='',object_keys_json='[]' WHERE id=? AND lease_token=? AND storage_erased_at IS NOT NULL AND database_erased_at IS NOT NULL AND identity_erased_at IS NOT NULL RETURNING id",
+        )
+        .bind(now(), now(), r.id, lease)
+        .first<{ id: string }>();
+      if (done) completed++;
+    } catch (error) {
+      const code =
+        error instanceof ApiError && /^[a-z_]+$/.test(error.message)
+          ? error.message
+          : "cleanup_failed";
+      const retry = new Date(
+        Date.now() + Math.min(86400000, 60000 * Math.pow(2, Math.min(r.attempts, 10))),
+      ).toISOString();
+      await db
+        .prepare(
+          "UPDATE account_deletion_requests SET status='queued',lease_expires_at=NULL,lease_token=NULL,next_retry_at=?,last_error_code=?,updated_at=? WHERE id=? AND lease_token=?",
+        )
+        .bind(retry, code, now(), r.id, lease)
+        .run();
+      retrying++;
+      console.error(
+        JSON.stringify({
+          event: "account_erasure_retry",
+          requestId: r.id,
+          code,
+          attempt: r.attempts,
+        }),
+      );
+    }
   }
-  return { processed: rows.length, completed, blocked };
+  return { processed: rows.length, completed, blocked, retrying };
 }

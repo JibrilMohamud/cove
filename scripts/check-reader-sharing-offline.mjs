@@ -554,6 +554,8 @@ try {
     ["reader", ""],
     ["reader", "?preview=1"],
     ["community", ""],
+    ["community", "?tab=sharing"],
+    ["community", "?tab=received"],
     ["community", "?profile=bob"],
     ["community", "?journey=test"],
     ["community", "?club=test"],

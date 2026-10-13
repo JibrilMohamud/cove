@@ -1,3 +1,4 @@
+import { MemberPicker, type ShareMember } from "./Sharing";
 import { openBiosync, resolveAudio, resolveText, matchingEpub } from "./biosync-client";
 import { Headphones } from "lucide-react";
 import { createActivity, measureEpub } from "./reading-activity";
@@ -215,9 +216,11 @@ export function ReaderPage({ id }: { id: string }) {
     [activeAnnotation, setActiveAnnotation] = useState<Annotation | null>(null),
     [socialCompose, setSocialCompose] = useState<"discussion" | "share" | null>(null),
     [socialBody, setSocialBody] = useState(""),
+    [discussionDirect, setDiscussionDirect] = useState(false),
     [socialVisibility, setSocialVisibility] = useState<
-      "public" | "followers" | "friends" | "group"
+      "public" | "followers" | "friends" | "group" | "member"
     >("friends"),
+    [socialMember, setSocialMember] = useState<ShareMember | null>(null),
     [socialShareNote, setSocialShareNote] = useState(false),
     [socialAnnotationId, setSocialAnnotationId] = useState<string | null>(null),
     [socialBusy, setSocialBusy] = useState(false),
@@ -278,6 +281,11 @@ export function ReaderPage({ id }: { id: string }) {
     },
     [],
   );
+  const selectedShare = useQuery<{ shared: boolean; version: number }>({
+    queryKey: ["highlight-share", data.user?.id, socialAnnotationId],
+    queryFn: () => api(`/social/highlights/${encodeURIComponent(socialAnnotationId!)}/share`),
+    enabled: !!data.user && !!socialAnnotationId && socialCompose === "share",
+  });
   const socialReader = useQuery<any>({
     queryKey: ["social-reader", id, data.user?.id, percent, chapter],
     queryFn: () =>
@@ -832,8 +840,9 @@ export function ReaderPage({ id }: { id: string }) {
     try {
       const prefs = socialReader.data?.preferences,
         mode = prefs?.audienceMode || "friends";
-      const visibility =
-        mode === "group"
+      const visibility = discussionDirect
+        ? "member"
+        : mode === "group"
           ? "group"
           : mode === "public"
             ? "public"
@@ -849,6 +858,8 @@ export function ReaderPage({ id }: { id: string }) {
         progress: position.current.progress,
         passageText: selection.text,
         body: socialBody,
+        groupId: visibility === "group" ? prefs?.groupId : null,
+        recipientUserId: discussionDirect ? socialMember?.id : null,
         visibility,
         spoiler: false,
       });
@@ -884,6 +895,7 @@ export function ReaderPage({ id }: { id: string }) {
       const groupId = socialVisibility === "group" ? socialReader.data?.preferences?.groupId : null;
       await api(`/social/highlights/${encodeURIComponent(annotationId!)}/share`, "POST", {
         visibility: socialVisibility,
+        recipientUserId: socialVisibility === "member" ? socialMember?.id : null,
         groupId,
         shareNote: !!socialAnnotationId && socialShareNote,
         progress: position.current.progress,
@@ -1489,6 +1501,7 @@ export function ReaderPage({ id }: { id: string }) {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="member">One Cove member</SelectItem>
                         <SelectItem value="friends">Friends / mutuals</SelectItem>
                         <SelectItem value="following">People I follow</SelectItem>
                         <SelectItem value="group">Reading group</SelectItem>
@@ -1754,6 +1767,15 @@ export function ReaderPage({ id }: { id: string }) {
             This discussion is attached to the passage and spoiler-gated by reading progress.
           </DialogDescription>
           <blockquote className="editor-quote">{selection?.text}</blockquote>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={discussionDirect}
+              onChange={(e) => setDiscussionDirect(e.target.checked)}
+            />
+            Share only with one member
+          </label>
+          {discussionDirect && <MemberPicker value={socialMember} onChange={setSocialMember} />}
           <textarea
             className="note-input"
             value={socialBody}
@@ -1763,7 +1785,14 @@ export function ReaderPage({ id }: { id: string }) {
           />
           <button
             className="button gold"
-            disabled={socialBusy || !socialBody.trim()}
+            disabled={
+              socialBusy ||
+              !socialBody.trim() ||
+              (discussionDirect && !socialMember) ||
+              (!discussionDirect &&
+                socialReader.data?.preferences?.audienceMode === "group" &&
+                !socialReader.data?.preferences?.groupId)
+            }
             onClick={publishSocialDiscussion}
           >
             {socialBusy ? "Posting…" : "Post discussion"}
@@ -1782,6 +1811,31 @@ export function ReaderPage({ id }: { id: string }) {
       >
         <DialogContent className="fore-dialog social-compose-dialog">
           <DialogTitle>Share this highlight.</DialogTitle>
+          <a href="/community?tab=sharing">Manage all my shares</a>
+          {selectedShare.data?.shared && (
+            <button
+              className="button outline"
+              disabled={socialBusy}
+              onClick={async () => {
+                setSocialBusy(true);
+                try {
+                  await api(
+                    `/social/highlights/${encodeURIComponent(socialAnnotationId!)}/share`,
+                    "DELETE",
+                    {},
+                  );
+                  await Promise.all([selectedShare.refetch(), socialReader.refetch()]);
+                  toast.success("Highlight unshared");
+                } catch (e) {
+                  toast.error((e as Error).message);
+                } finally {
+                  setSocialBusy(false);
+                }
+              }}
+            >
+              Unshare this highlight
+            </button>
+          )}
           <DialogDescription>
             Your saved notes remain private unless you explicitly choose to share them.
           </DialogDescription>
@@ -1800,6 +1854,9 @@ export function ReaderPage({ id }: { id: string }) {
               </SelectContent>
             </Select>
           </label>
+          {socialVisibility === "member" && (
+            <MemberPicker value={socialMember} onChange={setSocialMember} />
+          )}
           {socialAnnotationId &&
             data.annotations.find((a) => a.id === socialAnnotationId)?.note && (
               <label className="check-row">
@@ -1812,14 +1869,15 @@ export function ReaderPage({ id }: { id: string }) {
               </label>
             )}
           <p className="small muted">
-            Private is still the default for normal highlights. This action explicitly publishes
-            this one.
+            Private is still the default for normal highlights. This action explicitly shares this
+            one with your selected audience.
           </p>
           <button
             className="button gold"
             disabled={
               socialBusy ||
-              (socialVisibility === "group" && !socialReader.data?.preferences?.groupId)
+              (socialVisibility === "group" && !socialReader.data?.preferences?.groupId) ||
+              (socialVisibility === "member" && !socialMember)
             }
             onClick={shareSelectedHighlight}
           >
