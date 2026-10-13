@@ -1196,6 +1196,13 @@ async function sharingInventory(db: DB, viewer: string, url: URL) {
       continue;
     const progress = sent ? 1 : await currentProductProgress(db, viewer, row.product_id);
     const locked = !sent && row.progress !== null && row.progress > progress + 0.002;
+    const book = await productSnapshot(db, row.product_id);
+    // The inventory stores internal catalog IDs, but the reader route only accepts
+    // public product IDs or trusted source references. Never place internal IDs in links.
+    const readerBookId =
+      [book?.productId, book?.sourceExternalId].find(
+        (ref) => typeof ref === "string" && bookIdSchema.safeParse(ref).success,
+      ) || null;
     items.push({
       kind: row.kind,
       id: row.id,
@@ -1210,8 +1217,9 @@ async function sharingInventory(db: DB, viewer: string, url: URL) {
             .bind(row.group_id)
             .first<{ id: string; name: string }>()
         : null,
-      book: await productSnapshot(db, row.product_id),
+      book,
       productId: row.product_id,
+      readerBookId,
       shareNote: !!row.share_note,
       progress: row.progress,
       updatedAt: row.updated_at,
