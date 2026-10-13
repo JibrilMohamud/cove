@@ -96,7 +96,7 @@ async function seed(progress = 1) {
   await invoke(
     `/social/highlights/${annotation.id}/share`,
     "POST",
-    { visibility: "member", recipientUserId: people.bob.id, shareNote: true },
+    { visibility: "member", recipientUserId: people.bob.id, shareNote: true, audienceConfirmed: true },
     people.alice,
   );
   const group = await invoke(
@@ -131,6 +131,7 @@ async function seed(progress = 1) {
       body: "A group discussion visible to joined members.",
       visibility: "group",
       groupId: group.id,
+      audienceConfirmed: true,
     },
     people.alice,
   );
