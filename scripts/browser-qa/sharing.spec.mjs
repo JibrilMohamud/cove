@@ -161,6 +161,40 @@ test("member picker changes the audience and unshare revokes it", async ({
   }
 });
 
+test("shared note edits require an explicit republish", async ({ browser, request }, testInfo) => {
+  const fixture = await setup(browser, request, testInfo);
+  const updatedNote = "Updated note awaiting publication.";
+  try {
+    const alice = await fixture.pageFor("alice"),
+      bob = await fixture.pageFor("bob");
+    await alice.goto("/highlights");
+    let card = alice.locator("article.annotation-card").filter({ hasText: quote });
+    await card.getByRole("button", { name: "Edit highlight note" }).click();
+    const editor = alice.getByLabel("Note on this passage");
+    await expect(editor).toHaveValue(note);
+    await editor.fill(updatedNote);
+    await expect(alice.getByRole("button", { name: "Save note" })).toBeEnabled();
+    await alice.getByRole("button", { name: "Save note" }).click();
+    const prompt = alice.getByRole("alertdialog");
+    await expect(prompt).toBeVisible();
+    await prompt.getByRole("button", { name: "Keep published copies unchanged" }).click();
+    await inventory(bob);
+    await expect(bob.getByText(note, { exact: true })).toBeVisible();
+
+    await alice.goto("/highlights");
+    card = alice.locator("article.annotation-card").filter({ hasText: quote });
+    await card.getByRole("button", { name: "Edit highlight note" }).click();
+    const republish = alice.getByRole("button", { name: "Review & republish note…" });
+    await expect(republish).toBeVisible();
+    await republish.click();
+    await alice.getByRole("alertdialog").getByRole("button", { name: "Republish note" }).click();
+    await inventory(bob);
+    await expect(bob.getByText(updatedNote, { exact: true })).toBeVisible();
+  } finally {
+    await fixture.close();
+  }
+});
+
 test("spoilers stay out of both the inbox DOM and its API response", async ({
   browser,
   request,

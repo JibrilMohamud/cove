@@ -94,8 +94,13 @@ try {
     passageText: "A passage",
     body: "Our group discussion",
     visibility: "group",
+    audienceConfirmed: true,
     groupId: group,
   };
+  await assert.rejects(
+    call("/social/posts", "POST", { ...post, audienceConfirmed: false }),
+    /Confirm the audience/,
+  );
   const groupPost = await call("/social/posts", "POST", post);
   assert.equal(
     (await db.prepare("SELECT group_id FROM social_posts WHERE id=?").bind(groupPost.id).first())
@@ -157,17 +162,26 @@ try {
   assert.equal(privateMember.name, "bob");
   assert.equal(privateMember.bio, undefined);
 
-  await call(shareRoute, "POST", { visibility: "member", recipientUserId: "bob", shareNote: true });
+  await assert.rejects(
+    social.handleSocial(
+      request(shareRoute, "POST", { visibility: "member", recipientUserId: "bob", shareNote: true }),
+      env,
+      shareRoute,
+      "alice",
+    ),
+    /Confirm the highlight audience/,
+  );
+  await call(shareRoute, "POST", { audienceConfirmed: true, visibility: "member", recipientUserId: "bob", shareNote: true });
   assert.equal((await call(shareRoute)).visibility, "member");
   const originalVersion = (await call(shareRoute)).version;
-  await call(shareRoute, "POST", {
+  await call(shareRoute, "POST", { audienceConfirmed: true,
     visibility: "member",
     recipientUserId: "bob",
     shareNote: true,
     expectedVersion: originalVersion,
   });
   await assert.rejects(
-    call(shareRoute, "POST", { visibility: "public", expectedVersion: originalVersion }),
+    call(shareRoute, "POST", { audienceConfirmed: true, visibility: "public", expectedVersion: originalVersion }),
     /Sharing changed/,
   );
   await assert.rejects(
@@ -196,7 +210,77 @@ try {
     .run();
   inbox = await inventory("bob");
   assert.equal(inbox.items.find((x) => x.id === saved.id).note, "Private note");
+  const privateEdit = await api.handleCoveApi(
+    request(`/annotations/${saved.id}`, "PATCH", {
+      note: "Edited private note",
+      color: "yellow",
+      expectedVersion: saved.version,
+    }),
+    env,
+  );
+  assert.equal(privateEdit.status, 200);
+  assert.equal(
+    (await inventory("bob")).items.find((x) => x.id === saved.id).note,
+    "Private note",
+    "editing the private annotation must not silently mutate the published snapshot",
+  );
+  const permissionSaveTarget = (await call(shareRoute)).shares.find(
+    (share) => share.recipientUserId === "bob",
+  );
+  await call(shareRoute, "POST", {
+    audienceConfirmed: true,
+    shareId: permissionSaveTarget.id,
+    expectedVersion: permissionSaveTarget.version,
+    visibility: "member",
+    recipientUserId: "bob",
+    shareNote: true,
+  });
+  assert.equal(
+    (await inventory("bob")).items.find((x) => x.id === saved.id).note,
+    "Private note",
+    "saving unchanged sharing permissions must preserve the published snapshot",
+  );
+  const unrepublishedMargin = await call(
+    "/social/reader/1342?mode=friends&progress=1",
+    "GET",
+    undefined,
+    "bob",
+  );
+  assert.equal(
+    unrepublishedMargin.indicators
+      .flatMap((indicator) => indicator.highlights)
+      .find((highlight) => highlight.annotationId === saved.id)?.note,
+    "Private note",
+    "the reader margin must render the published snapshot, not the edited private note",
+  );
+  const republishRoute = `/social/highlights/${saved.id}/republish-note`,
+    publishedShares = (await call(shareRoute)).shares.filter((share) => share.shareNote);
+  await assert.rejects(
+    call(republishRoute, "POST", {
+      confirmed: true,
+      shares: publishedShares.map((share) => ({ id: share.id, version: share.version + 1 })),
+    }),
+    /changed/,
+  );
+  assert.equal(
+    (await inventory("bob")).items.find((x) => x.id === saved.id).note,
+    "Private note",
+    "stale republish must not partially update a publication",
+  );
+  await call(republishRoute, "POST", {
+    confirmed: true,
+    shares: publishedShares.map((share) => ({ id: share.id, version: share.version })),
+  });
+  assert.equal(
+    (await inventory("bob")).items.find((x) => x.id === saved.id).note,
+    "Edited private note",
+    "published notes change only after explicit, version-checked republishing",
+  );
   const margin = await call("/social/reader/1342?mode=friends&progress=1", "GET", undefined, "bob");
+  const republishedMarginNote = margin.indicators
+    .flatMap((indicator) => indicator.highlights)
+    .find((highlight) => highlight.annotationId === saved.id)?.note;
+  assert.equal(republishedMarginNote, "Edited private note");
   assert.ok(
     margin.indicators
       .flatMap((x) => x.highlights)
@@ -214,28 +298,41 @@ try {
   );
   await assert.rejects(call(shareRoute, "DELETE", {}, "charlie"), /Highlight not found/);
   await call(shareRoute, "POST", {
+    audienceConfirmed: true,
     visibility: "member",
     recipientUserId: "bob",
     shareNote: false,
   });
   assert.equal((await inventory("bob")).items.find((x) => x.id === saved.id).note, "");
   await call(shareRoute, "POST", {
+    audienceConfirmed: true,
     visibility: "member",
     recipientUserId: "charlie",
     shareNote: true,
   });
+  const simultaneousShares = (await call(shareRoute)).shares,
+    bobShare = simultaneousShares.find((share) => share.recipientUserId === "bob"),
+    charlieShare = simultaneousShares.find((share) => share.recipientUserId === "charlie");
+  assert.ok(bobShare && charlieShare, "one highlight can have independent simultaneous audiences");
+  assert.ok((await inventory("bob")).items.some((x) => x.id === saved.id));
+  assert.ok((await inventory("charlie")).items.some((x) => x.id === saved.id));
+  await call(shareRoute, "DELETE", {
+    shareId: bobShare.id,
+    expectedVersion: bobShare.version,
+  });
   assert.ok(!(await inventory("bob")).items.some((x) => x.id === saved.id));
+  assert.ok((await inventory("charlie")).items.some((x) => x.id === saved.id));
   await call(shareRoute, "DELETE", {});
   assert.ok(!(await inventory("charlie")).items.some((x) => x.id === saved.id));
   await call("/social/sharing/preferences", "POST", { policy: "none" }, "bob");
   await assert.rejects(
-    call(shareRoute, "POST", { visibility: "member", recipientUserId: "bob" }),
+    call(shareRoute, "POST", { audienceConfirmed: true, visibility: "member", recipientUserId: "bob" }),
     /not accepting shares/,
   );
   await call("/social/sharing/preferences", "POST", { policy: "members" }, "bob");
   await call("/social/block", "POST", { userId: "alice", blocked: true }, "bob");
   await assert.rejects(
-    call(shareRoute, "POST", { visibility: "member", recipientUserId: "bob" }),
+    call(shareRoute, "POST", { audienceConfirmed: true, visibility: "member", recipientUserId: "bob" }),
     /not accepting shares/,
   );
   await call("/social/block", "POST", { userId: "alice", blocked: false }, "bob");
@@ -305,8 +402,10 @@ try {
   await call(`/social/posts/${publicPost.id}`, "DELETE", { expectedVersion: 1 });
   assert.ok(!(await call("/social/feed")).items.some((item) => item.entity_id === publicPost.id));
   // Stable pagination cannot skip shares with identical timestamps.
+  let firstSharedAnnotationId = "";
   for (let n = 0; n < 33; n++) {
     const id = crypto.randomUUID();
+    if (n === 0) firstSharedAnnotationId = id;
     await db
       .prepare(
         "INSERT INTO annotations(id,user_id,book_id,book_title,author,cfi,chapter,quote,note,color,created_at,updated_at) VALUES(?,'alice','1342','Pride','','','',?,'','yellow',?,?)",
@@ -314,17 +413,22 @@ try {
       .bind(id, `Quote ${n}`, at, at)
       .run();
     await call(`/social/highlights/${id}/share`, "POST", {
+      audienceConfirmed: true,
       visibility: "member",
       recipientUserId: "bob",
     });
   }
+  await call(`/social/highlights/${firstSharedAnnotationId}/share`, "POST", {
+    audienceConfirmed: true,
+    visibility: "friends",
+  });
   await db.prepare("UPDATE social_annotation_shares SET updated_at=?").bind(at).run();
   const first = await inventory("alice", "sent");
   assert.equal(first.items.length, 30);
   assert.ok(first.nextCursor);
   const second = await inventory("alice", "sent", first.nextCursor);
   assert.equal(
-    new Set([...first.items, ...second.items].map((x) => `${x.kind}:${x.id}`)).size,
+    new Set([...first.items, ...second.items].map((x) => `${x.kind}:${x.shareId || x.id}`)).size,
     first.items.length + second.items.length,
   );
   assert.ok(second.items.length >= 3);

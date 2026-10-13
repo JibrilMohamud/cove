@@ -4,6 +4,18 @@ import { toast } from "sonner";
 import { api, useAccount } from "./client";
 
 export type ShareMember = { id: string; username: string; name: string };
+export type HighlightShareAudience = {
+  id: string;
+  audienceKey: string;
+  visibility: "public" | "followers" | "friends" | "group" | "member";
+  recipientUserId: string | null;
+  recipient: ShareMember | null;
+  groupId: string | null;
+  groupName: string | null;
+  shareNote: boolean;
+  updatedAt: string;
+  version: number;
+};
 export function MemberPicker({
   value,
   onChange,
@@ -70,6 +82,7 @@ export function MemberPicker({
 type SharedItem = {
   kind: "highlight" | "discussion";
   id: string;
+  shareId: string | null;
   owner: ShareMember | null;
   recipient: ShareMember | null;
   audience: string;
@@ -106,7 +119,7 @@ function SharedCard({
   const [groupId, setGroupId] = useState(item.group?.id || "");
   const [shareNote, setShareNote] = useState(item.shareNote);
   const [busy, setBusy] = useState(false);
-  const groups = useQuery<{ groups: { id: string; name: string }[] }>({
+  const groups = useQuery<{ groups: { id: string; name: string; member_status?: string }[] }>({
     queryKey: ["sharing-groups", account.user?.id],
     queryFn: () => api("/social/me"),
     enabled: editing && audience === "group",
@@ -125,13 +138,18 @@ function SharedCard({
           route,
           remove ? "DELETE" : "POST",
           remove
-            ? { expectedVersion: item.version }
+            ? {
+                ...(item.shareId ? { shareId: item.shareId } : {}),
+                expectedVersion: item.version,
+              }
             : {
+                ...(item.shareId ? { shareId: item.shareId } : {}),
                 visibility: audience,
                 expectedVersion: item.version,
                 recipientUserId: audience === "member" ? member?.id : null,
                 groupId: audience === "group" ? groupId : null,
                 shareNote,
+                audienceConfirmed: true,
               },
         );
       setEditing(false);
@@ -213,11 +231,13 @@ function SharedCard({
               Group
               <select value={groupId} onChange={(e) => setGroupId(e.target.value)}>
                 <option value="">Choose a joined group</option>
-                {groups.data?.groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
+                {groups.data?.groups
+                  .filter((g) => g.member_status === "active")
+                  .map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
               </select>
             </label>
           )}
@@ -318,7 +338,7 @@ export function SharingPage({ sent = false }: { sent?: boolean }) {
           {items.length ? (
             items.map((item) => (
               <SharedCard
-                key={`${item.kind}:${item.id}:${item.updatedAt}:${item.version}`}
+                key={`${item.kind}:${item.shareId || item.id}:${item.updatedAt}:${item.version}`}
                 item={item}
                 sent={sent}
                 onChanged={() => q.refetch()}

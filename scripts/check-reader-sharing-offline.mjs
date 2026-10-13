@@ -83,9 +83,9 @@ try {
   assert.equal(made.status, 201);
   const annotation = await made.json(),
     sharePath = `/social/highlights/${annotation.id}/share`;
-  const share = (visibility = "public") =>
+  const share = (visibility = "public", options = {}) =>
     social.handleSocial(
-      request(sharePath, "POST", { visibility, shareNote: true }),
+      request(sharePath, "POST", { visibility, shareNote: true, audienceConfirmed: true, ...options }),
       env,
       sharePath,
       "alice",
@@ -149,8 +149,16 @@ try {
   await social.handleSocial(request(sharePath, "DELETE"), env, sharePath, "alice");
   assert.equal((await feed()).length, 0, "unshare removes the historical quoted payload");
   await share();
-  await share("friends");
-  assert.equal((await feed()).length, 0, "narrowing audience withdraws the public feed copy");
+  const publicPublication = await (
+    await social.handleSocial(request(sharePath), env, sharePath, "alice")
+  ).json();
+  const currentPublicShare = publicPublication?.shares?.find((item) => item.visibility === "public");
+  assert.ok(currentPublicShare, "public publication can be managed independently");
+  await share("friends", {
+    shareId: currentPublicShare.id,
+    expectedVersion: currentPublicShare.version,
+  });
+  assert.equal((await feed()).length, 0, "changing the selected public audience withdraws its feed copy");
   await share();
   assert.ok((await feed()).length, "resharing in the same minute creates a fresh event");
   await db
@@ -161,9 +169,9 @@ try {
   await assert.rejects(
     db
       .prepare(
-        "INSERT INTO social_annotation_shares(annotation_id,user_id,product_id,visibility,passage_hash,created_at,updated_at) VALUES(?,?,'prd_gutenberg_1342','public','hash',?,?)",
+        "INSERT INTO social_annotation_shares(id,annotation_id,user_id,product_id,visibility,share_key,passage_hash,created_at,updated_at) VALUES('invalid-share',?,'alice','prd_gutenberg_1342','public','public','hash',?,?)",
       )
-      .bind(annotation.id, "alice", at, at)
+      .bind(annotation.id, at, at)
       .run(),
     /deleted/,
   );

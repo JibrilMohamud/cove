@@ -398,6 +398,48 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
     .run();
   return id;
 }
+async function refreshHighlightFeedEvent(db: DB, annotationId: string, userId: string) {
+  await db
+    .prepare(
+      "UPDATE social_events SET moderation_status='removed',payload_json='{}' WHERE event_type='shared_highlight' AND entity_id=? AND user_id=?",
+    )
+    .bind(annotationId, userId)
+    .run();
+  const share = await db
+    .prepare(
+      `SELECT s.id,s.visibility,s.product_id,s.work_id,a.quote,a.chapter
+       FROM social_annotation_shares s
+       JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL
+       WHERE s.annotation_id=? AND s.user_id=? AND s.recipient_user_id IS NULL
+         AND s.visibility IN ('public','followers') AND s.moderation_status='visible'
+       ORDER BY CASE WHEN s.visibility='public' THEN 0 ELSE 1 END,s.updated_at DESC LIMIT 1`,
+    )
+    .bind(annotationId, userId)
+    .first<any>();
+  if (!share) return;
+  const profile = await ensureSocialProfile(db, userId),
+    visibility = feedVisibility(
+      String(share.visibility),
+      String(profile.activity_visibility || "followers"),
+      String(profile.profile_visibility || "public"),
+    );
+  if (!visibility) return;
+  await recordSocialEvent(db, {
+    userId,
+    type: "shared_highlight",
+    entityType: "highlight",
+    entityId: annotationId,
+    productId: String(share.product_id),
+    workId: share.work_id ? String(share.work_id) : null,
+    visibility: visibility.visibility,
+    payload: {
+      shareId: String(share.id),
+      quote: String(share.quote).slice(0, 280),
+      chapter: share.chapter,
+    },
+    dedupeKey: `shared-highlight:${annotationId}:${share.id}:${crypto.randomUUID()}`,
+  });
+}
 async function coverForProduct(db: DB, productId: string) {
   const row = await db
     .prepare(
@@ -829,7 +871,7 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
     shares = (
       await db
         .prepare(
-          `SELECT s.*,a.cfi,a.chapter,a.quote,a.note,p.name FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL LEFT JOIN profiles p ON p.user_id=s.user_id WHERE s.product_id=? AND s.progress<=? AND s.moderation_status='visible' ${chapter ? "AND lower(rtrim(a.chapter, ' .'))=lower(rtrim(?, ' .'))" : ""} ORDER BY s.updated_at DESC LIMIT 300`,
+          `SELECT s.*,a.cfi,a.chapter,a.quote,s.note_snapshot note,p.name FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL LEFT JOIN profiles p ON p.user_id=s.user_id WHERE s.product_id=? AND s.progress<=? AND s.moderation_status='visible' ${chapter ? "AND lower(rtrim(a.chapter, ' .'))=lower(rtrim(?, ' .'))" : ""} ORDER BY s.updated_at DESC LIMIT 300`,
         )
         .bind(
           ...(chapter ? [product.id, progress + 0.002, chapter] : [product.id, progress + 0.002]),
@@ -919,7 +961,20 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
     a.posts.push(p);
     aggregate.set(key, a);
   }
+  // A reader who belongs to several audiences should see one copy of a highlight.
+  // Prefer the publication that explicitly includes the note, then the newest publication.
+  const displayShares = new Map<string, any>();
   for (const s of pref.show_highlights ? filteredShares : []) {
+    const annotationId = String(s.annotation_id),
+      previous = displayShares.get(annotationId);
+    if (
+      !previous ||
+      (!!s.share_note && !previous.share_note) ||
+      (!!s.share_note === !!previous.share_note && String(s.updated_at) > String(previous.updated_at))
+    )
+      displayShares.set(annotationId, s);
+  }
+  for (const s of displayShares.values()) {
     const key = String(s.passage_hash),
       a = aggregate.get(key) || {
         passageHash: key,
@@ -934,7 +989,8 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
       };
     a.highlightCount++;
     a.highlights.push({
-      id: s.annotation_id,
+      id: String(s.id),
+      annotationId: String(s.annotation_id),
       userId: s.user_id,
       name: s.name || "Reader",
       quote: s.quote,
@@ -1134,6 +1190,8 @@ async function sharingPerson(db: DB, viewer: string | null, target: string) {
 type ShareInventoryRow = {
   kind: "highlight" | "discussion";
   id: string;
+  share_id: string | null;
+  cursor_id: string;
   user_id: string;
   product_id: string;
   visibility: string;
@@ -1179,10 +1237,10 @@ async function sharingInventory(db: DB, viewer: string, url: URL) {
   const rows = (
     await db
       .prepare(
-        `SELECT * FROM (
-    SELECT 'highlight' kind,s.annotation_id id,s.user_id,s.product_id,s.visibility,s.audience_group_id group_id,s.recipient_user_id,s.share_note,s.progress,s.updated_at,a.quote,a.note,a.chapter,a.cfi,'' body,s.moderation_status,s.version FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL
-    UNION ALL SELECT 'discussion' kind,p.id,p.user_id,p.product_id,p.visibility,p.group_id,p.recipient_user_id,0 share_note,p.progress,p.updated_at,p.passage_text quote,'' note,p.chapter,p.cfi,p.body,p.moderation_status,p.version FROM social_posts p WHERE p.context_type='margin' AND p.parent_id IS NULL AND p.deleted_at IS NULL AND (p.visibility<>'private' OR p.recipient_user_id IS NOT NULL)
-  ) inventory WHERE ${audience} ${sent ? "" : "AND moderation_status='visible'"} ${cursor ? "AND (updated_at<? OR (updated_at=? AND (kind<? OR (kind=? AND id<?))))" : ""} ORDER BY updated_at DESC,kind DESC,id DESC LIMIT ?`,
+        `SELECT *,COALESCE(share_id,id) cursor_id FROM (
+    SELECT 'highlight' kind,s.annotation_id id,s.id share_id,s.user_id,s.product_id,s.visibility,s.audience_group_id group_id,s.recipient_user_id,s.share_note,s.progress,s.updated_at,a.quote,s.note_snapshot note,a.chapter,a.cfi,'' body,s.moderation_status,s.version FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL
+    UNION ALL SELECT 'discussion' kind,p.id,NULL share_id,p.user_id,p.product_id,p.visibility,p.group_id,p.recipient_user_id,0 share_note,p.progress,p.updated_at,p.passage_text quote,'' note,p.chapter,p.cfi,p.body,p.moderation_status,p.version FROM social_posts p WHERE p.context_type='margin' AND p.parent_id IS NULL AND p.deleted_at IS NULL AND (p.visibility<>'private' OR p.recipient_user_id IS NOT NULL)
+  ) inventory WHERE ${audience} ${sent ? "" : "AND moderation_status='visible'"} ${cursor ? "AND (updated_at<? OR (updated_at=? AND (kind<? OR (kind=? AND COALESCE(share_id,id)<?))))" : ""} ORDER BY updated_at DESC,kind DESC,cursor_id DESC LIMIT ?`,
       )
       .bind(...bindings)
       .all<ShareInventoryRow>()
@@ -1206,6 +1264,7 @@ async function sharingInventory(db: DB, viewer: string, url: URL) {
     items.push({
       kind: row.kind,
       id: row.id,
+      shareId: row.share_id,
       owner: await sharingPerson(db, viewer, row.user_id),
       recipient: row.recipient_user_id
         ? await sharingPerson(db, viewer, row.recipient_user_id)
@@ -1242,7 +1301,7 @@ async function sharingInventory(db: DB, viewer: string, url: URL) {
     items,
     nextCursor:
       rows.length > limit && last
-        ? btoa(JSON.stringify({ at: last.updated_at, kind: last.kind, id: last.id }))
+        ? btoa(JSON.stringify({ at: last.updated_at, kind: last.kind, id: last.cursor_id }))
         : null,
   };
 }
@@ -1466,10 +1525,16 @@ export async function handleSocial(
         if (e.event_type === "shared_highlight") {
           const share = await db
             .prepare(
-              "SELECT s.visibility,s.audience_group_id,s.recipient_user_id,a.quote,a.chapter FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL WHERE s.annotation_id=? AND s.user_id=? AND s.moderation_status='visible'",
+              "SELECT s.id,s.visibility,s.audience_group_id,s.recipient_user_id,a.quote,a.chapter FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL WHERE s.annotation_id=? AND s.user_id=? AND s.moderation_status='visible' AND (? IS NULL OR s.id=?) ORDER BY CASE WHEN s.visibility='public' THEN 0 ELSE 1 END LIMIT 1",
             )
-            .bind(e.entity_id, e.user_id)
+            .bind(
+              e.entity_id,
+              e.user_id,
+              typeof payload.shareId === "string" ? payload.shareId : null,
+              typeof payload.shareId === "string" ? payload.shareId : null,
+            )
             .first<{
+              id: string;
               visibility: string;
               audience_group_id: string | null;
               recipient_user_id: string | null;
@@ -2302,7 +2367,67 @@ export async function handleSocial(
     if (!saved) throw new ApiError(409, "Social Reading settings changed on another device.");
     return json({ saved: true, version: Number(saved.version) });
   }
-  const shareMatch = path.match(/^\/social\/highlights\/([^/]+)\/share$/);
+  const republishMatch = path.match(/^\\/social\\/highlights\\/([^/]+)\\/republish-note$/);
+  if (republishMatch && method === "POST") {
+    const annotationId = decodeURIComponent(republishMatch[1]),
+      annotation = await db
+        .prepare("SELECT note,deleted_at FROM annotations WHERE id=? AND user_id=?")
+        .bind(annotationId, uidv)
+        .first<any>();
+    if (!annotation || annotation.deleted_at) throw new ApiError(404, "Highlight not found.");
+    const x = z
+      .object({
+        confirmed: z.literal(true),
+        shares: z
+          .array(
+            z.object({
+              id: z.string().min(1).max(180),
+              version: z.number().int().min(1),
+            }),
+          )
+          .min(1)
+          .max(100),
+      })
+      .parse(await readBody(request));
+    if (new Set(x.shares.map((share) => share.id)).size !== x.shares.length)
+      throw new ApiError(400, "Each published audience must be selected only once.");
+    const matches = x.shares.map(() => "(id=? AND version=?)").join(" OR "),
+      expected = x.shares.flatMap((share) => [share.id, share.version]),
+      updated = await db
+        .prepare(
+          `UPDATE social_annotation_shares
+           SET note_snapshot=(SELECT note FROM annotations WHERE id=? AND user_id=? AND deleted_at IS NULL),
+               updated_at=?,version=version+1
+           WHERE annotation_id=? AND user_id=? AND share_note=1 AND (${matches})
+             AND (SELECT COUNT(*) FROM social_annotation_shares
+                  WHERE annotation_id=? AND user_id=? AND share_note=1 AND (${matches}))=?
+           RETURNING id,version`,
+        )
+        .bind(
+          annotationId,
+          uidv,
+          now(),
+          annotationId,
+          uidv,
+          ...expected,
+          annotationId,
+          uidv,
+          ...expected,
+          x.shares.length,
+        )
+        .all<any>();
+    if (updated.results.length !== x.shares.length)
+      throw new ApiError(
+        409,
+        "One or more shared audiences changed. Refresh sharing permissions before republishing.",
+      );
+    await refreshHighlightFeedEvent(db, annotationId, uidv);
+    await auditSocial(db, uidv, "highlight.note.republished", "highlight", annotationId, {}, {
+      shareCount: updated.results.length,
+    });
+    return json({ published: true, updatedCount: updated.results.length });
+  }
+  const shareMatch = path.match(/^\\/social\\/highlights\\/([^/]+)\\/share$/);
   if (shareMatch) {
     const annotationId = decodeURIComponent(shareMatch[1]),
       a = await db
@@ -2311,55 +2436,111 @@ export async function handleSocial(
         .first<any>();
     if (!a) throw new ApiError(404, "Highlight not found.");
     if (method === "GET") {
-      const share = await db
-        .prepare(
-          "SELECT visibility,recipient_user_id,audience_group_id,share_note,updated_at,version FROM social_annotation_shares WHERE annotation_id=? AND user_id=?",
-        )
-        .bind(annotationId, uidv)
-        .first<{
-          visibility: string;
-          recipient_user_id: string | null;
-          audience_group_id: string | null;
-          share_note: number;
-          updated_at: string;
-          version: number;
-        }>();
+      const rows = (
+        await db
+          .prepare(
+            `SELECT s.id,s.share_key,s.visibility,s.recipient_user_id,s.audience_group_id,
+                    s.share_note,s.updated_at,s.version,g.name group_name
+             FROM social_annotation_shares s
+             LEFT JOIN reading_groups g ON g.id=s.audience_group_id AND g.deleted_at IS NULL
+             WHERE s.annotation_id=? AND s.user_id=?
+             ORDER BY s.updated_at DESC,s.id DESC`,
+          )
+          .bind(annotationId, uidv)
+          .all<any>()
+      ).results;
+      const shares = await Promise.all(
+        rows.map(async (share) => ({
+          id: String(share.id),
+          audienceKey: String(share.share_key),
+          visibility: share.recipient_user_id ? "member" : String(share.visibility),
+          recipientUserId: share.recipient_user_id ? String(share.recipient_user_id) : null,
+          recipient: share.recipient_user_id
+            ? await sharingPerson(db, uidv, String(share.recipient_user_id))
+            : null,
+          groupId: share.audience_group_id ? String(share.audience_group_id) : null,
+          groupName: share.group_name ? String(share.group_name) : null,
+          shareNote: !!share.share_note,
+          updatedAt: String(share.updated_at),
+          version: Number(share.version),
+        })),
+      );
+      const first = shares[0];
       return json({
-        shared: !!share,
-        ...(share
+        shared: shares.length > 0,
+        shares,
+        ...(first
           ? {
-              visibility: share.recipient_user_id ? "member" : share.visibility,
-              recipientUserId: share.recipient_user_id,
-              groupId: share.audience_group_id,
-              shareNote: !!share.share_note,
-              updatedAt: share.updated_at,
-              version: share.version,
+              shareId: first.id,
+              visibility: first.visibility,
+              recipientUserId: first.recipientUserId,
+              groupId: first.groupId,
+              shareNote: first.shareNote,
+              updatedAt: first.updatedAt,
+              version: first.version,
             }
           : {}),
       });
     }
     if (method === "DELETE") {
       const x = z
-        .object({ expectedVersion: z.number().int().min(1).optional() })
+        .object({
+          shareId: z.string().min(1).max(180).optional(),
+          expectedVersion: z.number().int().min(1).optional(),
+        })
         .parse(await readBody(request).catch(() => ({})));
-      const removed = await db
-        .prepare(
-          "DELETE FROM social_annotation_shares WHERE annotation_id=? AND user_id=? AND (? IS NULL OR version=?) RETURNING annotation_id",
-        )
-        .bind(annotationId, uidv, x.expectedVersion ?? null, x.expectedVersion ?? null)
-        .first<{ annotation_id: string }>();
-      if (
-        !removed &&
-        (await db
+      if (x.shareId) {
+        const current = await db
           .prepare(
-            "SELECT 1 present FROM social_annotation_shares WHERE annotation_id=? AND user_id=?",
+            "SELECT id,version FROM social_annotation_shares WHERE id=? AND annotation_id=? AND user_id=?",
           )
+          .bind(x.shareId, annotationId, uidv)
+          .first<any>();
+        if (!current) throw new ApiError(404, "Shared audience not found.");
+        if (x.expectedVersion !== undefined && Number(current.version) !== x.expectedVersion)
+          throw new ApiError(409, "Sharing changed on another device. Refresh before unsharing.");
+        const removed = await db
+          .prepare(
+            "DELETE FROM social_annotation_shares WHERE id=? AND annotation_id=? AND user_id=? AND version=? RETURNING id",
+          )
+          .bind(x.shareId, annotationId, uidv, Number(current.version))
+          .first<any>();
+        if (!removed)
+          throw new ApiError(409, "Sharing changed on another device. Refresh before unsharing.");
+      } else if (x.expectedVersion !== undefined) {
+        const current = (
+          await db
+            .prepare(
+              "SELECT id,version FROM social_annotation_shares WHERE annotation_id=? AND user_id=?",
+            )
+            .bind(annotationId, uidv)
+            .all<any>()
+        ).results;
+        if (current.length !== 1)
+          throw new ApiError(409, "Choose a specific audience to withdraw.");
+        if (Number(current[0].version) !== x.expectedVersion)
+          throw new ApiError(409, "Sharing changed on another device. Refresh before unsharing.");
+        const removed = await db
+          .prepare("DELETE FROM social_annotation_shares WHERE id=? AND version=? RETURNING id")
+          .bind(current[0].id, x.expectedVersion)
+          .first<any>();
+        if (!removed)
+          throw new ApiError(409, "Sharing changed on another device. Refresh before unsharing.");
+      } else {
+        await db
+          .prepare("DELETE FROM social_annotation_shares WHERE annotation_id=? AND user_id=?")
           .bind(annotationId, uidv)
-          .first())
-      )
-        throw new ApiError(409, "Sharing changed on another device. Refresh before unsharing.");
-      await auditSocial(db, uidv, "highlight.unshared", "highlight", annotationId);
-      return json({ shared: false });
+          .run();
+      }
+      await refreshHighlightFeedEvent(db, annotationId, uidv);
+      const remaining = await db
+        .prepare("SELECT COUNT(*) count FROM social_annotation_shares WHERE annotation_id=? AND user_id=?")
+        .bind(annotationId, uidv)
+        .first<any>();
+      await auditSocial(db, uidv, "highlight.unshared", "highlight", annotationId, {}, {
+        shareId: x.shareId || null,
+      });
+      return json({ shared: Number(remaining?.count || 0) > 0, removed: true });
     }
     if (method === "POST") {
       if (a.deleted_at) throw new ApiError(404, "Highlight not found.");
@@ -2370,9 +2551,13 @@ export async function handleSocial(
           groupId: z.string().nullable().optional(),
           shareNote: z.boolean().default(false),
           expectedVersion: z.number().int().min(1).optional(),
+          shareId: z.string().min(1).max(180).optional(),
+          audienceConfirmed: z.boolean().optional(),
           progress: z.number().min(0).max(1).optional(),
         })
         .parse(await readBody(request));
+      if (x.audienceConfirmed !== true)
+        throw new ApiError(400, "Confirm the highlight audience before publishing.");
       const p = await resolveProduct(db, String(a.book_id), uidv);
       await requireProductAccess(db, uidv, String(p.id));
       if (x.visibility === "group" && !(await isGroupMember(db, uidv, x.groupId)))
@@ -2380,59 +2565,127 @@ export async function handleSocial(
       const recipientId =
         x.visibility === "member" ? await assertDirectRecipient(db, uidv, x.recipientUserId) : null;
       const snap = await productSnapshot(db, String(p.id)),
-        hash = await sha256(String(a.quote).trim().toLowerCase());
-      const progress =
-        a.progress == null
-          ? await currentProductProgress(db, uidv, String(p.id))
-          : Math.max(0, Math.min(1, Number(a.progress)));
-      const saved = await db
-        .prepare(
-          `INSERT INTO social_annotation_shares(annotation_id,user_id,product_id,work_id,visibility,audience_group_id,share_note,progress,passage_hash,created_at,updated_at,recipient_user_id) SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE (? IS NULL OR EXISTS(SELECT 1 FROM social_annotation_shares WHERE annotation_id=? AND user_id=? AND version=?)) ON CONFLICT(annotation_id) DO UPDATE SET version=social_annotation_shares.version+1,recipient_user_id=excluded.recipient_user_id,visibility=excluded.visibility,audience_group_id=excluded.audience_group_id,share_note=excluded.share_note,progress=excluded.progress,passage_hash=excluded.passage_hash,updated_at=excluded.updated_at WHERE (? IS NULL OR social_annotation_shares.version=?) RETURNING version`,
-        )
-        .bind(
-          annotationId,
-          uidv,
-          p.id,
-          snap?.internalWorkId || null,
-          x.visibility === "member" ? "friends" : x.visibility,
-          x.visibility === "group" ? x.groupId : null,
-          x.shareNote ? 1 : 0,
-          progress,
-          hash,
-          now(),
-          now(),
-          recipientId,
-          x.expectedVersion ?? null,
-          annotationId,
-          uidv,
-          x.expectedVersion ?? null,
-          x.expectedVersion ?? null,
-          x.expectedVersion ?? null,
-        )
-        .first<{ version: number }>();
+        hash = await sha256(String(a.quote).trim().toLowerCase()),
+        progress =
+          x.progress == null
+            ? a.progress == null
+              ? await currentProductProgress(db, uidv, String(p.id))
+              : Math.max(0, Math.min(1, Number(a.progress)))
+            : Math.max(0, Math.min(1, Number(x.progress))),
+        visibility = x.visibility === "member" ? "friends" : x.visibility,
+        groupId = x.visibility === "group" ? x.groupId : null,
+        shareKey =
+          recipientId ? `member:${recipientId}` : x.visibility === "group" ? `group:${groupId}` : x.visibility,
+        noteSnapshot = x.shareNote ? String(a.note || "") : "",
+        updatedAt = now();
+      let saved: { id: string; version: number } | null = null;
+      if (x.shareId) {
+        const current = await db
+          .prepare(
+            "SELECT id,share_key,share_note,note_snapshot,version FROM social_annotation_shares WHERE id=? AND annotation_id=? AND user_id=?",
+          )
+          .bind(x.shareId, annotationId, uidv)
+          .first<any>();
+        if (!current) throw new ApiError(404, "Shared audience not found.");
+        if (x.expectedVersion !== undefined && Number(current.version) !== x.expectedVersion)
+          throw new ApiError(409, "Sharing changed on another device. Refresh before changing permissions.");
+        const collision = await db
+          .prepare(
+            "SELECT id FROM social_annotation_shares WHERE annotation_id=? AND share_key=? AND id<>? LIMIT 1",
+          )
+          .bind(annotationId, shareKey, x.shareId)
+          .first<any>();
+        if (collision)
+          throw new ApiError(409, "This highlight already has a share for that audience. Edit that share instead.");
+        const updatedNoteSnapshot = x.shareNote
+          ? current.share_key === shareKey && !!current.share_note
+            ? String(current.note_snapshot || "")
+            : String(a.note || "")
+          : "";
+        saved = await db
+          .prepare(
+            `UPDATE social_annotation_shares
+             SET product_id=?,work_id=?,visibility=?,audience_group_id=?,recipient_user_id=?,share_key=?,
+                 share_note=?,note_snapshot=?,progress=?,passage_hash=?,updated_at=?,version=version+1
+             WHERE id=? AND annotation_id=? AND user_id=? AND version=?
+               AND NOT EXISTS(
+                 SELECT 1 FROM social_annotation_shares other
+                 WHERE other.annotation_id=? AND other.share_key=? AND other.id<>?
+               )
+             RETURNING id,version`,
+          )
+          .bind(
+            String(p.id),
+            snap?.internalWorkId || null,
+            visibility,
+            groupId,
+            recipientId,
+            shareKey,
+            x.shareNote ? 1 : 0,
+            updatedNoteSnapshot,
+            progress,
+            hash,
+            updatedAt,
+            x.shareId,
+            annotationId,
+            uidv,
+            Number(current.version),
+            annotationId,
+            shareKey,
+            x.shareId,
+          )
+          .first<{ id: string; version: number }>();
+      } else {
+        const current = await db
+          .prepare(
+            "SELECT id,version FROM social_annotation_shares WHERE annotation_id=? AND user_id=? AND share_key=?",
+          )
+          .bind(annotationId, uidv, shareKey)
+          .first<any>();
+        if (x.expectedVersion !== undefined && (!current || Number(current.version) !== x.expectedVersion))
+          throw new ApiError(409, "Sharing changed on another device. Refresh before changing permissions.");
+        saved = await db
+          .prepare(
+            `INSERT INTO social_annotation_shares(
+               id,annotation_id,user_id,product_id,work_id,visibility,audience_group_id,recipient_user_id,
+               share_key,share_note,note_snapshot,progress,passage_hash,created_at,updated_at
+             ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             ON CONFLICT(annotation_id,share_key) DO UPDATE SET
+               product_id=excluded.product_id,work_id=excluded.work_id,visibility=excluded.visibility,
+               audience_group_id=excluded.audience_group_id,recipient_user_id=excluded.recipient_user_id,
+               share_note=excluded.share_note,note_snapshot=excluded.note_snapshot,progress=excluded.progress,
+               passage_hash=excluded.passage_hash,updated_at=excluded.updated_at,
+               version=social_annotation_shares.version+1
+             WHERE (? IS NULL OR social_annotation_shares.version=?)
+             RETURNING id,version`,
+          )
+          .bind(
+            uid("ashare"),
+            annotationId,
+            uidv,
+            String(p.id),
+            snap?.internalWorkId || null,
+            visibility,
+            groupId,
+            recipientId,
+            shareKey,
+            x.shareNote ? 1 : 0,
+            noteSnapshot,
+            progress,
+            hash,
+            updatedAt,
+            updatedAt,
+            x.expectedVersion ?? null,
+            x.expectedVersion ?? null,
+          )
+          .first<{ id: string; version: number }>();
+      }
       if (!saved)
         throw new ApiError(
           409,
           "Sharing changed on another device. Refresh before changing permissions.",
         );
-      const profile = await ensureSocialProfile(db, uidv),
-        shareFeed = feedVisibility(
-          x.visibility,
-          String(profile.activity_visibility || "followers"),
-          String(profile.profile_visibility || "public"),
-        );
-      if (shareFeed && !recipientId)
-        await recordSocialEvent(db, {
-          userId: uidv,
-          type: "shared_highlight",
-          entityType: "highlight",
-          entityId: annotationId,
-          productId: String(p.id),
-          workId: snap?.internalWorkId,
-          visibility: shareFeed.visibility,
-          payload: { quote: String(a.quote).slice(0, 280), chapter: a.chapter },
-          dedupeKey: `shared-highlight:${annotationId}:${crypto.randomUUID()}`,
-        });
+      await refreshHighlightFeedEvent(db, annotationId, uidv);
       if (recipientId) {
         try {
           await emitNotification(db, {
@@ -2458,14 +2711,15 @@ export async function handleSocial(
         annotationId,
         {},
         {
+          shareId: saved.id,
           visibility: x.visibility,
-          groupId: x.visibility === "group" ? x.groupId : null,
+          groupId,
           recipientUserId: recipientId,
           shareNote: x.shareNote,
           progress,
         },
       );
-      return json({ shared: true, passageHash: hash, progress, version: saved.version });
+      return json({ shared: true, shareId: saved.id, passageHash: hash, progress, version: saved.version });
     }
   }
   if (method === "POST" && path === "/social/posts") {
@@ -2489,8 +2743,11 @@ export async function handleSocial(
           .enum(["public", "followers", "friends", "group", "private", "member"])
           .default("public"),
         spoiler: z.boolean().default(false),
+        audienceConfirmed: z.boolean().optional(),
       })
       .parse(await readBody(request));
+    if (x.contextType === "margin" && !x.parentId && x.audienceConfirmed !== true)
+      throw new ApiError(400, "Confirm the audience before publishing this margin discussion.");
     let contextId = x.contextId,
       workId: string | null = null,
       productId: string | null = null,

@@ -3,6 +3,7 @@ import { OfflineDownloads } from "./Audio";
 import { AccountManagementPanel } from "./AccountManagement";
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import {
   BookOpen,
   Plus,
@@ -56,6 +57,7 @@ import {
 } from "./client";
 import { BookArt } from "./Store";
 import { inspectEpub, downloadBook, exportReadingData, downloadCoveBackup } from "./epub";
+import type { HighlightShareAudience } from "./Sharing";
 export function AccountGuard({ children }: { children: ReactNode }) {
   const { data, loading, error, reload, signIn } = useAccount();
   if (loading)
@@ -313,6 +315,15 @@ function ConfirmDelete({
     </AlertDialog>
   );
 }
+function highlightAudienceName(share: HighlightShareAudience) {
+  if (share.visibility === "member") return `@${share.recipient?.username || "selected member"}`;
+  if (share.visibility === "group") return share.groupName || "reading group";
+  return {
+    public: "the public",
+    followers: "your followers",
+    friends: "friends / mutuals",
+  }[share.visibility];
+}
 export function HighlightsPage() {
   const { data, reload } = useAccount();
   const [q, setQ] = useState(""),
@@ -322,13 +333,46 @@ export function HighlightsPage() {
     [note, setNote] = useState(""),
     [editColor, setEditColor] = useState("yellow"),
     [remove, setRemove] = useState(""),
-    [saving, setSaving] = useState(false);
+    [saving, setSaving] = useState(false),
+    [republishing, setRepublishing] = useState(false),
+    [republish, setRepublish] = useState<{
+      annotationId: string;
+      shares: HighlightShareAudience[];
+    } | null>(null);
+  const sharing = useQuery<{ shared: boolean; shares: HighlightShareAudience[] }>({
+    queryKey: ["highlight-sharing-editor", data.user?.id, edit?.id],
+    queryFn: () => api(`/social/highlights/${encodeURIComponent(edit!.id)}/share`),
+    enabled: !!data.user && !!edit,
+    staleTime: 0,
+  });
   const rows = data.annotations.filter(
     (a) =>
       (tab !== "notes" || a.note) &&
       (color === "all" || a.color === color) &&
       [a.quote, a.note, a.bookTitle, a.chapter].join(" ").toLowerCase().includes(q.toLowerCase()),
   );
+  async function republishPublishedNote() {
+    if (!republish) return;
+    setRepublishing(true);
+    try {
+      await api(
+        `/social/highlights/${encodeURIComponent(republish.annotationId)}/republish-note`,
+        "POST",
+        {
+          confirmed: true,
+          shares: republish.shares.map((share) => ({ id: share.id, version: share.version })),
+        },
+      );
+      toast.success(
+        `Published note updated for ${republish.shares.length} ${republish.shares.length === 1 ? "audience" : "audiences"}.`,
+      );
+      setRepublish(null);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRepublishing(false);
+    }
+  }
   function exportNotes() {
     const text = rows
       .map(
@@ -482,6 +526,44 @@ export function HighlightsPage() {
           <DialogTitle>Your note</DialogTitle>
           <DialogDescription>{edit?.bookTitle}</DialogDescription>
           <blockquote className="editor-quote">{edit?.quote}</blockquote>
+          {sharing.isPending && (
+            <p className="small muted" role="status">Checking current sharing permissions…</p>
+          )}
+          {sharing.isError && (
+            <div role="alert">
+              <p>Current sharing permissions could not be checked. Retry before saving this note.</p>
+              <button className="button outline" onClick={() => sharing.refetch()}>
+                Retry sharing status
+              </button>
+            </div>
+          )}
+          {sharing.data?.shares.length ? (
+            <div className="reader-format-notice" role="status">
+              <strong>This highlight remains shared</strong>
+              <p>
+                Active audiences: {sharing.data.shares.map(highlightAudienceName).join(", ")}.
+              </p>
+              <p>
+                {sharing.data.shares.some((share) => share.shareNote)
+                  ? "For audiences that include your note, Cove keeps a separate published copy. Editing here changes only your private note until you explicitly republish it."
+                  : "Your note is not included in these shares. Editing it here will not change what other readers see."}
+              </p>
+              {sharing.data.shares.some((share) => share.shareNote) && (
+                <button
+                  className="button outline"
+                  disabled={republishing}
+                  onClick={() =>
+                    setRepublish({
+                      annotationId: edit!.id,
+                      shares: sharing.data!.shares.filter((share) => share.shareNote),
+                    })
+                  }
+                >
+                  Review & republish note…
+                </button>
+              )}
+            </div>
+          ) : null}
           <div className="color-options">
             {Object.entries(colors).map(([c, v]) => (
               <button
@@ -502,10 +584,12 @@ export function HighlightsPage() {
             placeholder="What does this passage bring to mind?"
           />
           <button
-            disabled={saving}
+            disabled={saving || sharing.isPending || sharing.isError}
             className="button gold"
             onClick={async () => {
-              if (!edit) return;
+              if (!edit || !sharing.data) return;
+              const noteChanged = note !== edit.note,
+                publishedShares = sharing.data.shares.filter((share) => share.shareNote);
               setSaving(true);
               try {
                 await api("/annotations/" + edit.id, "PATCH", {
@@ -515,7 +599,12 @@ export function HighlightsPage() {
                 });
                 await reload();
                 setEdit(null);
-                toast.success("Your note is saved");
+                if (noteChanged && publishedShares.length) {
+                  setRepublish({ annotationId: edit.id, shares: publishedShares });
+                  toast.success("Private note saved. Published copies have not changed.");
+                } else {
+                  toast.success("Your note is saved");
+                }
               } catch (e) {
                 toast.error((e as Error).message);
               } finally {
@@ -527,6 +616,39 @@ export function HighlightsPage() {
           </button>
         </DialogContent>
       </Dialog>
+      <AlertDialog
+        open={!!republish}
+        onOpenChange={(open) => {
+          if (!open && !republishing) setRepublish(null);
+        }}
+      >
+        <AlertDialogContent className="fore-dialog">
+          <AlertDialogTitle>Republish your note?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Your private note is saved. Existing shares still show the previous published copy.
+            Confirm to replace that copy for the selected audiences with your current note.
+          </AlertDialogDescription>
+          {republish && (
+            <ul>
+              {republish.shares.map((share) => (
+                <li key={share.id}>{highlightAudienceName(share)}</li>
+              ))}
+            </ul>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={republishing}>Keep published copies unchanged</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={republishing}
+              onClick={(e) => {
+                e.preventDefault();
+                void republishPublishedNote();
+              }}
+            >
+              {republishing ? "Publishing…" : "Republish note"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <ConfirmDelete
         open={!!remove}
         setOpen={() => setRemove("")}

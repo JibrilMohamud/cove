@@ -18,6 +18,10 @@ assert.ok(
   "social hardening migration missing",
 );
 assert.ok(migrations.length >= 40, "expected complete social migration chain");
+assert.ok(
+  migrations.includes("0048_multi_audience_highlight_publications.sql"),
+  "multi-audience highlight publication migration missing",
+);
 
 const db = new DatabaseSync(":memory:");
 db.exec("PRAGMA foreign_keys=ON");
@@ -75,6 +79,36 @@ const profileCols = Object.fromEntries(
 );
 assert.ok(profileCols.follow_policy, "follow approval policy must be durable");
 assert.ok(profileCols.version, "profile concurrency version missing");
+const shareCols = Object.fromEntries(
+  db
+    .prepare("PRAGMA table_info(social_annotation_shares)")
+    .all()
+    .map((x) => [x.name, x]),
+);
+for (const column of ["id", "share_key", "note_snapshot", "version"])
+  assert.ok(shareCols[column], `highlight publications missing ${column}`);
+assert.equal(shareCols.id.pk, 1, "each audience publication needs its own stable identity");
+assert.notEqual(shareCols.annotation_id.pk, 1, "annotation IDs must not be unique across audiences");
+const shareIndexes = db.prepare("PRAGMA index_list(social_annotation_shares)").all();
+assert.ok(
+  shareIndexes.some((index) => {
+    if (!index.unique) return false;
+    const columns = db
+      .prepare(`PRAGMA index_info("${String(index.name).replaceAll('"', '""')}")`)
+      .all()
+      .map((column) => column.name);
+    return columns.join(",") === "annotation_id,share_key";
+  }),
+  "a highlight may have one record per audience, without replacing other audiences",
+);
+const shareTriggers = new Set(
+  db
+    .prepare("SELECT name FROM sqlite_master WHERE type='trigger'")
+    .all()
+    .map((trigger) => trigger.name),
+);
+assert.ok(shareTriggers.has("trg_highlight_share_key_insert"), "audience keys must be database-validated");
+assert.ok(shareTriggers.has("trg_annotation_share_audience_change"), "publication changes must withdraw stale feed copies");
 const journeyCols = Object.fromEntries(
   db
     .prepare("PRAGMA table_info(reading_journeys)")
