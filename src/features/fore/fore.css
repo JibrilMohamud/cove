@@ -2815,3 +2815,13 @@ a svg {
     padding: 18px;
   }
 }
+
+/* Sharing controls remain usable with five community tabs and narrow screens. */
+.community-tabs { flex-wrap: wrap; }
+.sharing-inventory { display: grid; gap: 16px; }
+.sharing-inventory > article { border: 1px solid var(--border); border-radius: 14px; padding: 20px; min-width: 0; overflow-wrap: anywhere; }
+.sharing-inventory article .button { margin: 6px 6px 0 0; }
+.sharing-inventory fieldset { display: grid; gap: 12px; margin-top: 16px; min-width: 0; border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.sharing-inventory label { display: grid; gap: 6px; }
+.sharing-inventory .check-row { display: flex; align-items: center; gap: 8px; }
+.sharing-inventory select { width: 100%; max-width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: inherit; font: inherit; }

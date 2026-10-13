@@ -278,6 +278,13 @@ try {
   assert.equal(persisted.recipient_user_id, "alice");
   assert.equal(persisted.visibility, "private");
   assert.equal(persisted.group_id, null);
+  const conversation = await call("/social/posts?contextType=margin&contextId=1342&progress=1");
+  const privateReply = conversation.posts
+    .flatMap((post) => post.replyItems || [])
+    .find((reply) => reply.user?.id === "bob");
+  assert.ok(privateReply);
+  assert.equal(privateReply.user.name, "bob");
+  assert.equal(privateReply.user.bio, undefined);
   await call(`/social/posts/${direct.id}`, "DELETE", { expectedVersion: 1 });
   assert.ok(!(await inventory("bob")).items.some((x) => x.id === direct.id));
   assert.ok(

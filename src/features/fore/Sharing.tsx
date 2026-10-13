@@ -270,7 +270,7 @@ export function SharingPage({ sent = false }: { sent?: boolean }) {
     );
   const items = q.data?.pages.flatMap((page) => page.items) || [];
   return (
-    <section>
+    <section className="sharing-inventory">
       <h2>{sent ? "My sharing" : "Shared with me"}</h2>
       <p>
         {sent
@@ -313,7 +313,7 @@ export function SharingPage({ sent = false }: { sent?: boolean }) {
           {items.length ? (
             items.map((item) => (
               <SharedCard
-                key={`${item.kind}:${item.id}:${item.updatedAt}`}
+                key={`${item.kind}:${item.id}:${item.updatedAt}:${item.version}`}
                 item={item}
                 sent={sent}
                 onChanged={() => q.refetch()}

@@ -759,7 +759,7 @@ async function visiblePosts(db: DB, viewer: string | null, rows: any[], viewerPr
       });
       continue;
     }
-    const who = await person(db, String(r.user_id)),
+    const who = await sharingPerson(db, viewer, String(r.user_id)),
       myReactions = viewer
         ? (
             await db
@@ -1119,7 +1119,7 @@ async function assertDirectRecipient(db: DB, sender: string, recipient?: string 
     throw new ApiError(403, "This member is not accepting shares from your account.");
   return recipient;
 }
-async function sharingPerson(db: DB, viewer: string, target: string) {
+async function sharingPerson(db: DB, viewer: string | null, target: string) {
   const member = await person(db, target);
   if (!member) return null;
   return {
