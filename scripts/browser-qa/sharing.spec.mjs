@@ -237,7 +237,11 @@ test("EPUB reader opens and joined members receive group margin discussions", as
     await expect(
       bob.locator(".reader-social-panel").getByText(discussion, { exact: true }),
     ).toBeVisible();
-    expect(bob.frames().some((frame) => frame !== bob.mainFrame())).toBe(true);
+    // A ready toolbar is not sufficient: iPad WebKit previously showed a blank
+    // page while the social panel worked and no EPUB iframe was mounted.
+    const chapterFrame = bob.frameLocator(".reader-stage .epub-container iframe");
+    await expect(bob.locator(".reader-stage .epub-container iframe")).toBeVisible();
+    await expect(chapterFrame.locator("#passage")).toContainText("Browser QA passage for sharing.");
     await noOverflow(bob);
     await bob.screenshot({ path: testInfo.outputPath("group-reader.png"), fullPage: true });
     await inventory(outsider);
