@@ -2634,7 +2634,13 @@ export async function handleSocial(
             "SELECT id,share_key,share_note,note_snapshot,version FROM social_annotation_shares WHERE id=? AND annotation_id=? AND user_id=?",
           )
           .bind(x.shareId, annotationId, uidv)
-          .first<{ id: string; share_key: string; share_note: number; note_snapshot: string | null; version: number }>();
+          .first<{
+            id: string;
+            share_key: string;
+            share_note: number;
+            note_snapshot: string | null;
+            version: number;
+          }>();
         if (!current) throw new ApiError(404, "Shared audience not found.");
         if (x.expectedVersion !== undefined && Number(current.version) !== x.expectedVersion)
           throw new ApiError(

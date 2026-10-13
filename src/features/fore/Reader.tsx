@@ -2044,7 +2044,9 @@ export function ReaderPage({ id }: { id: string }) {
             Audience
             <Select
               value={socialVisibility}
-              onValueChange={(value: "private" | "public" | "followers" | "friends" | "group" | "member") => {
+              onValueChange={(
+                value: "private" | "public" | "followers" | "friends" | "group" | "member",
+              ) => {
                 setSocialVisibility(value);
                 setSocialAudienceConfirmed(false);
               }}
