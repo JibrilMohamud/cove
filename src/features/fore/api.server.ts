@@ -4269,7 +4269,11 @@ async function handleCoveRequest(
             editionId: z.string().min(1).max(100),
             trackId: z.string().min(1).max(100),
             seconds: z.number().finite().min(0).max(86400),
-            cfi: z.string().min(1).max(3000).regex(/^epubcfi\(.+\)$/),
+            cfi: z
+              .string()
+              .min(1)
+              .max(3000)
+              .regex(/^epubcfi\(.+\)$/),
             mode: z.enum(["text", "audio"]),
             epubSha256: z.string().regex(/^[a-f0-9]{64}$/),
             audioSha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -4288,9 +4292,11 @@ async function handleCoveRequest(
             alignment_json: string | null;
           }>();
         let tracks: { id?: string; sha256?: string }[] = [];
-        let alignment:
-          | { version?: number; verified?: boolean; maps?: { trackId: string }[] }
-          | null = null;
+        let alignment: {
+          version?: number;
+          verified?: boolean;
+          maps?: { trackId: string }[];
+        } | null = null;
         try {
           const parsedTracks: unknown = JSON.parse(edition?.tracks_json || "[]");
           tracks = Array.isArray(parsedTracks) ? parsedTracks : [];
