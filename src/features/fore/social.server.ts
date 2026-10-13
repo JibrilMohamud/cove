@@ -820,7 +820,7 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
   const rows = (
     await db
       .prepare(
-        `SELECT sp.*,COALESCE((SELECT COUNT(*) FROM social_post_reactions r WHERE r.post_id=sp.id),0) reaction_count FROM social_posts sp WHERE sp.context_type='margin' AND sp.product_id=? AND sp.parent_id IS NULL AND sp.deleted_at IS NULL AND sp.moderation_status='visible' AND sp.progress<=? ${chapter ? "AND sp.chapter=?" : ""} ORDER BY sp.created_at DESC LIMIT 300`,
+        `SELECT sp.*,COALESCE((SELECT COUNT(*) FROM social_post_reactions r WHERE r.post_id=sp.id),0) reaction_count FROM social_posts sp WHERE sp.context_type='margin' AND sp.product_id=? AND sp.parent_id IS NULL AND sp.deleted_at IS NULL AND sp.moderation_status='visible' AND sp.progress<=? ${chapter ? "AND lower(rtrim(sp.chapter, ' .'))=lower(rtrim(?, ' .'))" : ""} ORDER BY sp.created_at DESC LIMIT 300`,
       )
       .bind(...(chapter ? [product.id, progress + 0.002, chapter] : [product.id, progress + 0.002]))
       .all<any>()
@@ -829,7 +829,7 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
     shares = (
       await db
         .prepare(
-          `SELECT s.*,a.cfi,a.chapter,a.quote,a.note,p.name FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL LEFT JOIN profiles p ON p.user_id=s.user_id WHERE s.product_id=? AND s.progress<=? AND s.moderation_status='visible' ${chapter ? "AND a.chapter=?" : ""} ORDER BY s.updated_at DESC LIMIT 300`,
+          `SELECT s.*,a.cfi,a.chapter,a.quote,a.note,p.name FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL LEFT JOIN profiles p ON p.user_id=s.user_id WHERE s.product_id=? AND s.progress<=? AND s.moderation_status='visible' ${chapter ? "AND lower(rtrim(a.chapter, ' .'))=lower(rtrim(?, ' .'))" : ""} ORDER BY s.updated_at DESC LIMIT 300`,
         )
         .bind(
           ...(chapter ? [product.id, progress + 0.002, chapter] : [product.id, progress + 0.002]),
