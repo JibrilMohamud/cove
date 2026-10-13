@@ -19,7 +19,7 @@ Each customer can have ten active requests. Inbox pages contain up to 25 request
 
 Personal exports are version 4 and include customer-visible support conversations. Account erasure removes customer tickets and their messages through cascading deletion after existing hold checks. Public notice audit history belongs to operational records and remains immutable. The support inbox currently promises replies in the inbox, with no newly introduced external email delivery dependency or response-time SLA.
 
-The scheduled Worker refreshes public health after its catalog tick, normally every five minutes. Evidence older than 15 minutes, invalid timestamps or absent evidence becomes unknown. Catalog progress older than six hours is shown as delayed. Public status responses may be cached for 30 seconds; customer support endpoints remain private and uncached. No snapshot failure is converted to a successful health claim.
+The scheduled Worker refreshes public health at the beginning of its primary tick, normally every five minutes, before catalog or audio processing. Health evidence does not depend on successful ingestion. Evidence older than 15 minutes, invalid timestamps or absent evidence becomes unknown. Catalog progress older than six hours is shown as delayed. Public status responses may be cached for 30 seconds; customer support endpoints remain private and uncached. No snapshot failure is converted to a successful health claim.
 
 ## Validation
 

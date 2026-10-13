@@ -15,11 +15,13 @@ await build({
     "src/features/fore/public-status.server.ts",
     "src/features/fore/api-transport.ts",
     "src/features/fore/account-management.server.ts",
+    "src/persistence-backend.worker.ts",
   ],
   bundle: true,
   platform: "node",
   format: "esm",
   outdir: scratch,
+  entryNames: "[name]",
   outExtension: { ".js": ".mjs" },
   logLevel: "silent",
 });
@@ -31,6 +33,7 @@ const { processAccountDeletionQueue } = await import(
 );
 const { requestCove, CoveRequestError } = await import(path.join(scratch, "api-transport.mjs"));
 const env = localBindings(scratch);
+const { default: worker } = await import(path.join(scratch, "persistence-backend.worker.mjs"));
 async function req(route, method = "GET", body, user = "reader-a", aal = "aal1") {
   const headers = { "Content-Type": "application/json", Origin: "https://fore.test" };
   if (user) {
@@ -316,6 +319,32 @@ assert.equal(
   0,
 );
 assert.equal((await env.DB.prepare("PRAGMA foreign_key_check").all()).results.length, 0);
+
+// A failure in ingestion scheduling cannot suppress a successful health check.
+await env.DB.prepare("DELETE FROM cove_runtime_config WHERE key='public_service_status'").run();
+const scheduledTasks = [];
+const brokenIngestion = {
+  ...env,
+  DB: {
+    ...env.DB,
+    prepare(sql) {
+      if (sql.includes("SUM(CASE WHEN kind='align'"))
+        throw new Error("Simulated ingestion scheduling failure");
+      return env.DB.prepare(sql);
+    },
+  },
+};
+await worker.scheduled({ cron: "*/5 * * * *" }, brokenIngestion, {
+  waitUntil(task) {
+    scheduledTasks.push(task);
+  },
+});
+await Promise.allSettled(scheduledTasks);
+assert.ok(
+  await env.DB.prepare(
+    "SELECT value FROM cove_runtime_config WHERE key='public_service_status'",
+  ).first(),
+);
 
 const originalFetch = globalThis.fetch;
 try {

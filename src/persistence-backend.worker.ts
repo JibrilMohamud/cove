@@ -378,9 +378,6 @@ async function scheduledCatalog(env: BackendEnv) {
   if (!response.ok) {
     throw new Error("Scheduled catalog ingestion failed.");
   }
-  await refreshPublicStatus(env).catch((error) =>
-    console.warn("Public service status refresh failed", error),
-  );
 }
 
 async function scheduledMaintenance(env: BackendEnv) {
@@ -509,6 +506,10 @@ async function runScheduled(cron: string, env: BackendEnv) {
   }
   try {
     if (cron === "*/5 * * * *") {
+      // Customer health evidence must not wait for, or depend on, ingestion.
+      await refreshPublicStatus(env).catch((error) =>
+        console.warn("Public service status refresh failed", error),
+      );
       // This is the reliable primary cron, so it must make forward progress
       // even if a secondary alignment trigger is delayed or never fires.
       // Reserve alternating 15-minute windows for independent BioSync
