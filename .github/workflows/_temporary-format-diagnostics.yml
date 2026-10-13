@@ -1,0 +1,22 @@
+name: temporary-format-diagnostics
+on:
+  push:
+    paths:
+      - ".github/workflows/_temporary-format-diagnostics.yml"
+permissions:
+  contents: read
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Print required formatting changes without committing
+        run: |
+          npx prettier --write scripts/browser-qa/sharing.spec.mjs src/features/fore/Community.tsx
+          git diff -- scripts/browser-qa/sharing.spec.mjs src/features/fore/Community.tsx
