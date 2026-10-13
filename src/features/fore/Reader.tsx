@@ -463,6 +463,7 @@ export function ReaderPage({ id }: { id: string }) {
     setError("");
     let created: any;
     let resize: ResizeObserver | undefined;
+    let pageRepairTimer: ReturnType<typeof setTimeout> | undefined;
     (async () => {
       const params = new URLSearchParams(location.search);
       if (!previewMode) {
@@ -659,6 +660,25 @@ export function ReaderPage({ id }: { id: string }) {
         toast.message("The previous location was unavailable. Opened the beginning instead.");
       }
       if (canceled) return;
+      // epub.js can resolve display() before its iframe is attached on mobile WebKit.
+      // A resolved promise or enabled page-turn button alone is not a readable page.
+      const hasPageFrame = () => !!container.current?.querySelector("iframe");
+      async function ensurePageFrame(anchor?: string) {
+        if (canceled || hasPageFrame()) return;
+        const host = container.current;
+        if (!host) return;
+        const box = host.getBoundingClientRect();
+        if (box.width > 0 && box.height > 0) r.resize(box.width, box.height);
+        await r.display(anchor);
+        if (!hasPageFrame()) {
+          r.clear();
+          await r.display();
+        }
+        if (!hasPageFrame())
+          throw new Error("The EPUB page could not be displayed on this device. Please try again.");
+      }
+      await ensurePageFrame(cfi || undefined);
+      if (canceled) return;
       setReady(true);
       for (const a of annotationRef.current.filter((a) => a.bookId === id))
         try {
@@ -671,7 +691,20 @@ export function ReaderPage({ id }: { id: string }) {
       resize = new ResizeObserver(() => {
         if (container.current && rendition.current) {
           const { width, height } = container.current.getBoundingClientRect();
-          if (width > 0 && height > 0) r.resize(width, height);
+          if (width > 0 && height > 0) {
+            r.resize(width, height);
+            // epub.js clears views during resize and may not redisplay them if
+            // the initial location has not been reported yet (notably on iPad).
+            if (pageRepairTimer) clearTimeout(pageRepairTimer);
+            pageRepairTimer = setTimeout(() => {
+              if (canceled || hasPageFrame()) return;
+              void ensurePageFrame(position.current.cfi || undefined).catch((error) => {
+                if (canceled) return;
+                setReady(false);
+                setError((error as Error).message);
+              });
+            }, 300);
+          }
         }
       });
       resize.observe(container.current!);
@@ -725,6 +758,7 @@ export function ReaderPage({ id }: { id: string }) {
       activity.current?.stop();
       activity.current = null;
       resize?.disconnect();
+      if (pageRepairTimer) clearTimeout(pageRepairTimer);
       document.removeEventListener("keydown", keys);
       document.removeEventListener("visibilitychange", visibility);
       if (saveTimer.current) clearTimeout(saveTimer.current);
