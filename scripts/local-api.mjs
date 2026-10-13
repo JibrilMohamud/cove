@@ -71,18 +71,21 @@ export function localBindings(root) {
         const p = objectPath(key);
         if (!fs.existsSync(p)) return null;
         const size = fs.statSync(p).size;
-        return {
-          body: Readable.toWeb(
-            fs.createReadStream(
-              p,
-              options?.range
-                ? {
-                    start: options.range.offset,
-                    end: options.range.offset + options.range.length - 1,
-                  }
-                : {},
-            ),
+        const body = Readable.toWeb(
+          fs.createReadStream(
+            p,
+            options?.range
+              ? {
+                  start: options.range.offset,
+                  end: options.range.offset + options.range.length - 1,
+                }
+              : {},
           ),
+        );
+        return {
+          body,
+          arrayBuffer: () => new Response(body).arrayBuffer(),
+          text: () => new Response(body).text(),
           size,
         };
       },

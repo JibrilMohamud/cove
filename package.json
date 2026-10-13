@@ -47,7 +47,8 @@
     "test:search-updater-cache": "node scripts/check-search-updater-cache.mjs",
     "test:reader-sharing-offline": "node scripts/check-reader-sharing-offline.mjs",
     "test:sharing-erasure": "node scripts/check-sharing-erasure.mjs",
-    "lint:strict": "eslint ."
+    "lint:strict": "eslint .",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -111,8 +112,10 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "^2.7.6",
+    "@playwright/test": "1.64.0",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

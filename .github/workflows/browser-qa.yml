@@ -1,0 +1,51 @@
+name: browser-device-qa
+on:
+  push:
+    branches: [main]
+    paths:
+      [
+        "src/**",
+        "public/**",
+        "drizzle/**",
+        "scripts/browser-qa/**",
+        "scripts/browser-qa-server.mjs",
+        "scripts/local-api.mjs",
+        "playwright.config.mjs",
+        "package*.json",
+        ".github/workflows/browser-qa.yml",
+      ]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          [
+            chromium-desktop,
+            firefox-desktop,
+            webkit-desktop,
+            android-chrome,
+            iphone-safari,
+            ipad-safari,
+          ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - run: npm run test:browser -- --project=${{ matrix.project }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-device-qa-${{ matrix.project }}
+          path: artifacts/browser-qa
+          retention-days: 14
