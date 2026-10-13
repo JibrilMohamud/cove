@@ -1,3 +1,4 @@
+import { savedAlignedAudioProgress } from "./spoiler-progress.server";
 import { z } from "zod";
 import type { CoveEnv } from "./api.server";
 import { ApiError, bookIdSchema, json, now, rateLimit, readBody, requireIdentity } from "./service";
@@ -162,12 +163,15 @@ async function auditSocial(
     )
     .run();
 }
-async function currentProductProgress(db: DB, userId: string, productId: string) {
+async function currentProductProgress(db: DB, userId: string, productId: string, env?: CoveEnv) {
   const r = await db
-    .prepare("SELECT progress FROM reading_states WHERE user_id=? AND product_id=? LIMIT 1")
-    .bind(userId, productId)
-    .first<any>();
-  return Math.max(0, Math.min(1, Number(r?.progress || 0)));
+    .prepare(
+      "SELECT MAX(progress) progress FROM (SELECT progress FROM reading_states WHERE user_id=? AND product_id=? UNION ALL SELECT progress FROM reading_progress_events WHERE user_id=? AND product_id=? AND source='ebook')",
+    )
+    .bind(userId, productId, userId, productId)
+    .first<{ progress: number | null }>();
+  const audio = await savedAlignedAudioProgress(db, userId, productId, env?.BUCKET);
+  return Math.max(audio, Math.max(0, Math.min(1, Number(r?.progress || 0))));
 }
 async function assertContextReadable(
   db: DB,
@@ -443,7 +447,7 @@ async function refreshHighlightFeedEvent(db: DB, annotationId: string, userId: s
 async function coverForProduct(db: DB, productId: string) {
   const row = await db
     .prepare(
-      `SELECT av.object_key,g.formats_json,p.source_external_id FROM products p LEFT JOIN digital_assets da ON da.edition_id=p.edition_id AND da.asset_type='cover' LEFT JOIN asset_versions av ON av.asset_id=da.id AND av.status='active' LEFT JOIN gutenberg_source_cache g ON g.id=p.source_external_id WHERE p.id=? ORDER BY av.created_at DESC LIMIT 1`,
+      `SELECT av.object_key,g.formats_json,p.source_external_id FROM products p LEFT JOIN digital_assets da ON da.edition_id=p.edition_id AND da.kind='cover' LEFT JOIN asset_versions av ON av.id=da.current_version_id LEFT JOIN gutenberg_source_cache g ON g.id=p.source_external_id WHERE p.id=? ORDER BY av.created_at DESC LIMIT 1`,
     )
     .bind(productId)
     .first<any>();
@@ -568,7 +572,7 @@ export async function ensureReadingJourney(db: DB, userId: string, completionId:
   ]);
   const id = uid("journey"),
     at = now(),
-    shareToken = crypto.randomUUID().replaceAll("-", "");
+    shareToken = null;
   await db
     .prepare(
       `INSERT INTO reading_journeys(id,user_id,completion_event_id,product_id,work_id,title_snapshot,author_snapshot,cover_url,started_at,finished_at,elapsed_days,session_count,read_seconds,listen_seconds,biggest_day_seconds,biggest_day_date,favorite_hour,highlights_count,notes_count,bookmarks_count,rating_steps,review_excerpt,visibility,share_token,generated_at,updated_at)
@@ -672,17 +676,45 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 }
 
 async function journeyDetail(db: DB, viewer: string | null, id: string, ownerHint?: string) {
+  const grant = await db
+    .prepare(
+      "SELECT journey_id,recipient_user_id,revoked_at FROM reading_journey_recipients WHERE share_token=?",
+    )
+    .bind(id)
+    .first<{ journey_id: string; recipient_user_id: string; revoked_at: string | null }>();
   const j = await db
     .prepare("SELECT * FROM reading_journeys WHERE id=? OR share_token=? LIMIT 1")
-    .bind(id, id)
+    .bind(grant?.journey_id || id, id)
     .first<any>();
   if (!j) throw new ApiError(404, "Reading Journey not found.");
-  const tokenAccess = String(j.share_token || "") === id && !j.share_revoked_at;
-  if (!(await canSee(db, viewer, String(j.user_id), String(j.visibility))) && !tokenAccess)
-    throw new ApiError(404, "Reading Journey not found.");
+  const linkAccess = String(j.share_token || "") === id;
+  if (grant) {
+    if (
+      grant.revoked_at ||
+      !viewer ||
+      !(await canSee(db, viewer, String(j.user_id), "private", null, grant.recipient_user_id))
+    )
+      throw new ApiError(404, "Reading Journey not found.");
+    if (viewer !== j.user_id) await assertDirectRecipient(db, String(j.user_id), viewer);
+  } else if (linkAccess) {
+    if (j.share_revoked_at || !(await canSee(db, viewer, String(j.user_id), "public")))
+      throw new ApiError(404, "Reading Journey not found.");
+  } else if (!(await canSee(db, viewer, String(j.user_id), String(j.visibility)))) {
+    const access = viewer
+      ? await db
+          .prepare(
+            "SELECT 1 ok FROM reading_journey_recipients WHERE journey_id=? AND recipient_user_id=? AND revoked_at IS NULL",
+          )
+          .bind(j.id, viewer)
+          .first()
+      : null;
+    if (!access || !(await canSee(db, viewer, String(j.user_id), "private", null, viewer)))
+      throw new ApiError(404, "Reading Journey not found.");
+    await assertDirectRecipient(db, String(j.user_id), viewer);
+  }
   const [p, owner, points] = await Promise.all([
     productSnapshot(db, String(j.product_id)),
-    person(db, String(j.user_id)),
+    sharingPerson(db, viewer, String(j.user_id)),
     db
       .prepare("SELECT * FROM reading_journey_points WHERE journey_id=? ORDER BY sequence")
       .bind(j.id)
@@ -774,7 +806,14 @@ function journeySvg(j: any, format: "square" | "story") {
   return `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="${theme[0]}"/><text x="90" y="130" font-family="Georgia,serif" font-size="32" fill="${theme[2]}" letter-spacing="5">FORE · READING JOURNEY</text><text x="90" y="230" font-family="Georgia,serif" font-size="${format === "story" ? 70 : 64}" fill="${theme[1]}">${title}</text><text x="90" y="292" font-family="Arial,sans-serif" font-size="30" fill="${theme[1]}" opacity=".7">${author}</text>${cover}<text x="${infoX}" y="${infoY}" font-family="Arial,sans-serif" font-size="28" fill="${theme[1]}">${esc(stats.join(" · "))}</text>${dateLine ? `<text x="${infoX}" y="${infoY + 52}" font-family="Arial,sans-serif" font-size="24" fill="${theme[1]}" opacity=".66">${esc(dateLine)}</text>` : ""}<text x="${infoX}" y="${infoY + 104}" font-family="Arial,sans-serif" font-size="23" fill="${theme[1]}" opacity=".72">${esc(formatStats.join(" · "))}</text>${quote ? `<text x="90" y="${quoteY}" font-family="Georgia,serif" font-style="italic" font-size="26" fill="${theme[1]}" opacity=".82">“${quote}”</text>` : ""}${review ? `<text x="90" y="${quoteY + 54}" font-family="Arial,sans-serif" font-size="23" fill="${theme[1]}" opacity=".72">${review}</text>` : ""}<polyline points="${poly}" fill="none" stroke="${theme[2]}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/><line x1="${graphLeft}" y1="${graphTop + graphH}" x2="${graphLeft + graphW}" y2="${graphTop + graphH}" stroke="${theme[1]}" opacity=".15" stroke-width="2"/><text x="${graphLeft}" y="${graphTop + graphH + 52}" font-family="Arial,sans-serif" font-size="22" fill="${theme[1]}" opacity=".55">0%</text><text x="${graphLeft + graphW - 55}" y="${graphTop + graphH + 52}" font-family="Arial,sans-serif" font-size="22" fill="${theme[1]}" opacity=".55">100%</text><text x="90" y="${height - 100}" font-family="Arial,sans-serif" font-size="27" fill="${theme[1]}" opacity=".7">Read on Cove · ${esc(String(j.owner?.username ? `@${j.owner.username}` : j.owner?.name || "Reader"))}</text></svg>`;
 }
 
-async function visiblePosts(db: DB, viewer: string | null, rows: any[], viewerProgress = 1) {
+async function visiblePosts(
+  db: DB,
+  viewer: string | null,
+  rows: any[],
+  viewerProgress = 1,
+  env?: CoveEnv,
+) {
+  const reached = new Map<string, number>();
   const out = [];
   for (const r of rows) {
     if (r.deleted_at || r.moderation_status !== "visible") continue;
@@ -790,9 +829,14 @@ async function visiblePosts(db: DB, viewer: string | null, rows: any[], viewerPr
     )
       continue;
     const progress = r.progress == null ? null : Number(r.progress);
+    if (viewer && r.product_id && !reached.has(String(r.product_id)))
+      reached.set(
+        String(r.product_id),
+        await currentProductProgress(db, viewer, String(r.product_id), env),
+      );
     const effectiveProgress =
       r.product_id && viewer
-        ? Math.min(viewerProgress, await currentProductProgress(db, viewer, String(r.product_id)))
+        ? Math.min(viewerProgress, reached.get(String(r.product_id)) || 0)
         : viewerProgress;
     const locked =
       r.user_id !== viewer && progress !== null && progress > effectiveProgress + 0.002;
@@ -863,14 +907,11 @@ const cursorFor = (
   field: "created_at" | "updated_at" = "created_at",
 ) => (row ? btoa(JSON.stringify({ at: String(row[field]), id: String(row.id) })) : null);
 
-async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
+async function readerSnapshot(db: DB, userId: string, ref: string, url: URL, env: CoveEnv) {
   const product = await resolveProduct(db, ref, userId);
   await requireProductAccess(db, userId, String(product.id));
   const pref = await ensureReaderPrefs(db, userId),
-    progress = Math.min(
-      await currentProductProgress(db, userId, String(product.id)),
-      Math.max(0, Math.min(1, Number(url.searchParams.get("progress") || 0))),
-    ),
+    progress = await currentProductProgress(db, userId, String(product.id), env),
     mode = z
       .enum(["friends", "following", "group", "public"])
       .catch(String(pref.audience_mode || "friends") as any)
@@ -878,7 +919,16 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
     groupId = url.searchParams.get("groupId") || pref.group_id || null,
     density = Math.max(
       0,
-      Math.min(100, Number(url.searchParams.get("density") || pref.density || 35)),
+      Math.min(
+        100,
+        z.coerce
+          .number()
+          .finite()
+          .int()
+          .min(0)
+          .max(100)
+          .parse(url.searchParams.get("density") ?? pref.density ?? 35),
+      ),
     ),
     chapter = (url.searchParams.get("chapter") || "").slice(0, 300);
   if (mode === "group" && !(await isGroupMember(db, userId, groupId)))
@@ -923,7 +973,7 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
       )
       .all<any>()
   ).results;
-  const posts = await visiblePosts(db, userId, rows, progress),
+  const posts = await visiblePosts(db, userId, rows, progress, env),
     shares = (
       await db
         .prepare(
@@ -1269,7 +1319,8 @@ type ShareInventoryRow = {
   moderation_status: string;
   version: number;
 };
-async function sharingInventory(db: DB, viewer: string, url: URL) {
+async function sharingInventory(db: DB, viewer: string, url: URL, env: CoveEnv) {
+  const reached = new Map<string, number>();
   const sent = url.searchParams.get("view") === "sent";
   const limit = 30;
   let cursor: { at: string; kind: string; id: string } | null = null;
@@ -1313,7 +1364,9 @@ async function sharingInventory(db: DB, viewer: string, url: URL) {
       !(await canSee(db, viewer, row.user_id, row.visibility, row.group_id, row.recipient_user_id))
     )
       continue;
-    const progress = sent ? 1 : await currentProductProgress(db, viewer, row.product_id);
+    if (!sent && !reached.has(row.product_id))
+      reached.set(row.product_id, await currentProductProgress(db, viewer, row.product_id, env));
+    const progress = sent ? 1 : reached.get(row.product_id) || 0;
     const locked = !sent && row.progress !== null && row.progress > progress + 0.002;
     const book = await productSnapshot(db, row.product_id);
     // The inventory stores internal catalog IDs, but the reader route only accepts
@@ -1387,7 +1440,7 @@ export async function handleSocial(
     throw new ApiError(403, "This account is being erased.");
   if (path === "/social/sharing") {
     const viewer = requireIdentity(userId);
-    if (method === "GET") return json(await sharingInventory(db, viewer, url));
+    if (method === "GET") return json(await sharingInventory(db, viewer, url, env));
   }
   if (method === "GET" && path === "/social/members") {
     const viewer = requireIdentity(userId);
@@ -1438,7 +1491,7 @@ export async function handleSocial(
           `
       SELECT a.app_id user_id,a.username,p.name,sp.bio,(SELECT COUNT(*) FROM social_follows f WHERE f.followed_user_id=a.app_id) followers
       FROM auth_accounts a JOIN social_profiles sp ON sp.user_id=a.app_id LEFT JOIN profiles p ON p.user_id=a.app_id
-      WHERE sp.profile_visibility='public' AND a.username IS NOT NULL AND a.app_id>?
+      WHERE sp.profile_visibility='public' AND a.username IS NOT NULL AND a.disabled_at IS NULL AND a.app_id>?
       AND (?='' OR instr(lower(a.username),lower(?))>0 OR instr(lower(COALESCE(p.name,'')),lower(?))>0)
       AND NOT EXISTS(SELECT 1 FROM social_blocks b WHERE (b.blocker_user_id=? AND b.blocked_user_id=a.app_id) OR (b.blocked_user_id=? AND b.blocker_user_id=a.app_id))
       AND NOT EXISTS(SELECT 1 FROM social_mutes m WHERE m.muter_user_id=? AND m.muted_user_id=a.app_id)
@@ -1558,10 +1611,108 @@ export async function handleSocial(
     return new Response(journeySvg(j, format), {
       headers: {
         "Content-Type": "image/svg+xml; charset=utf-8",
-        "Cache-Control": "private, max-age=60",
+        "Cache-Control": "private, no-store",
         "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
       },
     });
+  }
+  const recipientRoute = path.match(/^\/social\/journeys\/([^/]+)\/recipients$/);
+  if (recipientRoute) {
+    const sender = requireIdentity(userId),
+      journeyId = decodeURIComponent(recipientRoute[1]);
+    const journey = await db
+      .prepare("SELECT id FROM reading_journeys WHERE id=? AND user_id=?")
+      .bind(journeyId, sender)
+      .first();
+    if (!journey) throw new ApiError(404, "Reading Journey not found.");
+    if (method === "GET") {
+      const rows = (
+        await db
+          .prepare(
+            "SELECT recipient_user_id,share_token,version,revoked_at FROM reading_journey_recipients WHERE journey_id=? ORDER BY updated_at DESC",
+          )
+          .bind(journeyId)
+          .all<{
+            recipient_user_id: string;
+            share_token: string;
+            version: number;
+            revoked_at: string | null;
+          }>()
+      ).results;
+      return json({
+        recipients: await Promise.all(
+          rows.map(async (row) => ({
+            ...row,
+            member: await sharingPerson(db, sender, row.recipient_user_id),
+          })),
+        ),
+      });
+    }
+    if (method === "POST" || method === "DELETE") {
+      const x = z
+        .object({
+          recipientUserId: z.string().min(1).max(240),
+          expectedVersion: z.number().int().min(0),
+          audienceConfirmed: z.boolean().optional(),
+        })
+        .parse(await readBody(request));
+      const at = now();
+      if (method === "POST") {
+        if (x.audienceConfirmed !== true)
+          throw new ApiError(400, "Confirm the named member before granting access.");
+        await assertDirectRecipient(db, sender, x.recipientUserId);
+        const token =
+          crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
+        const saved = await db
+          .prepare(
+            `INSERT INTO reading_journey_recipients(journey_id,recipient_user_id,share_token,version,created_at,updated_at)
+          SELECT ?,?,?,1,?,? WHERE ?=0 OR EXISTS(SELECT 1 FROM reading_journey_recipients WHERE journey_id=? AND recipient_user_id=? AND version=?)
+          ON CONFLICT(journey_id,recipient_user_id) DO UPDATE SET share_token=excluded.share_token,revoked_at=NULL,version=reading_journey_recipients.version+1,updated_at=excluded.updated_at WHERE reading_journey_recipients.version=? RETURNING version`,
+          )
+          .bind(
+            journeyId,
+            x.recipientUserId,
+            token,
+            at,
+            at,
+            x.expectedVersion,
+            journeyId,
+            x.recipientUserId,
+            x.expectedVersion,
+            x.expectedVersion,
+          )
+          .first<{ version: number }>();
+        if (!saved)
+          throw new ApiError(409, "Member access changed. Refresh before granting access.");
+        await auditSocial(
+          db,
+          sender,
+          "journey.recipient.granted",
+          "journey",
+          journeyId,
+          {},
+          { recipientUserId: x.recipientUserId, version: saved.version },
+        );
+        return json({ shareToken: token, version: saved.version });
+      }
+      const saved = await db
+        .prepare(
+          "UPDATE reading_journey_recipients SET revoked_at=?,version=version+1,updated_at=? WHERE journey_id=? AND recipient_user_id=? AND version=? AND revoked_at IS NULL RETURNING version",
+        )
+        .bind(at, at, journeyId, x.recipientUserId, x.expectedVersion)
+        .first<{ version: number }>();
+      if (!saved) throw new ApiError(409, "Member access changed. Refresh before revoking access.");
+      await auditSocial(
+        db,
+        sender,
+        "journey.recipient.revoked",
+        "journey",
+        journeyId,
+        {},
+        { recipientUserId: x.recipientUserId, version: saved.version },
+      );
+      return json({ revoked: true, version: saved.version });
+    }
   }
   if (method === "GET" && path.startsWith("/social/journeys/")) {
     return json(
@@ -1571,7 +1722,13 @@ export async function handleSocial(
   if (method === "GET" && path.startsWith("/social/reader/")) {
     const uidv = requireIdentity(userId);
     return json(
-      await readerSnapshot(db, uidv, decodeURIComponent(path.slice("/social/reader/".length)), url),
+      await readerSnapshot(
+        db,
+        uidv,
+        decodeURIComponent(path.slice("/social/reader/".length)),
+        url,
+        env,
+      ),
     );
   }
   if (method === "GET" && path === "/social/feed") {
@@ -1590,6 +1747,12 @@ export async function handleSocial(
           .all<any>()
       ).results,
       out = [];
+    const reached = new Map<string, number>();
+    async function feedProgress(productId: string) {
+      if (!reached.has(productId))
+        reached.set(productId, await currentProductProgress(db, uidv, productId, env));
+      return reached.get(productId) || 0;
+    }
     let lastScanned: any = null;
     for (const e of rows.slice(0, limit * 3)) {
       lastScanned = e;
@@ -1599,7 +1762,7 @@ export async function handleSocial(
         if (e.event_type === "shared_highlight") {
           const share = await db
             .prepare(
-              "SELECT s.id,s.visibility,s.audience_group_id,s.recipient_user_id,a.quote,a.chapter FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL WHERE s.annotation_id=? AND s.user_id=? AND s.moderation_status='visible' AND (? IS NULL OR s.id=?) ORDER BY CASE WHEN s.visibility='public' THEN 0 ELSE 1 END LIMIT 1",
+              "SELECT s.id,s.visibility,s.audience_group_id,s.recipient_user_id,s.progress,a.quote,a.chapter FROM social_annotation_shares s JOIN annotations a ON a.id=s.annotation_id AND a.user_id=s.user_id AND a.deleted_at IS NULL WHERE s.annotation_id=? AND s.user_id=? AND s.moderation_status='visible' AND (? IS NULL OR s.id=?) ORDER BY CASE WHEN s.visibility='public' THEN 0 ELSE 1 END LIMIT 1",
             )
             .bind(
               e.entity_id,
@@ -1612,6 +1775,7 @@ export async function handleSocial(
               visibility: string;
               audience_group_id: string | null;
               recipient_user_id: string | null;
+              progress: number | null;
               quote: string;
               chapter: string;
             }>();
@@ -1633,7 +1797,55 @@ export async function handleSocial(
             ))
           )
             continue;
-          payload = { quote: String(share.quote).slice(0, 280), chapter: share.chapter };
+          payload =
+            e.user_id !== uidv &&
+            share.progress !== null &&
+            Number(share.progress) > (await feedProgress(String(e.product_id))) + 0.002
+              ? { locked: true }
+              : { quote: String(share.quote).slice(0, 280), chapter: share.chapter };
+        }
+        if (e.event_type === "discussion_started") {
+          const post = await db
+            .prepare(
+              "SELECT user_id,visibility,group_id,recipient_user_id,body,context_type,context_id,product_id,progress,spoiler FROM social_posts WHERE id=? AND deleted_at IS NULL AND moderation_status='visible'",
+            )
+            .bind(e.entity_id)
+            .first<{
+              user_id: string;
+              visibility: string;
+              group_id: string | null;
+              recipient_user_id: string | null;
+              body: string;
+              context_type: string;
+              context_id: string;
+              product_id: string | null;
+              progress: number | null;
+              spoiler: number;
+            }>();
+          if (
+            !post ||
+            !actor ||
+            !(await canSee(
+              db,
+              uidv,
+              post.user_id,
+              post.visibility,
+              post.group_id,
+              post.recipient_user_id,
+            ))
+          )
+            continue;
+          const locked =
+            post.user_id !== uidv &&
+            (!!post.spoiler ||
+              (post.progress !== null &&
+                post.product_id !== null &&
+                post.progress > (await feedProgress(post.product_id)) + 0.002));
+          payload = {
+            contextType: post.context_type,
+            contextId: post.context_id,
+            ...(locked ? { locked: true } : { body: post.body.slice(0, 300) }),
+          };
         }
         out.push({
           ...e,
@@ -1716,7 +1928,12 @@ export async function handleSocial(
         .enum(["work", "margin", "group", "list", "profile"])
         .parse(url.searchParams.get("contextType")),
       rawContext = z.string().min(1).max(240).parse(url.searchParams.get("contextId")),
-      viewerProgress = Math.max(0, Math.min(1, Number(url.searchParams.get("progress") || 1)));
+      viewerProgress = z.coerce
+        .number()
+        .finite()
+        .min(0)
+        .max(1)
+        .parse(url.searchParams.get("progress") ?? 1);
     let contextId = rawContext;
     if (contextType === "work") contextId = String((await resolveWork(db, rawContext)).id);
     if (contextType === "margin") {
@@ -1736,7 +1953,7 @@ export async function handleSocial(
         )
         .bind(parentId, contextType, contextId)
         .first<any>();
-      const visible = parent ? await visiblePosts(db, userId, [parent], viewerProgress) : [];
+      const visible = parent ? await visiblePosts(db, userId, [parent], viewerProgress, env) : [];
       if (!visible.length || visible[0].locked) throw new ApiError(404, "Discussion not found.");
     }
     const rows = (
@@ -1758,8 +1975,8 @@ export async function handleSocial(
     const posts: (Awaited<ReturnType<typeof visiblePosts>>[number] & {
       replyItems?: Awaited<ReturnType<typeof visiblePosts>>;
       replyNextCursor?: string | null;
-    })[] = await visiblePosts(db, userId, rows.slice(0, 50), viewerProgress);
-    if (!parentId)
+    })[] = await visiblePosts(db, userId, rows.slice(0, 50), viewerProgress, env);
+    if (!parentId && url.searchParams.get("includeReplies") !== "false")
       for (const post of posts.filter((post) => !post.locked)) {
         const replies = (
           await db
@@ -1769,7 +1986,7 @@ export async function handleSocial(
             .bind(post.id)
             .all<any>()
         ).results;
-        post.replyItems = await visiblePosts(db, userId, replies.slice(0, 20), viewerProgress);
+        post.replyItems = await visiblePosts(db, userId, replies.slice(0, 20), viewerProgress, env);
         post.replyNextCursor = replies.length > 20 ? cursorFor(replies[19]) : null;
       }
     return json({ posts, nextCursor: rows.length > 50 ? cursorFor(rows[49]) : null });
@@ -1876,17 +2093,12 @@ export async function handleSocial(
           )
           .bind(b.product_id, id)
           .all<any>(),
-        userId
-          ? db
-              .prepare("SELECT progress FROM reading_states WHERE user_id=? AND product_id=?")
-              .bind(userId, b.product_id)
-              .first<any>()
-          : Promise.resolve(null),
+        userId ? currentProductProgress(db, userId, String(b.product_id), env) : Promise.resolve(0),
       ]);
       progress.push({
         bookId: b.id,
         buckets: distribution.results,
-        viewerProgress: Math.max(0, Math.min(1, Number((viewer as any)?.progress || 0))),
+        viewerProgress: viewer,
       });
     }
     const canManage =
@@ -2707,7 +2919,7 @@ export async function handleSocial(
         progress =
           x.progress == null
             ? a.progress == null
-              ? await currentProductProgress(db, uidv, String(p.id))
+              ? await currentProductProgress(db, uidv, String(p.id), env)
               : Math.max(0, Math.min(1, Number(a.progress)))
             : Math.max(0, Math.min(1, Number(x.progress))),
         visibility = x.visibility === "member" ? "friends" : x.visibility,
@@ -2930,7 +3142,7 @@ export async function handleSocial(
       const snap = await productSnapshot(db, String(p.id));
       contextId = productId = String(p.id);
       workId = snap?.internalWorkId || null;
-      if (!x.cfi || x.progress == null || !x.passageText)
+      if (!x.parentId && (!x.cfi || x.progress == null || !x.passageText))
         throw new ApiError(400, "Margin discussions require a passage and reading location.");
     }
     if (x.contextType === "margin" && !x.parentId && x.visibility === "group") {
@@ -2971,7 +3183,7 @@ export async function handleSocial(
         workId = current.work_id ? String(current.work_id) : null;
         const policy = String(group?.discussion_spoiler_policy || "progress");
         if (policy === "progress" || policy === "chapter") {
-          x.progress = await currentProductProgress(db, uidv, productId);
+          x.progress = await currentProductProgress(db, uidv, productId, env);
           if (policy === "chapter") {
             const loc = await db
               .prepare(
@@ -3030,7 +3242,7 @@ export async function handleSocial(
         ))
       )
         throw new ApiError(404, "Reply target was not found.");
-      const readableParent = await visiblePosts(db, uidv, [parent], 1);
+      const readableParent = await visiblePosts(db, uidv, [parent], 1, env);
       if (!readableParent.length || readableParent[0].locked)
         throw new ApiError(403, "Reach this passage before replying.");
       x.visibility = parent.visibility;
@@ -3223,7 +3435,7 @@ export async function handleSocial(
       ))
     )
       throw new ApiError(404, "Discussion not found.");
-    const readablePost = await visiblePosts(db, uidv, [p], 1);
+    const readablePost = await visiblePosts(db, uidv, [p], 1, env);
     if (!readablePost.length || readablePost[0].locked)
       throw new ApiError(403, "Reach this passage before reacting.");
     if (x.active)
@@ -3252,7 +3464,7 @@ export async function handleSocial(
   if (postDelete) {
     const id = decodeURIComponent(postDelete[1]),
       p = await db.prepare("SELECT * FROM social_posts WHERE id=?").bind(id).first<any>();
-    if (!p || p.user_id !== uidv) throw new ApiError(404, "Discussion not found.");
+    if (!p || p.deleted_at || p.user_id !== uidv) throw new ApiError(404, "Discussion not found.");
     if (method === "PATCH") {
       const x = z
         .object({
@@ -3265,10 +3477,10 @@ export async function handleSocial(
         throw new ApiError(409, "This discussion changed on another device.");
       const at = now(),
         next = x.expectedVersion + 1;
-      await db.batch([
+      const results = await db.batch([
         db
           .prepare(
-            "INSERT INTO social_post_revisions(id,post_id,version,body,passage_text,visibility,spoiler,changed_by_user_id,change_type,created_at) VALUES(?,?,?,?,?,?,?,?, 'edit',?)",
+            "INSERT INTO social_post_revisions(id,post_id,version,body,passage_text,visibility,spoiler,changed_by_user_id,change_type,created_at) SELECT ?,?,?,?,?,?,?,?,'edit',? WHERE EXISTS(SELECT 1 FROM social_posts WHERE id=? AND user_id=? AND version=? AND deleted_at IS NULL)",
           )
           .bind(
             uid("rev"),
@@ -3280,6 +3492,9 @@ export async function handleSocial(
             p.spoiler,
             uidv,
             at,
+            id,
+            uidv,
+            x.expectedVersion,
           ),
         db
           .prepare(
@@ -3296,6 +3511,11 @@ export async function handleSocial(
             x.expectedVersion,
           ),
       ]);
+      if (!Array.isArray(results))
+        throw new ApiError(503, "Could not confirm this update. Refresh before retrying.");
+      const mutation = results[1] as { meta?: { changes?: number }; changes?: number };
+      if (Number(mutation.meta?.changes ?? mutation.changes ?? 0) !== 1)
+        throw new ApiError(409, "This discussion changed on another device.");
       await auditSocial(
         db,
         uidv,
@@ -3316,10 +3536,10 @@ export async function handleSocial(
         throw new ApiError(409, "This discussion changed on another device.");
       const at = now(),
         next = expected + 1;
-      await db.batch([
+      const results = await db.batch([
         db
           .prepare(
-            "INSERT INTO social_post_revisions(id,post_id,version,body,passage_text,visibility,spoiler,changed_by_user_id,change_type,created_at) VALUES(?,?,?,?,?,?,?,?, 'delete',?)",
+            "INSERT INTO social_post_revisions(id,post_id,version,body,passage_text,visibility,spoiler,changed_by_user_id,change_type,created_at) SELECT ?,?,?,?,?,?,?,?,'delete',? WHERE EXISTS(SELECT 1 FROM social_posts WHERE id=? AND user_id=? AND version=? AND deleted_at IS NULL)",
           )
           .bind(
             uid("rev"),
@@ -3331,6 +3551,9 @@ export async function handleSocial(
             p.spoiler,
             uidv,
             at,
+            id,
+            uidv,
+            expected,
           ),
         db
           .prepare(
@@ -3340,11 +3563,18 @@ export async function handleSocial(
         ...(p.parent_id
           ? [
               db
-                .prepare("UPDATE social_posts SET reply_count=MAX(0,reply_count-1) WHERE id=?")
-                .bind(p.parent_id),
+                .prepare(
+                  "UPDATE social_posts SET reply_count=(SELECT COUNT(*) FROM social_posts replies WHERE replies.parent_id=? AND replies.deleted_at IS NULL) WHERE id=?",
+                )
+                .bind(p.parent_id, p.parent_id),
             ]
           : []),
       ]);
+      if (!Array.isArray(results))
+        throw new ApiError(503, "Could not confirm this update. Refresh before retrying.");
+      const mutation = results[1] as { meta?: { changes?: number }; changes?: number };
+      if (Number(mutation.meta?.changes ?? mutation.changes ?? 0) !== 1)
+        throw new ApiError(409, "This discussion changed on another device.");
       await auditSocial(
         db,
         uidv,
@@ -4176,31 +4406,34 @@ export async function handleSocial(
   const journeyShare = path.match(/^\/social\/journeys\/([^/]+)\/share-token$/);
   if (method === "POST" && journeyShare) {
     const id = decodeURIComponent(journeyShare[1]),
-      x = z.object({ action: z.enum(["rotate", "revoke"]) }).parse(await readBody(request)),
+      x = z
+        .object({
+          action: z.enum(["rotate", "revoke"]),
+          audienceConfirmed: z.boolean().optional(),
+          expectedVersion: z.number().int().min(1),
+        })
+        .parse(await readBody(request)),
       j = await db
         .prepare("SELECT * FROM reading_journeys WHERE id=? AND user_id=?")
         .bind(id, uidv)
         .first<any>();
     if (!j) throw new ApiError(404, "Reading Journey not found.");
+    if (x.action === "rotate" && x.audienceConfirmed !== true)
+      throw new ApiError(400, "Confirm that anyone with this link can access the journey.");
+    if (Number(j.version || 1) !== x.expectedVersion)
+      throw new ApiError(409, "This Reading Journey changed on another device.");
     const token =
         x.action === "rotate"
           ? crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "")
           : null,
       at = now();
-    if (x.action === "rotate")
-      await db
-        .prepare(
-          "UPDATE reading_journeys SET share_token=?,share_revoked_at=NULL,version=version+1,updated_at=? WHERE id=? AND user_id=?",
-        )
-        .bind(token, at, id, uidv)
-        .run();
-    else
-      await db
-        .prepare(
-          "UPDATE reading_journeys SET share_revoked_at=?,version=version+1,updated_at=? WHERE id=? AND user_id=?",
-        )
-        .bind(at, at, id, uidv)
-        .run();
+    const saved = await db
+      .prepare(
+        "UPDATE reading_journeys SET share_token=?,share_revoked_at=?,version=version+1,updated_at=? WHERE id=? AND user_id=? AND version=? RETURNING version",
+      )
+      .bind(token, x.action === "revoke" ? at : null, at, id, uidv, x.expectedVersion)
+      .first<{ version: number }>();
+    if (!saved) throw new ApiError(409, "This Reading Journey changed on another device.");
     await auditSocial(db, uidv, `journey.share_token.${x.action}`, "journey", id);
     return json({ shareToken: token, revoked: x.action === "revoke" });
   }
@@ -4221,6 +4454,7 @@ export async function handleSocial(
         details: z.string().max(5000).default(""),
       })
       .parse(await readBody(request));
+    let reportedUserId = x.subjectId;
     if (x.subjectType === "social_post") {
       const p = await db
         .prepare("SELECT * FROM social_posts WHERE id=? AND deleted_at IS NULL")
@@ -4238,17 +4472,27 @@ export async function handleSocial(
         ))
       )
         throw new ApiError(404, "Discussion not found.");
+      reportedUserId = String(p.user_id);
     } else if (x.subjectType === "social_list")
-      await assertContextReadable(db, uidv, "list", x.subjectId);
+      reportedUserId = String((await assertContextReadable(db, uidv, "list", x.subjectId)).user_id);
     else if (x.subjectType === "social_profile")
-      await assertContextReadable(db, uidv, "profile", x.subjectId);
-    else await assertContextReadable(db, uidv, "group", x.subjectId);
-    const subjectType = x.subjectType.replace("social_", "").replace("reading_group", "group");
+      reportedUserId = String((await assertContextReadable(db, uidv, "profile", x.subjectId)).id);
+    else
+      reportedUserId = String(
+        (await assertContextReadable(db, uidv, "group", x.subjectId)).owner_user_id,
+      );
     const c = await createModerationCase(db, {
-      subjectType,
-      subjectId: x.subjectId,
+      subjectType: "user",
+      subjectId: reportedUserId,
       category: x.reason,
-      queue: "community",
+      queue:
+        x.reason === "copyright"
+          ? "copyright"
+          : x.reason === "impersonation"
+            ? "impersonation"
+            : ["spam", "scam"].includes(x.reason)
+              ? "fraud"
+              : "general",
       priority: ["scam", "impersonation", "copyright"].includes(x.reason) ? "high" : "normal",
       sourceType: "user_report",
       riskScore: x.reason === "scam" ? 50 : 20,
@@ -4256,6 +4500,7 @@ export async function handleSocial(
       reporterUserId: uidv,
       reasonCode: x.reason,
       details: x.details,
+      evidence: { socialSubjectType: x.subjectType, socialSubjectId: x.subjectId },
     });
     return json(c, 202);
   }

@@ -2827,3 +2827,6 @@ a svg {
 .sharing-inventory select { width: 100%; max-width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: inherit; font: inherit; }
 
 .reader-social-gutter{top:0;bottom:0;display:block}
+
+.fore-reader-sheet{display:flex;flex-direction:column;overflow:hidden}.fore-reader-sheet>.reader-panel-body{flex:1;min-height:0;overflow:auto}
+.journey-access{display:grid;gap:12px;margin:20px 0;padding:20px;border:1px solid var(--border);border-radius:12px}.journey-access>div{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.journey-access button{max-width:100%}

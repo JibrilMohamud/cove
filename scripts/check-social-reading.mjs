@@ -168,7 +168,7 @@ assert.doesNotMatch(
   /contextType="group"[^\n]*progress=\{1\}/,
   "club room must not unlock all progress-gated discussion",
 );
-const reader = read("src/features/fore/Reader.tsx");
+const reader = read("src/features/fore/Reader.tsx").replace(/\s+/g, " ");
 for (const token of [
   "Social Reading",
   "Friends / mutuals",

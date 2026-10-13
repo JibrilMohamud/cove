@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, authorOf, useAccount, type CatalogBook } from "./client";
-import { SharingPage } from "./Sharing";
+import { SharingPage, MemberPicker, type ShareMember } from "./Sharing";
 import { useStorefrontLocale } from "./localization";
 
 type Post = {
@@ -91,7 +91,7 @@ export function DiscussionThread({
     initialPageParam: "",
     queryFn: ({ pageParam }) =>
       api(
-        `/social/posts?contextType=${contextType}&contextId=${encodeURIComponent(contextId)}&progress=${progress}${postId ? `&postId=${encodeURIComponent(postId)}` : ""}${parentId ? `&parentId=${encodeURIComponent(parentId)}` : ""}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
+        `/social/posts?contextType=${contextType}&contextId=${encodeURIComponent(contextId)}&progress=${progress}&includeReplies=false${postId ? `&postId=${encodeURIComponent(postId)}` : ""}${parentId ? `&parentId=${encodeURIComponent(parentId)}` : ""}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
       ),
     getNextPageParam: (page) => page.nextCursor || undefined,
   });
@@ -276,7 +276,7 @@ export function DiscussionThread({
                 <p>Discussion unlocks when you reach this part of the book.</p>
               </article>
             ) : (
-              <article className="social-post" key={p.id}>
+              <article className="social-post" key={p.id} data-post-id={p.id}>
                 <header>
                   <a
                     href={`/community?profile=${encodeURIComponent(p.user?.username || p.user?.id || "")}`}
@@ -313,11 +313,15 @@ export function DiscussionThread({
                   <button
                     className={(p.myReactions || []).includes("heart") ? "selected" : ""}
                     aria-pressed={(p.myReactions || []).includes("heart")}
+                    aria-label={`React with a heart (${p.reactions || 0})`}
                     onClick={() => react(p)}
                   >
                     <Heart size={14} /> {p.reactions || 0}
                   </button>
-                  <button onClick={() => setReplying(replying === p.id ? null : p.id)}>
+                  <button
+                    aria-label={`Show replies (${p.replies || 0})`}
+                    onClick={() => setReplying(replying === p.id ? null : p.id)}
+                  >
                     <MessageCircle size={14} /> {p.replies || 0}
                   </button>
                   {data.user?.id === p.user?.id ? (
@@ -471,6 +475,9 @@ function eventSentence(e: any) {
 }
 
 function Discover() {
+  const { data: account, loading: accountLoading } = useAccount();
+  const [interactive, setInteractive] = useState(false);
+  useEffect(() => setInteractive(true), []);
   const [search, setSearch] = useState("");
   const [term, setTerm] = useState("");
   useEffect(() => {
@@ -478,7 +485,7 @@ function Discover() {
     return () => clearTimeout(timer);
   }, [search]);
   const people = useInfiniteQuery<any>({
-    queryKey: ["member-search", term],
+    queryKey: ["member-search", account.user?.id, term],
     initialPageParam: "",
     queryFn: ({ pageParam }) =>
       api(
@@ -487,7 +494,7 @@ function Discover() {
     getNextPageParam: (page) => page.nextPeopleCursor || undefined,
   });
   const q = useQuery<any>({
-    queryKey: ["social-discover"],
+    queryKey: ["social-discover", account.user?.id],
     queryFn: () => api("/social/discover"),
   });
   return (
@@ -507,6 +514,7 @@ function Discover() {
         Find a member
         <input
           type="search"
+          disabled={!interactive || accountLoading}
           maxLength={100}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -750,6 +758,68 @@ function Journey({ id }: { id: string }) {
     queryKey: ["journey", id],
     queryFn: () => api(`/social/journeys/${encodeURIComponent(id)}`),
   });
+  const [member, setMember] = useState<ShareMember | null>(null);
+  const [memberConfirmed, setMemberConfirmed] = useState(false);
+  const [linkConfirmed, setLinkConfirmed] = useState(false);
+  const grants = useQuery<{
+    recipients: {
+      recipient_user_id: string;
+      share_token: string;
+      version: number;
+      revoked_at: string | null;
+      member: ShareMember | null;
+    }[];
+  }>({
+    queryKey: ["journey-recipients", id],
+    queryFn: () => api(`/social/journeys/${encodeURIComponent(q.data.id)}/recipients`),
+    enabled: !!q.data?.mine,
+  });
+  async function copyMemberLink(token: string) {
+    try {
+      await navigator.clipboard.writeText(
+        `${location.origin}/community?journey=${encodeURIComponent(token)}`,
+      );
+      toast.success("Member-only link copied");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+  async function grantMember() {
+    if (!member || !memberConfirmed || busy) return;
+    setBusy(true);
+    try {
+      const existing = grants.data?.recipients.find((g) => g.recipient_user_id === member.id);
+      await api(`/social/journeys/${encodeURIComponent(q.data.id)}/recipients`, "POST", {
+        recipientUserId: member.id,
+        expectedVersion: existing?.version || 0,
+        audienceConfirmed: true,
+      });
+      setMember(null);
+      setMemberConfirmed(false);
+      await grants.refetch();
+      toast.success("Member access granted");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function revokeMember(recipientUserId: string, version: number) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api(`/social/journeys/${encodeURIComponent(q.data.id)}/recipients`, "DELETE", {
+        recipientUserId,
+        expectedVersion: version,
+      });
+      await grants.refetch();
+      toast.success("Member access revoked");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const [format, setFormat] = useState<"square" | "story">("square");
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<any>(null);
@@ -783,18 +853,31 @@ function Journey({ id }: { id: string }) {
     }
   }
   async function token(action: "rotate" | "revoke") {
-    const r = await api<any>(`/social/journeys/${q.data.id}/share-token`, "POST", { action });
-    await q.refetch();
-    return r.shareToken as string | null;
+    if (busy || (action === "rotate" && !linkConfirmed)) return;
+    setBusy(true);
+    try {
+      await api(`/social/journeys/${q.data.id}/share-token`, "POST", {
+        action,
+        expectedVersion: Number(q.data.version || 1),
+        audienceConfirmed: action === "rotate" ? linkConfirmed : undefined,
+      });
+      setLinkConfirmed(false);
+      await q.refetch();
+      toast.success(
+        action === "rotate"
+          ? "Anyone-with-link access enabled"
+          : "Anyone-with-link access disabled",
+      );
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
   async function share() {
     let ref = id;
-    if (q.data.mine) {
-      ref =
-        !q.data.share_revoked_at && q.data.share_token
-          ? q.data.share_token
-          : (await token("rotate")) || q.data.id;
-    }
+    if (q.data.mine)
+      ref = q.data.share_token && !q.data.share_revoked_at ? q.data.share_token : q.data.id;
     const url = `${location.origin}/community?journey=${encodeURIComponent(ref)}`;
     try {
       if (navigator.share)
@@ -849,6 +932,13 @@ function Journey({ id }: { id: string }) {
       toast.error((e as Error).message);
     }
   }
+  if (q.isError)
+    return (
+      <p role="alert">
+        Reading Journey is unavailable or access was revoked.{" "}
+        <button onClick={() => q.refetch()}>Retry</button>
+      </p>
+    );
   if (!q.data) return <p className="muted">Loading Reading Journey…</p>;
   const j = q.data,
     total = Number(j.read_seconds) + Number(j.listen_seconds);
@@ -881,7 +971,10 @@ function Journey({ id }: { id: string }) {
           />
           <div className="journey-share-row">
             <button className="button gold" onClick={share}>
-              <Share2 size={16} /> Share Journey
+              <Share2 size={16} />{" "}
+              {j.mine && j.share_token && !j.share_revoked_at
+                ? "Share anyone-with-link URL"
+                : "Share audience URL"}
             </button>
             <button className="button outline" onClick={exportPng}>
               Export PNG
@@ -893,15 +986,102 @@ function Journey({ id }: { id: string }) {
             >
               Export SVG
             </a>
-            {j.mine && (
+          </div>
+          {j.mine && (
+            <section className="journey-access" aria-label="Journey access">
+              <h2>Who can see this journey?</h2>
+              <p>
+                Current audience:{" "}
+                <strong>
+                  {j.visibility === "private"
+                    ? "Private"
+                    : j.visibility === "followers"
+                      ? "Followers"
+                      : "Public"}
+                </strong>
+                . Audience URLs follow this setting.
+              </p>
+              <h3>Share with a named member</h3>
+              <p>
+                Member links require that member to sign in. Choose Private in visibility settings
+                for access limited to you and the members you grant.
+              </p>
+              <MemberPicker
+                value={member}
+                onChange={(m) => {
+                  setMember(m);
+                  setMemberConfirmed(false);
+                }}
+              />
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={memberConfirmed}
+                  disabled={!member}
+                  onChange={(e) => setMemberConfirmed(e.target.checked)}
+                />
+                Grant access to {member ? `@${member.username}` : "the selected member"}
+              </label>
               <button
                 className="button outline"
-                onClick={() => token(j.share_revoked_at ? "rotate" : "revoke")}
+                disabled={busy || !member || !memberConfirmed || grants.isLoading || grants.isError}
+                onClick={grantMember}
               >
-                {j.share_revoked_at ? "Enable share link" : "Disable share link"}
+                Grant member access
               </button>
-            )}
-          </div>
+              {grants.isError && (
+                <p role="alert">
+                  Could not load member access.{" "}
+                  <button onClick={() => grants.refetch()}>Retry</button>
+                </p>
+              )}
+              {grants.data?.recipients
+                .filter((g) => !g.revoked_at)
+                .map((g) => (
+                  <div key={g.recipient_user_id}>
+                    <span>@{g.member?.username || "member"} · Sign-in required</span>
+                    <button disabled={busy} onClick={() => copyMemberLink(g.share_token)}>
+                      Copy member link
+                    </button>
+                    <button
+                      disabled={busy}
+                      onClick={() => revokeMember(g.recipient_user_id, g.version)}
+                    >
+                      Revoke member access
+                    </button>
+                  </div>
+                ))}
+              <h3>Anyone with the link</h3>
+              <p>
+                {j.share_token && !j.share_revoked_at
+                  ? "Enabled: anyone possessing this URL can view this journey. Private messages do not restrict its audience."
+                  : "Disabled: copying an audience URL does not enable bearer access."}
+              </p>
+              {j.share_token && !j.share_revoked_at ? (
+                <button disabled={busy} className="button outline" onClick={() => token("revoke")}>
+                  Disable anyone-with-link access
+                </button>
+              ) : (
+                <>
+                  <label className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={linkConfirmed}
+                      onChange={(e) => setLinkConfirmed(e.target.checked)}
+                    />
+                    I understand anyone possessing the link can view this journey.
+                  </label>
+                  <button
+                    disabled={busy || !linkConfirmed}
+                    className="button outline"
+                    onClick={() => token("rotate")}
+                  >
+                    Enable anyone-with-link access
+                  </button>
+                </>
+              )}
+            </section>
+          )}
           <div className="journey-timeline" aria-label="Reading progress timeline">
             {j.points?.slice(-40).map((p: any, i: number) => (
               <span
@@ -940,6 +1120,7 @@ function Journey({ id }: { id: string }) {
               <label>
                 Visibility
                 <select
+                  aria-label="Journey visibility"
                   value={draft.visibility}
                   onChange={(e) => setDraft({ ...draft, visibility: e.target.value })}
                 >
@@ -992,7 +1173,7 @@ function Journey({ id }: { id: string }) {
                 />
               </label>
               <button className="button gold" disabled={busy} onClick={save}>
-                Save share card
+                Save journey settings
               </button>
             </div>
           )}
@@ -1528,6 +1709,10 @@ function ClubView({ id }: { id: string }) {
         <section className="club-current">
           <span className="small-label">NOW READING</span>
           <h2>{current.title_snapshot}</h2>
+          <p className="small muted">
+            Group ebook positions. Your discussion access also includes supported audio-to-text
+            mappings.
+          </p>
           <div className="club-progress-buckets">
             {dist.map((b: any) => (
               <span key={b.bucket}>

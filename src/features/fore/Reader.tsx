@@ -292,6 +292,11 @@ export function ReaderPage({ id }: { id: string }) {
     },
     [],
   );
+  const finishedJourneyAudience = useQuery<{ visibility: "private" | "followers" | "public" }>({
+    queryKey: ["finished-journey-audience", data.user?.id, finishedJourney],
+    queryFn: () => api(`/social/journeys/${encodeURIComponent(finishedJourney || "")}`),
+    enabled: !!data.user && !!finishedJourney,
+  });
   const selectedShare = useQuery<{ shared: boolean; shares: HighlightShareAudience[] }>({
     queryKey: ["highlight-share", data.user?.id, socialAnnotationId],
     queryFn: () => api(`/social/highlights/${encodeURIComponent(socialAnnotationId!)}/share`),
@@ -401,8 +406,8 @@ export function ReaderPage({ id }: { id: string }) {
           }
         }
       }
-      const density = Number(socialReader.data?.preferences?.density || 35),
-        max = density < 20 ? 1 : density < 67 ? 2 : 3;
+      const density = Number(socialReader.data?.preferences?.density ?? 35),
+        max = density === 0 ? 0 : density < 20 ? 1 : density < 67 ? 2 : 3;
       const visible: typeof markers = [];
       for (const marker of markers.sort((a, b) => b.count - a.count))
         if (visible.length < max && !visible.some((m) => Math.abs(m.top - marker.top) < 32))
@@ -851,11 +856,21 @@ export function ReaderPage({ id }: { id: string }) {
             "mix-blend-mode": settings.current.theme === "night" ? "screen" : "multiply",
           });
         } catch {}
+      let observedWidth = 0,
+        observedHeight = 0;
       resize = new ResizeObserver(() => {
         if (container.current && rendition.current) {
           const { width, height } = container.current.getBoundingClientRect();
-          if (width > 0 && height > 0) {
-            r.resize(width, height);
+          if (
+            width > 0 &&
+            height > 0 &&
+            (Math.abs(width - observedWidth) > 0.5 || Math.abs(height - observedHeight) > 0.5)
+          ) {
+            observedWidth = width;
+            observedHeight = height;
+            requestAnimationFrame(() => {
+              if (!canceled) r.resize(width, height);
+            });
             // epub.js clears views during resize and may not redisplay them if
             // the initial location has not been reported yet (notably on iPad).
             if (pageRepairTimer) clearTimeout(pageRepairTimer);
@@ -1776,11 +1791,13 @@ export function ReaderPage({ id }: { id: string }) {
                     <label>
                       Density{" "}
                       <span>
-                        {Number(socialReader.data?.preferences?.density || 35) < 20
-                          ? "Quiet"
-                          : Number(socialReader.data?.preferences?.density || 35) < 67
-                            ? "Balanced"
-                            : "Lively"}
+                        {Number(socialReader.data?.preferences?.density ?? 35) === 0
+                          ? "No margin indicators"
+                          : Number(socialReader.data?.preferences?.density ?? 35) < 20
+                            ? "Quiet"
+                            : Number(socialReader.data?.preferences?.density ?? 35) < 67
+                              ? "Balanced"
+                              : "Lively"}
                       </span>
                     </label>
                     <Slider
@@ -1788,12 +1805,15 @@ export function ReaderPage({ id }: { id: string }) {
                       min={0}
                       max={100}
                       step={1}
-                      defaultValue={[Number(socialReader.data?.preferences?.density || 35)]}
+                      aria-label="Social density"
+                      defaultValue={[Number(socialReader.data?.preferences?.density ?? 35)]}
                       onValueCommit={(v) => saveSocialPreferences({ density: v[0] })}
                     />
                     <p className="small muted">
-                      🔒 Conversations ahead of your verified ebook/audiobook/Biosync progress stay
-                      locked. At most three indicators are shown on a screen.
+                      🔒 Spoilers use your furthest saved ebook position or verified audio-to-ebook
+                      percentage mappings. Audio and BioSync editions without a percentage mapping
+                      stay locked. Set density to zero to hide margin indicators. At most three
+                      indicators are shown on a screen.
                     </p>
                     {activeSocial && (
                       <section className="margin-conversation-card">
@@ -1970,8 +1990,22 @@ export function ReaderPage({ id }: { id: string }) {
             <strong>{percent}%</strong>
           </div>
           <p>
-            Your Reading Journey is ready—a private-by-default record of how this book fit into your
-            life, including your reading/listening mix, sessions, highlights, notes, and timeline.
+            Your Reading Journey is ready. Review its audience before sharing your reading/listening
+            mix, sessions, highlight and note counts, and timeline.
+          </p>
+          <p>
+            Current audience:{" "}
+            <strong>
+              {finishedJourneyAudience.data
+                ? finishedJourneyAudience.data.visibility === "private"
+                  ? "Private"
+                  : finishedJourneyAudience.data.visibility === "followers"
+                    ? "Followers"
+                    : "Public"
+                : finishedJourneyAudience.isError
+                  ? "Open the journey to review its audience"
+                  : "Loading…"}
+            </strong>
           </p>
           <div className="journey-share-row">
             <a

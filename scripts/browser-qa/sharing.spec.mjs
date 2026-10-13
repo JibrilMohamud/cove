@@ -11,10 +11,17 @@ async function setup(browser, request, testInfo, progress = 1) {
   expect(seeded.ok(), await seeded.text()).toBeTruthy();
   const fixture = await seeded.json();
   const contexts = [],
+    isolatedBrowsers = [],
     errors = [];
   async function pageFor(who) {
     const { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch } = testInfo.project.use;
-    const context = await browser.newContext({
+    const isolated = process.env.COVE_QA_CHROMIUM_EXECUTABLE
+      ? await browser
+          .browserType()
+          .launch({ ...testInfo.project.use.launchOptions, headless: true })
+      : browser;
+    if (isolated !== browser) isolatedBrowsers.push(isolated);
+    const context = await isolated.newContext({
       baseURL,
       viewport,
       userAgent,
@@ -33,6 +40,7 @@ async function setup(browser, request, testInfo, progress = 1) {
     pageFor,
     async close() {
       await Promise.all(contexts.map((context) => context.close()));
+      await Promise.all(isolatedBrowsers.map((browser) => browser.close()));
       expect(errors, "Uncaught application errors").toEqual([]);
     },
   };
@@ -290,16 +298,29 @@ test("EPUB reader opens and joined members receive group margin discussions", as
     await post.locator("footer button").nth(1).click();
     await thread.getByLabel("Write a reply").fill("A reply from the margin panel.");
     await thread.getByRole("button", { name: "Reply", exact: true }).click();
-    await expect(thread.getByText("A reply from the margin panel.", { exact: true })).toBeVisible();
+    await expect(
+      thread.locator("p").getByText("A reply from the margin panel.", { exact: true }),
+    ).toBeVisible();
     const replyCard = thread
       .locator(".social-post")
-      .filter({ has: bob.getByText("A reply from the margin panel.", { exact: true }) })
+      .filter({
+        has: bob.locator("p").getByText("A reply from the margin panel.", { exact: true }),
+      })
       .last();
-    await replyCard.getByRole("button", { name: "Edit", exact: true }).click();
-    await replyCard.getByLabel("Edit discussion").fill("An edited margin reply.");
-    await replyCard.getByRole("button", { name: "Save published edit", exact: true }).click();
-    await expect(thread.getByText("An edited margin reply.", { exact: true })).toBeVisible();
-    await replyCard.getByRole("button", { name: "Delete", exact: true }).click();
+    const replyId = await replyCard.getAttribute("data-post-id");
+    const editingCard = thread.locator(`[data-post-id="${replyId}"]`);
+    await editingCard.getByRole("button", { name: "Edit", exact: true }).click();
+    await editingCard.getByLabel("Edit discussion").fill("An edited margin reply.");
+    await editingCard.getByRole("button", { name: "Save published edit", exact: true }).click();
+    await expect(
+      thread.locator("p").getByText("An edited margin reply.", { exact: true }),
+    ).toBeVisible();
+    await thread
+      .locator(".social-post")
+      .filter({ has: bob.getByText("An edited margin reply.", { exact: true }) })
+      .last()
+      .getByRole("button", { name: "Delete", exact: true })
+      .click();
     await expect(thread.getByText("An edited margin reply.", { exact: true })).toHaveCount(0);
     await post.getByRole("button", { name: "Report", exact: true }).click();
     await expect(bob.getByText("Report sent to moderation")).toBeVisible();
@@ -314,39 +335,160 @@ test("EPUB reader opens and joined members receive group margin discussions", as
   }
 });
 
-test("native browser storage persists nonextractable offline encryption keys", async ({ page }) => {
-  await page.goto("/community?tab=received");
-  await page.evaluate(async () => {
-    const { putRecord } = await import("/src/features/fore/offline.ts");
-    const id = "qa-key",
-      iv = crypto.getRandomValues(new Uint8Array(12));
-    const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
-      "encrypt",
-      "decrypt",
-    ]);
-    const cipher = await crypto.subtle.encrypt(
-      { name: "AES-GCM", iv },
-      key,
-      new TextEncoder().encode("Cove offline QA"),
+test("native browser storage persists nonextractable offline encryption keys", async ({
+  browser,
+  request,
+}, testInfo) => {
+  const fixture = await setup(browser, request, testInfo);
+  try {
+    const page = await fixture.pageFor(null);
+    await page.goto("/community?tab=received");
+    await page.evaluate(async () => {
+      const { putRecord } = await import("/src/features/fore/offline.ts");
+      const id = "qa-key",
+        iv = crypto.getRandomValues(new Uint8Array(12));
+      const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
+        "encrypt",
+        "decrypt",
+      ]);
+      const cipher = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv },
+        key,
+        new TextEncoder().encode("Cove offline QA"),
+      );
+      await putRecord("assets", { id, key, iv, cipher });
+    });
+    await page.reload();
+    const result = await page.evaluate(async () => {
+      const { getRecord, deleteRecord } = await import("/src/features/fore/offline.ts");
+      const id = "qa-key",
+        saved = await getRecord("assets", id);
+      const plain = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: saved.iv },
+        saved.key,
+        saved.cipher,
+      );
+      await deleteRecord("assets", id);
+      return {
+        extractable: saved.key.extractable,
+        plaintext: new TextDecoder().decode(plain),
+        deleted: !(await getRecord("assets", id)),
+      };
+    });
+    expect(result).toEqual({ extractable: false, plaintext: "Cove offline QA", deleted: true });
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("journeys show their audience and enforce named-member links", async ({
+  browser,
+  request,
+}, testInfo) => {
+  const fixture = await setup(browser, request, testInfo);
+  try {
+    const alice = await fixture.pageFor("alice"),
+      bob = await fixture.pageFor("bob"),
+      charlie = await fixture.pageFor("charlie");
+    expect(fixture.journeyId).toBeTruthy();
+    await alice.goto(`/community?journey=${fixture.journeyId}`);
+    await expect(alice.getByText("Current audience:", { exact: false })).toContainText("Followers");
+    await expect(
+      alice.getByRole("button", { name: "Enable anyone-with-link access", exact: true }),
+    ).toBeDisabled();
+    await alice
+      .getByRole("combobox", { name: "Journey visibility", exact: true })
+      .selectOption("private");
+    await alice.getByRole("button", { name: "Save journey settings", exact: true }).click();
+    await expect(alice.getByText("Current audience:", { exact: false })).toContainText("Private");
+    await alice.getByLabel("Member username").fill(fixture.people.bob.username);
+    await alice.getByRole("button", { name: "Find member", exact: true }).click();
+    await expect(
+      alice.getByRole("button", { name: "Grant member access", exact: true }),
+    ).toBeDisabled();
+    await alice.getByLabel(`Grant access to @${fixture.people.bob.username}`).check();
+    await alice.getByRole("button", { name: "Grant member access", exact: true }).click();
+    await expect(
+      alice.getByRole("button", { name: "Revoke member access", exact: true }),
+    ).toBeVisible();
+    const grants = await (
+      await alice.request.get(`/api/fore/social/journeys/${fixture.journeyId}/recipients`)
+    ).json();
+    const token = grants.recipients[0].share_token;
+    await bob.goto(`/community?journey=${token}`);
+    await expect(bob.locator(".journey-page h1")).toHaveText("Pride and Prejudice");
+    await charlie.goto(`/community?journey=${token}`);
+    await expect(
+      charlie.getByText("Reading Journey is unavailable or access was revoked."),
+    ).toBeVisible();
+    expect(
+      (await charlie.request.get(`/api/fore/social/journeys/${token}/card.svg`)).status(),
+    ).toBe(404);
+    await alice.getByRole("button", { name: "Revoke member access", exact: true }).click();
+    await bob.reload();
+    await expect(
+      bob.getByText("Reading Journey is unavailable or access was revoked."),
+    ).toBeVisible();
+    await noOverflow(alice);
+    const results = await new AxeBuilder({ page: alice })
+      .include(".journey-page")
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+      .analyze();
+    expect(results.violations.filter((v) => ["serious", "critical"].includes(v.impact))).toEqual(
+      [],
     );
-    await putRecord("assets", { id, key, iv, cipher });
-  });
-  await page.reload();
-  const result = await page.evaluate(async () => {
-    const { getRecord, deleteRecord } = await import("/src/features/fore/offline.ts");
-    const id = "qa-key",
-      saved = await getRecord("assets", id);
-    const plain = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: saved.iv },
-      saved.key,
-      saved.cipher,
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("zero density persists and hides passage markers", async ({ browser, request }, testInfo) => {
+  const fixture = await setup(browser, request, testInfo);
+  try {
+    const bob = await fixture.pageFor("bob");
+    await inventory(bob);
+    await bob
+      .locator("article.margin-conversation-card")
+      .filter({ hasText: discussion })
+      .getByRole("link", { name: "Open in reader" })
+      .click();
+    await expect(bob.locator(".reader-social-gutter button").first()).toBeVisible();
+    await bob.locator(".reader-social-gutter button").first().click();
+    const slider = bob.getByRole("slider");
+    await slider.focus();
+    await slider.press("Home");
+    await slider.press("Tab");
+    await expect(slider).toHaveAttribute("aria-valuenow", "0");
+    await expect(bob.getByText("No margin indicators", { exact: true })).toBeVisible();
+    await expect(bob.locator(".reader-social-gutter button")).toHaveCount(0);
+    const href = bob.url(),
+      id = decodeURIComponent(new URL(href).pathname.split("/read/")[1]);
+    expect(
+      (await (await bob.request.get(`/api/fore/social/reader/${encodeURIComponent(id)}`)).json())
+        .preferences.density,
+    ).toBe(0);
+    await bob.reload();
+    await expect(bob.getByRole("button", { name: "Next page", exact: true })).toBeEnabled();
+    await expect(bob.locator(".reader-social-gutter button")).toHaveCount(0);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("discovery finds a particular member by username", async ({ browser, request }, testInfo) => {
+  const fixture = await setup(browser, request, testInfo);
+  try {
+    const alice = await fixture.pageFor("alice");
+    await alice.goto("/community?tab=discover");
+    await alice.getByLabel("Find a member").fill(`@${fixture.people.bob.username}`);
+    await expect(alice.locator(".people-grid .person-card")).toHaveCount(1);
+    await expect(alice.locator(".people-grid .person-card")).toContainText(
+      `@${fixture.people.bob.username}`,
     );
-    await deleteRecord("assets", id);
-    return {
-      extractable: saved.key.extractable,
-      plaintext: new TextDecoder().decode(plain),
-      deleted: !(await getRecord("assets", id)),
-    };
-  });
-  expect(result).toEqual({ extractable: false, plaintext: "Cove offline QA", deleted: true });
+    await alice.getByLabel("Find a member").fill("no_such_reader_qa");
+    await expect(alice.getByText("No members found.", { exact: true })).toBeVisible();
+    await noOverflow(alice);
+  } finally {
+    await fixture.close();
+  }
 });

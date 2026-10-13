@@ -75,9 +75,7 @@ async function seed(progress = 1) {
       .run();
     await invoke("/social/me", "GET", undefined, user);
     await invoke("/library", "POST", { bookId: "1342" }, user);
-    await env.DB.prepare("UPDATE reading_states SET progress=? WHERE user_id=?")
-      .bind(progress, user.id)
-      .run();
+    await invoke("/library", "POST", { bookId: "1342", status: "reading", progress }, user);
   }
   const annotation = await invoke(
     "/annotations",
@@ -140,8 +138,15 @@ async function seed(progress = 1) {
     },
     people.alice,
   );
+  const completed = await invoke(
+    "/library",
+    "POST",
+    { bookId: "1342", status: "finished", progress: 1 },
+    people.alice,
+  );
   return {
     people,
+    journeyId: completed.readingJourneyId,
     annotationId: annotation.id,
     groupId: group.id,
     groupName: `QA reading group ${suffix}`,
