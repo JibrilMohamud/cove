@@ -19,13 +19,13 @@ CREATE TABLE customer_support_tickets (
 CREATE INDEX idx_customer_support_owner ON customer_support_tickets(user_id,updated_at DESC,id);
 CREATE INDEX idx_customer_support_queue ON customer_support_tickets(status,updated_at,id);
 CREATE TRIGGER trg_customer_support_open_limit BEFORE INSERT ON customer_support_tickets BEGIN
-  SELECT CASE WHEN (SELECT count(*) FROM customer_support_tickets WHERE user_id=NEW.user_id AND status NOT IN ('resolved','closed'))>=10
-    THEN RAISE(ABORT,'customer support open limit') END;
+  SELECT RAISE(ABORT,'customer support open limit')
+    WHERE (SELECT count(*) FROM customer_support_tickets WHERE user_id=NEW.user_id AND status NOT IN ('resolved','closed'))>=10;
 END;
 CREATE TRIGGER trg_customer_support_reopen_limit BEFORE UPDATE OF status ON customer_support_tickets
 WHEN OLD.status IN ('resolved','closed') AND NEW.status NOT IN ('resolved','closed') BEGIN
-  SELECT CASE WHEN (SELECT count(*) FROM customer_support_tickets WHERE user_id=NEW.user_id AND status NOT IN ('resolved','closed'))>=10
-    THEN RAISE(ABORT,'customer support open limit') END;
+  SELECT RAISE(ABORT,'customer support open limit')
+    WHERE (SELECT count(*) FROM customer_support_tickets WHERE user_id=NEW.user_id AND status NOT IN ('resolved','closed'))>=10;
 END;
 CREATE TABLE customer_support_messages (
   id TEXT PRIMARY KEY NOT NULL,
@@ -41,10 +41,10 @@ CREATE TABLE customer_support_messages (
 );
 CREATE UNIQUE INDEX idx_customer_support_messages ON customer_support_messages(ticket_id,expected_version DESC);
 CREATE TRIGGER trg_customer_support_message_version BEFORE INSERT ON customer_support_messages BEGIN
-  SELECT CASE WHEN (SELECT version FROM customer_support_tickets WHERE id=NEW.ticket_id)<>NEW.expected_version
-    THEN RAISE(ABORT,'customer support version conflict') END;
-  SELECT CASE WHEN NEW.sender_kind='customer' AND (SELECT status FROM customer_support_tickets WHERE id=NEW.ticket_id)='closed'
-    THEN RAISE(ABORT,'customer support ticket closed') END;
+  SELECT RAISE(ABORT,'customer support version conflict')
+    WHERE (SELECT version FROM customer_support_tickets WHERE id=NEW.ticket_id)<>NEW.expected_version;
+  SELECT RAISE(ABORT,'customer support ticket closed')
+    WHERE NEW.sender_kind='customer' AND (SELECT status FROM customer_support_tickets WHERE id=NEW.ticket_id)='closed';
 END;
 
 -- Explicitly authored public notices; never expose raw internal incidents or errors.
@@ -76,10 +76,10 @@ CREATE TABLE public_service_notice_history (
   UNIQUE(notice_id,version)
 );
 CREATE TRIGGER trg_public_notice_history_version BEFORE INSERT ON public_service_notice_history BEGIN
-  SELECT CASE WHEN NOT (
+  SELECT RAISE(ABORT,'public notice version conflict') WHERE NOT (
     (NEW.version=1 AND (SELECT version FROM public_service_notices WHERE id=NEW.notice_id)=1 AND NOT EXISTS(SELECT 1 FROM public_service_notice_history WHERE notice_id=NEW.notice_id))
     OR (NEW.version=(SELECT version+1 FROM public_service_notices WHERE id=NEW.notice_id))
-  ) THEN RAISE(ABORT,'public notice version conflict') END;
+  );
 END;
 CREATE TRIGGER trg_public_notice_history_update BEFORE UPDATE ON public_service_notice_history BEGIN SELECT RAISE(ABORT,'public notice history is immutable'); END;
 CREATE TRIGGER trg_public_notice_history_delete BEFORE DELETE ON public_service_notice_history BEGIN SELECT RAISE(ABORT,'public notice history is immutable'); END;
