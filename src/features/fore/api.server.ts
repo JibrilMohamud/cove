@@ -4287,12 +4287,10 @@ async function handleCoveRequest(
             tracks_json: string;
             alignment_json: string | null;
           }>();
-        let tracks: Array<{ id?: string; sha256?: string }> = [];
-        let alignment: {
-          version?: number;
-          verified?: boolean;
-          maps?: Array<{ trackId: string }>;
-        } | null = null;
+        let tracks: { id?: string; sha256?: string }[] = [];
+        let alignment:
+          | { version?: number; verified?: boolean; maps?: { trackId: string }[] }
+          | null = null;
         try {
           const parsedTracks: unknown = JSON.parse(edition?.tracks_json || "[]");
           tracks = Array.isArray(parsedTracks) ? parsedTracks : [];
@@ -4349,7 +4347,8 @@ async function handleCoveRequest(
                   x.version,
                 )
                 .first<{ version: number; updated_at: string }>();
-        if (!saved) throw new ApiError(409, "Biosync changed on another device. Reload before saving.");
+        if (!saved)
+          throw new ApiError(409, "Biosync changed on another device. Reload before saving.");
         return json(saved);
       }
       throw new ApiError(405, "This Biosync method is not supported.");
