@@ -50,7 +50,7 @@ class CheckpointTests(unittest.TestCase):
         self.track = {"id": "01", "duration": 360}
         self.job = {"id": "align-1", "kind": "align", "lease_token": "lease", "payload": {"audioSha256": self.hash}}
         self.plan = {"identity": {"audioSha256": self.hash}, "duration": 360,
-                     "count": 3, "chunkSeconds": 120, "missing": [1, 2]}
+                     "count": 6, "chunkSeconds": 60, "missing": [1, 2]}
 
     def test_resume_skips_previously_cached_chunks_and_checkpoints_new_progress(self):
         api = Mock()
@@ -71,7 +71,7 @@ class CheckpointTests(unittest.TestCase):
                 with self.assertRaises(hosted_chunks.TranscriptionPending) as error:
                     hosted_chunks.transcribe_chunks(api, self.job, self.edition, self.track, root)
             self.assertEqual(error.exception.index, 1)
-            self.assertEqual(decoder.call_args.args[2:], (120, 120))
+            self.assertEqual(decoder.call_args.args[2:], (60, 60))
             self.assertFalse((root / "asr-chunk.wav").exists())
             self.assertEqual(api.call.call_args.args[0], "/pipeline/hosted-transcript/pg-1/01/chunks/1")
 

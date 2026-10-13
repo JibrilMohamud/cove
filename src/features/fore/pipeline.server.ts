@@ -266,7 +266,7 @@ export async function handlePipeline(
       .object({
         leaseToken: z.string().uuid(),
         status: z.enum(["done", "review", "skipped", "retry", "heartbeat", "checkpoint"]),
-        checkpointIndex: z.number().int().min(0).max(359).optional(),
+        checkpointIndex: z.number().int().min(0).max(719).optional(),
         error: z.string().max(1000).default(""),
       })
       .parse(await readBody(r));
@@ -291,7 +291,7 @@ export async function handlePipeline(
       if (!/^[a-f0-9]{64}$/.test(payload.audioSha256 || ""))
         throw new ApiError(409, "Prepared recording identity is invalid.");
       const object = await env.BUCKET.get(
-        `biosync/transcripts/cloudflare-whisper-chunks-v1/${payload.audioSha256}/${p.checkpointIndex}.json`,
+        `biosync/transcripts/cloudflare-whisper-chunks-v2/${payload.audioSha256}/${p.checkpointIndex}.json`,
       );
       const chunk = object ? await object.json() : null;
       if (

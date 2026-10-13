@@ -79,7 +79,7 @@ def transcribe_chunks(api, job, edition, track, folder):
         return plan["transcript"]
     duration = float(track["duration"])
     seconds = plan.get("chunkSeconds")
-    if (seconds != 120 or not math.isfinite(duration) or duration <= 0
+    if (seconds != 60 or not math.isfinite(duration) or duration <= 0
             or plan.get("identity", {}).get("audioSha256") != expected
             or abs(float(plan.get("duration", 0)) - duration) > .001
             or plan.get("count") != math.ceil(duration / seconds)):

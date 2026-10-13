@@ -13,7 +13,7 @@ type Chunk = {
   duration: number;
   words: Word[];
 };
-const CHUNK_SECONDS = 120;
+const CHUNK_SECONDS = 60;
 const MAX_BYTES = CHUNK_SECONDS * 16000 * 2 + 44;
 const reply = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -80,7 +80,7 @@ export async function hostedBiosyncChunks(
   if (request.headers.get("x-audio-sha256") !== hash)
     return reply({ error: "Prepared recording changed." }, 409);
   const count = Math.ceil(duration / CHUNK_SECONDS);
-  const prefix = `biosync/transcripts/cloudflare-whisper-chunks-v1/${hash}/`;
+  const prefix = `biosync/transcripts/cloudflare-whisper-chunks-v2/${hash}/`;
   const key = (index: number) => `${prefix}${index}.json`;
   const fullKey = `biosync/transcripts/cloudflare-whisper-v1/${hash}.json`;
   const identity = { audioSha256: hash, model: "cloudflare-whisper-v1", language: row?.language };
@@ -89,7 +89,7 @@ export async function hostedBiosyncChunks(
     const complete = await env.BUCKET.get(fullKey);
     if (complete) return reply({ complete: true, transcript: await complete.json() });
     const missing: number[] = [];
-    // At most 360 small metadata reads, bounded by the accepted duration.
+    // At most 720 small metadata reads, bounded by the accepted duration.
     for (let index = 0; index < count; index++) {
       if (!(await env.BUCKET.head?.(key(index)))) missing.push(index);
     }
@@ -157,8 +157,14 @@ export async function hostedBiosyncChunks(
       result = (await env.AI.run("@cf/openai/whisper", {
         audio: Array.from(audio),
       })) as typeof result;
-    } catch {
-      return reply({ error: "Chunk speech recognition unavailable.", retryable: true }, 503);
+    } catch (error) {
+      const detail =
+        error instanceof Error ? error.message.slice(0, 500) : "Unknown inference error";
+      console.error("Cove hosted ASR chunk failed", editionId, trackId, chunkIndex, detail);
+      return reply(
+        { error: "Chunk speech recognition unavailable.", retryable: true, detail },
+        503,
+      );
     }
     if (!Array.isArray(result?.words)) return reply({ error: "Word timestamps unavailable." }, 503);
     const words: Word[] = [];

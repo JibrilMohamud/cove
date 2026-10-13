@@ -92,9 +92,9 @@ try {
     data.writeUInt32LE(data.length - 44, 40);
     return data;
   };
-  const audio = wav(120);
+  const audio = wav(60);
   const pcmHash = Buffer.from(await crypto.subtle.digest("SHA-256", audio)).toString("hex");
-  assert.deepEqual((await (await run(request())).json()).missing, [0, 1, 2]);
+  assert.deepEqual((await (await run(request())).json()).missing, [0, 1, 2, 3, 4]);
   assert.equal((await run(request("POST"))).status, 409, "incomplete transcripts cannot finalize");
   validLease = false;
   assert.equal((await run(request("POST", audio), 0)).status, 409);
@@ -106,7 +106,7 @@ try {
   assert.equal((await run(request("POST", audio, { "x-content-sha256": pcmHash }), 0)).status, 503);
   assert.equal(stored.size, 0, "invalid speech timestamps cannot be cached");
   invalidWords = false;
-  for (const index of [0, 1])
+  for (const index of [0, 1, 2, 3])
     assert.equal(
       (await run(request("POST", audio, { "x-content-sha256": pcmHash }), index)).status,
       200,
@@ -118,14 +118,14 @@ try {
   env.AI.run = async () => ({ words: [] }); // A silent final interval is valid.
   const finalHash = Buffer.from(await crypto.subtle.digest("SHA-256", final)).toString("hex");
   assert.equal(
-    (await run(request("POST", final, { "x-content-sha256": finalHash }), 2)).status,
+    (await run(request("POST", final, { "x-content-sha256": finalHash }), 4)).status,
     200,
   );
   const response = await run(request("POST"));
   assert.equal(response.status, 200);
   const transcript = await response.json();
-  assert.equal(transcript.words.length, 40);
-  assert.equal(transcript.words[20].start, 120, "second chunk must retain its recording offset");
+  assert.equal(transcript.words.length, 80);
+  assert.equal(transcript.words[20].start, 60, "second chunk must retain its recording offset");
   assert.ok(transcript.words.every((word) => word.probability === null));
   assert.equal(transcript.identity.audioSha256, hash);
   assert.equal((await (await run(request())).json()).complete, true);

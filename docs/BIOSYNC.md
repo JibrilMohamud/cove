@@ -41,16 +41,16 @@ Automatic checks establish file identity and a conservative exact-text match; th
 
 # Resumable hosted transcription
 
-Long prepared recordings use SHA-256-pinned source audio and fixed 120-second
+Long prepared recordings use SHA-256-pinned source audio and fixed 60-second
 mono 16-kHz PCM WAV intervals. The trusted Python audio worker verifies the
 entire source digest before decoding. The persistence Worker requires the
-matching active alignment lease, bounds each upload to 3,840,044 bytes, checks
+matching active alignment lease, bounds each upload to 1,920,044 bytes, checks
 its PCM format and digest, then transcribes it with hosted Whisper. Actual
 word timestamps and unknown confidence values are retained. No text prompt
 or fabricated confidence is used.
 
 Chunk ASR results live under
-`biosync/transcripts/cloudflare-whisper-chunks-v1/<audio-sha256>/<index>.json`.
+`biosync/transcripts/cloudflare-whisper-chunks-v2/<audio-sha256>/<index>.json`.
 After a timeout, the next invocation skips those saved intervals. A deliberate
 checkpoint refunds only the current claim attempt, and only after D1 verifies
 that this exact lease saved the reported R2 chunk. Failed processing still
