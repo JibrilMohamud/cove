@@ -193,7 +193,8 @@ export function ReaderPage({ id }: { id: string }) {
   accountRef.current = data;
   annotationRef.current = data.annotations;
   useEffect(() => {
-    readingVersion.current = data.library.find((x) => x.bookId === id || x.productId === id)?.version || 0;
+    readingVersion.current =
+      data.library.find((x) => x.bookId === id || x.productId === id)?.version || 0;
   }, [data.library, id]);
   const [ready, setReady] = useState(false),
     [error, setError] = useState(""),
@@ -805,7 +806,9 @@ export function ReaderPage({ id }: { id: string }) {
       });
       let cfi =
         new URLSearchParams(window.location.search).get("cfi") ||
-        (!previewMode ? accountRef.current.library.find((x) => x.bookId === id || x.productId === id)?.cfi : undefined);
+        (!previewMode
+          ? accountRef.current.library.find((x) => x.bookId === id || x.productId === id)?.cfi
+          : undefined);
       if (previewMode && accountRef.current.user && bookQuery.data?.productId && !params.has("cfi"))
         try {
           const ps = await api(
