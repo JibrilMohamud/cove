@@ -970,7 +970,8 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL) {
     if (
       !previous ||
       (!!s.share_note && !previous.share_note) ||
-      (!!s.share_note === !!previous.share_note && String(s.updated_at) > String(previous.updated_at))
+      (!!s.share_note === !!previous.share_note &&
+        String(s.updated_at) > String(previous.updated_at))
     )
       displayShares.set(annotationId, s);
   }
@@ -2422,9 +2423,17 @@ export async function handleSocial(
         "One or more shared audiences changed. Refresh sharing permissions before republishing.",
       );
     await refreshHighlightFeedEvent(db, annotationId, uidv);
-    await auditSocial(db, uidv, "highlight.note.republished", "highlight", annotationId, {}, {
-      shareCount: updated.results.length,
-    });
+    await auditSocial(
+      db,
+      uidv,
+      "highlight.note.republished",
+      "highlight",
+      annotationId,
+      {},
+      {
+        shareCount: updated.results.length,
+      },
+    );
     return json({ published: true, updatedCount: updated.results.length });
   }
   const shareMatch = path.match(/^\/social\/highlights\/([^/]+)\/share$/);
@@ -2534,12 +2543,22 @@ export async function handleSocial(
       }
       await refreshHighlightFeedEvent(db, annotationId, uidv);
       const remaining = await db
-        .prepare("SELECT COUNT(*) count FROM social_annotation_shares WHERE annotation_id=? AND user_id=?")
+        .prepare(
+          "SELECT COUNT(*) count FROM social_annotation_shares WHERE annotation_id=? AND user_id=?",
+        )
         .bind(annotationId, uidv)
         .first<any>();
-      await auditSocial(db, uidv, "highlight.unshared", "highlight", annotationId, {}, {
-        shareId: x.shareId || null,
-      });
+      await auditSocial(
+        db,
+        uidv,
+        "highlight.unshared",
+        "highlight",
+        annotationId,
+        {},
+        {
+          shareId: x.shareId || null,
+        },
+      );
       return json({ shared: Number(remaining?.count || 0) > 0, removed: true });
     }
     if (method === "POST") {
@@ -2574,8 +2593,11 @@ export async function handleSocial(
             : Math.max(0, Math.min(1, Number(x.progress))),
         visibility = x.visibility === "member" ? "friends" : x.visibility,
         groupId = x.visibility === "group" ? x.groupId : null,
-        shareKey =
-          recipientId ? `member:${recipientId}` : x.visibility === "group" ? `group:${groupId}` : x.visibility,
+        shareKey = recipientId
+          ? `member:${recipientId}`
+          : x.visibility === "group"
+            ? `group:${groupId}`
+            : x.visibility,
         noteSnapshot = x.shareNote ? String(a.note || "") : "",
         updatedAt = now();
       let saved: { id: string; version: number } | null = null;
@@ -2588,7 +2610,10 @@ export async function handleSocial(
           .first<any>();
         if (!current) throw new ApiError(404, "Shared audience not found.");
         if (x.expectedVersion !== undefined && Number(current.version) !== x.expectedVersion)
-          throw new ApiError(409, "Sharing changed on another device. Refresh before changing permissions.");
+          throw new ApiError(
+            409,
+            "Sharing changed on another device. Refresh before changing permissions.",
+          );
         const collision = await db
           .prepare(
             "SELECT id FROM social_annotation_shares WHERE annotation_id=? AND share_key=? AND id<>? LIMIT 1",
@@ -2596,7 +2621,10 @@ export async function handleSocial(
           .bind(annotationId, shareKey, x.shareId)
           .first<any>();
         if (collision)
-          throw new ApiError(409, "This highlight already has a share for that audience. Edit that share instead.");
+          throw new ApiError(
+            409,
+            "This highlight already has a share for that audience. Edit that share instead.",
+          );
         const updatedNoteSnapshot = x.shareNote
           ? current.share_key === shareKey && !!current.share_note
             ? String(current.note_snapshot || "")
@@ -2642,8 +2670,14 @@ export async function handleSocial(
           )
           .bind(annotationId, uidv, shareKey)
           .first<any>();
-        if (x.expectedVersion !== undefined && (!current || Number(current.version) !== x.expectedVersion))
-          throw new ApiError(409, "Sharing changed on another device. Refresh before changing permissions.");
+        if (
+          x.expectedVersion !== undefined &&
+          (!current || Number(current.version) !== x.expectedVersion)
+        )
+          throw new ApiError(
+            409,
+            "Sharing changed on another device. Refresh before changing permissions.",
+          );
         saved = await db
           .prepare(
             `INSERT INTO social_annotation_shares(
@@ -2719,7 +2753,13 @@ export async function handleSocial(
           progress,
         },
       );
-      return json({ shared: true, shareId: saved.id, passageHash: hash, progress, version: saved.version });
+      return json({
+        shared: true,
+        shareId: saved.id,
+        passageHash: hash,
+        progress,
+        version: saved.version,
+      });
     }
   }
   if (method === "POST" && path === "/social/posts") {

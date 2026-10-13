@@ -85,7 +85,12 @@ try {
     sharePath = `/social/highlights/${annotation.id}/share`;
   const share = (visibility = "public", options = {}) =>
     social.handleSocial(
-      request(sharePath, "POST", { visibility, shareNote: true, audienceConfirmed: true, ...options }),
+      request(sharePath, "POST", {
+        visibility,
+        shareNote: true,
+        audienceConfirmed: true,
+        ...options,
+      }),
       env,
       sharePath,
       "alice",
@@ -152,13 +157,19 @@ try {
   const publicPublication = await (
     await social.handleSocial(request(sharePath), env, sharePath, "alice")
   ).json();
-  const currentPublicShare = publicPublication?.shares?.find((item) => item.visibility === "public");
+  const currentPublicShare = publicPublication?.shares?.find(
+    (item) => item.visibility === "public",
+  );
   assert.ok(currentPublicShare, "public publication can be managed independently");
   await share("friends", {
     shareId: currentPublicShare.id,
     expectedVersion: currentPublicShare.version,
   });
-  assert.equal((await feed()).length, 0, "changing the selected public audience withdraws its feed copy");
+  assert.equal(
+    (await feed()).length,
+    0,
+    "changing the selected public audience withdraws its feed copy",
+  );
   await share();
   assert.ok((await feed()).length, "resharing in the same minute creates a fresh event");
   await db

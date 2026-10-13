@@ -88,7 +88,11 @@ const shareCols = Object.fromEntries(
 for (const column of ["id", "share_key", "note_snapshot", "version"])
   assert.ok(shareCols[column], `highlight publications missing ${column}`);
 assert.equal(shareCols.id.pk, 1, "each audience publication needs its own stable identity");
-assert.notEqual(shareCols.annotation_id.pk, 1, "annotation IDs must not be unique across audiences");
+assert.notEqual(
+  shareCols.annotation_id.pk,
+  1,
+  "annotation IDs must not be unique across audiences",
+);
 const shareIndexes = db.prepare("PRAGMA index_list(social_annotation_shares)").all();
 assert.ok(
   shareIndexes.some((index) => {
@@ -107,8 +111,14 @@ const shareTriggers = new Set(
     .all()
     .map((trigger) => trigger.name),
 );
-assert.ok(shareTriggers.has("trg_highlight_share_key_insert"), "audience keys must be database-validated");
-assert.ok(shareTriggers.has("trg_annotation_share_audience_change"), "publication changes must withdraw stale feed copies");
+assert.ok(
+  shareTriggers.has("trg_highlight_share_key_insert"),
+  "audience keys must be database-validated",
+);
+assert.ok(
+  shareTriggers.has("trg_annotation_share_audience_change"),
+  "publication changes must withdraw stale feed copies",
+);
 const journeyCols = Object.fromEntries(
   db
     .prepare("PRAGMA table_info(reading_journeys)")

@@ -318,7 +318,9 @@ export function ReaderPage({ id }: { id: string }) {
   const activeGroups = (socialAccount.data?.groups || []).filter(
     (group: any) => group.member_status === "active",
   );
-  const discussionGroupName = activeGroups.find((group: any) => group.id === discussionGroupId)?.name;
+  const discussionGroupName = activeGroups.find(
+    (group: any) => group.id === discussionGroupId,
+  )?.name;
   const highlightGroupName = activeGroups.find((group: any) => group.id === socialGroupId)?.name;
   const discussionAudienceLabel = discussionDirect
     ? `@${discussionMember?.username || "selected member"}`
@@ -1930,8 +1932,8 @@ export function ReaderPage({ id }: { id: string }) {
             </>
           )}
           <p className="small muted" role="status">
-            Audience: {discussionAudienceLabel}. This publishing choice is separate from the activity
-            you choose to view in Social Reading.
+            Audience: {discussionAudienceLabel}. This publishing choice is separate from the
+            activity you choose to view in Social Reading.
           </p>
           <label className="check-row">
             <input
@@ -1979,7 +1981,9 @@ export function ReaderPage({ id }: { id: string }) {
           <DialogTitle>Share this highlight.</DialogTitle>
           <a href="/community?tab=sharing">Manage all my shares</a>
           {socialAnnotationId && selectedShare.isPending && (
-            <p className="small muted" role="status">Checking current audiences…</p>
+            <p className="small muted" role="status">
+              Checking current audiences…
+            </p>
           )}
           {selectedShare.data?.shares.length ? (
             <section className="shared-audience-list">

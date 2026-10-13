@@ -527,11 +527,15 @@ export function HighlightsPage() {
           <DialogDescription>{edit?.bookTitle}</DialogDescription>
           <blockquote className="editor-quote">{edit?.quote}</blockquote>
           {sharing.isPending && (
-            <p className="small muted" role="status">Checking current sharing permissions…</p>
+            <p className="small muted" role="status">
+              Checking current sharing permissions…
+            </p>
           )}
           {sharing.isError && (
             <div role="alert">
-              <p>Current sharing permissions could not be checked. Retry before saving this note.</p>
+              <p>
+                Current sharing permissions could not be checked. Retry before saving this note.
+              </p>
               <button className="button outline" onClick={() => sharing.refetch()}>
                 Retry sharing status
               </button>
@@ -540,9 +544,7 @@ export function HighlightsPage() {
           {sharing.data?.shares.length ? (
             <div className="reader-format-notice" role="status">
               <strong>This highlight remains shared</strong>
-              <p>
-                Active audiences: {sharing.data.shares.map(highlightAudienceName).join(", ")}.
-              </p>
+              <p>Active audiences: {sharing.data.shares.map(highlightAudienceName).join(", ")}.</p>
               <p>
                 {sharing.data.shares.some((share) => share.shareNote)
                   ? "For audiences that include your note, Cove keeps a separate published copy. Editing here changes only your private note until you explicitly republish it."
@@ -636,7 +638,9 @@ export function HighlightsPage() {
             </ul>
           )}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={republishing}>Keep published copies unchanged</AlertDialogCancel>
+            <AlertDialogCancel disabled={republishing}>
+              Keep published copies unchanged
+            </AlertDialogCancel>
             <AlertDialogAction
               disabled={republishing}
               onClick={(e) => {

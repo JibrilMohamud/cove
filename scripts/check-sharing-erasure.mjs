@@ -164,24 +164,38 @@ try {
 
   await assert.rejects(
     social.handleSocial(
-      request(shareRoute, "POST", { visibility: "member", recipientUserId: "bob", shareNote: true }),
+      request(shareRoute, "POST", {
+        visibility: "member",
+        recipientUserId: "bob",
+        shareNote: true,
+      }),
       env,
       shareRoute,
       "alice",
     ),
     /Confirm the highlight audience/,
   );
-  await call(shareRoute, "POST", { audienceConfirmed: true, visibility: "member", recipientUserId: "bob", shareNote: true });
+  await call(shareRoute, "POST", {
+    audienceConfirmed: true,
+    visibility: "member",
+    recipientUserId: "bob",
+    shareNote: true,
+  });
   assert.equal((await call(shareRoute)).visibility, "member");
   const originalVersion = (await call(shareRoute)).version;
-  await call(shareRoute, "POST", { audienceConfirmed: true,
+  await call(shareRoute, "POST", {
+    audienceConfirmed: true,
     visibility: "member",
     recipientUserId: "bob",
     shareNote: true,
     expectedVersion: originalVersion,
   });
   await assert.rejects(
-    call(shareRoute, "POST", { audienceConfirmed: true, visibility: "public", expectedVersion: originalVersion }),
+    call(shareRoute, "POST", {
+      audienceConfirmed: true,
+      visibility: "public",
+      expectedVersion: originalVersion,
+    }),
     /Sharing changed/,
   );
   await assert.rejects(
@@ -326,13 +340,21 @@ try {
   assert.ok(!(await inventory("charlie")).items.some((x) => x.id === saved.id));
   await call("/social/sharing/preferences", "POST", { policy: "none" }, "bob");
   await assert.rejects(
-    call(shareRoute, "POST", { audienceConfirmed: true, visibility: "member", recipientUserId: "bob" }),
+    call(shareRoute, "POST", {
+      audienceConfirmed: true,
+      visibility: "member",
+      recipientUserId: "bob",
+    }),
     /not accepting shares/,
   );
   await call("/social/sharing/preferences", "POST", { policy: "members" }, "bob");
   await call("/social/block", "POST", { userId: "alice", blocked: true }, "bob");
   await assert.rejects(
-    call(shareRoute, "POST", { audienceConfirmed: true, visibility: "member", recipientUserId: "bob" }),
+    call(shareRoute, "POST", {
+      audienceConfirmed: true,
+      visibility: "member",
+      recipientUserId: "bob",
+    }),
     /not accepting shares/,
   );
   await call("/social/block", "POST", { userId: "alice", blocked: false }, "bob");
