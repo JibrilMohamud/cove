@@ -7,6 +7,7 @@ import {
   type CoveEnv,
 } from "./features/fore/api.server";
 import { hostedBiosyncChunks } from "./features/fore/hosted-biosync-chunks.server";
+import { refreshPublicStatus } from "./features/fore/public-status.server";
 
 type BackendEnv = CoveEnv & {
   FORE_BACKEND_TOKEN?: string;
@@ -128,6 +129,7 @@ function logicalRequest(request: Request, env: BackendEnv) {
 }
 
 function cachePolicy(path: string) {
+  if (path === "/api/fore/service-status") return 30;
   if (path === "/api/fore/catalog") return 90;
   if (path === "/api/fore/taxonomy") return 900;
   if (path === "/api/fore/storefront/page") return 300;
@@ -376,6 +378,9 @@ async function scheduledCatalog(env: BackendEnv) {
   if (!response.ok) {
     throw new Error("Scheduled catalog ingestion failed.");
   }
+  await refreshPublicStatus(env).catch((error) =>
+    console.warn("Public service status refresh failed", error),
+  );
 }
 
 async function scheduledMaintenance(env: BackendEnv) {

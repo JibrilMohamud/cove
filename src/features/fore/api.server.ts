@@ -67,6 +67,14 @@ import {
   executeSupportAction,
 } from "./support.server";
 import {
+  supportInbox,
+  supportThread,
+  createCustomerSupport,
+  replyCustomerSupport,
+  markSupportRead,
+} from "./customer-support.server";
+import { publicServiceStatus, publishServiceNotice } from "./public-status.server";
+import {
   notificationInbox,
   notificationPreferences,
   saveNotificationPreferences,
@@ -557,7 +565,7 @@ function identity(request: Request) {
     email,
     name: name.slice(0, 100),
     registered: false,
-    aal: assurance === "aal2" ? "aal2" : ("aal1" as const),
+    aal: assurance === "aal2" ? ("aal2" as const) : ("aal1" as const),
     authProvider: "openai-host",
     authSubject: id,
     sessionFingerprint: undefined,
@@ -2549,6 +2557,8 @@ async function handleCoveRequest(
   if (!url.pathname.startsWith("/api/fore/")) return null;
   const path = url.pathname.slice("/api/fore".length);
   try {
+    if (request.method === "GET" && path === "/service-status")
+      return json(await publicServiceStatus(env));
     if (request.method === "GET" && path === "/health/live")
       return json({ ok: true, service: "fore-api", at: now() });
     if (request.method === "GET" && path === "/health/ready") {
@@ -2920,6 +2930,18 @@ async function handleCoveRequest(
         await requireStaffPermission(db, who, "operations.read", request);
         return json(await operationsSnapshot(db));
       }
+      if (path === "/admin/operations/public-notices") {
+        if (who?.aal !== "aal2") throw new ApiError(403, "Public service notices require MFA.");
+        const staff = await requireStaffPermission(
+          db,
+          who,
+          request.method === "GET" ? "operations.read" : "operations.manage",
+          request,
+        );
+        if (request.method === "GET") return json(await publicServiceStatus(env));
+        if (request.method === "POST")
+          return json(await publishServiceNotice(env, staff.userId, await body(request)));
+      }
       if (request.method === "POST" && path === "/admin/operations/check") {
         await requireStaffPermission(db, who, "operations.manage", request);
         return json({
@@ -3116,6 +3138,27 @@ async function handleCoveRequest(
             staff.permissions.has("support.payment.read") || staff.permissions.has("staff.manage"),
           ),
         );
+      }
+      if (path === "/admin/support/tickets" && request.method === "GET") {
+        await requireStaffPermission(db, who, "support.read", request);
+        return json(await supportInbox(db, undefined, url.searchParams.get("cursor")));
+      }
+      const staffTicket = path.match(/^\/admin\/support\/tickets\/(help_[a-f0-9-]{36})$/);
+      if (staffTicket) {
+        const staff = await requireStaffPermission(
+          db,
+          who,
+          request.method === "GET" ? "support.read" : "support.case.manage",
+          request,
+        );
+        if (request.method === "GET")
+          return json(
+            await supportThread(db, staffTicket[1], undefined, url.searchParams.get("before")),
+          );
+        if (request.method === "POST")
+          return json(
+            await replyCustomerSupport(db, staffTicket[1], staff.userId, true, await body(request)),
+          );
       }
       // Privacy-rights requests must never become a public search endpoint.
       // Only MFA-verified support staff with scoped RBAC may inspect messages
@@ -4119,6 +4162,30 @@ async function handleCoveRequest(
     }
     const user = requiredUser(request);
     const db = database(env);
+    if (path === "/support/tickets") {
+      if (request.method === "GET")
+        return json(await supportInbox(db, user.id, url.searchParams.get("cursor")));
+      if (request.method === "POST") {
+        await rateLimit(env, `support-create:${user.id}`, 5);
+        return json(await createCustomerSupport(db, user.id, await body(request)), 201);
+      }
+    }
+    const customerTicket = path.match(/^\/support\/tickets\/(help_[a-f0-9-]{36})(\/read)?$/);
+    if (customerTicket) {
+      if (request.method === "GET" && !customerTicket[2])
+        return json(
+          await supportThread(db, customerTicket[1], user.id, url.searchParams.get("before")),
+        );
+      if (request.method === "POST") {
+        await rateLimit(env, `support-reply:${user.id}`, 20);
+        const payload = await body(request);
+        return json(
+          customerTicket[2]
+            ? await markSupportRead(db, customerTicket[1], user.id, payload)
+            : await replyCustomerSupport(db, customerTicket[1], user.id, false, payload),
+        );
+      }
+    }
     if (request.method === "GET" && path === "/export")
       return json(await accountDataExport(db, user.id));
     const requirePublisherMfa = () => {

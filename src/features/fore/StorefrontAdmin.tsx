@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
+import { PublicNoticeEditor } from "./ServiceStatus";
 import {
   BarChart3,
   BookOpen,
@@ -17,6 +18,15 @@ import {
   WalletCards,
 } from "lucide-react";
 import { toast } from "sonner";
+
+function Metric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div>
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
 
 async function adminApi<T>(
   path: string,
@@ -520,6 +530,7 @@ function ReliabilityOperations({ token }: { token: string }) {
     failedSynthetic = (data.synthetics || []).filter((x: any) => x.status && x.status !== "passed");
   return (
     <div className="staff-section">
+      <PublicNoticeEditor />
       <div className="staff-section-head">
         <div>
           <span className="small-label">SLO · QUEUES · RECOVERY · DEPLOYMENTS</span>

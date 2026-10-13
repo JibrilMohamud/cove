@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Search,
   ShieldCheck,
@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, useAccount } from "./client";
+import { SupportWorkspace } from "./Help";
 
 const sections = [
   "users",
@@ -153,6 +154,9 @@ export function SupportAdminPage() {
     [caseData, setCaseData] = useState<any>(null),
     [busy, setBusy] = useState(false),
     [selected, setSelected] = useState<any>({});
+  useEffect(() => {
+    setQ(new URLSearchParams(location.search).get("q") || "");
+  }, []);
   if (!data.user)
     return (
       <div className="staff-console">
@@ -433,6 +437,7 @@ export function SupportAdminPage() {
         </div>
       </div>
       <PrivacyRequestQueue />
+      <SupportWorkspace staff />
       <div className="catalog-search">
         <Search />
         <input

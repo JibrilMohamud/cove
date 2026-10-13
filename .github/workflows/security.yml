@@ -30,6 +30,8 @@ jobs:
         run: npm run test:security-sync
       - name: Persistence backend regressions
         run: npm run test:persistence-backend
+      - name: Customer support, status and recovery regressions
+        run: npm run test:commercial-experience
       - name: Hosted BioSync chunk regressions
         run: npm run test:biosync-chunks
       - name: Python audio pipeline syntax

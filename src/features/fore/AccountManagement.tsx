@@ -85,14 +85,21 @@ function credentialJson(c: PublicKeyCredential) {
 export function AccountManagementPanel() {
   const [overview, setOverview] = useState<Overview | null>(null),
     [security, setSecurity] = useState<Security | null>(null),
-    [busy, setBusy] = useState("");
+    [busy, setBusy] = useState(""),
+    [loadError, setLoadError] = useState("");
   const refresh = async () => {
-    const [a, s] = await Promise.all([
-      api<Overview>("/account/management"),
-      api<Security>("/auth/security"),
-    ]);
-    setOverview(a);
-    setSecurity(s);
+    setLoadError("");
+    try {
+      const [a, s] = await Promise.all([
+        api<Overview>("/account/management"),
+        api<Security>("/auth/security"),
+      ]);
+      setOverview(a);
+      setSecurity(s);
+    } catch (error) {
+      setLoadError((error as Error).message);
+      throw error;
+    }
   };
   useEffect(() => {
     refresh().catch(() => {});
@@ -119,7 +126,21 @@ export function AccountManagementPanel() {
     return (
       <section className="recommendation-privacy-panel">
         <h3>Account & security</h3>
-        <p className="muted">Loading your commercial account settings…</p>
+        {loadError ? (
+          <div role="alert">
+            <p>{loadError}</p>
+            <div className="inline-actions">
+              <button className="button outline" onClick={() => void refresh().catch(() => {})}>
+                Try again
+              </button>
+              <a href="/help">Get help</a>
+            </div>
+          </div>
+        ) : (
+          <p className="muted" role="status">
+            Loading your account settings…
+          </p>
+        )}
       </section>
     );
   return (

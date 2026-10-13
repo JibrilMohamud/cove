@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";
 import { emitNotification } from "./notifications.server";
+import { exportCustomerSupport } from "./customer-support.server";
 
 export type AccountDB = CoveEnv["DB"];
 const id = (p: string) => `${p}_${crypto.randomUUID()}`;
@@ -690,8 +691,9 @@ export async function accountDataExport(db: AccountDB, userId: string) {
   ]);
   return {
     schema: "fore-account-export",
-    version: 3,
+    version: 4,
     exportedAt: now(),
+    support: await exportCustomerSupport(db, userId),
     account,
     profile,
     reading: {
@@ -858,6 +860,7 @@ export async function processAccountDeletionQueue(env: CoveEnv, limit = 25) {
         .bind(at, at, id)
         .run();
     await db.batch([
+      db.prepare("DELETE FROM customer_support_tickets WHERE user_id=?").bind(r.user_id),
       db.prepare("DELETE FROM social_post_reactions WHERE user_id=?").bind(r.user_id),
       db
         .prepare("DELETE FROM social_follows WHERE follower_user_id=? OR followed_user_id=?")

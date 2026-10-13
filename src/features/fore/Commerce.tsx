@@ -27,6 +27,7 @@ import {
   downloadBlob,
 } from "./client";
 import { BookArt } from "./Store";
+import { RequestFailure } from "./RequestFailure";
 
 declare global {
   interface Window {
@@ -91,7 +92,7 @@ export function CartPage() {
   const { data, signIn } = useAccount(),
     qc = useQueryClient();
   const cart = useQuery<Cart>({
-    queryKey: ["cart"],
+    queryKey: ["cart", data.user?.id],
     queryFn: () => api("/cart"),
     enabled: !!data.user,
   });
@@ -113,6 +114,7 @@ export function CartPage() {
         <p>Loading your cart…</p>
       </div>
     );
+  if (cart.isError) return <RequestFailure error={cart.error} retry={() => void cart.refetch()} />;
   const c = cart.data || { items: [], currency: null, subtotalMinor: 0 };
   if (!c.items.length)
     return (
@@ -246,7 +248,7 @@ export function CheckoutPage() {
       queryFn: () => api("/checkout/config"),
     }),
     cart = useQuery<Cart>({
-      queryKey: ["cart"],
+      queryKey: ["cart", data.user?.id],
       queryFn: () => api("/cart"),
       enabled: !!data.user,
     });
@@ -406,6 +408,9 @@ export function CheckoutPage() {
       setBusy("");
     }
   }
+  if (cart.isError) return <RequestFailure error={cart.error} retry={() => void cart.refetch()} />;
+  if (config.isError)
+    return <RequestFailure error={config.error} retry={() => void config.refetch()} />;
   if (cart.isLoading || config.isLoading)
     return (
       <div className="empty-state">
@@ -441,10 +446,10 @@ export function CheckoutPage() {
         <div className="commerce-banner warning">
           <AlertCircle />
           <div>
-            <strong>Payments are not enabled on this deployment.</strong>
+            <strong>Paid checkout is temporarily unavailable.</strong>
             <p>
-              The Stripe publishable key is configured, but the server still has the placeholder
-              secret. A real <code>STRIPE_SECRET_KEY</code> is required before charging customers.
+              We cannot accept a payment right now. Your cart is saved; you can return later or
+              contact support. Free public-domain books remain available.
             </p>
           </div>
         </div>
@@ -695,7 +700,7 @@ export function CheckoutPage() {
 export function OrdersPage() {
   const { data, signIn } = useAccount(),
     orders = useQuery<{ orders: any[] }>({
-      queryKey: ["orders"],
+      queryKey: ["orders", data.user?.id],
       queryFn: () => api("/orders"),
       enabled: !!data.user,
       refetchInterval: ({ state }) =>
@@ -713,7 +718,7 @@ export function OrdersPage() {
     if (id)
       api(`/orders/${encodeURIComponent(id)}`)
         .then(setSelected)
-        .catch(() => {});
+        .catch((error: Error) => toast.error(error.message));
   }, [data.user?.id]);
   if (!data.user)
     return (
@@ -732,6 +737,8 @@ export function OrdersPage() {
         <p>Loading orders…</p>
       </div>
     );
+  if (orders.isError)
+    return <RequestFailure error={orders.error} retry={() => void orders.refetch()} />;
   return (
     <div className="commerce-page">
       <div className="page-eyebrow">PURCHASE HISTORY</div>
@@ -756,6 +763,8 @@ export function OrdersPage() {
                   setBusy(o.id);
                   try {
                     setSelected(await api(`/orders/${encodeURIComponent(o.id)}`));
+                  } catch (error) {
+                    toast.error((error as Error).message);
                   } finally {
                     setBusy("");
                   }
@@ -824,6 +833,9 @@ export function OrdersPage() {
               </div>
             )}
             <div className="order-detail-actions">
+              <a className="button outline" href={`/help?order=${encodeURIComponent(selected.id)}`}>
+                Get help with this order
+              </a>
               {selected.receiptUrl && (
                 <a
                   className="button outline"

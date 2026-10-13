@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import { requestCove, type RequestOptions } from "./api-transport";
 export type CatalogBook = {
   /** Canonical Cove public product identifier. Source-system identifiers live in sourceExternalId. */
   id: string | number;
@@ -153,6 +154,7 @@ export const AccountContext = createContext<{
   data: AccountData;
   loading: boolean;
   error: string;
+  errorRequestId?: string | null;
   reload: () => Promise<void>;
   signIn: () => void;
   signUp: () => void;
@@ -165,21 +167,13 @@ export const AccountContext = createContext<{
   signUp: () => {},
 });
 export const useAccount = () => useContext(AccountContext);
-export async function api<T = any>(path: string, method = "GET", body?: unknown): Promise<T> {
-  const r = await fetch("/api/fore" + path, {
-    method,
-    credentials: "same-origin",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await r
-    .json()
-    .catch(() => ({ error: "The service returned an unreadable response." }));
-  if (!r.ok)
-    throw Object.assign(new Error(data.error || "Something went wrong. Please try again."), {
-      status: r.status,
-    });
-  return data;
+export async function api<T = any>(
+  path: string,
+  method = "GET",
+  body?: unknown,
+  options?: RequestOptions,
+): Promise<T> {
+  return requestCove<T>(path, method, body, options);
 }
 export const authorOf = (b: CatalogBook) =>
   b.authors

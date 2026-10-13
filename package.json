@@ -43,6 +43,7 @@
     "test:persistence-backend": "node scripts/check-persistence-backend.mjs",
     "test:legal": "node scripts/check-legal-contact.mjs",
     "test:account-experience": "node scripts/check-account-experience.mjs",
+    "test:commercial-experience": "node scripts/check-commercial-experience.mjs",
     "lint:strict": "eslint ."
   },
   "dependencies": {

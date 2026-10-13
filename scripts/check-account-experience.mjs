@@ -101,7 +101,8 @@ try {
   assert.equal(invalid.status, 400);
   const exportData = await request(alice, "/export");
   assert.equal(exportData.status, 200);
-  assert.equal(exportData.data.version, 3);
+  assert.equal(exportData.data.version, 4);
+  assert.ok(Array.isArray(exportData.data.support.tickets));
   assert.equal(exportData.data.reading.goals[0].books, 15);
   assert.equal(exportData.data.reading.bookMetrics[0].word_count, 120000);
   assert.equal(exportData.data.reading.sessions.length, 1);

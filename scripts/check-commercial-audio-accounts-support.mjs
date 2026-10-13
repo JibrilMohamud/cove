@@ -68,7 +68,7 @@ for (const token of [
 ])
   assert.ok(audio.includes(token), `commercial audio missing ${token}`);
 assert.match(audio, /quarantined/);
-assert.match(audio, /errors.length\?'rejected':'clean'/);
+assert.match(audio, /errors\.length\s*\?\s*[\"\']rejected[\"\']\s*:\s*[\"\']clean[\"\']/);
 assert.match(audio, /performance-rights territory must match/i);
 assert.match(audio, /ISBN-13 is invalid/);
 assert.match(audio, /subscription distribution/);
@@ -120,7 +120,10 @@ for (const token of [
   "Audio files & QC",
 ])
   assert.ok(publishing.includes(token), `publisher UI missing ${token}`);
-assert.match(publishing, /edition\.format==="ebook"&&<AssetUpload label="EPUB"/);
+assert.match(
+  publishing,
+  /edition\.format\s*===\s*"ebook"\s*&&\s*\(?\s*<AssetUpload\s+label="EPUB"/,
+);
 const accountUi = read("src/features/fore/AccountManagement.tsx"),
   accountUiLower = accountUi.toLowerCase();
 for (const token of [

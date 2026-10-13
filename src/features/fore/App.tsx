@@ -1,4 +1,7 @@
 import { AuthDialog, type AuthMode } from "./Auth";
+import { ConnectionNotice } from "./ConnectionNotice";
+import { CoveRequestError } from "./api-transport";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Headphones,
   LibraryBig,
@@ -9,9 +12,10 @@ import {
   Building2,
   Bell,
   Users,
+  LifeBuoy,
 } from "lucide-react";
 import { flushSessions } from "./reading-activity";
-import { useState, useEffect, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import {
   BookOpen,
   Library,
@@ -52,8 +56,11 @@ const nav = [
   ["/definitions", "nav.definitions", "Word collection", BookA],
   ["/downloads", "nav.downloads", "Downloads", Download],
   ["/publishing", "nav.publishing", "Cove Publishing", Building2],
+  ["/help", "nav.help", "Help & support", LifeBuoy],
 ] as const;
 export function CoveProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
+  const lastAccount = useRef<string | null | undefined>(undefined);
   const [data, setData] = useState<AccountData>({
     user: null,
     library: [],
@@ -63,6 +70,8 @@ export function CoveProvider({ children }: { children: ReactNode }) {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [errorRequestId, setErrorRequestId] = useState<string | null>(null);
+  const reloadVersion = useRef(0);
   const [auth, setAuth] = useState<AuthMode | null>(null);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
@@ -77,16 +86,33 @@ export function CoveProvider({ children }: { children: ReactNode }) {
     }
   }, []);
   const reload = useCallback(async () => {
+    const version = ++reloadVersion.current;
     try {
       const next = await api<AccountData>("/account");
+      if (version !== reloadVersion.current) return;
+      const nextAccount = next.user?.id || null;
+      if (lastAccount.current !== undefined && lastAccount.current !== nextAccount) {
+        await queryClient.cancelQueries();
+        if (version !== reloadVersion.current) return;
+        queryClient.clear();
+      }
+      lastAccount.current = nextAccount;
       setData(next);
       setError("");
+      setErrorRequestId(null);
     } catch (e) {
+      if (version !== reloadVersion.current) return;
       setError((e as Error).message);
+      setErrorRequestId(e instanceof CoveRequestError ? e.requestId : null);
+      if (e instanceof CoveRequestError && [401, 403].includes(e.status)) {
+        queryClient.clear();
+        lastAccount.current = null;
+        setData({ user: null, library: [], annotations: [], bookmarks: [], definitions: [] });
+      }
     } finally {
-      setLoading(false);
+      if (version === reloadVersion.current) setLoading(false);
     }
-  }, []);
+  }, [queryClient]);
   useEffect(() => {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
     reload();
@@ -122,12 +148,13 @@ export function CoveProvider({ children }: { children: ReactNode }) {
         data,
         loading,
         error,
+        errorRequestId,
         reload,
         signIn: () => setAuth("login"),
         signUp: () => setAuth("signup"),
       }}
     >
-      <StorefrontLocaleProvider>
+      <StorefrontLocaleProvider key={data.user?.id || "guest"}>
         {children}
         <AuthDialog mode={auth} onChange={setAuth} onSuccess={reload} />
         <Toaster theme="dark" position="bottom-right" richColors />
@@ -216,6 +243,7 @@ export function SiteShell({
           </div>
         </header>
         <main id="fore-main" tabIndex={-1} className="content">
+          <ConnectionNotice />
           {children}
         </main>
         <footer className="cove-site-footer" aria-label="Cove legal and account links">
@@ -224,7 +252,9 @@ export function SiteShell({
             <a href="/terms">Terms of Service</a>
             <a href="/privacy">Privacy Policy</a>
             <a href="/copyright">Copyright &amp; DMCA</a>
-            <a href="/privacy#contact-us">Contact</a>
+            <a href="/help">Help &amp; support</a>
+            <a href="/status">Service status</a>
+            <a href="/privacy#contact-us">Contact &amp; privacy requests</a>
           </nav>
         </footer>
       </div>
