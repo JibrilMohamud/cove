@@ -194,6 +194,9 @@ const fixturePlugin = {
 };
 process.env.GUTENDEX_BASE_URL = "http://127.0.0.1:4173/__qa/catalog";
 env.GUTENDEX_BASE_URL = process.env.GUTENDEX_BASE_URL;
+// Framework plugins resolve aliases/routes from cwd as well as Vite's root.
+// Keep every component on the same copy so React contexts cannot be duplicated.
+process.chdir(scratch);
 const server = await createServer({
   root: scratch,
   configFile: path.join(scratch, "vite.config.ts"),

@@ -6,6 +6,7 @@ export default defineConfig({
   timeout: 60000,
   expect: { timeout: 15000 },
   retries: process.env.CI ? 1 : 0,
+  maxFailures: process.env.CI ? 1 : 0,
   reporter: [
     ["list"],
     ["html", { open: "never", outputFolder: "artifacts/browser-qa/report" }],
