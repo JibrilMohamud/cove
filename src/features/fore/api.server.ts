@@ -4246,6 +4246,105 @@ async function handleCoveRequest(
         .first()
     )
       throw new ApiError(403, "This account is being erased.");
+    // Legacy Gutenberg Biosync positions are private, versioned, and tied to a verified
+    // audio/text pair. Missing state is normal on first open and must not block reading.
+    if (path.startsWith("/biosync/")) {
+      const bookId = bookIdSchema.parse(decodeURIComponent(path.slice("/biosync/".length)));
+      const product = await resolveProduct(db, bookId, user.id);
+      await requireFullBookAccess(env, product, user.id, storefrontTerritory);
+      const canonicalBookId =
+        product.source_name === "gutenberg"
+          ? String(product.source_external_id)
+          : String(product.public_id || product.id);
+      if (request.method === "GET") {
+        const saved = await db
+          .prepare("SELECT * FROM biosync_positions WHERE user_id=? AND book_id=?")
+          .bind(user.id, canonicalBookId)
+          .first<any>();
+        return json(saved || null);
+      }
+      if (request.method === "PUT") {
+        const x = z
+          .object({
+            editionId: z.string().min(1).max(100),
+            trackId: z.string().min(1).max(100),
+            seconds: z.number().finite().min(0).max(86400),
+            cfi: z.string().min(1).max(3000).regex(/^epubcfi\\(.+\\)$/),
+            mode: z.enum(["text", "audio"]),
+            epubSha256: z.string().regex(/^[a-f0-9]{64}$/),
+            audioSha256: z.string().regex(/^[a-f0-9]{64}$/),
+            version: z.number().int().min(0),
+          })
+          .parse(await body(request));
+        const edition = await db
+          .prepare(
+            "SELECT book_id,epub_sha256,tracks_json,alignment_json FROM audio_editions WHERE id=?",
+          )
+          .bind(x.editionId)
+          .first<any>();
+        let tracks: any[] = [];
+        let alignment: any = null;
+        try {
+          tracks = JSON.parse(edition?.tracks_json || "[]");
+          alignment = JSON.parse(edition?.alignment_json || "null");
+        } catch {
+          throw new ApiError(422, "Biosync edition metadata is invalid.");
+        }
+        if (
+          !edition ||
+          String(edition.book_id) !== canonicalBookId ||
+          String(edition.epub_sha256) !== x.epubSha256 ||
+          !Array.isArray(tracks) ||
+          !tracks.some((track) => track.id === x.trackId && track.sha256 === x.audioSha256) ||
+          alignment?.version !== 2 ||
+          alignment?.verified !== true ||
+          !alignment.maps?.some((map: any) => map.trackId === x.trackId)
+        )
+          throw new ApiError(422, "Biosync requires a verified matching text and audio edition.");
+        const at = now();
+        const saved =
+          x.version === 0
+            ? await db
+                .prepare(
+                  "INSERT INTO biosync_positions(user_id,book_id,edition_id,mode,cfi,track_id,seconds,epub_sha256,audio_sha256,version,updated_at) VALUES(?,?,?,?,?,?,?,?,?,1,?) ON CONFLICT(user_id,book_id) DO NOTHING RETURNING version,updated_at",
+                )
+                .bind(
+                  user.id,
+                  canonicalBookId,
+                  x.editionId,
+                  x.mode,
+                  x.cfi,
+                  x.trackId,
+                  x.seconds,
+                  x.epubSha256,
+                  x.audioSha256,
+                  at,
+                )
+                .first<any>()
+            : await db
+                .prepare(
+                  "UPDATE biosync_positions SET edition_id=?,mode=?,cfi=?,track_id=?,seconds=?,epub_sha256=?,audio_sha256=?,version=version+1,updated_at=? WHERE user_id=? AND book_id=? AND version=? RETURNING version,updated_at",
+                )
+                .bind(
+                  x.editionId,
+                  x.mode,
+                  x.cfi,
+                  x.trackId,
+                  x.seconds,
+                  x.epubSha256,
+                  x.audioSha256,
+                  at,
+                  user.id,
+                  canonicalBookId,
+                  x.version,
+                )
+                .first<any>();
+        if (!saved)
+          throw new ApiError(409, "Biosync changed on another device. Reload before saving.");
+        return json(saved);
+      }
+      throw new ApiError(405, "This Biosync method is not supported.");
+    }
     if (path === "/support/tickets") {
       if (request.method === "GET")
         return json(await supportInbox(db, user.id, url.searchParams.get("cursor")));
