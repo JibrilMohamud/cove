@@ -213,9 +213,7 @@ test("EPUB reader opens and joined members receive group margin discussions", as
     );
     expect(noPreviousBiosync.ok()).toBeTruthy();
     expect(await noPreviousBiosync.json()).toBeNull();
-    const anonymousBiosync = await request.get(
-      `/api/fore/biosync/${encodeURIComponent(bookId)}`,
-    );
+    const anonymousBiosync = await request.get(`/api/fore/biosync/${encodeURIComponent(bookId)}`);
     expect(anonymousBiosync.status()).toBe(401);
     await openReader.click();
     await expect
