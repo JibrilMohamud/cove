@@ -62,7 +62,9 @@ for (const result of results) {
         actual: count,
         added: count - allowed,
         locations: (result.messages || [])
-          .filter((message) => message.severity === 2 && (message.ruleId || "<parser-error>") === rule)
+          .filter(
+            (message) => message.severity === 2 && (message.ruleId || "<parser-error>") === rule,
+          )
           .map(({ line, column, message }) => ({ line, column, message }))
           .slice(-Math.max(1, count - allowed)),
       });

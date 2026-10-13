@@ -323,9 +323,7 @@ export function ReaderPage({ id }: { id: string }) {
   const activeGroups = (socialAccount.data?.groups || []).filter(
     (group) => group.member_status === "active",
   );
-  const discussionGroupName = activeGroups.find(
-    (group) => group.id === discussionGroupId,
-  )?.name;
+  const discussionGroupName = activeGroups.find((group) => group.id === discussionGroupId)?.name;
   const highlightGroupName = activeGroups.find((group) => group.id === socialGroupId)?.name;
   const discussionAudienceLabel = discussionDirect
     ? `@${discussionMember?.username || "selected member"}`
