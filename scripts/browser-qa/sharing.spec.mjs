@@ -197,16 +197,29 @@ test("EPUB reader opens and joined members receive group margin discussions", as
     const href = await openReader.getAttribute("href");
     expect(href).toMatch(/^\/read\/[^/?]+/);
     const bookId = decodeURIComponent(href.split("/read/")[1].split("?")[0]);
-    const epubResponse = await bob.request.get(`/api/fore/books/${encodeURIComponent(bookId)}/epub`);
-    expect(epubResponse.ok(), `Reader EPUB endpoint: ${epubResponse.status()} ${await epubResponse.text().catch(() => "")}`).toBeTruthy();
+    const epubResponse = await bob.request.get(
+      `/api/fore/books/${encodeURIComponent(bookId)}/epub`,
+    );
+    expect(
+      epubResponse.ok(),
+      `Reader EPUB endpoint: ${epubResponse.status()} ${await epubResponse.text().catch(() => "")}`,
+    ).toBeTruthy();
     const bytes = await epubResponse.body();
     expect(bytes.subarray(0, 2).toString(), "EPUB starts with ZIP magic bytes").toBe("PK");
     await openReader.click();
-    await expect.poll(async () => {
-      if (await bob.getByRole("button", { name: "Next page", exact: true }).isEnabled())
-        return "ready";
-      return (await bob.locator(".reader-loading").allTextContents()).join(" | ") || "reader not ready";
-    }, { message: "EPUB reader initialization" }).toBe("ready");
+    await expect
+      .poll(
+        async () => {
+          if (await bob.getByRole("button", { name: "Next page", exact: true }).isEnabled())
+            return "ready";
+          return (
+            (await bob.locator(".reader-loading").allTextContents()).join(" | ") ||
+            "reader not ready"
+          );
+        },
+        { message: "EPUB reader initialization" },
+      )
+      .toBe("ready");
     await expect(bob.locator(".reader-social-gutter button").first()).toBeVisible();
     await bob.locator(".reader-social-gutter button").first().click();
     await expect(
