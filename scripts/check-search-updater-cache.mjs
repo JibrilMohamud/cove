@@ -16,6 +16,7 @@ try {
       "src/features/fore/search.server.ts",
       "src/features/fore/public-api-cache.server.ts",
       "src/features/fore/catalog-fetch.server.ts",
+      "src/persistence-backend.worker.ts",
     ],
     entryNames: "[name]",
     bundle: true,
@@ -29,6 +30,7 @@ try {
   const search = await import(path.join(scratch, "search.server.mjs"));
   const cache = await import(path.join(scratch, "public-api-cache.server.mjs"));
   const { fetchCatalogPage } = await import(path.join(scratch, "catalog-fetch.server.mjs"));
+  const { default: worker } = await import(path.join(scratch, "persistence-backend.worker.mjs"));
   const env = localBindings(scratch);
   const request = (route) => new Request(`https://fore.test/api/fore${route}`);
   const input = (query) => search.parseSearchInput(new URL(`https://fore.test/catalog?${query}`));
@@ -345,6 +347,64 @@ try {
     ).n,
     3,
   );
+  // Regional drains and successive metadata pages share one asset allowance.
+  const resetAssets = async () => {
+    await env.DB.prepare("UPDATE gutenberg_source_cache SET epub_status='completed'").run();
+    await env.DB.prepare(
+      "UPDATE gutenberg_source_cache SET source_id='pg_us',epub_status='pending',epub_next_attempt_at='',ingest_status='accepted' WHERE id IN ('900001','900002','900003','900004','900005')",
+    ).run();
+  };
+  await resetAssets();
+  await env.DB.prepare("UPDATE gutenberg_sources SET enabled=1 WHERE id='pg_ca'").run();
+  await env.DB.prepare(
+    "UPDATE gutenberg_source_states SET next_run_at='',lease_until=NULL,etag='test' WHERE source_id='pg_ca'",
+  ).run();
+  let assetsAttempted = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("gutenberg.ca")) return new Response(null, { status: 304 });
+    assetsAttempted++;
+    return new Response("missing", { status: 404 });
+  };
+  const regionalTick = await api.runCatalogIngestion(env, 2);
+  assert.equal(regionalTick.regional.epubs.attempted, 2);
+  assert.equal(regionalTick.epubs.attempted, 0);
+  assert.equal(assetsAttempted, 2, "regional and US drains must share the run budget");
+  await env.DB.prepare("UPDATE gutenberg_sources SET enabled=0 WHERE id<>'pg_us'").run();
+  await resetAssets();
+  assetsAttempted = 0;
+  assert.equal((await api.runCatalogIngestion(env, 0)).epubs.attempted, 0);
+  assert.equal(assetsAttempted, 0, "an exhausted allowance must not force one more download");
+  await env.DB.prepare(
+    "UPDATE catalog_state SET status='idle',next_url=NULL,last_success_at=NULL,next_run_at='',lease_token=NULL,lease_until=NULL WHERE id=1",
+  ).run();
+  let metadataPages = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("gutendex.com")) {
+      metadataPages++;
+      return Response.json({
+        results: [],
+        next: `https://gutendex.com/books/?page=${metadataPages + 1}`,
+        count: 0,
+      });
+    }
+    assetsAttempted++;
+    return new Response("missing", { status: 404 });
+  };
+  const token = "local-test-only-backend-token-0001";
+  const batchResponse = await worker.fetch(
+    new Request("https://backend.test/__cove/ingestion/catalog", {
+      method: "POST",
+      headers: { "x-cove-backend-token": token, "content-type": "application/json" },
+      body: JSON.stringify({ maxPages: 3, epubLimit: 2, maxMillis: 10000 }),
+    }),
+    { ...env, FORE_BACKEND_TOKEN: token },
+    {},
+  );
+  assert.equal(batchResponse.status, 200);
+  const batch = await batchResponse.json();
+  assert.equal(batch.pagesAttempted, 3);
+  assert.equal(metadataPages, 3);
+  assert.equal(assetsAttempted, 2, "metadata pages must share the whole batch allowance");
   assert.equal((await env.DB.prepare("PRAGMA foreign_key_check").all()).results.length, 0);
   console.log(
     "PASS: repeated filters, identifier suggestions, typo pagination, read-only browsing, D1/edge cache recovery and isolation, fresh cache-hit impressions, outbox races, exclusive updater claims and deadline handling.",

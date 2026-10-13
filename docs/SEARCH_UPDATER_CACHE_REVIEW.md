@@ -30,6 +30,8 @@ Migration `0045_catalog_update_leases_and_search_queue.sql` adds US updater and 
 
 Metadata and assets remain resumable. Only processed regional chunks advance the source cursor. A batch deadline stops new work and bounds upstream fetch/body time; a short database batch or object-store write already underway may finish afterward. The scheduled harvester continues crawling unseen pages and drains asset work, then refreshes completed source catalogs on their existing schedules. An upstream failure is retried with durable backoff rather than mistaken for completion.
 
+The asset allowance is shared across regional and US drains and across all metadata pages in a scheduled batch. An exhausted allowance passes zero to subsequent work while metadata paging can continue. Regression coverage exercises the full backend batch handler and verifies that three metadata pages consume only two asset attempts when the allowance is two.
+
 ## Verification
 
 `npm run test:search-updater-cache` exercises actual API/search/cache/updater functions against the complete SQLite migration chain. It covers repeated filters and pagination, identifier suggestions, corrected search pages, read-only browsing, bounded D1 cache size, edge/corrupt/expired-cache recovery, market/locale and private-request isolation, fresh cache-hit analytics IDs, external-index update races, exclusive updater claims, deadline handling, Retry-After behavior, and source fairness. The facet regression measures seven cold aggregation queries and no additional aggregation queries for the following cached page.

@@ -1325,7 +1325,9 @@ async function quarantineRegionalItem(env: CoveEnv, id: string, message: string)
 }
 
 async function cachePendingEpubs(env: CoveEnv, limit = 1, deadlineMs = Infinity) {
-  if (!env.BUCKET) return { attempted: 0, downloaded: 0, failed: 0, quarantined: 0 };
+  const safeLimit = Math.max(0, Math.min(16, Math.floor(Number(limit) || 0)));
+  if (!env.BUCKET || !safeLimit || Date.now() >= deadlineMs)
+    return { attempted: 0, downloaded: 0, failed: 0, quarantined: 0 };
   const db = database(env);
   const staleDownloadBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
   await db
@@ -1350,7 +1352,7 @@ async function cachePendingEpubs(env: CoveEnv, limit = 1, deadlineMs = Infinity)
       FROM ranked r LEFT JOIN gutenberg_source_states st ON st.source_id=r.source_id
       ORDER BY r.source_rank ASC,COALESCE(st.epub_last_attempt_at,'') ASC,r.source_id ASC,r.id ASC LIMIT ?`,
     )
-    .bind(now(), Math.max(1, Math.min(16, limit)))
+    .bind(now(), safeLimit)
     .all<any>();
   let downloaded = 0,
     failed = 0,
@@ -1885,9 +1887,15 @@ export async function runCatalogIngestion(
 ) {
   const deadlineMs = options.deadlineMs ?? Infinity;
   if (Date.now() >= deadlineMs) return { skipped: "deadline" };
+  epubLimit = Math.max(0, Math.min(16, Math.floor(Number(epubLimit) || 0)));
   await seedCatalog(env);
-  const regional = await runRegionalCatalogIngestion(env, Math.max(1, epubLimit), deadlineMs).catch(
-    (error) => ({ failed: true, error: error instanceof Error ? error.message : String(error) }),
+  const regional = await runRegionalCatalogIngestion(env, epubLimit, deadlineMs).catch((error) => ({
+    failed: true,
+    error: error instanceof Error ? error.message : String(error),
+  }));
+  epubLimit = Math.max(
+    0,
+    epubLimit - ("epubs" in regional ? Number(regional.epubs?.attempted || 0) : 0),
   );
   if (Date.now() >= deadlineMs) return { skipped: "deadline", regional };
   const db = database(env);

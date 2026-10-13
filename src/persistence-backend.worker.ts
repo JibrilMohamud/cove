@@ -144,6 +144,18 @@ function terminalIngestionResult(value: unknown) {
   );
 }
 
+function ingestionAssetAttempts(value: unknown) {
+  if (!value || typeof value !== "object") return 0;
+  const result = value as {
+    epubs?: { attempted?: number };
+    regional?: { epubs?: { attempted?: number } };
+  };
+  return (
+    Math.max(0, Number(result.epubs?.attempted) || 0) +
+    Math.max(0, Number(result.regional?.epubs?.attempted) || 0)
+  );
+}
+
 async function catalogBatch(request: Request, env: BackendEnv) {
   let input: CatalogBatchInput = {};
   try {
@@ -162,10 +174,12 @@ async function catalogBatch(request: Request, env: BackendEnv) {
   );
   const deadline = Date.now() + maxMillis;
   const results: unknown[] = [];
+  let remainingEpubs = epubLimit;
 
   for (let i = 0; i < maxPages && Date.now() < deadline; i++) {
-    const result = await runCatalogIngestion(env, epubLimit, { deadlineMs: deadline });
+    const result = await runCatalogIngestion(env, remainingEpubs, { deadlineMs: deadline });
     results.push(result);
+    remainingEpubs = Math.max(0, remainingEpubs - ingestionAssetAttempts(result));
     if (terminalIngestionResult(result)) break;
   }
 
