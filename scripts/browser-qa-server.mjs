@@ -241,6 +241,11 @@ if (process.env.COVE_QA_SMOKE === "1") {
   const fixture = await seed();
   console.log(JSON.stringify(fixture));
   console.log(await invoke("/social/sharing?view=received", "GET", undefined, fixture.people.bob));
+  const document = await fetch("http://127.0.0.1:4173/community?tab=received");
+  const html = await document.text();
+  if (document.status !== 200 || !html.includes("Sign in to see your private sharing."))
+    throw new Error(`Community SSR failed: ${document.status} ${html.slice(0, 500)}`);
+  console.log("PASS: real Community SSR document and seeded sharing API.");
   await close();
 }
 async function close() {

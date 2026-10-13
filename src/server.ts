@@ -87,7 +87,19 @@ export default {
         : new URL(request.url).origin;
       const forwardedHeaders = new Headers(request.headers);
       forwardedHeaders.set("x-fore-public-origin", publicOrigin);
-      const routedRequest = new Request(request, { headers: forwardedHeaders });
+      // The dev server's lazy NodeRequest is Request-compatible but has no
+      // Undici internal state. Forward public fields instead of cloning its brand.
+      const routedInit: RequestInit & { duplex?: "half" } = {
+        method: request.method,
+        headers: forwardedHeaders,
+        signal: request.signal,
+        redirect: request.redirect,
+      };
+      if (request.method !== "GET" && request.method !== "HEAD" && request.body) {
+        routedInit.body = request.body;
+        routedInit.duplex = "half";
+      }
+      const routedRequest = new Request(request.url, routedInit);
       const handler = await getServerEntry();
       const response = await handler.fetch(routedRequest, runtimeEnv, ctx);
       return applySecurityHeaders(

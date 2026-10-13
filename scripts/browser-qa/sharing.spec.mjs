@@ -101,7 +101,7 @@ test("note consent updates the recipient's actual inbox", async ({
     await card.getByRole("button", { name: "Save permissions" }).click();
     await expect(card.getByRole("button", { name: "Save permissions" })).toHaveCount(0);
     await inventory(bob);
-    await expect(bob.getByText(quote, { exact: true })).toBeVisible();
+    await expect(bob.getByText(quote, { exact: true }).first()).toBeVisible();
     await expect(bob.getByText(note, { exact: true })).toHaveCount(0);
     await noOverflow(alice);
     const results = await new AxeBuilder({ page: alice })
@@ -213,22 +213,31 @@ test("EPUB reader opens and joined members receive group margin discussions", as
 
 test("native browser storage persists nonextractable offline encryption keys", async ({ page }) => {
   await page.goto("/community?tab=received");
-  const result = await page.evaluate(async () => {
-    const { putRecord, getRecord, deleteRecord } = await import("/src/features/fore/offline.ts");
+  await page.evaluate(async () => {
+    const { putRecord } = await import("/src/features/fore/offline.ts");
     const id = "qa-key",
       iv = crypto.getRandomValues(new Uint8Array(12));
     const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
       "encrypt",
       "decrypt",
     ]);
-    await putRecord("assets", { id, key });
-    const saved = await getRecord("assets", id);
     const cipher = await crypto.subtle.encrypt(
       { name: "AES-GCM", iv },
-      saved.key,
+      key,
       new TextEncoder().encode("Cove offline QA"),
     );
-    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, saved.key, cipher);
+    await putRecord("assets", { id, key, iv, cipher });
+  });
+  await page.reload();
+  const result = await page.evaluate(async () => {
+    const { getRecord, deleteRecord } = await import("/src/features/fore/offline.ts");
+    const id = "qa-key",
+      saved = await getRecord("assets", id);
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: saved.iv },
+      saved.key,
+      saved.cipher,
+    );
     await deleteRecord("assets", id);
     return {
       extractable: saved.key.extractable,
