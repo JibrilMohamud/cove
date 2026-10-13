@@ -76,6 +76,7 @@ type SharedItem = {
   group: { id: string; name: string } | null;
   book: { title?: string; productId?: string } | null;
   productId: string;
+  readerBookId: string | null;
   shareNote: boolean;
   progress: number | null;
   updatedAt: string;
@@ -171,12 +172,16 @@ function SharedCard({
           {item.body && <p>{item.body}</p>}
         </>
       )}
-      <a
-        className="button outline"
-        href={`/read/${encodeURIComponent(item.productId)}?${location}`}
-      >
-        Open in reader
-      </a>
+      {item.readerBookId ? (
+        <a
+          className="button outline"
+          href={`/read/${encodeURIComponent(item.readerBookId)}?${location}`}
+        >
+          Open in reader
+        </a>
+      ) : (
+        <p role="status">This edition is currently unavailable in the reader.</p>
+      )}
       {sent && (
         <>
           <button className="button outline" disabled={busy} onClick={() => mutate(true)}>
