@@ -57,7 +57,7 @@ export function applySecurityHeaders(request: Request, response: Response, env: 
     "connect-src 'self' https: wss:",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
-    "upgrade-insecure-requests",
+    ...(isHttps(request, env) ? ["upgrade-insecure-requests"] : []),
     ...(report ? [`report-uri ${report}`] : []),
   ].join("; ");
   headers.set("Content-Security-Policy", csp);
