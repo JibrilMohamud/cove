@@ -55,7 +55,17 @@ for (const result of results) {
   for (const [rule, count] of Object.entries(ruleCounts)) {
     const allowed = protectedRules.has(rule) ? 0 : Number(permitted[rule] || 0);
     if (count > allowed) {
-      regressions.push({ file, rule, existing: allowed, actual: count, added: count - allowed });
+      regressions.push({
+        file,
+        rule,
+        existing: allowed,
+        actual: count,
+        added: count - allowed,
+        locations: (result.messages || [])
+          .filter((message) => message.severity === 2 && (message.ruleId || "<parser-error>") === rule)
+          .map(({ line, column, message }) => ({ line, column, message }))
+          .slice(-Math.max(1, count - allowed)),
+      });
     }
   }
 }
