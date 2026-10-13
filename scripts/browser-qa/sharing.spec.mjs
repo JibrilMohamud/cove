@@ -473,7 +473,7 @@ test("zero density persists and hides passage markers", async ({ browser, reques
       (await (await bob.request.get(`/api/fore/social/reader/${encodeURIComponent(id)}`)).json())
         .preferences.density,
     ).toBe(0);
-    await bob.locator(".reader-save-status").click();
+    await bob.getByRole("button", { name: "Close", exact: true }).click();
     await expect(bob.locator(".reader-save-status")).toHaveText("Position saved");
     await bob.reload();
     await expect(bob.getByRole("button", { name: "Next page", exact: true })).toBeEnabled();
