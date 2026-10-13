@@ -2084,18 +2084,6 @@ export function CommunityPage() {
             href={`/community?tab=${key}`}
             key={key}
             aria-current={tab === key ? "page" : undefined}
-            onClick={(event) => {
-              if (
-                event.button !== 0 ||
-                event.metaKey ||
-                event.ctrlKey ||
-                event.shiftKey ||
-                event.altKey
-              )
-                return;
-              event.preventDefault();
-              window.location.assign(event.currentTarget.href);
-            }}
           >
             <Icon size={17} />
             {label}
