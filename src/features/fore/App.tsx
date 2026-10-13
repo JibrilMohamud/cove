@@ -74,6 +74,14 @@ export function CoveProvider({ children }: { children: ReactNode }) {
   const [errorRequestId, setErrorRequestId] = useState<string | null>(null);
   const reloadVersion = useRef(0);
   const [auth, setAuth] = useState<AuthMode | null>(null);
+  // Makes the client-hydrated state observable to device QA and diagnostics.
+  // Static SSR links remain usable before this point.
+  useEffect(() => {
+    document.documentElement.dataset.coveClientReady = "true";
+    return () => {
+      delete document.documentElement.dataset.coveClientReady;
+    };
+  }, []);
   useEffect(() => {
     const p = new URLSearchParams(location.search);
     const mode = p.get("auth");
