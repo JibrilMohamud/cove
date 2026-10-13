@@ -78,19 +78,17 @@ END;
 
 CREATE TRIGGER trg_highlight_share_key_insert BEFORE INSERT ON social_annotation_shares BEGIN
   SELECT RAISE(ABORT,'Invalid highlight audience key')
-    WHERE NEW.share_key <> CASE
-      WHEN NEW.recipient_user_id IS NOT NULL THEN 'member:'||NEW.recipient_user_id
-      WHEN NEW.visibility='group' THEN 'group:'||NEW.audience_group_id
-      ELSE NEW.visibility
-    END;
+    WHERE
+      (NEW.recipient_user_id IS NOT NULL AND NEW.share_key <> ('member:'||NEW.recipient_user_id))
+      OR (NEW.recipient_user_id IS NULL AND NEW.visibility='group' AND NEW.share_key <> ('group:'||NEW.audience_group_id))
+      OR (NEW.recipient_user_id IS NULL AND NEW.visibility<>'group' AND NEW.share_key <> NEW.visibility);
 END;
 CREATE TRIGGER trg_highlight_share_key_update BEFORE UPDATE OF share_key,visibility,audience_group_id,recipient_user_id ON social_annotation_shares BEGIN
   SELECT RAISE(ABORT,'Invalid highlight audience key')
-    WHERE NEW.share_key <> CASE
-      WHEN NEW.recipient_user_id IS NOT NULL THEN 'member:'||NEW.recipient_user_id
-      WHEN NEW.visibility='group' THEN 'group:'||NEW.audience_group_id
-      ELSE NEW.visibility
-    END;
+    WHERE
+      (NEW.recipient_user_id IS NOT NULL AND NEW.share_key <> ('member:'||NEW.recipient_user_id))
+      OR (NEW.recipient_user_id IS NULL AND NEW.visibility='group' AND NEW.share_key <> ('group:'||NEW.audience_group_id))
+      OR (NEW.recipient_user_id IS NULL AND NEW.visibility<>'group' AND NEW.share_key <> NEW.visibility);
 END;
 
 CREATE TRIGGER trg_direct_highlight_insert BEFORE INSERT ON social_annotation_shares WHEN NEW.recipient_user_id IS NOT NULL BEGIN
