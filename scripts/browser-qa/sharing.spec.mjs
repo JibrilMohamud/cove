@@ -229,6 +229,15 @@ test("EPUB reader opens and joined members receive group margin discussions", as
     ).toBeTruthy();
     const bytes = await epubResponse.body();
     expect(bytes.subarray(0, 2).toString(), "EPUB starts with ZIP magic bytes").toBe("PK");
+    const noPreviousBiosync = await bob.request.get(
+      `/api/fore/biosync/${encodeURIComponent(bookId)}`,
+    );
+    expect(noPreviousBiosync.ok()).toBeTruthy();
+    expect(await noPreviousBiosync.json()).toBeNull();
+    const anonymousBiosync = await request.get(
+      `/api/fore/biosync/${encodeURIComponent(bookId)}`,
+    );
+    expect(anonymousBiosync.status()).toBe(401);
     await openReader.click();
     await expect
       .poll(
