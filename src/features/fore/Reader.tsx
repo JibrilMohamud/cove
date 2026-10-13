@@ -179,6 +179,7 @@ export function ReaderPage({ id }: { id: string }) {
     chapterRef = useRef(""),
     annotationRef = useRef(data.annotations),
     savingPosition = useRef(Promise.resolve()),
+    savedPositionKey = useRef(""),
     recommendationStart = useRef(""),
     recommendationProgressBucket = useRef(-1),
     readingVersion = useRef(0),
@@ -569,12 +570,18 @@ export function ReaderPage({ id }: { id: string }) {
       }
     }
     if (!accountRef.current.user) return;
+    const key = JSON.stringify([accountRef.current.user.id, id, previewMode, p.cfi, p.progress]);
+    if (savedPositionKey.current === key) return;
     setSaveState(previewMode ? "Saving sample position…" : "Saving position…");
     const snapshot = { ...p };
     savingPosition.current = savingPosition.current
       .catch(() => {})
       .then(async () => {
         try {
+          if (savedPositionKey.current === key) {
+            if (mounted.current) setSaveState("Position saved");
+            return;
+          }
           if (previewMode) {
             const productId = bookQuery.data?.productId;
             if (productId) {
@@ -602,6 +609,7 @@ export function ReaderPage({ id }: { id: string }) {
             if (saved.readingJourneyId && mounted.current)
               setFinishedJourney(saved.readingJourneyId);
           }
+          savedPositionKey.current = key;
           const productId = bookQuery.data?.productId,
             bucket = Math.floor(Math.max(0, Math.min(0.999, snapshot.progress)) * 10);
           if (productId && bucket > 0 && bucket > recommendationProgressBucket.current) {

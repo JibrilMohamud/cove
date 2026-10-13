@@ -431,6 +431,8 @@ test("journeys show their audience and enforce named-member links", async ({
       (await charlie.request.get(`/api/fore/social/journeys/${token}/card.svg`)).status(),
     ).toBe(404);
     await alice.getByRole("button", { name: "Revoke member access", exact: true }).click();
+    await bob.locator(".reader-save-status").click();
+    await expect(bob.locator(".reader-save-status")).toHaveText("Position saved");
     await bob.reload();
     await expect(
       bob.getByText("Reading Journey is unavailable or access was revoked."),
