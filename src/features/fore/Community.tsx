@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { useRouterState } from "@tanstack/react-router";
 import {
   Activity,
   BookHeart,
@@ -2079,16 +2079,27 @@ export function CommunityPage() {
           ["sharing", Share2, "My sharing"],
           ["me", CircleUserRound, "My profile"],
         ].map(([key, Icon, label]: any) => (
-          <Link
+          <a
             className={tab === key ? "active" : ""}
-            to="/community"
-            search={{ tab: key }}
+            href={`/community?tab=${key}`}
             key={key}
             aria-current={tab === key ? "page" : undefined}
+            onClick={(event) => {
+              if (
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              )
+                return;
+              event.preventDefault();
+              window.location.assign(event.currentTarget.href);
+            }}
           >
             <Icon size={17} />
             {label}
-          </Link>
+          </a>
         ))}
       </nav>
       {tab === "sharing" ? (
