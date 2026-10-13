@@ -319,7 +319,11 @@ assert.match(seriesPage, /wishlist/);
 assert.match(seriesPage, /subscriptionAvailable/);
 assert.match(seriesPage, /Add series to\s+cart/);
 assert.match(discovery, /entitlements/, "series ownership must consult durable entitlements");
-assert.match(discovery, /main\.length\s*<=\s*25/, "series bundle eligibility must cap main-title count");
+assert.match(
+  discovery,
+  /main\.length\s*<=\s*25/,
+  "series bundle eligibility must cap main-title count",
+);
 assert.match(
   discovery,
   /uniqueWorks\.size\s*===\s*main\.length/,
