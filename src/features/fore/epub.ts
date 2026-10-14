@@ -6,6 +6,7 @@ import {
   savePublicEpub,
 } from "./offline-epub-client";
 import JSZip from "jszip";
+import { licensedEpubBytes, licensedEpubRecord, saveLicensedEpub } from "./licensed-epub-client";
 import { api, downloadBlob, authorOf, type CatalogBook } from "./client";
 export async function inspectEpub(bytes: ArrayBuffer | Uint8Array) {
   const zip = await JSZip.loadAsync(bytes);
@@ -154,6 +155,8 @@ export async function epubBytes(bookId: string, preview = false) {
   if (!preview) {
     const cached = await publicEpubBytes(bookId).catch(() => null);
     if (cached) return cached;
+    const licensed = await licensedEpubBytes(bookId).catch(() => null);
+    if (licensed) return licensed;
   }
   const r = await fetch(
     `/api/fore/books/${encodeURIComponent(bookId)}/${preview ? "preview/epub" : "epub"}`,
@@ -325,10 +328,11 @@ export async function downloadCoveBackup(book: CatalogBook) {
 export async function saveEpubOffline(book: CatalogBook) {
   if (book.uploaded) throw Error("Personal imports already live in your private Cove library.");
   const id = String(book.id);
-  if (!isPublicEpubBook(book))
-    throw Error(
-      "In-app offline storage for licensed editions requires Cove's future protected offline-license layer. Use the publisher-permitted EPUB download instead.",
-    );
+  if (!isPublicEpubBook(book)) {
+    await saveLicensedEpub(book);
+    await navigator.storage?.persist?.();
+    return;
+  }
   const bytes = await epubBytes(id, false);
   await inspectEpub(bytes);
   await navigator.storage?.persist?.();
@@ -341,6 +345,8 @@ export async function loadBookMetadata(id: string): Promise<CatalogBook> {
     if (!canUseOfflineFallback(error)) throw error;
     const local = await publicEpubDownload(id).catch(() => null);
     if (local && (await publicEpubBytes(id))) return local.book;
+    const licensed = await licensedEpubRecord(id).catch(() => null);
+    if (licensed && (await licensedEpubBytes(id))) return licensed.book;
     throw error;
   }
 }
