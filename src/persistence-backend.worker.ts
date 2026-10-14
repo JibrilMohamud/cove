@@ -4,7 +4,10 @@ import { processAuthorSocialFanoutJobs } from "./features/fore/social.server";
 import { processPartnerFeedQueue } from "./features/fore/traditional-publishing.server";
 import { advancePreorders } from "./features/fore/preorder.server";
 import { processPreorderRefundJobs } from "./features/fore/commerce.server";
-import { queueAuthorReleaseAlerts, processAuthorReleaseAlerts } from "./features/fore/retail-intelligence.server";
+import {
+  queueAuthorReleaseAlerts,
+  processAuthorReleaseAlerts,
+} from "./features/fore/retail-intelligence.server";
 
 import {
   handleCoveApi,
@@ -360,20 +363,27 @@ async function runCommercialQueues(cron: string, env: BackendEnv) {
     tasks.push(
       ["author-social-fanout", () => processAuthorSocialFanoutJobs(env.DB, 10, 250)],
       ["partner-feed", () => processPartnerFeedQueue(env.DB, 15)],
-      ["author-release-alerts", async () => {
-        await queueAuthorReleaseAlerts(env.DB);
-        return processAuthorReleaseAlerts(env.DB, 50);
-      }],
+      [
+        "author-release-alerts",
+        async () => {
+          await queueAuthorReleaseAlerts(env.DB);
+          return processAuthorReleaseAlerts(env.DB, 50);
+        },
+      ],
     );
   }
   if (cron === "41 4 * * *") {
     tasks.push(["preorder-settlement", () => advancePreorders(env.DB)]);
-    if (env.FORE_STRIPE_SECRET_KEY)
-      tasks.push(["preorder-refunds", () => processPreorderRefundJobs(env, {
-        workerId: "cove-cloudflare-scheduled",
-        limit: 20,
-        leaseSeconds: 300,
-      })]);
+    if (env.STRIPE_SECRET_KEY)
+      tasks.push([
+        "preorder-refunds",
+        () =>
+          processPreorderRefundJobs(env, {
+            workerId: "cove-cloudflare-scheduled",
+            limit: 20,
+            leaseSeconds: 300,
+          }),
+      ]);
   }
   for (const [name, operation] of tasks) {
     try {
@@ -742,7 +752,8 @@ export default {
       controller.cron === "*/10 * * * *" ||
       controller.cron === "23 * * * *" ||
       controller.cron === "41 4 * * *"
-    ) ctx.waitUntil?.(runCommercialQueues(controller.cron, env));
+    )
+      ctx.waitUntil?.(runCommercialQueues(controller.cron, env));
 
     if (controller.cron === "23 * * * *")
       ctx.waitUntil?.(
