@@ -57,6 +57,18 @@ export async function issueOfflineEpubLicense(
     { productId, purpose: "offline_package", deviceId: device.id },
     request,
   );
+  const drm = await env.DB
+    .prepare(
+      "SELECT da.drm_status FROM asset_versions av JOIN digital_assets da ON da.id=av.asset_id WHERE av.id=? LIMIT 1",
+    )
+    .bind(grant.assetVersionId)
+    .first<{ drm_status: string }>();
+  const supported = new Set(["none", "drm-free", "watermark", "social-drm"]);
+  if (!drm || !supported.has(String(drm.drm_status || "").toLowerCase()))
+    throw new ApiError(
+      403,
+      "This edition requires external DRM that Cove's in-app offline reader does not support.",
+    );
   const issuedAt = new Date();
   const claims: OfflineEpubClaims = {
     version: 1,
