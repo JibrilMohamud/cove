@@ -722,14 +722,23 @@ export function AccountManagementPanel() {
                 setBusy("restore-preview");
                 try {
                   if (file.size > 3_000_000)
-                    throw Error("Choose a backup smaller than 3 MB. Large backups require support.");
+                    throw Error(
+                      "Choose a backup smaller than 3 MB. Large backups require support.",
+                    );
                   let raw: string;
                   if (/\\.zip$/i.test(file.name)) {
                     const { default: JSZip } = await import("jszip");
                     const zip = await JSZip.loadAsync(file);
-                    const entry = zip.file("personal/reading-data.json") || zip.file("reading-data.json");
-                    if (!entry) throw Error("This ZIP does not contain a Cove reading-data backup.");
-                    if ((entry as any)._data?.uncompressedSize > 2_000_000)
+                    const entry =
+                      zip.file("personal/reading-data.json") || zip.file("reading-data.json");
+                    if (!entry)
+                      throw Error("This ZIP does not contain a Cove reading-data backup.");
+                    if (
+                      Number(
+                        (entry as { _data?: { uncompressedSize?: number } })._data
+                          ?.uncompressedSize || 0,
+                      ) > 2_000_000
+                    )
                       throw Error("The backup contains too much reading data.");
                     raw = await entry.async("string");
                   } else raw = await file.text();
