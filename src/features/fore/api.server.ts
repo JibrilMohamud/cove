@@ -1148,7 +1148,7 @@ async function account(env: CoveEnv, request: Request) {
       .bind(user.id)
       .all(),
     db
-      .prepare("SELECT * FROM definitions WHERE user_id=? ORDER BY created_at DESC")
+      .prepare("SELECT * FROM definitions WHERE user_id=? ORDER BY created_at DESC LIMIT 100")
       .bind(user.id)
       .all(),
   ]);
