@@ -30,16 +30,18 @@ const deviceKey = () => {
   }
 };
 function refs(book: CatalogBook) {
-  return [String(book.id), book.productId, book.publicProductId, book.sourceExternalId]
-    .filter((id): id is string => !!id);
+  return [String(book.id), book.productId, book.publicProductId, book.sourceExternalId].filter(
+    (id): id is string => !!id,
+  );
 }
 async function validate(record: LicensedEpub, userId: string): Promise<OfflineEpubClaims> {
-  const invalid = () => new Error("Offline access expired or became invalid. Reconnect to renew the license.");
+  const invalid = () =>
+    new Error("Offline access expired or became invalid. Reconnect to renew the license.");
   if (!userId || offlineAccountId() !== userId || record.ownerId !== userId || !deviceKey())
     throw invalid();
   try {
     const publicKey = publicAudioKey(record.publicKey);
-    if (record.receipt.keyId !== await audioKeyId(publicKey)) throw invalid();
+    if (record.receipt.keyId !== (await audioKeyId(publicKey))) throw invalid();
     const keyValue = await crypto.subtle.importKey(
       "jwk",
       publicKey,
@@ -54,9 +56,9 @@ async function validate(record: LicensedEpub, userId: string): Promise<OfflineEp
       new TextEncoder().encode(OFFLINE_EPUB_CONTEXT + record.receipt.payload),
     );
     if (!valid) throw invalid();
-    const claims = JSON.parse(new TextDecoder().decode(
-      decodeBase64Url(record.receipt.payload),
-    )) as OfflineEpubClaims;
+    const claims = JSON.parse(
+      new TextDecoder().decode(decodeBase64Url(record.receipt.payload)),
+    ) as OfflineEpubClaims;
     const expiry = Date.parse(claims.expiresAt);
     const issued = Date.parse(claims.issuedAt);
     if (
