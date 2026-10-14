@@ -455,7 +455,7 @@ export function ReaderPage({ id }: { id: string }) {
   };
   const activeSocial = clusters.get(activeSocialHash || "") || null;
   const [passageMarkers, setPassageMarkers] = useState<
-    { hash: string; top: number; count: number }[]
+    { hash: string; top: number; count: number; passage: string; chapter: string }[]
   >([]);
   useEffect(() => {
     if (!socialReader.data?.preferences?.enabled) {
