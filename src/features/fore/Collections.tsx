@@ -576,9 +576,7 @@ export function HighlightsPage() {
             <div className="empty-state">
               <Highlighter />
               <h2>
-                {pages.items.length
-                  ? "No matching passages."
-                  : "Some lines deserve a second life."}
+                {pages.items.length ? "No matching passages." : "Some lines deserve a second life."}
               </h2>
               <p>
                 While reading, select a passage to highlight it or add a note. You’ll find every
