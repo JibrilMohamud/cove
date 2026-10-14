@@ -151,16 +151,22 @@ export function NotificationsPage() {
         <span className="page-eyebrow">NOTIFICATIONS</span>
         <h1>Inbox</h1>
         {accountLoading || loading ? (
-          <p className="muted" role="status">Loading notifications…</p>
+          <p className="muted" role="status">
+            Loading notifications…
+          </p>
         ) : !account.user ? (
           <>
             <p className="muted">Sign in to see your notifications and delivery preferences.</p>
-            <button className="button" onClick={signIn}>Sign in</button>
+            <button className="button" onClick={signIn}>
+              Sign in
+            </button>
           </>
         ) : (
           <>
             <p role="alert">{loadError || "Your notifications could not be loaded."}</p>
-            <button className="button outline" onClick={() => void reload()}>Retry loading</button>
+            <button className="button outline" onClick={() => void reload()}>
+              Retry loading
+            </button>
           </>
         )}
       </section>
@@ -293,8 +299,8 @@ export function NotificationsPage() {
         <fieldset className="notification-quiet-hours">
           <legend>Quiet hours</legend>
           <p className="small muted">
-            Pause optional push and email deliveries overnight. All browser push notifications
-            are also suppressed whenever a visible reader is open, regardless of these settings.
+            Pause optional push and email deliveries overnight. All browser push notifications are
+            also suppressed whenever a visible reader is open, regardless of these settings.
           </p>
           <label>
             <input
@@ -321,7 +327,10 @@ export function NotificationsPage() {
               disabled={busy}
               value={prefs.quietHours.start || "22:00"}
               onChange={(event) =>
-                void save({ ...prefs, quietHours: { ...prefs.quietHours, start: event.target.value } })
+                void save({
+                  ...prefs,
+                  quietHours: { ...prefs.quietHours, start: event.target.value },
+                })
               }
             />
           </label>
@@ -332,7 +341,10 @@ export function NotificationsPage() {
               disabled={busy}
               value={prefs.quietHours.end || "07:00"}
               onChange={(event) =>
-                void save({ ...prefs, quietHours: { ...prefs.quietHours, end: event.target.value } })
+                void save({
+                  ...prefs,
+                  quietHours: { ...prefs.quietHours, end: event.target.value },
+                })
               }
             />
           </label>
