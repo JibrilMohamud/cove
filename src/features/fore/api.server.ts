@@ -1157,10 +1157,13 @@ async function account(env: CoveEnv, request: Request) {
   for (let i = 0; i < readingStates.results.length; i += 8) {
     const chunk = readingStates.results.slice(i, i + 8);
     const books = await Promise.all(
-      chunk.map((row: any) => getCanonicalBook(db, row.external_book_id, user.id)),
+      chunk.map((row: { external_book_id: string }) =>
+        getCanonicalBook(db, row.external_book_id, user.id),
+      ),
     );
     for (let j = 0; j < chunk.length; j++) {
-      if (books[j]) library.push(libraryRow(chunk[j], books[j]));
+      const book = books[j];
+      if (book) library.push(libraryRow(chunk[j], book));
     }
   }
   return {
@@ -4169,34 +4172,55 @@ async function handleCoveRequest(
     if (request.method === "GET" && path === "/account/collection") {
       const user = requiredUser(request);
       const db = database(env);
-      const kind = z.enum(["library", "annotations", "definitions"]).parse(url.searchParams.get("kind"));
-      const offset = z.coerce.number().int().min(0).max(1000000).parse(url.searchParams.get("offset") || 0);
-      const limit = z.coerce.number().int().min(1).max(100).parse(url.searchParams.get("limit") || 100);
+      const kind = z
+        .enum(["library", "annotations", "definitions"])
+        .parse(url.searchParams.get("kind"));
+      const offset = z.coerce
+        .number()
+        .int()
+        .min(0)
+        .max(1000000)
+        .parse(url.searchParams.get("offset") || 0);
+      const limit = z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .parse(url.searchParams.get("limit") || 100);
       const bookId = url.searchParams.get("bookId");
-      let items: any[] = [];
+      let items: unknown[] = [];
       if (kind === "annotations") {
         const sql = bookId
           ? "SELECT * FROM annotations WHERE user_id=? AND book_id=? AND deleted_at IS NULL ORDER BY updated_at DESC,id DESC LIMIT ? OFFSET ?"
           : "SELECT * FROM annotations WHERE user_id=? AND deleted_at IS NULL ORDER BY updated_at DESC,id DESC LIMIT ? OFFSET ?";
         const binds = bookId ? [user.id, bookId, limit + 1, offset] : [user.id, limit + 1, offset];
-        const rows = await db.prepare(sql).bind(...binds).all<any>();
+        const rows = await db
+          .prepare(sql)
+          .bind(...binds)
+          .all<Record<string, unknown>>();
         items = rows.results.map(annotationRow);
       } else if (kind === "definitions") {
-        const rows = await db.prepare(
-          "SELECT * FROM definitions WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",
-        ).bind(user.id, limit + 1, offset).all<any>();
+        const rows = await db
+          .prepare(
+            "SELECT * FROM definitions WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",
+          )
+          .bind(user.id, limit + 1, offset)
+          .all<Record<string, unknown>>();
         items = rows.results.map(definitionRow);
       } else {
-        const rows = await db.prepare(
-          "SELECT rs.* FROM reading_states rs WHERE rs.user_id=? AND rs.in_library=1 AND EXISTS (SELECT 1 FROM entitlements e WHERE e.user_id=rs.user_id AND e.product_id=rs.product_id AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)) ORDER BY rs.updated_at DESC,rs.product_id DESC LIMIT ? OFFSET ?",
-        ).bind(user.id, now(), now(), limit + 1, offset).all<any>();
+        const rows = await db
+          .prepare(
+            "SELECT rs.* FROM reading_states rs WHERE rs.user_id=? AND rs.in_library=1 AND EXISTS (SELECT 1 FROM entitlements e WHERE e.user_id=rs.user_id AND e.product_id=rs.product_id AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)) ORDER BY rs.updated_at DESC,rs.product_id DESC LIMIT ? OFFSET ?",
+          )
+          .bind(user.id, now(), now(), limit + 1, offset)
+          .all<Record<string, unknown>>();
         for (let i = 0; i < rows.results.length; i += 8) {
           const chunk = rows.results.slice(i, i + 8);
           const books = await Promise.all(
-            chunk.map((row: any) => getCanonicalBook(db, row.external_book_id, user.id)),
+            chunk.map((row) => getCanonicalBook(db, String(row.external_book_id), user.id)),
           );
           for (let j = 0; j < chunk.length; j++)
-            if (books[j]) items.push(libraryRow(chunk[j], books[j]));
+            if (books[j]) items.push(libraryRow(chunk[j], books[j]!));
         }
       }
       return json({
