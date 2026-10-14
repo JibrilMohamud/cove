@@ -499,19 +499,15 @@ export async function processNotificationDeliveryQueue(env: CoveEnv, limit = 50)
       continue;
     }
     if (!cfg.url) {
-      await db.batch([
-        db
-          .prepare(
-            "UPDATE notification_delivery_jobs SET status='suppressed',last_error='provider_not_configured',leased_until=NULL,updated_at=? WHERE id=?",
-          )
-          .bind(now(), job.id),
-        db
-          .prepare(
-            "INSERT OR IGNORE INTO notification_delivery_attempts(id,delivery_job_id,attempt_number,provider,outcome,error_code,error_detail,attempted_at) VALUES(?,?,?,?,'suppressed','provider_not_configured','Outbound provider bridge is not configured.',?)",
-          )
-          .bind(uid("nda"), job.id, attempt, cfg.provider, now()),
-      ]);
-      suppressed++;
+      // An unset provider is a deployment/configuration fault, not an opt-out.
+      // Keep the delivery durable so activating the bridge can resume it.
+      await db
+        .prepare(
+          "UPDATE notification_delivery_jobs SET status='retry',attempts=MAX(0,attempts-1),available_at=?,leased_until=NULL,last_error='provider_not_configured',updated_at=? WHERE id=?",
+        )
+        .bind(new Date(Date.now() + 3600000).toISOString(), now(), job.id)
+        .run();
+      retry++;
       continue;
     }
     try {
