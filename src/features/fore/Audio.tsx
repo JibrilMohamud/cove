@@ -779,13 +779,16 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
               activity.current?.setPlaying(false);
               if (index < e.tracks.length - 1) {
                 void selectTrack(index + 1, true);
-              } else if (data.user && (e.bookId || e.productId)) {
-                // Reuse the library completion flow for totals, goals and reading journeys.
-                void api("/library", "POST", {
-                  bookId: e.productId || e.bookId,
-                  status: "finished",
-                  progress: 1,
-                })
+              } else if (data.user && (e.commercial || e.bookId)) {
+                // Commercial audiobooks can be subscription-only and have no associated ebook.
+                const completion = e.commercial
+                  ? api("/audio/" + encodeURIComponent(e.id) + "/complete", "POST")
+                  : api("/library", "POST", {
+                      bookId: e.bookId,
+                      status: "finished",
+                      progress: 1,
+                    });
+                void completion
                   .then(() => {
                     toast.success("Audiobook finished");
                   })
