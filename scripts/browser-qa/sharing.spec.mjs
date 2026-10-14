@@ -573,7 +573,7 @@ async function selectReaderPassage(page) {
   // Sharing dialogs return focus to their trigger outside the EPUB. WebKit
   // requires the text document to regain focus before it retains a selection.
   await passage.click();
-  await passage.evaluate((element) => {
+  const nativeSelection = await passage.evaluate((element) => {
     const doc = element.ownerDocument,
       range = doc.createRange();
     range.selectNodeContents(element);
@@ -581,8 +581,15 @@ async function selectReaderPassage(page) {
     selection.removeAllRanges();
     selection.addRange(range);
     doc.dispatchEvent(new Event("selectionchange"));
+    return {
+      text: selection.toString(),
+      rangeText: range.toString(),
+      frameElementAvailable: !!doc.defaultView.frameElement,
+      documentFocused: doc.hasFocus(),
+    };
   });
-  await expect(page.locator(".selection-toolbar")).toBeVisible();
+  expect(nativeSelection.rangeText).toBe(quote);
+  await expect(page.locator(".selection-toolbar"), JSON.stringify(nativeSelection)).toBeVisible();
 }
 
 test("saved defaults, independent group pickers and simultaneous audiences drive publication", async ({

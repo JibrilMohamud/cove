@@ -853,7 +853,10 @@ export function ReaderPage({ id }: { id: string }) {
             if (selectionTimer) clearTimeout(selectionTimer);
             selectionTimer = setTimeout(() => {
               selectionTimer = undefined;
-              if (canceled || !doc.defaultView?.frameElement?.isConnected) return;
+              const stillDisplayed = Array.from(
+                container.current?.querySelectorAll("iframe") || [],
+              ).some((frame) => frame.contentDocument === doc);
+              if (canceled || !stillDisplayed) return;
               try {
                 presentSelection(contents.cfiFromRange(range), text);
               } catch {
