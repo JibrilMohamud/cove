@@ -185,7 +185,9 @@ export function ReaderPage({ id }: { id: string }) {
     if (!data.user?.id) return;
     const userId = data.user.id;
     const drain = () => {
-      void flushReaderMutations(userId).then(() => reload()).catch(() => {});
+      void flushReaderMutations(userId)
+        .then(() => reload())
+        .catch(() => {});
     };
     const timer = window.setInterval(drain, 60000);
     window.addEventListener("online", drain);
@@ -716,24 +718,17 @@ export function ReaderPage({ id }: { id: string }) {
               previewVersion.current = saved.version;
             }
           } else {
-            const written = await queueReaderMutation(
-              ownerId,
-              "position",
-              id,
-              "/library",
-              "POST",
-              {
-                bookId: id,
-                status:
-                  (snapshot.atEnd && advancedPage.current) ||
-                  findLibraryBook(accountRef.current.library, id)?.status === "finished"
-                    ? "finished"
-                    : "reading",
-                cfi: snapshot.cfi,
-                progress: snapshot.progress,
-                expectedVersion: readingVersion.current,
-              },
-            );
+            const written = await queueReaderMutation(ownerId, "position", id, "/library", "POST", {
+              bookId: id,
+              status:
+                (snapshot.atEnd && advancedPage.current) ||
+                findLibraryBook(accountRef.current.library, id)?.status === "finished"
+                  ? "finished"
+                  : "reading",
+              cfi: snapshot.cfi,
+              progress: snapshot.progress,
+              expectedVersion: readingVersion.current,
+            });
             if (readingScope.current !== scope || accountRef.current.user?.id !== ownerId) return;
             if (written.queued) {
               savedPositionKey.current = key;
@@ -1293,14 +1288,15 @@ export function ReaderPage({ id }: { id: string }) {
     if (!selection) return;
     setSaving(true);
     try {
+      const clientId = crypto.randomUUID();
       const written = await queueReaderMutation(
         data.user.id,
         "annotation",
-        crypto.randomUUID(),
+        clientId,
         "/annotations",
         "POST",
         {
-          clientId: crypto.randomUUID(),
+          clientId,
           bookId: id,
           quote: selection.text,
           cfi: selection.cfi,
