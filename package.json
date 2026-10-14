@@ -47,6 +47,7 @@
     "test:search-updater-cache": "node scripts/check-search-updater-cache.mjs",
     "test:reader-sharing-offline": "node scripts/check-reader-sharing-offline.mjs",
     "test:reader-recovery": "node scripts/check-reader-recovery.mjs",
+    "test:offline-epub-renewal": "node scripts/check-offline-epub-renewal.mjs && node scripts/check-offline-epub-client.mjs",
     "test:sharing-erasure": "node scripts/check-sharing-erasure.mjs",
     "lint:strict": "eslint .",
     "test:browser": "playwright test",

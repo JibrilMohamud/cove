@@ -37,3 +37,31 @@ Public metadata fallback is limited to availability failures and verified saved 
 `npm run test:reader-sharing-offline` exercises all migrations, actual annotation APIs and sharing/feed functions, structured-clone IndexedDB transactions, native Web Crypto signing/encryption, account-switch races, denial responses, canonical/source-ID EPUB lookups, tamper rejection, and SSR route shells. It runs in persistence and security CI. Service and security/sync regressions cover surrounding annotation and account behavior.
 
 Browser/device playback and storage compatibility still require device QA. The suite is behavioral verification and does not claim publisher DRM certification or a production load benchmark.
+
+
+### Licensed EPUB offline duration and renewal (2026-10)
+
+Cove issues a signed EPUB offline receipt valid for **at most seven 24-hour days** from issuance.
+A shorter time-limited entitlement shortens the receipt expiry. Offline receipt issuance
+is denied if a publisher forbids offline copies, the registered device is revoked, or the
+edition needs unsupported external DRM.
+
+While the reader is online, Cove attempts renewal during the **final 24 hours** of
+the receipt. It also checks on sign-in, reconnection, and periodically while the
+site remains open. Each renewal obtains a **fresh rights/entitlement-checked delivery
+grant and encrypted EPUB generation**. Failed renewal keeps the old generation
+until its original expiry; it never extends access. Attempts are throttled to
+avoid repeated downloads. If a successful renewal cannot extend a time-limited loan,
+a 12-hour cooldown prevents excessive delivery-grant usage. Refreshing may consume
+a publisher's download quota.
+At expiry, offline access stops until a successful online renewal.
+
+Receipt signatures use `cove-offline-epub:v1` with a newline separator and a
+P-256 signing key. Public verification material must be retrieved through
+Cove's authenticated HTTPS `/offline-epub/verification-key` route and cached
+separately from the license record. Cached book metadata is not a trust anchor.
+The signing private JWK must be configured as
+`FORE_OFFLINE_AUDIO_SIGNING_JWK` in the **Cove Vercel application environment**;
+it must not be bundled with browser assets or committed to Git. A missing key
+means issuance fails closed. Rotate keys carefully: an offline reader can only
+verify previously issued receipts for keys already trusted on that device.
