@@ -865,7 +865,13 @@ test("loading older margin activity preserves the newest visible note and opens 
     await bob.locator(".reader-social-gutter button").first().click();
     const panel = bob.locator(".reader-social-panel");
     await expect(panel.getByText(note, { exact: true })).toBeVisible();
-    await panel.getByRole("button", { name: "Load older passage activity" }).click();
+    // Loading the final page removes its own button. WebKit's pointer action
+    // can retry after that successful removal; keyboard activation completes
+    // before the update while exercising the same accessible control.
+    const loadOlder = panel.getByRole("button", { name: "Load older passage activity" });
+    await expect(loadOlder).toBeEnabled();
+    await loadOlder.focus();
+    await loadOlder.press("Enter");
     await expect(panel.getByRole("button", { name: "Load older passage activity" })).toHaveCount(0);
     await expect(panel.getByText(note, { exact: true })).toBeVisible();
     await expect(panel.getByText("An older published note.", { exact: true })).toHaveCount(0);
