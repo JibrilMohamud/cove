@@ -53,7 +53,7 @@ for (const token of [
   "account_security_alert",
 ])
   assert.ok(notifications.includes(token), `notifications server missing ${token}`);
-assert.match(notifications, /attempt>=6/);
+assert.match(notifications, /attempt\s*>=\s*6/);
 assert.match(notifications, /status='leased' AND leased_until<=\?/);
 const delivery = read("src/features/fore/delivery.server.ts");
 for (const token of [
@@ -126,7 +126,7 @@ for (const token of [
 ])
   assert.ok(ui.includes(token), `notification UI missing ${token}`);
 const sw = read("public/sw.js");
-assert.match(sw, /addEventListener\('push'/);
+assert.match(sw, /addEventListener\(['\"]push['\"]/);
 assert.match(sw, /notificationclick/);
 const py = `import sqlite3,glob\nc=sqlite3.connect(':memory:');c.execute('pragma foreign_keys=on')\nfor f in sorted(glob.glob('drizzle/*.sql')): c.executescript(open(f).read())\nprint(len(glob.glob('drizzle/*.sql')))\nprint(c.execute("select count(*) from sqlite_master where type='table' and name in ('notification_events','commercial_delivery_grants','entitlement_ownership_records','annotation_cfi_migrations')").fetchone()[0])\ncols=lambda t:{r[1] for r in c.execute('pragma table_info('+t+')')}\nprint('grant-token-hashed' if 'token_hash' in cols('commercial_delivery_grants') and 'url' not in cols('commercial_delivery_grants') else 'bad-grant')\nprint('policy-controls-ok' if {'token_ttl_seconds','max_downloads_per_entitlement','require_device_registration','watermark_mode','encryption_mode'}<=cols('commercial_delivery_policies') else 'bad-policy')\n`;
 const applied = spawnSync("python", ["-c", py], { cwd: root, encoding: "utf8" });
