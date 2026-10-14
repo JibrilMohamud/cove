@@ -1,3 +1,4 @@
+import { CoveRequestError } from "./api-transport";
 import { AddToShelf } from "./Shelves";
 import { OfflineDownloads } from "./Audio";
 import { AccountManagementPanel } from "./AccountManagement";
@@ -57,7 +58,7 @@ import {
 } from "./client";
 import { BookArt } from "./Store";
 import { inspectEpub, downloadBook, exportReadingData, downloadCoveBackup } from "./epub";
-import type { HighlightShareAudience } from "./Sharing";
+import type { HighlightShareAudience, HighlightShareState } from "./Sharing";
 export function AccountGuard({ children }: { children: ReactNode }) {
   const { data, loading, error, reload, signIn } = useAccount();
   if (loading)
@@ -337,9 +338,12 @@ export function HighlightsPage() {
     [republishing, setRepublishing] = useState(false),
     [republish, setRepublish] = useState<{
       annotationId: string;
+      annotationVersion: number;
+      note: string;
       shares: HighlightShareAudience[];
+      selectedIds: string[];
     } | null>(null);
-  const sharing = useQuery<{ shared: boolean; shares: HighlightShareAudience[] }>({
+  const sharing = useQuery<HighlightShareState>({
     queryKey: ["highlight-sharing-editor", data.user?.id, edit?.id],
     queryFn: () => api(`/social/highlights/${encodeURIComponent(edit!.id)}/share`),
     enabled: !!data.user && !!edit,
@@ -352,7 +356,7 @@ export function HighlightsPage() {
       [a.quote, a.note, a.bookTitle, a.chapter].join(" ").toLowerCase().includes(q.toLowerCase()),
   );
   async function republishPublishedNote() {
-    if (!republish) return;
+    if (!republish || republishing || !republish.selectedIds.length) return;
     setRepublishing(true);
     try {
       await api(
@@ -360,14 +364,22 @@ export function HighlightsPage() {
         "POST",
         {
           confirmed: true,
-          shares: republish.shares.map((share) => ({ id: share.id, version: share.version })),
+          expectedAnnotationVersion: republish.annotationVersion,
+          shares: republish.shares
+            .filter((share) => republish.selectedIds.includes(share.id))
+            .map((share) => ({ id: share.id, version: share.version })),
         },
       );
       toast.success(
-        `Published note updated for ${republish.shares.length} ${republish.shares.length === 1 ? "audience" : "audiences"}.`,
+        `Published note updated for ${republish.selectedIds.length} ${republish.selectedIds.length === 1 ? "audience" : "audiences"}.`,
       );
       setRepublish(null);
     } catch (e) {
+      if (e instanceof CoveRequestError && e.status === 409) {
+        setRepublish(null);
+        setEdit(null);
+        await reload();
+      }
       toast.error((e as Error).message);
     } finally {
       setRepublishing(false);
@@ -553,11 +565,18 @@ export function HighlightsPage() {
               {sharing.data.shares.some((share) => share.shareNote) && (
                 <button
                   className="button outline"
-                  disabled={republishing}
+                  disabled={
+                    republishing || saving || sharing.isFetching || note !== (edit?.note || "")
+                  }
                   onClick={() =>
                     setRepublish({
                       annotationId: edit!.id,
+                      annotationVersion: edit!.version,
+                      note: edit!.note || "",
                       shares: sharing.data!.shares.filter((share) => share.shareNote),
+                      selectedIds: sharing
+                        .data!.shares.filter((share) => share.shareNote)
+                        .map((share) => share.id),
                     })
                   }
                 >
@@ -586,7 +605,7 @@ export function HighlightsPage() {
             placeholder="What does this passage bring to mind?"
           />
           <button
-            disabled={saving || sharing.isPending || sharing.isError}
+            disabled={saving || sharing.isPending || sharing.isFetching || sharing.isError}
             className="button gold"
             onClick={async () => {
               if (!edit || !sharing.data) return;
@@ -594,7 +613,7 @@ export function HighlightsPage() {
                 publishedShares = sharing.data.shares.filter((share) => share.shareNote);
               setSaving(true);
               try {
-                await api("/annotations/" + edit.id, "PATCH", {
+                const saved = await api<{ version: number }>("/annotations/" + edit.id, "PATCH", {
                   note,
                   color: editColor,
                   expectedVersion: edit.version,
@@ -602,7 +621,13 @@ export function HighlightsPage() {
                 await reload();
                 setEdit(null);
                 if (noteChanged && publishedShares.length) {
-                  setRepublish({ annotationId: edit.id, shares: publishedShares });
+                  setRepublish({
+                    annotationId: edit.id,
+                    annotationVersion: saved.version,
+                    note,
+                    shares: publishedShares,
+                    selectedIds: publishedShares.map((share) => share.id),
+                  });
                   toast.success("Private note saved. Published copies have not changed.");
                 } else {
                   toast.success("Your note is saved");
@@ -633,16 +658,39 @@ export function HighlightsPage() {
           {republish && (
             <ul>
               {republish.shares.map((share) => (
-                <li key={share.id}>{highlightAudienceName(share)}</li>
+                <li key={share.id}>
+                  <label className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={republish.selectedIds.includes(share.id)}
+                      disabled={republishing}
+                      onChange={(e) =>
+                        setRepublish({
+                          ...republish,
+                          selectedIds: e.target.checked
+                            ? [...republish.selectedIds, share.id]
+                            : republish.selectedIds.filter((id) => id !== share.id),
+                        })
+                      }
+                    />
+                    {highlightAudienceName(share)}
+                  </label>
+                </li>
               ))}
             </ul>
+          )}
+          {republish && (
+            <div className="reader-format-notice">
+              <strong>Note copy to publish</strong>
+              <blockquote>{republish.note || "No note text"}</blockquote>
+            </div>
           )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={republishing}>
               Keep published copies unchanged
             </AlertDialogCancel>
             <AlertDialogAction
-              disabled={republishing}
+              disabled={republishing || !republish?.selectedIds.length}
               onClick={(e) => {
                 e.preventDefault();
                 void republishPublishedNote();

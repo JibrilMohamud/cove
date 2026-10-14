@@ -92,11 +92,14 @@ try {
   assert.equal(made.status, 201);
   const annotation = await made.json(),
     sharePath = `/social/highlights/${annotation.id}/share`;
-  const share = (visibility = "public", options = {}) =>
+  const share = async (visibility = "public", options = {}) =>
     social.handleSocial(
       request(sharePath, "POST", {
         visibility,
         shareNote: true,
+        expectedAnnotationVersion: (
+          await db.prepare("SELECT version FROM annotations WHERE id=?").bind(annotation.id).first()
+        ).version,
         audienceConfirmed: true,
         ...options,
       }),

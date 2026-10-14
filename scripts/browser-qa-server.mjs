@@ -98,6 +98,7 @@ async function seed(progress = 1) {
       visibility: "member",
       recipientUserId: people.bob.id,
       shareNote: true,
+      expectedAnnotationVersion: annotation.version,
       audienceConfirmed: true,
     },
     people.alice,
@@ -211,7 +212,21 @@ process.chdir(scratch);
 const server = await createServer({
   root: scratch,
   configFile: path.join(scratch, "vite.config.ts"),
-  server: { host: "127.0.0.1", port: 4173, strictPort: true },
+  // Prepare the first client graph before readiness. A cold dependency rebuild
+  // previously canceled @tanstack/history imports in Firefox/WebKit.
+  optimizeDeps: { include: ["@tanstack/history"] },
+  server: {
+    host: "127.0.0.1",
+    port: 4173,
+    strictPort: true,
+    warmup: {
+      clientFiles: [
+        "./src/router.tsx",
+        "./src/routes/__root.tsx",
+        "./src/features/fore/{App,Store,Book,Edition,Community,Reader}.tsx",
+      ],
+    },
+  },
   plugins: [fixturePlugin],
 });
 await server.listen();
@@ -249,6 +264,14 @@ await env.DB.prepare(
 )
   .bind(hash, bytes.length)
   .run();
+const client = server.environments.client;
+await client.warmupRequest("/src/router.tsx");
+await client.waitForRequestsIdle();
+await Promise.all(
+  Object.values(client.depsOptimizer?.metadata.discovered || {}).map(
+    (dependency) => dependency.processing,
+  ),
+);
 ready = true;
 console.log("Cove isolated browser QA ready at http://127.0.0.1:4173");
 if (process.env.COVE_QA_SMOKE === "1") {

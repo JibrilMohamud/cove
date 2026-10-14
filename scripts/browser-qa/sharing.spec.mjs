@@ -322,8 +322,19 @@ test("EPUB reader opens and joined members receive group margin discussions", as
       .last()
       .getByRole("button", { name: "Delete", exact: true })
       .click();
+    await bob
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Delete published discussion", exact: true })
+      .click();
     await expect(thread.getByText("An edited margin reply.", { exact: true })).toHaveCount(0);
     await post.getByRole("button", { name: "Report", exact: true }).click();
+    const report = bob.getByRole("dialog", { name: "Report this discussion" });
+    await expect(report.getByRole("button", { name: "Submit report" })).toBeDisabled();
+    await report.getByLabel("Report reason").selectOption("harassment");
+    await report
+      .getByLabel("Report details")
+      .fill("Please review this passage discussion for harassment.");
+    await report.getByRole("button", { name: "Submit report" }).click();
     await expect(bob.getByText("Report sent to moderation")).toBeVisible();
     await noOverflow(bob);
     await bob.screenshot({ path: testInfo.outputPath("group-reader.png"), fullPage: true });
@@ -551,6 +562,312 @@ test("discovery finds a particular member by username", async ({ browser, reques
     await alice.getByLabel("Find a member").fill("no_such_reader_qa");
     await expect(alice.getByText("No members found.", { exact: true })).toBeVisible();
     await noOverflow(alice);
+  } finally {
+    await fixture.close();
+  }
+});
+
+async function selectReaderPassage(page) {
+  const passage = page.frameLocator(".epub-container iframe").locator("#passage");
+  await expect(passage).toBeVisible();
+  await passage.evaluate((element) => {
+    const doc = element.ownerDocument,
+      range = doc.createRange();
+    range.selectNodeContents(element);
+    const selection = doc.defaultView.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    doc.dispatchEvent(new Event("selectionchange"));
+  });
+  await expect(page.locator(".selection-toolbar")).toBeVisible();
+}
+
+test("saved defaults, independent group pickers and simultaneous audiences drive publication", async ({
+  browser,
+  request,
+}, testInfo) => {
+  const fixture = await setup(browser, request, testInfo);
+  try {
+    const alice = await fixture.pageFor("alice");
+    const me = await (await alice.request.get("/api/fore/social/me")).json();
+    const profile = me.profile;
+    const saveDefault = await alice.request.post("/api/fore/social/profile", {
+      data: {
+        bio: profile.bio || "",
+        profileVisibility: profile.profile_visibility,
+        followPolicy: profile.follow_policy,
+        repliesPolicy: profile.replies_policy,
+        activityVisibility: profile.activity_visibility,
+        journeyVisibilityDefault: profile.journey_visibility_default,
+        highlightVisibilityDefault: "followers",
+        showCurrentlyReading: !!profile.show_currently_reading,
+        expectedVersion: profile.version,
+      },
+    });
+    expect(saveDefault.ok(), await saveDefault.text()).toBeTruthy();
+    const secondGroupName = `Another circle ${fixture.people.alice.username}`;
+    const secondGroup = await (
+      await alice.request.post("/api/fore/social/groups", {
+        data: { name: secondGroupName, visibility: "private" },
+      })
+    ).json();
+    const book = await (await alice.request.get("/api/fore/books/1342")).json();
+    await alice.goto(`/read/${book.publicProductId || book.id}`);
+    await expect(alice.getByRole("button", { name: "Next page", exact: true })).toBeEnabled();
+    if (!(await alice.getByRole("button", { name: "Book highlights", exact: true }).isVisible()))
+      await alice
+        .frameLocator(".epub-container iframe")
+        .getByRole("heading", { name: "Chapter 1", exact: true })
+        .click();
+    await alice.getByRole("button", { name: "Book highlights", exact: true }).click();
+    await expect(
+      alice.locator(".reader-highlights").getByText(quote, { exact: true }),
+    ).toBeVisible();
+    await alice.getByRole("button", { name: `Share highlight: ${quote}`, exact: true }).click();
+    let share = alice.getByRole("dialog", { name: "Share this highlight." });
+    await expect(share.getByRole("combobox").first()).toContainText("Followers");
+    await expect(share.getByRole("button", { name: "Share with this audience" })).toBeDisabled();
+    await share.getByRole("combobox").first().click();
+    await alice.getByRole("option", { name: "Reading group", exact: true }).click();
+    await expect(share.getByRole("combobox").nth(1)).toContainText("Choose a reading group");
+    await share.getByRole("combobox").nth(1).click();
+    await alice.getByRole("option", { name: secondGroupName, exact: true }).click();
+    await share.getByLabel("Include my private note with this shared highlight").check();
+    await expect(share.getByText(note, { exact: true })).toBeVisible();
+    await share.getByRole("checkbox", { name: /I confirm this highlight/ }).check();
+    await share.getByRole("button", { name: "Share with this audience" }).click();
+    await expect(share).toHaveCount(0);
+    const route = `/api/fore/social/highlights/${fixture.annotationId}/share`;
+    let published = await (await alice.request.get(route)).json();
+    const independent = published.shares.find((item) => item.groupId === secondGroup.id);
+    expect(independent.shareNote).toBe(true);
+    expect(published.shares.some((item) => item.recipientUserId === fixture.people.bob.id)).toBe(
+      true,
+    );
+    if (!(await alice.getByRole("button", { name: "Book highlights", exact: true }).isVisible()))
+      await alice
+        .frameLocator(".epub-container iframe")
+        .getByRole("heading", { name: "Chapter 1", exact: true })
+        .click();
+    await alice.getByRole("button", { name: "Book highlights", exact: true }).click();
+    await alice.getByRole("button", { name: `Share highlight: ${quote}`, exact: true }).click();
+    share = alice.getByRole("dialog", { name: "Share this highlight." });
+    await share.getByRole("combobox").first().click();
+    await alice.getByRole("option", { name: "Reading group", exact: true }).click();
+    await share.getByRole("combobox").nth(1).click();
+    await alice.getByRole("option", { name: fixture.groupName, exact: true }).click();
+    await share.getByRole("checkbox", { name: /I confirm this highlight/ }).check();
+    await share.getByRole("button", { name: "Share with this audience" }).click();
+    await expect(share).toHaveCount(0);
+    published = await (await alice.request.get(route)).json();
+    expect(published.shares).toHaveLength(3);
+    expect(published.shares.find((item) => item.id === independent.id).version).toBe(
+      independent.version,
+    );
+    expect(published.shares.find((item) => item.groupId === fixture.groupId).shareNote).toBe(false);
+
+    // Leave the transient success toast rather than keep it paused by mouse hover.
+    await alice.mouse.move(0, 0);
+    await expect(alice.locator("[data-sonner-toast]")).toHaveCount(0);
+    await selectReaderPassage(alice);
+    await alice
+      .locator(".selection-toolbar")
+      .getByRole("button", { name: "Discuss", exact: true })
+      .click();
+    const composer = alice.getByRole("dialog", { name: "Start a margin conversation." });
+    await expect(composer.getByRole("combobox").first()).toContainText("Friends / mutuals");
+    await composer
+      .getByLabel("Margin discussion")
+      .fill("An explicitly addressed margin discussion.");
+    await expect(composer.getByRole("button", { name: /^Post to/ })).toBeDisabled();
+    await composer.getByRole("combobox").first().click();
+    await alice.getByRole("option", { name: "Reading group", exact: true }).click();
+    await composer.getByRole("combobox").nth(1).click();
+    await alice.getByRole("option", { name: secondGroupName, exact: true }).click();
+    await composer.getByRole("checkbox", { name: /I confirm this discussion/ }).check();
+    const posted = alice.waitForResponse(
+      (r) =>
+        new URL(r.url()).pathname === "/api/fore/social/posts" && r.request().method() === "POST",
+    );
+    await composer.getByRole("button", { name: /^Post to/ }).click();
+    const response = await posted;
+    expect(response.ok()).toBeTruthy();
+    const post = await response.json();
+    const thread = await (
+      await alice.request.get(
+        `/api/fore/social/posts?contextType=margin&contextId=1342&postId=${post.id}`,
+      )
+    ).json();
+    expect(thread.posts[0].groupId).toBe(secondGroup.id);
+    const viewing = await (await alice.request.get("/api/fore/social/reader/1342")).json();
+    expect(viewing.preferences.groupId).toBe(fixture.groupId);
+    await noOverflow(alice);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("note republishing selects audiences and rejects a concurrently changed private note", async ({
+  browser,
+  request,
+}, testInfo) => {
+  const fixture = await setup(browser, request, testInfo);
+  try {
+    const alice = await fixture.pageFor("alice"),
+      bob = await fixture.pageFor("bob"),
+      charlie = await fixture.pageFor("charlie");
+    const shareRoute = `/api/fore/social/highlights/${fixture.annotationId}/share`;
+    const source = await (await alice.request.get(shareRoute)).json();
+    const shared = await alice.request.post(shareRoute, {
+      data: {
+        visibility: "member",
+        recipientUserId: fixture.people.charlie.id,
+        shareNote: true,
+        expectedAnnotationVersion: source.annotationVersion,
+        expectedVersion: 0,
+        audienceConfirmed: true,
+      },
+    });
+    expect(shared.ok(), await shared.text()).toBeTruthy();
+    await alice.goto("/highlights");
+    let card = alice.locator("article.annotation-card").filter({ hasText: quote });
+    await card.getByRole("button", { name: "Edit highlight note" }).click();
+    await expect(alice.getByText("This highlight remains shared", { exact: true })).toBeVisible();
+    await alice.getByLabel("Note on this passage").fill("A new copy only for Bob.");
+    await alice.getByRole("button", { name: "Save note", exact: true }).click();
+    let dialog = alice.getByRole("alertdialog");
+    await expect(dialog).toBeVisible();
+    await dialog
+      .getByRole("checkbox", { name: `@${fixture.people.charlie.username}`, exact: true })
+      .uncheck();
+    await dialog.getByRole("button", { name: "Republish note", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await inventory(bob);
+    await expect(bob.getByText("A new copy only for Bob.", { exact: true })).toBeVisible();
+    await inventory(charlie);
+    await expect(charlie.getByText(note, { exact: true })).toBeVisible();
+    await alice.goto("/highlights");
+    card = alice.locator("article.annotation-card").filter({ hasText: quote });
+    await card.getByRole("button", { name: "Edit highlight note" }).click();
+    await expect(alice.getByRole("button", { name: "Review & republish note…" })).toBeEnabled();
+    await alice.getByRole("button", { name: "Review & republish note…" }).click();
+    dialog = alice.getByRole("alertdialog");
+    await expect(dialog).toBeVisible();
+    const current = await (await alice.request.get(shareRoute)).json();
+    const edited = await alice.request.patch(`/api/fore/annotations/${fixture.annotationId}`, {
+      data: {
+        note: "A private edit from another device.",
+        color: "yellow",
+        expectedVersion: current.annotationVersion,
+      },
+    });
+    expect(edited.ok(), await edited.text()).toBeTruthy();
+    await dialog.getByRole("button", { name: "Republish note", exact: true }).click();
+    await expect(alice.getByText(/Your private note changed\./)).toBeVisible();
+    await expect(dialog).toHaveCount(0);
+    await inventory(bob);
+    await expect(bob.getByText("A new copy only for Bob.", { exact: true })).toBeVisible();
+    await inventory(charlie);
+    await expect(charlie.getByText(note, { exact: true })).toBeVisible();
+    await card.getByRole("button", { name: "Edit highlight note" }).click();
+    await expect(alice.getByLabel("Note on this passage")).toHaveValue(
+      "A private edit from another device.",
+    );
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("loading older margin activity preserves the newest visible note and opens older conversations", async ({
+  browser,
+  request,
+}, testInfo) => {
+  const fixture = await setup(browser, request, testInfo);
+  try {
+    const alice = await fixture.pageFor("alice"),
+      bob = await fixture.pageFor("bob");
+    const reader = await (await bob.request.get("/api/fore/social/reader/1342")).json();
+    const preference = await bob.request.post("/api/fore/social/reader/preferences", {
+      data: {
+        ...reader.preferences,
+        audienceMode: "friends",
+        groupId: null,
+        expectedVersion: reader.preferences.version,
+      },
+    });
+    expect(preference.ok(), await preference.text()).toBeTruthy();
+    const olderBody = "An older accessible conversation.";
+    const published = await alice.request.post("/api/fore/social/posts", {
+      data: {
+        contextType: "margin",
+        contextId: "1342",
+        bookId: "1342",
+        cfi: "epubcfi(/6/2!/4/6/1:0)",
+        chapter: "Chapter 1",
+        progress: 0,
+        passageText: "Reading paragraph 1.",
+        body: olderBody,
+        visibility: "member",
+        recipientUserId: fixture.people.bob.id,
+        audienceConfirmed: true,
+      },
+    });
+    expect(published.ok(), await published.text()).toBeTruthy();
+    const post = await published.json();
+    const projection = await (await bob.request.get("/api/fore/social/reader/1342")).json();
+    const original = projection.indicators.find((cluster) =>
+      cluster.highlights.some((highlight) => highlight.annotationId === fixture.annotationId),
+    );
+    const older = projection.indicators.find((cluster) =>
+      cluster.posts.some((item) => item.id === post.id),
+    );
+    expect(original).toBeTruthy();
+    expect(older).toBeTruthy();
+    // Server cursor filtering is covered by the database pagination regression.
+    // Here we feed those authorized projections as two pages to exercise UI merging.
+    const currentHighlight = { ...original.highlights[0], updatedAt: "2030-01-01T00:00:00.000Z" };
+    await bob.route("**/api/fore/social/reader/*", async (route) => {
+      const cursor = new URL(route.request().url()).searchParams.get("cursor");
+      await route.fulfill({
+        json: {
+          ...projection,
+          indicators: cursor
+            ? [
+                {
+                  ...original,
+                  highlights: [
+                    {
+                      ...currentHighlight,
+                      id: "older_publication",
+                      updatedAt: "2020-01-01T00:00:00.000Z",
+                      note: "An older published note.",
+                    },
+                  ],
+                },
+                older,
+              ]
+            : [{ ...original, highlights: [currentHighlight] }],
+          nextCursor: cursor ? null : "qa_older_page",
+        },
+      });
+    });
+    await bob.goto("/read/1342");
+    await expect(bob.getByRole("button", { name: "Next page", exact: true })).toBeEnabled();
+    await bob.locator(".reader-social-gutter button").first().click();
+    const panel = bob.locator(".reader-social-panel");
+    await expect(panel.getByText(note, { exact: true })).toBeVisible();
+    await panel.getByRole("button", { name: "Load older passage activity" }).click();
+    await expect(panel.getByRole("button", { name: "Load older passage activity" })).toHaveCount(0);
+    await expect(panel.getByText(note, { exact: true })).toBeVisible();
+    await expect(panel.getByText("An older published note.", { exact: true })).toHaveCount(0);
+    await panel.getByRole("button", { name: "← All visible activity" }).click();
+    await panel
+      .locator(".reader-social-summary button")
+      .filter({ hasText: "Reading paragraph 1." })
+      .click();
+    await expect(panel.getByText(olderBody, { exact: true })).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Go to this passage" })).toBeVisible();
+    await noOverflow(bob);
   } finally {
     await fixture.close();
   }

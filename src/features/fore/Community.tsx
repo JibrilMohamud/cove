@@ -1,3 +1,13 @@
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
@@ -68,6 +78,8 @@ export function DiscussionThread({
   onChanged,
   postId,
   parentId,
+  initialPost,
+  initialUpdatedAt,
 }: {
   contextType: "work" | "margin" | "group" | "list" | "profile";
   contextId: string;
@@ -77,6 +89,8 @@ export function DiscussionThread({
   onChanged?: () => void;
   postId?: string;
   parentId?: string;
+  initialPost?: Post;
+  initialUpdatedAt?: number;
 }) {
   const { data, signIn } = useAccount();
   const [body, setBody] = useState("");
@@ -86,12 +100,21 @@ export function DiscussionThread({
   const [editing, setEditing] = useState<string | null>(null);
   const [editBody, setEditBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState<Post | null>(null);
+  const [reporting, setReporting] = useState<Post | null>(null);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
   const q = useInfiniteQuery<{ posts: Post[]; nextCursor: string | null }>({
-    queryKey: ["social-posts", data.user?.id, contextType, contextId, progress, postId, parentId],
+    queryKey: ["social-posts", data.user?.id, contextType, contextId, postId, parentId],
     initialPageParam: "",
+    initialData: initialPost
+      ? { pages: [{ posts: [initialPost], nextCursor: null }], pageParams: [""] }
+      : undefined,
+    initialDataUpdatedAt: initialPost ? initialUpdatedAt : undefined,
+    staleTime: 30_000,
     queryFn: ({ pageParam }) =>
       api(
-        `/social/posts?contextType=${contextType}&contextId=${encodeURIComponent(contextId)}&progress=${progress}&includeReplies=false${postId ? `&postId=${encodeURIComponent(postId)}` : ""}${parentId ? `&parentId=${encodeURIComponent(parentId)}` : ""}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
+        `/social/posts?contextType=${contextType}&contextId=${encodeURIComponent(contextId)}&includeReplies=false${postId ? `&postId=${encodeURIComponent(postId)}` : ""}${parentId ? `&parentId=${encodeURIComponent(parentId)}` : ""}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
       ),
     getNextPageParam: (page) => page.nextCursor || undefined,
   });
@@ -147,6 +170,8 @@ export function DiscussionThread({
   }
   async function react(p: Post) {
     if (!data.user) return signIn();
+    if (busy) return;
+    setBusy(true);
     try {
       const active = !(p.myReactions || []).includes("heart");
       await api(`/social/posts/${encodeURIComponent(p.id)}/reaction`, "POST", {
@@ -157,33 +182,47 @@ export function DiscussionThread({
       onChanged?.();
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
   async function remove(p: Post) {
-    if (!data.user) return;
+    if (!data.user || busy) return;
+    setBusy(true);
     try {
       await api(`/social/posts/${encodeURIComponent(p.id)}`, "DELETE", {
         expectedVersion: p.version || 1,
       });
       await q.refetch();
       onChanged?.();
+      setRemoving(null);
       toast.success("Discussion removed");
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
-  async function report(p: Post) {
+  async function report() {
     if (!data.user) return signIn();
+    if (busy || !reporting || !reportReason || (reportReason === "other" && !reportDetails.trim()))
+      return;
+    setBusy(true);
     try {
       await api("/social/report", "POST", {
         subjectType: "social_post",
-        subjectId: p.id,
-        reason: "other",
-        details: "Reported from the discussion interface for moderator review.",
+        subjectId: reporting.id,
+        reason: reportReason,
+        details: reportDetails.trim(),
       });
+      setReporting(null);
+      setReportReason("");
+      setReportDetails("");
       toast.success("Report sent to moderation");
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
   const postBody = (p: Post) => (
@@ -314,6 +353,7 @@ export function DiscussionThread({
                     className={(p.myReactions || []).includes("heart") ? "selected" : ""}
                     aria-pressed={(p.myReactions || []).includes("heart")}
                     aria-label={`React with a heart (${p.reactions || 0})`}
+                    disabled={busy}
                     onClick={() => react(p)}
                   >
                     <Heart size={14} /> {p.reactions || 0}
@@ -334,10 +374,22 @@ export function DiscussionThread({
                       >
                         Edit
                       </button>
-                      <button onClick={() => remove(p)}>Delete</button>
+                      <button disabled={busy} onClick={() => setRemoving(p)}>
+                        Delete
+                      </button>
                     </>
                   ) : (
-                    <button onClick={() => report(p)}>Report</button>
+                    <button
+                      disabled={busy}
+                      onClick={() => {
+                        if (!data.user) return signIn();
+                        setReportReason("");
+                        setReportDetails("");
+                        setReporting(p);
+                      }}
+                    >
+                      Report
+                    </button>
                   )}
                   <span>{when(p.createdAt)}</span>
                 </footer>
@@ -371,6 +423,80 @@ export function DiscussionThread({
           </button>
         )}
       </div>
+      <AlertDialog
+        open={!!removing}
+        onOpenChange={(open) => {
+          if (!open && !busy) setRemoving(null);
+        }}
+      >
+        <AlertDialogContent className="fore-dialog">
+          <AlertDialogTitle>Delete this discussion?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This removes the published discussion and access to its replies. Your private highlights
+            and notes are unchanged.
+          </AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Keep discussion</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={(event) => {
+                event.preventDefault();
+                if (removing) void remove(removing);
+              }}
+            >
+              {busy ? "Deleting…" : "Delete published discussion"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <Dialog
+        open={!!reporting}
+        onOpenChange={(open) => {
+          if (!open && !busy) setReporting(null);
+        }}
+      >
+        <DialogContent className="fore-dialog">
+          <DialogTitle>Report this discussion</DialogTitle>
+          <DialogDescription>
+            Choose the reason so moderators can review it. Reporting does not publish your
+            explanation to other readers.
+          </DialogDescription>
+          <label>
+            Report reason
+            <select
+              value={reportReason}
+              onChange={(event) => setReportReason(event.target.value)}
+              disabled={busy}
+            >
+              <option value="">Choose a reason</option>
+              <option value="spam">Spam</option>
+              <option value="scam">Scam</option>
+              <option value="impersonation">Impersonation</option>
+              <option value="harassment">Harassment</option>
+              <option value="misleading">Misleading content</option>
+              <option value="copyright">Copyright</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>
+            Report details
+            <textarea
+              className="note-input"
+              value={reportDetails}
+              onChange={(event) => setReportDetails(event.target.value)}
+              maxLength={5000}
+              disabled={busy}
+            />
+          </label>
+          <button
+            className="button gold"
+            disabled={busy || !reportReason || (reportReason === "other" && !reportDetails.trim())}
+            onClick={() => report()}
+          >
+            {busy ? "Submitting…" : "Submit report"}
+          </button>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

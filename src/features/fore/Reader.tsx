@@ -1,5 +1,11 @@
+import { mergeMarginHighlights } from "./margin-passages";
 import { DiscussionThread } from "./Community";
-import { MemberPicker, type HighlightShareAudience, type ShareMember } from "./Sharing";
+import {
+  MemberPicker,
+  type HighlightShareAudience,
+  type HighlightShareState,
+  type ShareMember,
+} from "./Sharing";
 import { openBiosync, resolveAudio, resolveText, matchingEpub } from "./biosync-client";
 import { Headphones } from "lucide-react";
 import { createActivity, measureEpub } from "./reading-activity";
@@ -8,7 +14,7 @@ import { loadEdition } from "./audio-client";
 import { cueForAudio, type AudioEdition } from "./domain";
 import { loadBookMetadata } from "./epub";
 import { useEffect, useRef, useState } from "react";
-import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -162,6 +168,7 @@ function conservativeCfiProgress(
   return Math.max(0, index - 1) / Math.max(1, book.locations.total);
 }
 export function ReaderPage({ id }: { id: string }) {
+  const queryClient = useQueryClient();
   const searchString = useRouterState({ select: (state) => state.location.searchStr || "" });
   const previewMode = new URLSearchParams(searchString).get("preview") === "1";
   const bookQuery = useQuery<CatalogBook>({
@@ -169,6 +176,21 @@ export function ReaderPage({ id }: { id: string }) {
     queryFn: () => loadBookMetadata(id),
   });
   const { data, loading: accountLoading, reload, signIn } = useAccount();
+  const bookReferences = useRef(new Set<string>([id]));
+  const metadata = bookQuery.data;
+  bookReferences.current = new Set(
+    [
+      id,
+      metadata?.id,
+      metadata?.publicProductId,
+      metadata?.productId,
+      ...(metadata?.sourceName === "gutenberg" ? [metadata.sourceExternalId] : []),
+    ]
+      .filter((ref) => ref !== undefined && ref !== null)
+      .map(String),
+  );
+  const matchesReadingBook = (ref: string) => bookReferences.current.has(String(ref));
+
   const activity = useRef<ReturnType<typeof createActivity> | null>(null),
     epubHash = useRef(""),
     sync = useRef<Awaited<ReturnType<typeof openBiosync>> | null>(null),
@@ -260,6 +282,9 @@ export function ReaderPage({ id }: { id: string }) {
     [socialMember, setSocialMember] = useState<ShareMember | null>(null),
     [socialShareNote, setSocialShareNote] = useState(false),
     [socialAudienceConfirmed, setSocialAudienceConfirmed] = useState(false),
+    [socialConfirmedAnnotationVersion, setSocialConfirmedAnnotationVersion] = useState<
+      number | null
+    >(null),
     [socialAnnotationId, setSocialAnnotationId] = useState<string | null>(null),
     [socialBusy, setSocialBusy] = useState(false),
     [activeSocialHash, setActiveSocialHash] = useState<string | null>(null),
@@ -324,7 +349,7 @@ export function ReaderPage({ id }: { id: string }) {
     queryFn: () => api(`/social/journeys/${encodeURIComponent(finishedJourney || "")}`),
     enabled: !!data.user && !!finishedJourney,
   });
-  const selectedShare = useQuery<{ shared: boolean; shares: HighlightShareAudience[] }>({
+  const selectedShare = useQuery<HighlightShareState>({
     queryKey: ["highlight-share", data.user?.id, socialAnnotationId],
     queryFn: () => api(`/social/highlights/${encodeURIComponent(socialAnnotationId!)}/share`),
     enabled: !!data.user && !!socialAnnotationId && socialCompose === "share",
@@ -350,14 +375,7 @@ export function ReaderPage({ id }: { id: string }) {
           [...(previous?.posts || []), ...cluster.posts].map((p: any) => [p.id, p]),
         ).values(),
       ];
-      const highlights = [
-        ...new Map(
-          [...(previous?.highlights || []), ...cluster.highlights].map((h: any) => [
-            h.annotationId,
-            h,
-          ]),
-        ).values(),
-      ];
+      const highlights = mergeMarginHighlights(previous?.highlights || [], cluster.highlights);
       clusters.set(cluster.passageHash, {
         ...cluster,
         posts,
@@ -445,17 +463,45 @@ export function ReaderPage({ id }: { id: string }) {
           JSON.stringify(previous) === JSON.stringify(visible) ? previous : visible,
         );
     }
-    measure();
-    const timer = setInterval(measure, 500);
-    window.addEventListener("resize", measure);
+    let frame: number | null = null;
+    const schedule = () => {
+      if (canceled || frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        if (!canceled) measure();
+      });
+    };
+    const currentRendition = rendition.current;
+    const stage = container.current?.closest(".reader-stage");
+    const observer = new ResizeObserver(schedule);
+    if (stage) {
+      observer.observe(stage);
+      stage.addEventListener("scroll", schedule, { passive: true });
+    }
+    const contents = currentRendition?.getContents() || [];
+    for (const content of contents) {
+      content.window.addEventListener("scroll", schedule, { passive: true });
+      void content.document.fonts?.ready.then(schedule);
+    }
+    for (const event of ["rendered", "relocated", "resized", "layout"])
+      currentRendition?.on(event, schedule);
+    window.addEventListener("resize", schedule);
+    document.addEventListener("visibilitychange", schedule);
+    schedule();
     return () => {
       canceled = true;
-      clearInterval(timer);
-      window.removeEventListener("resize", measure);
+      if (frame !== null) cancelAnimationFrame(frame);
+      observer.disconnect();
+      stage?.removeEventListener("scroll", schedule);
+      for (const content of contents) content.window.removeEventListener("scroll", schedule);
+      for (const event of ["rendered", "relocated", "resized", "layout"])
+        currentRendition?.off(event, schedule);
+      window.removeEventListener("resize", schedule);
+      document.removeEventListener("visibilitychange", schedule);
     };
   }, [socialReaderQuery.data, percent, chapter, ready]);
   const socialAccount = useQuery<{
-    groups: { id: string; name: string; member_status: string }[];
+    groups: { id: string; name: string; member_status: string; status?: string }[];
     profile?: { highlight_visibility_default?: string | null } | null;
   }>({
     queryKey: ["social-me-reader", data.user?.id],
@@ -464,7 +510,7 @@ export function ReaderPage({ id }: { id: string }) {
     staleTime: 15000,
   });
   const activeGroups = (socialAccount.data?.groups || []).filter(
-    (group) => group.member_status === "active",
+    (group) => group.member_status === "active" && group.status !== "suspended",
   );
   const discussionGroupName = activeGroups.find((group) => group.id === discussionGroupId)?.name;
   const highlightGroupName = activeGroups.find((group) => group.id === socialGroupId)?.name;
@@ -503,6 +549,10 @@ export function ReaderPage({ id }: { id: string }) {
     (share) => share.audienceKey === highlightAudienceKey,
   );
   const selectedAudienceAlreadyShared = !!selectedAudienceShare;
+  const highlightConfirmationCurrent =
+    socialAudienceConfirmed &&
+    (!socialShareNote ||
+      socialConfirmedAnnotationVersion === selectedShare.data?.annotationVersion);
   const settings = useRef({ fontSize, lineHeight, font, theme });
   settings.current = { fontSize, lineHeight, font, theme };
   useEffect(() => {
@@ -654,6 +704,9 @@ export function ReaderPage({ id }: { id: string }) {
             savedSpoilerPercent.current = spoilerPercent;
             // Refresh only after the backend has accepted new spoiler progress.
             void socialReaderQuery.refetch();
+            void queryClient.invalidateQueries({
+              queryKey: ["social-posts", ownerId, "margin", id],
+            });
           }
           const productId = bookQuery.data?.productId,
             bucket = Math.floor(Math.max(0, Math.min(0.999, snapshot.progress)) * 10);
@@ -844,7 +897,7 @@ export function ReaderPage({ id }: { id: string }) {
         saveTimer.current = setTimeout(() => persistPosition(), 1200);
       });
       r.on("markClicked", (cfi: string, mark: any) => {
-        const a = annotationRef.current.find((x) => x.cfi === cfi && x.bookId === id);
+        const a = annotationRef.current.find((x) => x.cfi === cfi && matchesReadingBook(x.bookId));
         if (a) {
           setActiveAnnotation(a);
           setSelection(null);
@@ -909,7 +962,7 @@ export function ReaderPage({ id }: { id: string }) {
       await ensurePageFrame(cfi || undefined);
       if (canceled) return;
       setReady(true);
-      for (const a of annotationRef.current.filter((a) => a.bookId === id))
+      for (const a of annotationRef.current.filter((a) => matchesReadingBook(a.bookId)))
         try {
           r.annotations.highlight(a.cfi, { id: a.id }, undefined, "fore-highlight", {
             fill: colors[a.color],
@@ -1076,7 +1129,7 @@ export function ReaderPage({ id }: { id: string }) {
   useEffect(() => {
     if (!ready || !rendition.current) return;
     const r = rendition.current;
-    for (const a of data.annotations.filter((a) => a.bookId === id))
+    for (const a of data.annotations.filter((a) => matchesReadingBook(a.bookId)))
       try {
         r.annotations.remove(a.cfi, "highlight");
         r.annotations.highlight(a.cfi, { id: a.id }, undefined, "fore-highlight", {
@@ -1114,11 +1167,14 @@ export function ReaderPage({ id }: { id: string }) {
   async function publishSocialDiscussion() {
     if (!data.user) return signIn();
     if (
+      socialBusy ||
       !selection ||
       !socialBody.trim() ||
       !discussionAudienceConfirmed ||
       (discussionDirect && !discussionMember) ||
-      (!discussionDirect && discussionVisibility === "group" && !discussionGroupId)
+      (!discussionDirect &&
+        discussionVisibility === "group" &&
+        !activeGroups.some((group) => group.id === discussionGroupId))
     )
       return;
     setSocialBusy(true);
@@ -1150,13 +1206,48 @@ export function ReaderPage({ id }: { id: string }) {
       setSocialBusy(false);
     }
   }
+  async function openHighlightSharing(annotation: Annotation | null = null) {
+    if (!data.user) return signIn();
+    if (socialBusy || (!annotation && !selection)) return;
+    const owner = data.user.id;
+    const passage = annotation
+      ? { text: annotation.quote, cfi: annotation.cfi, chapter: annotation.chapter }
+      : selection;
+    setSocialBusy(true);
+    try {
+      const current = await socialAccount.refetch();
+      if (current.error) throw current.error;
+      if (accountRef.current.user?.id !== owner || !mounted.current) return;
+      const savedDefault = current.data?.profile?.highlight_visibility_default || "private";
+      setSelection(passage);
+      setSocialVisibility(
+        ["public", "followers", "friends", "private"].includes(savedDefault)
+          ? (savedDefault as ReaderHighlightVisibility)
+          : "private",
+      );
+      setSocialGroupId("");
+      setSocialMember(null);
+      setSocialAudienceConfirmed(false);
+      setSocialConfirmedAnnotationVersion(null);
+      setSocialAnnotationId(annotation?.id || null);
+      setSocialShareNote(false);
+      setActiveAnnotation(null);
+      setPanel("");
+      setSocialCompose("share");
+    } catch {
+      toast.error("Could not check your sharing default. Try again.");
+    } finally {
+      setSocialBusy(false);
+    }
+  }
   async function shareSelectedHighlight() {
     if (!data.user) return signIn();
     if (
+      socialBusy ||
       !selection ||
       socialVisibility === "private" ||
-      !socialAudienceConfirmed ||
-      (socialVisibility === "group" && !socialGroupId) ||
+      !highlightConfirmationCurrent ||
+      (socialVisibility === "group" && !activeGroups.some((group) => group.id === socialGroupId)) ||
       (socialVisibility === "member" && !socialMember)
     )
       return;
@@ -1182,7 +1273,8 @@ export function ReaderPage({ id }: { id: string }) {
         groupId,
         shareNote: !!socialAnnotationId && socialShareNote,
         progress: position.current.progress,
-        expectedVersion: selectedAudienceShare?.version,
+        expectedVersion: selectedAudienceShare?.version ?? 0,
+        expectedAnnotationVersion: socialShareNote ? socialConfirmedAnnotationVersion : undefined,
         audienceConfirmed: true,
       });
       await reload();
@@ -1193,6 +1285,10 @@ export function ReaderPage({ id }: { id: string }) {
       setSocialShareNote(false);
       toast.success("Highlight shared");
     } catch (e) {
+      if ((e as { status?: number }).status === 409) {
+        setSocialAudienceConfirmed(false);
+        if (socialAnnotationId) await selectedShare.refetch();
+      }
       toast.error((e as Error).message);
     } finally {
       setSocialBusy(false);
@@ -1548,21 +1644,8 @@ export function ReaderPage({ id }: { id: string }) {
             )}
             {!previewMode && (
               <button
-                onClick={() => {
-                  const savedDefault =
-                    socialAccount.data?.profile?.highlight_visibility_default || "private";
-                  setSocialVisibility(
-                    ["public", "followers", "friends", "private"].includes(savedDefault)
-                      ? (savedDefault as ReaderHighlightVisibility)
-                      : "private",
-                  );
-                  setSocialGroupId("");
-                  setSocialMember(null);
-                  setSocialAudienceConfirmed(false);
-                  setSocialAnnotationId(null);
-                  setSocialShareNote(false);
-                  setSocialCompose("share");
-                }}
+                disabled={socialBusy}
+                onClick={() => void openHighlightSharing()}
                 title="Share this highlight"
               >
                 <Share2 size={17} /> Share
@@ -1596,27 +1679,8 @@ export function ReaderPage({ id }: { id: string }) {
             {!previewMode && (
               <button
                 className="text-link"
-                onClick={() => {
-                  const savedDefault =
-                    socialAccount.data?.profile?.highlight_visibility_default || "private";
-                  setSelection({
-                    text: activeAnnotation.quote,
-                    cfi: activeAnnotation.cfi,
-                    chapter: activeAnnotation.chapter,
-                  });
-                  setSocialVisibility(
-                    ["public", "followers", "friends", "private"].includes(savedDefault)
-                      ? (savedDefault as ReaderHighlightVisibility)
-                      : "private",
-                  );
-                  setSocialGroupId("");
-                  setSocialMember(null);
-                  setSocialAudienceConfirmed(false);
-                  setSocialAnnotationId(activeAnnotation.id);
-                  setSocialShareNote(false);
-                  setActiveAnnotation(null);
-                  setSocialCompose("share");
-                }}
+                disabled={socialBusy}
+                onClick={() => void openHighlightSharing(activeAnnotation)}
               >
                 <Share2 size={14} /> Share this saved highlight
               </button>
@@ -1700,19 +1764,21 @@ export function ReaderPage({ id }: { id: string }) {
                   className="button gold"
                   onClick={() => {
                     const exact = data.bookmarks.find(
-                      (b) => b.bookId === id && b.cfi === position.current.cfi,
+                      (b) => matchesReadingBook(b.bookId) && b.cfi === position.current.cfi,
                     );
                     toggleBookmark(exact);
                   }}
                 >
                   <Bookmark size={16} />{" "}
-                  {data.bookmarks.some((b) => b.bookId === id && b.cfi === position.current.cfi)
+                  {data.bookmarks.some(
+                    (b) => matchesReadingBook(b.bookId) && b.cfi === position.current.cfi,
+                  )
                     ? "Remove bookmark here"
                     : "Bookmark current page"}
                 </button>
-                {data.bookmarks.filter((b) => b.bookId === id).length ? (
+                {data.bookmarks.filter((b) => matchesReadingBook(b.bookId)).length ? (
                   data.bookmarks
-                    .filter((b) => b.bookId === id)
+                    .filter((b) => matchesReadingBook(b.bookId))
                     .map((b) => (
                       <button key={b.id} onClick={() => go(b.cfi)}>
                         <strong>
@@ -1733,18 +1799,27 @@ export function ReaderPage({ id }: { id: string }) {
             )}
             {panel === "highlights" && (
               <div className="reader-highlights">
-                {data.annotations.filter((a) => a.bookId === id).length ? (
+                {data.annotations.filter((a) => matchesReadingBook(a.bookId)).length ? (
                   data.annotations
-                    .filter((a) => a.bookId === id)
+                    .filter((a) => matchesReadingBook(a.bookId))
                     .map((a) => (
-                      <button
-                        onClick={() => go(a.cfi)}
-                        key={a.id}
-                        style={{ borderLeftColor: colors[a.color] }}
-                      >
-                        <blockquote>{a.quote}</blockquote>
-                        {a.note && <p>{a.note}</p>}
-                      </button>
+                      <div key={a.id}>
+                        <button
+                          onClick={() => go(a.cfi)}
+                          style={{ borderLeftColor: colors[a.color] }}
+                        >
+                          <blockquote>{a.quote}</blockquote>
+                          {a.note && <p>{a.note}</p>}
+                        </button>
+                        <button
+                          className="text-link"
+                          disabled={socialBusy}
+                          aria-label={`Share highlight: ${a.quote.slice(0, 70)}`}
+                          onClick={() => void openHighlightSharing(a)}
+                        >
+                          <Share2 size={14} /> Share this saved highlight
+                        </button>
+                      </div>
                     ))
                 ) : (
                   <p className="muted small">
@@ -1901,6 +1976,19 @@ export function ReaderPage({ id }: { id: string }) {
                           {activeSocial.discussionCount || 0} discussions ·{" "}
                           {activeSocial.highlightCount || 0} highlights
                         </h3>
+                        {activeSocial.cfi && (
+                          <button
+                            className="button outline"
+                            onClick={() => {
+                              void rendition.current
+                                ?.display(activeSocial.cfi)
+                                .then(() => setPanel(""))
+                                .catch(() => toast.error("This passage could not be opened."));
+                            }}
+                          >
+                            Go to this passage
+                          </button>
+                        )}
                         {activeSocial.posts?.map((p: any) => (
                           <DiscussionThread
                             key={p.id}
@@ -1909,6 +1997,8 @@ export function ReaderPage({ id }: { id: string }) {
                             postId={p.id}
                             progress={position.current.progress || percent / 100}
                             title="Passage discussion"
+                            initialPost={p}
+                            initialUpdatedAt={socialReaderQuery.dataUpdatedAt}
                             onChanged={() => {
                               void socialReader.refetch();
                             }}
@@ -1955,6 +2045,11 @@ export function ReaderPage({ id }: { id: string }) {
                           >
                             <span>• {(x.discussionCount || 0) + (x.highlightCount || 0)}</span>
                             <strong>{x.chapter || "This passage"}</strong>
+                            <span className="reader-passage-preview">
+                              {String(
+                                x.posts?.[0]?.passageText || x.highlights?.[0]?.quote || "",
+                              ).slice(0, 100)}
+                            </span>
                             <small>
                               {x.discussionCount || 0} discussions · {x.highlightCount || 0}{" "}
                               highlights
@@ -2206,7 +2301,9 @@ export function ReaderPage({ id }: { id: string }) {
               !socialBody.trim() ||
               !discussionAudienceConfirmed ||
               (discussionDirect && !discussionMember) ||
-              (!discussionDirect && discussionVisibility === "group" && !discussionGroupId)
+              (!discussionDirect &&
+                discussionVisibility === "group" &&
+                !activeGroups.some((group) => group.id === discussionGroupId))
             }
             onClick={publishSocialDiscussion}
           >
@@ -2339,20 +2436,34 @@ export function ReaderPage({ id }: { id: string }) {
               </Select>
             </label>
           )}
-          {socialAnnotationId &&
-            data.annotations.find((a) => a.id === socialAnnotationId)?.note && (
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={socialShareNote}
-                  onChange={(e) => {
-                    setSocialShareNote(e.target.checked);
-                    setSocialAudienceConfirmed(false);
-                  }}
-                />{" "}
-                Include my private note with this shared highlight
-              </label>
-            )}
+          {socialAnnotationId && selectedShare.data?.note && (
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={socialShareNote}
+                onChange={(e) => {
+                  setSocialShareNote(e.target.checked);
+                  setSocialAudienceConfirmed(false);
+                }}
+              />{" "}
+              Include my private note with this shared highlight
+            </label>
+          )}
+          {socialShareNote && selectedShare.data && (
+            <div className="reader-format-notice">
+              <strong>Note copy to publish</strong>
+              <blockquote>{selectedShare.data.note || "No note text"}</blockquote>
+              {socialAudienceConfirmed && !highlightConfirmationCurrent && (
+                <p role="alert">Your private note changed. Review this copy and confirm again.</p>
+              )}
+            </div>
+          )}
+          {selectedShare.isError && socialAnnotationId && (
+            <p role="alert">
+              Could not check current audiences.{" "}
+              <button onClick={() => selectedShare.refetch()}>Retry sharing status</button>
+            </p>
+          )}
           <p className="small muted" role="status">
             Audience: {highlightAudienceLabel}.{" "}
             {socialVisibility === "private"
@@ -2363,8 +2474,13 @@ export function ReaderPage({ id }: { id: string }) {
             <label className="check-row">
               <input
                 type="checkbox"
-                checked={socialAudienceConfirmed}
-                onChange={(e) => setSocialAudienceConfirmed(e.target.checked)}
+                checked={highlightConfirmationCurrent}
+                onChange={(e) => {
+                  setSocialAudienceConfirmed(e.target.checked);
+                  setSocialConfirmedAnnotationVersion(
+                    selectedShare.data?.annotationVersion ?? null,
+                  );
+                }}
               />
               I confirm this highlight will be shared with {highlightAudienceLabel}
               {socialShareNote ? ", including my current note" : ""}.
@@ -2374,10 +2490,12 @@ export function ReaderPage({ id }: { id: string }) {
             className="button gold"
             disabled={
               socialBusy ||
-              (!!socialAnnotationId && (selectedShare.isPending || selectedShare.isError)) ||
+              (!!socialAnnotationId &&
+                (selectedShare.isPending || selectedShare.isFetching || selectedShare.isError)) ||
               socialVisibility === "private" ||
-              !socialAudienceConfirmed ||
-              (socialVisibility === "group" && !socialGroupId) ||
+              !highlightConfirmationCurrent ||
+              (socialVisibility === "group" &&
+                !activeGroups.some((group) => group.id === socialGroupId)) ||
               (socialVisibility === "member" && !socialMember)
             }
             onClick={shareSelectedHighlight}

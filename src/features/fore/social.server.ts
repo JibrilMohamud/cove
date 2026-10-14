@@ -1,3 +1,4 @@
+import { marginLocationKey } from "./margin-passages";
 import { savedAlignedAudioProgress } from "./spoiler-progress.server";
 import { z } from "zod";
 import type { CoveEnv } from "./api.server";
@@ -223,7 +224,7 @@ async function isGroupMember(db: DB, userId: string | null, groupId: string | nu
   if (!userId || !groupId) return false;
   return !!(await db
     .prepare(
-      "SELECT 1 ok FROM reading_group_members WHERE group_id=? AND user_id=? AND status='active'",
+      "SELECT 1 ok FROM reading_group_members m JOIN reading_groups g ON g.id=m.group_id WHERE m.group_id=? AND m.user_id=? AND m.status='active' AND g.deleted_at IS NULL AND g.status<>'suspended'",
     )
     .bind(groupId, userId)
     .first<any>());
@@ -1046,8 +1047,12 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL, env
       filteredShares.push(s);
   const aggregate = new Map<string, any>();
   for (const p of pref.show_discussions ? filteredPosts : []) {
-    const key = String(
-        p.passageText ? await sha256(String(p.passageText).trim().toLowerCase()) : p.cfi || p.id,
+    const key = await sha256(
+        marginLocationKey(
+          p.cfi,
+          p.passageText ? await sha256(String(p.passageText).trim().toLowerCase()) : "",
+          p.id,
+        ),
       ),
       a = aggregate.get(key) || {
         passageHash: key,
@@ -1080,7 +1085,9 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL, env
       displayShares.set(annotationId, s);
   }
   for (const s of displayShares.values()) {
-    const key = String(s.passage_hash),
+    const key = await sha256(
+        marginLocationKey(s.cfi, String(s.passage_hash), String(s.annotation_id)),
+      ),
       a = aggregate.get(key) || {
         passageHash: key,
         cfi: s.cfi,
@@ -1103,6 +1110,7 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL, env
       cfi: s.cfi,
       visibility: s.recipient_user_id ? "member" : s.visibility,
       shareNote: !!s.share_note,
+      updatedAt: String(s.updated_at),
       note: s.share_note ? String(s.note || "") : "",
     });
     aggregate.set(key, a);
@@ -1730,7 +1738,13 @@ export async function handleSocial(
   }
   if (method === "GET" && path === "/social/feed") {
     const uidv = requireIdentity(userId),
-      limit = Math.max(1, Math.min(100, Number(url.searchParams.get("limit") || 40))),
+      limit = z.coerce
+        .number()
+        .finite()
+        .int()
+        .min(1)
+        .max(100)
+        .parse(url.searchParams.get("limit") ?? 40),
       cursor = socialCursor(url.searchParams.get("cursor") || url.searchParams.get("before")),
       rows = (
         await db
@@ -2684,13 +2698,14 @@ export async function handleSocial(
   if (republishMatch && method === "POST") {
     const annotationId = decodeURIComponent(republishMatch[1]),
       annotation = await db
-        .prepare("SELECT note,deleted_at FROM annotations WHERE id=? AND user_id=?")
+        .prepare("SELECT note,version,deleted_at FROM annotations WHERE id=? AND user_id=?")
         .bind(annotationId, uidv)
-        .first<{ note: string | null; deleted_at: string | null }>();
+        .first<{ note: string | null; version: number; deleted_at: string | null }>();
     if (!annotation || annotation.deleted_at) throw new ApiError(404, "Highlight not found.");
     const x = z
       .object({
         confirmed: z.literal(true),
+        expectedAnnotationVersion: z.number().int().min(1),
         shares: z
           .array(
             z.object({
@@ -2702,6 +2717,11 @@ export async function handleSocial(
           .max(100),
       })
       .parse(await readBody(request));
+    if (annotation.version !== x.expectedAnnotationVersion)
+      throw new ApiError(
+        409,
+        "Your private note changed. Reopen it and review the current note before republishing.",
+      );
     if (new Set(x.shares.map((share) => share.id)).size !== x.shares.length)
       throw new ApiError(400, "Each published audience must be selected only once.");
     const matches = x.shares.map(() => "(id=? AND version=?)").join(" OR "),
@@ -2709,9 +2729,10 @@ export async function handleSocial(
       updated = await db
         .prepare(
           `UPDATE social_annotation_shares
-           SET note_snapshot=(SELECT note FROM annotations WHERE id=? AND user_id=? AND deleted_at IS NULL),
+           SET note_snapshot=COALESCE((SELECT note FROM annotations WHERE id=? AND user_id=? AND deleted_at IS NULL),''),
                updated_at=?,version=version+1
            WHERE annotation_id=? AND user_id=? AND share_note=1 AND (${matches})
+             AND EXISTS(SELECT 1 FROM annotations WHERE id=? AND user_id=? AND deleted_at IS NULL AND version=?)
              AND (SELECT COUNT(*) FROM social_annotation_shares
                   WHERE annotation_id=? AND user_id=? AND share_note=1 AND (${matches}))=?
            RETURNING id,version`,
@@ -2725,6 +2746,9 @@ export async function handleSocial(
           ...expected,
           annotationId,
           uidv,
+          x.expectedAnnotationVersion,
+          annotationId,
+          uidv,
           ...expected,
           x.shares.length,
         )
@@ -2732,7 +2756,7 @@ export async function handleSocial(
     if (updated.results.length !== x.shares.length)
       throw new ApiError(
         409,
-        "One or more shared audiences changed. Refresh sharing permissions before republishing.",
+        "Your private note or a shared audience changed. Reopen the note and review sharing permissions before republishing.",
       );
     await refreshHighlightFeedEvent(db, annotationId, uidv);
     await auditSocial(
@@ -2760,6 +2784,7 @@ export async function handleSocial(
           note: string | null;
           progress: number | null;
           deleted_at: string | null;
+          version: number;
         }>();
     if (!a) throw new ApiError(404, "Highlight not found.");
     if (method === "GET") {
@@ -2805,6 +2830,8 @@ export async function handleSocial(
       const first = shares[0];
       return json({
         shared: shares.length > 0,
+        annotationVersion: Number(a.version),
+        note: String(a.note || ""),
         shares,
         ...(first
           ? {
@@ -2895,9 +2922,10 @@ export async function handleSocial(
         .object({
           visibility: z.enum(["public", "followers", "friends", "group", "member"]),
           recipientUserId: z.string().min(1).max(180).nullable().optional(),
-          groupId: z.string().nullable().optional(),
+          groupId: z.string().min(1).max(180).nullable().optional(),
           shareNote: z.boolean().default(false),
-          expectedVersion: z.number().int().min(1).optional(),
+          expectedAnnotationVersion: z.number().int().min(1).optional(),
+          expectedVersion: z.number().int().min(0).optional(),
           shareId: z.string().min(1).max(180).optional(),
           audienceConfirmed: z.boolean().optional(),
           progress: z.number().min(0).max(1).optional(),
@@ -2905,6 +2933,13 @@ export async function handleSocial(
         .parse(await readBody(request));
       if (x.audienceConfirmed !== true)
         throw new ApiError(400, "Confirm the highlight audience before publishing.");
+      if (x.shareNote && x.expectedAnnotationVersion === undefined)
+        throw new ApiError(400, "Review the current private note before including it in a share.");
+      if (x.shareNote && Number(a.version) !== x.expectedAnnotationVersion)
+        throw new ApiError(
+          409,
+          "Your private note changed. Review the current note before sharing.",
+        );
       const p = await resolveProduct(db, String(a.book_id), uidv);
       await requireProductAccess(db, uidv, String(p.id));
       if (x.visibility === "group" && !(await isGroupMember(db, uidv, x.groupId)))
@@ -2970,6 +3005,7 @@ export async function handleSocial(
              SET product_id=?,work_id=?,visibility=?,audience_group_id=?,recipient_user_id=?,share_key=?,
                  share_note=?,note_snapshot=?,progress=?,passage_hash=?,updated_at=?,version=version+1
              WHERE id=? AND annotation_id=? AND user_id=? AND version=?
+               AND (? IS NULL OR EXISTS(SELECT 1 FROM annotations WHERE id=? AND user_id=? AND deleted_at IS NULL AND version=?))
                AND NOT EXISTS(
                  SELECT 1 FROM social_annotation_shares other
                  WHERE other.annotation_id=? AND other.share_key=? AND other.id<>?
@@ -2992,6 +3028,10 @@ export async function handleSocial(
             annotationId,
             uidv,
             Number(current.version),
+            x.shareNote ? x.expectedAnnotationVersion : null,
+            annotationId,
+            uidv,
+            x.expectedAnnotationVersion ?? null,
             annotationId,
             shareKey,
             x.shareId,
@@ -3006,7 +3046,9 @@ export async function handleSocial(
           .first<{ id: string; version: number }>();
         if (
           x.expectedVersion !== undefined &&
-          (!current || Number(current.version) !== x.expectedVersion)
+          (x.expectedVersion === 0
+            ? !!current
+            : !current || Number(current.version) !== x.expectedVersion)
         )
           throw new ApiError(
             409,
@@ -3017,7 +3059,8 @@ export async function handleSocial(
             `INSERT INTO social_annotation_shares(
                id,annotation_id,user_id,product_id,work_id,visibility,audience_group_id,recipient_user_id,
                share_key,share_note,note_snapshot,progress,passage_hash,created_at,updated_at
-             ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             ) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+             WHERE (? IS NULL OR EXISTS(SELECT 1 FROM annotations WHERE id=? AND user_id=? AND deleted_at IS NULL AND version=?))
              ON CONFLICT(annotation_id,share_key) DO UPDATE SET
                product_id=excluded.product_id,work_id=excluded.work_id,visibility=excluded.visibility,
                audience_group_id=excluded.audience_group_id,recipient_user_id=excluded.recipient_user_id,
@@ -3043,6 +3086,10 @@ export async function handleSocial(
             hash,
             updatedAt,
             updatedAt,
+            x.shareNote ? x.expectedAnnotationVersion : null,
+            annotationId,
+            uidv,
+            x.expectedAnnotationVersion ?? null,
             x.expectedVersion ?? null,
             x.expectedVersion ?? null,
           )

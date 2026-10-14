@@ -715,6 +715,9 @@ a svg {
   background: #172436 !important;
   border: 1px solid #3a475a !important;
   color: #e9edf2 !important;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .fore-dialog h2 {
   font-family: var(--font-serif);
@@ -2830,3 +2833,11 @@ a svg {
 
 .fore-reader-sheet{display:flex;flex-direction:column;overflow:hidden}.fore-reader-sheet>.reader-panel-body{flex:1;min-height:0;overflow:auto}
 .journey-access{display:grid;gap:12px;margin:20px 0;padding:20px;border:1px solid var(--border);border-radius:12px}.journey-access>div{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.journey-access button{max-width:100%}
+
+.reader-social-summary > button .reader-passage-preview {
+  grid-column: 2;
+  grid-row: auto;
+  color: inherit;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
