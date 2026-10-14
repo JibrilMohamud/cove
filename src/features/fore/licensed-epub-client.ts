@@ -282,7 +282,8 @@ export async function renewExpiringLicensedEpubs(userId: string) {
       }>("assets", retryKey(userId, record.id));
       if (
         previous?.ownerId === userId &&
-        Date.now() < (previous.nextAttemptAt || previous.lastAttemptAt + OFFLINE_EPUB_RENEWAL_RETRY_MS)
+        Date.now() <
+          (previous.nextAttemptAt || previous.lastAttemptAt + OFFLINE_EPUB_RENEWAL_RETRY_MS)
       )
         return;
       await putOwnedRecord("assets", {
