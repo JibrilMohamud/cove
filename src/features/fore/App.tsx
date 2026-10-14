@@ -63,13 +63,6 @@ const nav = [
 ] as const;
 export function CoveProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-  const [readerMounted, setReaderMounted] = useState(false);
-  useEffect(() => {
-    const changed = (event: Event) =>
-      setReaderMounted(Boolean((event as CustomEvent<boolean>).detail));
-    window.addEventListener("cove-reader-mounted", changed);
-    return () => window.removeEventListener("cove-reader-mounted", changed);
-  }, []);
   const lastAccount = useRef<string | null | undefined>(undefined);
   const [data, setData] = useState<AccountData>({
     user: null,
@@ -188,7 +181,7 @@ export function CoveProvider({ children }: { children: ReactNode }) {
       <StorefrontLocaleProvider key={data.user?.id || "guest"}>
         {children}
         <AuthDialog mode={auth} onChange={setAuth} onSuccess={reload} />
-        {!readerMounted && <Toaster theme="dark" position="bottom-right" richColors />}
+        <Toaster theme="dark" position="bottom-right" richColors />
       </StorefrontLocaleProvider>
     </AccountContext.Provider>
   );
