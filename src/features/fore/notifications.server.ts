@@ -117,11 +117,19 @@ export async function saveNotificationPreferences(db: DB, userId: string, raw: u
       webPush: z.boolean(),
       mobilePush: z.boolean().default(false),
       topics: z.record(z.boolean()).default({}),
-      quietHours: z.object({
-        enabled: z.boolean().default(false),
-        start: z.string().regex(/^([01]\\d|2[0-3]):[0-5]\\d$/).default("22:00"),
-        end: z.string().regex(/^([01]\\d|2[0-3]):[0-5]\\d$/).default("07:00"),
-      }).default({}),
+      quietHours: z
+        .object({
+          enabled: z.boolean().default(false),
+          start: z
+            .string()
+            .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+            .default("22:00"),
+          end: z
+            .string()
+            .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+            .default("07:00"),
+        })
+        .default({}),
       timezone: z.string().min(1).max(80).default("UTC"),
     })
     .parse(raw);
@@ -463,7 +471,9 @@ export async function processNotificationDeliveryQueue(env: CoveEnv, limit = 50)
     // Defer outbound channels while the reader is active, even for security alerts.
     // Keep inbox entries durable; never interrupt an active reading session.
     const reader = await db
-      .prepare("SELECT expires_at FROM reader_notification_silence WHERE user_id=? AND expires_at>?")
+      .prepare(
+        "SELECT expires_at FROM reader_notification_silence WHERE user_id=? AND expires_at>?",
+      )
       .bind(job.user_id, now())
       .first<{ expires_at: string }>();
     const preferences = await notificationPreferences(db, job.user_id);
@@ -477,10 +487,7 @@ export async function processNotificationDeliveryQueue(env: CoveEnv, limit = 50)
       suppressed++;
       continue;
     }
-    if (
-      reader ||
-      isNotificationQuiet(preferences.quietHours, preferences.timezone, new Date())
-    ) {
+    if (reader || isNotificationQuiet(preferences.quietHours, preferences.timezone, new Date())) {
       const next = new Date(Date.now() + (reader ? 120000 : 300000)).toISOString();
       await db
         .prepare(
