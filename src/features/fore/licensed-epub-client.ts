@@ -2,11 +2,15 @@ import type { CatalogBook } from "./client";
 import { api } from "./client";
 import { getRecord, putRecord, deleteRecord, getRecords, sha256 } from "./offline";
 import { offlineAccountId, putOwnedRecord } from "./offline-account";
-import { decodeBase64Url, hashText, publicAudioKey, audioKeyId } from "./offline-audio-license";
-import type { OfflineEpubClaims } from "./offline-epub.server";
-const OFFLINE_EPUB_CONTEXT = "cove-offline-epub:v1\\n";
+import { audioKeyId, publicAudioKey } from "./offline-audio-license";
+import { TRUSTED_OFFLINE_EPUB_PUBLIC_KEYS } from "./offline-epub-pin";
+import {
+  OFFLINE_EPUB_RENEW_WINDOW_MS,
+  verifyOfflineEpubReceipt,
+  type OfflineEpubClaims,
+  type SignedOfflineEpubReceipt,
+} from "./offline-epub-crypto";
 
-type SignedReceipt = { payload: string; signature: string; keyId: string };
 type LicensedEpub = {
   id: string;
   kind: "licensed-epub";
@@ -15,13 +19,24 @@ type LicensedEpub = {
   book: CatalogBook;
   assetIds: string[];
   complete: boolean;
-  receipt: SignedReceipt;
-  publicKey: JsonWebKey;
+  receipt: SignedOfflineEpubReceipt;
   expiresAt: string;
   assetVersionId: string;
   updatedAt: string;
 };
-const key = (userId: string, id: string) => `epub:licensed:${userId}:${id}`;
+const key = (userId: string, id: string) => "epub:licensed:" + userId + ":" + id;
+const trustKey = (userId: string, keyId: string) =>
+  "epub:verified-key:" + userId + ":" + keyId;
+type TrustedVerificationKey = {
+  id: string;
+  ownerId: string;
+  origin: string;
+  keyId: string;
+  publicKey: JsonWebKey;
+  verifiedAt: string;
+};
+const online = () => typeof navigator !== "undefined" && navigator.onLine !== false;
+const renewals = new Map<string, Promise<void>>();
 const deviceKey = () => {
   try {
     return localStorage.getItem("fore.device.key") || "";
