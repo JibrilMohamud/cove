@@ -72,7 +72,7 @@ function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
   useEffect(() => {
     setExtra([]);
     setHasMore(firstPage.length >= 100);
-  }, [accountId, kind]);
+  }, [accountId, kind, firstPage]);
   const items = [...firstPage, ...extra].filter(
     (row, index, array) =>
       array.findIndex(
@@ -470,7 +470,7 @@ export function HighlightsPage() {
           </h1>
           <p>Return to the lines that made you pause.</p>
         </div>
-        {data.annotations.length > 0 && (
+        {pages.items.length > 0 && (
           <button className="button outline" onClick={exportNotes}>
             <Download size={17} />
             Export notes
@@ -482,10 +482,10 @@ export function HighlightsPage() {
           <div className="collection-toolbar">
             <TabsList className="fore-tabs">
               <TabsTrigger value="all">
-                All highlights <span>{data.annotations.length}</span>
+                All highlights <span>{pages.items.length}</span>
               </TabsTrigger>
               <TabsTrigger value="notes">
-                With notes <span>{data.annotations.filter((x) => x.note).length}</span>
+                With notes <span>{pages.items.filter((x) => x.note).length}</span>
               </TabsTrigger>
             </TabsList>
             <div className="small-search">
@@ -576,7 +576,7 @@ export function HighlightsPage() {
             <div className="empty-state">
               <Highlighter />
               <h2>
-                {data.annotations.length
+                {pages.items.length
                   ? "No matching passages."
                   : "Some lines deserve a second life."}
               </h2>
@@ -946,7 +946,7 @@ export function DefinitionsPage() {
       <AccountGuard>
         <div className="collection-toolbar">
           <h2 className="section-title">
-            Saved definitions <span className="muted">{data.definitions.length}</span>
+            Saved definitions <span className="muted">{pages.items.length}</span>
           </h2>
           <div className="small-search">
             <Search size={17} />
