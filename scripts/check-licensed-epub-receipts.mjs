@@ -24,11 +24,10 @@ try {
   });
   const verifier = await import(path.join(directory, "crypto.mjs"));
   const { audioKeyId, base64Url, hashText } = await import(path.join(directory, "audio.mjs"));
-  const pair = await crypto.subtle.generateKey(
-    { name: "ECDSA", namedCurve: "P-256" },
-    true,
-    ["sign", "verify"],
-  );
+  const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
+    "sign",
+    "verify",
+  ]);
   const publicKey = await crypto.subtle.exportKey("jwk", pair.publicKey);
   const deviceKey = crypto.randomUUID() + crypto.randomUUID();
   const issued = Date.now();
