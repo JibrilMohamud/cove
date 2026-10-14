@@ -214,7 +214,40 @@ const server = await createServer({
   configFile: path.join(scratch, "vite.config.ts"),
   // Prepare the first client graph before readiness. A cold dependency rebuild
   // previously canceled @tanstack/history imports in Firefox/WebKit.
-  optimizeDeps: { include: ["@tanstack/history"] },
+  optimizeDeps: {
+    // Hydration also uses dynamic framework imports. Freeze the known client
+    // dependency set so discovering one cannot rebuild assets mid-navigation.
+    noDiscovery: true,
+    include: [
+      "@noble/hashes/sha2.js",
+      "@radix-ui/react-alert-dialog",
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-progress",
+      "@radix-ui/react-select",
+      "@radix-ui/react-slider",
+      "@radix-ui/react-slot",
+      "@radix-ui/react-switch",
+      "@radix-ui/react-tabs",
+      "@supabase/supabase-js",
+      "@tanstack/history",
+      "@tanstack/react-query",
+      "@tanstack/react-router > @tanstack/react-store",
+      "@tanstack/router-core/ssr/client",
+      "class-variance-authority",
+      "clsx",
+      "epubjs",
+      "jszip",
+      "lucide-react",
+      "react-dom",
+      "react-dom/client",
+      "react",
+      "react/jsx-dev-runtime",
+      "react/jsx-runtime",
+      "sonner",
+      "tailwind-merge",
+      "zod",
+    ],
+  },
   server: {
     host: "127.0.0.1",
     port: 4173,
