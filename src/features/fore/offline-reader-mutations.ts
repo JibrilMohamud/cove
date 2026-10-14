@@ -77,8 +77,23 @@ export async function queueReaderMutation(
     state: "pending",
   };
   await putRecord("outbox", row);
-  await flushReaderMutations(userId);
-  return { queued: !!(await getRecord("outbox", id)), id };
+  try {
+    const response = await api<Record<string, unknown>>(path, method, body);
+    if (offlineAccountId() !== userId)
+      throw new Error("Your account changed while this update was in flight.");
+    const current = await getRecord<Mutation>("outbox", id);
+    if (current?.savedAt === row.savedAt) await deleteRecord("outbox", id);
+    return { queued: false, id, response };
+  } catch (error) {
+    const status = Number((error as { status?: number })?.status || 0);
+    if ([400, 404, 409, 422].includes(status)) {
+      await putRecord("outbox", {
+        ...row, state: "conflict", lastError: (error as Error).message,
+      } satisfies Mutation);
+      throw error;
+    }
+    return { queued: true, id, response: null };
+  }
 }
 export async function discardReaderConflict(userId: string, mutationId: string) {
   if (offlineAccountId() !== userId || !mutationId.startsWith(prefix + userId + ":"))
