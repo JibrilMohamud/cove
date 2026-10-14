@@ -77,11 +77,15 @@ export async function issueOfflineEpubLicense(
     false,
     ["sign"],
   );
-  const signature = base64Url(new Uint8Array(await crypto.subtle.sign(
-    { name: "ECDSA", hash: "SHA-256" },
-    privateKey,
-    new TextEncoder().encode(OFFLINE_EPUB_CONTEXT + payload),
-  )));
+  const signature = base64Url(
+    new Uint8Array(
+      await crypto.subtle.sign(
+        { name: "ECDSA", hash: "SHA-256" },
+        privateKey,
+        new TextEncoder().encode(OFFLINE_EPUB_CONTEXT + payload),
+      ),
+    ),
+  );
   return {
     url: grant.url,
     publicKey,
