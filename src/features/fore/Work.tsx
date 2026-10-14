@@ -1,3 +1,4 @@
+import { formatMinorCurrency } from "./currency";
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -68,11 +69,7 @@ const editionLabels: Record<string, string> = {
   original: "Original edition",
 };
 function money(value: number, currency: string) {
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(value / 100);
-  } catch {
-    return `${currency} ${(value / 100).toFixed(2)}`;
-  }
+  return formatMinorCurrency(value, currency);
 }
 export function WorkPage({ id }: { id: string }) {
   const q = useQuery<WorkDetail>({
