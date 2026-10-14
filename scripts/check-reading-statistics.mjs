@@ -25,19 +25,26 @@ try {
     bob = "statistics-bob",
     at = new Date().toISOString();
   async function request(user, route, method = "GET", body) {
-    const response = await handleCoveApi(new Request("https://fore.test/api/fore" + route, {
-      method,
-      headers: {
-        origin: "https://fore.test",
-        "content-type": "application/json",
-        "oai-authenticated-user-id": user,
-        "oai-authenticated-user-email": user + "@example.test",
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    }), env);
+    const response = await handleCoveApi(
+      new Request("https://fore.test/api/fore" + route, {
+        method,
+        headers: {
+          origin: "https://fore.test",
+          "content-type": "application/json",
+          "oai-authenticated-user-id": user,
+          "oai-authenticated-user-email": user + "@example.test",
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }),
+      env,
+    );
     return { status: response.status, data: await response.json() };
   }
-  const run = (sql, ...args) => db.prepare(sql).bind(...args).run();
+  const run = (sql, ...args) =>
+    db
+      .prepare(sql)
+      .bind(...args)
+      .run();
   await request(alice, "/profile", "POST", { name: "Statistics Alice" });
   await request(bob, "/profile", "POST", { name: "Statistics Bob" });
   await request(alice, "/catalog?q=pride");
@@ -52,15 +59,25 @@ try {
     language: "en",
   });
   assert.equal(metrics.status, 200, JSON.stringify(metrics));
-  const normalized = await db.prepare(
-    "SELECT book_id FROM book_metrics WHERE user_id=?",
-  ).bind(alice).first();
-  assert.equal(normalized.book_id, "1342", "public metric IDs must normalize to external source IDs");
+  const normalized = await db
+    .prepare("SELECT book_id FROM book_metrics WHERE user_id=?")
+    .bind(alice)
+    .first();
+  assert.equal(
+    normalized.book_id,
+    "1342",
+    "public metric IDs must normalize to external source IDs",
+  );
   // Exercise backward compatibility with metrics written by older clients.
   await run("DELETE FROM book_metrics WHERE user_id=?", alice);
   await run(
     "INSERT INTO book_metrics(user_id,book_id,word_count,reading_level,language,method,updated_at) VALUES(?,?,?,?,?,'legacy',?)",
-    alice, product.public_id, 119999, 7.5, "en", at,
+    alice,
+    product.public_id,
+    119999,
+    7.5,
+    "en",
+    at,
   );
   await run(
     "INSERT OR IGNORE INTO categories(id,scheme,name) VALUES('category_stats','gutenberg-bookshelf','Category: Fiction')",
@@ -93,7 +110,10 @@ try {
   );
   const zone = "America/New_York",
     dayFormat = new Intl.DateTimeFormat("en-CA", {
-      timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit",
+      timeZone: zone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     }),
     day = (time) => {
       const parts = dayFormat.formatToParts(new Date(time));
@@ -103,7 +123,8 @@ try {
   let boundary = null;
   for (let cursor = Date.now() - 120000; cursor > Date.now() - 172800000; cursor -= 60000) {
     if (day(cursor - 60000) !== day(cursor)) {
-      let low = cursor - 60000, high = cursor;
+      let low = cursor - 60000,
+        high = cursor;
       while (high - low > 1) {
         const mid = Math.floor((low + high) / 2);
         if (day(mid) === day(low)) low = mid;
@@ -137,30 +158,47 @@ try {
   // Spring DST advances from EST to EDT: the clock skips an hour but actual seconds must not.
   await run(
     "INSERT INTO reading_sessions(id,user_id,book_id,mode,started_at,ended_at,active_seconds,words_read) VALUES(?,?,?,?,?,?,?,?)",
-    randomUUID(), alice, "1342", "listen",
-    "2026-03-08T04:30:00.000Z", "2026-03-08T07:30:00.000Z", 10800, 0,
+    randomUUID(),
+    alice,
+    "1342",
+    "listen",
+    "2026-03-08T04:30:00.000Z",
+    "2026-03-08T07:30:00.000Z",
+    10800,
+    0,
   );
   const historical = await request(alice, "/stats?days=all&timeZone=America%2FNew_York");
   assert.equal(historical.status, 200, JSON.stringify(historical));
-  assert.ok(Math.abs(historical.data.daily.find((d) => d.date === "2026-03-07").listen_seconds - 1800) < 0.01);
-  assert.ok(Math.abs(historical.data.daily.find((d) => d.date === "2026-03-08").listen_seconds - 9000) < 0.01);
+  assert.ok(
+    Math.abs(historical.data.daily.find((d) => d.date === "2026-03-07").listen_seconds - 1800) <
+      0.01,
+  );
+  assert.ok(
+    Math.abs(historical.data.daily.find((d) => d.date === "2026-03-08").listen_seconds - 9000) <
+      0.01,
+  );
 
   // An unlinked commercial edition is valid without a Gutenberg audio_editions row.
   await run(
     "INSERT INTO publishing_accounts(id,account_type,legal_name,display_name,country_code,created_at,updated_at) VALUES('stats_publisher','person','Test Publisher','Test Publisher','US',?,?)",
-    at, at,
+    at,
+    at,
   );
   await run(
     "INSERT INTO publishing_titles(id,account_id,title,created_at,updated_at) VALUES('stats_title','stats_publisher','Audio sample',?,?)",
-    at, at,
+    at,
+    at,
   );
   await run(
     "INSERT INTO publishing_edition_drafts(id,title_id,format,status,catalog_product_id,created_at,updated_at) VALUES('stats_audio','stats_title','audiobook','published',?,?,?)",
-    product.id, at, at,
+    product.id,
+    at,
+    at,
   );
   await run(
     "INSERT INTO commercial_audio_profiles(edition_id,publishing_account_id,active_policy_id,updated_at,created_at) VALUES('stats_audio','stats_publisher','audiopol_fore_commercial_audio_v1',?,?)",
-    at, at,
+    at,
+    at,
   );
   const audioSession = {
     id: randomUUID(),
@@ -175,20 +213,27 @@ try {
   assert.equal(noAccess.status, 403, JSON.stringify(noAccess));
   await run(
     "INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,granted_at,updated_at) VALUES(?,?,?,'purchase','active','test',?,?)",
-    randomUUID(), alice, product.id, at, at,
+    randomUUID(),
+    alice,
+    product.id,
+    at,
+    at,
   );
   const audioSaved = await request(alice, "/sessions", "PUT", audioSession);
   assert.equal(audioSaved.status, 200, JSON.stringify(audioSaved));
   assert.equal((await request(alice, "/sessions", "PUT", audioSession)).status, 200);
-  const recorded = await db.prepare(
-    "SELECT book_id FROM reading_sessions WHERE user_id=? AND id=?",
-  ).bind(alice, audioSession.id).first();
+  const recorded = await db
+    .prepare("SELECT book_id FROM reading_sessions WHERE user_id=? AND id=?")
+    .bind(alice, audioSession.id)
+    .first();
   assert.equal(recorded.book_id, "1342", "commercial sessions use canonical source identity");
   const totals = await request(alice, "/stats?days=30&timeZone=America%2FNew_York");
   assert.equal(totals.status, 200, JSON.stringify(totals));
   assert.equal(totals.data.totals.sessions, 2, "repeat saves must be idempotent");
   assert.equal(totals.data.totals.listenSeconds, 100);
-  console.log("PASS: public metrics, legacy joins, category genres, midnight/DST apportionment, commercial sessions, access control and idempotency");
+  console.log(
+    "PASS: public metrics, legacy joins, category genres, midnight/DST apportionment, commercial sessions, access control and idempotency",
+  );
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
