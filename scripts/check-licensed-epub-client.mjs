@@ -6,11 +6,10 @@ import { build } from "esbuild";
 
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "cove-offline-epub-client-"));
 try {
-  const pair = await crypto.subtle.generateKey(
-    { name: "ECDSA", namedCurve: "P-256" },
-    true,
-    ["sign", "verify"],
-  );
+  const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
+    "sign",
+    "verify",
+  ]);
   const publicKey = await crypto.subtle.exportKey("jwk", pair.publicKey);
   const publicOnly = {
     kty: "EC",
@@ -38,7 +37,11 @@ try {
   };
   Object.defineProperty(globalThis, "navigator", {
     configurable: true,
-    value: { get onLine() { return connected; } },
+    value: {
+      get onLine() {
+        return connected;
+      },
+    },
   });
   const book = { id: "public-id-1", productId: "commercial-product-1", title: "Fixture EPUB" };
   const signing = async () => {
@@ -73,10 +76,11 @@ try {
   globalThis.__coveOfflineTest = {
     storage,
     pinned: [publicOnly],
-    get owner() { return owner; },
+    get owner() {
+      return owner;
+    },
     async api(route) {
-      if (route === "/offline-epub/verification-key")
-        return { keyId, publicKey: publicOnly };
+      if (route === "/offline-epub/verification-key") return { keyId, publicKey: publicOnly };
       if (route === "/offline-epub/license") {
         if (!entitled) throw Error("Publisher rights deny renewal.");
         return signing();
@@ -112,7 +116,8 @@ export const putOwnedRecord = async (_store,value) => {
   if(value.ownerId !== globalThis.__coveOfflineTest.owner) throw Error("Account changed");
   globalThis.__coveOfflineTest.storage.set(value.id,value);
 };`,
-            "offline-epub-pin": "export const TRUSTED_OFFLINE_EPUB_PUBLIC_KEYS = globalThis.__coveOfflineTest.pinned;",
+            "offline-epub-pin":
+              "export const TRUSTED_OFFLINE_EPUB_PUBLIC_KEYS = globalThis.__coveOfflineTest.pinned;",
           };
           plugin.onResolve(
             { filter: /^\.\/(client|offline|offline-account|offline-epub-pin)$/ },
