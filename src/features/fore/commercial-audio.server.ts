@@ -1515,19 +1515,30 @@ export async function handleCommercialAudio(
       )
       .bind(userId, row.product_id)
       .first<{ id: string }>();
-    if (previous) return new Response(JSON.stringify({ completed: true, created: false }), {
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-    });
+    if (previous)
+      return new Response(JSON.stringify({ completed: true, created: false }), {
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
     // Stable event identity prevents duplicate increments when the final-track event repeats.
     const completionId = `audio_finished_${userId}_${row.product_id}`;
     const result = await db
       .prepare(
         "INSERT OR IGNORE INTO completion_events(id,user_id,product_id,external_book_id,finished_at) VALUES(?,?,?,?,?)",
       )
-      .bind(completionId, userId, row.product_id, String(row.source_external_id || row.product_id), now())
+      .bind(
+        completionId,
+        userId,
+        row.product_id,
+        String(row.source_external_id || row.product_id),
+        now(),
+      )
       .run();
-    const created = Number((result as { meta?: { changes?: number }; changes?: number }).meta?.changes ??
-      (result as { changes?: number }).changes ?? 0) > 0;
+    const created =
+      Number(
+        (result as { meta?: { changes?: number }; changes?: number }).meta?.changes ??
+          (result as { changes?: number }).changes ??
+          0,
+      ) > 0;
     if (created) {
       try {
         await ensureReadingJourney(db, userId, completionId);
