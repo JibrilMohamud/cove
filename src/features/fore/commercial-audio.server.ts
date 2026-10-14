@@ -3,7 +3,7 @@ import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";
 import { resolveProductRights } from "./rights.server";
 import { recordSyncProjection } from "./sync.server";
-import { recordReadingProgress } from "./social.server";
+import { ensureReadingJourney, recordReadingProgress } from "./social.server";
 import { signOfflineAudioLicense, verifyStoredAudioLicense } from "./offline-audio.server";
 import { hashText, audioManifestHash } from "./offline-audio-license";
 
@@ -1090,7 +1090,7 @@ export async function commercialAudioSubmissionEvidence(db: CoveEnv["DB"], editi
   };
 }
 
-async function hasAudioAccess(
+export async function hasAudioAccess(
   db: CoveEnv["DB"],
   userId: string | null,
   productId: string,
@@ -1112,7 +1112,7 @@ async function hasAudioAccess(
     .first<any>();
   return !!sub;
 }
-async function assertCommercialAudioRiskAccess(
+export async function assertCommercialAudioRiskAccess(
   db: CoveEnv["DB"],
   userId: string,
   productId: string,
@@ -1470,7 +1470,7 @@ export async function handleCommercialAudio(
   const url = new URL(request.url),
     db = env.DB;
   const match = path.match(
-    /^\/audio\/(ca_[^/]+)(?:\/(tracks|preview|offline-license|biosync|playback)(?:\/([^/]+))?)?$/,
+    /^\/audio\/(ca_[^/]+)(?:\/(tracks|preview|offline-license|biosync|playback|complete)(?:\/([^/]+))?)?$/,
   );
   if (!match) return null;
   const row = await commercialRowByPublicId(db, decodeURIComponent(match[1]));
@@ -1501,6 +1501,41 @@ export async function handleCommercialAudio(
       await audioManifestHash(edition),
     );
     return new Response(JSON.stringify(verified), {
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    });
+  }
+  if (match[2] === "complete" && request.method === "POST") {
+    if (!userId) throw new ApiError(401, "Sign in to finish listening.");
+    if (!(await hasAudioAccess(db, userId, String(row.product_id), territory)))
+      throw new ApiError(403, "An active audiobook entitlement is required.");
+    await assertCommercialAudioRiskAccess(db, userId, String(row.product_id));
+    const previous = await db
+      .prepare(
+        "SELECT id FROM completion_events WHERE user_id=? AND product_id=? ORDER BY finished_at DESC LIMIT 1",
+      )
+      .bind(userId, row.product_id)
+      .first<{ id: string }>();
+    if (previous) return new Response(JSON.stringify({ completed: true, created: false }), {
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    });
+    // Stable event identity prevents duplicate increments when the final-track event repeats.
+    const completionId = `audio_finished_${userId}_${row.product_id}`;
+    const result = await db
+      .prepare(
+        "INSERT OR IGNORE INTO completion_events(id,user_id,product_id,external_book_id,finished_at) VALUES(?,?,?,?,?)",
+      )
+      .bind(completionId, userId, row.product_id, String(row.source_external_id || row.product_id), now())
+      .run();
+    const created = Number((result as { meta?: { changes?: number }; changes?: number }).meta?.changes ??
+      (result as { changes?: number }).changes ?? 0) > 0;
+    if (created) {
+      try {
+        await ensureReadingJourney(db, userId, completionId);
+      } catch (error) {
+        console.error("Audio reading journey generation failed", error);
+      }
+    }
+    return new Response(JSON.stringify({ completed: true, created }), {
       headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
     });
   }
