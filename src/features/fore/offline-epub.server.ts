@@ -2,20 +2,38 @@ import type { CoveEnv } from "./api.server";
 import { ApiError } from "./service";
 import { issueCommercialEpubGrant } from "./delivery.server";
 import { audioKeyId, base64Url, hashText, publicAudioKey } from "./offline-audio-license";
+import {
+  OFFLINE_EPUB_CONTEXT,
+  OFFLINE_EPUB_MAX_MS,
+  type OfflineEpubClaims,
+} from "./offline-epub-crypto";
+export type { OfflineEpubClaims } from "./offline-epub-crypto";
 
-export const OFFLINE_EPUB_CONTEXT = "cove-offline-epub:v1\n";
-export type OfflineEpubClaims = {
-  version: 1;
-  audience: "cove-offline-epub";
-  userId: string;
-  productId: string;
-  deviceKeyHash: string;
-  assetVersionId: string;
-  licenseId: string;
-  issuedAt: string;
-  expiresAt: string;
-  keyId: string;
-};
+export async function offlineEpubVerificationKey(env: CoveEnv) {
+  const secret = env.FORE_OFFLINE_AUDIO_SIGNING_JWK;
+  if (!secret) throw new ApiError(503, "Protected offline licensing is not configured.");
+  let privateJwk: JsonWebKey;
+  try {
+    privateJwk = JSON.parse(secret);
+  } catch {
+    throw new ApiError(503, "Protected offline signing key is malformed.");
+  }
+  let publicKey: JsonWebKey;
+  try {
+    publicKey = publicAudioKey(privateJwk);
+    if (!privateJwk.d) throw Error("No private signing component.");
+    await crypto.subtle.importKey(
+      "jwk",
+      privateJwk,
+      { name: "ECDSA", namedCurve: "P-256" },
+      false,
+      ["sign"],
+    );
+  } catch {
+    throw new ApiError(503, "Protected offline signing key is invalid.");
+  }
+  return { publicKey, keyId: await audioKeyId(publicKey) };
+}
 export async function issueOfflineEpubLicense(
   env: CoveEnv,
   userId: string,
@@ -78,7 +96,7 @@ export async function issueOfflineEpubLicense(
     assetVersionId: grant.assetVersionId,
     licenseId: grant.grantId,
     issuedAt: issuedAt.toISOString(),
-    expiresAt: new Date(issuedAt.getTime() + 48 * 3600000).toISOString(),
+    expiresAt: new Date(issuedAt.getTime() + OFFLINE_EPUB_MAX_MS).toISOString(),
     keyId: await audioKeyId(publicKey),
   };
   const payload = base64Url(new TextEncoder().encode(JSON.stringify(claims)));
@@ -100,7 +118,6 @@ export async function issueOfflineEpubLicense(
   );
   return {
     url: grant.url,
-    publicKey,
     receipt: { payload, signature, keyId: claims.keyId },
     expiresAt: claims.expiresAt,
     assetVersionId: claims.assetVersionId,
