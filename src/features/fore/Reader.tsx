@@ -2085,7 +2085,9 @@ export function ReaderPage({ id }: { id: string }) {
                     aria-label="Load older saved passages from this book"
                     onClick={() => void bookAnnotationPages.fetchNextPage()}
                   >
-                    {bookAnnotationPages.isFetchingNextPage ? "Loading passages…" : "Load more saved passages"}
+                    {bookAnnotationPages.isFetchingNextPage
+                      ? "Loading passages…"
+                      : "Load more saved passages"}
                   </button>
                 )}
               </div>
