@@ -177,6 +177,28 @@ export function ReaderPage({ id }: { id: string }) {
     queryFn: () => loadBookMetadata(id),
   });
   const { data, loading: accountLoading, reload, signIn } = useAccount();
+  // Reader presence is a short-lived lease, scoped to this browser tab. It suppresses
+  // outbound notification delivery even when the reader has requested all topics.
+  const readerPresenceId = useRef(crypto.randomUUID());
+  useEffect(() => {
+    if (!data.user?.id || accountLoading) return;
+    const owner = data.user.id;
+    const clientId = readerPresenceId.current;
+    const update = (reading: boolean) => {
+      if (document.visibilityState !== "visible" && reading) return;
+      void api("/notifications/reader-presence", "POST", { clientId, reading }).catch(() => {});
+    };
+    const change = () => update(document.visibilityState === "visible");
+    update(document.visibilityState === "visible");
+    const timer = window.setInterval(change, 45000);
+    document.addEventListener("visibilitychange", change);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", change);
+      // The server lease expires automatically if connectivity was lost.
+      if (owner) update(false);
+    };
+  }, [data.user?.id, accountLoading]);
   const bookReferences = useRef(new Set<string>([id]));
   const metadata = bookQuery.data;
   bookReferences.current = new Set(
