@@ -1032,9 +1032,7 @@ function CommerceOperations({ storefrontToken }: { storefrontToken: string }) {
             <div className="staff-callout">
               <strong>Copy now — shown only in this response</strong>
               <code>{issuedCard.code}</code>
-              <span>
-                {formatMinorCurrency(issuedCard.balanceMinor, issuedCard.currency)}
-              </span>
+              <span>{formatMinorCurrency(issuedCard.balanceMinor, issuedCard.currency)}</span>
             </div>
           )}
         </FormCard>
