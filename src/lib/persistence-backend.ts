@@ -6,6 +6,7 @@ type PersistenceEnv = {
   CRON_SECRET?: string;
   FORE_INGESTION_TRIGGER_TOKEN?: string;
   FORE_INGESTION_VERIFY_JWK?: string;
+  FORE_AUDIO_COMPUTE_MODE?: string;
 };
 
 const gatewayHeader = "x-cove-backend-token";
@@ -390,6 +391,19 @@ export async function handleVercelIngestionControl(
       },
     });
   }
+  if (env.FORE_AUDIO_COMPUTE_MODE === "paused")
+    return new Response(JSON.stringify({ ok: true, skipped: "audio-compute-paused" }), {
+      headers: { "content-type": "application/json", "cache-control": "no-store" },
+    });
+  // Check before invoking Python; the executor reserves atomically immediately
+  // before processing, so concurrent controllers cannot overspend the budget.
+  const admissionResponse = await backendControl(env, "/__cove/ingestion/audio-admission", {});
+  if (!admissionResponse.ok) return passthroughJson(admissionResponse, "audio-admission");
+  const admission = (await admissionResponse.json()) as { allowed?: boolean; reason?: string };
+  if (!admission.allowed)
+    return new Response(JSON.stringify({ ok: true, skipped: admission.reason || "audio-budget" }), {
+      headers: { "content-type": "application/json", "cache-control": "no-store" },
+    });
   const response = await audioControl(env, payload);
   return passthroughJson(response, path.split("/").pop() || "audio");
 }

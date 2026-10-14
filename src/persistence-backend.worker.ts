@@ -9,17 +9,22 @@ import {
 import { hostedBiosyncChunks } from "./features/fore/hosted-biosync-chunks.server";
 import { cachedPublicApi, prunePublicCache } from "./features/fore/public-api-cache.server";
 import { refreshPublicStatus } from "./features/fore/public-status.server";
+import {
+  audioComputeAdmission,
+  type AudioComputeEnv,
+} from "./features/fore/audio-compute-budget.server";
 
-type BackendEnv = CoveEnv & {
-  FORE_BACKEND_TOKEN?: string;
-  FORE_BACKEND_TOKEN_SHA256?: string;
-  FORE_PUBLIC_URL?: string;
-  FORE_CATALOG_PAGES_PER_TICK?: string;
-  FORE_CATALOG_EPUBS_PER_TICK?: string;
-  FORE_INGESTION_TRIGGER_TOKEN?: string;
-  FORE_INGESTION_SIGNING_KEY?: string;
-  AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
-};
+type BackendEnv = CoveEnv &
+  AudioComputeEnv & {
+    FORE_BACKEND_TOKEN?: string;
+    FORE_BACKEND_TOKEN_SHA256?: string;
+    FORE_PUBLIC_URL?: string;
+    FORE_CATALOG_PAGES_PER_TICK?: string;
+    FORE_CATALOG_EPUBS_PER_TICK?: string;
+    FORE_INGESTION_TRIGGER_TOKEN?: string;
+    FORE_INGESTION_SIGNING_KEY?: string;
+    AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
+  };
 
 type ExecutionContextLike = {
   waitUntil?(promise: Promise<unknown>): void;
@@ -261,6 +266,11 @@ async function persistAudioTriggerDiagnostic(
 }
 
 async function triggerVercelAudio(env: BackendEnv, path: string) {
+  const admission = await audioComputeAdmission(env);
+  if (!admission.allowed) {
+    console.info("Cove audio compute deferred", admission.reason);
+    return;
+  }
   if (!env.FORE_PUBLIC_URL) {
     throw new Error("FORE_PUBLIC_URL is required for audio scheduling.");
   }
@@ -443,6 +453,10 @@ async function runScheduled(cron: string, env: BackendEnv) {
       await prunePublicCache(env).catch((error) =>
         console.warn("Public cache cleanup failed", error),
       );
+      if (!(await audioComputeAdmission(env)).allowed) {
+        await scheduledCatalog(env);
+        return;
+      }
       // This is the reliable primary cron, so it must make forward progress
       // even if a secondary alignment trigger is delayed or never fires.
       // Reserve alternating 15-minute windows for independent BioSync
@@ -718,6 +732,10 @@ export default {
 
     if (path === "/__cove/ingestion/catalog" && request.method === "POST") {
       return catalogBatch(request, env);
+    }
+    if (path === "/__cove/ingestion/audio-admission" && request.method === "POST") {
+      const input = (await request.json().catch(() => null)) as { reserve?: unknown } | null;
+      return json(await audioComputeAdmission(env, input?.reserve === true));
     }
     if (path === "/__cove/ingestion/maintenance" && request.method === "POST") {
       return maintenance(env);

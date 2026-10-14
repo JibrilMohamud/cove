@@ -276,7 +276,8 @@ export function SharingPage({ sent = false }: { sent?: boolean }) {
       ),
     getNextPageParam: (page) => page.nextCursor || undefined,
     enabled: !!data.user,
-    refetchInterval: 30000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
   const preferences = useQuery<{ policy: string }>({
     queryKey: ["direct-sharing-policy", data.user?.id],

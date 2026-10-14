@@ -49,6 +49,7 @@
     "test:sharing-erasure": "node scripts/check-sharing-erasure.mjs",
     "lint:strict": "eslint .",
     "test:browser": "playwright test",
+    "test:compute-budget": "node scripts/check-compute-budget.mjs",
     "test:social-pagination": "node scripts/check-social-pagination.mjs",
     "test:journey-privacy-progress": "node scripts/check-journey-privacy-progress.mjs"
   },

@@ -54,6 +54,7 @@ import {
 import {
   api,
   useAccount,
+  findLibraryBook,
   colors,
   type CatalogBook,
   type Annotation,
@@ -150,6 +151,13 @@ const themes = {
   night: { bg: "#15202e", fg: "#d8dee7" },
   oled: { bg: "#000000", fg: "#d6d7d9" },
 };
+// epub.js returns the insertion point of a CFI in its sampled ranges. That
+// rounds forward (even to 100% on short books). Use the preceding sample so
+// rendering a passage never claims unread text beyond it.
+function conservativeCfiProgress(book: any, cfi: string) {
+  const index = book.locations.locationFromCfi(cfi);
+  return Math.max(0, index - 1) / Math.max(1, book.locations.total);
+}
 export function ReaderPage({ id }: { id: string }) {
   const searchString = useRouterState({ select: (state) => state.location.searchStr || "" });
   const previewMode = new URLSearchParams(searchString).get("preview") === "1";
@@ -174,7 +182,8 @@ export function ReaderPage({ id }: { id: string }) {
     epub = useRef<any>(null),
     mounted = useRef(false),
     saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
-    position = useRef({ cfi: "", progress: 0 }),
+    position = useRef({ cfi: "", progress: 0, atEnd: false }),
+    advancedPage = useRef(false),
     accountRef = useRef(data),
     chapterRef = useRef(""),
     annotationRef = useRef(data.annotations),
@@ -182,7 +191,10 @@ export function ReaderPage({ id }: { id: string }) {
     savedPositionKey = useRef(""),
     recommendationStart = useRef(""),
     recommendationProgressBucket = useRef(-1),
+    savedSpoilerPercent = useRef(-1),
     readingVersion = useRef(0),
+    readingScope = useRef(""),
+    positionConflict = useRef(false),
     previewVersion = useRef(0),
     settingVersions = useRef<Record<string, number>>({}),
     lastSyncedSettings = useRef<Record<string, unknown>>({}),
@@ -193,9 +205,19 @@ export function ReaderPage({ id }: { id: string }) {
   accountRef.current = data;
   annotationRef.current = data.annotations;
   useEffect(() => {
-    readingVersion.current =
-      data.library.find((x) => x.bookId === id || x.productId === id)?.version || 0;
-  }, [data.library, id]);
+    const scope = JSON.stringify([data.user?.id, id]);
+    const version = findLibraryBook(data.library, id)?.version || 0;
+    if (readingScope.current !== scope) {
+      readingScope.current = scope;
+      readingVersion.current = version;
+      savedPositionKey.current = "";
+      positionConflict.current = false;
+      advancedPage.current = false;
+    } else {
+      // A reload started before our save can finish with an older snapshot.
+      readingVersion.current = Math.max(readingVersion.current, version);
+    }
+  }, [data.library, data.user?.id, id]);
   const [ready, setReady] = useState(false),
     [error, setError] = useState(""),
     [retry, setRetry] = useState(0),
@@ -305,17 +327,16 @@ export function ReaderPage({ id }: { id: string }) {
     enabled: !!data.user && !!socialAnnotationId && socialCompose === "share",
   });
   const socialReaderQuery = useInfiniteQuery<any>({
-    queryKey: ["social-reader", id, data.user?.id, percent, chapter],
+    queryKey: ["social-reader", id, data.user?.id],
     initialPageParam: "",
     queryFn: ({ pageParam }) =>
       api(
-        `/social/reader/${encodeURIComponent(id)}?progress=${Math.max(0, Math.min(1, position.current.progress || percent / 100))}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
+        `/social/reader/${encodeURIComponent(id)}${pageParam ? `?cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
       ),
     getNextPageParam: (page) => page.nextCursor || undefined,
     enabled: !!data.user && !previewMode,
-    staleTime: 4000,
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+    refetchInterval: (query) => (query.state.data?.pages[0]?.preferences?.enabled ? 60_000 : false),
   });
   const clusters = new Map<string, any>();
   for (const page of socialReaderQuery.data?.pages || [])
@@ -559,6 +580,7 @@ export function ReaderPage({ id }: { id: string }) {
     else r.themes.font(s.font);
   }
   async function persistPosition() {
+    if (positionConflict.current) return;
     const p = position.current;
     if (!p.cfi) return;
     if (!previewMode && syncEdition.current && sync.current) {
@@ -578,6 +600,7 @@ export function ReaderPage({ id }: { id: string }) {
     savingPosition.current = savingPosition.current
       .catch(() => {})
       .then(async () => {
+        if (positionConflict.current) return;
         try {
           if (savedPositionKey.current === key) {
             if (mounted.current) setSaveState("Position saved");
@@ -600,7 +623,11 @@ export function ReaderPage({ id }: { id: string }) {
               "POST",
               {
                 bookId: id,
-                status: snapshot.progress >= 0.995 ? "finished" : "reading",
+                status:
+                  (snapshot.atEnd && advancedPage.current) ||
+                  findLibraryBook(accountRef.current.library, id)?.status === "finished"
+                    ? "finished"
+                    : "reading",
                 cfi: snapshot.cfi,
                 progress: snapshot.progress,
                 expectedVersion: readingVersion.current,
@@ -611,6 +638,12 @@ export function ReaderPage({ id }: { id: string }) {
               setFinishedJourney(saved.readingJourneyId);
           }
           savedPositionKey.current = key;
+          const spoilerPercent = Math.floor(snapshot.progress * 100);
+          if (!previewMode && spoilerPercent > savedSpoilerPercent.current) {
+            savedSpoilerPercent.current = spoilerPercent;
+            // Refresh only after the backend has accepted new spoiler progress.
+            void socialReaderQuery.refetch();
+          }
           const productId = bookQuery.data?.productId,
             bucket = Math.floor(Math.max(0, Math.min(0.999, snapshot.progress)) * 10);
           if (productId && bucket > 0 && bucket > recommendationProgressBucket.current) {
@@ -626,9 +659,9 @@ export function ReaderPage({ id }: { id: string }) {
           if (mounted.current) setSaveState("Position saved");
         } catch (e) {
           if ((e as any)?.status === 409) {
+            positionConflict.current = true;
             if (mounted.current)
               setSaveState("Position changed on another device — reload to choose");
-            reload().catch(() => {});
           } else if (mounted.current) setSaveState("Position not saved — retry");
         }
       });
@@ -774,7 +807,7 @@ export function ReaderPage({ id }: { id: string }) {
         chapterRef.current = title;
         setChapter(title);
         const p = created.locations.length()
-          ? created.locations.percentageFromCfi(loc.start.cfi)
+          ? conservativeCfiProgress(created, loc.start.cfi)
           : Math.min(
               0.99,
               ((loc.start.index || 0) +
@@ -787,7 +820,13 @@ export function ReaderPage({ id }: { id: string }) {
         }
         position.current = {
           cfi: initialAnchor.current || loc.start.cfi,
-          progress: Number.isFinite(p) ? Math.max(0, Math.min(1, p)) : 0,
+          progress:
+            loc.atEnd && advancedPage.current
+              ? 1
+              : Number.isFinite(p)
+                ? Math.max(0, Math.min(0.99, p))
+                : 0,
+          atEnd: loc.atEnd === true,
         };
         setPercent(Math.round(position.current.progress * 100));
         if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -806,9 +845,7 @@ export function ReaderPage({ id }: { id: string }) {
       });
       let cfi =
         new URLSearchParams(window.location.search).get("cfi") ||
-        (!previewMode
-          ? accountRef.current.library.find((x) => x.bookId === id || x.productId === id)?.cfi
-          : undefined);
+        (!previewMode ? findLibraryBook(accountRef.current.library, id)?.cfi : undefined);
       if (previewMode && accountRef.current.user && bookQuery.data?.productId && !params.has("cfi"))
         try {
           const ps = await api(
@@ -904,7 +941,10 @@ export function ReaderPage({ id }: { id: string }) {
         .generate(1800)
         .then(() => {
           if (!canceled && position.current.cfi) {
-            const p = created.locations.percentageFromCfi(position.current.cfi);
+            const p =
+              position.current.atEnd && advancedPage.current
+                ? 1
+                : conservativeCfiProgress(created, position.current.cfi);
             if (Number.isFinite(p)) {
               position.current.progress = p;
               setPercent(Math.round(p * 100));
@@ -923,12 +963,14 @@ export function ReaderPage({ id }: { id: string }) {
       if (e.key === "Tab" && !chromeVisibleRef.current) showChrome(false);
       if (e.key === "ArrowRight") {
         e.preventDefault();
+        advancedPage.current = true;
         (formatRef.current.rtl ? rendition.current?.prev() : rendition.current?.next())?.catch?.(
           () => {},
         );
       }
       if (e.key === "ArrowLeft") {
         e.preventDefault();
+        advancedPage.current = true;
         (formatRef.current.rtl ? rendition.current?.next() : rendition.current?.prev())?.catch?.(
           () => {},
         );
@@ -1354,7 +1396,10 @@ export function ReaderPage({ id }: { id: string }) {
           aria-label="Previous page"
           className="reader-page-turn prev"
           disabled={!ready}
-          onClick={() => rendition.current?.prev().catch(() => {})}
+          onClick={() => {
+            advancedPage.current = true;
+            rendition.current?.prev().catch(() => {});
+          }}
         >
           <ChevronLeft size={26} />
         </button>
@@ -1408,7 +1453,10 @@ export function ReaderPage({ id }: { id: string }) {
           aria-label="Next page"
           className="reader-page-turn next"
           disabled={!ready}
-          onClick={() => rendition.current?.next().catch(() => {})}
+          onClick={() => {
+            advancedPage.current = true;
+            rendition.current?.next().catch(() => {});
+          }}
         >
           <ChevronRight size={26} />
         </button>
@@ -1424,7 +1472,12 @@ export function ReaderPage({ id }: { id: string }) {
         <div>
           <span>{ready ? percent + (previewMode ? "% of sample" : "% read") : ""}</span>
           {data.user ? (
-            <button className="reader-save-status" onClick={persistPosition}>
+            <button
+              className="reader-save-status"
+              onClick={() =>
+                positionConflict.current ? window.location.reload() : persistPosition()
+              }
+            >
               {saveState ||
                 (previewMode ? "Your sample place will be saved" : "Your place will be saved")}
             </button>

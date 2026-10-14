@@ -291,6 +291,7 @@ test("EPUB reader opens and joined members receive group margin discussions", as
     const passageBox = await chapterFrame.locator("#passage").boundingBox();
     expect(Math.abs(markerBox.y - passageBox.y), "Marker is beside its passage").toBeLessThan(40);
     const thread = bob.locator(".reader-social-panel .social-thread").first();
+    await expect(bob.getByRole("heading", { name: "Finished.", exact: true })).toHaveCount(0);
     const post = thread.locator(".social-post").first();
     const reaction = post.locator("footer button").first();
     await reaction.click();
@@ -478,6 +479,60 @@ test("zero density persists and hides passage markers", async ({ browser, reques
     await bob.reload();
     await expect(bob.getByRole("button", { name: "Next page", exact: true })).toBeEnabled();
     await expect(bob.locator(".reader-social-gutter button")).toHaveCount(0);
+  } finally {
+    await fixture.close();
+  }
+});
+
+test("public reader IDs save repeatedly and real remote conflicts remain fenced", async ({
+  browser,
+  request,
+}, testInfo) => {
+  const fixture = await setup(browser, request, testInfo);
+  try {
+    const bob = await fixture.pageFor("bob");
+    await inventory(bob);
+    await bob
+      .locator("article.margin-conversation-card")
+      .filter({ hasText: discussion })
+      .getByRole("link", { name: "Open in reader" })
+      .click();
+    await expect(bob.locator(".reader-save-status")).toHaveText("Position saved");
+    const pageSave = bob.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/fore/library" &&
+        response.request().method() === "POST" &&
+        response.ok(),
+    );
+    await bob.getByRole("button", { name: "Next page", exact: true }).click();
+    await pageSave;
+    await expect(bob.locator(".reader-save-status")).toHaveText("Position saved");
+    const id = decodeURIComponent(new URL(bob.url()).pathname.split("/read/")[1]);
+    const account = await (await bob.request.get("/api/fore/account")).json();
+    const current = account.library.find(
+      (entry) => entry.book.id === id || entry.book.publicProductId === id,
+    );
+    expect(current.version).toBeGreaterThan(2);
+    const remoteCfi = "epubcfi(/6/2!/4/6/1:0)";
+    const changed = await bob.request.post("/api/fore/library", {
+      data: {
+        bookId: id,
+        cfi: remoteCfi,
+        progress: 0.7,
+        status: "reading",
+        expectedVersion: current.version,
+      },
+    });
+    expect(changed.ok(), await changed.text()).toBeTruthy();
+    await bob.getByRole("button", { name: "Next page", exact: true }).click();
+    await expect(bob.locator(".reader-save-status")).toHaveText(
+      "Position changed on another device — reload to choose",
+    );
+    await bob.getByRole("button", { name: "Next page", exact: true }).click();
+    const after = await (await bob.request.get("/api/fore/account")).json();
+    expect(after.library.find((entry) => entry.productId === current.productId).cfi).toBe(
+      remoteCfi,
+    );
   } finally {
     await fixture.close();
   }

@@ -45,7 +45,7 @@ const pkg = JSON.parse(packageRaw);
 assert.match(server, /handleVercelIngestionControl/);
 assert.match(server, /proxyPersistenceApi/);
 assert.ok(
-  server.indexOf("proxyPersistenceApi") < server.indexOf("handleCoveApi(request"),
+  server.indexOf("proxyPersistenceApi") < server.indexOf(".handleCoveApi(request"),
   "persistent gateway must run before the stateless fallback API",
 );
 
@@ -142,9 +142,9 @@ assert.doesNotMatch(service, /poll_and_handle/);
 assert.doesNotMatch(service, /lifespan=/);
 assert.match(audioSubscriber, /@subscribe\(/);
 assert.match(audioSubscriber, /AUDIO_TRIGGER_TOPIC/);
-assert.match(audioSubscriber, /max_concurrency=2/);
+assert.match(audioSubscriber, /max_concurrency=1/);
 assert.match(audioPyproject, /entrypoint = "audio_pipeline\.subscriber"/);
-assert.match(audioSubscriber, /max_attempts=8/);
+assert.match(audioSubscriber, /max_attempts=1/);
 assert.match(audioSubscriber, /Message\[dict\[str, object\]\]/);
 assert.match(audioPyproject, /\[tool\.vercel\]/);
 assert.match(audioPyproject, /entrypoint = "audio_pipeline\.service:app"/);

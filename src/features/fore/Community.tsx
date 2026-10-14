@@ -385,7 +385,8 @@ function Feed() {
       ),
     getNextPageParam: (page: any) => page.nextCursor || undefined,
     enabled: !!data.user,
-    refetchInterval: 30_000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
   const loadingMore = q.isFetchingNextPage;
   const next = q.hasNextPage;

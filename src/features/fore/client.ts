@@ -94,6 +94,18 @@ export type LibraryBook = {
   updatedAt: string;
   version: number;
 };
+/** Shared links use public IDs; account state retains internal/source IDs. */
+export function findLibraryBook(library: LibraryBook[], id: string) {
+  return library.find((entry) =>
+    [
+      entry.bookId,
+      entry.productId,
+      entry.book.id,
+      entry.book.productId,
+      entry.book.publicProductId,
+    ].some((ref) => ref !== undefined && String(ref) === id),
+  );
+}
 export type Annotation = {
   id: string;
   bookId: string;
