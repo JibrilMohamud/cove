@@ -3817,7 +3817,7 @@ async function handleCoveRequest(
       )) ||
       (await handleAudio(request, env, path, identity(request)?.id || null, storefrontTerritory)) ||
       (await handleSocial(request, env, path, identity(request)?.id || null)) ||
-      (await handleCommunity(request, env, path, identity(request)?.id || null, getBook));
+      (await handleCommunity(request, env, path, identity(request)?.id || null, getBook, storefrontTerritory));
     if (extended) return extended;
     if (request.method === "GET" && path === "/catalog") {
       const searchUserId = identity(request)?.id || null;
