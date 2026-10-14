@@ -38,8 +38,7 @@ export async function flushReaderMutations(userId: string) {
         if (offlineAccountId() !== userId) break;
         // Only remove the exact queued version: the user may have edited it while sending.
         const current = await getRecord<Mutation>("outbox", row.id);
-        if (current?.savedAt === row.savedAt)
-          await deleteRecord("outbox", row.id);
+        if (current?.savedAt === row.savedAt) await deleteRecord("outbox", row.id);
       } catch (error) {
         const status = Number((error as { status?: number })?.status || 0);
         if ([400, 404, 409, 422].includes(status)) {
@@ -54,7 +53,9 @@ export async function flushReaderMutations(userId: string) {
         break;
       }
     }
-  })().finally(() => { draining = null; });
+  })().finally(() => {
+    draining = null;
+  });
   return draining;
 }
 export async function queueReaderMutation(
@@ -72,7 +73,12 @@ export async function queueReaderMutation(
   if (prior?.state === "conflict")
     throw new Error("This reading change conflicts with another device; review it before editing.");
   const row: Mutation = {
-    id, userId, kind, path, method, body,
+    id,
+    userId,
+    kind,
+    path,
+    method,
+    body,
     savedAt: new Date().toISOString(),
     state: "pending",
   };
@@ -88,7 +94,9 @@ export async function queueReaderMutation(
     const status = Number((error as { status?: number })?.status || 0);
     if ([400, 404, 409, 422].includes(status)) {
       await putRecord("outbox", {
-        ...row, state: "conflict", lastError: (error as Error).message,
+        ...row,
+        state: "conflict",
+        lastError: (error as Error).message,
       } satisfies Mutation);
       throw error;
     }
