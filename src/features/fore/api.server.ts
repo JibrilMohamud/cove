@@ -1154,9 +1154,14 @@ async function account(env: CoveEnv, request: Request) {
   ]);
   const bookmarks = await listTextBookmarks(db, user.id);
   const library = [];
-  for (const row of readingStates.results) {
-    const book = await getCanonicalBook(db, row.external_book_id, user.id);
-    if (book) library.push(libraryRow(row, book));
+  for (let i = 0; i < readingStates.results.length; i += 8) {
+    const chunk = readingStates.results.slice(i, i + 8);
+    const books = await Promise.all(
+      chunk.map((row: any) => getCanonicalBook(db, row.external_book_id, user.id)),
+    );
+    for (let j = 0; j < chunk.length; j++) {
+      if (books[j]) library.push(libraryRow(chunk[j], books[j]));
+    }
   }
   return {
     user: { ...user, name: profile?.name || user.name, registered: !!profile },
