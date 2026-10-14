@@ -734,17 +734,6 @@ export async function handleCommunity(
         (resolved as any).sourceExternalId || (resolved as any).id || input.bookId,
       );
     }
-    const existing = await db
-      .prepare("SELECT book_id,mode,started_at FROM reading_sessions WHERE user_id=? AND id=?")
-      .bind(uid, input.id)
-      .first<any>();
-    if (
-      existing &&
-      (existing.book_id !== sessionBookId ||
-        existing.mode !== input.mode ||
-        existing.started_at !== input.startedAt)
-    )
-      throw new ApiError(409, "This session identity is already in use.");
     if (input.mode === "listen") {
       if (input.bookId.startsWith("ca_")) {
         // Commercial recordings can be sold without a linked ebook or Gutenberg identifier.
@@ -767,6 +756,17 @@ export async function handleCommunity(
         if (!exists) throw new ApiError(404, "Audiobook not found.");
       }
     }
+    const existing = await db
+      .prepare("SELECT book_id,mode,started_at FROM reading_sessions WHERE user_id=? AND id=?")
+      .bind(uid, input.id)
+      .first<any>();
+    if (
+      existing &&
+      (existing.book_id !== sessionBookId ||
+        existing.mode !== input.mode ||
+        existing.started_at !== input.startedAt)
+    )
+      throw new ApiError(409, "This session identity is already in use.");
     await db
       .prepare(
         "INSERT INTO reading_sessions(id,user_id,book_id,mode,started_at,ended_at,active_seconds,words_read) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(user_id,id) DO UPDATE SET ended_at=MAX(reading_sessions.ended_at,excluded.ended_at),active_seconds=MAX(reading_sessions.active_seconds,excluded.active_seconds),words_read=MAX(reading_sessions.words_read,excluded.words_read)",
