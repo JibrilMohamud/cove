@@ -1,5 +1,8 @@
 import { marginLocationKey } from "./margin-passages";
-import { savedAlignedAudioProgress } from "./spoiler-progress.server";
+import {
+  savedAlignedAudioProgress,
+  savedGroupAlignedAudioProgress,
+} from "./spoiler-progress.server";
 import { z } from "zod";
 import type { CoveEnv } from "./api.server";
 import { ApiError, bookIdSchema, json, now, rateLimit, readBody, requireIdentity } from "./service";
@@ -172,7 +175,45 @@ async function currentProductProgress(db: DB, userId: string, productId: string,
     .bind(userId, productId, userId, productId)
     .first<{ progress: number | null }>();
   const audio = await savedAlignedAudioProgress(db, userId, productId, env?.BUCKET);
-  return Math.max(audio, Math.max(0, Math.min(1, Number(r?.progress || 0))));
+  return Math.max(audio, safeProgress(r?.progress));
+}
+function safeProgress(value: unknown) {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0;
+}
+async function groupProductProgress(db: DB, groupId: string, productId: string, env: CoveEnv) {
+  const [members, audio] = await Promise.all([
+    db
+      .prepare(
+        `SELECT gm.user_id,COALESCE(rs.progress,0) progress FROM reading_group_members gm
+      LEFT JOIN (SELECT user_id,MAX(progress) progress FROM (
+        SELECT user_id,progress FROM reading_states WHERE product_id=? AND user_id IN (SELECT user_id FROM reading_group_members WHERE group_id=? AND status='active')
+        UNION ALL SELECT user_id,progress FROM reading_progress_events WHERE product_id=? AND source='ebook' AND user_id IN (SELECT user_id FROM reading_group_members WHERE group_id=? AND status='active')
+      ) GROUP BY user_id) rs ON rs.user_id=gm.user_id
+      WHERE gm.group_id=? AND gm.status='active'`,
+      )
+      .bind(productId, groupId, productId, groupId, groupId)
+      .all<{ user_id: string; progress: number }>(),
+    savedGroupAlignedAudioProgress(db, groupId, productId, env.BUCKET),
+  ]);
+  const reached = new Map<string, number>();
+  const counts = new Map<string, number>();
+  for (const member of members.results) {
+    const p = Math.max(safeProgress(member.progress), audio.get(member.user_id) ?? 0);
+    reached.set(member.user_id, p);
+    const bucket =
+      p >= 0.999
+        ? "finished"
+        : p >= 0.66
+          ? "late"
+          : p >= 0.33
+            ? "middle"
+            : p > 0
+              ? "started"
+              : "not_started";
+    counts.set(bucket, (counts.get(bucket) ?? 0) + 1);
+  }
+  return { reached, buckets: [...counts].map(([bucket, count]) => ({ bucket, count })) };
 }
 async function assertContextReadable(
   db: DB,
@@ -2097,18 +2138,14 @@ export async function handleSocial(
     ]);
     const progress = [];
     for (const b of books.results.filter((x: any) => x.status === "current")) {
-      const [distribution, viewer] = await Promise.all([
-        db
-          .prepare(
-            `SELECT CASE WHEN rs.progress>=.999 THEN 'finished' WHEN rs.progress>=.66 THEN 'late' WHEN rs.progress>=.33 THEN 'middle' WHEN rs.progress>0 THEN 'started' ELSE 'not_started' END bucket,COUNT(*) count FROM reading_group_members gm LEFT JOIN reading_states rs ON rs.user_id=gm.user_id AND rs.product_id=? WHERE gm.group_id=? AND gm.status='active' GROUP BY bucket`,
-          )
-          .bind(b.product_id, id)
-          .all<any>(),
-        userId ? currentProductProgress(db, userId, String(b.product_id), env) : Promise.resolve(0),
-      ]);
+      const distribution = await groupProductProgress(db, id, String(b.product_id), env);
+      const viewer = !userId
+        ? 0
+        : (distribution.reached.get(userId) ??
+          (await currentProductProgress(db, userId, String(b.product_id), env)));
       progress.push({
         bookId: b.id,
-        buckets: distribution.results,
+        buckets: distribution.buckets,
         viewerProgress: viewer,
       });
     }

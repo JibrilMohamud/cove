@@ -651,40 +651,40 @@ async function d1Facets(
   ].every(
     (part) => part.cte === baseCte && JSON.stringify(part.binds) === JSON.stringify(base.binds),
   );
-  const sharedRows = commonCandidates
-    ? (
-        await db
-          .prepare(
-            `${baseCte.replace("candidate AS (", "candidate AS MATERIALIZED (")}
-    SELECT 'categories' facet,value,count,NULL min_price,NULL max_price,NULL currency FROM
-      (SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name LIMIT 40)
-    UNION ALL SELECT 'languages',value,count,NULL,NULL,NULL FROM
-      (SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code LIMIT 30)
-    UNION ALL SELECT 'formats',value,count,NULL,NULL,NULL FROM
-      (SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value LIMIT 20)
-    UNION ALL SELECT 'publishers',value,count,NULL,NULL,NULL FROM
-      (SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name LIMIT 30)
-    UNION ALL SELECT 'series',value,count,NULL,NULL,NULL FROM
-      (SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name LIMIT 30)
-    UNION ALL SELECT 'availability',value,count,NULL,NULL,NULL FROM
-      (SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value LIMIT 10)
-    UNION ALL SELECT 'price',NULL,NULL,MIN(price_minor),MAX(price_minor),MAX(currency) FROM candidate`,
-          )
-          .bind(...base.binds)
-          .all<{
-            facet: string;
-            value: string;
-            count: number;
-            min_price: number | null;
-            max_price: number | null;
-            currency: string | null;
-          }>()
-      ).results
+  const shared = commonCandidates
+    ? await db
+        .prepare(
+          `${baseCte.replace("candidate AS (", "candidate AS MATERIALIZED (")}
+    SELECT
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name LIMIT 40)) categories,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code LIMIT 30)) languages,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value LIMIT 20)) formats,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name LIMIT 30)) publishers,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name LIMIT 30)) series,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value LIMIT 10)) availability,
+    (SELECT json_object('min_price',MIN(price_minor),'max_price',MAX(price_minor),'currency',MAX(currency)) FROM candidate) price`,
+        )
+        .bind(...base.binds)
+        .first<{
+          categories: string;
+          languages: string;
+          formats: string;
+          publishers: string;
+          series: string;
+          availability: string;
+          price: string;
+        }>()
     : null;
-  const group = (facet: string) => ({
-    results: sharedRows?.filter((row) => row.facet === facet) || [],
+  const group = (facet: Exclude<keyof NonNullable<typeof shared>, "price">) => ({
+    results: JSON.parse(shared?.[facet] || "[]") as FacetValue[],
   });
-  const [categories, languages, formats, publishers, series, availability, price] = sharedRows
+  const [categories, languages, formats, publishers, series, availability, price] = shared
     ? [
         group("categories"),
         group("languages"),
@@ -692,7 +692,11 @@ async function d1Facets(
         group("publishers"),
         group("series"),
         group("availability"),
-        sharedRows.find((row) => row.facet === "price"),
+        JSON.parse(shared.price) as {
+          min_price: number | null;
+          max_price: number | null;
+          currency: string | null;
+        },
       ]
     : await Promise.all([
         db

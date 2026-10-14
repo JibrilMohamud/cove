@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { build } from "esbuild";
@@ -22,7 +23,8 @@ try {
     logLevel: "silent",
   });
   const api = await import(path.join(root, "api.server.mjs")),
-    social = await import(path.join(root, "social.server.mjs"));
+    social = await import(path.join(root, "social.server.mjs")),
+    spoilerProgress = await import(path.join(root, "spoiler-progress.server.mjs"));
   const env = localBindings(root),
     db = env.DB,
     at = new Date().toISOString();
@@ -49,6 +51,11 @@ try {
     );
     return r.json();
   };
+  const testCues = [{ trackId: "track", start: 0, end: 10, progress: 0.2, endProgress: 0.8 }];
+  for (const seconds of [NaN, Infinity, -1])
+    assert.equal(spoilerProgress.progressAtVerifiedCues(testCues, "track", seconds), 0);
+  assert.equal(spoilerProgress.progressAtVerifiedCues(testCues, "track", 9.9), 0.2);
+  assert.equal(spoilerProgress.progressAtVerifiedCues(testCues, "track", 10), 0.8);
   await api.handleCoveApi(request("/catalog?q=pride"), env);
   for (const user of ["alice", "bob", "charlie"]) {
     await db
@@ -322,6 +329,63 @@ try {
     0.4,
   );
   await db
+    .prepare(
+      "INSERT INTO reading_group_members(group_id,user_id,role,status,joined_at,created_at,updated_at) VALUES(?,'charlie','member','active',?,?,?)",
+    )
+    .bind(group, at, at, at)
+    .run();
+  const groupState = await call(`/social/groups/${group}`, "GET", undefined, "bob");
+  assert.deepEqual(
+    Object.fromEntries(groupState.progress[0].buckets.map((b) => [b.bucket, b.count])),
+    { not_started: 1, middle: 1, late: 1 },
+    "group totals include ordinary audio and BioSync text mapping",
+  );
+  for (let i = 0; i < 40; i++) {
+    const userId = `batch_member_${i}`;
+    await db
+      .prepare(
+        "INSERT INTO reading_group_members(group_id,user_id,role,status,joined_at,created_at,updated_at) VALUES(?,?,'member','active',?,?,?)",
+      )
+      .bind(group, userId, at, at, at)
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO playback(user_id,edition_id,track_id,seconds,speed,version,updated_at) VALUES(?,'audio','track',500,1,1,?)",
+      )
+      .bind(userId, at)
+      .run();
+  }
+  await db
+    .prepare(
+      "INSERT INTO reading_group_members(group_id,user_id,role,status,joined_at,created_at,updated_at) VALUES(?,'former_member','member','removed',?,?,?)",
+    )
+    .bind(group, at, at, at)
+    .run();
+  await db
+    .prepare(
+      "INSERT INTO playback(user_id,edition_id,track_id,seconds,speed,version,updated_at) VALUES('former_member','audio','track',1000,1,1,?)",
+    )
+    .bind(at)
+    .run();
+  const originalPrepare = db.prepare;
+  let reads = 0;
+  db.prepare = (sql) => {
+    reads++;
+    return originalPrepare(sql);
+  };
+  let batched;
+  try {
+    batched = await call(`/social/groups/${group}`, "GET", undefined, "bob");
+  } finally {
+    db.prepare = originalPrepare;
+  }
+  assert.ok(reads < 15, `group progress must batch readers; observed ${reads} queries`);
+  assert.deepEqual(
+    Object.fromEntries(batched.progress[0].buckets.map((b) => [b.bucket, b.count])),
+    { not_started: 1, middle: 41, late: 1 },
+    "removed members do not contribute",
+  );
+  await db
     .prepare("UPDATE audio_editions SET epub_sha256=? WHERE id='audio'")
     .bind("b".repeat(64))
     .run();
@@ -337,6 +401,176 @@ try {
     (await call("/social/reader/1342?mode=public&progress=0", "GET", undefined, "bob")).progress,
     0.8,
     "returning to an earlier page cannot relock a reached passage",
+  );
+  // Real commercial publication sources and an immutable timing link exercise
+  // batched reads, manifest identity and request-local caching together.
+  const run = async (sql, ...values) =>
+    db
+      .prepare(sql)
+      .bind(...values)
+      .run();
+  const audioProduct = (
+    await db.prepare("SELECT id FROM products WHERE id<>? LIMIT 1").bind(product).first()
+  ).id;
+  const assetVersion = (
+    await db
+      .prepare(
+        "SELECT da.current_version_id id FROM products p JOIN digital_assets da ON da.edition_id=p.edition_id WHERE p.id=? AND da.kind='epub'",
+      )
+      .bind(product)
+      .first()
+  ).id;
+  const audioHash = "d".repeat(64);
+  await run(
+    "INSERT INTO publishing_accounts(id,account_type,legal_name,display_name,country_code,created_at,updated_at) VALUES('progress_fixture','person','Test Author','Test Author','US',?,?)",
+    at,
+    at,
+  );
+  async function seedSource(productId, prefix, sourceSnapshot) {
+    const catalog = await db
+      .prepare(
+        "SELECT p.edition_id,e.work_id FROM products p JOIN editions e ON e.id=p.edition_id WHERE p.id=?",
+      )
+      .bind(productId)
+      .first();
+    await run(
+      "INSERT INTO publishing_titles(id,account_id,title,created_at,updated_at) VALUES(?,'progress_fixture','Timing test',?,?)",
+      prefix + "_title",
+      at,
+      at,
+    );
+    await run(
+      "INSERT INTO publishing_edition_drafts(id,title_id,created_at,updated_at) VALUES(?,?,?,?)",
+      prefix + "_draft",
+      prefix + "_title",
+      at,
+      at,
+    );
+    await run(
+      "INSERT INTO publishing_submission_snapshots(id,edition_id,account_id,revision,snapshot_json,snapshot_sha256,submitted_by_user_id,submitted_at) VALUES(?,?,'progress_fixture',1,'{}',?,'alice',?)",
+      prefix + "_sub",
+      prefix + "_draft",
+      sha,
+      at,
+    );
+    await run(
+      "INSERT INTO publishing_publications(id,submission_id,publishing_account_id,work_id,edition_id,product_id,materialization_key,published_at) VALUES(?,?,'progress_fixture',?,?,?,?,?)",
+      prefix + "_pub",
+      prefix + "_sub",
+      catalog.work_id,
+      catalog.edition_id,
+      productId,
+      prefix + "_key",
+      at,
+    );
+    await run(
+      "INSERT INTO publishing_release_lifecycles(id,publishing_edition_id,current_publication_version_id,state,created_at,updated_at) VALUES(?,?,?,'live',?,?)",
+      prefix + "_life",
+      prefix + "_draft",
+      prefix + "_version",
+      at,
+      at,
+    );
+    await run(
+      "INSERT INTO publishing_publication_versions(id,lifecycle_id,publication_id,submission_id,version_number,snapshot_sha256,manifest_json,release_state,created_by_user_id,created_at) VALUES(?,?,?,?,1,?,?,'live','alice',?)",
+      prefix + "_version",
+      prefix + "_life",
+      prefix + "_pub",
+      prefix + "_sub",
+      sha,
+      JSON.stringify({ sourceSnapshot }),
+      at,
+    );
+  }
+  await seedSource(product, "ebook", {
+    assets: [{ kind: "manuscript", current_version_id: assetVersion }],
+  });
+  await seedSource(audioProduct, "audio", { commercialAudioManifestSha256: audioHash });
+  const timing = JSON.stringify({
+    schemaVersion: 1,
+    ebookProductId: product,
+    audiobookProductId: audioProduct,
+    ebookAssetVersionId: assetVersion,
+    audioManifestSha256: audioHash,
+    cues: [{ chapterId: "chapter", startMs: 0, endMs: 1000000, progress: 0.25, endProgress: 0.75 }],
+  });
+  const timingHash = createHash("sha256").update(timing).digest("hex");
+  await env.BUCKET.put("test/commercial-timing.json", Buffer.from(timing));
+  await run(
+    "INSERT INTO commercial_biosync_links(id,ebook_product_id,audiobook_product_id,ebook_asset_version_id,audio_manifest_hash,timing_manifest_object_key,timing_manifest_sha256,precision,coverage_bps,verification_status,verified_by,verified_at,created_at) VALUES('commercial_link',?,?,?,?,?,?, 'sentence',10000,'verified','test_verifier',?,?)",
+    product,
+    audioProduct,
+    assetVersion,
+    audioHash,
+    "test/commercial-timing.json",
+    timingHash,
+    at,
+    at,
+  );
+  for (const [user, seconds] of [
+    ["alice", 300],
+    ["bob", 500],
+    ["former_member", 1000],
+  ])
+    await run(
+      "INSERT INTO commercial_audio_playback(user_id,product_id,chapter_id,seconds,updated_at) VALUES(?,?,'chapter',?,?)",
+      user,
+      audioProduct,
+      seconds,
+      at,
+    );
+  await run(
+    "INSERT INTO commercial_biosync_positions(user_id,biosync_link_id,mode,cfi,chapter_id,audio_ms,updated_at) VALUES('charlie','commercial_link','audio','epubcfi(/6/2!)','chapter',1000000,?)",
+    at,
+  );
+  const getObject = env.BUCKET.get;
+  let objectReads = 0;
+  env.BUCKET.get = async (...args) => {
+    objectReads++;
+    return getObject(...args);
+  };
+  const commercial = await spoilerProgress.savedGroupAlignedAudioProgress(
+    db,
+    group,
+    product,
+    env.BUCKET,
+  );
+  assert.equal(commercial.get("bob"), 0.25);
+  assert.equal(commercial.get("charlie"), 0.75);
+  assert.equal(commercial.has("former_member"), false);
+  assert.equal(objectReads, 1, "one checked manifest read for all members and both audio sources");
+  assert.equal(
+    await spoilerProgress.savedAlignedAudioProgress(db, "bob", product, env.BUCKET),
+    0.25,
+  );
+  await run(
+    "UPDATE commercial_audio_playback SET seconds=? WHERE user_id='bob' AND product_id=?",
+    Infinity,
+    audioProduct,
+  );
+  assert.equal(
+    await spoilerProgress.savedAlignedAudioProgress(db, "bob", product, env.BUCKET),
+    0,
+    "non-finite saved audio must fail closed",
+  );
+  await env.BUCKET.put("test/commercial-timing.json", Buffer.from(timing + " "));
+  assert.equal(
+    (await spoilerProgress.savedGroupAlignedAudioProgress(db, group, product, env.BUCKET)).get(
+      "charlie",
+    ) ?? 0,
+    0,
+    "tampered manifest is not reused across requests",
+  );
+  await env.BUCKET.put("test/commercial-timing.json", Buffer.from(timing));
+  await run(
+    "UPDATE publishing_release_lifecycles SET current_publication_version_id='missing' WHERE id='ebook_life'",
+  );
+  assert.equal(
+    (await spoilerProgress.savedGroupAlignedAudioProgress(db, group, product, env.BUCKET)).get(
+      "charlie",
+    ) ?? 0,
+    0,
+    "a stale current ebook source cannot authorize the old timing map",
   );
   const originalBatch = db.batch;
   let race = true;

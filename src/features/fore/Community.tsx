@@ -1837,8 +1837,8 @@ function ClubView({ id }: { id: string }) {
           <span className="small-label">NOW READING</span>
           <h2>{current.title_snapshot}</h2>
           <p className="small muted">
-            Group ebook positions. Your discussion access also includes supported audio-to-text
-            mappings.
+            Group positions combine saved ebook reading with verified audio-to-ebook percentage
+            mappings. Audio editions without a percentage mapping are not counted as text progress.
           </p>
           <div className="club-progress-buckets">
             {dist.map((b: any) => (

@@ -107,7 +107,13 @@ try {
     DB: {
       ...env.DB,
       prepare(sql) {
-        if (sql.includes("FROM candidate")) facetAggregations++;
+        if (sql.includes("FROM candidate")) {
+          facetAggregations++;
+          assert.ok(
+            !sql.includes("UNION ALL"),
+            "shared facets must avoid D1 compound-SELECT limits",
+          );
+        }
         return env.DB.prepare(sql);
       },
     },

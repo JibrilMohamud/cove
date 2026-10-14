@@ -20,10 +20,15 @@ export function progressAtVerifiedCues(
   trackId: string,
   seconds: number,
 ) {
+  if (!Number.isFinite(seconds) || seconds < 0) return 0;
   let progress = 0;
   for (const cue of cues) {
     if (
       cue.trackId !== trackId ||
+      ![cue.start, cue.end, cue.progress, cue.endProgress].every(Number.isFinite) ||
+      cue.start < 0 ||
+      cue.progress < 0 ||
+      cue.endProgress > 1 ||
       cue.end <= cue.start ||
       cue.endProgress < cue.progress ||
       seconds < cue.start
@@ -77,41 +82,102 @@ export async function savedAlignedAudioProgress(
   ebookProductId: string,
   bucket?: CoveEnv["BUCKET"],
 ) {
-  let progress = 0;
-  const legacy = (
+  const progress = await alignedAudioProgress(db, { userId }, ebookProductId, bucket);
+  return progress.get(userId) ?? 0;
+}
+
+export function savedGroupAlignedAudioProgress(
+  db: CoveEnv["DB"],
+  groupId: string,
+  ebookProductId: string,
+  bucket?: CoveEnv["BUCKET"],
+) {
+  return alignedAudioProgress(db, { groupId }, ebookProductId, bucket);
+}
+
+// Resolve all active club members together. Timing metadata is read and checked
+// once per edition/link within this request; access checks stay request-scoped.
+async function alignedAudioProgress(
+  db: CoveEnv["DB"],
+  scope: { userId: string } | { groupId: string },
+  ebookProductId: string,
+  bucket?: CoveEnv["BUCKET"],
+) {
+  const progress = new Map<string, number>();
+  const scopeId = "groupId" in scope ? scope.groupId : scope.userId;
+  const savedFilter =
+    "groupId" in scope
+      ? "user_id IN (SELECT user_id FROM reading_group_members WHERE group_id=? AND status='active')"
+      : "user_id=?";
+  const addProgress = (userId: string, value: number) => {
+    if (Number.isFinite(value) && value >= 0 && value <= 1)
+      progress.set(userId, Math.max(progress.get(userId) ?? 0, value));
+  };
+  const editions = (
     await db
       .prepare(
-        `SELECT a.alignment_json,a.tracks_json,saved.track_id,saved.seconds,saved.audio_sha256
-    FROM products p JOIN digital_assets da ON da.edition_id=p.edition_id AND da.kind='epub'
-    JOIN asset_versions av ON av.id=da.current_version_id
-    JOIN audio_editions a ON a.book_id IN (p.id,p.source_external_id) AND a.epub_sha256=av.sha256
-    JOIN (SELECT edition_id,track_id,seconds,NULL epub_sha256,NULL audio_sha256 FROM playback WHERE user_id=? UNION ALL SELECT edition_id,track_id,seconds,epub_sha256,audio_sha256 FROM biosync_positions WHERE user_id=?) saved ON saved.edition_id=a.id AND (saved.epub_sha256 IS NULL OR saved.epub_sha256=av.sha256)
-    WHERE p.id=? AND p.source_name='gutenberg'`,
+        `SELECT a.id,a.alignment_json,a.tracks_json
+      FROM products p JOIN digital_assets da ON da.edition_id=p.edition_id AND da.kind='epub'
+      JOIN asset_versions av ON av.id=da.current_version_id
+      JOIN audio_editions a ON a.book_id IN (p.id,p.source_external_id) AND a.epub_sha256=av.sha256
+      WHERE p.id=? AND p.source_name='gutenberg'`,
       )
-      .bind(userId, userId, ebookProductId)
-      .all<{
-        alignment_json: string | null;
-        tracks_json: string;
-        audio_sha256: string | null;
-        track_id: string;
-        seconds: number;
-      }>()
+      .bind(ebookProductId)
+      .all<{ id: string; alignment_json: string | null; tracks_json: string }>()
   ).results;
-  for (const row of legacy) {
+  const metadata = new Map<
+    string,
+    {
+      alignment: z.infer<typeof alignmentSchema>;
+      tracks: { id: string; duration: number; sha256: string }[];
+    }
+  >();
+  for (const edition of editions) {
     try {
-      const alignment = alignmentSchema.parse(JSON.parse(row.alignment_json || "null"));
-      const tracks = z
-        .array(
-          z.object({
-            id: z.string(),
-            duration: z.number().finite().positive(),
-            sha256: z.string().regex(/^[a-f0-9]{64}$/),
-          }),
+      metadata.set(edition.id, {
+        alignment: alignmentSchema.parse(JSON.parse(edition.alignment_json || "null")),
+        tracks: z
+          .array(
+            z.object({
+              id: z.string(),
+              duration: z.number().finite().positive(),
+              sha256: z.string().regex(/^[a-f0-9]{64}$/),
+            }),
+          )
+          .max(500)
+          .parse(JSON.parse(edition.tracks_json)),
+      });
+    } catch {
+      // Word-only, stale or unverified timing cannot imply a text percentage.
+    }
+  }
+  if (metadata.size) {
+    const legacy = (
+      await db
+        .prepare(
+          `SELECT a.id edition_id,saved.user_id,saved.track_id,saved.seconds,saved.audio_sha256
+        FROM products p JOIN digital_assets da ON da.edition_id=p.edition_id AND da.kind='epub'
+        JOIN asset_versions av ON av.id=da.current_version_id
+        JOIN audio_editions a ON a.book_id IN (p.id,p.source_external_id) AND a.epub_sha256=av.sha256
+        JOIN (SELECT user_id,edition_id,track_id,seconds,NULL epub_sha256,NULL audio_sha256 FROM playback WHERE ${savedFilter}
+          UNION ALL SELECT user_id,edition_id,track_id,seconds,epub_sha256,audio_sha256 FROM biosync_positions WHERE ${savedFilter}) saved
+          ON saved.edition_id=a.id AND (saved.epub_sha256 IS NULL OR saved.epub_sha256=av.sha256)
+        WHERE p.id=? AND p.source_name='gutenberg'`,
         )
-        .max(500)
-        .parse(JSON.parse(row.tracks_json));
-      const track = tracks.find((t) => t.id === row.track_id);
+        .bind(scopeId, scopeId, ebookProductId)
+        .all<{
+          edition_id: string;
+          user_id: string;
+          audio_sha256: string | null;
+          track_id: string;
+          seconds: number;
+        }>()
+    ).results;
+    for (const row of legacy) {
+      const edition = metadata.get(row.edition_id);
+      const track = edition?.tracks.find((t) => t.id === row.track_id);
       if (
+        !edition ||
         !track ||
         !Number.isFinite(row.seconds) ||
         row.seconds < 0 ||
@@ -119,12 +185,10 @@ export async function savedAlignedAudioProgress(
         (row.audio_sha256 && row.audio_sha256 !== track.sha256)
       )
         continue;
-      progress = Math.max(
-        progress,
-        progressAtVerifiedCues(alignment.cues, row.track_id, row.seconds),
+      addProgress(
+        row.user_id,
+        progressAtVerifiedCues(edition.alignment.cues, row.track_id, row.seconds),
       );
-    } catch {
-      /* Unaligned or word-only timing cannot safely imply numeric ebook progress. */
     }
   }
   // Commercial audio and BioSync positions share the verified immutable pair.
@@ -133,11 +197,13 @@ export async function savedAlignedAudioProgress(
     const rows = (
       await db
         .prepare(
-          `SELECT l.*,p.chapter_id,p.seconds*1000 audio_ms FROM commercial_biosync_links l JOIN commercial_audio_playback p ON p.product_id=l.audiobook_product_id AND p.user_id=? WHERE l.ebook_product_id=? AND l.verification_status='verified'
-      UNION ALL SELECT l.*,p.chapter_id,p.audio_ms FROM commercial_biosync_links l JOIN commercial_biosync_positions p ON p.biosync_link_id=l.id AND p.user_id=? WHERE l.ebook_product_id=? AND l.verification_status='verified'`,
+          `SELECT l.*,p.user_id,p.chapter_id,p.seconds*1000 audio_ms FROM commercial_biosync_links l JOIN commercial_audio_playback p ON p.product_id=l.audiobook_product_id WHERE p.${savedFilter} AND l.ebook_product_id=? AND l.verification_status='verified'
+      UNION ALL SELECT l.*,p.user_id,p.chapter_id,p.audio_ms FROM commercial_biosync_links l JOIN commercial_biosync_positions p ON p.biosync_link_id=l.id WHERE p.${savedFilter} AND l.ebook_product_id=? AND l.verification_status='verified'`,
         )
-        .bind(userId, ebookProductId, userId, ebookProductId)
+        .bind(scopeId, ebookProductId, scopeId, ebookProductId)
         .all<{
+          id: string;
+          user_id: string;
           ebook_product_id: string;
           audiobook_product_id: string;
           ebook_asset_version_id: string;
@@ -148,10 +214,31 @@ export async function savedAlignedAudioProgress(
           audio_ms: number;
         }>()
     ).results;
+    const sources = new Map<string, Promise<z.infer<typeof sourceSchema> | null>>();
+    const source = (id: string) => {
+      if (!sources.has(id)) sources.set(id, activeSource(db, id));
+      return sources.get(id)!;
+    };
+    const manifests = new Map<string, Map<string, z.infer<typeof cueSchema>[]> | null>();
     for (const row of rows) {
+      if (!Number.isFinite(row.audio_ms) || row.audio_ms < 0) continue;
+      if (manifests.has(row.id)) {
+        const manifest = manifests.get(row.id);
+        if (manifest)
+          addProgress(
+            row.user_id,
+            progressAtVerifiedCues(
+              manifest.get(row.chapter_id) ?? [],
+              row.chapter_id,
+              row.audio_ms / 1000,
+            ),
+          );
+        continue;
+      }
+      manifests.set(row.id, null);
       const [ebook, audio] = await Promise.all([
-        activeSource(db, row.ebook_product_id),
-        activeSource(db, row.audiobook_product_id),
+        source(row.ebook_product_id),
+        source(row.audiobook_product_id),
       ]);
       if (
         !ebook?.assets?.some(
@@ -176,16 +263,23 @@ export async function savedAlignedAudioProgress(
           manifest.audioManifestSha256 !== row.audio_manifest_hash
         )
           continue;
-        progress = Math.max(
-          progress,
+        const chapters = new Map<string, z.infer<typeof cueSchema>[]>();
+        for (const cue of manifest.cues) {
+          const cues = chapters.get(cue.chapterId) ?? [];
+          cues.push({
+            trackId: cue.chapterId,
+            start: cue.startMs / 1000,
+            end: cue.endMs / 1000,
+            progress: cue.progress,
+            endProgress: cue.endProgress,
+          });
+          chapters.set(cue.chapterId, cues);
+        }
+        manifests.set(row.id, chapters);
+        addProgress(
+          row.user_id,
           progressAtVerifiedCues(
-            manifest.cues.map((c) => ({
-              trackId: c.chapterId,
-              start: c.startMs / 1000,
-              end: c.endMs / 1000,
-              progress: c.progress,
-              endProgress: c.endProgress,
-            })),
+            chapters.get(row.chapter_id) ?? [],
             row.chapter_id,
             row.audio_ms / 1000,
           ),
