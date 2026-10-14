@@ -11,6 +11,7 @@ import { Headphones } from "lucide-react";
 import { createActivity, measureEpub } from "./reading-activity";
 import { flushReaderMutations, queueReaderMutation } from "./offline-reader-mutations";
 import { offlineAccountId } from "./offline-account";
+import { cachedReaderPosition, saveCachedReaderPosition } from "./offline-reading-position";
 import { sha256 } from "./offline";
 import { loadEdition } from "./audio-client";
 import { cueForAudio, type AudioEdition } from "./domain";
@@ -282,6 +283,15 @@ export function ReaderPage({ id }: { id: string }) {
     chromeVisibleRef = useRef(false);
   accountRef.current = data;
   annotationRef.current = data.annotations;
+  useEffect(() => {
+    const known = findLibraryBook(data.library, id);
+    if (data.user?.id && known?.cfi)
+      void saveCachedReaderPosition(data.user.id, id, {
+        cfi: known.cfi,
+        progress: known.progress || 0,
+        version: known.version || 0,
+      }).catch(() => {});
+  }, [data.user?.id, data.library, id]);
   useEffect(() => {
     const scope = JSON.stringify([data.user?.id || offlineOwner(), id]);
     const version = findLibraryBook(data.library, id)?.version || 0;
@@ -731,6 +741,11 @@ export function ReaderPage({ id }: { id: string }) {
               previewVersion.current = saved.version;
             }
           } else {
+            await saveCachedReaderPosition(ownerId, id, {
+              cfi: snapshot.cfi,
+              progress: snapshot.progress,
+              version: readingVersion.current,
+            });
             const written = await queueReaderMutation(ownerId, "position", id, "/library", "POST", {
               bookId: id,
               status:
@@ -750,6 +765,11 @@ export function ReaderPage({ id }: { id: string }) {
             }
             const saved = written.response as { version: number; readingJourneyId?: string | null };
             readingVersion.current = saved.version;
+            await saveCachedReaderPosition(ownerId, id, {
+              cfi: snapshot.cfi,
+              progress: snapshot.progress,
+              version: saved.version,
+            });
             if (saved.readingJourneyId && mounted.current)
               setFinishedJourney(saved.readingJourneyId);
           }
@@ -1065,6 +1085,13 @@ export function ReaderPage({ id }: { id: string }) {
       let cfi =
         new URLSearchParams(window.location.search).get("cfi") ||
         (!previewMode ? findLibraryBook(accountRef.current.library, id)?.cfi : undefined);
+      if (!previewMode && !accountRef.current.user && privateReaderOwner()) {
+        const local = await cachedReaderPosition(privateReaderOwner(), id);
+        if (local) {
+          readingVersion.current = local.version;
+          if (!params.has("cfi") && local.cfi) cfi = local.cfi;
+        }
+      }
       if (previewMode && accountRef.current.user && bookQuery.data?.productId && !params.has("cfi"))
         try {
           const ps = await api(
