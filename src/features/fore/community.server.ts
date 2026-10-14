@@ -846,65 +846,80 @@ export async function handleCommunity(
 async function readingStats(env: CoveEnv, userId: string, url: URL) {
   await migrateLegacy(env, userId);
   const days = z.enum(["7", "30", "90", "365", "all"]).parse(url.searchParams.get("days") || "30");
-  const until = now(),
-    since =
-      days === "all"
-        ? "1970-01-01T00:00:00.000Z"
-        : new Date(Date.now() - Number(days) * 86400000).toISOString();
+  const requestedZone = (url.searchParams.get("timeZone") || "UTC").slice(0, 100);
+  let timeZone = "UTC";
+  try {
+    timeZone = new Intl.DateTimeFormat("en-US", { timeZone: requestedZone }).resolvedOptions().timeZone;
+  } catch {
+    throw new ApiError(400, "Invalid statistics timezone.");
+  }
+  const dateLabel = new Intl.DateTimeFormat("en-CA", {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const localDay = (date: Date) => {
+    const parts = dateLabel.formatToParts(date);
+    const item = (type: string) => parts.find(p => p.type === type)?.value || "";
+    return `${item("year")}-${item("month")}-${item("day")}`;
+  };
+  const until = now();
+  // Date range is a rolling time interval, while chart buckets are calendar days in the user's timezone.
+  const since = days === "all" ? "1970-01-01T00:00:00.000Z" :
+    new Date(Date.now() - Number(days) * 86400000).toISOString();
   const db = env.DB;
-  const [totals, daily, sessions, completed, words, goal, yearCompleted, ratings] =
-    await Promise.all([
-      db
-        .prepare(
-          "SELECT COUNT(*) sessions,COALESCE(SUM(CASE WHEN mode='read' THEN active_seconds ELSE 0 END),0) read_seconds,COALESCE(SUM(CASE WHEN mode='listen' THEN active_seconds ELSE 0 END),0) listen_seconds,COALESCE(SUM(words_read),0) words,COALESCE(AVG(active_seconds),0) average_session FROM reading_sessions WHERE user_id=? AND started_at>=? AND started_at<=?",
-        )
-        .bind(userId, since, until)
-        .first<any>(),
-      db
-        .prepare(
-          "SELECT substr(started_at,1,10) date,SUM(CASE WHEN mode='read' THEN active_seconds ELSE 0 END) read_seconds,SUM(CASE WHEN mode='listen' THEN active_seconds ELSE 0 END) listen_seconds,COUNT(*) sessions FROM reading_sessions WHERE user_id=? AND started_at>=? AND started_at<=? GROUP BY date ORDER BY date",
-        )
-        .bind(userId, since, until)
-        .all<any>(),
-      db
-        .prepare(
-          "SELECT s.*,d.title book_title FROM reading_sessions s LEFT JOIN catalog_search_documents d ON d.external_book_id=s.book_id WHERE s.user_id=? AND s.started_at>=? ORDER BY s.started_at DESC LIMIT 50",
-        )
-        .bind(userId, since)
-        .all<any>(),
-      db
-        .prepare(
-          "SELECT c.*,COALESCE(m.word_count,mp.word_count) word_count,COALESCE(m.reading_level,mp.reading_level) reading_level FROM completion_events c LEFT JOIN products p ON p.id=c.product_id LEFT JOIN book_metrics m ON m.user_id=c.user_id AND m.book_id=c.external_book_id LEFT JOIN book_metrics mp ON mp.user_id=c.user_id AND mp.book_id=p.public_id WHERE c.user_id=? AND c.finished_at>=? AND c.finished_at<=? ORDER BY c.finished_at DESC",
-        )
-        .bind(userId, since, until)
-        .all<any>(),
-      db
-        .prepare(
-          "SELECT lower(word) word,COUNT(*) lookups,COUNT(DISTINCT book_id) books,MAX(created_at) last_seen FROM definitions WHERE user_id=? AND created_at>=? GROUP BY lower(word) ORDER BY lookups DESC,word LIMIT 100",
-        )
-        .bind(userId, since)
-        .all<any>(),
-      db
-        .prepare("SELECT books FROM reading_goals WHERE user_id=? AND year=?")
-        .bind(userId, new Date().getUTCFullYear())
-        .first<any>(),
-      db
-        .prepare(
-          "SELECT COUNT(*) count FROM completion_events WHERE user_id=? AND finished_at>=? AND finished_at<?",
-        )
-        .bind(
-          userId,
-          `${new Date().getUTCFullYear()}-01-01`,
-          `${new Date().getUTCFullYear() + 1}-01-01`,
-        )
-        .first<any>(),
-      db
-        .prepare(
-          "SELECT rating_steps,COUNT(*) count FROM reviews WHERE user_id=? AND updated_at>=? AND rating_steps IS NOT NULL GROUP BY rating_steps",
-        )
-        .bind(userId, since)
-        .all<any>(),
-    ]);
+  const [sessionRows, completed, words, goal, yearCompleted, ratings] = await Promise.all([
+    db.prepare("SELECT id,book_id,mode,started_at,ended_at,active_seconds,words_read FROM reading_sessions WHERE user_id=? AND ended_at>=? AND started_at<=? ORDER BY started_at DESC")
+      .bind(userId, since, until).all<any>(),
+    db.prepare("SELECT c.*,COALESCE(m.word_count,mp.word_count) word_count,COALESCE(m.reading_level,mp.reading_level) reading_level FROM completion_events c LEFT JOIN products p ON p.id=c.product_id LEFT JOIN book_metrics m ON m.user_id=c.user_id AND m.book_id=c.external_book_id LEFT JOIN book_metrics mp ON mp.user_id=c.user_id AND mp.book_id=p.public_id WHERE c.user_id=? AND c.finished_at>=? AND c.finished_at<=? ORDER BY c.finished_at DESC")
+      .bind(userId, since, until).all<any>(),
+    db.prepare("SELECT lower(word) word,COUNT(*) lookups,COUNT(DISTINCT book_id) books,MAX(created_at) last_seen FROM definitions WHERE user_id=? AND created_at>=? GROUP BY lower(word) ORDER BY lookups DESC,word LIMIT 100")
+      .bind(userId, since).all<any>(),
+    db.prepare("SELECT books FROM reading_goals WHERE user_id=? AND year=?")
+      .bind(userId, new Date().getUTCFullYear()).first<any>(),
+    db.prepare("SELECT COUNT(*) count FROM completion_events WHERE user_id=? AND finished_at>=? AND finished_at<?")
+      .bind(userId, `${new Date().getUTCFullYear()}-01-01`, `${new Date().getUTCFullYear()+1}-01-01`).first<any>(),
+    db.prepare("SELECT rating_steps,COUNT(*) count FROM reviews WHERE user_id=? AND updated_at>=? AND rating_steps IS NOT NULL GROUP BY rating_steps")
+      .bind(userId, since).all<any>(),
+  ]);
+  const dailyMap = new Map<string,{date:string;read_seconds:number;listen_seconds:number;sessions:number}>();
+  let readSeconds = 0, listenSeconds = 0, totalWords = 0, countedSessions = 0;
+  const windowStart = Date.parse(since), windowEnd = Date.parse(until);
+  for (const session of sessionRows.results) {
+    const start = Date.parse(session.started_at), end = Date.parse(session.ended_at);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+    const left = Math.max(start,windowStart), right = Math.min(end,windowEnd);
+    if (right <= left) continue;
+    const seconds = Math.min(Number(session.active_seconds)||0, (end-start)/1000) * (right-left)/(end-start);
+    const wordsPart = (Number(session.words_read)||0)*(right-left)/(end-start);
+    countedSessions++;
+    if (session.mode === "read") {readSeconds += seconds;totalWords += wordsPart;} else listenSeconds += seconds;
+    // Split by actual local date changes; this handles 23/25-hour DST days.
+    let cursor = left;
+    while (cursor < right) {
+      const day = localDay(new Date(cursor));
+      let lo=cursor+1,hi=right;
+      // Find the first instant in a different local calendar date.
+      // The next change is never more than 26 hours away.
+      hi = Math.min(hi,cursor+26*3600000);
+      if (localDay(new Date(hi-1)) === day && hi < right) {
+        throw new ApiError(500,"Unable to calculate local reading day.");
+      }
+      while(lo<hi){const mid=Math.floor((lo+hi)/2);if(localDay(new Date(mid))===day)lo=mid+1;else hi=mid;}
+      const next = localDay(new Date(lo))===day ? hi : lo;
+      const boundary = Math.min(right,next);
+      const fraction=(boundary-cursor)/(right-left);
+      const entry=dailyMap.get(day)||{date:day,read_seconds:0,listen_seconds:0,sessions:0};
+      if(session.mode==="read")entry.read_seconds+=seconds*fraction;
+      else entry.listen_seconds+=seconds*fraction;
+      if(cursor===left)entry.sessions++;
+      dailyMap.set(day,entry);
+      cursor=boundary;
+    }
+  }
+  const totals = {sessions:countedSessions,read_seconds:readSeconds,listen_seconds:listenSeconds,words:totalWords,average_session:countedSessions?(readSeconds+listenSeconds)/countedSessions:0};
+  const daily = {results:[...dailyMap.values()].sort((a,b)=>a.date.localeCompare(b.date))};
+  const recent = sessionRows.results.slice(0,50);
+  const sessionTitles = await Promise.all(recent.map((s)=>getCanonicalBook(db,String(s.book_id),userId).catch(()=>null)));
+  const sessions = { results: recent.map((s,i)=>({...s,book_title:sessionTitles[i]?.title||null})) };
   const completedBooks = await Promise.all(
     completed.results.map((c) => getCanonicalBook(db, c.external_book_id, userId)),
   );
@@ -929,7 +944,7 @@ async function readingStats(env: CoveEnv, userId: string, url: URL) {
       .slice(0, 12)
       .map(([name, count]) => ({ name, count }));
   return {
-    range: { days, since, until, timeZone: "UTC" },
+    range: { days, since, until, timeZone },
     totals: {
       sessions: totals.sessions,
       readSeconds: totals.read_seconds,
