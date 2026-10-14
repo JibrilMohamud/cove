@@ -262,14 +262,6 @@ export function ReaderPage({ id }: { id: string }) {
     enabled: !!data.user && !previewMode,
     staleTime: 30_000,
   });
-  useEffect(() => {
-    if (bookAnnotationPages.hasNextPage && !bookAnnotationPages.isFetchingNextPage)
-      void bookAnnotationPages.fetchNextPage();
-  }, [
-    bookAnnotationPages.data,
-    bookAnnotationPages.hasNextPage,
-    bookAnnotationPages.isFetchingNextPage,
-  ]);
   const readerAnnotations = useMemo(() => {
     const byId = new Map<string, Annotation>();
     for (const annotation of data.annotations)
@@ -2084,6 +2076,17 @@ export function ReaderPage({ id }: { id: string }) {
                     Select a passage in the book, then choose Highlight or Note. Your saved passages
                     will appear here.
                   </p>
+                )}
+                {bookAnnotationPages.hasNextPage && (
+                  <button
+                    type="button"
+                    className="button outline"
+                    disabled={bookAnnotationPages.isFetchingNextPage}
+                    aria-label="Load older saved passages from this book"
+                    onClick={() => void bookAnnotationPages.fetchNextPage()}
+                  >
+                    {bookAnnotationPages.isFetchingNextPage ? "Loading passages…" : "Load more saved passages"}
+                  </button>
                 )}
               </div>
             )}
