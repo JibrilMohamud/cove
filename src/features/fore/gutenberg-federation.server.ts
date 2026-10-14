@@ -148,7 +148,7 @@ function authorBefore(html: string, offset: number) {
 /** Parse the public Project Gutenberg Canada complete catalogue without requiring a DOM implementation. */
 export function parseCanadaCatalog(
   html: string,
-  base = SOURCE_CONFIG.pg_ca.homepage,
+  base: string = SOURCE_CONFIG.pg_ca.homepage,
 ): RegionalCatalogItem[] {
   const out = new Map<string, RegionalCatalogItem>();
   const linkRe = /<a\b[^>]*href\s*=\s*["']([^"']+\.epub(?:\?[^"']*)?)["'][^>]*>[\s\S]*?<\/a>/gi;
@@ -299,7 +299,7 @@ function firstUrl(values: string[], pattern: RegExp) {
  */
 export function parseAustraliaHtmlCatalog(
   html: string,
-  base = SOURCE_CONFIG.pg_au.homepage,
+  base: string = SOURCE_CONFIG.pg_au.homepage,
 ): RegionalCatalogItem[] {
   const out = new Map<string, RegionalCatalogItem>();
   const trusted = (value: string) =>
@@ -396,7 +396,7 @@ export function parseAustraliaHtmlCatalog(
  */
 export function parseAustraliaCatalog(
   text: string,
-  base = SOURCE_CONFIG.pg_au.homepage,
+  base: string = SOURCE_CONFIG.pg_au.homepage,
 ): RegionalCatalogItem[] {
   if (/<a\b/i.test(text)) return parseAustraliaHtmlCatalog(text, base);
   const rows = parseCsv(text.replace(/^\uFEFF/, ""));
@@ -499,8 +499,8 @@ export function parseEuropeManifest(
     if (!raw || typeof raw !== "object" || raw.rightsStatus !== "public-domain") continue;
     const sourceItemId = String(raw.id || "").trim();
     const title = String(raw.title || "").trim();
-    const territories = [
-      ...new Set(
+    const territories: string[] = [
+      ...new Set<string>(
         (Array.isArray(raw.territories) ? raw.territories : [])
           .map((x: unknown) => String(x).toUpperCase())
           .filter((x: string) => ISO2.test(x)),
@@ -1120,6 +1120,6 @@ export async function verifyEuropeRightsEvidence(
 
 export async function sha256Hex(value: Uint8Array | string) {
   const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value;
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
   return [...new Uint8Array(digest)].map((x) => x.toString(16).padStart(2, "0")).join("");
 }

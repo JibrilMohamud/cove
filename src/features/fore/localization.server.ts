@@ -141,7 +141,7 @@ async function loadMessages(db: StorefrontDB, locale: string) {
   while (cursor && !visited.has(cursor) && chain.length < 5) {
     visited.add(cursor);
     chain.push(cursor);
-    const row = await db
+    const row: { fallback_locale: string | null } | null = await db
       .prepare("SELECT fallback_locale FROM storefront_locales WHERE locale=? AND status='active'")
       .bind(cursor)
       .first<any>();

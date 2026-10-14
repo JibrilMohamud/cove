@@ -68,12 +68,16 @@ async function validate(record: LicensedEpub, userId: string): Promise<OfflineEp
       claims.productId !== record.book.productId ||
       claims.assetVersionId !== record.assetVersionId ||
       claims.keyId !== record.receipt.keyId ||
-      claims.deviceKeyHash !== await hashText(deviceKey()) ||
+      claims.deviceKeyHash !== (await hashText(deviceKey())) ||
       claims.expiresAt !== record.expiresAt ||
-      !Number.isFinite(issued) || issued > Date.now() + 60000 ||
-      !Number.isFinite(expiry) || expiry <= Date.now() ||
-      expiry <= issued || expiry - issued > 48 * 3600000
-    ) throw invalid();
+      !Number.isFinite(issued) ||
+      issued > Date.now() + 60000 ||
+      !Number.isFinite(expiry) ||
+      expiry <= Date.now() ||
+      expiry <= issued ||
+      expiry - issued > 48 * 3600000
+    )
+      throw invalid();
     return claims;
   } catch {
     throw invalid();
@@ -84,9 +88,12 @@ export async function licensedEpubRecord(ref: string, userId = offlineAccountId(
   const records = await getRecords<LicensedEpub>("downloads");
   for (const record of records) {
     if (
-      record.kind !== "licensed-epub" || !record.complete ||
-      record.ownerId !== userId || !refs(record.book).includes(ref)
-    ) continue;
+      record.kind !== "licensed-epub" ||
+      !record.complete ||
+      record.ownerId !== userId ||
+      !refs(record.book).includes(ref)
+    )
+      continue;
     try {
       await validate(record, userId);
       return record;
@@ -100,20 +107,24 @@ export async function licensedEpubBytes(ref: string, userId = offlineAccountId()
   const record = await licensedEpubRecord(ref, userId);
   if (!record) return null;
   const asset = await getRecord<{
-    ownerId: string; iv: Uint8Array; ciphertext: ArrayBuffer; digest: string;
+    ownerId: string;
+    iv: Uint8Array;
+    ciphertext: ArrayBuffer;
+    digest: string;
   }>("assets", record.id);
-  const stored = await getRecord<{ ownerId: string; key: CryptoKey }>(
-    "assets", record.id + ":key",
-  );
-  if (!asset || !stored || asset.ownerId !== userId || stored.ownerId !== userId)
-    return null;
+  const stored = await getRecord<{ ownerId: string; key: CryptoKey }>("assets", record.id + ":key");
+  if (!asset || !stored || asset.ownerId !== userId || stored.ownerId !== userId) return null;
   const claims = await validate(record, userId);
   const plain = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: asset.iv, additionalData: new TextEncoder().encode(claims.licenseId) },
+    {
+      name: "AES-GCM",
+      iv: Uint8Array.from(asset.iv),
+      additionalData: new TextEncoder().encode(claims.licenseId),
+    },
     stored.key,
     asset.ciphertext,
   );
-  if (await sha256(plain) !== asset.digest)
+  if ((await sha256(plain)) !== asset.digest)
     throw new Error("Licensed offline EPUB integrity check failed.");
   return plain;
 }
@@ -131,17 +142,17 @@ export async function saveLicensedEpub(book: CatalogBook) {
   const response = await fetch(license.url, { credentials: "same-origin", cache: "no-store" });
   if (!response.ok) throw new Error("The licensed EPUB could not be retrieved.");
   const bytes = await response.arrayBuffer();
-  if (bytes.byteLength > 60_000_000) throw new Error("This edition exceeds offline storage limits.");
+  if (bytes.byteLength > 60_000_000)
+    throw new Error("This edition exceeds offline storage limits.");
   const id = key(ownerId, String(book.id));
-  const encryptionKey = await crypto.subtle.generateKey(
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"],
-  );
+  const encryptionKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
+    "encrypt",
+    "decrypt",
+  ]);
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const claims = JSON.parse(new TextDecoder().decode(
-    decodeBase64Url(license.receipt.payload),
-  )) as OfflineEpubClaims;
+  const claims = JSON.parse(
+    new TextDecoder().decode(decodeBase64Url(license.receipt.payload)),
+  ) as OfflineEpubClaims;
   const ciphertext = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv, additionalData: new TextEncoder().encode(claims.licenseId) },
     encryptionKey,
@@ -150,10 +161,18 @@ export async function saveLicensedEpub(book: CatalogBook) {
   await putOwnedRecord("assets", { id: id + ":key", ownerId, key: encryptionKey });
   await putOwnedRecord("assets", { id, ownerId, iv, ciphertext, digest: await sha256(bytes) });
   const record: LicensedEpub = {
-    id, kind: "licensed-epub", ownerId, title: book.title, book,
-    receipt: license.receipt, publicKey: license.publicKey,
-    expiresAt: license.expiresAt, assetVersionId: license.assetVersionId,
-    assetIds: [id, id + ":key"], complete: true, updatedAt: new Date().toISOString(),
+    id,
+    kind: "licensed-epub",
+    ownerId,
+    title: book.title,
+    book,
+    receipt: license.receipt,
+    publicKey: license.publicKey,
+    expiresAt: license.expiresAt,
+    assetVersionId: license.assetVersionId,
+    assetIds: [id, id + ":key"],
+    complete: true,
+    updatedAt: new Date().toISOString(),
   };
   try {
     await validate(record, ownerId);

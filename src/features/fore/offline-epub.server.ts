@@ -42,8 +42,9 @@ export async function issueOfflineEpubLicense(
   } catch {
     throw new ApiError(503, "Offline verification key is invalid.");
   }
-  const device = await env.DB
-    .prepare("SELECT id FROM devices WHERE user_id=? AND device_key=? AND revoked_at IS NULL")
+  const device = await env.DB.prepare(
+    "SELECT id FROM devices WHERE user_id=? AND device_key=? AND revoked_at IS NULL",
+  )
     .bind(userId, deviceKey)
     .first<{ id: string }>();
   if (!device)

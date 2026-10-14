@@ -489,6 +489,7 @@ export function BookPage({ id }: { id: string }) {
         </button>
       </div>
     );
+  const selectedBook = b;
   const d = detail.data,
     offer = d.commerce.offer,
     preorder = d.commerce.preorder,
@@ -515,9 +516,9 @@ export function BookPage({ id }: { id: string }) {
       return;
     setBusy(kind);
     try {
-      if (kind === "book") await downloadBook(b);
-      else if (kind === "data") await exportReadingData(b);
-      else await downloadCoveBackup(b);
+      if (kind === "book") await downloadBook(selectedBook);
+      else if (kind === "data") await exportReadingData(selectedBook);
+      else await downloadCoveBackup(selectedBook);
       toast.success(
         kind === "book"
           ? "Book downloaded"
@@ -532,10 +533,10 @@ export function BookPage({ id }: { id: string }) {
     }
   }
   async function promotionEvent(eventType: "click" | "wishlist" | "cart") {
-    if (!offer?.promotion?.campaignId || !b.productId || !recVisitor) return;
+    if (!offer?.promotion?.campaignId || !selectedBook.productId || !recVisitor) return;
     void api("/promotions/event", "POST", {
       campaignId: offer.promotion.campaignId,
-      productId: b.productId,
+      productId: selectedBook.productId,
       eventType,
       visitorId: recVisitor,
       eventId: `${eventType}-${crypto.randomUUID()}`,
@@ -544,10 +545,10 @@ export function BookPage({ id }: { id: string }) {
   }
   async function wishlist() {
     if (!data.user) return signIn();
-    if (!b.productId) return;
+    if (!selectedBook.productId) return;
     try {
       await api("/wishlist/item", "POST", {
-        productId: b.productId,
+        productId: selectedBook.productId,
         saved: !wishlisted,
         sourceSurface: "book-detail",
         territory: d.commerce.territory,
@@ -561,12 +562,12 @@ export function BookPage({ id }: { id: string }) {
   }
   async function cart(goCheckout = false) {
     if (!data.user) return signIn();
-    if (!b.productId) return;
+    if (!selectedBook.productId) return;
     setBusy(goCheckout ? "buy" : "cart");
     try {
       await promotionEvent("click");
       await api("/cart/item", "POST", {
-        productId: b.productId,
+        productId: selectedBook.productId,
         territory: d.commerce.territory,
         sourceSurface: goCheckout ? "buy-now" : "book-detail",
       });
@@ -880,13 +881,13 @@ export function BookPage({ id }: { id: string }) {
                 "Explore this edition in Cove's reader."}
             </p>
           </section>
-          {d.contentDisclosure?.publicBadges?.length > 0 && (
+          {(d.contentDisclosure?.publicBadges?.length ?? 0) > 0 && (
             <section className="product-accessibility content-transparency">
               <ShieldCheck size={20} />
               <div>
                 <h3>Content transparency</h3>
                 <p>
-                  {d.contentDisclosure.publicBadges.map((x) => x.label).join(" · ")}.{" "}
+                  {d.contentDisclosure?.publicBadges?.map((x) => x.label).join(" · ")}.{" "}
                   <a href="/publishing-policy">Read Cove's AI & automated content policy</a>.
                 </p>
               </div>

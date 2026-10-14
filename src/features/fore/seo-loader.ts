@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 
+type SeoJson = string | number | boolean | null | SeoJson[] | { [key: string]: SeoJson };
 export type SeoPayload = {
   title: string;
   description: string;
@@ -13,7 +14,7 @@ export type SeoPayload = {
   authorNames?: string[];
   authorUrls?: string[];
   bookIsbn?: string;
-  jsonLd?: Record<string, unknown>[];
+  jsonLd?: Record<string, SeoJson>[];
 };
 
 function plain(value: unknown, max = 280) {

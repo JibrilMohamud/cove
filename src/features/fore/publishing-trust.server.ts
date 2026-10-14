@@ -379,7 +379,7 @@ export async function uploadRightsEvidence(
 
 async function sha256(bytes: Uint8Array | string) {
   const raw = typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", raw));
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(raw)));
   return [...digest].map((v) => v.toString(16).padStart(2, "0")).join("");
 }
 function normalizeText(s: string) {

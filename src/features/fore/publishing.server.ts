@@ -46,6 +46,36 @@ export type PublishingEnv = {
   FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK?: string;
 };
 
+async function recordPublicationActivation(
+  db: PublishingDB,
+  event: {
+    lifecycleId: string;
+    publicationVersionId: string;
+    fromPublicationVersionId: string | null;
+    activationType: "initial" | "update" | "schedule" | "rollback" | "staff";
+    actorUserId?: string | null;
+    reasonCode: string;
+    metadata: unknown;
+    at: string;
+  },
+) {
+  await db
+    .prepare(
+      "INSERT INTO publishing_publication_activations(id,lifecycle_id,publication_version_id,from_publication_version_id,activation_type,actor_user_id,reason_code,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+    )
+    .bind(
+      `pva_${crypto.randomUUID()}`,
+      event.lifecycleId,
+      event.publicationVersionId,
+      event.fromPublicationVersionId,
+      event.activationType,
+      event.actorUserId || null,
+      event.reasonCode,
+      JSON.stringify(event.metadata),
+      event.at,
+    )
+    .run();
+}
 const now = () => new Date().toISOString();
 const id = (prefix: string) => `${prefix}_${crypto.randomUUID()}`;
 const isoOrNull = z.string().datetime().nullable().optional();
@@ -65,7 +95,7 @@ function stableJson(value: unknown): string {
 }
 async function sha256Hex(bytes: Uint8Array | string) {
   const input = typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", input));
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(input)));
   return [...digest].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 function safeJson<T>(text: unknown, fallback: T): T {
@@ -1067,7 +1097,7 @@ async function inspectEpub(bytes: Uint8Array) {
   const rootfile = container?.match(/full-path\s*=\s*["']([^"']+)["']/i)?.[1];
   if (!rootfile)
     issues.push({ code: "CONTAINER", severity: "error", message: "EPUB package path is missing." });
-  const opf = rootfile ? await zip.file(rootfile)?.async("string") : "";
+  const opf = (rootfile ? await zip.file(rootfile)?.async("string") : "") || "";
   if (!opf)
     issues.push({ code: "OPF", severity: "error", message: "EPUB package document is missing." });
   const cleanText = (v: string) =>

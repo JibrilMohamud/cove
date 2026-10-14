@@ -297,7 +297,11 @@ async function triggerVercelAudio(env: BackendEnv, path: string) {
   const target = new URL(path, env.FORE_PUBLIC_URL);
   const response = await fetch(target, {
     method: "POST",
-    headers: await ingestionTriggerHeaders(env, target),
+    headers: new Headers(
+      Object.entries(await ingestionTriggerHeaders(env, target)).filter(
+        (entry): entry is [string, string] => typeof entry[1] === "string",
+      ),
+    ),
     signal: AbortSignal.timeout(290_000),
   });
   if (!response.ok) {
@@ -440,7 +444,7 @@ async function warmOneShortBiosyncTranscript(env: BackendEnv) {
   for (let offset = 0; offset < Math.min(4, options.length); offset++) {
     const row = options[(first + offset) % options.length];
     const key = `biosync/transcripts/cloudflare-whisper-v1/${row.audio_sha}.json`;
-    if (await env.BUCKET.head(key)) continue;
+    if (await env.BUCKET?.head?.(key)) continue;
     const request = new Request(origin + "/api/fore/pipeline/hosted-transcript", {
       method: "POST",
     });

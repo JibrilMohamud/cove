@@ -76,7 +76,7 @@ const clean = (v: unknown, max = 1000) =>
 
 async function sha256(value: string | Uint8Array) {
   const bytes = typeof value === "string" ? encoder.encode(value) : value;
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
@@ -2251,7 +2251,7 @@ export async function processPartnerFeedQueue(db: CatalogDB, limit = 25) {
               "UPDATE publisher_feed_items SET status=?,applied_entity_type=?,applied_entity_id=?,updated_at=? WHERE id=?",
             )
             .bind(
-              result.skipped ? "skipped" : "applied",
+              "skipped" in result && result.skipped ? "skipped" : "applied",
               result.type,
               result.id || "",
               now(),
@@ -2825,7 +2825,7 @@ export async function uploadPartnerAssetBatch(
           "x-fore-filename": filename,
           "content-type": mime,
         },
-        body: assetBytes,
+        body: new Uint8Array(assetBytes),
       });
       const out = await uploadPartnerAsset(env, internal, principal);
       results.push({

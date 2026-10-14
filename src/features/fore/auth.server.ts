@@ -82,7 +82,9 @@ export async function createAuth(request: Request, env: CoveEnv) {
               name: c.name,
               value: c.value || "",
             })),
-          setAll: (values) => {
+          setAll: (
+            values: Array<{ name: string; value: string; options: Record<string, unknown> }>,
+          ) => {
             changes.push(...values);
           },
         },

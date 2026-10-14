@@ -765,8 +765,8 @@ export function AccountManagementPanel() {
             <div className="notice" role="status">
               <p>
                 Ready to restore up to {restorePreview.eligible} reading items;
-                {restorePreview.skipped} unavailable or unlicensed items will be skipped.
-                Existing reading records are preserved rather than overwritten.
+                {restorePreview.skipped} unavailable or unlicensed items will be skipped. Existing
+                reading records are preserved rather than overwritten.
               </p>
               <p className="small muted">
                 This does not restore purchases, licenses, passwords, billing, or copyrighted EPUBs.

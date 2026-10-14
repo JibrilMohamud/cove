@@ -1443,7 +1443,7 @@ async function cachePendingEpubs(
                   sourceItemId: String(row.source_item_id || row.id),
                 })
               : await canonicalizeRegionalEpub(rawBytes, sourceId);
-          bytes = canonical.bytes;
+          bytes = new Uint8Array(canonical.bytes);
           contentHash = canonical.sha256;
           canonicalizationVersion = canonical.canonicalizationVersion;
           canonicalMetadata = canonical.metadata;
@@ -2472,7 +2472,7 @@ async function getPreviewEpub(env: CoveEnv, id: string, userId?: string, territo
       String(product.source_external_id || id),
     ),
     derived = await createPreviewEpub(source.bytes, policy),
-    digest = new Uint8Array(await crypto.subtle.digest("SHA-256", derived.bytes)),
+    digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(derived.bytes))),
     sha = [...digest].map((x) => x.toString(16).padStart(2, "0")).join("");
   if (env.BUCKET)
     await env.BUCKET.put(key, derived.bytes, {
@@ -2648,7 +2648,7 @@ export async function handleCoveApi(request: Request, env: CoveEnv): Promise<Res
   const auth = await createAuth(tracedRequest, env);
   const raw = await handleCoveRequest(tracedRequest, env, auth);
   if (!raw) return null;
-  const decorated = auth.decorate(raw),
+  const decorated = auth.decorate(raw) || raw,
     responseHeaders = new Headers(decorated.headers);
   responseHeaders.set("x-fore-request-id", trace.requestId);
   responseHeaders.set("traceparent", trace.traceparent);

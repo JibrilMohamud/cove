@@ -1366,7 +1366,7 @@ async function searchMeili(env: SearchEnv, input: SearchInput) {
   // Never trust an external search index as the rights authority. If its cached territorial
   // metadata is stale, fail over to D1 rather than exposing an unavailable product.
   const eligible = await retailEligibleIdSet(env.DB, ids, input.territory);
-  if (ids.some((id) => !eligible.has(id)))
+  if (ids.some((id: string) => !eligible.has(id)))
     throw new Error("Search index rights projection is stale.");
   const books = await canonicalBooksByProductIds(env.DB, ids);
   return {

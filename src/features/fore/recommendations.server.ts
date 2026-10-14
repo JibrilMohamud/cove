@@ -679,7 +679,7 @@ async function externalCandidates(
 
 function normalizedExternalScores(values: Map<string, number>) {
   const entries = [...values]
-    .filter(([, score]) => Number.isFinite(score))
+    .filter(([, score]: [string, number]) => Number.isFinite(score))
     .sort((a, b) => b[1] - a[1]);
   const out = new Map<string, number>();
   const n = Math.max(1, entries.length - 1);
@@ -724,7 +724,7 @@ async function externalRank(
     const raw = new Map<string, number>(
       payload.scores
         .map((x: any) => [String(x.id), Number(x.score)] as [string, number])
-        .filter(([, score]) => Number.isFinite(score)),
+        .filter(([, score]: [string, number]) => Number.isFinite(score)),
     );
     return { scores: normalizedExternalScores(raw), status: "external", reason: "" };
   } catch (error) {

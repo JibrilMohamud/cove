@@ -53,7 +53,7 @@ function agreementTerritoryCovers(
     : requirements.countries.every((c) => set.has("WORLD") || set.has(c));
 }
 async function hash(bytes: Uint8Array) {
-  const d = await crypto.subtle.digest("SHA-256", bytes);
+  const d = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
   return [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 async function publishingEdition(
@@ -1993,8 +1993,11 @@ export async function saveCommercialBiosyncLink(env: CoveEnv, staffUserId: strin
       409,
       "The requested Biosync precision does not match the verified manifest.",
     );
-  const chapters = new Map(
-      (audioManifest.chapters || []).map((c: any) => [String(c.id), Number(c.duration_ms || 0)]),
+  const chapters = new Map<string, number>(
+      (audioManifest.chapters || []).map(
+        (c: { id: string; duration_ms?: number }) =>
+          [String(c.id), Number(c.duration_ms || 0)] as const,
+      ),
     ),
     lastEnd = new Map<string, number>();
   let coveredMs = 0,
