@@ -3,7 +3,8 @@ import { api } from "./client";
 import { getRecord, putRecord, deleteRecord, getRecords, sha256 } from "./offline";
 import { offlineAccountId, putOwnedRecord } from "./offline-account";
 import { decodeBase64Url, hashText, publicAudioKey, audioKeyId } from "./offline-audio-license";
-import { OFFLINE_EPUB_CONTEXT, type OfflineEpubClaims } from "./offline-epub.server";
+import type { OfflineEpubClaims } from "./offline-epub.server";
+const OFFLINE_EPUB_CONTEXT = "cove-offline-epub:v1\\n";
 
 type SignedReceipt = { payload: string; signature: string; keyId: string };
 type LicensedEpub = {
