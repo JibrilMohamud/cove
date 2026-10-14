@@ -615,10 +615,8 @@ test("saved defaults, independent group pickers and simultaneous audiences drive
     await alice.goto(`/read/${book.publicProductId || book.id}`);
     await expect(alice.getByRole("button", { name: "Next page", exact: true })).toBeEnabled();
     if (!(await alice.getByRole("button", { name: "Book highlights", exact: true }).isVisible()))
-      await alice
-        .frameLocator(".epub-container iframe")
-        .getByRole("heading", { name: "Chapter 1", exact: true })
-        .click();
+      await alice.keyboard.press("Tab");
+    await expect(alice.getByRole("button", { name: "Book highlights", exact: true })).toBeVisible();
     await alice.getByRole("button", { name: "Book highlights", exact: true }).click();
     await expect(
       alice.locator(".reader-highlights").getByText(quote, { exact: true }),
@@ -645,10 +643,8 @@ test("saved defaults, independent group pickers and simultaneous audiences drive
       true,
     );
     if (!(await alice.getByRole("button", { name: "Book highlights", exact: true }).isVisible()))
-      await alice
-        .frameLocator(".epub-container iframe")
-        .getByRole("heading", { name: "Chapter 1", exact: true })
-        .click();
+      await alice.keyboard.press("Tab");
+    await expect(alice.getByRole("button", { name: "Book highlights", exact: true })).toBeVisible();
     await alice.getByRole("button", { name: "Book highlights", exact: true }).click();
     await alice.getByRole("button", { name: `Share highlight: ${quote}`, exact: true }).click();
     share = alice.getByRole("dialog", { name: "Share this highlight." });
