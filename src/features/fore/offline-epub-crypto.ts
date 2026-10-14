@@ -36,8 +36,7 @@ export async function verifyOfflineEpubReceipt(
   const invalid = () =>
     new Error("Offline license is invalid or expired. Reconnect to renew access.");
   try {
-    if (!expected.userId || !expected.productId || !expected.deviceKey || !receipt)
-      throw invalid();
+    if (!expected.userId || !expected.productId || !expected.deviceKey || !receipt) throw invalid();
     const keyId = await audioKeyId(trustedKey);
     if (receipt.keyId !== keyId) throw invalid();
     const key = await crypto.subtle.importKey(
