@@ -33,7 +33,7 @@ export async function fetchCatalogPage(
           Accept: "application/json",
           "User-Agent": "CoveReader/1.0 (persistent Gutenberg catalog harvester)",
         },
-        signal: AbortSignal.timeout(Math.max(1, Math.min(60_000, Math.floor(remaining())))),
+        signal: AbortSignal.timeout(Math.max(1, Math.min(15_000, Math.floor(remaining())))),
       });
       // The request deadline remains active while consuming the body. Await
       // JSON here so a body timeout/truncated response receives the same bounded

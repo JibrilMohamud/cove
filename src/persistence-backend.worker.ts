@@ -2,10 +2,13 @@ import { processAccountDeletionQueue } from "./features/fore/account-management.
 import {
   handleCoveApi,
   runCatalogIngestion,
+  runCatalogAssetMaintenance,
+  runRegionalCatalogIngestion,
   runPublishingReleaseMaintenance,
   runRecommendationMaintenance,
   type CoveEnv,
 } from "./features/fore/api.server";
+import { syncSearchIndex } from "./features/fore/search.server";
 import { hostedBiosyncChunks } from "./features/fore/hosted-biosync-chunks.server";
 import { cachedPublicApi, prunePublicCache } from "./features/fore/public-api-cache.server";
 import { refreshPublicStatus } from "./features/fore/public-status.server";
@@ -146,19 +149,9 @@ function terminalIngestionResult(value: unknown) {
     result.failed === true ||
     result.skipped === "fresh" ||
     result.skipped === "backoff" ||
-    result.skipped === "running"
-  );
-}
-
-function ingestionAssetAttempts(value: unknown) {
-  if (!value || typeof value !== "object") return 0;
-  const result = value as {
-    epubs?: { attempted?: number };
-    regional?: { epubs?: { attempted?: number } };
-  };
-  return (
-    Math.max(0, Number(result.epubs?.attempted) || 0) +
-    Math.max(0, Number(result.regional?.epubs?.attempted) || 0)
+    result.skipped === "running" ||
+    result.skipped === "deadline" ||
+    result.skipped === "lease-lost"
   );
 }
 
@@ -180,16 +173,42 @@ async function catalogBatch(request: Request, env: BackendEnv) {
   );
   const deadline = Date.now() + maxMillis;
   const results: unknown[] = [];
-  let remainingEpubs = epubLimit;
-
-  for (let i = 0; i < maxPages && Date.now() < deadline; i++) {
-    const result = await runCatalogIngestion(env, remainingEpubs, { deadlineMs: deadline });
+  // Index metadata first. Regional scraping and EPUB transfers share the remaining
+  // deadline, but cannot consume a page's asset allowance or stop later pages.
+  const metadataDeadline = deadline - Math.min(30_000, maxMillis * 0.2);
+  for (let i = 0; i < maxPages && Date.now() < metadataDeadline; i++) {
+    const result = await runCatalogIngestion(env, 0, {
+      deadlineMs: metadataDeadline,
+      includeRegional: false,
+      deferSearchSync: true,
+    });
     results.push(result);
-    remainingEpubs = Math.max(0, remainingEpubs - ingestionAssetAttempts(result));
     if (terminalIngestionResult(result)) break;
   }
-
-  return json({ ok: true, pagesAttempted: results.length, results });
+  const regional =
+    Date.now() < deadline
+      ? await runRegionalCatalogIngestion(env, 0, Math.min(deadline, Date.now() + 20_000)).catch(
+          (error) => ({
+            failed: true,
+            error: String(error),
+          }),
+        )
+      : { skipped: "deadline" };
+  const epubs = await runCatalogAssetMaintenance(env, epubLimit, deadline);
+  if (Date.now() < deadline) {
+    await syncSearchIndex(env, 500).catch((error) =>
+      console.warn("Catalog search sync failed", error),
+    );
+  }
+  return json({
+    ok: !results.some(
+      (value) => value && typeof value === "object" && "failed" in value && value.failed === true,
+    ),
+    pagesAttempted: results.length,
+    results,
+    regional,
+    epubs,
+  });
 }
 
 async function maintenance(env: BackendEnv) {

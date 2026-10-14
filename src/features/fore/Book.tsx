@@ -3,6 +3,7 @@ import { AddToShelf } from "./Shelves";
 import { BookAudio } from "./Audio";
 import { saveEpubOffline, downloadBook, exportReadingData, downloadCoveBackup } from "./epub";
 import { useState, useEffect, useRef } from "react";
+import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -600,9 +601,9 @@ export function BookPage({ id }: { id: string }) {
   }
   return (
     <>
-      <a href="/" className="text-link back-link">
+      <Link to="/" className="text-link back-link" preload={false}>
         <ArrowLeft size={16} /> Back to bookstore
-      </a>
+      </Link>
       <div className="book-detail commercial-product-detail">
         <div className="detail-art">
           <BookArt book={b} />
