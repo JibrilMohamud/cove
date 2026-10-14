@@ -31,6 +31,8 @@ jobs:
         run: npm run test:persistence-backend
       - name: Reading statistics and audiobook regressions
         run: node scripts/check-reading-statistics.mjs
+      - name: ISO currency zero/two/three-decimal regressions
+        run: npm run test:currency-minor-units
       - name: Offline reading, account restoration and reader-safe notifications
         run: npm run test:reader-recovery
       - name: Notification delivery and opt-out regressions
