@@ -124,18 +124,36 @@ export async function licensedEpubRecord(ref: string, userId = offlineAccountId(
   }
   return null;
 }
-export async function licensedEpubBytes(ref: string, userId = offlineAccountId()) {
-  const record = await licensedEpubRecord(ref, userId);
-  if (!record) return null;
+type OfflineLicense = {
+  url: string;
+  receipt: SignedOfflineEpubReceipt;
+  expiresAt: string;
+  assetVersionId: string;
+};
+async function rawRecord(ref: string, userId: string) {
+  return (
+    (await getRecords<LicensedEpub>("downloads")).find(
+      (r) =>
+        r.kind === "licensed-epub" &&
+        r.ownerId === userId &&
+        r.complete &&
+        refs(r.book).includes(ref),
+    ) || null
+  );
+}
+async function decryptRecord(record: LicensedEpub, userId: string) {
+  const claims = await validate(record, userId);
+  const assetId = record.assetIds.find((item) => item.includes(":blob:")) || record.id;
+  const keyId = record.assetIds.find((item) => item.includes(":key:")) || record.id + ":key";
   const asset = await getRecord<{
     ownerId: string;
     iv: Uint8Array;
     ciphertext: ArrayBuffer;
     digest: string;
-  }>("assets", record.id);
-  const stored = await getRecord<{ ownerId: string; key: CryptoKey }>("assets", record.id + ":key");
-  if (!asset || !stored || asset.ownerId !== userId || stored.ownerId !== userId) return null;
-  const claims = await validate(record, userId);
+  }>("assets", assetId);
+  const stored = await getRecord<{ ownerId: string; key: CryptoKey }>("assets", keyId);
+  if (!asset || !stored || asset.ownerId !== userId || stored.ownerId !== userId)
+    throw Error("The protected EPUB is incomplete.");
   const plain = await crypto.subtle.decrypt(
     {
       name: "AES-GCM",
@@ -146,61 +164,146 @@ export async function licensedEpubBytes(ref: string, userId = offlineAccountId()
     asset.ciphertext,
   );
   if ((await sha256(plain)) !== asset.digest)
-    throw new Error("Licensed offline EPUB integrity check failed.");
+    throw Error("Licensed offline EPUB integrity check failed.");
   return plain;
 }
-export async function saveLicensedEpub(book: CatalogBook) {
-  const ownerId = offlineAccountId();
-  if (!ownerId || !book.productId || !deviceKey())
-    throw new Error("Sign in and register this device before saving a licensed edition.");
-  const license = await api<{
-    url: string;
-    publicKey: JsonWebKey;
-    receipt: SignedReceipt;
-    expiresAt: string;
-    assetVersionId: string;
-  }>("/offline-epub/license", "POST", { productId: book.productId, deviceKey: deviceKey() });
-  const response = await fetch(license.url, { credentials: "same-origin", cache: "no-store" });
-  if (!response.ok) throw new Error("The licensed EPUB could not be retrieved.");
-  const bytes = await response.arrayBuffer();
-  if (bytes.byteLength > 60_000_000)
-    throw new Error("This edition exceeds offline storage limits.");
-  const id = key(ownerId, String(book.id));
-  const encryptionKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
-    "encrypt",
-    "decrypt",
-  ]);
+async function requestLicense(book: CatalogBook, userId: string) {
+  await provisionTrustedKey(userId);
+  const license = await api<OfflineLicense>("/offline-epub/license", "POST", {
+    productId: book.productId,
+    deviceKey: deviceKey(),
+  });
+  const trusted = await trustedVerificationKey(userId, license.receipt.keyId);
+  await verifyOfflineEpubReceipt(license.receipt, trusted, {
+    userId,
+    productId: String(book.productId || ""),
+    assetVersionId: license.assetVersionId,
+    expiresAt: license.expiresAt,
+    deviceKey: deviceKey(),
+  });
+  return license;
+}
+async function storeEncrypted(
+  book: CatalogBook,
+  userId: string,
+  license: OfflineLicense,
+  bytes: ArrayBuffer,
+) {
+  if (bytes.byteLength > 60_000_000) throw Error("This edition exceeds offline storage limits.");
+  const id = key(userId, String(book.id));
+  const trusted = await trustedVerificationKey(userId, license.receipt.keyId);
+  const claims = await verifyOfflineEpubReceipt(license.receipt, trusted, {
+    userId,
+    productId: String(book.productId || ""),
+    assetVersionId: license.assetVersionId,
+    expiresAt: license.expiresAt,
+    deviceKey: deviceKey(),
+  });
+  const previous = await getRecord<LicensedEpub>("downloads", id);
+  const assetId = id + ":blob:" + crypto.randomUUID();
+  const keyId = id + ":key:" + crypto.randomUUID();
+  const encryptionKey = await crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const claims = JSON.parse(
-    new TextDecoder().decode(decodeBase64Url(license.receipt.payload)),
-  ) as OfflineEpubClaims;
   const ciphertext = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv, additionalData: new TextEncoder().encode(claims.licenseId) },
     encryptionKey,
     bytes,
   );
-  await putOwnedRecord("assets", { id: id + ":key", ownerId, key: encryptionKey });
-  await putOwnedRecord("assets", { id, ownerId, iv, ciphertext, digest: await sha256(bytes) });
-  const record: LicensedEpub = {
-    id,
-    kind: "licensed-epub",
-    ownerId,
-    title: book.title,
-    book,
-    receipt: license.receipt,
-    publicKey: license.publicKey,
-    expiresAt: license.expiresAt,
-    assetVersionId: license.assetVersionId,
-    assetIds: [id, id + ":key"],
-    complete: true,
-    updatedAt: new Date().toISOString(),
-  };
   try {
-    await validate(record, ownerId);
+    await putOwnedRecord("assets", { id: keyId, ownerId: userId, key: encryptionKey });
+    await putOwnedRecord("assets", {
+      id: assetId,
+      ownerId: userId,
+      iv,
+      ciphertext,
+      digest: await sha256(bytes),
+    });
+    const record: LicensedEpub = {
+      id,
+      kind: "licensed-epub",
+      ownerId: userId,
+      title: book.title,
+      book,
+      receipt: license.receipt,
+      expiresAt: license.expiresAt,
+      assetVersionId: license.assetVersionId,
+      assetIds: [assetId, keyId],
+      complete: true,
+      updatedAt: new Date().toISOString(),
+    };
     await putOwnedRecord("downloads", record);
   } catch (error) {
-    await deleteRecord("assets", id);
-    await deleteRecord("assets", id + ":key");
+    await deleteRecord("assets", assetId);
+    await deleteRecord("assets", keyId);
     throw error;
+  }
+  // Never delete the previous licensed copy until the replacement is fully committed.
+  for (const oldId of previous?.assetIds || [])
+    if (oldId !== assetId && oldId !== keyId) await deleteRecord("assets", oldId);
+}
+export async function saveLicensedEpub(book: CatalogBook) {
+  const userId = offlineAccountId();
+  if (!userId || !book.productId || !deviceKey())
+    throw Error("Sign in and register this device before saving a licensed edition.");
+  if (!online()) throw Error("Reconnect to authorize the licensed EPUB download.");
+  const license = await requestLicense(book, userId);
+  const response = await fetch(license.url, { credentials: "same-origin", cache: "no-store" });
+  if (!response.ok) throw Error("The licensed EPUB could not be retrieved.");
+  await storeEncrypted(book, userId, license, await response.arrayBuffer());
+}
+export async function renewLicensedEpub(ref: string, userId = offlineAccountId()) {
+  if (!userId || offlineAccountId() !== userId || !online()) return false;
+  const record = await rawRecord(ref, userId);
+  if (!record) return false;
+  const license = await requestLicense(record.book, userId);
+  let bytes: ArrayBuffer | null = null;
+  if (license.assetVersionId === record.assetVersionId) {
+    try {
+      bytes = await decryptRecord(record, userId);
+    } catch {
+      // Expired, damaged, or revoked content requires a new authorized download.
+    }
+  }
+  if (!bytes) {
+    const response = await fetch(license.url, { credentials: "same-origin", cache: "no-store" });
+    if (!response.ok) throw Error("The refreshed licensed EPUB could not be retrieved.");
+    bytes = await response.arrayBuffer();
+  }
+  await storeEncrypted(record.book, userId, license, bytes);
+  return true;
+}
+export async function licensedEpubBytes(ref: string, userId = offlineAccountId()) {
+  if (!userId) return null;
+  let record = await rawRecord(ref, userId);
+  if (!record) return null;
+  if (Date.parse(record.expiresAt) <= Date.now() && online()) {
+    try {
+      await renewLicensedEpub(ref, userId);
+      record = await rawRecord(ref, userId);
+    } catch {
+      return null;
+    }
+  }
+  if (!record) return null;
+  try {
+    const bytes = await decryptRecord(record, userId);
+    if (
+      online() &&
+      Date.parse(record.expiresAt) - Date.now() <= OFFLINE_EPUB_RENEW_WINDOW_MS &&
+      !renewals.has(record.id)
+    ) {
+      const promise = renewLicensedEpub(ref, userId)
+        .then(() => undefined)
+        .catch(() => undefined)
+        .finally(() => renewals.delete(record.id));
+      renewals.set(record.id, promise);
+    }
+    return bytes;
+  } catch {
+    return null;
   }
 }
