@@ -296,7 +296,9 @@ try {
   assert.equal(first.status, 200, JSON.stringify(first));
   assert.equal(first.body.items.length, 100);
   assert.equal(first.body.hasMore, true);
-  const second = await request("/account/collection?kind=annotations&bookId=1342&limit=100&offset=100");
+  const second = await request(
+    "/account/collection?kind=annotations&bookId=1342&limit=100&offset=100",
+  );
   assert.equal(second.status, 200, JSON.stringify(second));
   assert.equal(second.body.hasMore, false);
   assert.ok(second.body.items.length >= 25);
