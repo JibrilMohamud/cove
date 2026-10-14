@@ -106,7 +106,10 @@ export async function queueReaderMutation(
   const id = key(userId, kind, entityId);
   const prior = await getRecord<Mutation>("outbox", id);
   if (prior?.state === "conflict")
-    throw new Error("This reading change conflicts with another device; review it before editing.");
+    throw Object.assign(
+      new Error("This reading change conflicts with another device; review it before editing."),
+      { status: 409 },
+    );
   const row: Mutation = {
     id,
     userId,
@@ -128,7 +131,10 @@ export async function queueReaderMutation(
   }
   const pending = await getRecord<Mutation>("outbox", id);
   if (pending?.revision === row.revision && pending.state === "conflict")
-    throw new Error(pending.lastError || "This change conflicts with another device.");
+    throw Object.assign(
+      new Error(pending.lastError || "This change conflicts with another device."),
+      { status: 409 },
+    );
   return { queued: true, id, response: null };
 }
 export async function discardReaderConflict(userId: string, mutationId: string) {
