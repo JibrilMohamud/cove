@@ -46,6 +46,7 @@
     "test:commercial-experience": "node scripts/check-commercial-experience.mjs",
     "test:search-updater-cache": "node scripts/check-search-updater-cache.mjs",
     "test:reader-sharing-offline": "node scripts/check-reader-sharing-offline.mjs",
+    "test:reader-recovery": "node scripts/check-reader-recovery.mjs",
     "test:sharing-erasure": "node scripts/check-sharing-erasure.mjs",
     "lint:strict": "eslint .",
     "test:browser": "playwright test",
