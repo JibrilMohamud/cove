@@ -740,6 +740,18 @@ export function ReaderPage({ id }: { id: string }) {
     let created: any;
     let resize: ResizeObserver | undefined;
     let pageRepairTimer: ReturnType<typeof setTimeout> | undefined;
+    let selectionTimer: ReturnType<typeof setTimeout> | undefined;
+    const selectionDocuments = new WeakSet<Document>();
+    function presentSelection(cfi: string, text: string) {
+      if (canceled || !text) return;
+      const next = { cfi, text: text.slice(0, 12000), chapter: chapterRef.current };
+      setSelection((current) =>
+        current?.cfi === next.cfi && current.text === next.text && current.chapter === next.chapter
+          ? current
+          : next,
+      );
+      setActiveAnnotation(null);
+    }
     (async () => {
       const params = new URLSearchParams(location.search);
       if (!previewMode) {
@@ -826,6 +838,32 @@ export function ReaderPage({ id }: { id: string }) {
       if (detected.rtl && typeof r.direction === "function") r.direction("rtl");
       applySettings(r);
       r.hooks.content.register((contents: any) => {
+        // Capture native ranges while the document owns the selection. Safari
+        // can retain the painted selection after focus changes while EPUB.js's
+        // delayed window-selection lookup no longer emits a selected event.
+        const doc = contents.document as Document;
+        if (!selectionDocuments.has(doc)) {
+          selectionDocuments.add(doc);
+          const captureSelection = () => {
+            const selected = doc.getSelection();
+            if (!selected?.rangeCount || selected.isCollapsed) return;
+            const range = selected.getRangeAt(0).cloneRange();
+            const text = range.toString().trim();
+            if (!text) return;
+            if (selectionTimer) clearTimeout(selectionTimer);
+            selectionTimer = setTimeout(() => {
+              selectionTimer = undefined;
+              if (canceled || !doc.defaultView?.frameElement?.isConnected) return;
+              try {
+                presentSelection(contents.cfiFromRange(range), text);
+              } catch {
+                // A page turn may remove the range before it settles.
+              }
+            }, 250);
+          };
+          for (const event of ["selectionchange", "mouseup", "touchend", "keyup"])
+            doc.addEventListener(event, captureSelection, { passive: true });
+        }
         contents.document.addEventListener("keydown", keys);
         contents.document.addEventListener("pointerdown", () => activity.current?.interact());
         contents.document.addEventListener("scroll", () => activity.current?.interact());
@@ -848,10 +886,7 @@ export function ReaderPage({ id }: { id: string }) {
       });
       r.on("selected", (cfi: string, contents: any) => {
         const text = contents.window.getSelection()?.toString().trim();
-        if (text) {
-          setSelection({ cfi, text: text.slice(0, 12000), chapter: chapterRef.current });
-          setActiveAnnotation(null);
-        }
+        if (text) presentSelection(cfi, text);
       });
       r.on("relocated", (loc: any) => {
         if (canceled) return;
@@ -1056,6 +1091,7 @@ export function ReaderPage({ id }: { id: string }) {
       activity.current = null;
       resize?.disconnect();
       if (pageRepairTimer) clearTimeout(pageRepairTimer);
+      if (selectionTimer) clearTimeout(selectionTimer);
       document.removeEventListener("keydown", keys);
       document.removeEventListener("visibilitychange", visibility);
       if (saveTimer.current) clearTimeout(saveTimer.current);
