@@ -707,7 +707,7 @@ export async function handleCommunity(
     const input = z
       .object({
         id: z.string().uuid(),
-        bookId: bookIdSchema,
+        bookId: z.union([bookIdSchema, z.string().regex(/^ca_[A-Za-z0-9_-]{1,240}$/)]),
         mode: z.enum(["read", "listen"]),
         startedAt: z.string().datetime(),
         endedAt: z.string().datetime(),
@@ -744,11 +744,20 @@ export async function handleCommunity(
     )
       throw new ApiError(409, "This session identity is already in use.");
     if (input.mode === "listen") {
-      const exists = await db
-        .prepare("SELECT id FROM audio_editions WHERE gutenberg_id=? OR book_id=? LIMIT 1")
-        .bind(input.bookId, input.bookId)
-        .first();
-      if (!exists) throw new ApiError(404, "Audiobook not found.");
+      if (input.bookId.startsWith("ca_")) {
+        // Commercial recordings can be sold without a linked ebook or Gutenberg identifier.
+        const commercial = await db.prepare(
+          "SELECT p.source_external_id,p.public_id FROM publishing_edition_drafts e JOIN commercial_audio_profiles a ON a.edition_id=e.id JOIN products p ON p.id=e.catalog_product_id WHERE e.id=? AND e.status='published' AND p.storefront_status='active' LIMIT 1",
+        ).bind(input.bookId.slice(3)).first<any>();
+        if (!commercial) throw new ApiError(404, "Audiobook not found.");
+        sessionBookId = String(commercial.source_external_id || commercial.public_id);
+      } else {
+        const exists = await db
+          .prepare("SELECT id FROM audio_editions WHERE gutenberg_id=? OR book_id=? LIMIT 1")
+          .bind(input.bookId, input.bookId)
+          .first();
+        if (!exists) throw new ApiError(404, "Audiobook not found.");
+      }
     }
     await db
       .prepare(
@@ -795,14 +804,17 @@ export async function handleCommunity(
         language: z.string().min(2).max(10),
       })
       .parse(await readBody(request));
-    await getBook(env, input.bookId, uid);
+    const measuredBook = await getBook(env, input.bookId, uid);
+    const metricBookId = String(
+      (measuredBook as any).sourceExternalId || (measuredBook as any).id || input.bookId,
+    );
     await db
       .prepare(
         "INSERT INTO book_metrics(user_id,book_id,word_count,reading_level,language,method,updated_at) VALUES(?,?,?,?,?,'epub-spine-fk-estimate-v1',?) ON CONFLICT(user_id,book_id) DO UPDATE SET word_count=excluded.word_count,reading_level=excluded.reading_level,language=excluded.language,updated_at=excluded.updated_at",
       )
       .bind(
         uid,
-        input.bookId,
+        metricBookId,
         input.wordCount,
         input.language === "en" ? input.readingLevel : null,
         input.language,
@@ -862,7 +874,7 @@ async function readingStats(env: CoveEnv, userId: string, url: URL) {
         .all<any>(),
       db
         .prepare(
-          "SELECT c.*,m.word_count,m.reading_level FROM completion_events c LEFT JOIN book_metrics m ON m.user_id=c.user_id AND m.book_id=c.external_book_id WHERE c.user_id=? AND c.finished_at>=? AND c.finished_at<=? ORDER BY c.finished_at DESC",
+          "SELECT c.*,COALESCE(m.word_count,mp.word_count) word_count,COALESCE(m.reading_level,mp.reading_level) reading_level FROM completion_events c LEFT JOIN products p ON p.id=c.product_id LEFT JOIN book_metrics m ON m.user_id=c.user_id AND m.book_id=c.external_book_id LEFT JOIN book_metrics mp ON mp.user_id=c.user_id AND mp.book_id=p.public_id WHERE c.user_id=? AND c.finished_at>=? AND c.finished_at<=? ORDER BY c.finished_at DESC",
         )
         .bind(userId, since, until)
         .all<any>(),
@@ -901,8 +913,9 @@ async function readingStats(env: CoveEnv, userId: string, url: URL) {
   for (const b of completedBooks.filter(Boolean) as CatalogBook[]) {
     for (const g of new Set<string>(
       (b.bookshelves || [])
-        .filter((s: string) => s.startsWith("Browsing: "))
-        .map((s: string) => s.replace("Browsing: ", "")),
+        .filter((s: string) => /^(?:Browsing|Category):\s*/i.test(s))
+        .map((s: string) => s.replace(/^(?:Browsing|Category):\s*/i, "").trim())
+        .filter(Boolean),
     ))
       genre[g] = (genre[g] || 0) + 1;
     for (const g of new Set<string>((b.subjects || []).slice(0, 8)))
