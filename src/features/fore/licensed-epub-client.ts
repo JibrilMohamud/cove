@@ -25,8 +25,7 @@ type LicensedEpub = {
   updatedAt: string;
 };
 const key = (userId: string, id: string) => "epub:licensed:" + userId + ":" + id;
-const trustKey = (userId: string, keyId: string) =>
-  "epub:verified-key:" + userId + ":" + keyId;
+const trustKey = (userId: string, keyId: string) => "epub:verified-key:" + userId + ":" + keyId;
 type TrustedVerificationKey = {
   id: string;
   ownerId: string;
@@ -202,11 +201,10 @@ async function storeEncrypted(
   const previous = await getRecord<LicensedEpub>("downloads", id);
   const assetId = id + ":blob:" + crypto.randomUUID();
   const keyId = id + ":key:" + crypto.randomUUID();
-  const encryptionKey = await crypto.subtle.generateKey(
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"],
-  );
+  const encryptionKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, [
+    "encrypt",
+    "decrypt",
+  ]);
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv, additionalData: new TextEncoder().encode(claims.licenseId) },
