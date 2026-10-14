@@ -467,7 +467,13 @@ export function ReaderPage({ id }: { id: string }) {
       const stage = container.current?.closest(".reader-stage");
       if (!stage || !rendition.current) return;
       const stageRect = stage.getBoundingClientRect(),
-        markers: { hash: string; top: number; count: number; passage: string; chapter: string }[] = [];
+        markers: {
+          hash: string;
+          top: number;
+          count: number;
+          passage: string;
+          chapter: string;
+        }[] = [];
       for (const cluster of socialReader.data?.indicators || []) {
         if (!cluster.cfi) continue;
         for (const contents of rendition.current.getContents()) {
@@ -507,7 +513,9 @@ export function ReaderPage({ id }: { id: string }) {
               chapter: String(cluster.chapter || "the current chapter"),
               passage: String(
                 cluster.posts?.[0]?.passageText || cluster.highlights?.[0]?.quote || "",
-              ).replace(/\s+/g, " ").slice(0, 120),
+              )
+                .replace(/\s+/g, " ")
+                .slice(0, 120),
             });
             break;
           } catch {
@@ -2253,7 +2261,11 @@ export function ReaderPage({ id }: { id: string }) {
                           <button
                             key={x.passageHash}
                             onClick={() => setActiveSocialHash(x.passageHash)}
-                            aria-label={`Open ${(x.discussionCount || 0) + (x.highlightCount || 0)} reader contributions in ${x.chapter || "this chapter"}: ${String(x.posts?.[0]?.passageText || x.highlights?.[0]?.quote || "").replace(/\s+/g, " ").slice(0, 120)}`}
+                            aria-label={`Open ${(x.discussionCount || 0) + (x.highlightCount || 0)} reader contributions in ${x.chapter || "this chapter"}: ${String(
+                              x.posts?.[0]?.passageText || x.highlights?.[0]?.quote || "",
+                            )
+                              .replace(/\s+/g, " ")
+                              .slice(0, 120)}`
                           >
                             <span>• {(x.discussionCount || 0) + (x.highlightCount || 0)}</span>
                             <strong>{x.chapter || "This passage"}</strong>
