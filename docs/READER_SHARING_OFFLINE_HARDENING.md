@@ -51,7 +51,9 @@ the receipt. It also checks on sign-in, reconnection, and periodically while the
 site remains open. Each renewal obtains a **fresh rights/entitlement-checked delivery
 grant and encrypted EPUB generation**. Failed renewal keeps the old generation
 until its original expiry; it never extends access. Attempts are throttled to
-avoid repeated downloads, and refreshing may consume a publisher's download quota.
+avoid repeated downloads. If a successful renewal cannot extend a time-limited loan,
+a 12-hour cooldown prevents excessive delivery-grant usage. Refreshing may consume
+a publisher's download quota.
 At expiry, offline access stops until a successful online renewal.
 
 Receipt signatures use `cove-offline-epub:v1` with a newline separator and a
