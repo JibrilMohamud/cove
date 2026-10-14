@@ -151,7 +151,7 @@ export const putOwnedRecord = async (_store,value) => {
       "offline reopening decrypts the authorized edition",
     );
     const corrupted = structuredClone(recorded);
-    corrupted.receipt.signature = corrupted.receipt.signature.slice(0, -2) + "AA";
+    corrupted.receipt.signature = (corrupted.receipt.signature[0] === "A" ? "B" : "A") + corrupted.receipt.signature.slice(1);
     storage.set(recordId, corrupted);
     assert.equal(await client.licensedEpubBytes(book.id), null);
     storage.set(recordId, recorded);
