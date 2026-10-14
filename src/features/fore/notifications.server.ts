@@ -117,10 +117,19 @@ export async function saveNotificationPreferences(db: DB, userId: string, raw: u
       webPush: z.boolean(),
       mobilePush: z.boolean().default(false),
       topics: z.record(z.boolean()).default({}),
-      quietHours: z.record(z.any()).default({}),
+      quietHours: z.object({
+        enabled: z.boolean().default(false),
+        start: z.string().regex(/^([01]\\d|2[0-3]):[0-5]\\d$/).default("22:00"),
+        end: z.string().regex(/^([01]\\d|2[0-3]):[0-5]\\d$/).default("07:00"),
+      }).default({}),
       timezone: z.string().min(1).max(80).default("UTC"),
     })
     .parse(raw);
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: x.timezone });
+  } catch {
+    throw new ApiError(400, "Choose a valid IANA time zone.");
+  }
   x.topics.security = true;
   await db
     .prepare(
@@ -202,11 +211,19 @@ export async function registerPushEndpoint(db: DB, userId: string, raw: unknown,
       .run();
   return { id, channel: x.channel, platform: x.platform };
 }
-export async function revokePushEndpoint(db: DB, userId: string, id: string) {
+export async function revokePushEndpoint(
+  db: DB,
+  userId: string,
+  idOrEndpoint: string,
+  byEndpoint = false,
+) {
+  const lookup = byEndpoint ? "endpoint_hash" : "id";
+  const key = byEndpoint ? await sha256(idOrEndpoint) : idOrEndpoint;
   await db
-    .prepare("UPDATE notification_push_endpoints SET revoked_at=? WHERE id=? AND user_id=?")
-    .bind(now(), id, userId)
+    .prepare(`UPDATE notification_push_endpoints SET revoked_at=? WHERE ${lookup}=? AND user_id=?`)
+    .bind(now(), key, userId)
     .run();
+  // Pending delivery jobs for revoked endpoints are checked again at send time.
   return { revoked: true };
 }
 
@@ -382,6 +399,34 @@ function providerConfig(env: CoveEnv, channel: string) {
     provider: "mobile-push-bridge",
   };
 }
+function localClockMinutes(date: Date, timeZone: string) {
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = formatter.formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value || "0");
+  const minute = Number(parts.find((part) => part.type === "minute")?.value || "0");
+  return hour * 60 + minute;
+}
+export function isNotificationQuiet(
+  quietHours: { enabled?: boolean; start?: string; end?: string },
+  timeZone: string,
+  date: Date,
+) {
+  if (!quietHours?.enabled) return false;
+  const toMinutes = (value: string) => {
+    const [hour, minute] = value.split(":").map(Number);
+    return hour * 60 + minute;
+  };
+  const start = toMinutes(quietHours.start || "22:00");
+  const end = toMinutes(quietHours.end || "07:00");
+  if (start === end) return true;
+  const minute = localClockMinutes(date, timeZone);
+  return start < end ? minute >= start && minute < end : minute >= start || minute < end;
+}
 export async function processNotificationDeliveryQueue(env: CoveEnv, limit = 50) {
   const db = env.DB,
     at = now(),
@@ -415,6 +460,27 @@ export async function processNotificationDeliveryQueue(env: CoveEnv, limit = 50)
         .first<any>(),
       cfg = providerConfig(env, job.channel),
       attempt = Number(fresh.attempts || 1);
+    // Defer outbound channels while the reader is active, even for security alerts.
+    // Keep inbox entries durable; never interrupt an active reading session.
+    const reader = await db
+      .prepare("SELECT expires_at FROM reader_notification_silence WHERE user_id=? AND expires_at>?")
+      .bind(job.user_id, now())
+      .first<{ expires_at: string }>();
+    const preferences = await notificationPreferences(db, job.user_id);
+    if (
+      reader ||
+      isNotificationQuiet(preferences.quietHours, preferences.timezone, new Date())
+    ) {
+      const next = new Date(Date.now() + (reader ? 120000 : 300000)).toISOString();
+      await db
+        .prepare(
+          "UPDATE notification_delivery_jobs SET status='retry',attempts=MAX(0,attempts-1),available_at=?,leased_until=NULL,last_error=?,updated_at=? WHERE id=?",
+        )
+        .bind(next, reader ? "reader_active" : "quiet_hours", now(), job.id)
+        .run();
+      retry++;
+      continue;
+    }
     if (!cfg.url) {
       await db.batch([
         db
