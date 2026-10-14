@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
+import { formatMinorCurrency } from "./currency";
 import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "./client";
 
@@ -41,8 +42,7 @@ const defaults: ContextValue = {
   markets: [],
   messages: {},
   t: (_k, f) => f || _k,
-  formatMoney: (m) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(m / 100),
+  formatMoney: (m) => formatMinorCurrency(m, "USD", "en-US"),
   setPreferences: async () => {},
   loading: true,
 };
@@ -88,15 +88,7 @@ export function StorefrontLocaleProvider({ children }: { children: ReactNode }) 
       markets: Array.isArray(x.availableMarkets) ? x.availableMarkets : [],
       messages,
       t: (key, fallback) => String(messages[key] || fallback || key),
-      formatMoney: (minor, c = currency) => {
-        try {
-          return new Intl.NumberFormat(locale, { style: "currency", currency: c }).format(
-            Number(minor || 0) / 100,
-          );
-        } catch {
-          return `${c} ${(Number(minor || 0) / 100).toFixed(2)}`;
-        }
-      },
+      formatMoney: (minor, c = currency) => formatMinorCurrency(minor, c, locale),
       setPreferences: async (pref) => {
         const r = await fetch("/api/fore/storefront/context", {
           method: "POST",
