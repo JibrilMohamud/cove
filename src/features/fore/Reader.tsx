@@ -207,21 +207,23 @@ export function ReaderPage({ id }: { id: string }) {
   }, [data.user?.id]);
   useEffect(() => {
     if (!data.user?.id || accountLoading) return;
-    const owner = data.user.id;
     const clientId = readerPresenceId.current;
-    const update = (reading: boolean) => {
-      if (document.visibilityState !== "visible" && reading) return;
-      void api("/notifications/reader-presence", "POST", { clientId, reading }).catch(() => {});
+    const renew = () => {
+      if (document.visibilityState !== "visible") return;
+      // Navigation or browser termination can cancel unload-time fetches.
+      // The lease expires naturally when the reader closes; while visible,
+      // regular renewals prevent any outbound notification interruptions.
+      void api("/notifications/reader-presence", "POST", {
+        clientId,
+        reading: true,
+      }).catch(() => {});
     };
-    const change = () => update(document.visibilityState === "visible");
-    update(document.visibilityState === "visible");
-    const timer = window.setInterval(change, 45000);
-    document.addEventListener("visibilitychange", change);
+    renew();
+    const timer = window.setInterval(renew, 45000);
+    document.addEventListener("visibilitychange", renew);
     return () => {
       clearInterval(timer);
-      document.removeEventListener("visibilitychange", change);
-      // The server lease expires automatically if connectivity was lost.
-      if (owner) update(false);
+      document.removeEventListener("visibilitychange", renew);
     };
   }, [data.user?.id, accountLoading]);
   const bookReferences = useRef(new Set<string>([id]));
