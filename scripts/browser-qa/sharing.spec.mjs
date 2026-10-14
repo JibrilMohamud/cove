@@ -277,8 +277,12 @@ test("EPUB reader opens and joined members receive group margin discussions", as
         { message: "EPUB reader initialization" },
       )
       .toBe("ready");
-    await expect(bob.locator(".reader-social-gutter button").first()).toBeVisible();
-    await bob.locator(".reader-social-gutter button").first().click();
+    const passageMarker = bob.locator(".reader-social-gutter button").first();
+    await expect(passageMarker).toBeVisible();
+    await expect(passageMarker).toHaveAccessibleName(/reader contributions.*Browser QA passage/i);
+    // Exercise activation without a mouse; screen-reader users receive the quoted passage.
+    await passageMarker.focus();
+    await passageMarker.press("Enter");
     await expect(
       bob.locator(".reader-social-panel").getByText(discussion, { exact: true }),
     ).toBeVisible();
