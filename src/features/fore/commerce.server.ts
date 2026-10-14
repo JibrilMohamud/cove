@@ -628,7 +628,6 @@ export async function checkoutQuote(env: CoveEnv, user: User, raw: unknown) {
       taxableMinor: discounted.reduce((n, x) => n + Number(x.taxableMinor || 0), 0),
       taxExclusiveMinor: taxMinor,
       taxInclusiveMinor,
-      taxInclusiveMinor,
       breakdown: taxBreakdown,
       lineItems: taxLineSnapshot,
       providerPayload: taxProviderPayload,

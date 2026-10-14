@@ -23,6 +23,8 @@ import {
   workDetail,
 } from "./discovery.server";
 import { ApiError, rateLimit } from "./service";
+import { restoreReadingBackup } from "./reading-restore.server";
+import { issueOfflineEpubLicense } from "./offline-epub.server";
 import { handleCommunity, migrateLegacy } from "./community.server";
 import {
   handleSocial,
@@ -1441,7 +1443,7 @@ async function cachePendingEpubs(
                   sourceItemId: String(row.source_item_id || row.id),
                 })
               : await canonicalizeRegionalEpub(rawBytes, sourceId);
-          bytes = canonical.bytes;
+          bytes = new Uint8Array(canonical.bytes);
           contentHash = canonical.sha256;
           canonicalizationVersion = canonical.canonicalizationVersion;
           canonicalMetadata = canonical.metadata;
@@ -2470,7 +2472,7 @@ async function getPreviewEpub(env: CoveEnv, id: string, userId?: string, territo
       String(product.source_external_id || id),
     ),
     derived = await createPreviewEpub(source.bytes, policy),
-    digest = new Uint8Array(await crypto.subtle.digest("SHA-256", derived.bytes)),
+    digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(derived.bytes))),
     sha = [...digest].map((x) => x.toString(16).padStart(2, "0")).join("");
   if (env.BUCKET)
     await env.BUCKET.put(key, derived.bytes, {
@@ -2521,6 +2523,7 @@ const annotationInput = z.object({
   color: z.enum(["yellow", "green", "blue", "pink", "purple"]).default("yellow"),
   note: z.string().max(12000).default(""),
   progress: z.number().min(0).max(1).optional(),
+  clientId: z.string().uuid().optional(),
 });
 const definitionInput = z.object({
   word: z.string().trim().min(1).max(100),
@@ -2645,7 +2648,7 @@ export async function handleCoveApi(request: Request, env: CoveEnv): Promise<Res
   const auth = await createAuth(tracedRequest, env);
   const raw = await handleCoveRequest(tracedRequest, env, auth);
   if (!raw) return null;
-  const decorated = auth.decorate(raw),
+  const decorated = auth.decorate(raw) || raw,
     responseHeaders = new Headers(decorated.headers);
   responseHeaders.set("x-fore-request-id", trace.requestId);
   responseHeaders.set("traceparent", trace.traceparent);
@@ -4457,8 +4460,39 @@ async function handleCoveRequest(
     if (request.method === "POST" && path === "/notifications/push/register")
       return json(await registerPushEndpoint(db, user.id, await body(request), request));
     if (request.method === "POST" && path === "/notifications/push/revoke") {
-      const x = z.object({ endpointId: z.string().min(1) }).parse(await body(request));
-      return json(await revokePushEndpoint(db, user.id, x.endpointId));
+      const x = z
+        .object({
+          endpointId: z.string().min(1).optional(),
+          endpoint: z.string().url().max(4096).optional(),
+        })
+        .refine((value) => !!(value.endpointId || value.endpoint))
+        .parse(await body(request));
+      return json(await revokePushEndpoint(db, user.id, x.endpoint || x.endpointId!, !!x.endpoint));
+    }
+    if (request.method === "POST" && path === "/notifications/reader-presence") {
+      const x = z
+        .object({ reading: z.boolean(), clientId: z.string().uuid() })
+        .parse(await body(request));
+      if (x.reading) {
+        const at = now();
+        const expires = new Date(Date.now() + 150000).toISOString();
+        await db
+          .prepare(
+            "INSERT INTO reader_notification_silence(user_id,client_id,expires_at,updated_at) VALUES(?,?,?,?) ON CONFLICT(user_id,client_id) DO UPDATE SET expires_at=excluded.expires_at,updated_at=excluded.updated_at",
+          )
+          .bind(user.id, x.clientId, expires, at)
+          .run();
+      } else {
+        await db
+          .prepare("DELETE FROM reader_notification_silence WHERE user_id=? AND client_id=?")
+          .bind(user.id, x.clientId)
+          .run();
+      }
+      return json({ saved: true });
+    }
+    if (request.method === "POST" && path === "/offline-epub/license") {
+      await rateLimit(env, "offline-epub:" + user.id, 12);
+      return json(await issueOfflineEpubLicense(env, user.id, await body(request), request), 201);
     }
     if (request.method === "POST" && path === "/delivery/epub/grant") {
       await rateLimit(env, `delivery-grant:${user.id}`, 120);
@@ -4474,6 +4508,10 @@ async function handleCoveRequest(
     }
     if (request.method === "POST" && path === "/delivery/annotation-anchor")
       return json(await snapshotAnnotationAnchor(db, user.id, await body(request)));
+    if (request.method === "POST" && path === "/account/restore") {
+      await rateLimit(env, "reading-restore:" + user.id, 6);
+      return json(await restoreReadingBackup(db, user.id, await body(request, 3_000_000)));
+    }
     if (request.method === "GET" && path === "/account/export") {
       const payload = await accountDataExport(db, user.id);
       return new Response(JSON.stringify(payload, null, 2), {
@@ -5256,11 +5294,34 @@ async function handleCoveRequest(
     if (request.method === "POST" && path === "/annotations") {
       const input = annotationInput.parse(await body(request));
       const b = await getBook(env, input.bookId, user.id);
-      const id = crypto.randomUUID(),
+      const id = input.clientId || crypto.randomUUID(),
         date = now();
+      if (input.clientId) {
+        const duplicate = await db
+          .prepare(
+            "SELECT id,book_id,quote,cfi,version,updated_at FROM annotations WHERE id=? AND user_id=? AND deleted_at IS NULL",
+          )
+          .bind(id, user.id)
+          .first<any>();
+        if (duplicate) {
+          if (
+            duplicate.book_id !== input.bookId ||
+            duplicate.quote !== input.quote ||
+            duplicate.cfi !== input.cfi
+          )
+            throw new ApiError(409, "This annotation ID belongs to another note.");
+          return json({
+            id: duplicate.id,
+            saved: true,
+            version: duplicate.version,
+            updatedAt: duplicate.updated_at,
+            deduped: true,
+          });
+        }
+      }
       await db
         .prepare(
-          "INSERT INTO annotations(id,user_id,book_id,book_title,author,quote,cfi,chapter,color,note,created_at,updated_at,version,progress) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
+          "INSERT OR IGNORE INTO annotations(id,user_id,book_id,book_title,author,quote,cfi,chapter,color,note,created_at,updated_at,version,progress) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
         )
         .bind(
           id,

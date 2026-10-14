@@ -1,6 +1,7 @@
 import { CoveRequestError } from "./api-transport";
 import { AddToShelf } from "./Shelves";
 import { OfflineDownloads } from "./Audio";
+import { queueReaderMutation } from "./offline-reader-mutations";
 import { AccountManagementPanel } from "./AccountManagement";
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -605,22 +606,28 @@ export function HighlightsPage() {
             placeholder="What does this passage bring to mind?"
           />
           <button
-            disabled={saving || sharing.isPending || sharing.isFetching || sharing.isError}
+            disabled={saving || sharing.isPending || sharing.isFetching}
             className="button gold"
             onClick={async () => {
-              if (!edit || !sharing.data) return;
+              if (!edit || !data.user) return;
               const noteChanged = note !== edit.note,
-                publishedShares = sharing.data.shares.filter((share) => share.shareNote);
+                publishedShares = (sharing.data?.shares || []).filter((share) => share.shareNote);
               setSaving(true);
               try {
-                const saved = await api<{ version: number }>("/annotations/" + edit.id, "PATCH", {
-                  note,
-                  color: editColor,
-                  expectedVersion: edit.version,
-                });
-                await reload();
+                const written = await queueReaderMutation(
+                  data.user.id,
+                  "annotation-edit",
+                  edit.id,
+                  "/annotations/" + edit.id,
+                  "PATCH",
+                  { note, color: editColor, expectedVersion: edit.version },
+                );
+                if (!written.queued) await reload();
                 setEdit(null);
-                if (noteChanged && publishedShares.length) {
+                if (written.queued) {
+                  toast.message("Note saved on this device; it will sync when online.");
+                } else if (noteChanged && publishedShares.length) {
+                  const saved = written.response as { version: number };
                   setRepublish({
                     annotationId: edit.id,
                     annotationVersion: saved.version,

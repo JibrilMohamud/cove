@@ -16,6 +16,7 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { flushSessions } from "./reading-activity";
+import { flushReaderMutations } from "./offline-reader-mutations";
 import { setOfflineAccount } from "./offline-account";
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import {
@@ -140,7 +141,10 @@ export function CoveProvider({ children }: { children: ReactNode }) {
   useEffect(() => registerReadingTools(reload), [reload]);
   useEffect(() => {
     if (!data.user) return;
-    const flush = () => void flushSessions(data.user!.id).catch(() => {});
+    const flush = () => {
+      void flushSessions(data.user!.id).catch(() => {});
+      void flushReaderMutations(data.user!.id).catch(() => {});
+    };
     flush();
     window.addEventListener("online", flush);
     return () => window.removeEventListener("online", flush);

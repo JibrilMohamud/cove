@@ -12,7 +12,7 @@ type Session = {
 };
 export async function flushSessions(userId: string) {
   for (const row of await getRecords<any>("outbox")) {
-    if (row.userId !== userId) continue;
+    if (row.userId !== userId || !row.session || row.id?.startsWith("reader-mutation:")) continue;
     try {
       await api("/sessions", "PUT", row.session);
       await deleteRecord("outbox", row.id);
@@ -39,6 +39,8 @@ export function createActivity(bookId: string, userId: string | null, mode: "rea
     last = performance.now(),
     lastInteraction = performance.now(),
     playing = false,
+    lastMediaTime: number | null = null,
+    lastMediaSample = performance.now(),
     visibleWords = 0,
     dwell = 0;
   const visited = new Set<string>();
@@ -50,9 +52,9 @@ export function createActivity(bookId: string, userId: string | null, mode: "rea
       elapsed = Math.min(5, (current - last) / 1000);
     last = current;
     const focused =
-      mode === "listen"
-        ? playing
-        : document.visibilityState === "visible" && current - lastInteraction < 300000;
+      mode === "read" &&
+      document.visibilityState === "visible" &&
+      current - lastInteraction < 300000;
     if (focused) {
       active += elapsed;
       if (mode === "read") dwell += elapsed;
@@ -131,6 +133,23 @@ export function createActivity(bookId: string, userId: string | null, mode: "rea
     setPlaying(value: boolean) {
       tick();
       playing = value;
+      if (!value) lastMediaTime = null;
+      lastMediaSample = performance.now();
+    },
+    mediaPosition(seconds: number, playbackRate: number) {
+      if (mode !== "listen" || !Number.isFinite(seconds)) return;
+      const at = performance.now();
+      if (lastMediaTime !== null && playing) {
+        const mediaDelta = seconds - lastMediaTime;
+        const wallDelta = Math.max(0, (at - lastMediaSample) / 1000);
+        const rate = Math.max(0.25, Math.min(4, playbackRate || 1));
+        // Confirm that playback progressed; do not count buffering or seeking.
+        if (mediaDelta > 0 && mediaDelta <= wallDelta * rate * 1.3 + 1) {
+          active += Math.min(wallDelta, mediaDelta / rate);
+        }
+      }
+      lastMediaTime = seconds;
+      lastMediaSample = at;
     },
     save,
     stop() {

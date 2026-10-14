@@ -752,6 +752,10 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
             onTimeUpdate={() => {
               if (audio.current) {
                 state.current.seconds = audio.current.currentTime;
+                activity.current?.mediaPosition(
+                  audio.current.currentTime,
+                  audio.current.playbackRate,
+                );
                 setSeconds(audio.current.currentTime);
               }
             }}

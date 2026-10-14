@@ -9,6 +9,9 @@ import {
 import { openBiosync, resolveAudio, resolveText, matchingEpub } from "./biosync-client";
 import { Headphones } from "lucide-react";
 import { createActivity, measureEpub } from "./reading-activity";
+import { flushReaderMutations, queueReaderMutation } from "./offline-reader-mutations";
+import { offlineAccountId } from "./offline-account";
+import { cachedReaderPosition, saveCachedReaderPosition } from "./offline-reading-position";
 import { sha256 } from "./offline";
 import { loadEdition } from "./audio-client";
 import { cueForAudio, type AudioEdition } from "./domain";
@@ -177,6 +180,52 @@ export function ReaderPage({ id }: { id: string }) {
     queryFn: () => loadBookMetadata(id),
   });
   const { data, loading: accountLoading, reload, signIn } = useAccount();
+  // A remembered account may write private device-only changes while the
+  // network is absent. It is never used to authorize server/social actions.
+  const offlineOwner = () =>
+    typeof navigator !== "undefined" && navigator.onLine === false ? offlineAccountId() : "";
+  const privateReaderOwner = () => accountRef.current.user?.id || offlineOwner();
+
+  // Reader presence is a short-lived lease, scoped to this browser tab. It suppresses
+  // outbound notification delivery even when the reader has requested all topics.
+  const readerPresenceId = useRef(crypto.randomUUID());
+  useEffect(() => {
+    if (!data.user?.id) return;
+    const userId = data.user.id;
+    const drain = () => {
+      void flushReaderMutations(userId)
+        .then(() => reload())
+        .catch(() => {});
+    };
+    const timer = window.setInterval(drain, 60000);
+    window.addEventListener("online", drain);
+    void flushReaderMutations(userId).catch(() => {});
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("online", drain);
+    };
+  }, [data.user?.id]);
+  useEffect(() => {
+    if (!data.user?.id || accountLoading) return;
+    const clientId = readerPresenceId.current;
+    const renew = () => {
+      if (document.visibilityState !== "visible") return;
+      // Navigation or browser termination can cancel unload-time fetches.
+      // The lease expires naturally when the reader closes; while visible,
+      // regular renewals prevent any outbound notification interruptions.
+      void api("/notifications/reader-presence", "POST", {
+        clientId,
+        reading: true,
+      }).catch(() => {});
+    };
+    renew();
+    const timer = window.setInterval(renew, 45000);
+    document.addEventListener("visibilitychange", renew);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", renew);
+    };
+  }, [data.user?.id, accountLoading]);
   const bookReferences = useRef(new Set<string>([id]));
   const metadata = bookQuery.data;
   bookReferences.current = new Set(
@@ -231,7 +280,16 @@ export function ReaderPage({ id }: { id: string }) {
   accountRef.current = data;
   annotationRef.current = data.annotations;
   useEffect(() => {
-    const scope = JSON.stringify([data.user?.id, id]);
+    const known = findLibraryBook(data.library, id);
+    if (data.user?.id && known?.cfi)
+      void saveCachedReaderPosition(data.user.id, id, {
+        cfi: known.cfi,
+        progress: known.progress || 0,
+        version: known.version || 0,
+      }).catch(() => {});
+  }, [data.user?.id, data.library, id]);
+  useEffect(() => {
+    const scope = JSON.stringify([data.user?.id || offlineOwner(), id]);
     const version = findLibraryBook(data.library, id)?.version || 0;
     if (readingScope.current !== scope) {
       readingScope.current = scope;
@@ -646,10 +704,10 @@ export function ReaderPage({ id }: { id: string }) {
         if ((error as any).status === 409) syncConflict.current = true;
       }
     }
-    if (!accountRef.current.user) return;
-    const ownerId = accountRef.current.user.id;
+    const ownerId = privateReaderOwner();
+    if (!ownerId || (previewMode && !accountRef.current.user)) return;
     const scope = readingScope.current;
-    const key = JSON.stringify([accountRef.current.user.id, id, previewMode, p.cfi, p.progress]);
+    const key = JSON.stringify([ownerId, id, previewMode, p.cfi, p.progress]);
     if (savedPositionKey.current === key) return;
     setSaveState(previewMode ? "Saving sample position…" : "Saving position…");
     const snapshot = { ...p };
@@ -659,7 +717,7 @@ export function ReaderPage({ id }: { id: string }) {
         if (
           positionConflict.current ||
           readingScope.current !== scope ||
-          accountRef.current.user?.id !== ownerId
+          privateReaderOwner() !== ownerId
         )
           return;
         try {
@@ -679,23 +737,35 @@ export function ReaderPage({ id }: { id: string }) {
               previewVersion.current = saved.version;
             }
           } else {
-            const saved = await api<{ version: number; readingJourneyId?: string | null }>(
-              "/library",
-              "POST",
-              {
-                bookId: id,
-                status:
-                  (snapshot.atEnd && advancedPage.current) ||
-                  findLibraryBook(accountRef.current.library, id)?.status === "finished"
-                    ? "finished"
-                    : "reading",
-                cfi: snapshot.cfi,
-                progress: snapshot.progress,
-                expectedVersion: readingVersion.current,
-              },
-            );
-            if (readingScope.current !== scope || accountRef.current.user?.id !== ownerId) return;
+            await saveCachedReaderPosition(ownerId, id, {
+              cfi: snapshot.cfi,
+              progress: snapshot.progress,
+              version: readingVersion.current,
+            });
+            const written = await queueReaderMutation(ownerId, "position", id, "/library", "POST", {
+              bookId: id,
+              status:
+                (snapshot.atEnd && advancedPage.current) ||
+                findLibraryBook(accountRef.current.library, id)?.status === "finished"
+                  ? "finished"
+                  : "reading",
+              cfi: snapshot.cfi,
+              progress: snapshot.progress,
+              expectedVersion: readingVersion.current,
+            });
+            if (readingScope.current !== scope || privateReaderOwner() !== ownerId) return;
+            if (written.queued) {
+              savedPositionKey.current = key;
+              if (mounted.current) setSaveState("Position saved on this device — pending sync");
+              return;
+            }
+            const saved = written.response as { version: number; readingJourneyId?: string | null };
             readingVersion.current = saved.version;
+            await saveCachedReaderPosition(ownerId, id, {
+              cfi: snapshot.cfi,
+              progress: snapshot.progress,
+              version: saved.version,
+            });
             if (saved.readingJourneyId && mounted.current)
               setFinishedJourney(saved.readingJourneyId);
           }
@@ -843,7 +913,7 @@ export function ReaderPage({ id }: { id: string }) {
         measureEpub(clean.metadata)
           .then((metrics) => api("/metrics", "PUT", { bookId: id, ...metrics }))
           .catch(() => {});
-      activity.current = createActivity(id, accountRef.current.user?.id || null, "read");
+      activity.current = createActivity(id, privateReaderOwner() || null, "read");
       const recommendationProductId = bookQuery.data?.productId;
       if (
         accountRef.current.user &&
@@ -1011,6 +1081,13 @@ export function ReaderPage({ id }: { id: string }) {
       let cfi =
         new URLSearchParams(window.location.search).get("cfi") ||
         (!previewMode ? findLibraryBook(accountRef.current.library, id)?.cfi : undefined);
+      if (!previewMode && !accountRef.current.user && privateReaderOwner()) {
+        const local = await cachedReaderPosition(privateReaderOwner(), id);
+        if (local) {
+          readingVersion.current = local.version;
+          if (!params.has("cfi") && local.cfi) cfi = local.cfi;
+        }
+      }
       if (previewMode && accountRef.current.user && bookQuery.data?.productId && !params.has("cfi"))
         try {
           const ps = await api(
@@ -1243,21 +1320,38 @@ export function ReaderPage({ id }: { id: string }) {
       } catch {}
   }, [data.annotations, ready, id]);
   async function saveHighlight(withNote = false) {
-    if (!data.user) return signIn();
+    const ownerId = data.user?.id || offlineOwner();
+    if (!ownerId) return signIn();
     if (!selection) return;
     setSaving(true);
     try {
-      await api("/annotations", "POST", {
-        bookId: id,
-        quote: selection.text,
-        cfi: selection.cfi,
-        chapter: selection.chapter,
-        color,
-        note: withNote ? note : "",
-        progress: position.current.progress,
-      });
-      await reload();
-      toast.success(withNote ? "Highlight and note saved" : "Passage highlighted");
+      const clientId = crypto.randomUUID();
+      const written = await queueReaderMutation(
+        ownerId,
+        "annotation",
+        clientId,
+        "/annotations",
+        "POST",
+        {
+          clientId,
+          bookId: id,
+          quote: selection.text,
+          cfi: selection.cfi,
+          chapter: selection.chapter,
+          color,
+          note: withNote ? note : "",
+          progress: position.current.progress,
+        },
+      );
+      if (!written.queued) await reload();
+      else setSaveState("Note saved on this device — pending sync");
+      toast.success(
+        written.queued
+          ? "Saved on this device — the note will sync after reconnecting"
+          : withNote
+            ? "Highlight and note saved"
+            : "Passage highlighted",
+      );
       setSelection(null);
       setNoteOpen(false);
       setNote("");

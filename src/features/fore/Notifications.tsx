@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Bell, CheckCheck, Mail, ShieldAlert, Smartphone, Webcam } from "lucide-react";
 import { toast } from "sonner";
-import { api } from "./client";
+import { api, useAccount } from "./client";
 
 type Item = {
   id: string;
@@ -22,7 +22,7 @@ type Prefs = {
   webPush: boolean;
   mobilePush: boolean;
   topics: Record<string, boolean>;
-  quietHours: Record<string, unknown>;
+  quietHours: { enabled?: boolean; start?: string; end?: string };
   timezone: string;
 };
 const labels: Record<string, string> = {
@@ -36,6 +36,7 @@ const labels: Record<string, string> = {
   payouts: "Payouts",
   reviews: "Review moderation",
   security: "Security alerts",
+  social: "Follows, replies & reading clubs",
 };
 function b64ToBytes(value: string) {
   const b64 = value
@@ -47,20 +48,33 @@ function b64ToBytes(value: string) {
 }
 
 export function NotificationsPage() {
+  const { data: account, loading: accountLoading, signIn } = useAccount();
   const [inbox, setInbox] = useState<Inbox | null>(null),
     [prefs, setPrefs] = useState<Prefs | null>(null),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [loadError, setLoadError] = useState(""),
+    [loading, setLoading] = useState(true);
   const reload = async () => {
-    const [i, p] = await Promise.all([
-      api<Inbox>("/notifications"),
-      api<Prefs>("/notifications/preferences"),
-    ]);
-    setInbox(i);
-    setPrefs(p);
+    setLoading(true);
+    setLoadError("");
+    try {
+      const [i, p] = await Promise.all([
+        api<Inbox>("/notifications"),
+        api<Prefs>("/notifications/preferences"),
+      ]);
+      setInbox(i);
+      setPrefs(p);
+    } catch (error) {
+      setLoadError((error as Error).message || "Could not load notifications.");
+    } finally {
+      setLoading(false);
+    }
   };
   useEffect(() => {
-    reload().catch((e) => toast.error((e as Error).message));
-  }, []);
+    if (accountLoading) return;
+    if (account.user) void reload();
+    else setLoading(false);
+  }, [accountLoading, account.user?.id]);
   const save = async (next: Prefs) => {
     setBusy(true);
     try {
@@ -69,6 +83,30 @@ export function NotificationsPage() {
       toast.success("Notification preferences saved");
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const disableWebPush = async () => {
+    if (!prefs) return;
+    setBusy(true);
+    try {
+      if ("serviceWorker" in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        const subscription = await registration?.pushManager.getSubscription();
+        if (subscription) {
+          await api("/notifications/push/revoke", "POST", { endpoint: subscription.endpoint });
+          await subscription.unsubscribe();
+        }
+      }
+      const updated = await api<Prefs>("/notifications/preferences", "POST", {
+        ...prefs,
+        webPush: false,
+      });
+      setPrefs(updated);
+      toast.success("Web Push disabled on this account and browser");
+    } catch (error) {
+      toast.error((error as Error).message);
     } finally {
       setBusy(false);
     }
@@ -107,12 +145,30 @@ export function NotificationsPage() {
       setBusy(false);
     }
   };
-  if (!inbox || !prefs)
+  if (accountLoading || loading || !account.user || loadError || !inbox || !prefs)
     return (
       <section className="store-section">
         <span className="page-eyebrow">NOTIFICATIONS</span>
         <h1>Inbox</h1>
-        <p className="muted">Loading notifications…</p>
+        {accountLoading || loading ? (
+          <p className="muted" role="status">
+            Loading notifications…
+          </p>
+        ) : !account.user ? (
+          <>
+            <p className="muted">Sign in to see your notifications and delivery preferences.</p>
+            <button className="button" onClick={signIn}>
+              Sign in
+            </button>
+          </>
+        ) : (
+          <>
+            <p role="alert">{loadError || "Your notifications could not be loaded."}</p>
+            <button className="button outline" onClick={() => void reload()}>
+              Retry loading
+            </button>
+          </>
+        )}
       </section>
     );
   return (
@@ -229,17 +285,82 @@ export function NotificationsPage() {
           </label>
           <button
             className="button outline"
-            disabled={busy || prefs.webPush}
-            onClick={enableWebPush}
+            disabled={busy}
+            onClick={prefs.webPush ? disableWebPush : enableWebPush}
           >
             <Webcam size={17} />
-            {prefs.webPush ? "Web Push enabled" : "Enable Web Push"}
+            {prefs.webPush ? "Disable Web Push" : "Enable Web Push"}
           </button>
           <div className="muted small">
             <Smartphone size={15} /> Mobile push is modeled and ready for an APNs/FCM provider
             bridge when native apps ship.
           </div>
         </div>
+        <fieldset className="notification-quiet-hours">
+          <legend>Quiet hours</legend>
+          <p className="small muted">
+            Pause optional push and email deliveries overnight. All browser push notifications are
+            also suppressed whenever a visible reader is open, regardless of these settings.
+          </p>
+          <label>
+            <input
+              type="checkbox"
+              checked={!!prefs.quietHours.enabled}
+              disabled={busy}
+              onChange={(event) =>
+                void save({
+                  ...prefs,
+                  quietHours: {
+                    enabled: event.target.checked,
+                    start: prefs.quietHours.start || "22:00",
+                    end: prefs.quietHours.end || "07:00",
+                  },
+                })
+              }
+            />
+            Enable quiet hours
+          </label>
+          <label>
+            Start
+            <input
+              type="time"
+              disabled={busy}
+              value={prefs.quietHours.start || "22:00"}
+              onChange={(event) =>
+                void save({
+                  ...prefs,
+                  quietHours: { ...prefs.quietHours, start: event.target.value },
+                })
+              }
+            />
+          </label>
+          <label>
+            End
+            <input
+              type="time"
+              disabled={busy}
+              value={prefs.quietHours.end || "07:00"}
+              onChange={(event) =>
+                void save({
+                  ...prefs,
+                  quietHours: { ...prefs.quietHours, end: event.target.value },
+                })
+              }
+            />
+          </label>
+          <label>
+            Time zone
+            <input
+              type="text"
+              disabled={busy}
+              value={prefs.timezone}
+              onChange={(event) => setPrefs({ ...prefs, timezone: event.target.value })}
+              onBlur={() => void save(prefs)}
+              placeholder="America/New_York"
+              aria-label="IANA time zone"
+            />
+          </label>
+        </fieldset>
         <div className="notification-topic-grid">
           {Object.entries(labels).map(([key, label]) => (
             <label key={key} className={key === "security" ? "required-topic" : ""}>

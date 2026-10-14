@@ -6,7 +6,7 @@ import { recordPrivilegedAccess } from "./privileged-access.server";
 
 export type ModerationDB = {
   prepare(sql: string): {
-    bind(...values: unknown[]): any;
+    bind(...values: unknown[]): ReturnType<ModerationDB["prepare"]>;
     first<T = any>(): Promise<T | null>;
     all<T = any>(): Promise<{ results: T[] }>;
     run(): Promise<any>;

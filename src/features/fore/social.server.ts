@@ -787,7 +787,11 @@ function journeySvg(j: any, format: "square" | "story") {
       forest: ["#16251d", "#eef4ef", "#8bbd93"],
       sunset: ["#3c2025", "#fff0df", "#f2a45e"],
       ink: ["#0d0d0f", "#f4f4f4", "#aaaaaa"],
-    }[j.theme] || ["#f4efe4", "#1f2428", "#b58b3d"],
+    }[String(j.theme) as "paper" | "night" | "forest" | "sunset" | "ink"] || [
+      "#f4efe4",
+      "#1f2428",
+      "#b58b3d",
+    ],
     pts = (j.points || []).slice(-90),
     graphTop = format === "story" ? 1080 : 610,
     graphH = format === "story" ? 390 : 250,

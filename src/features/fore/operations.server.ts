@@ -4,7 +4,7 @@ import { resolvePricingDecision } from "./pricing.server";
 
 export type OpsDB = {
   prepare(sql: string): {
-    bind(...values: unknown[]): any;
+    bind(...values: unknown[]): ReturnType<OpsDB["prepare"]>;
     first<T = any>(): Promise<T | null>;
     all<T = any>(): Promise<{ results: T[] }>;
     run(): Promise<any>;
