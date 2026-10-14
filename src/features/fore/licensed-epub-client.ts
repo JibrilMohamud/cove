@@ -275,13 +275,14 @@ export async function renewExpiringLicensedEpubs(userId: string) {
     // Acquire the in-memory lock before the first asynchronous storage lookup.
     // Concurrent tab-triggered renewals in this JS context share one request.
     const promise = (async () => {
-      const previous = await getRecord<{ ownerId: string; lastAttemptAt: number }>(
-        "assets",
-        retryKey(userId, record.id),
-      );
+      const previous = await getRecord<{
+        ownerId: string;
+        lastAttemptAt: number;
+        nextAttemptAt?: number;
+      }>("assets", retryKey(userId, record.id));
       if (
         previous?.ownerId === userId &&
-        Date.now() - previous.lastAttemptAt < OFFLINE_EPUB_RENEWAL_RETRY_MS
+        Date.now() < (previous.nextAttemptAt || previous.lastAttemptAt + OFFLINE_EPUB_RENEWAL_RETRY_MS)
       )
         return;
       await putOwnedRecord("assets", {
@@ -290,6 +291,20 @@ export async function renewExpiringLicensedEpubs(userId: string) {
         lastAttemptAt: Date.now(),
       });
       await saveLicensedEpub(record.book);
+      const refreshed = await getRecord<LicensedEpub>("downloads", record.id);
+      if (
+        refreshed?.ownerId === userId &&
+        Date.parse(refreshed.expiresAt) <= Date.parse(record.expiresAt)
+      ) {
+        // A loan ending inside seven days cannot be automatically extended.
+        // Avoid burning a new publisher delivery grant on every hourly check.
+        await putOwnedRecord("assets", {
+          id: retryKey(userId, record.id),
+          ownerId: userId,
+          lastAttemptAt: Date.now(),
+          nextAttemptAt: Date.now() + 12 * 60 * 60 * 1000,
+        });
+      }
     })();
     renewals.set(record.id, promise);
     try {
