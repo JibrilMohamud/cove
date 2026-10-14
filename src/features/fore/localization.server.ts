@@ -3,7 +3,7 @@ import { ApiError, now } from "./service";
 
 export type StorefrontDB = {
   prepare(sql: string): {
-    bind(...values: unknown[]): any;
+    bind(...values: unknown[]): ReturnType<StorefrontDB["prepare"]>;
     first<T = any>(): Promise<T | null>;
     all<T = any>(): Promise<{ results: T[] }>;
     run(): Promise<any>;
