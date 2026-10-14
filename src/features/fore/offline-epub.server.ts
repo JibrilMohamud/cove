@@ -42,10 +42,9 @@ export async function issueOfflineEpubLicense(
   } catch {
     throw new ApiError(503, "Offline verification key is invalid.");
   }
-  const device = await env.DB
-    .prepare(
-      "SELECT id FROM devices WHERE user_id=? AND device_key=? AND revoked_at IS NULL",
-    )
+  const device = await env.DB.prepare(
+    "SELECT id FROM devices WHERE user_id=? AND device_key=? AND revoked_at IS NULL",
+  )
     .bind(userId, deviceKey)
     .first<{ id: string }>();
   if (!device)
@@ -58,10 +57,9 @@ export async function issueOfflineEpubLicense(
     { productId, purpose: "offline_package", deviceId: device.id },
     request,
   );
-  const drm = await env.DB
-    .prepare(
-      "SELECT da.drm_status FROM asset_versions av JOIN digital_assets da ON da.id=av.asset_id WHERE av.id=? LIMIT 1",
-    )
+  const drm = await env.DB.prepare(
+    "SELECT da.drm_status FROM asset_versions av JOIN digital_assets da ON da.id=av.asset_id WHERE av.id=? LIMIT 1",
+  )
     .bind(grant.assetVersionId)
     .first<{ drm_status: string }>();
   const supported = new Set(["none", "drm-free", "watermark", "social-drm"]);
