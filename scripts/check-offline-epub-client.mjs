@@ -24,6 +24,7 @@ let now = Date.now();
 const realNow = Date.now;
 Date.now = () => now;
 let allowLicense = true;
+let entitlementEnd = Infinity;
 let receiptCounter = 0;
 const renewal = async () => {
   if (!allowLicense)
@@ -37,7 +38,7 @@ const renewal = async () => {
     assetVersionId: "asset_v1",
     licenseId: "grant_" + ++receiptCounter,
     issuedAt: new Date(Date.now()).toISOString(),
-    expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+    expiresAt: new Date(Math.min(Date.now() + 7 * 86400000, entitlementEnd)).toISOString(),
     keyId,
   };
   const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
@@ -211,8 +212,27 @@ try {
     null,
     "expired license must not decrypt offline",
   );
+  // A shorter, fixed loan end must not trigger new publisher downloads
+  // every hour when no amount of renewal can extend the entitlement.
+  allowLicense = true;
+  entitlementEnd = now + 2 * 86400000;
+  await client.saveLicensedEpub(book);
+  now += 86400000;
+  await client.renewExpiringLicensedEpubs(ownerId);
+  const cappedGrantCount = receiptCounter;
+  assert.equal(
+    Date.parse(store.get("downloads:" + recordId).expiresAt),
+    entitlementEnd,
+  );
+  now += 2 * 3600000;
+  await client.renewExpiringLicensedEpubs(ownerId);
+  assert.equal(
+    receiptCounter,
+    cappedGrantCount,
+    "a fixed loan end must postpone repeated automatic renewals",
+  );
   console.log(
-    "PASS: seven-day client renewal, trusted HTTPS key, generation-safe replacement, failed renewal, and offline expiry denial.",
+    "PASS: seven-day client renewal, trusted HTTPS key, generation-safe replacement, failed renewal, offline expiry denial, and capped-loan cooldown.",
   );
 } finally {
   Date.now = realNow;
