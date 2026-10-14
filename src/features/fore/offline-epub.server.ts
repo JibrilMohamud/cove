@@ -7,6 +7,7 @@ import {
   OFFLINE_EPUB_MAX_MS,
   type OfflineEpubClaims,
 } from "./offline-epub-crypto";
+export type { OfflineEpubClaims } from "./offline-epub-crypto";
 
 export async function offlineEpubVerificationKey(env: CoveEnv) {
   const secret = env.FORE_OFFLINE_AUDIO_SIGNING_JWK;
