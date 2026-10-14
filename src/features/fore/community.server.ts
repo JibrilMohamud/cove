@@ -882,7 +882,15 @@ async function readingStats(env: CoveEnv, userId: string, url: URL) {
         "SELECT id,book_id,mode,started_at,ended_at,active_seconds,words_read FROM reading_sessions WHERE user_id=? AND ended_at>=? AND started_at<=? ORDER BY started_at DESC",
       )
       .bind(userId, since, until)
-      .all<{ id: string; book_id: string; mode: string; started_at: string; ended_at: string; active_seconds: number; words_read: number }>(),
+      .all<{
+        id: string;
+        book_id: string;
+        mode: string;
+        started_at: string;
+        ended_at: string;
+        active_seconds: number;
+        words_read: number;
+      }>(),
     db
       .prepare(
         "SELECT c.*,COALESCE(m.word_count,mp.word_count) word_count,COALESCE(m.reading_level,mp.reading_level) reading_level FROM completion_events c LEFT JOIN products p ON p.id=c.product_id LEFT JOIN book_metrics m ON m.user_id=c.user_id AND m.book_id=c.external_book_id LEFT JOIN book_metrics mp ON mp.user_id=c.user_id AND mp.book_id=p.public_id WHERE c.user_id=? AND c.finished_at>=? AND c.finished_at<=? ORDER BY c.finished_at DESC",
@@ -983,13 +991,17 @@ async function readingStats(env: CoveEnv, userId: string, url: URL) {
   };
   const daily = { results: [...dailyMap.values()].sort((a, b) => a.date.localeCompare(b.date)) };
   const recent = sessionRows.results.slice(0, 50);
-  const sessionTitles = await Promise.all(
-    recent.map((session) => getCanonicalBook(db, String(session.book_id), userId).catch(() => null)),
-  );
+  const recentTitles = await db
+    .prepare(
+      "SELECT d.external_book_id,d.title FROM catalog_search_documents d WHERE d.external_book_id IN (SELECT s.book_id FROM reading_sessions s WHERE s.user_id=? AND s.ended_at>=? AND s.started_at<=? ORDER BY s.started_at DESC LIMIT 50)",
+    )
+    .bind(userId, since, until)
+    .all<{ external_book_id: string; title: string }>();
+  const titles = new Map(recentTitles.results.map((entry) => [entry.external_book_id, entry.title]));
   const sessions = {
-    results: recent.map((session, i) => ({
+    results: recent.map((session) => ({
       ...session,
-      book_title: sessionTitles[i]?.title || null,
+      book_title: titles.get(session.book_id) || null,
     })),
   };
   const completedBooks = await Promise.all(
