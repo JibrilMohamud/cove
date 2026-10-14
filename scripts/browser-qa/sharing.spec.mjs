@@ -570,6 +570,9 @@ test("discovery finds a particular member by username", async ({ browser, reques
 async function selectReaderPassage(page) {
   const passage = page.frameLocator(".epub-container iframe").locator("#passage");
   await expect(passage).toBeVisible();
+  // Sharing dialogs return focus to their trigger outside the EPUB. WebKit
+  // requires the text document to regain focus before it retains a selection.
+  await passage.click();
   await passage.evaluate((element) => {
     const doc = element.ownerDocument,
       range = doc.createRange();
