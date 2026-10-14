@@ -467,6 +467,16 @@ export async function processNotificationDeliveryQueue(env: CoveEnv, limit = 50)
       .bind(job.user_id, now())
       .first<{ expires_at: string }>();
     const preferences = await notificationPreferences(db, job.user_id);
+    if (!channelEnabled(preferences, n.topic, job.channel)) {
+      await db
+        .prepare(
+          "UPDATE notification_delivery_jobs SET status='suppressed',last_error='channel_disabled',leased_until=NULL,updated_at=? WHERE id=?",
+        )
+        .bind(now(), job.id)
+        .run();
+      suppressed++;
+      continue;
+    }
     if (
       reader ||
       isNotificationQuiet(preferences.quietHours, preferences.timezone, new Date())
