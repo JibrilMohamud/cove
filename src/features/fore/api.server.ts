@@ -23,6 +23,7 @@ import {
   workDetail,
 } from "./discovery.server";
 import { ApiError, rateLimit } from "./service";
+import { restoreReadingBackup } from "./reading-restore.server";
 import { handleCommunity, migrateLegacy } from "./community.server";
 import {
   handleSocial,
@@ -4507,6 +4508,10 @@ async function handleCoveRequest(
     }
     if (request.method === "POST" && path === "/delivery/annotation-anchor")
       return json(await snapshotAnnotationAnchor(db, user.id, await body(request)));
+    if (request.method === "POST" && path === "/account/restore") {
+      await rateLimit(env, "reading-restore:" + user.id, 6);
+      return json(await restoreReadingBackup(db, user.id, await body(request, 1_500_000)));
+    }
     if (request.method === "GET" && path === "/account/export") {
       const payload = await accountDataExport(db, user.id);
       return new Response(JSON.stringify(payload, null, 2), {
