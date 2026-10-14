@@ -4474,20 +4474,20 @@ async function handleCoveRequest(
       );
     }
     if (request.method === "POST" && path === "/notifications/reader-presence") {
-      const x = z.object({ reading: z.boolean() }).parse(await body(request));
+      const x = z.object({ reading: z.boolean(), clientId: z.string().uuid() }).parse(await body(request));
       if (x.reading) {
         const at = now();
         const expires = new Date(Date.now() + 150000).toISOString();
         await db
           .prepare(
-            "INSERT INTO reader_notification_silence(user_id,expires_at,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET expires_at=excluded.expires_at,updated_at=excluded.updated_at",
+            "INSERT INTO reader_notification_silence(user_id,client_id,expires_at,updated_at) VALUES(?,?,?,?) ON CONFLICT(user_id,client_id) DO UPDATE SET expires_at=excluded.expires_at,updated_at=excluded.updated_at",
           )
-          .bind(user.id, expires, at)
+          .bind(user.id, x.clientId, expires, at)
           .run();
       } else {
         await db
-          .prepare("DELETE FROM reader_notification_silence WHERE user_id=?")
-          .bind(user.id)
+          .prepare("DELETE FROM reader_notification_silence WHERE user_id=? AND client_id=?")
+          .bind(user.id, x.clientId)
           .run();
       }
       return json({ saved: true });
