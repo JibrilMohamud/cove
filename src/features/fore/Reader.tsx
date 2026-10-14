@@ -2265,7 +2265,7 @@ export function ReaderPage({ id }: { id: string }) {
                               x.posts?.[0]?.passageText || x.highlights?.[0]?.quote || "",
                             )
                               .replace(/\s+/g, " ")
-                              .slice(0, 120)}`
+                              .slice(0, 120)}`}
                           >
                             <span>• {(x.discussionCount || 0) + (x.highlightCount || 0)}</span>
                             <strong>{x.chapter || "This passage"}</strong>
