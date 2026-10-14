@@ -24,7 +24,7 @@ import {
 } from "./discovery.server";
 import { ApiError, rateLimit } from "./service";
 import { restoreReadingBackup } from "./reading-restore.server";
-import { issueOfflineEpubLicense } from "./offline-epub.server";
+import { issueOfflineEpubLicense, offlineEpubVerificationKey } from "./offline-epub.server";
 import { handleCommunity, migrateLegacy } from "./community.server";
 import {
   handleSocial,
@@ -4280,6 +4280,12 @@ async function handleCoveRequest(
         decodeURIComponent(path.slice("/delivery/epub/".length)),
         request,
       );
+    }
+    if (request.method === "GET" && path === "/offline-epub/verification-key") {
+      return new Response(JSON.stringify(await offlineEpubVerificationKey(env)), {
+        status: 200,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
     }
     const user = requiredUser(request);
     const db = database(env);
