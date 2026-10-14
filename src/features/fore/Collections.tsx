@@ -73,8 +73,11 @@ function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
     setExtra([]);
     setHasMore(firstPage.length >= 100);
   }, [accountId, kind]);
-  const items = [...firstPage, ...extra].filter((row, index, array) =>
-    array.findIndex((candidate) => (candidate.id || candidate.bookId) === (row.id || row.bookId)) === index
+  const items = [...firstPage, ...extra].filter(
+    (row, index, array) =>
+      array.findIndex(
+        (candidate) => (candidate.id || candidate.bookId) === (row.id || row.bookId),
+      ) === index,
   );
   const loadMore = async () => {
     if (!accountId || loading || !hasMore) return;
@@ -93,14 +96,20 @@ function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
   };
   return { items, hasMore, loading, loadMore };
 }
-function CollectionNextPage({ state }: {
+function CollectionNextPage({
+  state,
+}: {
   state: { hasMore: boolean; loading: boolean; loadMore: () => Promise<void> };
 }) {
   if (!state.hasMore) return null;
   return (
     <div className="collection-load-more">
-      <button type="button" className="button outline" disabled={state.loading}
-        onClick={() => void state.loadMore()}>
+      <button
+        type="button"
+        className="button outline"
+        disabled={state.loading}
+        onClick={() => void state.loadMore()}
+      >
         {state.loading ? "Loading more…" : "Load more"}
       </button>
     </div>
@@ -398,7 +407,11 @@ export function HighlightsPage() {
     enabled: !!data.user && !!edit,
     staleTime: 0,
   });
-  const pages = usePagedAccountCollection<Annotation>("annotations", data.annotations, data.user?.id);
+  const pages = usePagedAccountCollection<Annotation>(
+    "annotations",
+    data.annotations,
+    data.user?.id,
+  );
   const rows = pages.items.filter(
     (a) =>
       (tab !== "notes" || a.note) &&
@@ -908,7 +921,11 @@ export function DefinitionsPage() {
   const { data, reload } = useAccount();
   const [q, setQ] = useState(""),
     [remove, setRemove] = useState("");
-  const pages = usePagedAccountCollection<Definition>("definitions", data.definitions, data.user?.id);
+  const pages = usePagedAccountCollection<Definition>(
+    "definitions",
+    data.definitions,
+    data.user?.id,
+  );
   const rows = pages.items.filter((d) =>
     [d.word, d.meaning, d.bookTitle].join(" ").toLowerCase().includes(q.toLowerCase()),
   );
