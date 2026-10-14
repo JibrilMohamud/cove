@@ -116,7 +116,7 @@ try {
   await assert.rejects(
     () =>
       verifier.verifyOfflineEpubReceipt(
-        { ...receipt, payload: receipt.payload.slice(0, -2) + "AA" },
+        { ...receipt, payload: (receipt.payload[0] === "A" ? "B" : "A") + receipt.payload.slice(1) },
         publicKey,
         subject,
       ),
