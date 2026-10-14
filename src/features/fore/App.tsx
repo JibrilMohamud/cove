@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { flushSessions } from "./reading-activity";
 import { flushReaderMutations } from "./offline-reader-mutations";
+import { renewExpiringLicensedEpubs } from "./licensed-epub-client";
 import { setOfflineAccount } from "./offline-account";
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import {
@@ -144,10 +145,17 @@ export function CoveProvider({ children }: { children: ReactNode }) {
     const flush = () => {
       void flushSessions(data.user!.id).catch(() => {});
       void flushReaderMutations(data.user!.id).catch(() => {});
+      void renewExpiringLicensedEpubs(data.user!.id).catch(() => {});
     };
     flush();
+    // Also renew a long-open reading tab when it enters the last day
+    // of its seven-day license, without requiring navigation or reconnect.
+    const timer = window.setInterval(flush, 6 * 60 * 60 * 1000);
     window.addEventListener("online", flush);
-    return () => window.removeEventListener("online", flush);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("online", flush);
+    };
   }, [data.user]);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {

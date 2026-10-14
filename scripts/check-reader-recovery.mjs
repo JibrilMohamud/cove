@@ -54,6 +54,12 @@ try {
   env.FORE_OFFLINE_AUDIO_SIGNING_JWK = JSON.stringify(
     await crypto.subtle.exportKey("jwk", signingPair.privateKey),
   );
+  const verificationKey = await request("/offline-epub/verification-key");
+  assert.equal(verificationKey.status, 200, JSON.stringify(verificationKey));
+  assert.equal(verificationKey.body.key.kty, "EC");
+  assert.equal(verificationKey.body.key.crv, "P-256");
+  assert.equal("d" in verificationKey.body.key, false, "never reveal signing private material");
+  assert.ok(verificationKey.body.keyId);
   const deviceKey = randomUUID() + randomUUID();
   const notRegistered = await request("/offline-epub/license", "POST", {
     productId: product.id,
