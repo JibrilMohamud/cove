@@ -41,7 +41,13 @@ export function StatsPage() {
     [busy, setBusy] = useState(false);
   const result = useQuery<any>({
     queryKey: ["stats", data.user?.id, days],
-    queryFn: () => api("/stats?days=" + days + "&timeZone=" + encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")),
+    queryFn: () =>
+      api(
+        "/stats?days=" +
+          days +
+          "&timeZone=" +
+          encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"),
+      ),
     enabled: !!data.user,
   });
   const s = result.data,
@@ -321,9 +327,7 @@ export function StatsPage() {
                               <a href={bookPath(r.bookId)}>{r.title}</a>
                             </td>
                             <td>{r.mode === "read" ? "Reading" : "Listening"}</td>
-                            <td>
-                              {new Date(r.startedAt).toLocaleString()}
-                            </td>
+                            <td>{new Date(r.startedAt).toLocaleString()}</td>
                             <td>{duration(r.seconds)}</td>
                             <td>{r.mode === "read" ? r.words.toLocaleString() : "—"}</td>
                           </tr>
