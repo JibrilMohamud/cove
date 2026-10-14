@@ -1137,13 +1137,13 @@ async function account(env: CoveEnv, request: Request) {
         WHERE rs.user_id=? AND rs.in_library=1 AND EXISTS(
           SELECT 1 FROM entitlements e WHERE e.user_id=rs.user_id AND e.product_id=rs.product_id
           AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)
-        ) ORDER BY rs.updated_at DESC`,
+        ) ORDER BY rs.updated_at DESC LIMIT 100`,
       )
       .bind(user.id, now(), now())
       .all<any>(),
     db
       .prepare(
-        "SELECT * FROM annotations WHERE user_id=? AND deleted_at IS NULL ORDER BY updated_at DESC",
+        "SELECT * FROM annotations WHERE user_id=? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 100",
       )
       .bind(user.id)
       .all(),
