@@ -1,7 +1,7 @@
 import { AuthDialog, type AuthMode } from "./Auth";
 import { ConnectionNotice } from "./ConnectionNotice";
 import { CoveRequestError } from "./api-transport";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Headphones,
@@ -16,6 +16,7 @@ import {
   LifeBuoy,
 } from "lucide-react";
 import { flushSessions } from "./reading-activity";
+import { flushReaderMutations } from "./offline-reader-mutations";
 import { setOfflineAccount } from "./offline-account";
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import {
@@ -62,6 +63,7 @@ const nav = [
 ] as const;
 export function CoveProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
+  const locationPath = useRouterState({ select: (state) => state.location.pathname });
   const lastAccount = useRef<string | null | undefined>(undefined);
   const [data, setData] = useState<AccountData>({
     user: null,
@@ -140,7 +142,10 @@ export function CoveProvider({ children }: { children: ReactNode }) {
   useEffect(() => registerReadingTools(reload), [reload]);
   useEffect(() => {
     if (!data.user) return;
-    const flush = () => void flushSessions(data.user!.id).catch(() => {});
+    const flush = () => {
+      void flushSessions(data.user!.id).catch(() => {});
+      void flushReaderMutations(data.user!.id).catch(() => {});
+    };
     flush();
     window.addEventListener("online", flush);
     return () => window.removeEventListener("online", flush);
@@ -177,7 +182,9 @@ export function CoveProvider({ children }: { children: ReactNode }) {
       <StorefrontLocaleProvider key={data.user?.id || "guest"}>
         {children}
         <AuthDialog mode={auth} onChange={setAuth} onSuccess={reload} />
-        <Toaster theme="dark" position="bottom-right" richColors />
+        {!locationPath.startsWith("/read/") && (
+          <Toaster theme="dark" position="bottom-right" richColors />
+        )}
       </StorefrontLocaleProvider>
     </AccountContext.Provider>
   );
