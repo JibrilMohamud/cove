@@ -16,7 +16,7 @@ import { sha256 } from "./offline";
 import { loadEdition } from "./audio-client";
 import { cueForAudio, type AudioEdition } from "./domain";
 import { loadBookMetadata } from "./epub";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import {
@@ -240,6 +240,46 @@ export function ReaderPage({ id }: { id: string }) {
       .map(String),
   );
   const matchesReadingBook = (ref: string) => bookReferences.current.has(String(ref));
+  const annotationBookRef =
+    metadata?.sourceName === "gutenberg" && metadata.sourceExternalId
+      ? String(metadata.sourceExternalId)
+      : id;
+  const bookAnnotationPages = useInfiniteQuery<{
+    items: Annotation[];
+    hasMore: boolean;
+    nextOffset: number;
+  }>({
+    queryKey: ["reader-annotation-pages", data.user?.id, annotationBookRef],
+    queryFn: ({ pageParam }) =>
+      api(
+        "/account/collection?kind=annotations&bookId=" +
+          encodeURIComponent(annotationBookRef) +
+          "&offset=" +
+          String(pageParam || 0),
+      ),
+    initialPageParam: 0,
+    getNextPageParam: (page) => (page.hasMore ? page.nextOffset : undefined),
+    enabled: !!data.user && !previewMode,
+    staleTime: 30_000,
+  });
+  useEffect(() => {
+    if (bookAnnotationPages.hasNextPage && !bookAnnotationPages.isFetchingNextPage)
+      void bookAnnotationPages.fetchNextPage();
+  }, [
+    bookAnnotationPages.data,
+    bookAnnotationPages.hasNextPage,
+    bookAnnotationPages.isFetchingNextPage,
+  ]);
+  const readerAnnotations = useMemo(() => {
+    const byId = new Map<string, Annotation>();
+    for (const annotation of data.annotations)
+      if (bookReferences.current.has(String(annotation.bookId)))
+        byId.set(annotation.id, annotation);
+    for (const page of bookAnnotationPages.data?.pages || [])
+      for (const annotation of page.items) byId.set(annotation.id, annotation);
+    return [...byId.values()];
+  }, [data.annotations, bookAnnotationPages.data, annotationBookRef]);
+
 
   const activity = useRef<ReturnType<typeof createActivity> | null>(null),
     epubHash = useRef(""),
@@ -278,7 +318,7 @@ export function ReaderPage({ id }: { id: string }) {
     chromeHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
     chromeVisibleRef = useRef(false);
   accountRef.current = data;
-  annotationRef.current = data.annotations;
+  annotationRef.current = readerAnnotations;
   useEffect(() => {
     const known = findLibraryBook(data.library, id);
     if (data.user?.id && known?.cfi)
@@ -1321,7 +1361,7 @@ export function ReaderPage({ id }: { id: string }) {
   useEffect(() => {
     if (!ready || !rendition.current) return;
     const r = rendition.current;
-    for (const a of data.annotations.filter((a) => matchesReadingBook(a.bookId)))
+    for (const a of readerAnnotations.filter((a) => matchesReadingBook(a.bookId)))
       try {
         r.annotations.remove(a.cfi, "highlight");
         r.annotations.highlight(a.cfi, { id: a.id }, undefined, "fore-highlight", {
@@ -1330,7 +1370,7 @@ export function ReaderPage({ id }: { id: string }) {
           "mix-blend-mode": "multiply",
         });
       } catch {}
-  }, [data.annotations, ready, id]);
+  }, [readerAnnotations, ready, id]);
   async function saveHighlight(withNote = false) {
     const ownerId = data.user?.id || offlineOwner();
     if (!ownerId) return signIn();
@@ -2018,7 +2058,7 @@ export function ReaderPage({ id }: { id: string }) {
             )}
             {panel === "highlights" && (
               <div className="reader-highlights">
-                {data.annotations.filter((a) => matchesReadingBook(a.bookId)).length ? (
+                {readerAnnotations.filter((a) => matchesReadingBook(a.bookId)).length ? (
                   data.annotations
                     .filter((a) => matchesReadingBook(a.bookId))
                     .map((a) => (
