@@ -14,6 +14,7 @@ import {
 } from "./retail-intelligence.server";
 import { recordSyncProjection } from "./sync.server";
 import { recordSocialEvent } from "./social.server";
+import { hasAudioAccess, assertCommercialAudioRiskAccess } from "./commercial-audio.server";
 type GetBook = (env: CoveEnv, id: string, userId?: string) => Promise<CatalogBook>;
 async function syncShelfProjection(
   db: CoveEnv["DB"],
@@ -160,6 +161,7 @@ export async function handleCommunity(
   path: string,
   userId: string | null,
   getBook: GetBook,
+  territory = "US",
 ): Promise<Response | null> {
   const url = new URL(request.url),
     db = env.DB,
@@ -748,11 +750,14 @@ export async function handleCommunity(
         // Commercial recordings can be sold without a linked ebook or Gutenberg identifier.
         const commercial = await db
           .prepare(
-            "SELECT p.source_external_id,p.public_id FROM publishing_edition_drafts e JOIN commercial_audio_profiles a ON a.edition_id=e.id JOIN products p ON p.id=e.catalog_product_id WHERE e.id=? AND e.status='published' AND p.storefront_status='active' LIMIT 1",
+            "SELECT p.id product_id,p.source_external_id,p.public_id FROM publishing_edition_drafts e JOIN commercial_audio_profiles a ON a.edition_id=e.id JOIN products p ON p.id=e.catalog_product_id WHERE e.id=? AND e.status='published' AND p.storefront_status='active' LIMIT 1",
           )
           .bind(input.bookId.slice(3))
           .first<any>();
         if (!commercial) throw new ApiError(404, "Audiobook not found.");
+        if (!(await hasAudioAccess(db, uid, String(commercial.product_id), territory)))
+          throw new ApiError(403, "An active audiobook entitlement is required.");
+        await assertCommercialAudioRiskAccess(db, uid, String(commercial.product_id));
         sessionBookId = String(commercial.source_external_id || commercial.public_id);
       } else {
         const exists = await db
