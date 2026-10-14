@@ -65,7 +65,9 @@ test("catalog navigation reuses cache and suppresses obsolete updater warnings",
     expect(calls).toEqual(before);
     expect(await page.evaluate(() => window.__coveQaNavigation)).toBe(sessionMarker);
     expect(errors).toEqual([]);
-    await page.screenshot({ path: testInfo.outputPath("warm-catalog.png"), fullPage: true });
+    // Capture the visible storefront. A full catalog at mobile device scale can
+    // exceed WebKit's 32767-pixel image limit even when every assertion passes.
+    await page.screenshot({ path: testInfo.outputPath("warm-catalog.png") });
   } finally {
     await context.close();
     if (isolated !== browser) await isolated.close();

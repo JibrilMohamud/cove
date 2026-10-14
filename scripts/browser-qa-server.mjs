@@ -265,6 +265,10 @@ await env.DB.prepare(
   .bind(hash, bytes.length)
   .run();
 const client = server.environments.client;
+// The framework's virtual entry imports hydration-only dependencies that the
+// router graph does not reach. Prepare that graph too, before browsers arrive.
+const hydrationEntry = await client.transformRequest("virtual:tanstack-start-dev-client-entry");
+if (!hydrationEntry) throw new Error("Browser QA hydration entry did not transform");
 await client.warmupRequest("/src/router.tsx");
 await client.waitForRequestsIdle();
 await Promise.all(
