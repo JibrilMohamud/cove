@@ -2521,6 +2521,7 @@ const annotationInput = z.object({
   color: z.enum(["yellow", "green", "blue", "pink", "purple"]).default("yellow"),
   note: z.string().max(12000).default(""),
   progress: z.number().min(0).max(1).optional(),
+  clientId: z.string().uuid().optional(),
 });
 const definitionInput = z.object({
   word: z.string().trim().min(1).max(100),
@@ -5288,11 +5289,31 @@ async function handleCoveRequest(
     if (request.method === "POST" && path === "/annotations") {
       const input = annotationInput.parse(await body(request));
       const b = await getBook(env, input.bookId, user.id);
-      const id = crypto.randomUUID(),
+      const id = input.clientId || crypto.randomUUID(),
         date = now();
+      if (input.clientId) {
+        const duplicate = await db
+          .prepare("SELECT id,book_id,quote,cfi,version,updated_at FROM annotations WHERE id=? AND user_id=? AND deleted_at IS NULL")
+          .bind(id, user.id)
+          .first<any>();
+        if (duplicate) {
+          if (
+            duplicate.book_id !== input.bookId ||
+            duplicate.quote !== input.quote ||
+            duplicate.cfi !== input.cfi
+          ) throw new ApiError(409, "This annotation ID belongs to another note.");
+          return json({
+            id: duplicate.id,
+            saved: true,
+            version: duplicate.version,
+            updatedAt: duplicate.updated_at,
+            deduped: true,
+          });
+        }
+      }
       await db
         .prepare(
-          "INSERT INTO annotations(id,user_id,book_id,book_title,author,quote,cfi,chapter,color,note,created_at,updated_at,version,progress) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
+          "INSERT OR IGNORE INTO annotations(id,user_id,book_id,book_title,author,quote,cfi,chapter,color,note,created_at,updated_at,version,progress) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
         )
         .bind(
           id,
