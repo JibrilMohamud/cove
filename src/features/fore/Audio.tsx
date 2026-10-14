@@ -631,7 +631,7 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
   }, [e, source]);
   useEffect(() => {
     if (!ready) return;
-    const a = createActivity(e.bookId || e.gutenbergId, data.user?.id || null, "listen");
+    const a = createActivity(e.commercial ? e.id : (e.bookId || e.gutenbergId), data.user?.id || null, "listen");
     activity.current = a;
     return () => {
       a.stop();
@@ -753,8 +753,13 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
             }}
             onPlay={() => {
               setPlaying(true);
-              activity.current?.setPlaying(true);
+              activity.current?.setPlaying(!audio.current?.seeking && (audio.current?.readyState || 0) >= 3);
             }}
+            onWaiting={() => activity.current?.setPlaying(false)}
+            onStalled={() => activity.current?.setPlaying(false)}
+            onSeeking={() => activity.current?.setPlaying(false)}
+            onPlaying={() => activity.current?.setPlaying(true)}
+            onSeeked={() => activity.current?.setPlaying(!!audio.current && !audio.current.paused && audio.current.readyState >= 3)}
             onPause={() => {
               setPlaying(false);
               activity.current?.setPlaying(false);
@@ -762,7 +767,20 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
             }}
             onEnded={() => {
               activity.current?.setPlaying(false);
-              if (index < e.tracks.length - 1) void selectTrack(index + 1, true);
+              if (index < e.tracks.length - 1) {
+                void selectTrack(index + 1, true);
+              } else if (data.user && (e.bookId || e.productId)) {
+                // Reuse the library completion flow for totals, goals and reading journeys.
+                void api("/library", "POST", {
+                  bookId: e.productId || e.bookId,
+                  status: "finished",
+                  progress: 1,
+                }).then(() => {
+                  toast.success("Audiobook finished");
+                }).catch((err: Error) => {
+                  toast.error("Finished listening, but completion could not be saved: " + err.message);
+                });
+              }
             }}
             onError={() => {
               if (source)
