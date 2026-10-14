@@ -1,3 +1,4 @@
+import { formatMinorCurrency } from "./currency";
 import { useEffect, useMemo, useState, type ChangeEvent, type ReactNode } from "react";
 import { PublicNoticeEditor } from "./ServiceStatus";
 import {
@@ -1032,7 +1033,7 @@ function CommerceOperations({ storefrontToken }: { storefrontToken: string }) {
               <strong>Copy now — shown only in this response</strong>
               <code>{issuedCard.code}</code>
               <span>
-                {issuedCard.currency} {(issuedCard.balanceMinor / 100).toFixed(2)}
+                {formatMinorCurrency(issuedCard.balanceMinor, issuedCard.currency)}
               </span>
             </div>
           )}
@@ -1180,8 +1181,8 @@ function CommerceOperations({ storefrontToken }: { storefrontToken: string }) {
                 {o.invoice_number} · {o.status}
               </strong>
               <small>
-                {o.id} · {o.currency} {(o.total_minor / 100).toFixed(2)} · refunded{" "}
-                {(o.refunded_minor / 100).toFixed(2)}
+                {o.id} · {formatMinorCurrency(o.total_minor, o.currency)} · refunded{" "}
+                {formatMinorCurrency(o.refunded_minor, o.currency)}
                 {o.risk_level
                   ? ` · risk ${o.risk_level}${o.risk_score != null ? ` (${o.risk_score})` : ""}`
                   : ""}
@@ -1193,7 +1194,7 @@ function CommerceOperations({ storefrontToken }: { storefrontToken: string }) {
           {(data.refunds || []).slice(0, 20).map((r: any) => (
             <div className="staff-list-row" key={r.id}>
               <strong>
-                Refund · {r.status} · {r.currency} {(r.amount_minor / 100).toFixed(2)}
+                Refund · {r.status} · {formatMinorCurrency(r.amount_minor, r.currency)}
               </strong>
               <small>
                 {r.order_id} · Stripe {(r.stripe_amount_minor / 100).toFixed(2)} · credit{" "}
