@@ -2,7 +2,11 @@ import type { CoveEnv } from "./api.server";
 import { ApiError } from "./service";
 import { issueCommercialEpubGrant } from "./delivery.server";
 import { audioKeyId, base64Url, hashText, publicAudioKey } from "./offline-audio-license";
-import { OFFLINE_EPUB_CONTEXT, OFFLINE_EPUB_MAX_MS, type OfflineEpubClaims } from "./offline-epub-crypto";
+import {
+  OFFLINE_EPUB_CONTEXT,
+  OFFLINE_EPUB_MAX_MS,
+  type OfflineEpubClaims,
+} from "./offline-epub-crypto";
 
 export async function offlineEpubVerificationKey(env: CoveEnv) {
   const secret = env.FORE_OFFLINE_AUDIO_SIGNING_JWK;
