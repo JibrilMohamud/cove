@@ -4166,6 +4166,45 @@ async function handleCoveRequest(
       }
     }
     if (request.method === "GET" && path === "/ingestion") return json(await ingestionStatus(env));
+    if (request.method === "GET" && path === "/account/collection") {
+      const user = requiredUser(request);
+      const db = database(env);
+      const kind = z.enum(["library", "annotations", "definitions"]).parse(url.searchParams.get("kind"));
+      const offset = z.coerce.number().int().min(0).max(1000000).parse(url.searchParams.get("offset") || 0);
+      const limit = z.coerce.number().int().min(1).max(100).parse(url.searchParams.get("limit") || 100);
+      const bookId = url.searchParams.get("bookId");
+      let items: any[] = [];
+      if (kind === "annotations") {
+        const sql = bookId
+          ? "SELECT * FROM annotations WHERE user_id=? AND book_id=? AND deleted_at IS NULL ORDER BY updated_at DESC,id DESC LIMIT ? OFFSET ?"
+          : "SELECT * FROM annotations WHERE user_id=? AND deleted_at IS NULL ORDER BY updated_at DESC,id DESC LIMIT ? OFFSET ?";
+        const binds = bookId ? [user.id, bookId, limit + 1, offset] : [user.id, limit + 1, offset];
+        const rows = await db.prepare(sql).bind(...binds).all<any>();
+        items = rows.results.map(annotationRow);
+      } else if (kind === "definitions") {
+        const rows = await db.prepare(
+          "SELECT * FROM definitions WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?",
+        ).bind(user.id, limit + 1, offset).all<any>();
+        items = rows.results.map(definitionRow);
+      } else {
+        const rows = await db.prepare(
+          "SELECT rs.* FROM reading_states rs WHERE rs.user_id=? AND rs.in_library=1 AND EXISTS (SELECT 1 FROM entitlements e WHERE e.user_id=rs.user_id AND e.product_id=rs.product_id AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)) ORDER BY rs.updated_at DESC,rs.product_id DESC LIMIT ? OFFSET ?",
+        ).bind(user.id, now(), now(), limit + 1, offset).all<any>();
+        for (let i = 0; i < rows.results.length; i += 8) {
+          const chunk = rows.results.slice(i, i + 8);
+          const books = await Promise.all(
+            chunk.map((row: any) => getCanonicalBook(db, row.external_book_id, user.id)),
+          );
+          for (let j = 0; j < chunk.length; j++)
+            if (books[j]) items.push(libraryRow(chunk[j], books[j]));
+        }
+      }
+      return json({
+        items: items.slice(0, limit),
+        hasMore: items.length > limit,
+        nextOffset: offset + limit,
+      });
+    }
     if (request.method === "GET" && path === "/account") return json(await account(env, request));
     if (request.method === "GET" && path === "/publishing/policies")
       return json(await publicPublishingPolicies(database(env)));
