@@ -41,7 +41,13 @@ export function StatsPage() {
     [busy, setBusy] = useState(false);
   const result = useQuery<any>({
     queryKey: ["stats", data.user?.id, days],
-    queryFn: () => api("/stats?days=" + days),
+    queryFn: () =>
+      api(
+        "/stats?days=" +
+          days +
+          "&timeZone=" +
+          encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"),
+      ),
     enabled: !!data.user,
   });
   const s = result.data,
@@ -125,7 +131,7 @@ export function StatsPage() {
               <section className="stat-panel">
                 <div className="section-heading">
                   <h2>Reading rhythm</h2>
-                  <span className="muted small">Daily minutes · UTC</span>
+                  <span className="muted small">Daily minutes · {s.range.timeZone}</span>
                 </div>
                 {s.daily.length ? (
                   <div className="daily-chart" aria-label="Daily reading and listening minutes">
@@ -168,7 +174,7 @@ export function StatsPage() {
                   <table>
                     <thead>
                       <tr>
-                        <th>Date (UTC)</th>
+                        <th>Date ({s.range.timeZone})</th>
                         <th>Reading minutes</th>
                         <th>Listening minutes</th>
                       </tr>
@@ -309,7 +315,7 @@ export function StatsPage() {
                         <tr>
                           <th>Book</th>
                           <th>Mode</th>
-                          <th>Started (UTC)</th>
+                          <th>Started (local)</th>
                           <th>Active time</th>
                           <th>Words</th>
                         </tr>
@@ -321,9 +327,7 @@ export function StatsPage() {
                               <a href={bookPath(r.bookId)}>{r.title}</a>
                             </td>
                             <td>{r.mode === "read" ? "Reading" : "Listening"}</td>
-                            <td>
-                              {new Date(r.startedAt).toLocaleString(undefined, { timeZone: "UTC" })}
-                            </td>
+                            <td>{new Date(r.startedAt).toLocaleString()}</td>
                             <td>{duration(r.seconds)}</td>
                             <td>{r.mode === "read" ? r.words.toLocaleString() : "—"}</td>
                           </tr>
