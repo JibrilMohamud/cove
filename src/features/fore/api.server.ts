@@ -4467,17 +4467,12 @@ async function handleCoveRequest(
         })
         .refine((value) => !!(value.endpointId || value.endpoint))
         .parse(await body(request));
-      return json(
-        await revokePushEndpoint(
-          db,
-          user.id,
-          x.endpoint || x.endpointId!,
-          !!x.endpoint,
-        ),
-      );
+      return json(await revokePushEndpoint(db, user.id, x.endpoint || x.endpointId!, !!x.endpoint));
     }
     if (request.method === "POST" && path === "/notifications/reader-presence") {
-      const x = z.object({ reading: z.boolean(), clientId: z.string().uuid() }).parse(await body(request));
+      const x = z
+        .object({ reading: z.boolean(), clientId: z.string().uuid() })
+        .parse(await body(request));
       if (x.reading) {
         const at = now();
         const expires = new Date(Date.now() + 150000).toISOString();
@@ -5303,7 +5298,9 @@ async function handleCoveRequest(
         date = now();
       if (input.clientId) {
         const duplicate = await db
-          .prepare("SELECT id,book_id,quote,cfi,version,updated_at FROM annotations WHERE id=? AND user_id=? AND deleted_at IS NULL")
+          .prepare(
+            "SELECT id,book_id,quote,cfi,version,updated_at FROM annotations WHERE id=? AND user_id=? AND deleted_at IS NULL",
+          )
           .bind(id, user.id)
           .first<any>();
         if (duplicate) {
@@ -5311,7 +5308,8 @@ async function handleCoveRequest(
             duplicate.book_id !== input.bookId ||
             duplicate.quote !== input.quote ||
             duplicate.cfi !== input.cfi
-          ) throw new ApiError(409, "This annotation ID belongs to another note.");
+          )
+            throw new ApiError(409, "This annotation ID belongs to another note.");
           return json({
             id: duplicate.id,
             saved: true,
