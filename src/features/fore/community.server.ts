@@ -1002,7 +1002,9 @@ async function readingStats(env: CoveEnv, userId: string, url: URL) {
     )
     .bind(userId, since, until)
     .all<{ external_book_id: string; title: string }>();
-  const titles = new Map(recentTitles.results.map((entry) => [entry.external_book_id, entry.title]));
+  const titles = new Map(
+    recentTitles.results.map((entry) => [entry.external_book_id, entry.title]),
+  );
   const sessions = {
     results: recent.map((session) => ({
       ...session,
