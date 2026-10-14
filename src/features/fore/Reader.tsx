@@ -190,12 +190,6 @@ export function ReaderPage({ id }: { id: string }) {
   // outbound notification delivery even when the reader has requested all topics.
   const readerPresenceId = useRef(crypto.randomUUID());
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent("cove-reader-mounted", { detail: true }));
-    return () => {
-      window.dispatchEvent(new CustomEvent("cove-reader-mounted", { detail: false }));
-    };
-  }, []);
-  useEffect(() => {
     if (!data.user?.id) return;
     const userId = data.user.id;
     const drain = () => {
