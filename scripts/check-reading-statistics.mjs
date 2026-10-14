@@ -40,6 +40,7 @@ try {
   const run = (sql, ...args) => db.prepare(sql).bind(...args).run();
   await request(alice, "/profile", "POST", { name: "Statistics Alice" });
   await request(bob, "/profile", "POST", { name: "Statistics Bob" });
+  await request(alice, "/catalog?q=pride");
   const product = await db
     .prepare("SELECT id,public_id,edition_id FROM products WHERE source_external_id='1342'")
     .first();
