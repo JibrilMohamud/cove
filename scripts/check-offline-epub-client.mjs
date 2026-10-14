@@ -220,10 +220,7 @@ try {
   now += 86400000;
   await client.renewExpiringLicensedEpubs(ownerId);
   const cappedGrantCount = receiptCounter;
-  assert.equal(
-    Date.parse(store.get("downloads:" + recordId).expiresAt),
-    entitlementEnd,
-  );
+  assert.equal(Date.parse(store.get("downloads:" + recordId).expiresAt), entitlementEnd);
   now += 2 * 3600000;
   await client.renewExpiringLicensedEpubs(ownerId);
   assert.equal(
