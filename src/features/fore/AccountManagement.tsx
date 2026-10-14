@@ -86,7 +86,14 @@ export function AccountManagementPanel() {
   const [overview, setOverview] = useState<Overview | null>(null),
     [security, setSecurity] = useState<Security | null>(null),
     [busy, setBusy] = useState(""),
-    [loadError, setLoadError] = useState("");
+    [loadError, setLoadError] = useState(""),
+    [restorePayload, setRestorePayload] = useState<unknown>(null),
+    [restorePreview, setRestorePreview] = useState<{
+      total: number;
+      eligible: number;
+      skipped: number;
+      counts: Record<string, number>;
+    } | null>(null);
   const refresh = async () => {
     setLoadError("");
     try {
@@ -675,7 +682,7 @@ export function AccountManagementPanel() {
       <section className="recommendation-privacy-panel">
         <div>
           <span className="small-label">DATA & ACCOUNT</span>
-          <h3>Export or delete</h3>
+          <h3>Export, restore or delete</h3>
         </div>
         <div className="recommendation-privacy-controls">
           <button
@@ -701,6 +708,98 @@ export function AccountManagementPanel() {
           >
             Export account data
           </button>
+          <label className="button outline">
+            Preview backup restore
+            <input
+              type="file"
+              accept=".json,.zip,application/json,application/zip"
+              disabled={!!busy}
+              onChange={async (event) => {
+                const file = event.target.files?.[0];
+                setRestorePreview(null);
+                setRestorePayload(null);
+                if (!file) return;
+                setBusy("restore-preview");
+                try {
+                  if (file.size > 3_000_000)
+                    throw Error("Choose a backup smaller than 3 MB. Large backups require support.");
+                  let raw: string;
+                  if (/\\.zip$/i.test(file.name)) {
+                    const { default: JSZip } = await import("jszip");
+                    const zip = await JSZip.loadAsync(file);
+                    const entry = zip.file("personal/reading-data.json") || zip.file("reading-data.json");
+                    if (!entry) throw Error("This ZIP does not contain a Cove reading-data backup.");
+                    if ((entry as any)._data?.uncompressedSize > 2_000_000)
+                      throw Error("The backup contains too much reading data.");
+                    raw = await entry.async("string");
+                  } else raw = await file.text();
+                  if (raw.length > 2_000_000) throw Error("Backup data exceeds the restore limit.");
+                  const backup = JSON.parse(raw);
+                  const preview = await api<{
+                    total: number;
+                    eligible: number;
+                    skipped: number;
+                    counts: Record<string, number>;
+                  }>("/account/restore", "POST", { dryRun: true, backup });
+                  setRestorePayload(backup);
+                  setRestorePreview(preview);
+                } catch (error) {
+                  toast.error((error as Error).message || "This backup could not be opened.");
+                } finally {
+                  setBusy("");
+                  event.target.value = "";
+                }
+              }}
+            />
+          </label>
+          {restorePreview && (
+            <div className="notice" role="status">
+              <p>
+                Ready to restore up to {restorePreview.eligible} reading items;
+                {restorePreview.skipped} unavailable or unlicensed items will be skipped.
+                Existing reading records are preserved rather than overwritten.
+              </p>
+              <p className="small muted">
+                This does not restore purchases, licenses, passwords, billing, or copyrighted EPUBs.
+              </p>
+              <button
+                type="button"
+                className="button"
+                disabled={!!busy}
+                onClick={async () => {
+                  setBusy("restore-apply");
+                  try {
+                    await api("/account/restore", "POST", {
+                      dryRun: false,
+                      confirm: true,
+                      backup: restorePayload,
+                    });
+                    setRestorePayload(null);
+                    setRestorePreview(null);
+                    await refresh();
+                    toast.success("Personal reading backup imported");
+                  } catch (error) {
+                    toast.error((error as Error).message);
+                  } finally {
+                    setBusy("");
+                  }
+                }}
+              >
+                Confirm restore
+              </button>
+              <button
+                type="button"
+                className="button outline"
+                disabled={!!busy}
+                onClick={() => {
+                  setRestorePayload(null);
+                  setRestorePreview(null);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
           {overview.deletion?.status &&
           !["completed", "canceled"].includes(overview.deletion.status) ? (
             <>
