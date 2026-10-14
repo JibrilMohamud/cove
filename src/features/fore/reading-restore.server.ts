@@ -51,6 +51,10 @@ const metric = z.object({
   reading_level: z.number().min(-20).max(100).nullable(),
   language: z.string().min(2).max(10),
 });
+const completion = z.object({
+  id: z.string().min(1).max(160),
+  finished_at: timestamp,
+});
 const goal = z.object({
   year: z.number().int().min(2000).max(2200),
   books: z.number().int().min(1).max(1000),
@@ -65,6 +69,16 @@ const backupSchema = z.object({
       annotations: z.array(annotation).max(500).default([]),
       definitions: z.array(definition).max(500).default([]),
       sessions: z.array(session).max(500).default([]),
+      completions: z
+        .array(
+          z.object({
+            book_id: sourceId,
+            id: z.string().min(1).max(160),
+            finished_at: timestamp,
+          }),
+        )
+        .max(500)
+        .default([]),
       bookMetrics: z.array(metric).max(250).default([]),
       goals: z.array(goal).max(40).default([]),
     })
@@ -74,6 +88,7 @@ const backupSchema = z.object({
   annotations: z.array(annotation).max(500).optional(),
   definitions: z.array(definition).max(500).optional(),
   sessions: z.array(session).max(500).optional(),
+  completionHistory: z.array(completion).max(500).optional(),
 });
 type Backup = z.infer<typeof backupSchema>;
 type RestoreRow =
@@ -81,7 +96,8 @@ type RestoreRow =
   | { kind: "annotation"; bookId: string; value: z.infer<typeof annotation> }
   | { kind: "definition"; bookId: string; value: z.infer<typeof definition> }
   | { kind: "session"; bookId: string; value: z.infer<typeof session> }
-  | { kind: "metric"; bookId: string; value: z.infer<typeof metric> };
+  | { kind: "metric"; bookId: string; value: z.infer<typeof metric> }
+  | { kind: "completion"; bookId: string; value: z.infer<typeof completion> };
 
 async function allowedProduct(db: DB, userId: string, ref: string) {
   const p = await db
@@ -97,6 +113,13 @@ async function allowedProduct(db: DB, userId: string, ref: string) {
     }>();
   if (!p) return null;
   if (p.source_name === "gutenberg") return p;
+  if (p.source_name === "upload") {
+    const uploaded = await db
+      .prepare("SELECT id FROM uploads WHERE id=? AND user_id=? LIMIT 1")
+      .bind(p.source_external_id, userId)
+      .first();
+    return uploaded ? p : null;
+  }
   // Imports must belong to this user; licensed editions require current active access.
   const owned = await db
     .prepare(
@@ -124,6 +147,12 @@ export async function restoreReadingBackup(db: DB, userId: string, raw: unknown)
     annotations: payload.annotations || [],
     definitions: payload.definitions || [],
     sessions: payload.sessions || [],
+    completions: (payload.completionHistory || [])
+      .map((value) => ({
+        ...value,
+        book_id: payload.bookId || payload.readingState?.external_book_id || "",
+      }))
+      .filter((value) => !!value.book_id),
     bookMetrics: [],
     goals: [],
   };
@@ -138,6 +167,21 @@ export async function restoreReadingBackup(db: DB, userId: string, raw: unknown)
     rows.push({ kind: "session", bookId: value.book_id, value });
   for (const value of reading.bookMetrics)
     rows.push({ kind: "metric", bookId: value.book_id, value });
+  const booksWithHistory = new Set(reading.completions.map((value) => value.book_id));
+  for (const value of reading.completions) {
+    rows.push({ kind: "completion", bookId: value.book_id, value });
+  }
+  // Account-level exports include the library status but not completion events.
+  // Recover finished-book counts only if that edition has no explicit history.
+  for (const value of reading.states) {
+    if (value.status === "finished" && !booksWithHistory.has(value.external_book_id)) {
+      rows.push({
+        kind: "completion",
+        bookId: value.external_book_id,
+        value: { id: "state_" + value.external_book_id, finished_at: value.updated_at },
+      });
+    }
+  }
   const products = new Map<string, Awaited<ReturnType<typeof allowedProduct>>>();
   for (const ref of new Set(rows.map((row) => row.bookId)))
     products.set(ref, await allowedProduct(db, userId, ref));
@@ -148,10 +192,14 @@ export async function restoreReadingBackup(db: DB, userId: string, raw: unknown)
     eligible: eligible.length + reading.goals.length,
     skipped,
     counts: Object.fromEntries(
-      ["position", "annotation", "definition", "session", "metric", "goal"].map((kind) => [
-        kind,
-        kind === "goal" ? reading.goals.length : eligible.filter((row) => row.kind === kind).length,
-      ]),
+      ["position", "annotation", "definition", "session", "metric", "completion", "goal"].map(
+        (kind) => [
+          kind,
+          kind === "goal"
+            ? reading.goals.length
+            : eligible.filter((row) => row.kind === kind).length,
+        ],
+      ),
     ),
     mode: input.dryRun ? "preview" : "applied",
     policy:
@@ -235,6 +283,26 @@ export async function restoreReadingBackup(db: DB, userId: string, raw: unknown)
             v.ended_at,
             v.active_seconds,
             v.words_read,
+          ),
+      );
+    } else if (row.kind === "completion") {
+      const v = row.value;
+      const importedId = "restore_" + userId + "_" + v.id;
+      statements.push(
+        db
+          .prepare(
+            "INSERT INTO completion_events(id,user_id,product_id,external_book_id,finished_at) SELECT ?,?,?,?,? WHERE NOT EXISTS (SELECT 1 FROM completion_events WHERE user_id=? AND product_id=? AND (id=? OR finished_at=?))",
+          )
+          .bind(
+            importedId,
+            userId,
+            p.id,
+            p.source_external_id,
+            v.finished_at,
+            userId,
+            p.id,
+            importedId,
+            v.finished_at,
           ),
       );
     } else if (row.kind === "metric") {

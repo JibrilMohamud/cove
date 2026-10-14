@@ -11,7 +11,12 @@ import {
   WalletCards,
 } from "lucide-react";
 import { toast } from "sonner";
-import { api, downloadBlob } from "./client";
+import { api, downloadBlob, useAccount } from "./client";
+import {
+  pendingReaderMutations,
+  flushReaderMutations,
+  discardReaderConflict,
+} from "./offline-reader-mutations";
 
 type Overview = {
   preferences: any;
@@ -82,7 +87,102 @@ function credentialJson(c: PublicKeyCredential) {
   };
 }
 
+type OfflineMutation = Awaited<ReturnType<typeof pendingReaderMutations>>[number];
+function OfflineReadingChanges({ userId }: { userId: string }) {
+  const [items, setItems] = useState<OfflineMutation[]>([]);
+  const [working, setWorking] = useState(false);
+  const refresh = () => {
+    void pendingReaderMutations(userId)
+      .then(setItems)
+      .catch(() => {});
+  };
+  useEffect(() => {
+    refresh();
+    window.addEventListener("online", refresh);
+    window.addEventListener("cove-reader-synced", refresh);
+    window.addEventListener("cove-reader-queued", refresh);
+    const timer = window.setInterval(refresh, 10000);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("online", refresh);
+      window.removeEventListener("cove-reader-synced", refresh);
+      window.removeEventListener("cove-reader-queued", refresh);
+    };
+  }, [userId]);
+  return (
+    <section className="recommendation-privacy-panel">
+      <h3>Offline reading changes</h3>
+      <p className="small muted">
+        Saved positions and private notes are retained on this device until they sync. Conflicts are
+        held for your review, never silently discarded or overwritten.
+      </p>
+      <p role="status">{items.length} unsynced or conflicted changes on this device</p>
+      <button
+        type="button"
+        className="button outline"
+        disabled={working || !items.some((item) => item.state === "pending")}
+        onClick={async () => {
+          setWorking(true);
+          try {
+            await flushReaderMutations(userId);
+            refresh();
+          } finally {
+            setWorking(false);
+          }
+        }}
+      >
+        Retry synchronization
+      </button>
+      {items.map((item) => (
+        <div key={item.id} className="profile-info">
+          <p>
+            <strong>{item.kind.replace("-", " ")}</strong> —{" "}
+            {item.state === "conflict" ? "Needs review" : "Awaiting sync"}
+            {item.lastError && <span className="small muted"> — {item.lastError}</span>}
+          </p>
+          {item.state === "conflict" && (
+            <div className="recommendation-privacy-controls">
+              <button
+                type="button"
+                className="button outline"
+                onClick={() => {
+                  void navigator.clipboard
+                    .writeText(JSON.stringify(item.body, null, 2))
+                    .then(() => toast.success("Copied your unsynced change"))
+                    .catch(() => toast.error("Could not copy the change."));
+                }}
+              >
+                Copy unsynced change
+              </button>
+              <button
+                type="button"
+                className="button outline"
+                onClick={async () => {
+                  if (
+                    !window.confirm(
+                      "Discard this unsynced change? Copy it first if you want to keep the text.",
+                    )
+                  )
+                    return;
+                  try {
+                    await discardReaderConflict(userId, item.id);
+                    refresh();
+                  } catch (error) {
+                    toast.error((error as Error).message);
+                  }
+                }}
+              >
+                Discard this conflict
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </section>
+  );
+}
 export function AccountManagementPanel() {
+  const { data: account } = useAccount();
   const [overview, setOverview] = useState<Overview | null>(null),
     [security, setSecurity] = useState<Security | null>(null),
     [busy, setBusy] = useState(""),
@@ -152,6 +252,7 @@ export function AccountManagementPanel() {
     );
   return (
     <div className="account-management-stack">
+      {account.user?.id && <OfflineReadingChanges userId={account.user.id} />}
       <section className="recommendation-privacy-panel">
         <div>
           <span className="small-label">SECURITY</span>

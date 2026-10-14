@@ -116,8 +116,8 @@ export function StatsPage() {
             <div className="stats-cards">
               {[
                 [BookOpen, t.finished, "Books finished"],
-                [Clock, duration(t.readSeconds), "Active reading"],
-                [Headphones, duration(t.listenSeconds), "Listening time"],
+                [Clock, duration(t.readSeconds), "Estimated active reading"],
+                [Headphones, duration(t.listenSeconds), "Measured media playback"],
                 [BarChart3, t.wpm === null ? "—" : t.wpm, "Estimated words / minute"],
               ].map(([Icon, value, label]: any) => (
                 <article key={label}>

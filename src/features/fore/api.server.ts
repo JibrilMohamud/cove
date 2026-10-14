@@ -4510,7 +4510,7 @@ async function handleCoveRequest(
       return json(await snapshotAnnotationAnchor(db, user.id, await body(request)));
     if (request.method === "POST" && path === "/account/restore") {
       await rateLimit(env, "reading-restore:" + user.id, 6);
-      return json(await restoreReadingBackup(db, user.id, await body(request, 1_500_000)));
+      return json(await restoreReadingBackup(db, user.id, await body(request, 3_000_000)));
     }
     if (request.method === "GET" && path === "/account/export") {
       const payload = await accountDataExport(db, user.id);

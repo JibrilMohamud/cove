@@ -51,17 +51,16 @@ async function sendOne(userId: string, row: Mutation): Promise<boolean> {
       } satisfies Mutation);
     }
     if (typeof window !== "undefined")
-      window.dispatchEvent(new CustomEvent("cove-reader-synced", {
-        detail: { userId, kind: row.kind },
-      }));
+      window.dispatchEvent(
+        new CustomEvent("cove-reader-synced", {
+          detail: { userId, kind: row.kind },
+        }),
+      );
     return true;
   } catch (error) {
     const status = Number((error as { status?: number })?.status || 0);
     const latest = await getRecord<Mutation>("outbox", row.id);
-    if (
-      latest?.revision === row.revision &&
-      [400, 404, 409, 422].includes(status)
-    ) {
+    if (latest?.revision === row.revision && [400, 404, 409, 422].includes(status)) {
       await putRecord("outbox", {
         ...row,
         state: "conflict",
@@ -85,7 +84,7 @@ export async function flushReaderMutations(userId: string) {
       const pending = rows.filter((row) => row.state === "pending");
       if (!pending.length) return;
       for (const row of pending) {
-        if (!await sendOne(userId, row)) return;
+        if (!(await sendOne(userId, row))) return;
       }
     }
   })().finally(() => {
@@ -120,6 +119,7 @@ export async function queueReaderMutation(
     state: "pending",
   };
   await putRecord("outbox", row);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("cove-reader-queued"));
   await flushReaderMutations(userId);
   const receipt = receipts.get(id);
   if (receipt?.revision === row.revision) {

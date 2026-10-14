@@ -44,6 +44,33 @@ try {
     "SELECT id,public_id FROM products WHERE source_external_id='1342'",
   ).first();
   assert.ok(product);
+  // A commercial offline license cannot be issued from an unregistered
+  // browser, nor can a registered browser bypass a publisher's catalog rights.
+  const signingPair = await crypto.subtle.generateKey(
+    { name: "ECDSA", namedCurve: "P-256" },
+    true,
+    ["sign", "verify"],
+  );
+  env.FORE_OFFLINE_AUDIO_SIGNING_JWK = JSON.stringify(
+    await crypto.subtle.exportKey("jwk", signingPair.privateKey),
+  );
+  const deviceKey = randomUUID() + randomUUID();
+  const notRegistered = await request("/offline-epub/license", "POST", {
+    productId: product.id,
+    deviceKey,
+  });
+  assert.equal(notRegistered.status, 428, JSON.stringify(notRegistered));
+  const registered = await request("/account/device/register", "POST", {
+    deviceKey,
+    name: "Test reader",
+    platform: "Browser",
+  });
+  assert.equal(registered.status, 200, JSON.stringify(registered));
+  const noCommercialGrant = await request("/offline-epub/license", "POST", {
+    productId: product.id,
+    deviceKey,
+  });
+  assert.notEqual(noCommercialGrant.status, 201, "Public books must not mint commercial licenses");
   const annotationId = randomUUID();
   const backup = {
     schema: "fore-account-export",
@@ -78,7 +105,7 @@ try {
   };
   const before = await request("/account/restore", "POST", { dryRun: true, backup });
   assert.equal(before.status, 200, JSON.stringify(before));
-  assert.equal(before.body.eligible, 4);
+  assert.equal(before.body.eligible, 5);
   assert.equal(
     (
       await env.DB.prepare("SELECT COUNT(*) count FROM annotations WHERE user_id=?")
@@ -116,6 +143,15 @@ try {
       .word_count,
     10000,
   );
+  assert.equal(
+    (
+      await env.DB.prepare("SELECT COUNT(*) count FROM completion_events WHERE user_id=?")
+        .bind(user)
+        .first()
+    ).count,
+    1,
+    "finished-book totals must be reconstructed from the imported library",
+  );
   const idempotent = await request("/account/restore", "POST", {
     dryRun: false,
     confirm: true,
@@ -130,6 +166,22 @@ try {
     ).count,
     1,
   );
+  assert.equal(
+    (
+      await env.DB.prepare("SELECT COUNT(*) count FROM completion_events WHERE user_id=?")
+        .bind(user)
+        .first()
+    ).count,
+    1,
+    "repeating restoration must not double-count finished books",
+  );
+  const exported = await request("/exports/reading-data/1342");
+  assert.equal(exported.status, 200, JSON.stringify(exported));
+  const compatible = await request("/account/restore", "POST", {
+    dryRun: true,
+    backup: exported.body,
+  });
+  assert.equal(compatible.status, 200, JSON.stringify(compatible));
   const presenceId1 = randomUUID();
   const presenceId2 = randomUUID();
   assert.equal(
