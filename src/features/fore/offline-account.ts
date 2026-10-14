@@ -22,7 +22,9 @@ export async function setOfflineAccount(userId: string | null) {
   if (previous !== (userId || "") || !userId) {
     for (const row of await getRecords("downloads"))
       if (
-        (row.kind === "licensed-epub" || row.edition?.commercial || row.edition?.id?.startsWith("ca_")) &&
+        (row.kind === "licensed-epub" ||
+          row.edition?.commercial ||
+          row.edition?.id?.startsWith("ca_")) &&
         (!offlineAccountId() || row.ownerId !== offlineAccountId())
       )
         await removeDownload(row.id);
