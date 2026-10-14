@@ -2059,7 +2059,7 @@ export function ReaderPage({ id }: { id: string }) {
             {panel === "highlights" && (
               <div className="reader-highlights">
                 {readerAnnotations.filter((a) => matchesReadingBook(a.bookId)).length ? (
-                  data.annotations
+                  readerAnnotations
                     .filter((a) => matchesReadingBook(a.bookId))
                     .map((a) => (
                       <div key={a.id}>
