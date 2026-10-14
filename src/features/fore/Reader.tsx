@@ -37,6 +37,7 @@ import {
   MessageCircle,
   Share2,
   Eye,
+  Menu,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -741,7 +742,54 @@ export function ReaderPage({ id }: { id: string }) {
     let resize: ResizeObserver | undefined;
     let pageRepairTimer: ReturnType<typeof setTimeout> | undefined;
     let selectionTimer: ReturnType<typeof setTimeout> | undefined;
+    let selectionPoll: ReturnType<typeof setInterval> | undefined;
     const selectionDocuments = new WeakSet<Document>();
+    const blockedSelectionReaders = new WeakMap<Document, () => void>();
+    let lastPolledRange:
+      | {
+          doc: Document;
+          start: Node;
+          end: Node;
+          startOffset: number;
+          endOffset: number;
+        }
+      | undefined;
+    function pollBlockedSelection() {
+      const frame = document.activeElement;
+      if (
+        canceled ||
+        document.hidden ||
+        !(frame instanceof HTMLIFrameElement) ||
+        !container.current?.contains(frame)
+      ) {
+        lastPolledRange = undefined;
+        return;
+      }
+      const doc = frame.contentDocument;
+      const capture = doc && blockedSelectionReaders.get(doc);
+      const selected = capture && doc?.getSelection();
+      if (!capture || !doc || !selected?.rangeCount || selected.isCollapsed) {
+        lastPolledRange = undefined;
+        return;
+      }
+      const range = selected.getRangeAt(0);
+      if (
+        lastPolledRange?.doc === doc &&
+        lastPolledRange.start === range.startContainer &&
+        lastPolledRange.end === range.endContainer &&
+        lastPolledRange.startOffset === range.startOffset &&
+        lastPolledRange.endOffset === range.endOffset
+      )
+        return;
+      lastPolledRange = {
+        doc,
+        start: range.startContainer,
+        end: range.endContainer,
+        startOffset: range.startOffset,
+        endOffset: range.endOffset,
+      };
+      capture();
+    }
     function presentSelection(cfi: string, text: string) {
       if (canceled || !text) return;
       const next = { cfi, text: text.slice(0, 12000), chapter: chapterRef.current };
@@ -844,14 +892,14 @@ export function ReaderPage({ id }: { id: string }) {
         const doc = contents.document as Document;
         if (!selectionDocuments.has(doc)) {
           selectionDocuments.add(doc);
-          const captureSelection = () => {
+          const captureSelection = (immediate = false) => {
             const selected = doc.getSelection();
             if (!selected?.rangeCount || selected.isCollapsed) return;
             const range = selected.getRangeAt(0).cloneRange();
             const text = range.toString().trim();
             if (!text) return;
             if (selectionTimer) clearTimeout(selectionTimer);
-            selectionTimer = setTimeout(() => {
+            const presentRange = () => {
               selectionTimer = undefined;
               const stillDisplayed = Array.from(
                 container.current?.querySelectorAll("iframe") || [],
@@ -862,10 +910,25 @@ export function ReaderPage({ id }: { id: string }) {
               } catch {
                 // A page turn may remove the range before it settles.
               }
-            }, 250);
+            };
+            if (immediate) presentRange();
+            else selectionTimer = setTimeout(presentRange, 250);
           };
           for (const event of ["selectionchange", "mouseup", "touchend", "keyup"])
-            doc.addEventListener(event, captureSelection, { passive: true });
+            doc.addEventListener(event, () => captureSelection(), { passive: true });
+          // WebKit blocks even parent-owned callbacks in a script-disabled
+          // frame. Detect that restriction without enabling any EPUB scripts.
+          let receivesEvents = false;
+          const probe = () => {
+            receivesEvents = true;
+          };
+          doc.addEventListener("cove-selection-probe", probe);
+          doc.dispatchEvent(new Event("cove-selection-probe"));
+          doc.removeEventListener("cove-selection-probe", probe);
+          if (!receivesEvents) {
+            blockedSelectionReaders.set(doc, () => captureSelection(true));
+            if (!selectionPoll) selectionPoll = setInterval(pollBlockedSelection, 250);
+          }
         }
         contents.document.addEventListener("keydown", keys);
         contents.document.addEventListener("pointerdown", () => activity.current?.interact());
@@ -1095,6 +1158,7 @@ export function ReaderPage({ id }: { id: string }) {
       resize?.disconnect();
       if (pageRepairTimer) clearTimeout(pageRepairTimer);
       if (selectionTimer) clearTimeout(selectionTimer);
+      if (selectionPoll) clearInterval(selectionPoll);
       document.removeEventListener("keydown", keys);
       document.removeEventListener("visibilitychange", visibility);
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -1434,6 +1498,16 @@ export function ReaderPage({ id }: { id: string }) {
         if (event.clientY <= 18 || event.clientY >= window.innerHeight - 18) showChrome();
       }}
     >
+      {ready && !chromeVisible && (
+        <button
+          className="reader-controls-toggle icon-button"
+          style={{ background: themes[theme].bg, color: themes[theme].fg }}
+          aria-label="Show reader controls"
+          onClick={() => showChrome(false)}
+        >
+          <Menu size={20} />
+        </button>
+      )}
       <header
         className={"reader-top reader-chrome" + (chromeVisible ? " is-visible" : "")}
         onPointerEnter={() => showChrome(false)}

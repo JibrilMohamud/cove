@@ -31,6 +31,10 @@ mobile access, permission changes and recovery around those flows.
   discussion queries; spoiler eligibility remains authoritative on the server.
 - Sharing, reporting and note dialogs scroll inside the viewport, including long
   note previews and multiple audiences. Confirmation controls remain reachable.
+- EPUB scripts stay disabled. A capability check detects Safari's blocked
+  frame callbacks; a parent-owned selection reader then checks only the focused,
+  visible EPUB frame, deduplicates unchanged ranges and stops on cleanup. A
+  persistent toolbar control also keeps highlighting tools reachable on touch.
 - The QA server prepares its initial client dependency graph before readiness.
   This addresses the cold Vite history-module request cancellation found by CI.
   Runtime-error assertions and flaky-test failure remain enabled.
