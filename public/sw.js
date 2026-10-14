@@ -66,14 +66,29 @@ self.addEventListener("push", (event) => {
   }
   const n = data.notification || data;
   event.waitUntil(
-    self.registration.showNotification(n.title || "Cove", {
-      body: n.body || "",
-      icon: "/icons/cove-192.png",
-      badge: "/icons/cove-192.png",
-      data: { url: n.actionUrl || "/notifications" },
-      tag: n.id || n.type || undefined,
-      renotify: false,
-    }),
+    (async () => {
+      // Reading takes priority over all notification types and preferences.
+      // Visible reader clients prevent the system notification from appearing.
+      const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      if (
+        clients.some((client) => {
+          const url = new URL(client.url);
+          return (
+            client.visibilityState === "visible" &&
+            (url.pathname.startsWith("/read/") || url.pathname.startsWith("/reader/"))
+          );
+        })
+      )
+        return;
+      await self.registration.showNotification(n.title || "Cove", {
+        body: n.body || "",
+        icon: "/icons/cove-192.png",
+        badge: "/icons/cove-192.png",
+        data: { url: n.actionUrl || "/notifications" },
+        tag: n.id || n.type || undefined,
+        renotify: false,
+      });
+    })(),
   );
 });
 
