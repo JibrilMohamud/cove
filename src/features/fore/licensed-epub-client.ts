@@ -36,6 +36,7 @@ type TrustedVerificationKey = {
 };
 const online = () => typeof navigator !== "undefined" && navigator.onLine !== false;
 const renewals = new Map<string, Promise<void>>();
+const renewalAttemptAt = new Map<string, number>();
 const deviceKey = () => {
   try {
     return localStorage.getItem("fore.device.key") || "";
@@ -292,8 +293,10 @@ export async function licensedEpubBytes(ref: string, userId = offlineAccountId()
     if (
       online() &&
       Date.parse(record.expiresAt) - Date.now() <= OFFLINE_EPUB_RENEW_WINDOW_MS &&
-      !renewals.has(record.id)
+      !renewals.has(record.id) &&
+      Date.now() - (renewalAttemptAt.get(record.id) || 0) >= 60 * 60 * 1000
     ) {
+      renewalAttemptAt.set(record.id, Date.now());
       const promise = renewLicensedEpub(ref, userId)
         .then(() => undefined)
         .catch(() => undefined)
