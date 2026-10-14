@@ -36,7 +36,8 @@ export async function verifyOfflineEpubReceipt(
   const invalid = () =>
     new Error("Offline license is invalid or expired. Reconnect to renew access.");
   try {
-    if (!expected.userId || !expected.productId || !expected.deviceKey || !receipt) throw invalid();
+    if (!expected.userId || !expected.productId || !expected.deviceKey || !receipt)
+      throw invalid();
     const keyId = await audioKeyId(trustedKey);
     if (receipt.keyId !== keyId) throw invalid();
     const key = await crypto.subtle.importKey(
@@ -54,4 +55,30 @@ export async function verifyOfflineEpubReceipt(
     );
     if (!signatureValid) throw invalid();
     const claims = parseOfflineEpubClaims(receipt);
-    const issued = D...[truncated]
+    const issued = Date.parse(claims.issuedAt);
+    const expires = Date.parse(claims.expiresAt);
+    const now = expected.nowMs ?? Date.now();
+    if (
+      claims.version !== 1 ||
+      claims.audience !== "cove-offline-epub" ||
+      claims.keyId !== keyId ||
+      claims.userId !== expected.userId ||
+      claims.productId !== expected.productId ||
+      claims.deviceKeyHash !== (await hashText(expected.deviceKey)) ||
+      claims.assetVersionId !== expected.assetVersionId ||
+      !claims.licenseId ||
+      claims.expiresAt !== expected.expiresAt ||
+      !Number.isFinite(issued) ||
+      !Number.isFinite(expires) ||
+      issued > now + 60000 ||
+      expires <= now ||
+      expires <= issued ||
+      expires - issued > OFFLINE_EPUB_MAX_MS ||
+      (expected.previousValidatedAt && now + 60000 < expected.previousValidatedAt)
+    )
+      throw invalid();
+    return claims;
+  } catch {
+    throw invalid();
+  }
+}
