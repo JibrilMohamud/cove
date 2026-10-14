@@ -268,8 +268,45 @@ try {
     cfi: "epubcfi(/6/2!)",
   });
   assert.equal(duplicate.status, 200, JSON.stringify(duplicate));
+  // More than 100 notes must never silently disappear from a large library.
+  const statements = [];
+  for (let i = 0; i < 125; i++)
+    statements.push(
+      env.DB.prepare(
+        "INSERT INTO annotations(id,user_id,book_id,book_title,author,quote,cfi,chapter,color,note,created_at,updated_at,version,progress) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      ).bind(
+        "pagination-note-" + i,
+        user,
+        "1342",
+        "Pride and Prejudice",
+        "Jane Austen",
+        "Passage number " + i,
+        "epubcfi(/6/" + (2 + i * 2) + "!)",
+        "Chapter 1",
+        "yellow",
+        "",
+        new Date(2026, 0, 1, 0, 0, i % 60).toISOString(),
+        new Date(2026, 0, 1, 0, 0, i % 60).toISOString(),
+        1,
+        0.1,
+      ),
+    );
+  await env.DB.batch(statements);
+  const first = await request("/account/collection?kind=annotations&bookId=1342&limit=100");
+  assert.equal(first.status, 200, JSON.stringify(first));
+  assert.equal(first.body.items.length, 100);
+  assert.equal(first.body.hasMore, true);
+  const second = await request("/account/collection?kind=annotations&bookId=1342&limit=100&offset=100");
+  assert.equal(second.status, 200, JSON.stringify(second));
+  assert.equal(second.body.hasMore, false);
+  assert.ok(second.body.items.length >= 25);
+  const unique = new Set([...first.body.items, ...second.body.items].map((x) => x.id));
+  assert.equal(unique.size, first.body.items.length + second.body.items.length);
+  const initialAccount = await request("/account");
+  assert.equal(initialAccount.status, 200);
+  assert.ok(initialAccount.body.annotations.length <= 100, "initial account payload is bounded");
   console.log(
-    "PASS: dry-run restoration, explicit confirmation, idempotent imports and notes, reader-tab silencing, valid quiet hours and DST.",
+    "PASS: dry-run restoration, idempotent imports, reader silencing, DST, and paginated long-book annotations.",
   );
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
