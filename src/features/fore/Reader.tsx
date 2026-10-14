@@ -9,6 +9,7 @@ import {
 import { openBiosync, resolveAudio, resolveText, matchingEpub } from "./biosync-client";
 import { Headphones } from "lucide-react";
 import { createActivity, measureEpub } from "./reading-activity";
+import { flushReaderMutations, queueReaderMutation } from "./offline-reader-mutations";
 import { sha256 } from "./offline";
 import { loadEdition } from "./audio-client";
 import { cueForAudio, type AudioEdition } from "./domain";
@@ -180,6 +181,20 @@ export function ReaderPage({ id }: { id: string }) {
   // Reader presence is a short-lived lease, scoped to this browser tab. It suppresses
   // outbound notification delivery even when the reader has requested all topics.
   const readerPresenceId = useRef(crypto.randomUUID());
+  useEffect(() => {
+    if (!data.user?.id) return;
+    const userId = data.user.id;
+    const drain = () => {
+      void flushReaderMutations(userId).then(() => reload()).catch(() => {});
+    };
+    const timer = window.setInterval(drain, 60000);
+    window.addEventListener("online", drain);
+    void flushReaderMutations(userId).catch(() => {});
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("online", drain);
+    };
+  }, [data.user?.id]);
   useEffect(() => {
     if (!data.user?.id || accountLoading) return;
     const owner = data.user.id;
@@ -701,7 +716,10 @@ export function ReaderPage({ id }: { id: string }) {
               previewVersion.current = saved.version;
             }
           } else {
-            const saved = await api<{ version: number; readingJourneyId?: string | null }>(
+            const written = await queueReaderMutation(
+              ownerId,
+              "position",
+              id,
               "/library",
               "POST",
               {
@@ -717,6 +735,12 @@ export function ReaderPage({ id }: { id: string }) {
               },
             );
             if (readingScope.current !== scope || accountRef.current.user?.id !== ownerId) return;
+            if (written.queued) {
+              savedPositionKey.current = key;
+              if (mounted.current) setSaveState("Position saved on this device — pending sync");
+              return;
+            }
+            const saved = written.response as { version: number; readingJourneyId?: string | null };
             readingVersion.current = saved.version;
             if (saved.readingJourneyId && mounted.current)
               setFinishedJourney(saved.readingJourneyId);
@@ -1269,17 +1293,31 @@ export function ReaderPage({ id }: { id: string }) {
     if (!selection) return;
     setSaving(true);
     try {
-      await api("/annotations", "POST", {
-        bookId: id,
-        quote: selection.text,
-        cfi: selection.cfi,
-        chapter: selection.chapter,
-        color,
-        note: withNote ? note : "",
-        progress: position.current.progress,
-      });
-      await reload();
-      toast.success(withNote ? "Highlight and note saved" : "Passage highlighted");
+      const written = await queueReaderMutation(
+        data.user.id,
+        "annotation",
+        crypto.randomUUID(),
+        "/annotations",
+        "POST",
+        {
+          clientId: crypto.randomUUID(),
+          bookId: id,
+          quote: selection.text,
+          cfi: selection.cfi,
+          chapter: selection.chapter,
+          color,
+          note: withNote ? note : "",
+          progress: position.current.progress,
+        },
+      );
+      if (!written.queued) await reload();
+      toast.success(
+        written.queued
+          ? "Saved on this device — the note will sync after reconnecting"
+          : withNote
+            ? "Highlight and note saved"
+            : "Passage highlighted",
+      );
       setSelection(null);
       setNoteOpen(false);
       setNote("");
