@@ -17,10 +17,9 @@ export async function flushSessions(userId: string) {
       await api("/sessions", "PUT", row.session);
       await deleteRecord("outbox", row.id);
     } catch (error) {
-      if ([400, 404, 409].includes((error as any).status)) {
-        await deleteRecord("outbox", row.id);
-        continue;
-      }
+      // A stale or temporarily unrecognized edition must not silently erase
+      // locally measured time. Keep the record for review or a later retry.
+      if ([400, 404, 409].includes((error as any).status)) break;
       break;
     }
   }
@@ -53,7 +52,7 @@ export function createActivity(bookId: string, userId: string | null, mode: "rea
     const focused =
       mode === "listen"
         ? playing
-        : document.visibilityState === "visible" && current - lastInteraction < 90000;
+        : document.visibilityState === "visible" && current - lastInteraction < 300000;
     if (focused) {
       active += elapsed;
       if (mode === "read") dwell += elapsed;
