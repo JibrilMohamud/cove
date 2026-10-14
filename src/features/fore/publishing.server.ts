@@ -29,7 +29,7 @@ import { assessPublisherRisk } from "./risk-tax.server";
 
 export type PublishingDB = {
   prepare(sql: string): {
-    bind(...values: unknown[]): any;
+    bind(...values: unknown[]): ReturnType<PublishingDB["prepare"]>;
     first<T = any>(): Promise<T | null>;
     all<T = any>(): Promise<{ results: T[] }>;
     run(): Promise<any>;
