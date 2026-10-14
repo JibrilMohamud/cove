@@ -5,8 +5,10 @@
 export function currencyMinorUnitDigits(currency: string): number {
   const code = currency.trim().toUpperCase();
   if (!/^[A-Z]{3}$/.test(code)) throw new Error("Invalid ISO currency code.");
-  return new Intl.NumberFormat("en", { style: "currency", currency: code })
-    .resolvedOptions().maximumFractionDigits;
+  return (
+    new Intl.NumberFormat("en", { style: "currency", currency: code }).resolvedOptions()
+      .maximumFractionDigits ?? 2
+  );
 }
 export function minorUnitsToMajor(amountMinor: number, currency: string): number {
   if (!Number.isSafeInteger(amountMinor))
