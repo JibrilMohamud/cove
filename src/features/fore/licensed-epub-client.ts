@@ -49,54 +49,60 @@ function refs(book: CatalogBook) {
     (id): id is string => !!id,
   );
 }
+async function provisionTrustedKey(userId: string) {
+  if (!online()) throw Error("Reconnect to establish offline signing-key trust.");
+  const result = await api<{ keyId: string; publicKey: JsonWebKey }>(
+    "/offline-epub/verification-key",
+  );
+  const publicKey = publicAudioKey(result.publicKey);
+  const keyId = await audioKeyId(publicKey);
+  if (result.keyId !== keyId) throw Error("Cove offline signing-key mismatch.");
+  const pinnedIds = await Promise.all(TRUSTED_OFFLINE_EPUB_PUBLIC_KEYS.map(audioKeyId));
+  if (!pinnedIds.includes(keyId))
+    throw Error("Cove offline verifier has not been pinned in this application version.");
+  await putOwnedRecord("assets", {
+    id: trustKey(userId, keyId),
+    ownerId: userId,
+    origin: window.location.origin,
+    keyId,
+    publicKey,
+    verifiedAt: new Date().toISOString(),
+  });
+}
+async function trustedVerificationKey(userId: string, keyId: string) {
+  const saved = await getRecord<TrustedVerificationKey>("assets", trustKey(userId, keyId));
+  const pinnedIds = await Promise.all(TRUSTED_OFFLINE_EPUB_PUBLIC_KEYS.map(audioKeyId));
+  if (
+    !saved ||
+    saved.ownerId !== userId ||
+    saved.origin !== window.location.origin ||
+    saved.keyId !== keyId ||
+    (await audioKeyId(saved.publicKey)) !== keyId ||
+    !pinnedIds.includes(keyId)
+  )
+    throw Error("Trusted offline verification key unavailable. Reconnect to Cove.");
+  return saved.publicKey;
+}
 async function validate(record: LicensedEpub, userId: string): Promise<OfflineEpubClaims> {
-  const invalid = () =>
-    new Error("Offline access expired or became invalid. Reconnect to renew the license.");
   if (!userId || offlineAccountId() !== userId || record.ownerId !== userId || !deviceKey())
-    throw invalid();
-  try {
-    const publicKey = publicAudioKey(record.publicKey);
-    if (record.receipt.keyId !== (await audioKeyId(publicKey))) throw invalid();
-    const keyValue = await crypto.subtle.importKey(
-      "jwk",
-      publicKey,
-      { name: "ECDSA", namedCurve: "P-256" },
-      false,
-      ["verify"],
-    );
-    const valid = await crypto.subtle.verify(
-      { name: "ECDSA", hash: "SHA-256" },
-      keyValue,
-      decodeBase64Url(record.receipt.signature),
-      new TextEncoder().encode(OFFLINE_EPUB_CONTEXT + record.receipt.payload),
-    );
-    if (!valid) throw invalid();
-    const claims = JSON.parse(
-      new TextDecoder().decode(decodeBase64Url(record.receipt.payload)),
-    ) as OfflineEpubClaims;
-    const expiry = Date.parse(claims.expiresAt);
-    const issued = Date.parse(claims.issuedAt);
-    if (
-      claims.version !== 1 ||
-      claims.audience !== "cove-offline-epub" ||
-      claims.userId !== userId ||
-      claims.productId !== record.book.productId ||
-      claims.assetVersionId !== record.assetVersionId ||
-      claims.keyId !== record.receipt.keyId ||
-      claims.deviceKeyHash !== (await hashText(deviceKey())) ||
-      claims.expiresAt !== record.expiresAt ||
-      !Number.isFinite(issued) ||
-      issued > Date.now() + 60000 ||
-      !Number.isFinite(expiry) ||
-      expiry <= Date.now() ||
-      expiry <= issued ||
-      expiry - issued > 48 * 3600000
-    )
-      throw invalid();
-    return claims;
-  } catch {
-    throw invalid();
-  }
+    throw Error("This EPUB belongs to a different account or device.");
+  const trusted = await trustedVerificationKey(userId, record.receipt.keyId);
+  const clockId = "epub:clock:" + userId + ":" + record.id;
+  const clock = await getRecord<{ ownerId: string; lastValidatedAt: number }>("assets", clockId);
+  const claims = await verifyOfflineEpubReceipt(record.receipt, trusted, {
+    userId,
+    productId: String(record.book.productId || ""),
+    assetVersionId: record.assetVersionId,
+    expiresAt: record.expiresAt,
+    deviceKey: deviceKey(),
+    previousValidatedAt: clock?.lastValidatedAt,
+  });
+  await putOwnedRecord("assets", {
+    id: clockId,
+    ownerId: userId,
+    lastValidatedAt: Math.max(clock?.lastValidatedAt || 0, Date.now()),
+  });
+  return claims;
 }
 export async function licensedEpubRecord(ref: string, userId = offlineAccountId()) {
   if (!userId) return null;
