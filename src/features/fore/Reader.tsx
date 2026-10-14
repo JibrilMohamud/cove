@@ -154,7 +154,10 @@ const themes = {
 // epub.js returns the insertion point of a CFI in its sampled ranges. That
 // rounds forward (even to 100% on short books). Use the preceding sample so
 // rendering a passage never claims unread text beyond it.
-function conservativeCfiProgress(book: any, cfi: string) {
+function conservativeCfiProgress(
+  book: { locations: { locationFromCfi(cfi: string): number; total: number } },
+  cfi: string,
+) {
   const index = book.locations.locationFromCfi(cfi);
   return Math.max(0, index - 1) / Math.max(1, book.locations.total);
 }
@@ -593,6 +596,8 @@ export function ReaderPage({ id }: { id: string }) {
       }
     }
     if (!accountRef.current.user) return;
+    const ownerId = accountRef.current.user.id;
+    const scope = readingScope.current;
     const key = JSON.stringify([accountRef.current.user.id, id, previewMode, p.cfi, p.progress]);
     if (savedPositionKey.current === key) return;
     setSaveState(previewMode ? "Saving sample position…" : "Saving position…");
@@ -600,7 +605,12 @@ export function ReaderPage({ id }: { id: string }) {
     savingPosition.current = savingPosition.current
       .catch(() => {})
       .then(async () => {
-        if (positionConflict.current) return;
+        if (
+          positionConflict.current ||
+          readingScope.current !== scope ||
+          accountRef.current.user?.id !== ownerId
+        )
+          return;
         try {
           if (savedPositionKey.current === key) {
             if (mounted.current) setSaveState("Position saved");
@@ -633,6 +643,7 @@ export function ReaderPage({ id }: { id: string }) {
                 expectedVersion: readingVersion.current,
               },
             );
+            if (readingScope.current !== scope || accountRef.current.user?.id !== ownerId) return;
             readingVersion.current = saved.version;
             if (saved.readingJourneyId && mounted.current)
               setFinishedJourney(saved.readingJourneyId);
