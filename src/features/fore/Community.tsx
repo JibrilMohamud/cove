@@ -1,3 +1,13 @@
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
@@ -23,7 +33,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api, authorOf, useAccount, type CatalogBook } from "./client";
-import { SharingPage } from "./Sharing";
+import { SharingPage, MemberPicker, type ShareMember } from "./Sharing";
 import { useStorefrontLocale } from "./localization";
 
 type Post = {
@@ -66,55 +76,102 @@ export function DiscussionThread({
   title = "Discussion & questions",
   groupId,
   onChanged,
+  postId,
+  parentId,
+  initialPost,
+  initialUpdatedAt,
 }: {
-  contextType: "work" | "group" | "list" | "profile";
+  contextType: "work" | "margin" | "group" | "list" | "profile";
   contextId: string;
   progress?: number;
   title?: string;
   groupId?: string;
   onChanged?: () => void;
+  postId?: string;
+  parentId?: string;
+  initialPost?: Post;
+  initialUpdatedAt?: number;
 }) {
   const { data, signIn } = useAccount();
   const [body, setBody] = useState("");
   const [kind, setKind] = useState<"discussion" | "question">("discussion");
   const [spoiler, setSpoiler] = useState(false);
   const [replying, setReplying] = useState<string | null>(null);
-  const [reply, setReply] = useState("");
-  const q = useQuery<{ posts: Post[] }>({
-    queryKey: ["social-posts", contextType, contextId, progress],
-    queryFn: () =>
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState<Post | null>(null);
+  const [reporting, setReporting] = useState<Post | null>(null);
+  const [reportReason, setReportReason] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const q = useInfiniteQuery<{ posts: Post[]; nextCursor: string | null }>({
+    queryKey: ["social-posts", data.user?.id, contextType, contextId, postId, parentId],
+    initialPageParam: "",
+    initialData: initialPost
+      ? { pages: [{ posts: [initialPost], nextCursor: null }], pageParams: [""] }
+      : undefined,
+    initialDataUpdatedAt: initialPost ? initialUpdatedAt : undefined,
+    staleTime: 30_000,
+    queryFn: ({ pageParam }) =>
       api(
-        `/social/posts?contextType=${encodeURIComponent(contextType)}&contextId=${encodeURIComponent(contextId)}&progress=${progress}`,
+        `/social/posts?contextType=${contextType}&contextId=${encodeURIComponent(contextId)}&includeReplies=false${postId ? `&postId=${encodeURIComponent(postId)}` : ""}${parentId ? `&parentId=${encodeURIComponent(parentId)}` : ""}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
       ),
+    getNextPageParam: (page) => page.nextCursor || undefined,
   });
-  async function publish(parentId?: string) {
+  const posts = [
+    ...new Map((q.data?.pages.flatMap((page) => page.posts) || []).map((p) => [p.id, p])).values(),
+  ];
+  async function saveEdit(p: Post) {
+    if (busy || !editBody.trim()) return;
+    setBusy(true);
+    try {
+      await api(`/social/posts/${encodeURIComponent(p.id)}`, "PATCH", {
+        body: editBody,
+        expectedVersion: p.version || 1,
+      });
+      setEditing(null);
+      await q.refetch();
+      onChanged?.();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function publish() {
+    const targetParent = parentId;
+    if (busy) return;
     if (!data.user) return signIn();
-    const text = parentId ? reply : body;
+    const text = body;
     if (!text.trim()) return;
+    setBusy(true);
     try {
       await api("/social/posts", "POST", {
         contextType,
         contextId,
-        parentId: parentId || null,
-        postType: parentId ? "reply" : kind,
+        parentId: targetParent || null,
+        postType: targetParent ? "reply" : kind,
         body: text,
         visibility: contextType === "group" ? "group" : "public",
         spoiler: parentId ? false : spoiler,
         progress: !parentId && contextType === "group" && spoiler ? progress : undefined,
       });
       setBody("");
-      setReply("");
       setReplying(null);
       setSpoiler(false);
       await q.refetch();
       onChanged?.();
-      toast.success(parentId ? "Reply posted" : "Posted to the discussion");
+      toast.success(targetParent ? "Reply posted" : "Posted to the discussion");
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
   async function react(p: Post) {
     if (!data.user) return signIn();
+    if (busy) return;
+    setBusy(true);
     try {
       const active = !(p.myReactions || []).includes("heart");
       await api(`/social/posts/${encodeURIComponent(p.id)}/reaction`, "POST", {
@@ -122,34 +179,50 @@ export function DiscussionThread({
         active,
       });
       await q.refetch();
+      onChanged?.();
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
   async function remove(p: Post) {
-    if (!data.user) return;
+    if (!data.user || busy) return;
+    setBusy(true);
     try {
       await api(`/social/posts/${encodeURIComponent(p.id)}`, "DELETE", {
         expectedVersion: p.version || 1,
       });
       await q.refetch();
+      onChanged?.();
+      setRemoving(null);
       toast.success("Discussion removed");
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
-  async function report(p: Post) {
+  async function report() {
     if (!data.user) return signIn();
+    if (busy || !reporting || !reportReason || (reportReason === "other" && !reportDetails.trim()))
+      return;
+    setBusy(true);
     try {
       await api("/social/report", "POST", {
         subjectType: "social_post",
-        subjectId: p.id,
-        reason: "other",
-        details: "Reported from the discussion interface for moderator review.",
+        subjectId: reporting.id,
+        reason: reportReason,
+        details: reportDetails.trim(),
       });
+      setReporting(null);
+      setReportReason("");
+      setReportDetails("");
       toast.success("Report sent to moderation");
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
   const postBody = (p: Post) => (
@@ -166,56 +239,83 @@ export function DiscussionThread({
     </>
   );
   return (
-    <section className="social-thread" aria-labelledby={`${contextType}-${contextId}-discussion`}>
+    <section
+      className="social-thread"
+      aria-labelledby={`${contextType}-${contextId}-${postId || parentId || "root"}-discussion`}
+    >
       <div className="section-heading">
         <div>
           <span className="small-label">CONVERSATION</span>
-          <h2 id={`${contextType}-${contextId}-discussion`}>{title}</h2>
+          <h2 id={`${contextType}-${contextId}-${postId || parentId || "root"}-discussion`}>
+            {title}
+          </h2>
         </div>
       </div>
-      <div className="social-composer">
-        <div className="social-composer-tabs">
-          <button
-            className={kind === "discussion" ? "selected" : ""}
-            onClick={() => setKind("discussion")}
-          >
-            Discussion
-          </button>
-          <button
-            className={kind === "question" ? "selected" : ""}
-            onClick={() => setKind("question")}
-          >
-            Question
+      {(contextType !== "margin" || !!parentId) && (
+        <div className="social-composer">
+          {!parentId && (
+            <div className="social-composer-tabs">
+              <button
+                className={kind === "discussion" ? "selected" : ""}
+                onClick={() => setKind("discussion")}
+              >
+                Discussion
+              </button>
+              <button
+                className={kind === "question" ? "selected" : ""}
+                onClick={() => setKind("question")}
+              >
+                Question
+              </button>
+            </div>
+          )}
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            aria-label={parentId ? "Write a reply" : "Start a conversation"}
+            placeholder={
+              data.user
+                ? parentId
+                  ? "Write a reply…"
+                  : "Start a conversation…"
+                : "Sign in to join the conversation"
+            }
+            maxLength={12000}
+          />
+          {!parentId && (
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={spoiler}
+                onChange={(e) => setSpoiler(e.target.checked)}
+              />{" "}
+              {contextType === "group"
+                ? "Spoiler — hide from members who have not reached my current progress"
+                : "Hide this post behind a spoiler warning"}
+            </label>
+          )}
+          {parentId && (
+            <p className="small muted">
+              Your reply uses the original discussion’s audience and spoiler settings.
+            </p>
+          )}
+          <button className="button gold" disabled={busy || !body.trim()} onClick={() => publish()}>
+            <MessageCircle size={16} /> {parentId ? "Reply" : "Post"}
           </button>
         </div>
-        <textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder={data.user ? "Start a conversation…" : "Sign in to join the conversation"}
-          maxLength={12000}
-        />
-        <label className="check-row">
-          <input type="checkbox" checked={spoiler} onChange={(e) => setSpoiler(e.target.checked)} />{" "}
-          {contextType === "group"
-            ? "Spoiler — hide from members who have not reached my current progress"
-            : "Hide this post behind a spoiler warning"}
-        </label>
-        <button className="button gold" disabled={!body.trim()} onClick={() => publish()}>
-          <MessageCircle size={16} /> Post
-        </button>
-      </div>
+      )}
       <div className="social-post-list">
         {q.isLoading ? (
           <p className="muted">Loading discussion…</p>
-        ) : q.data?.posts?.length ? (
-          q.data.posts.map((p) =>
+        ) : posts.length ? (
+          posts.map((p) =>
             p.locked ? (
               <article className="social-post locked" key={p.id}>
                 <LockKeyhole size={16} />
                 <p>Discussion unlocks when you reach this part of the book.</p>
               </article>
             ) : (
-              <article className="social-post" key={p.id}>
+              <article className="social-post" key={p.id} data-post-id={p.id}>
                 <header>
                   <a
                     href={`/community?profile=${encodeURIComponent(p.user?.username || p.user?.id || "")}`}
@@ -229,49 +329,82 @@ export function DiscussionThread({
                     {p.editedAt ? " · edited" : ""}
                   </span>
                 </header>
-                {postBody(p)}
+                {editing === p.id ? (
+                  <div>
+                    <label>
+                      Edit published discussion
+                      <textarea
+                        aria-label="Edit discussion"
+                        maxLength={12000}
+                        value={editBody}
+                        onChange={(e) => setEditBody(e.target.value)}
+                      />
+                    </label>
+                    <button disabled={busy || !editBody.trim()} onClick={() => saveEdit(p)}>
+                      Save published edit
+                    </button>
+                    <button onClick={() => setEditing(null)}>Cancel</button>
+                  </div>
+                ) : (
+                  postBody(p)
+                )}
                 <footer>
                   <button
                     className={(p.myReactions || []).includes("heart") ? "selected" : ""}
                     aria-pressed={(p.myReactions || []).includes("heart")}
+                    aria-label={`React with a heart (${p.reactions || 0})`}
+                    disabled={busy}
                     onClick={() => react(p)}
                   >
                     <Heart size={14} /> {p.reactions || 0}
                   </button>
-                  <button onClick={() => setReplying(replying === p.id ? null : p.id)}>
+                  <button
+                    aria-label={`Show replies (${p.replies || 0})`}
+                    onClick={() => setReplying(replying === p.id ? null : p.id)}
+                  >
                     <MessageCircle size={14} /> {p.replies || 0}
                   </button>
                   {data.user?.id === p.user?.id ? (
-                    <button onClick={() => remove(p)}>Delete</button>
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditing(p.id);
+                          setEditBody(p.body || "");
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button disabled={busy} onClick={() => setRemoving(p)}>
+                        Delete
+                      </button>
+                    </>
                   ) : (
-                    <button onClick={() => report(p)}>Report</button>
+                    <button
+                      disabled={busy}
+                      onClick={() => {
+                        if (!data.user) return signIn();
+                        setReportReason("");
+                        setReportDetails("");
+                        setReporting(p);
+                      }}
+                    >
+                      Report
+                    </button>
                   )}
                   <span>{when(p.createdAt)}</span>
                 </footer>
-                {p.replyItems?.map((r) => (
-                  <div className="social-reply" key={r.id}>
-                    <strong>{r.user?.name || "Reader"}</strong>
-                    {r.spoiler ? (
-                      <details className="spoiler-disclosure">
-                        <summary>Spoiler — reveal</summary>
-                        <p>{r.body}</p>
-                      </details>
-                    ) : (
-                      <p>{r.body}</p>
-                    )}
-                  </div>
-                ))}
                 {replying === p.id && (
-                  <div className="social-reply-composer">
-                    <input
-                      value={reply}
-                      onChange={(e) => setReply(e.target.value)}
-                      placeholder="Reply…"
-                    />
-                    <button className="button outline" onClick={() => publish(p.id)}>
-                      Reply
-                    </button>
-                  </div>
+                  <DiscussionThread
+                    contextType={contextType}
+                    contextId={contextId}
+                    parentId={p.id}
+                    progress={progress}
+                    title="Replies"
+                    onChanged={() => {
+                      void q.refetch();
+                      onChanged?.();
+                    }}
+                  />
                 )}
               </article>
             ),
@@ -279,7 +412,91 @@ export function DiscussionThread({
         ) : (
           <p className="muted">No discussion yet. You can start the first one.</p>
         )}
+        {q.isError && (
+          <p role="alert">
+            Could not load discussion. <button onClick={() => q.refetch()}>Retry</button>
+          </p>
+        )}
+        {q.hasNextPage && (
+          <button disabled={q.isFetchingNextPage} onClick={() => q.fetchNextPage()}>
+            Load older discussion
+          </button>
+        )}
       </div>
+      <AlertDialog
+        open={!!removing}
+        onOpenChange={(open) => {
+          if (!open && !busy) setRemoving(null);
+        }}
+      >
+        <AlertDialogContent className="fore-dialog">
+          <AlertDialogTitle>Delete this discussion?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This removes the published discussion and access to its replies. Your private highlights
+            and notes are unchanged.
+          </AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Keep discussion</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={(event) => {
+                event.preventDefault();
+                if (removing) void remove(removing);
+              }}
+            >
+              {busy ? "Deleting…" : "Delete published discussion"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <Dialog
+        open={!!reporting}
+        onOpenChange={(open) => {
+          if (!open && !busy) setReporting(null);
+        }}
+      >
+        <DialogContent className="fore-dialog">
+          <DialogTitle>Report this discussion</DialogTitle>
+          <DialogDescription>
+            Choose the reason so moderators can review it. Reporting does not publish your
+            explanation to other readers.
+          </DialogDescription>
+          <label>
+            Report reason
+            <select
+              value={reportReason}
+              onChange={(event) => setReportReason(event.target.value)}
+              disabled={busy}
+            >
+              <option value="">Choose a reason</option>
+              <option value="spam">Spam</option>
+              <option value="scam">Scam</option>
+              <option value="impersonation">Impersonation</option>
+              <option value="harassment">Harassment</option>
+              <option value="misleading">Misleading content</option>
+              <option value="copyright">Copyright</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>
+            Report details
+            <textarea
+              className="note-input"
+              value={reportDetails}
+              onChange={(event) => setReportDetails(event.target.value)}
+              maxLength={5000}
+              disabled={busy}
+            />
+          </label>
+          <button
+            className="button gold"
+            disabled={busy || !reportReason || (reportReason === "other" && !reportDetails.trim())}
+            onClick={() => report()}
+          >
+            {busy ? "Submitting…" : "Submit report"}
+          </button>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
@@ -290,11 +507,12 @@ function Feed() {
     initialPageParam: "",
     queryFn: ({ pageParam }) =>
       api<any>(
-        `/social/feed?limit=40${pageParam ? `&before=${encodeURIComponent(pageParam)}` : ""}`,
+        `/social/feed?limit=40${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
       ),
     getNextPageParam: (page: any) => page.nextCursor || undefined,
     enabled: !!data.user,
-    refetchInterval: 30_000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
   const loadingMore = q.isFetchingNextPage;
   const next = q.hasNextPage;
@@ -384,8 +602,26 @@ function eventSentence(e: any) {
 }
 
 function Discover() {
+  const { data: account, loading: accountLoading } = useAccount();
+  const [interactive, setInteractive] = useState(false);
+  useEffect(() => setInteractive(true), []);
+  const [search, setSearch] = useState("");
+  const [term, setTerm] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setTerm(search.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+  const people = useInfiniteQuery<any>({
+    queryKey: ["member-search", account.user?.id, term],
+    initialPageParam: "",
+    queryFn: ({ pageParam }) =>
+      api(
+        `/social/discover?q=${encodeURIComponent(term)}&after=${encodeURIComponent(String(pageParam))}`,
+      ),
+    getNextPageParam: (page) => page.nextPeopleCursor || undefined,
+  });
   const q = useQuery<any>({
-    queryKey: ["social-discover"],
+    queryKey: ["social-discover", account.user?.id],
     queryFn: () => api("/social/discover"),
   });
   return (
@@ -401,23 +637,49 @@ function Discover() {
         </div>
       </div>
       <h2>Readers</h2>
+      <label>
+        Find a member
+        <input
+          type="search"
+          disabled={!interactive || accountLoading}
+          maxLength={100}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Name or @username"
+        />
+      </label>
+      {people.isError && (
+        <p role="alert">
+          Search failed. <button onClick={() => people.refetch()}>Retry</button>
+        </p>
+      )}
       <div className="people-grid">
-        {q.data?.people?.map((p: any) => (
-          <a
-            className="person-card"
-            href={`/community?profile=${encodeURIComponent(p.username || p.user_id)}`}
-            key={p.user_id}
-          >
-            <span className="social-avatar large">
-              {String(p.name || p.username || "R").slice(0, 1)}
-            </span>
-            <strong>{p.name || p.username}</strong>
-            <span>@{p.username}</span>
-            <p>{p.bio || "Reader on Cove"}</p>
-            <small>{Number(p.followers || 0).toLocaleString()} followers</small>
-          </a>
-        ))}
+        {people.data?.pages
+          .flatMap((page) => page.people)
+          .map((p: any) => (
+            <a
+              className="person-card"
+              href={`/community?profile=${encodeURIComponent(p.username || p.user_id)}`}
+              key={p.user_id}
+            >
+              <span className="social-avatar large">
+                {String(p.name || p.username || "R").slice(0, 1)}
+              </span>
+              <strong>{p.name || p.username}</strong>
+              <span>@{p.username}</span>
+              <p>{p.bio || "Reader on Cove"}</p>
+              <small>{Number(p.followers || 0).toLocaleString()} followers</small>
+            </a>
+          ))}
       </div>
+      {people.hasNextPage && (
+        <button disabled={people.isFetchingNextPage} onClick={() => people.fetchNextPage()}>
+          More members
+        </button>
+      )}
+      {!people.isLoading && !people.data?.pages.some((page) => page.people.length) && (
+        <p>No members found.</p>
+      )}
       <h2>Reading lists</h2>
       <div className="social-card-grid">
         {q.data?.lists?.map((l: any) => (
@@ -623,6 +885,68 @@ function Journey({ id }: { id: string }) {
     queryKey: ["journey", id],
     queryFn: () => api(`/social/journeys/${encodeURIComponent(id)}`),
   });
+  const [member, setMember] = useState<ShareMember | null>(null);
+  const [memberConfirmed, setMemberConfirmed] = useState(false);
+  const [linkConfirmed, setLinkConfirmed] = useState(false);
+  const grants = useQuery<{
+    recipients: {
+      recipient_user_id: string;
+      share_token: string;
+      version: number;
+      revoked_at: string | null;
+      member: ShareMember | null;
+    }[];
+  }>({
+    queryKey: ["journey-recipients", id],
+    queryFn: () => api(`/social/journeys/${encodeURIComponent(q.data.id)}/recipients`),
+    enabled: !!q.data?.mine,
+  });
+  async function copyMemberLink(token: string) {
+    try {
+      await navigator.clipboard.writeText(
+        `${location.origin}/community?journey=${encodeURIComponent(token)}`,
+      );
+      toast.success("Member-only link copied");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+  async function grantMember() {
+    if (!member || !memberConfirmed || busy) return;
+    setBusy(true);
+    try {
+      const existing = grants.data?.recipients.find((g) => g.recipient_user_id === member.id);
+      await api(`/social/journeys/${encodeURIComponent(q.data.id)}/recipients`, "POST", {
+        recipientUserId: member.id,
+        expectedVersion: existing?.version || 0,
+        audienceConfirmed: true,
+      });
+      setMember(null);
+      setMemberConfirmed(false);
+      await grants.refetch();
+      toast.success("Member access granted");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function revokeMember(recipientUserId: string, version: number) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await api(`/social/journeys/${encodeURIComponent(q.data.id)}/recipients`, "DELETE", {
+        recipientUserId,
+        expectedVersion: version,
+      });
+      await grants.refetch();
+      toast.success("Member access revoked");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const [format, setFormat] = useState<"square" | "story">("square");
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<any>(null);
@@ -656,18 +980,31 @@ function Journey({ id }: { id: string }) {
     }
   }
   async function token(action: "rotate" | "revoke") {
-    const r = await api<any>(`/social/journeys/${q.data.id}/share-token`, "POST", { action });
-    await q.refetch();
-    return r.shareToken as string | null;
+    if (busy || (action === "rotate" && !linkConfirmed)) return;
+    setBusy(true);
+    try {
+      await api(`/social/journeys/${q.data.id}/share-token`, "POST", {
+        action,
+        expectedVersion: Number(q.data.version || 1),
+        audienceConfirmed: action === "rotate" ? linkConfirmed : undefined,
+      });
+      setLinkConfirmed(false);
+      await q.refetch();
+      toast.success(
+        action === "rotate"
+          ? "Anyone-with-link access enabled"
+          : "Anyone-with-link access disabled",
+      );
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
   async function share() {
     let ref = id;
-    if (q.data.mine) {
-      ref =
-        !q.data.share_revoked_at && q.data.share_token
-          ? q.data.share_token
-          : (await token("rotate")) || q.data.id;
-    }
+    if (q.data.mine)
+      ref = q.data.share_token && !q.data.share_revoked_at ? q.data.share_token : q.data.id;
     const url = `${location.origin}/community?journey=${encodeURIComponent(ref)}`;
     try {
       if (navigator.share)
@@ -722,6 +1059,13 @@ function Journey({ id }: { id: string }) {
       toast.error((e as Error).message);
     }
   }
+  if (q.isError)
+    return (
+      <p role="alert">
+        Reading Journey is unavailable or access was revoked.{" "}
+        <button onClick={() => q.refetch()}>Retry</button>
+      </p>
+    );
   if (!q.data) return <p className="muted">Loading Reading Journey…</p>;
   const j = q.data,
     total = Number(j.read_seconds) + Number(j.listen_seconds);
@@ -754,7 +1098,10 @@ function Journey({ id }: { id: string }) {
           />
           <div className="journey-share-row">
             <button className="button gold" onClick={share}>
-              <Share2 size={16} /> Share Journey
+              <Share2 size={16} />{" "}
+              {j.mine && j.share_token && !j.share_revoked_at
+                ? "Share anyone-with-link URL"
+                : "Share audience URL"}
             </button>
             <button className="button outline" onClick={exportPng}>
               Export PNG
@@ -766,15 +1113,102 @@ function Journey({ id }: { id: string }) {
             >
               Export SVG
             </a>
-            {j.mine && (
+          </div>
+          {j.mine && (
+            <section className="journey-access" aria-label="Journey access">
+              <h2>Who can see this journey?</h2>
+              <p>
+                Current audience:{" "}
+                <strong>
+                  {j.visibility === "private"
+                    ? "Private"
+                    : j.visibility === "followers"
+                      ? "Followers"
+                      : "Public"}
+                </strong>
+                . Audience URLs follow this setting.
+              </p>
+              <h3>Share with a named member</h3>
+              <p>
+                Member links require that member to sign in. Choose Private in visibility settings
+                for access limited to you and the members you grant.
+              </p>
+              <MemberPicker
+                value={member}
+                onChange={(m) => {
+                  setMember(m);
+                  setMemberConfirmed(false);
+                }}
+              />
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={memberConfirmed}
+                  disabled={!member}
+                  onChange={(e) => setMemberConfirmed(e.target.checked)}
+                />
+                Grant access to {member ? `@${member.username}` : "the selected member"}
+              </label>
               <button
                 className="button outline"
-                onClick={() => token(j.share_revoked_at ? "rotate" : "revoke")}
+                disabled={busy || !member || !memberConfirmed || grants.isLoading || grants.isError}
+                onClick={grantMember}
               >
-                {j.share_revoked_at ? "Enable share link" : "Disable share link"}
+                Grant member access
               </button>
-            )}
-          </div>
+              {grants.isError && (
+                <p role="alert">
+                  Could not load member access.{" "}
+                  <button onClick={() => grants.refetch()}>Retry</button>
+                </p>
+              )}
+              {grants.data?.recipients
+                .filter((g) => !g.revoked_at)
+                .map((g) => (
+                  <div key={g.recipient_user_id}>
+                    <span>@{g.member?.username || "member"} · Sign-in required</span>
+                    <button disabled={busy} onClick={() => copyMemberLink(g.share_token)}>
+                      Copy member link
+                    </button>
+                    <button
+                      disabled={busy}
+                      onClick={() => revokeMember(g.recipient_user_id, g.version)}
+                    >
+                      Revoke member access
+                    </button>
+                  </div>
+                ))}
+              <h3>Anyone with the link</h3>
+              <p>
+                {j.share_token && !j.share_revoked_at
+                  ? "Enabled: anyone possessing this URL can view this journey. Private messages do not restrict its audience."
+                  : "Disabled: copying an audience URL does not enable bearer access."}
+              </p>
+              {j.share_token && !j.share_revoked_at ? (
+                <button disabled={busy} className="button outline" onClick={() => token("revoke")}>
+                  Disable anyone-with-link access
+                </button>
+              ) : (
+                <>
+                  <label className="check-row">
+                    <input
+                      type="checkbox"
+                      checked={linkConfirmed}
+                      onChange={(e) => setLinkConfirmed(e.target.checked)}
+                    />
+                    I understand anyone possessing the link can view this journey.
+                  </label>
+                  <button
+                    disabled={busy || !linkConfirmed}
+                    className="button outline"
+                    onClick={() => token("rotate")}
+                  >
+                    Enable anyone-with-link access
+                  </button>
+                </>
+              )}
+            </section>
+          )}
           <div className="journey-timeline" aria-label="Reading progress timeline">
             {j.points?.slice(-40).map((p: any, i: number) => (
               <span
@@ -813,6 +1247,7 @@ function Journey({ id }: { id: string }) {
               <label>
                 Visibility
                 <select
+                  aria-label="Journey visibility"
                   value={draft.visibility}
                   onChange={(e) => setDraft({ ...draft, visibility: e.target.value })}
                 >
@@ -865,7 +1300,7 @@ function Journey({ id }: { id: string }) {
                 />
               </label>
               <button className="button gold" disabled={busy} onClick={save}>
-                Save share card
+                Save journey settings
               </button>
             </div>
           )}
@@ -1401,6 +1836,10 @@ function ClubView({ id }: { id: string }) {
         <section className="club-current">
           <span className="small-label">NOW READING</span>
           <h2>{current.title_snapshot}</h2>
+          <p className="small muted">
+            Group ebook positions. Your discussion access also includes supported audio-to-text
+            mappings.
+          </p>
           <div className="club-progress-buckets">
             {dist.map((b: any) => (
               <span key={b.bucket}>

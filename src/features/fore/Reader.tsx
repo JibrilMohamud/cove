@@ -1,4 +1,11 @@
-import { MemberPicker, type HighlightShareAudience, type ShareMember } from "./Sharing";
+import { mergeMarginHighlights } from "./margin-passages";
+import { DiscussionThread } from "./Community";
+import {
+  MemberPicker,
+  type HighlightShareAudience,
+  type HighlightShareState,
+  type ShareMember,
+} from "./Sharing";
 import { openBiosync, resolveAudio, resolveText, matchingEpub } from "./biosync-client";
 import { Headphones } from "lucide-react";
 import { createActivity, measureEpub } from "./reading-activity";
@@ -7,7 +14,7 @@ import { loadEdition } from "./audio-client";
 import { cueForAudio, type AudioEdition } from "./domain";
 import { loadBookMetadata } from "./epub";
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -30,6 +37,7 @@ import {
   MessageCircle,
   Share2,
   Eye,
+  Menu,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -53,6 +61,7 @@ import {
 import {
   api,
   useAccount,
+  findLibraryBook,
   colors,
   type CatalogBook,
   type Annotation,
@@ -149,7 +158,18 @@ const themes = {
   night: { bg: "#15202e", fg: "#d8dee7" },
   oled: { bg: "#000000", fg: "#d6d7d9" },
 };
+// epub.js returns the insertion point of a CFI in its sampled ranges. That
+// rounds forward (even to 100% on short books). Use the preceding sample so
+// rendering a passage never claims unread text beyond it.
+function conservativeCfiProgress(
+  book: { locations: { locationFromCfi(cfi: string): number; total: number } },
+  cfi: string,
+) {
+  const index = book.locations.locationFromCfi(cfi);
+  return Math.max(0, index - 1) / Math.max(1, book.locations.total);
+}
 export function ReaderPage({ id }: { id: string }) {
+  const queryClient = useQueryClient();
   const searchString = useRouterState({ select: (state) => state.location.searchStr || "" });
   const previewMode = new URLSearchParams(searchString).get("preview") === "1";
   const bookQuery = useQuery<CatalogBook>({
@@ -157,6 +177,21 @@ export function ReaderPage({ id }: { id: string }) {
     queryFn: () => loadBookMetadata(id),
   });
   const { data, loading: accountLoading, reload, signIn } = useAccount();
+  const bookReferences = useRef(new Set<string>([id]));
+  const metadata = bookQuery.data;
+  bookReferences.current = new Set(
+    [
+      id,
+      metadata?.id,
+      metadata?.publicProductId,
+      metadata?.productId,
+      ...(metadata?.sourceName === "gutenberg" ? [metadata.sourceExternalId] : []),
+    ]
+      .filter((ref) => ref !== undefined && ref !== null)
+      .map(String),
+  );
+  const matchesReadingBook = (ref: string) => bookReferences.current.has(String(ref));
+
   const activity = useRef<ReturnType<typeof createActivity> | null>(null),
     epubHash = useRef(""),
     sync = useRef<Awaited<ReturnType<typeof openBiosync>> | null>(null),
@@ -173,14 +208,19 @@ export function ReaderPage({ id }: { id: string }) {
     epub = useRef<any>(null),
     mounted = useRef(false),
     saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
-    position = useRef({ cfi: "", progress: 0 }),
+    position = useRef({ cfi: "", progress: 0, atEnd: false }),
+    advancedPage = useRef(false),
     accountRef = useRef(data),
     chapterRef = useRef(""),
     annotationRef = useRef(data.annotations),
     savingPosition = useRef(Promise.resolve()),
+    savedPositionKey = useRef(""),
     recommendationStart = useRef(""),
     recommendationProgressBucket = useRef(-1),
+    savedSpoilerPercent = useRef(-1),
     readingVersion = useRef(0),
+    readingScope = useRef(""),
+    positionConflict = useRef(false),
     previewVersion = useRef(0),
     settingVersions = useRef<Record<string, number>>({}),
     lastSyncedSettings = useRef<Record<string, unknown>>({}),
@@ -191,8 +231,19 @@ export function ReaderPage({ id }: { id: string }) {
   accountRef.current = data;
   annotationRef.current = data.annotations;
   useEffect(() => {
-    readingVersion.current = data.library.find((x) => x.bookId === id)?.version || 0;
-  }, [data.library, id]);
+    const scope = JSON.stringify([data.user?.id, id]);
+    const version = findLibraryBook(data.library, id)?.version || 0;
+    if (readingScope.current !== scope) {
+      readingScope.current = scope;
+      readingVersion.current = version;
+      savedPositionKey.current = "";
+      positionConflict.current = false;
+      advancedPage.current = false;
+    } else {
+      // A reload started before our save can finish with an older snapshot.
+      readingVersion.current = Math.max(readingVersion.current, version);
+    }
+  }, [data.library, data.user?.id, id]);
   const [ready, setReady] = useState(false),
     [error, setError] = useState(""),
     [retry, setRetry] = useState(0),
@@ -232,6 +283,9 @@ export function ReaderPage({ id }: { id: string }) {
     [socialMember, setSocialMember] = useState<ShareMember | null>(null),
     [socialShareNote, setSocialShareNote] = useState(false),
     [socialAudienceConfirmed, setSocialAudienceConfirmed] = useState(false),
+    [socialConfirmedAnnotationVersion, setSocialConfirmedAnnotationVersion] = useState<
+      number | null
+    >(null),
     [socialAnnotationId, setSocialAnnotationId] = useState<string | null>(null),
     [socialBusy, setSocialBusy] = useState(false),
     [activeSocialHash, setActiveSocialHash] = useState<string | null>(null),
@@ -291,28 +345,164 @@ export function ReaderPage({ id }: { id: string }) {
     },
     [],
   );
-  const selectedShare = useQuery<{ shared: boolean; shares: HighlightShareAudience[] }>({
+  const finishedJourneyAudience = useQuery<{ visibility: "private" | "followers" | "public" }>({
+    queryKey: ["finished-journey-audience", data.user?.id, finishedJourney],
+    queryFn: () => api(`/social/journeys/${encodeURIComponent(finishedJourney || "")}`),
+    enabled: !!data.user && !!finishedJourney,
+  });
+  const selectedShare = useQuery<HighlightShareState>({
     queryKey: ["highlight-share", data.user?.id, socialAnnotationId],
     queryFn: () => api(`/social/highlights/${encodeURIComponent(socialAnnotationId!)}/share`),
     enabled: !!data.user && !!socialAnnotationId && socialCompose === "share",
   });
-  const socialReader = useQuery<any>({
-    queryKey: ["social-reader", id, data.user?.id, percent, chapter],
-    queryFn: () =>
+  const socialReaderQuery = useInfiniteQuery<any>({
+    queryKey: ["social-reader", id, data.user?.id],
+    initialPageParam: "",
+    queryFn: ({ pageParam }) =>
       api(
-        `/social/reader/${encodeURIComponent(id)}?progress=${Math.max(0, Math.min(1, position.current.progress || percent / 100))}&chapter=${encodeURIComponent(chapter || "")}`,
+        `/social/reader/${encodeURIComponent(id)}${pageParam ? `?cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
       ),
+    getNextPageParam: (page) => page.nextCursor || undefined,
     enabled: !!data.user && !previewMode,
-    staleTime: 4000,
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+    refetchInterval: (query) => (query.state.data?.pages[0]?.preferences?.enabled ? 60_000 : false),
   });
-  const activeSocial =
-    socialReader.data?.indicators?.find(
-      (indicator: any) => indicator.passageHash === activeSocialHash,
-    ) || null;
+  const clusters = new Map<string, any>();
+  for (const page of socialReaderQuery.data?.pages || [])
+    for (const cluster of page.indicators || []) {
+      const previous = clusters.get(cluster.passageHash);
+      const posts = [
+        ...new Map(
+          [...(previous?.posts || []), ...cluster.posts].map((p: any) => [p.id, p]),
+        ).values(),
+      ];
+      const highlights = mergeMarginHighlights(previous?.highlights || [], cluster.highlights);
+      clusters.set(cluster.passageHash, {
+        ...cluster,
+        posts,
+        highlights,
+        discussionCount: posts.length,
+        highlightCount: highlights.length,
+      });
+    }
+  const socialReader = {
+    ...socialReaderQuery,
+    data: socialReaderQuery.data
+      ? {
+          ...socialReaderQuery.data.pages[0],
+          indicators: [...clusters.values()],
+          totalVisible: clusters.size,
+        }
+      : undefined,
+  };
+  const activeSocial = clusters.get(activeSocialHash || "") || null;
+  const [passageMarkers, setPassageMarkers] = useState<
+    { hash: string; top: number; count: number }[]
+  >([]);
+  useEffect(() => {
+    if (!socialReader.data?.preferences?.enabled) {
+      setPassageMarkers([]);
+      return;
+    }
+    let canceled = false;
+    function measure() {
+      const stage = container.current?.closest(".reader-stage");
+      if (!stage || !rendition.current) return;
+      const stageRect = stage.getBoundingClientRect(),
+        markers: { hash: string; top: number; count: number }[] = [];
+      for (const cluster of socialReader.data?.indicators || []) {
+        if (!cluster.cfi) continue;
+        for (const contents of rendition.current.getContents()) {
+          try {
+            const parsed = new contents.epubcfi.constructor(cluster.cfi);
+            if (parsed.spinePos !== contents.sectionIndex) continue;
+            const range = contents.range(cluster.cfi),
+              frame = contents.window.frameElement;
+            if (!range || !frame) continue;
+            if (range.collapsed && range.startContainer.nodeType === 3) {
+              const length = range.startContainer.textContent?.length || 0;
+              if (range.startOffset < length)
+                range.setEnd(range.startContainer, range.startOffset + 1);
+              else if (range.startOffset > 0)
+                range.setStart(range.startContainer, range.startOffset - 1);
+            }
+            const rects = Array.from(range.getClientRects()) as DOMRect[];
+            const frameRect = frame.getBoundingClientRect();
+            const rect = rects.find(
+              (rect) =>
+                rect.width > 0 &&
+                rect.height > 0 &&
+                rect.left >= 0 &&
+                rect.left < frameRect.width &&
+                frameRect.left + rect.left >= stageRect.left &&
+                frameRect.left + rect.left < stageRect.right &&
+                rect.top >= 0 &&
+                rect.top < frameRect.height,
+            );
+            if (!rect) continue;
+            const top = frameRect.top + rect.top - stageRect.top;
+            if (top < 0 || top > stageRect.height - 30) continue;
+            markers.push({
+              hash: cluster.passageHash,
+              top,
+              count: cluster.discussionCount + cluster.highlightCount,
+            });
+            break;
+          } catch {
+            /* CFI belongs to a different spine document. */
+          }
+        }
+      }
+      const density = Number(socialReader.data?.preferences?.density ?? 35),
+        max = density === 0 ? 0 : density < 20 ? 1 : density < 67 ? 2 : 3;
+      const visible: typeof markers = [];
+      for (const marker of markers.sort((a, b) => b.count - a.count))
+        if (visible.length < max && !visible.some((m) => Math.abs(m.top - marker.top) < 32))
+          visible.push(marker);
+      if (!canceled)
+        setPassageMarkers((previous) =>
+          JSON.stringify(previous) === JSON.stringify(visible) ? previous : visible,
+        );
+    }
+    let frame: number | null = null;
+    const schedule = () => {
+      if (canceled || frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        if (!canceled) measure();
+      });
+    };
+    const currentRendition = rendition.current;
+    const stage = container.current?.closest(".reader-stage");
+    const observer = new ResizeObserver(schedule);
+    if (stage) {
+      observer.observe(stage);
+      stage.addEventListener("scroll", schedule, { passive: true });
+    }
+    const contents = currentRendition?.getContents() || [];
+    for (const content of contents) {
+      content.window.addEventListener("scroll", schedule, { passive: true });
+      void content.document.fonts?.ready.then(schedule);
+    }
+    for (const event of ["rendered", "relocated", "resized", "layout"])
+      currentRendition?.on(event, schedule);
+    window.addEventListener("resize", schedule);
+    document.addEventListener("visibilitychange", schedule);
+    schedule();
+    return () => {
+      canceled = true;
+      if (frame !== null) cancelAnimationFrame(frame);
+      observer.disconnect();
+      stage?.removeEventListener("scroll", schedule);
+      for (const content of contents) content.window.removeEventListener("scroll", schedule);
+      for (const event of ["rendered", "relocated", "resized", "layout"])
+        currentRendition?.off(event, schedule);
+      window.removeEventListener("resize", schedule);
+      document.removeEventListener("visibilitychange", schedule);
+    };
+  }, [socialReaderQuery.data, percent, chapter, ready]);
   const socialAccount = useQuery<{
-    groups: { id: string; name: string; member_status: string }[];
+    groups: { id: string; name: string; member_status: string; status?: string }[];
     profile?: { highlight_visibility_default?: string | null } | null;
   }>({
     queryKey: ["social-me-reader", data.user?.id],
@@ -321,7 +511,7 @@ export function ReaderPage({ id }: { id: string }) {
     staleTime: 15000,
   });
   const activeGroups = (socialAccount.data?.groups || []).filter(
-    (group) => group.member_status === "active",
+    (group) => group.member_status === "active" && group.status !== "suspended",
   );
   const discussionGroupName = activeGroups.find((group) => group.id === discussionGroupId)?.name;
   const highlightGroupName = activeGroups.find((group) => group.id === socialGroupId)?.name;
@@ -360,6 +550,10 @@ export function ReaderPage({ id }: { id: string }) {
     (share) => share.audienceKey === highlightAudienceKey,
   );
   const selectedAudienceAlreadyShared = !!selectedAudienceShare;
+  const highlightConfirmationCurrent =
+    socialAudienceConfirmed &&
+    (!socialShareNote ||
+      socialConfirmedAnnotationVersion === selectedShare.data?.annotationVersion);
   const settings = useRef({ fontSize, lineHeight, font, theme });
   settings.current = { fontSize, lineHeight, font, theme };
   useEffect(() => {
@@ -440,6 +634,7 @@ export function ReaderPage({ id }: { id: string }) {
     else r.themes.font(s.font);
   }
   async function persistPosition() {
+    if (positionConflict.current) return;
     const p = position.current;
     if (!p.cfi) return;
     if (!previewMode && syncEdition.current && sync.current) {
@@ -452,12 +647,26 @@ export function ReaderPage({ id }: { id: string }) {
       }
     }
     if (!accountRef.current.user) return;
+    const ownerId = accountRef.current.user.id;
+    const scope = readingScope.current;
+    const key = JSON.stringify([accountRef.current.user.id, id, previewMode, p.cfi, p.progress]);
+    if (savedPositionKey.current === key) return;
     setSaveState(previewMode ? "Saving sample position…" : "Saving position…");
     const snapshot = { ...p };
     savingPosition.current = savingPosition.current
       .catch(() => {})
       .then(async () => {
+        if (
+          positionConflict.current ||
+          readingScope.current !== scope ||
+          accountRef.current.user?.id !== ownerId
+        )
+          return;
         try {
+          if (savedPositionKey.current === key) {
+            if (mounted.current) setSaveState("Position saved");
+            return;
+          }
           if (previewMode) {
             const productId = bookQuery.data?.productId;
             if (productId) {
@@ -475,15 +684,30 @@ export function ReaderPage({ id }: { id: string }) {
               "POST",
               {
                 bookId: id,
-                status: snapshot.progress >= 0.995 ? "finished" : "reading",
+                status:
+                  (snapshot.atEnd && advancedPage.current) ||
+                  findLibraryBook(accountRef.current.library, id)?.status === "finished"
+                    ? "finished"
+                    : "reading",
                 cfi: snapshot.cfi,
                 progress: snapshot.progress,
                 expectedVersion: readingVersion.current,
               },
             );
+            if (readingScope.current !== scope || accountRef.current.user?.id !== ownerId) return;
             readingVersion.current = saved.version;
             if (saved.readingJourneyId && mounted.current)
               setFinishedJourney(saved.readingJourneyId);
+          }
+          savedPositionKey.current = key;
+          const spoilerPercent = Math.floor(snapshot.progress * 100);
+          if (!previewMode && spoilerPercent > savedSpoilerPercent.current) {
+            savedSpoilerPercent.current = spoilerPercent;
+            // Refresh only after the backend has accepted new spoiler progress.
+            void socialReaderQuery.refetch();
+            void queryClient.invalidateQueries({
+              queryKey: ["social-posts", ownerId, "margin", id],
+            });
           }
           const productId = bookQuery.data?.productId,
             bucket = Math.floor(Math.max(0, Math.min(0.999, snapshot.progress)) * 10);
@@ -500,9 +724,9 @@ export function ReaderPage({ id }: { id: string }) {
           if (mounted.current) setSaveState("Position saved");
         } catch (e) {
           if ((e as any)?.status === 409) {
+            positionConflict.current = true;
             if (mounted.current)
               setSaveState("Position changed on another device — reload to choose");
-            reload().catch(() => {});
           } else if (mounted.current) setSaveState("Position not saved — retry");
         }
       });
@@ -517,6 +741,65 @@ export function ReaderPage({ id }: { id: string }) {
     let created: any;
     let resize: ResizeObserver | undefined;
     let pageRepairTimer: ReturnType<typeof setTimeout> | undefined;
+    let selectionTimer: ReturnType<typeof setTimeout> | undefined;
+    let selectionPoll: ReturnType<typeof setInterval> | undefined;
+    const selectionDocuments = new WeakSet<Document>();
+    const blockedSelectionReaders = new WeakMap<Document, () => void>();
+    let lastPolledRange:
+      | {
+          doc: Document;
+          start: Node;
+          end: Node;
+          startOffset: number;
+          endOffset: number;
+        }
+      | undefined;
+    function pollBlockedSelection() {
+      const frame = document.activeElement;
+      if (
+        canceled ||
+        document.hidden ||
+        !(frame instanceof HTMLIFrameElement) ||
+        !container.current?.contains(frame)
+      ) {
+        lastPolledRange = undefined;
+        return;
+      }
+      const doc = frame.contentDocument;
+      const capture = doc && blockedSelectionReaders.get(doc);
+      const selected = capture && doc?.getSelection();
+      if (!capture || !doc || !selected?.rangeCount || selected.isCollapsed) {
+        lastPolledRange = undefined;
+        return;
+      }
+      const range = selected.getRangeAt(0);
+      if (
+        lastPolledRange?.doc === doc &&
+        lastPolledRange.start === range.startContainer &&
+        lastPolledRange.end === range.endContainer &&
+        lastPolledRange.startOffset === range.startOffset &&
+        lastPolledRange.endOffset === range.endOffset
+      )
+        return;
+      lastPolledRange = {
+        doc,
+        start: range.startContainer,
+        end: range.endContainer,
+        startOffset: range.startOffset,
+        endOffset: range.endOffset,
+      };
+      capture();
+    }
+    function presentSelection(cfi: string, text: string) {
+      if (canceled || !text) return;
+      const next = { cfi, text: text.slice(0, 12000), chapter: chapterRef.current };
+      setSelection((current) =>
+        current?.cfi === next.cfi && current.text === next.text && current.chapter === next.chapter
+          ? current
+          : next,
+      );
+      setActiveAnnotation(null);
+    }
     (async () => {
       const params = new URLSearchParams(location.search);
       if (!previewMode) {
@@ -603,6 +886,50 @@ export function ReaderPage({ id }: { id: string }) {
       if (detected.rtl && typeof r.direction === "function") r.direction("rtl");
       applySettings(r);
       r.hooks.content.register((contents: any) => {
+        // Capture native ranges while the document owns the selection. Safari
+        // can retain the painted selection after focus changes while EPUB.js's
+        // delayed window-selection lookup no longer emits a selected event.
+        const doc = contents.document as Document;
+        if (!selectionDocuments.has(doc)) {
+          selectionDocuments.add(doc);
+          const captureSelection = (immediate = false) => {
+            const selected = doc.getSelection();
+            if (!selected?.rangeCount || selected.isCollapsed) return;
+            const range = selected.getRangeAt(0).cloneRange();
+            const text = range.toString().trim();
+            if (!text) return;
+            if (selectionTimer) clearTimeout(selectionTimer);
+            const presentRange = () => {
+              selectionTimer = undefined;
+              const stillDisplayed = Array.from(
+                container.current?.querySelectorAll("iframe") || [],
+              ).some((frame) => frame.contentDocument === doc);
+              if (canceled || !stillDisplayed) return;
+              try {
+                presentSelection(contents.cfiFromRange(range), text);
+              } catch {
+                // A page turn may remove the range before it settles.
+              }
+            };
+            if (immediate) presentRange();
+            else selectionTimer = setTimeout(presentRange, 250);
+          };
+          for (const event of ["selectionchange", "mouseup", "touchend", "keyup"])
+            doc.addEventListener(event, () => captureSelection(), { passive: true });
+          // WebKit blocks even parent-owned callbacks in a script-disabled
+          // frame. Detect that restriction without enabling any EPUB scripts.
+          let receivesEvents = false;
+          const probe = () => {
+            receivesEvents = true;
+          };
+          doc.addEventListener("cove-selection-probe", probe);
+          doc.dispatchEvent(new Event("cove-selection-probe"));
+          doc.removeEventListener("cove-selection-probe", probe);
+          if (!receivesEvents) {
+            blockedSelectionReaders.set(doc, () => captureSelection(true));
+            if (!selectionPoll) selectionPoll = setInterval(pollBlockedSelection, 250);
+          }
+        }
         contents.document.addEventListener("keydown", keys);
         contents.document.addEventListener("pointerdown", () => activity.current?.interact());
         contents.document.addEventListener("scroll", () => activity.current?.interact());
@@ -625,10 +952,7 @@ export function ReaderPage({ id }: { id: string }) {
       });
       r.on("selected", (cfi: string, contents: any) => {
         const text = contents.window.getSelection()?.toString().trim();
-        if (text) {
-          setSelection({ cfi, text: text.slice(0, 12000), chapter: chapterRef.current });
-          setActiveAnnotation(null);
-        }
+        if (text) presentSelection(cfi, text);
       });
       r.on("relocated", (loc: any) => {
         if (canceled) return;
@@ -648,7 +972,7 @@ export function ReaderPage({ id }: { id: string }) {
         chapterRef.current = title;
         setChapter(title);
         const p = created.locations.length()
-          ? created.locations.percentageFromCfi(loc.start.cfi)
+          ? conservativeCfiProgress(created, loc.start.cfi)
           : Math.min(
               0.99,
               ((loc.start.index || 0) +
@@ -661,14 +985,20 @@ export function ReaderPage({ id }: { id: string }) {
         }
         position.current = {
           cfi: initialAnchor.current || loc.start.cfi,
-          progress: Number.isFinite(p) ? Math.max(0, Math.min(1, p)) : 0,
+          progress:
+            loc.atEnd && advancedPage.current
+              ? 1
+              : Number.isFinite(p)
+                ? Math.max(0, Math.min(0.99, p))
+                : 0,
+          atEnd: loc.atEnd === true,
         };
         setPercent(Math.round(position.current.progress * 100));
         if (saveTimer.current) clearTimeout(saveTimer.current);
         saveTimer.current = setTimeout(() => persistPosition(), 1200);
       });
       r.on("markClicked", (cfi: string, mark: any) => {
-        const a = annotationRef.current.find((x) => x.cfi === cfi && x.bookId === id);
+        const a = annotationRef.current.find((x) => x.cfi === cfi && matchesReadingBook(x.bookId));
         if (a) {
           setActiveAnnotation(a);
           setSelection(null);
@@ -680,7 +1010,7 @@ export function ReaderPage({ id }: { id: string }) {
       });
       let cfi =
         new URLSearchParams(window.location.search).get("cfi") ||
-        (!previewMode ? accountRef.current.library.find((x) => x.bookId === id)?.cfi : undefined);
+        (!previewMode ? findLibraryBook(accountRef.current.library, id)?.cfi : undefined);
       if (previewMode && accountRef.current.user && bookQuery.data?.productId && !params.has("cfi"))
         try {
           const ps = await api(
@@ -733,7 +1063,7 @@ export function ReaderPage({ id }: { id: string }) {
       await ensurePageFrame(cfi || undefined);
       if (canceled) return;
       setReady(true);
-      for (const a of annotationRef.current.filter((a) => a.bookId === id))
+      for (const a of annotationRef.current.filter((a) => matchesReadingBook(a.bookId)))
         try {
           r.annotations.highlight(a.cfi, { id: a.id }, undefined, "fore-highlight", {
             fill: colors[a.color],
@@ -741,11 +1071,21 @@ export function ReaderPage({ id }: { id: string }) {
             "mix-blend-mode": settings.current.theme === "night" ? "screen" : "multiply",
           });
         } catch {}
+      let observedWidth = 0,
+        observedHeight = 0;
       resize = new ResizeObserver(() => {
         if (container.current && rendition.current) {
           const { width, height } = container.current.getBoundingClientRect();
-          if (width > 0 && height > 0) {
-            r.resize(width, height);
+          if (
+            width > 0 &&
+            height > 0 &&
+            (Math.abs(width - observedWidth) > 0.5 || Math.abs(height - observedHeight) > 0.5)
+          ) {
+            observedWidth = width;
+            observedHeight = height;
+            requestAnimationFrame(() => {
+              if (!canceled) r.resize(width, height);
+            });
             // epub.js clears views during resize and may not redisplay them if
             // the initial location has not been reported yet (notably on iPad).
             if (pageRepairTimer) clearTimeout(pageRepairTimer);
@@ -766,7 +1106,10 @@ export function ReaderPage({ id }: { id: string }) {
         .generate(1800)
         .then(() => {
           if (!canceled && position.current.cfi) {
-            const p = created.locations.percentageFromCfi(position.current.cfi);
+            const p =
+              position.current.atEnd && advancedPage.current
+                ? 1
+                : conservativeCfiProgress(created, position.current.cfi);
             if (Number.isFinite(p)) {
               position.current.progress = p;
               setPercent(Math.round(p * 100));
@@ -785,12 +1128,14 @@ export function ReaderPage({ id }: { id: string }) {
       if (e.key === "Tab" && !chromeVisibleRef.current) showChrome(false);
       if (e.key === "ArrowRight") {
         e.preventDefault();
+        advancedPage.current = true;
         (formatRef.current.rtl ? rendition.current?.prev() : rendition.current?.next())?.catch?.(
           () => {},
         );
       }
       if (e.key === "ArrowLeft") {
         e.preventDefault();
+        advancedPage.current = true;
         (formatRef.current.rtl ? rendition.current?.next() : rendition.current?.prev())?.catch?.(
           () => {},
         );
@@ -812,6 +1157,8 @@ export function ReaderPage({ id }: { id: string }) {
       activity.current = null;
       resize?.disconnect();
       if (pageRepairTimer) clearTimeout(pageRepairTimer);
+      if (selectionTimer) clearTimeout(selectionTimer);
+      if (selectionPoll) clearInterval(selectionPoll);
       document.removeEventListener("keydown", keys);
       document.removeEventListener("visibilitychange", visibility);
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -885,7 +1232,7 @@ export function ReaderPage({ id }: { id: string }) {
   useEffect(() => {
     if (!ready || !rendition.current) return;
     const r = rendition.current;
-    for (const a of data.annotations.filter((a) => a.bookId === id))
+    for (const a of data.annotations.filter((a) => matchesReadingBook(a.bookId)))
       try {
         r.annotations.remove(a.cfi, "highlight");
         r.annotations.highlight(a.cfi, { id: a.id }, undefined, "fore-highlight", {
@@ -923,11 +1270,14 @@ export function ReaderPage({ id }: { id: string }) {
   async function publishSocialDiscussion() {
     if (!data.user) return signIn();
     if (
+      socialBusy ||
       !selection ||
       !socialBody.trim() ||
       !discussionAudienceConfirmed ||
       (discussionDirect && !discussionMember) ||
-      (!discussionDirect && discussionVisibility === "group" && !discussionGroupId)
+      (!discussionDirect &&
+        discussionVisibility === "group" &&
+        !activeGroups.some((group) => group.id === discussionGroupId))
     )
       return;
     setSocialBusy(true);
@@ -959,13 +1309,48 @@ export function ReaderPage({ id }: { id: string }) {
       setSocialBusy(false);
     }
   }
+  async function openHighlightSharing(annotation: Annotation | null = null) {
+    if (!data.user) return signIn();
+    if (socialBusy || (!annotation && !selection)) return;
+    const owner = data.user.id;
+    const passage = annotation
+      ? { text: annotation.quote, cfi: annotation.cfi, chapter: annotation.chapter }
+      : selection;
+    setSocialBusy(true);
+    try {
+      const current = await socialAccount.refetch();
+      if (current.error) throw current.error;
+      if (accountRef.current.user?.id !== owner || !mounted.current) return;
+      const savedDefault = current.data?.profile?.highlight_visibility_default || "private";
+      setSelection(passage);
+      setSocialVisibility(
+        ["public", "followers", "friends", "private"].includes(savedDefault)
+          ? (savedDefault as ReaderHighlightVisibility)
+          : "private",
+      );
+      setSocialGroupId("");
+      setSocialMember(null);
+      setSocialAudienceConfirmed(false);
+      setSocialConfirmedAnnotationVersion(null);
+      setSocialAnnotationId(annotation?.id || null);
+      setSocialShareNote(false);
+      setActiveAnnotation(null);
+      setPanel("");
+      setSocialCompose("share");
+    } catch {
+      toast.error("Could not check your sharing default. Try again.");
+    } finally {
+      setSocialBusy(false);
+    }
+  }
   async function shareSelectedHighlight() {
     if (!data.user) return signIn();
     if (
+      socialBusy ||
       !selection ||
       socialVisibility === "private" ||
-      !socialAudienceConfirmed ||
-      (socialVisibility === "group" && !socialGroupId) ||
+      !highlightConfirmationCurrent ||
+      (socialVisibility === "group" && !activeGroups.some((group) => group.id === socialGroupId)) ||
       (socialVisibility === "member" && !socialMember)
     )
       return;
@@ -991,7 +1376,8 @@ export function ReaderPage({ id }: { id: string }) {
         groupId,
         shareNote: !!socialAnnotationId && socialShareNote,
         progress: position.current.progress,
-        expectedVersion: selectedAudienceShare?.version,
+        expectedVersion: selectedAudienceShare?.version ?? 0,
+        expectedAnnotationVersion: socialShareNote ? socialConfirmedAnnotationVersion : undefined,
         audienceConfirmed: true,
       });
       await reload();
@@ -1002,6 +1388,10 @@ export function ReaderPage({ id }: { id: string }) {
       setSocialShareNote(false);
       toast.success("Highlight shared");
     } catch (e) {
+      if ((e as { status?: number }).status === 409) {
+        setSocialAudienceConfirmed(false);
+        if (socialAnnotationId) await selectedShare.refetch();
+      }
       toast.error((e as Error).message);
     } finally {
       setSocialBusy(false);
@@ -1108,6 +1498,16 @@ export function ReaderPage({ id }: { id: string }) {
         if (event.clientY <= 18 || event.clientY >= window.innerHeight - 18) showChrome();
       }}
     >
+      {ready && !chromeVisible && (
+        <button
+          className="reader-controls-toggle icon-button"
+          style={{ background: themes[theme].bg, color: themes[theme].fg }}
+          aria-label="Show reader controls"
+          onClick={() => showChrome(false)}
+        >
+          <Menu size={20} />
+        </button>
+      )}
       <header
         className={"reader-top reader-chrome" + (chromeVisible ? " is-visible" : "")}
         onPointerEnter={() => showChrome(false)}
@@ -1216,7 +1616,10 @@ export function ReaderPage({ id }: { id: string }) {
           aria-label="Previous page"
           className="reader-page-turn prev"
           disabled={!ready}
-          onClick={() => rendition.current?.prev().catch(() => {})}
+          onClick={() => {
+            advancedPage.current = true;
+            rendition.current?.prev().catch(() => {});
+          }}
         >
           <ChevronLeft size={26} />
         </button>
@@ -1247,19 +1650,21 @@ export function ReaderPage({ id }: { id: string }) {
             </a>
           </div>
         )}
-        {!!socialReader.data?.preferences?.enabled && !!socialReader.data?.indicators?.length && (
+        {!!socialReader.data?.preferences?.enabled && !!passageMarkers.length && (
           <aside className="reader-social-gutter" aria-label="Social reading indicators">
-            {socialReader.data.indicators.map((indicator: any) => (
+            {passageMarkers.map((marker) => (
               <button
-                key={indicator.passageHash}
+                key={marker.hash}
+                style={{ position: "absolute", top: marker.top, right: 0 }}
                 onClick={() => {
-                  setActiveSocialHash(indicator.passageHash);
+                  setActiveSocialHash(marker.hash);
                   setPanel("social");
                 }}
-                title={`${indicator.discussionCount || 0} discussions · ${indicator.highlightCount || 0} shared highlights`}
+                title={`${marker.count} contributions at this passage`}
+                aria-label={`Open ${marker.count} contributions at this passage`}
               >
                 <span>•</span>
-                <small>{(indicator.discussionCount || 0) + (indicator.highlightCount || 0)}</small>
+                <small>{marker.count}</small>
               </button>
             ))}
           </aside>
@@ -1268,7 +1673,10 @@ export function ReaderPage({ id }: { id: string }) {
           aria-label="Next page"
           className="reader-page-turn next"
           disabled={!ready}
-          onClick={() => rendition.current?.next().catch(() => {})}
+          onClick={() => {
+            advancedPage.current = true;
+            rendition.current?.next().catch(() => {});
+          }}
         >
           <ChevronRight size={26} />
         </button>
@@ -1284,7 +1692,12 @@ export function ReaderPage({ id }: { id: string }) {
         <div>
           <span>{ready ? percent + (previewMode ? "% of sample" : "% read") : ""}</span>
           {data.user ? (
-            <button className="reader-save-status" onClick={persistPosition}>
+            <button
+              className="reader-save-status"
+              onClick={() =>
+                positionConflict.current ? window.location.reload() : persistPosition()
+              }
+            >
               {saveState ||
                 (previewMode ? "Your sample place will be saved" : "Your place will be saved")}
             </button>
@@ -1344,20 +1757,8 @@ export function ReaderPage({ id }: { id: string }) {
             )}
             {!previewMode && (
               <button
-                onClick={() => {
-                  const savedDefault = socialAccount.data?.profile?.highlight_visibility_default;
-                  setSocialVisibility(
-                    ["public", "followers", "friends", "private"].includes(savedDefault)
-                      ? savedDefault
-                      : "private",
-                  );
-                  setSocialGroupId("");
-                  setSocialMember(null);
-                  setSocialAudienceConfirmed(false);
-                  setSocialAnnotationId(null);
-                  setSocialShareNote(false);
-                  setSocialCompose("share");
-                }}
+                disabled={socialBusy}
+                onClick={() => void openHighlightSharing()}
                 title="Share this highlight"
               >
                 <Share2 size={17} /> Share
@@ -1391,26 +1792,8 @@ export function ReaderPage({ id }: { id: string }) {
             {!previewMode && (
               <button
                 className="text-link"
-                onClick={() => {
-                  const savedDefault = socialAccount.data?.profile?.highlight_visibility_default;
-                  setSelection({
-                    text: activeAnnotation.quote,
-                    cfi: activeAnnotation.cfi,
-                    chapter: activeAnnotation.chapter,
-                  });
-                  setSocialVisibility(
-                    ["public", "followers", "friends", "private"].includes(savedDefault)
-                      ? savedDefault
-                      : "private",
-                  );
-                  setSocialGroupId("");
-                  setSocialMember(null);
-                  setSocialAudienceConfirmed(false);
-                  setSocialAnnotationId(activeAnnotation.id);
-                  setSocialShareNote(false);
-                  setActiveAnnotation(null);
-                  setSocialCompose("share");
-                }}
+                disabled={socialBusy}
+                onClick={() => void openHighlightSharing(activeAnnotation)}
               >
                 <Share2 size={14} /> Share this saved highlight
               </button>
@@ -1494,19 +1877,21 @@ export function ReaderPage({ id }: { id: string }) {
                   className="button gold"
                   onClick={() => {
                     const exact = data.bookmarks.find(
-                      (b) => b.bookId === id && b.cfi === position.current.cfi,
+                      (b) => matchesReadingBook(b.bookId) && b.cfi === position.current.cfi,
                     );
                     toggleBookmark(exact);
                   }}
                 >
                   <Bookmark size={16} />{" "}
-                  {data.bookmarks.some((b) => b.bookId === id && b.cfi === position.current.cfi)
+                  {data.bookmarks.some(
+                    (b) => matchesReadingBook(b.bookId) && b.cfi === position.current.cfi,
+                  )
                     ? "Remove bookmark here"
                     : "Bookmark current page"}
                 </button>
-                {data.bookmarks.filter((b) => b.bookId === id).length ? (
+                {data.bookmarks.filter((b) => matchesReadingBook(b.bookId)).length ? (
                   data.bookmarks
-                    .filter((b) => b.bookId === id)
+                    .filter((b) => matchesReadingBook(b.bookId))
                     .map((b) => (
                       <button key={b.id} onClick={() => go(b.cfi)}>
                         <strong>
@@ -1527,18 +1912,27 @@ export function ReaderPage({ id }: { id: string }) {
             )}
             {panel === "highlights" && (
               <div className="reader-highlights">
-                {data.annotations.filter((a) => a.bookId === id).length ? (
+                {data.annotations.filter((a) => matchesReadingBook(a.bookId)).length ? (
                   data.annotations
-                    .filter((a) => a.bookId === id)
+                    .filter((a) => matchesReadingBook(a.bookId))
                     .map((a) => (
-                      <button
-                        onClick={() => go(a.cfi)}
-                        key={a.id}
-                        style={{ borderLeftColor: colors[a.color] }}
-                      >
-                        <blockquote>{a.quote}</blockquote>
-                        {a.note && <p>{a.note}</p>}
-                      </button>
+                      <div key={a.id}>
+                        <button
+                          onClick={() => go(a.cfi)}
+                          style={{ borderLeftColor: colors[a.color] }}
+                        >
+                          <blockquote>{a.quote}</blockquote>
+                          {a.note && <p>{a.note}</p>}
+                        </button>
+                        <button
+                          className="text-link"
+                          disabled={socialBusy}
+                          aria-label={`Share highlight: ${a.quote.slice(0, 70)}`}
+                          onClick={() => void openHighlightSharing(a)}
+                        >
+                          <Share2 size={14} /> Share this saved highlight
+                        </button>
+                      </div>
                     ))
                 ) : (
                   <p className="muted small">
@@ -1662,11 +2056,13 @@ export function ReaderPage({ id }: { id: string }) {
                     <label>
                       Density{" "}
                       <span>
-                        {Number(socialReader.data?.preferences?.density || 35) < 20
-                          ? "Quiet"
-                          : Number(socialReader.data?.preferences?.density || 35) < 67
-                            ? "Balanced"
-                            : "Lively"}
+                        {Number(socialReader.data?.preferences?.density ?? 35) === 0
+                          ? "No margin indicators"
+                          : Number(socialReader.data?.preferences?.density ?? 35) < 20
+                            ? "Quiet"
+                            : Number(socialReader.data?.preferences?.density ?? 35) < 67
+                              ? "Balanced"
+                              : "Lively"}
                       </span>
                     </label>
                     <Slider
@@ -1674,12 +2070,15 @@ export function ReaderPage({ id }: { id: string }) {
                       min={0}
                       max={100}
                       step={1}
-                      defaultValue={[Number(socialReader.data?.preferences?.density || 35)]}
+                      aria-label="Social density"
+                      defaultValue={[Number(socialReader.data?.preferences?.density ?? 35)]}
                       onValueCommit={(v) => saveSocialPreferences({ density: v[0] })}
                     />
                     <p className="small muted">
-                      🔒 Conversations ahead of your verified ebook/audiobook/Biosync progress stay
-                      locked. At most three indicators are shown on a screen.
+                      🔒 Spoilers use your furthest saved ebook position or verified audio-to-ebook
+                      percentage mappings. Audio and BioSync editions without a percentage mapping
+                      stay locked. Set density to zero to hide margin indicators. At most three
+                      indicators are shown on a screen.
                     </p>
                     {activeSocial && (
                       <section className="margin-conversation-card">
@@ -1690,13 +2089,33 @@ export function ReaderPage({ id }: { id: string }) {
                           {activeSocial.discussionCount || 0} discussions ·{" "}
                           {activeSocial.highlightCount || 0} highlights
                         </h3>
+                        {activeSocial.cfi && (
+                          <button
+                            className="button outline"
+                            onClick={() => {
+                              void rendition.current
+                                ?.display(activeSocial.cfi)
+                                .then(() => setPanel(""))
+                                .catch(() => toast.error("This passage could not be opened."));
+                            }}
+                          >
+                            Go to this passage
+                          </button>
+                        )}
                         {activeSocial.posts?.map((p: any) => (
-                          <article key={p.id}>
-                            <strong>{p.user?.name || "Reader"}</strong>
-                            {p.passageText && <blockquote>“{p.passageText}”</blockquote>}
-                            <p>{p.body}</p>
-                            <small>{p.chapter}</small>
-                          </article>
+                          <DiscussionThread
+                            key={p.id}
+                            contextType="margin"
+                            contextId={id}
+                            postId={p.id}
+                            progress={position.current.progress || percent / 100}
+                            title="Passage discussion"
+                            initialPost={p}
+                            initialUpdatedAt={socialReaderQuery.dataUpdatedAt}
+                            onChanged={() => {
+                              void socialReader.refetch();
+                            }}
+                          />
                         ))}
                         {activeSocial.highlights?.map((h: any) => (
                           <article key={h.id}>
@@ -1707,6 +2126,21 @@ export function ReaderPage({ id }: { id: string }) {
                         ))}
                       </section>
                     )}
+                    {socialReader.isError && (
+                      <p role="alert">
+                        Could not load activity.{" "}
+                        <button onClick={() => socialReader.refetch()}>Retry</button>
+                      </p>
+                    )}
+                    {socialReader.hasNextPage && (
+                      <button
+                        className="button outline"
+                        disabled={socialReader.isFetchingNextPage}
+                        onClick={() => socialReader.fetchNextPage()}
+                      >
+                        Load older passage activity
+                      </button>
+                    )}
                     {!activeSocial && (
                       <div className="reader-social-summary">
                         <strong>
@@ -1714,8 +2148,8 @@ export function ReaderPage({ id }: { id: string }) {
                           clusters reached so far
                         </strong>
                         <p className="small muted">
-                          Only the strongest {socialReader.data?.indicators?.length || 0} are marked
-                          in the margin right now.
+                          Markers appear beside passages on the visible page. Browse all loaded
+                          activity here.
                         </p>
                         {socialReader.data?.indicators?.map((x: any) => (
                           <button
@@ -1724,6 +2158,11 @@ export function ReaderPage({ id }: { id: string }) {
                           >
                             <span>• {(x.discussionCount || 0) + (x.highlightCount || 0)}</span>
                             <strong>{x.chapter || "This passage"}</strong>
+                            <span className="reader-passage-preview">
+                              {String(
+                                x.posts?.[0]?.passageText || x.highlights?.[0]?.quote || "",
+                              ).slice(0, 100)}
+                            </span>
                             <small>
                               {x.discussionCount || 0} discussions · {x.highlightCount || 0}{" "}
                               highlights
@@ -1836,8 +2275,22 @@ export function ReaderPage({ id }: { id: string }) {
             <strong>{percent}%</strong>
           </div>
           <p>
-            Your Reading Journey is ready—a private-by-default record of how this book fit into your
-            life, including your reading/listening mix, sessions, highlights, notes, and timeline.
+            Your Reading Journey is ready. Review its audience before sharing your reading/listening
+            mix, sessions, highlight and note counts, and timeline.
+          </p>
+          <p>
+            Current audience:{" "}
+            <strong>
+              {finishedJourneyAudience.data
+                ? finishedJourneyAudience.data.visibility === "private"
+                  ? "Private"
+                  : finishedJourneyAudience.data.visibility === "followers"
+                    ? "Followers"
+                    : "Public"
+                : finishedJourneyAudience.isError
+                  ? "Open the journey to review its audience"
+                  : "Loading…"}
+            </strong>
           </p>
           <div className="journey-share-row">
             <a
@@ -1961,7 +2414,9 @@ export function ReaderPage({ id }: { id: string }) {
               !socialBody.trim() ||
               !discussionAudienceConfirmed ||
               (discussionDirect && !discussionMember) ||
-              (!discussionDirect && discussionVisibility === "group" && !discussionGroupId)
+              (!discussionDirect &&
+                discussionVisibility === "group" &&
+                !activeGroups.some((group) => group.id === discussionGroupId))
             }
             onClick={publishSocialDiscussion}
           >
@@ -2094,20 +2549,34 @@ export function ReaderPage({ id }: { id: string }) {
               </Select>
             </label>
           )}
-          {socialAnnotationId &&
-            data.annotations.find((a) => a.id === socialAnnotationId)?.note && (
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={socialShareNote}
-                  onChange={(e) => {
-                    setSocialShareNote(e.target.checked);
-                    setSocialAudienceConfirmed(false);
-                  }}
-                />{" "}
-                Include my private note with this shared highlight
-              </label>
-            )}
+          {socialAnnotationId && selectedShare.data?.note && (
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={socialShareNote}
+                onChange={(e) => {
+                  setSocialShareNote(e.target.checked);
+                  setSocialAudienceConfirmed(false);
+                }}
+              />{" "}
+              Include my private note with this shared highlight
+            </label>
+          )}
+          {socialShareNote && selectedShare.data && (
+            <div className="reader-format-notice">
+              <strong>Note copy to publish</strong>
+              <blockquote>{selectedShare.data.note || "No note text"}</blockquote>
+              {socialAudienceConfirmed && !highlightConfirmationCurrent && (
+                <p role="alert">Your private note changed. Review this copy and confirm again.</p>
+              )}
+            </div>
+          )}
+          {selectedShare.isError && socialAnnotationId && (
+            <p role="alert">
+              Could not check current audiences.{" "}
+              <button onClick={() => selectedShare.refetch()}>Retry sharing status</button>
+            </p>
+          )}
           <p className="small muted" role="status">
             Audience: {highlightAudienceLabel}.{" "}
             {socialVisibility === "private"
@@ -2118,8 +2587,13 @@ export function ReaderPage({ id }: { id: string }) {
             <label className="check-row">
               <input
                 type="checkbox"
-                checked={socialAudienceConfirmed}
-                onChange={(e) => setSocialAudienceConfirmed(e.target.checked)}
+                checked={highlightConfirmationCurrent}
+                onChange={(e) => {
+                  setSocialAudienceConfirmed(e.target.checked);
+                  setSocialConfirmedAnnotationVersion(
+                    selectedShare.data?.annotationVersion ?? null,
+                  );
+                }}
               />
               I confirm this highlight will be shared with {highlightAudienceLabel}
               {socialShareNote ? ", including my current note" : ""}.
@@ -2129,10 +2603,12 @@ export function ReaderPage({ id }: { id: string }) {
             className="button gold"
             disabled={
               socialBusy ||
-              (!!socialAnnotationId && (selectedShare.isPending || selectedShare.isError)) ||
+              (!!socialAnnotationId &&
+                (selectedShare.isPending || selectedShare.isFetching || selectedShare.isError)) ||
               socialVisibility === "private" ||
-              !socialAudienceConfirmed ||
-              (socialVisibility === "group" && !socialGroupId) ||
+              !highlightConfirmationCurrent ||
+              (socialVisibility === "group" &&
+                !activeGroups.some((group) => group.id === socialGroupId)) ||
               (socialVisibility === "member" && !socialMember)
             }
             onClick={shareSelectedHighlight}

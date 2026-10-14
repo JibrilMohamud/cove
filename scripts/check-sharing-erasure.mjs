@@ -63,6 +63,12 @@ try {
     return response.json();
   };
   await api.handleCoveApi(request("/catalog?q=pride"), env);
+  for (const invalid of ["NaN", "0", "101", "2.5"])
+    assert.equal(
+      (await api.handleCoveApi(request(`/social/feed?limit=${invalid}`), env)).status,
+      400,
+    );
+
   for (const user of ["alice", "bob", "charlie"]) {
     await db
       .prepare(
@@ -75,6 +81,12 @@ try {
   const product = (
     await db.prepare("SELECT id FROM products WHERE source_external_id='1342'").first()
   ).id;
+  await db
+    .prepare(
+      "INSERT INTO reading_states(user_id,product_id,external_book_id,progress,cfi,updated_at) VALUES('bob',?,'1342',0.1,'',?),('alice',?,'1342',0.1,'',?)",
+    )
+    .bind(product, at, product, at)
+    .run();
   const group = (
     await call("/social/groups", "POST", { name: "Private club", visibility: "private" })
   ).id;
@@ -114,6 +126,54 @@ try {
     "bob",
   );
   assert.ok(reader.indicators.flatMap((x) => x.posts).some((x) => x.id === groupPost.id));
+  const repeatedWords = await call("/social/posts", "POST", {
+    ...post,
+    cfi: "epubcfi(/6/4!)",
+    chapter: "Chapter 2",
+    body: "The same words in another chapter",
+  });
+  const locations = (
+    await call(`/social/reader/1342?mode=group&groupId=${group}`, "GET", undefined, "bob")
+  ).indicators;
+  const firstLocation = locations.find((cluster) =>
+    cluster.posts.some((p) => p.id === groupPost.id),
+  );
+  const secondLocation = locations.find((cluster) =>
+    cluster.posts.some((p) => p.id === repeatedWords.id),
+  );
+  assert.notEqual(
+    firstLocation.passageHash,
+    secondLocation.passageHash,
+    "identical quotations at different CFIs must not collapse into one marker",
+  );
+  assert.notEqual(firstLocation.cfi, secondLocation.cfi);
+  for (const state of ["suspended", "deleted"]) {
+    await db
+      .prepare(
+        state === "suspended"
+          ? "UPDATE reading_groups SET status='suspended' WHERE id=?"
+          : "UPDATE reading_groups SET deleted_at='2026-01-01' WHERE id=?",
+      )
+      .bind(group)
+      .run();
+    const unavailableGroup = await call(
+      `/social/posts?contextType=margin&contextId=1342&postId=${groupPost.id}`,
+      "GET",
+      undefined,
+      "bob",
+    );
+    assert.equal(
+      unavailableGroup.posts.length,
+      0,
+      "a stale membership cannot expose a suspended/deleted group's margin posts",
+    );
+    await assert.rejects(call("/social/posts", "POST", post), /Select a group/);
+    await db
+      .prepare("UPDATE reading_groups SET status='active',deleted_at=NULL WHERE id=?")
+      .bind(group)
+      .run();
+  }
+
   await assert.rejects(call("/social/posts", "POST", { ...post, groupId: null }), /Select a group/);
   await assert.rejects(call("/social/posts", "POST", post, "charlie"), /Select a group/);
   await assert.rejects(
@@ -150,6 +210,7 @@ try {
     )
   ).json();
   assert.ok(saved.id);
+  let noteVersion = saved.version;
   const shareRoute = `/social/highlights/${saved.id}/share`;
   assert.equal((await call("/social/members?username=@bob")).member.id, "bob");
   await db
@@ -163,11 +224,20 @@ try {
   assert.equal(privateMember.bio, undefined);
 
   await assert.rejects(
+    call(shareRoute, "POST", {
+      visibility: "friends",
+      shareNote: true,
+      audienceConfirmed: true,
+    }),
+    /Review the current private note/,
+  );
+  await assert.rejects(
     social.handleSocial(
       request(shareRoute, "POST", {
         visibility: "member",
         recipientUserId: "bob",
         shareNote: true,
+        expectedAnnotationVersion: noteVersion,
       }),
       env,
       shareRoute,
@@ -180,6 +250,7 @@ try {
     visibility: "member",
     recipientUserId: "bob",
     shareNote: true,
+    expectedAnnotationVersion: noteVersion,
   });
   assert.equal((await call(shareRoute)).visibility, "member");
   const originalVersion = (await call(shareRoute)).version;
@@ -188,6 +259,7 @@ try {
     visibility: "member",
     recipientUserId: "bob",
     shareNote: true,
+    expectedAnnotationVersion: noteVersion,
     expectedVersion: originalVersion,
   });
   await assert.rejects(
@@ -218,7 +290,7 @@ try {
   assert.ok(!(await inventory("charlie")).items.some((x) => x.id === saved.id));
   await db
     .prepare(
-      "INSERT INTO reading_states(user_id,product_id,external_book_id,progress,cfi,updated_at) VALUES(?,?,?,1,'',?)",
+      "INSERT OR REPLACE INTO reading_states(user_id,product_id,external_book_id,progress,cfi,updated_at) VALUES(?,?,?,1,'',?)",
     )
     .bind("bob", product, "1342", at)
     .run();
@@ -233,11 +305,55 @@ try {
     env,
   );
   assert.equal(privateEdit.status, 200);
+  noteVersion = (await privateEdit.json()).version;
   assert.equal(
     (await inventory("bob")).items.find((x) => x.id === saved.id).note,
     "Private note",
     "editing the private annotation must not silently mutate the published snapshot",
   );
+  await assert.rejects(
+    call(shareRoute, "POST", {
+      visibility: "friends",
+      shareNote: true,
+      audienceConfirmed: true,
+      expectedAnnotationVersion: noteVersion - 1,
+    }),
+    /private note changed/,
+  );
+  await assert.rejects(
+    call(`/social/highlights/${saved.id}/republish-note`, "POST", {
+      confirmed: true,
+      expectedAnnotationVersion: noteVersion - 1,
+      shares: (await call(shareRoute)).shares
+        .filter((share) => share.shareNote)
+        .map((share) => ({ id: share.id, version: share.version })),
+    }),
+    /private note changed/,
+  );
+  const raceCreated = await call(shareRoute, "POST", {
+    visibility: "friends",
+    shareNote: true,
+    audienceConfirmed: true,
+    expectedAnnotationVersion: noteVersion,
+    expectedVersion: 0,
+  });
+  await assert.rejects(
+    call(shareRoute, "POST", {
+      visibility: "friends",
+      shareNote: false,
+      audienceConfirmed: true,
+      expectedVersion: 0,
+    }),
+    /Sharing changed/,
+  );
+  assert.equal(
+    (await call(shareRoute)).shares.find((share) => share.id === raceCreated.shareId).shareNote,
+    true,
+  );
+  await call(shareRoute, "DELETE", {
+    shareId: raceCreated.shareId,
+    expectedVersion: raceCreated.version,
+  });
   const permissionSaveTarget = (await call(shareRoute)).shares.find(
     (share) => share.recipientUserId === "bob",
   );
@@ -248,6 +364,7 @@ try {
     visibility: "member",
     recipientUserId: "bob",
     shareNote: true,
+    expectedAnnotationVersion: noteVersion,
   });
   assert.equal(
     (await inventory("bob")).items.find((x) => x.id === saved.id).note,
@@ -272,6 +389,7 @@ try {
   await assert.rejects(
     call(republishRoute, "POST", {
       confirmed: true,
+      expectedAnnotationVersion: noteVersion,
       shares: publishedShares.map((share) => ({ id: share.id, version: share.version + 1 })),
     }),
     /changed/,
@@ -283,6 +401,7 @@ try {
   );
   await call(republishRoute, "POST", {
     confirmed: true,
+    expectedAnnotationVersion: noteVersion,
     shares: publishedShares.map((share) => ({ id: share.id, version: share.version })),
   });
   assert.equal(
@@ -323,6 +442,7 @@ try {
     visibility: "member",
     recipientUserId: "charlie",
     shareNote: true,
+    expectedAnnotationVersion: noteVersion,
   });
   const simultaneousShares = (await call(shareRoute)).shares,
     bobShare = simultaneousShares.find((share) => share.recipientUserId === "bob"),

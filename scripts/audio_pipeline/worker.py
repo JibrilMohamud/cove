@@ -7,12 +7,12 @@ import pathlib
 import shutil
 import tempfile
 import time
+import json
+import urllib.request
 from types import SimpleNamespace
 from typing import Literal
 
 from pydantic import BaseModel, Field
-
-from .runner import run
 
 AUDIO_TRIGGER_TOPIC = "cove-audio-pipeline-v2"
 AUDIO_TRIGGER_GROUP = "cove-audio-pipeline-worker-v2"
@@ -158,11 +158,34 @@ def pipeline_args(request: RunRequest, cache: pathlib.Path) -> SimpleNamespace:
         max_jobs=request.max_jobs,
         kind=request.kind,
         no_discovery=request.no_discovery,
-        threads=request.threads,
+        threads=1,
     )
 
 
-def execute_pipeline(request: RunRequest) -> None:
+def reserve_compute() -> bool:
+    config = pipeline_config()
+    target = config["siteUrl"] + "/__cove/ingestion/audio-admission"
+    req = urllib.request.Request(
+        target,
+        data=json.dumps({"reserve": True}).encode(),
+        headers={"Content-Type": "application/json", "x-cove-backend-token": config["gatewayToken"]},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=15) as response:
+        result = json.load(response)
+    if result.get("allowed") is not True:
+        logger.info("Cove audio compute deferred: %s", result.get("reason", "budget"))
+        return False
+    return True
+
+
+def execute_pipeline(request: RunRequest) -> bool:
+    # Includes queue deliveries and retries. Missing/unavailable admission fails
+    # closed before model imports, media downloads or acquiring a job lease.
+    if not reserve_compute():
+        return False
+    from .runner import run
+
     cache = _prepare_runtime_cache()
     logger.info(
         "Cove audio pipeline disk before kind=%s stats=%s",
@@ -171,6 +194,7 @@ def execute_pipeline(request: RunRequest) -> None:
     )
     try:
         run(pipeline_config(), pipeline_args(request, cache))
+        return True
     except Exception:
         logger.exception(
             "Cove audio pipeline failed kind=%s disk=%s",

@@ -68,6 +68,15 @@ try {
       )
       .bind(follower, at)
       .run();
+  const product = await db
+    .prepare("SELECT id FROM products WHERE source_external_id='1342'")
+    .first();
+  await db
+    .prepare(
+      "INSERT INTO reading_states(user_id,product_id,external_book_id,progress,cfi,updated_at) VALUES('bob',?,'1342',1,'',?)",
+    )
+    .bind(product.id, at)
+    .run();
   const made = await api.handleCoveApi(
     request("/annotations", "POST", {
       bookId: "1342",
@@ -83,11 +92,14 @@ try {
   assert.equal(made.status, 201);
   const annotation = await made.json(),
     sharePath = `/social/highlights/${annotation.id}/share`;
-  const share = (visibility = "public", options = {}) =>
+  const share = async (visibility = "public", options = {}) =>
     social.handleSocial(
       request(sharePath, "POST", {
         visibility,
         shareNote: true,
+        expectedAnnotationVersion: (
+          await db.prepare("SELECT version FROM annotations WHERE id=?").bind(annotation.id).first()
+        ).version,
         audienceConfirmed: true,
         ...options,
       }),

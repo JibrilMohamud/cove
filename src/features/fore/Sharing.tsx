@@ -1,3 +1,4 @@
+import { CoveRequestError } from "./api-transport";
 import { useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -15,6 +16,12 @@ export type HighlightShareAudience = {
   shareNote: boolean;
   updatedAt: string;
   version: number;
+};
+export type HighlightShareState = {
+  shared: boolean;
+  annotationVersion: number;
+  note: string;
+  shares: HighlightShareAudience[];
 };
 export function MemberPicker({
   value,
@@ -119,12 +126,22 @@ function SharedCard({
   const [groupId, setGroupId] = useState(item.group?.id || "");
   const [shareNote, setShareNote] = useState(item.shareNote);
   const [busy, setBusy] = useState(false);
-  const groups = useQuery<{ groups: { id: string; name: string; member_status?: string }[] }>({
+  const source = useQuery<HighlightShareState>({
+    queryKey: ["highlight-share", account.user?.id, item.id],
+    queryFn: () => api(`/social/highlights/${encodeURIComponent(item.id)}/share`),
+    enabled: editing && item.kind === "highlight",
+    staleTime: 0,
+  });
+  const groups = useQuery<{
+    groups: { id: string; name: string; member_status?: string; status?: string }[];
+  }>({
     queryKey: ["sharing-groups", account.user?.id],
     queryFn: () => api("/social/me"),
     enabled: editing && audience === "group",
   });
   async function mutate(remove: boolean) {
+    if (busy || (!remove && shareNote && (!source.data || source.isFetching || source.isError)))
+      return;
     setBusy(true);
     try {
       const route =
@@ -149,6 +166,7 @@ function SharedCard({
                 recipientUserId: audience === "member" ? member?.id : null,
                 groupId: audience === "group" ? groupId : null,
                 shareNote,
+                expectedAnnotationVersion: shareNote ? source.data?.annotationVersion : undefined,
                 audienceConfirmed: true,
               },
         );
@@ -156,6 +174,10 @@ function SharedCard({
       await onChanged();
       toast.success(remove ? "Share withdrawn" : "Sharing updated");
     } catch (e) {
+      if (e instanceof CoveRequestError && e.status === 409) {
+        setEditing(false);
+        await onChanged();
+      }
       toast.error((e as Error).message);
     } finally {
       setBusy(false);
@@ -232,7 +254,7 @@ function SharedCard({
               <select value={groupId} onChange={(e) => setGroupId(e.target.value)}>
                 <option value="">Choose a joined group</option>
                 {groups.data?.groups
-                  .filter((g) => g.member_status === "active")
+                  .filter((g) => g.member_status === "active" && g.status !== "suspended")
                   .map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.name}
@@ -249,9 +271,40 @@ function SharedCard({
             />
             Include my note
           </label>
+          {shareNote && source.data && (
+            <div className="reader-format-notice">
+              <p>
+                {audience === item.audience &&
+                member?.id === item.recipient?.id &&
+                groupId === (item.group?.id || "") &&
+                item.shareNote
+                  ? "This audience keeps its published note. Use your note editor to review and republish private edits."
+                  : "This audience will receive this copy of your current private note:"}
+              </p>
+              <blockquote>
+                {audience === item.audience &&
+                member?.id === item.recipient?.id &&
+                groupId === (item.group?.id || "") &&
+                item.shareNote
+                  ? item.note
+                  : source.data.note || "No note text"}
+              </blockquote>
+            </div>
+          )}
+          {source.isError && (
+            <p role="alert">
+              Could not check the private note.{" "}
+              <button onClick={() => source.refetch()}>Retry note status</button>
+            </p>
+          )}
           <button
             className="button gold"
-            disabled={(audience === "member" && !member) || (audience === "group" && !groupId)}
+            disabled={
+              busy ||
+              (shareNote && (!source.data || source.isFetching || source.isError)) ||
+              (audience === "member" && !member) ||
+              (audience === "group" && !groupId)
+            }
             onClick={() => mutate(false)}
           >
             Save permissions
@@ -276,7 +329,8 @@ export function SharingPage({ sent = false }: { sent?: boolean }) {
       ),
     getNextPageParam: (page) => page.nextCursor || undefined,
     enabled: !!data.user,
-    refetchInterval: 30000,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
   const preferences = useQuery<{ policy: string }>({
     queryKey: ["direct-sharing-policy", data.user?.id],

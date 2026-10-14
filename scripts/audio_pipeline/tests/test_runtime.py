@@ -107,6 +107,24 @@ class ModelStorageTests(unittest.TestCase):
 
 
 class WorkerCacheTests(unittest.TestCase):
+    def test_paused_compute_does_not_prepare_cache_or_run_processing(self):
+        with patch.object(worker, "reserve_compute", return_value=False), patch.object(worker, "_prepare_runtime_cache") as prepare, patch.object(runner, "run") as run:
+            self.assertFalse(worker.execute_pipeline(worker.RunRequest()))
+            prepare.assert_not_called()
+            run.assert_not_called()
+
+    def test_admission_uses_gateway_and_fails_closed(self):
+        with patch.object(worker, "pipeline_config", return_value={"siteUrl": "https://backend.test", "gatewayToken": "gateway"}), patch.object(worker.urllib.request, "urlopen") as opening:
+            opening.return_value.__enter__.return_value = io.BytesIO(b'{"allowed":false,"reason":"paused"}')
+            self.assertFalse(worker.reserve_compute())
+            request = opening.call_args.args[0]
+            self.assertEqual(request.full_url, "https://backend.test/__cove/ingestion/audio-admission")
+            self.assertEqual(request.get_header("X-cove-backend-token"), "gateway")
+            self.assertEqual(request.data, b'{"reserve": true}')
+            opening.side_effect = TimeoutError("backend unavailable")
+            with self.assertRaises(TimeoutError):
+                worker.reserve_compute()
+
     def test_audio_run_owns_rdf_cache_and_preserves_active_legacy_entries(self):
         with tempfile.TemporaryDirectory() as root_text:
             root = pathlib.Path(root_text)

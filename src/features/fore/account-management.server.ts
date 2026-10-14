@@ -600,6 +600,7 @@ export async function accountDataExport(db: AccountDB, userId: string) {
     groupMemberships,
     journeys,
     journeyPoints,
+    journeyRecipients,
     sharedHighlights,
     readerPreferences,
     socialEvents,
@@ -670,6 +671,19 @@ export async function accountDataExport(db: AccountDB, userId: string) {
       .bind(userId)
       .all<any>(),
     db
+      .prepare(
+        "SELECT r.journey_id,r.recipient_user_id,r.version,r.revoked_at,r.created_at,r.updated_at FROM reading_journey_recipients r JOIN reading_journeys j ON j.id=r.journey_id WHERE j.user_id=? OR r.recipient_user_id=? ORDER BY r.updated_at",
+      )
+      .bind(userId, userId)
+      .all<{
+        journey_id: string;
+        recipient_user_id: string;
+        version: number;
+        revoked_at: string | null;
+        created_at: string;
+        updated_at: string;
+      }>(),
+    db
       .prepare("SELECT * FROM social_annotation_shares WHERE user_id=? ORDER BY created_at")
       .bind(userId)
       .all<any>(),
@@ -726,6 +740,7 @@ export async function accountDataExport(db: AccountDB, userId: string) {
         groupMemberships: groupMemberships.results,
         journeys: journeys.results,
         journeyPoints: journeyPoints.results,
+        journeyRecipients: journeyRecipients.results,
         sharedHighlights: sharedHighlights.results,
         readerPreferences,
         socialEvents: socialEvents.results,
@@ -958,6 +973,9 @@ export async function processAccountDeletionQueue(env: CoveEnv, limit = 25) {
           db.prepare("DELETE FROM sync_conflicts WHERE user_id=?").bind(r.user_id),
           db.prepare("DELETE FROM reader_settings WHERE user_id=?").bind(r.user_id),
           db.prepare("DELETE FROM sync_clients WHERE user_id=?").bind(r.user_id),
+          db
+            .prepare("DELETE FROM reading_journey_recipients WHERE recipient_user_id=?")
+            .bind(r.user_id),
           db.prepare("DELETE FROM reading_journeys WHERE user_id=?").bind(r.user_id),
           db.prepare("DELETE FROM reading_progress_events WHERE user_id=?").bind(r.user_id),
           db.prepare("DELETE FROM account_legal_consents WHERE user_id=?").bind(r.user_id),

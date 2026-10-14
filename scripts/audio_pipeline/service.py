@@ -108,7 +108,7 @@ async def enqueue_pipeline(request: RunRequest) -> dict[str, object]:
 
 async def execute_direct(request: RunRequest) -> dict[str, object]:
     try:
-        await asyncio.to_thread(execute_pipeline, request)
+        executed = await asyncio.to_thread(execute_pipeline, request)
     except Exception as error:
         logger.exception("Cove direct audio pipeline execution failed")
         raise HTTPException(
@@ -129,6 +129,8 @@ async def execute_direct(request: RunRequest) -> dict[str, object]:
         "requestedMaxJobs": request.max_jobs,
         "requestedMinutes": request.minutes,
         "executionMode": "direct",
+        "executed": executed,
+        "skipped": None if executed else "audio-compute-budget",
     }
 
 

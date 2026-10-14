@@ -1,6 +1,7 @@
 import { AuthDialog, type AuthMode } from "./Auth";
 import { ConnectionNotice } from "./ConnectionNotice";
 import { CoveRequestError } from "./api-transport";
+import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Headphones,
@@ -194,20 +195,26 @@ export function SiteShell({
   const store = useStorefrontLocale();
   const links = (
     <>
-      <a href="/" className="brand">
+      <Link to="/" className="brand" onClick={() => setOpen(false)}>
         <span className="brand-mark">
           <BookOpen size={25} strokeWidth={1.7} />
         </span>
         cove<span className="brand-period">.</span>
-      </a>
+      </Link>
       <div className="nav-label">{store.t("shell.yourReadingRoom", "YOUR READING ROOM")}</div>
       <nav className="main-nav" aria-label="Primary">
         {nav.map(([href, key, fallback, Icon]) => (
-          <a href={href} className={active === href ? "active" : ""} key={href}>
+          <Link
+            to={href}
+            className={active === href ? "active" : ""}
+            key={href}
+            onClick={() => setOpen(false)}
+            preload={false}
+          >
             <Icon size={19} strokeWidth={1.7} />
             {store.t(key, fallback)}
             {active === href && <ChevronRight size={15} className="nav-chevron" />}
-          </a>
+          </Link>
         ))}
       </nav>
       <div className="sidebar-bottom">

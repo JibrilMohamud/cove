@@ -141,7 +141,7 @@ assert.ok(
   "replies must inherit parent spoiler anchor",
 );
 assert.ok(
-  social.replace(/\s+/g, "").includes("constprogress=a.progress==null?awaitcurrentProductProgress"),
+  social.replace(/\s+/g, "").includes("a.progress==null?awaitcurrentProductProgress"),
   "shared highlight progress must use stored/server state",
 );
 assert.ok(
@@ -168,7 +168,7 @@ assert.doesNotMatch(
   /contextType="group"[^\n]*progress=\{1\}/,
   "club room must not unlock all progress-gated discussion",
 );
-const reader = read("src/features/fore/Reader.tsx");
+const reader = read("src/features/fore/Reader.tsx").replace(/\s+/g, " ");
 for (const token of [
   "Social Reading",
   "Friends / mutuals",

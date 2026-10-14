@@ -47,6 +47,20 @@ try {
   const data = await baseline.json();
   assert.ok(data.results.some((book) => book.title.includes("Pride")));
   assert.equal("sources" in data.ingestion, false);
+  await env.DB.prepare(
+    "UPDATE catalog_state SET status='failed',last_error='Upstream unavailable' WHERE id=1",
+  ).run();
+  const retryingCatalog = await (
+    await api.handleCoveApi(request("/catalog?search=pride"), env)
+  ).json();
+  assert.ok(retryingCatalog.results.length);
+  assert.equal(
+    retryingCatalog.warning,
+    undefined,
+    "background failures must not warn on healthy indexed results",
+  );
+  assert.equal(retryingCatalog.ingestion.status, "failed", "updater diagnostics remain observable");
+  await env.DB.prepare("UPDATE catalog_state SET status='idle',last_error='' WHERE id=1").run();
   assert.equal((await search.searchCatalog(env, input("q=!!!"), null)).count, 0);
   assert.deepEqual(await search.searchSuggestions(env, "!!"), []);
   assert.ok(
@@ -101,12 +115,40 @@ try {
   await search.searchCatalog(tracked, input("q=adventure&page=1"), null);
   const coldAggregations = facetAggregations;
   await search.searchCatalog(tracked, input("q=adventure&page=2"), null);
-  assert.equal(coldAggregations, 7);
+  assert.equal(coldAggregations, 1, "unfiltered facets must share one materialized candidate scan");
   assert.equal(
     facetAggregations,
     coldAggregations,
-    "pagination must reuse public facets instead of re-running all seven aggregations",
+    "pagination must reuse public facets instead of re-running the candidate aggregation",
   );
+
+  let fullCounts = 0;
+  const countTracked = {
+    ...env,
+    DB: {
+      ...env.DB,
+      prepare(sql) {
+        if (sql.includes("SELECT COUNT(*) count FROM")) fullCounts++;
+        return env.DB.prepare(sql);
+      },
+    },
+  };
+  const warmPage = await search.searchCatalog(countTracked, input("q=adventure&page=1"), null);
+  assert.ok(warmPage.books.length);
+  assert.equal(fullCounts, 0, "warm pages must not rescan the entire catalog for counts");
+  const withdrawn = warmPage.books[0].productId;
+  await env.DB.prepare("UPDATE catalog_search_documents SET suppressed=1 WHERE product_id=?")
+    .bind(withdrawn)
+    .run();
+  const rightsChanged = await search.searchCatalog(env, input("q=adventure&page=1"), null);
+  assert.equal(
+    rightsChanged.books.some((book) => book.productId === withdrawn),
+    false,
+    "cached page IDs must respect current suppression",
+  );
+  await env.DB.prepare("UPDATE catalog_search_documents SET suppressed=0 WHERE product_id=?")
+    .bind(withdrawn)
+    .run();
 
   // Shared cache preserves market/locale variants and regenerates impression identities.
   globalThis.caches = undefined;
@@ -133,6 +175,20 @@ try {
   const hitData = await hit.json();
   assert.equal(hit.headers.get("x-cove-backend-cache"), "HIT");
   assert.equal(handlerCalls, 1);
+  const cachedProduct = hitData.results[0].productId;
+  await env.DB.prepare("UPDATE catalog_search_documents SET suppressed=1 WHERE product_id=?")
+    .bind(cachedProduct)
+    .run();
+  const withdrawnHit = await cache.cachedPublicApi(logical, cacheRequest, env, ctx, handler);
+  assert.equal(withdrawnHit.headers.get("x-cove-backend-cache"), "MISS");
+  assert.equal(
+    (await withdrawnHit.json()).results.some((book) => book.productId === cachedProduct),
+    false,
+  );
+  await Promise.all(pending.splice(0));
+  await env.DB.prepare("UPDATE catalog_search_documents SET suppressed=0 WHERE product_id=?")
+    .bind(cachedProduct)
+    .run();
   assert.ok(hitData.search.queryId);
   assert.notEqual(hitData.search.queryId, missData.search.queryId);
   assert.notEqual(hit.headers.get("x-fore-request-id"), miss.headers.get("x-fore-request-id"));
@@ -157,6 +213,20 @@ try {
   ])
     assert.equal(cache.publicCacheEligible(new Request(logical, { headers })), false);
   assert.equal(cache.publicCacheEligible(request("/account")), false);
+  assert.equal(
+    cache.publicCacheEligible(
+      new Request(logical, { headers: { cookie: "fore-locale=en-US; fore-currency=USD" } }),
+    ),
+    true,
+  );
+  assert.equal(
+    key(logical.url, { cookie: "fore-locale=en-US; fore-currency=USD" }),
+    key(logical.url, { cookie: "fore-currency=USD; fore-locale=en-US" }),
+  );
+  assert.notEqual(
+    key(logical.url, { cookie: "fore-locale=en-US" }),
+    key(logical.url, { cookie: "fore-locale=fr-CA" }),
+  );
   const row = await env.DB.prepare(
     "SELECT body FROM api_cache WHERE key LIKE 'public-api:v2:%'",
   ).first();
@@ -221,6 +291,18 @@ try {
     128,
     "public cache entries must remain bounded under many distinct URLs",
   );
+
+  const latestStatus = request("/service-status?fixture=129");
+  const latestHit = await cache.cachedPublicApi(
+    latestStatus,
+    new Request("https://backend.example.workers.dev/api/fore/service-status?fixture=129"),
+    env,
+    ctx,
+    async () => {
+      throw new Error("a full cache must still admit new URLs");
+    },
+  );
+  assert.equal(latestHit.headers.get("x-cove-backend-cache"), "HIT");
 
   // Force an outbox change while the external index upload is in progress.
   const selected = await env.DB.prepare(
@@ -387,6 +469,7 @@ try {
         count: 0,
       });
     }
+    assert.equal(metadataPages, 3, "all metadata pages must finish before EPUB transfers begin");
     assetsAttempted++;
     return new Response("missing", { status: 404 });
   };
@@ -405,6 +488,57 @@ try {
   assert.equal(batch.pagesAttempted, 3);
   assert.equal(metadataPages, 3);
   assert.equal(assetsAttempted, 2, "metadata pages must share the whole batch allowance");
+  // A failed asset stage must leave successful metadata/cursor state intact.
+  const assetFailureEnv = {
+    ...env,
+    DB: {
+      ...env.DB,
+      prepare(sql) {
+        if (sql.includes("Recovered after an interrupted EPUB download"))
+          throw new Error("fixture asset storage outage");
+        return env.DB.prepare(sql);
+      },
+    },
+  };
+  globalThis.fetch = async () => Response.json({ results: [], next: null, count: 0 });
+  const committed = await api.runCatalogIngestion(assetFailureEnv, 2, { includeRegional: false });
+  assert.equal(committed.failed, undefined);
+  assert.equal(committed.complete, true);
+  assert.match(committed.epubs.error, /fixture asset storage outage/);
+  const committedState = await env.DB.prepare(
+    "SELECT status,last_error,next_url FROM catalog_state WHERE id=1",
+  ).first();
+  assert.equal(committedState.status, "idle");
+  assert.equal(committedState.last_error, "");
+  assert.equal(committedState.next_url, null);
+
+  // A short transient outage resumes from the same durable cursor on the next tick.
+  await env.DB.prepare(
+    "UPDATE catalog_state SET next_url='https://gutendex.com/books/?page=42',next_run_at='',attempts=0 WHERE id=1",
+  ).run();
+  globalThis.fetch = async () => new Response("not available", { status: 404 });
+  const retryStarted = Date.now();
+  const failedPage = await api.runCatalogIngestion(updaterEnv, 0, { includeRegional: false });
+  assert.equal(failedPage.failed, true);
+  assert.ok(Date.parse(failedPage.retryAt) - retryStarted >= 60000);
+  assert.ok(Date.parse(failedPage.retryAt) - retryStarted < 90000);
+  assert.equal(
+    (await api.runCatalogIngestion(updaterEnv, 0, { includeRegional: false })).skipped,
+    "backoff",
+  );
+  await env.DB.prepare("UPDATE catalog_state SET next_run_at='' WHERE id=1").run();
+  globalThis.fetch = async (url) => {
+    assert.equal(String(url), "https://gutendex.com/books/?page=42");
+    return Response.json({ results: [], next: null, count: 0 });
+  };
+  assert.equal((await api.runCatalogIngestion(updaterEnv, 0, { includeRegional: false })).page, 42);
+  const recovered = await env.DB.prepare(
+    "SELECT status,last_error,attempts,lease_token FROM catalog_state WHERE id=1",
+  ).first();
+  assert.equal(recovered.status, "idle");
+  assert.equal(recovered.last_error, "");
+  assert.equal(recovered.attempts, 0);
+  assert.equal(recovered.lease_token, null);
   assert.equal((await env.DB.prepare("PRAGMA foreign_key_check").all()).results.length, 0);
   console.log(
     "PASS: repeated filters, identifier suggestions, typo pagination, read-only browsing, D1/edge cache recovery and isolation, fresh cache-hit impressions, outbox races, exclusive updater claims and deadline handling.",

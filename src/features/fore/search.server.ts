@@ -3,6 +3,7 @@ import { canonicalBooksByProductIds, type CatalogDB } from "./catalog-model.serv
 import { ApiError } from "./service";
 import { normalizeTerritoryCode } from "./rights.server";
 import { personalizeSearchBooks, personalizedSearchEnabled } from "./recommendations.server";
+import { writeCatalogCache } from "./catalog-cache.server";
 
 type SearchEnv = {
   DB: CatalogDB;
@@ -638,51 +639,105 @@ async function d1Facets(
   const base = candidateParts(input, expression);
   const baseClause = base.where.join(" AND ");
   const baseCte = `${base.prefix}${base.prefix ? "," : "WITH "}candidate AS (SELECT d.product_id,e.id edition_id,p.format,pub.name publisher_name,d.currency,d.price_minor,d.availability FROM ${base.from} WHERE ${baseClause})`;
-  const [categories, languages, formats, publishers, series, availability, price] =
-    await Promise.all([
-      db
-        .prepare(
-          `${categoryCandidate.cte} SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name LIMIT 40`,
-        )
-        .bind(...categoryCandidate.binds)
-        .all<any>(),
-      db
-        .prepare(
-          `${languageCandidate.cte} SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code LIMIT 30`,
-        )
-        .bind(...languageCandidate.binds)
-        .all<any>(),
-      db
-        .prepare(
-          `${formatCandidate.cte} SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value LIMIT 20`,
-        )
-        .bind(...formatCandidate.binds)
-        .all<any>(),
-      db
-        .prepare(
-          `${publisherCandidate.cte} SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name LIMIT 30`,
-        )
-        .bind(...publisherCandidate.binds)
-        .all<any>(),
-      db
-        .prepare(
-          `${seriesCandidate.cte} SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name LIMIT 30`,
-        )
-        .bind(...seriesCandidate.binds)
-        .all<any>(),
-      db
-        .prepare(
-          `${baseCte} SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value LIMIT 10`,
-        )
-        .bind(...base.binds)
-        .all<any>(),
-      db
-        .prepare(
-          `${priceCandidate.cte} SELECT MIN(price_minor) min_price,MAX(price_minor) max_price,MAX(currency) currency FROM candidate`,
-        )
-        .bind(...priceCandidate.binds)
-        .first<any>(),
-    ]);
+  // With no active facet filters (including the home page), all seven facets
+  // have the same candidate set. Materialize its expensive rights scan once.
+  const commonCandidates = [
+    categoryCandidate,
+    languageCandidate,
+    formatCandidate,
+    publisherCandidate,
+    seriesCandidate,
+    priceCandidate,
+  ].every(
+    (part) => part.cte === baseCte && JSON.stringify(part.binds) === JSON.stringify(base.binds),
+  );
+  const sharedRows = commonCandidates
+    ? (
+        await db
+          .prepare(
+            `${baseCte.replace("candidate AS (", "candidate AS MATERIALIZED (")}
+    SELECT 'categories' facet,value,count,NULL min_price,NULL max_price,NULL currency FROM
+      (SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name LIMIT 40)
+    UNION ALL SELECT 'languages',value,count,NULL,NULL,NULL FROM
+      (SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code LIMIT 30)
+    UNION ALL SELECT 'formats',value,count,NULL,NULL,NULL FROM
+      (SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value LIMIT 20)
+    UNION ALL SELECT 'publishers',value,count,NULL,NULL,NULL FROM
+      (SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name LIMIT 30)
+    UNION ALL SELECT 'series',value,count,NULL,NULL,NULL FROM
+      (SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name LIMIT 30)
+    UNION ALL SELECT 'availability',value,count,NULL,NULL,NULL FROM
+      (SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value LIMIT 10)
+    UNION ALL SELECT 'price',NULL,NULL,MIN(price_minor),MAX(price_minor),MAX(currency) FROM candidate`,
+          )
+          .bind(...base.binds)
+          .all<{
+            facet: string;
+            value: string;
+            count: number;
+            min_price: number | null;
+            max_price: number | null;
+            currency: string | null;
+          }>()
+      ).results
+    : null;
+  const group = (facet: string) => ({
+    results: sharedRows?.filter((row) => row.facet === facet) || [],
+  });
+  const [categories, languages, formats, publishers, series, availability, price] = sharedRows
+    ? [
+        group("categories"),
+        group("languages"),
+        group("formats"),
+        group("publishers"),
+        group("series"),
+        group("availability"),
+        sharedRows.find((row) => row.facet === "price"),
+      ]
+    : await Promise.all([
+        db
+          .prepare(
+            `${categoryCandidate.cte} SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name LIMIT 40`,
+          )
+          .bind(...categoryCandidate.binds)
+          .all<any>(),
+        db
+          .prepare(
+            `${languageCandidate.cte} SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code LIMIT 30`,
+          )
+          .bind(...languageCandidate.binds)
+          .all<any>(),
+        db
+          .prepare(
+            `${formatCandidate.cte} SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value LIMIT 20`,
+          )
+          .bind(...formatCandidate.binds)
+          .all<any>(),
+        db
+          .prepare(
+            `${publisherCandidate.cte} SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name LIMIT 30`,
+          )
+          .bind(...publisherCandidate.binds)
+          .all<any>(),
+        db
+          .prepare(
+            `${seriesCandidate.cte} SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name LIMIT 30`,
+          )
+          .bind(...seriesCandidate.binds)
+          .all<any>(),
+        db
+          .prepare(
+            `${baseCte} SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value LIMIT 10`,
+          )
+          .bind(...base.binds)
+          .all<any>(),
+        db
+          .prepare(
+            `${priceCandidate.cte} SELECT MIN(price_minor) min_price,MAX(price_minor) max_price,MAX(currency) currency FROM candidate`,
+          )
+          .bind(...priceCandidate.binds)
+          .first<any>(),
+      ]);
   const values = (rows: any[]) =>
     rows
       .map((r) => ({ value: String(r.value), count: Number(r.count || 0) }))
@@ -704,12 +759,14 @@ async function d1Facets(
         : null,
   };
   try {
-    await db
-      .prepare(
-        "INSERT INTO api_cache(key,body,expires_at) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM api_cache WHERE key=?) OR (SELECT count(*) FROM api_cache WHERE key>='search-facets:v1:' AND key<'search-facets:v2:')<128 ON CONFLICT(key) DO UPDATE SET body=excluded.body,expires_at=excluded.expires_at",
-      )
-      .bind(cacheKey, JSON.stringify(result), Date.now() + 30_000, cacheKey)
-      .run();
+    await writeCatalogCache(
+      db,
+      cacheKey,
+      JSON.stringify(result),
+      Date.now() + 600_000,
+      "search-facets:v1:",
+      128,
+    );
   } catch {
     /* Cache writes are best effort. */
   }
@@ -785,6 +842,67 @@ async function typoCorrection(db: CatalogDB, query: string) {
 
 async function searchD1(env: SearchEnv, input: SearchInput) {
   const started = Date.now();
+  const cacheId = [
+    ...new Uint8Array(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(input))),
+    ),
+  ]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  const cacheKey = `search-page:v1:${cacheId}`;
+  try {
+    const row = await env.DB.prepare("SELECT body FROM api_cache WHERE key=? AND expires_at>?")
+      .bind(cacheKey, Date.now())
+      .first<{ body: string }>();
+    if (row) {
+      const cached = JSON.parse(row.body) as {
+        ids: string[];
+        count: number;
+        facets: SearchFacets;
+        expression: string;
+        correctedQuery?: string;
+      };
+      if (
+        !Array.isArray(cached.ids) ||
+        cached.ids.length > 200 ||
+        !cached.ids.every((id) => typeof id === "string") ||
+        !Number.isFinite(cached.count) ||
+        typeof cached.expression !== "string" ||
+        !cached.facets ||
+        ![
+          cached.facets.categories,
+          cached.facets.languages,
+          cached.facets.formats,
+          cached.facets.publishers,
+          cached.facets.series,
+          cached.facets.availability,
+        ].every(Array.isArray)
+      )
+        throw new Error("Invalid cached search page");
+      const part = candidateParts(input, cached.expression);
+      // Cache only public IDs/facets. Revalidate current filters and distribution
+      // rights for the small cached page, then hydrate current metadata/prices.
+      const eligible = cached.ids.length
+        ? (
+            await env.DB.prepare(
+              `${part.prefix} SELECT d.product_id FROM ${part.from} WHERE ${part.where.join(" AND ")} AND d.product_id IN (${cached.ids.map(() => "?").join(",")})`,
+            )
+              .bind(...part.binds, ...cached.ids)
+              .all<{ product_id: string }>()
+          ).results
+        : [];
+      if (eligible.length === cached.ids.length)
+        return {
+          books: await canonicalBooksByProductIds(env.DB, cached.ids),
+          count: cached.count,
+          facets: cached.facets,
+          correctedQuery: cached.correctedQuery,
+          duration: Date.now() - started,
+        };
+    }
+  } catch {
+    // Corrupt/unavailable cache or changed rights always return to live search.
+  }
   let correctedQuery: string | undefined;
   let expression = await ftsExpression(env.DB, input);
   let part = candidateParts(input, expression);
@@ -825,6 +943,18 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
     canonicalBooksByProductIds(env.DB, ids),
     d1Facets(env.DB, input, expression),
   ]);
+  try {
+    await writeCatalogCache(
+      env.DB,
+      cacheKey,
+      JSON.stringify({ ids, count: Number(count?.count || 0), facets, expression, correctedQuery }),
+      Date.now() + 600_000,
+      "search-page:v1:",
+      256,
+    );
+  } catch {
+    /* Search remains available without cache writes. */
+  }
   return {
     books,
     count: Number(count?.count || 0),
@@ -1471,6 +1601,25 @@ export async function recordCachedSearchQuery(
     correctedQuery: data.search.correctedQuery || undefined,
     productIds: data.results.map((book) => book.productId || "").filter(Boolean),
   });
+}
+
+export async function cachedCatalogPageAllowed(
+  env: SearchEnv,
+  url: URL,
+  ids: string[],
+  territory: string,
+) {
+  if (!ids.length) return true;
+  if (ids.length > 100) return false;
+  const input = { ...parseSearchInput(url), territory };
+  const part = candidateParts(input, "");
+  const rows = await env.DB.prepare(
+    `SELECT d.product_id FROM ${part.from} WHERE ${part.where.join(" AND ")} AND d.product_id IN (${ids.map(() => "?").join(",")})`,
+  )
+    .bind(...part.binds, ...ids)
+    .all<{ product_id: string }>();
+  const allowed = new Set(rows.results.map((row) => row.product_id));
+  return ids.every((id) => allowed.has(id));
 }
 
 async function searchDocuments(db: CatalogDB, productIds: string[]): Promise<SearchDocument[]> {

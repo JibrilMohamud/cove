@@ -1,7 +1,8 @@
 import type { CoveEnv } from "./api.server";
 import { rateLimitSearchRequest } from "./api.server";
 import { ApiError, json } from "./service";
-import { recordCachedSearchQuery } from "./search.server";
+import { recordCachedSearchQuery, cachedCatalogPageAllowed } from "./search.server";
+import { writeCatalogCache } from "./catalog-cache.server";
 
 type Context = { waitUntil?: (work: Promise<unknown>) => void };
 type Handler = (request: Request, env: CoveEnv) => Promise<Response | null>;
@@ -10,9 +11,9 @@ const MAX_BYTES = 256 * 1024;
 
 export function publicCacheTtl(path: string) {
   if (path === "/api/fore/service-status") return 30;
-  if (path === "/api/fore/catalog") return 90;
-  if (path === "/api/fore/taxonomy") return 300;
-  if (path === "/api/fore/storefront/page") return 300;
+  if (path === "/api/fore/catalog") return 300;
+  if (path === "/api/fore/taxonomy") return 1800;
+  if (path === "/api/fore/storefront/page") return 900;
   if (path === "/api/fore/search/suggest") return 60;
   if (path === "/api/fore/audiobooks" || /^\/api\/fore\/audio\/[^/]+$/.test(path)) return 300;
   if (/^\/api\/fore\/books\/[^/]+(?:\/detail)?$/.test(path)) return 60;
@@ -37,14 +38,32 @@ export function publicCacheKey(request: Request, fallbackCountry = "US") {
     "__cove_language",
     (request.headers.get("accept-language") || "").trim().toLowerCase(),
   );
-  url.searchParams.set("__cove_cache_version", "2");
+  url.searchParams.set("__cove_cache_version", "3");
+  // Guest storefront preferences are safe variants, not authentication.
+  url.searchParams.set(
+    "__cove_preferences",
+    (request.headers.get("cookie") || "")
+      .split(";")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .sort()
+      .join("; "),
+  );
   url.searchParams.sort();
   return new Request(url.toString());
 }
 export function publicCacheEligible(request: Request) {
+  const cookies = (request.headers.get("cookie") || "")
+    .split(";")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const safeCookies = cookies.every((value) =>
+    /^(fore-storefront-country|fore-locale|fore-currency)=.{0,100}$/.test(value),
+  );
   return (
     request.method === "GET" &&
-    !["authorization", "cookie", "oai-authenticated-user-id", "range"].some((name) =>
+    safeCookies &&
+    !["authorization", "oai-authenticated-user-id", "range"].some((name) =>
       request.headers.has(name),
     ) &&
     publicCacheTtl(new URL(request.url).pathname) > 0
@@ -174,6 +193,15 @@ export async function cachedPublicApi(
               typeof book.productId === "string",
             ),
           );
+          if (
+            !(await cachedCatalogPageAllowed(
+              env,
+              new URL(request.url),
+              results.map((book) => book.productId),
+              new URL(key.url).searchParams.get("__cove_country") || "US",
+            ))
+          )
+            throw new Error("Cached catalog eligibility changed");
           const cached = {
             results,
             count: data.count,
@@ -221,12 +249,7 @@ export async function cachedPublicApi(
       data.search.queryId = null;
     const body = JSON.stringify(data);
     const ttl = publicCacheTtl(path);
-    if (useDb)
-      await env.DB.prepare(
-        "INSERT INTO api_cache(key,body,expires_at) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM api_cache WHERE key=?) OR (SELECT count(*) FROM api_cache WHERE key>='public-api:v2:' AND key<'public-api:v3:')<128 ON CONFLICT(key) DO UPDATE SET body=excluded.body,expires_at=excluded.expires_at",
-      )
-        .bind(dbKey, body, Date.now() + ttl * 1000, dbKey)
-        .run();
+    if (useDb) await writeCatalogCache(env.DB, dbKey, body, Date.now() + ttl * 1000, PREFIX, 128);
     else if (edge)
       await edge.put(
         key,
@@ -248,7 +271,7 @@ export async function cachedPublicApi(
 
 export async function prunePublicCache(env: CoveEnv) {
   return env.DB.prepare(
-    "DELETE FROM api_cache WHERE key IN (SELECT key FROM api_cache WHERE expires_at<=? AND (key LIKE 'public-api:v2:%' OR key LIKE 'search-facets:v1:%') LIMIT 300)",
+    "DELETE FROM api_cache WHERE key IN (SELECT key FROM api_cache WHERE expires_at<=? AND (key LIKE 'public-api:v2:%' OR key LIKE 'search-facets:v1:%' OR key LIKE 'search-page:v1:%') LIMIT 512)",
   )
     .bind(Date.now())
     .run();

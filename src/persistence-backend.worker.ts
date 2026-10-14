@@ -2,24 +2,32 @@ import { processAccountDeletionQueue } from "./features/fore/account-management.
 import {
   handleCoveApi,
   runCatalogIngestion,
+  runCatalogAssetMaintenance,
+  runRegionalCatalogIngestion,
   runPublishingReleaseMaintenance,
   runRecommendationMaintenance,
   type CoveEnv,
 } from "./features/fore/api.server";
+import { syncSearchIndex } from "./features/fore/search.server";
 import { hostedBiosyncChunks } from "./features/fore/hosted-biosync-chunks.server";
 import { cachedPublicApi, prunePublicCache } from "./features/fore/public-api-cache.server";
 import { refreshPublicStatus } from "./features/fore/public-status.server";
+import {
+  audioComputeAdmission,
+  type AudioComputeEnv,
+} from "./features/fore/audio-compute-budget.server";
 
-type BackendEnv = CoveEnv & {
-  FORE_BACKEND_TOKEN?: string;
-  FORE_BACKEND_TOKEN_SHA256?: string;
-  FORE_PUBLIC_URL?: string;
-  FORE_CATALOG_PAGES_PER_TICK?: string;
-  FORE_CATALOG_EPUBS_PER_TICK?: string;
-  FORE_INGESTION_TRIGGER_TOKEN?: string;
-  FORE_INGESTION_SIGNING_KEY?: string;
-  AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
-};
+type BackendEnv = CoveEnv &
+  AudioComputeEnv & {
+    FORE_BACKEND_TOKEN?: string;
+    FORE_BACKEND_TOKEN_SHA256?: string;
+    FORE_PUBLIC_URL?: string;
+    FORE_CATALOG_PAGES_PER_TICK?: string;
+    FORE_CATALOG_EPUBS_PER_TICK?: string;
+    FORE_INGESTION_TRIGGER_TOKEN?: string;
+    FORE_INGESTION_SIGNING_KEY?: string;
+    AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
+  };
 
 type ExecutionContextLike = {
   waitUntil?(promise: Promise<unknown>): void;
@@ -141,19 +149,9 @@ function terminalIngestionResult(value: unknown) {
     result.failed === true ||
     result.skipped === "fresh" ||
     result.skipped === "backoff" ||
-    result.skipped === "running"
-  );
-}
-
-function ingestionAssetAttempts(value: unknown) {
-  if (!value || typeof value !== "object") return 0;
-  const result = value as {
-    epubs?: { attempted?: number };
-    regional?: { epubs?: { attempted?: number } };
-  };
-  return (
-    Math.max(0, Number(result.epubs?.attempted) || 0) +
-    Math.max(0, Number(result.regional?.epubs?.attempted) || 0)
+    result.skipped === "running" ||
+    result.skipped === "deadline" ||
+    result.skipped === "lease-lost"
   );
 }
 
@@ -175,16 +173,42 @@ async function catalogBatch(request: Request, env: BackendEnv) {
   );
   const deadline = Date.now() + maxMillis;
   const results: unknown[] = [];
-  let remainingEpubs = epubLimit;
-
-  for (let i = 0; i < maxPages && Date.now() < deadline; i++) {
-    const result = await runCatalogIngestion(env, remainingEpubs, { deadlineMs: deadline });
+  // Index metadata first. Regional scraping and EPUB transfers share the remaining
+  // deadline, but cannot consume a page's asset allowance or stop later pages.
+  const metadataDeadline = deadline - Math.min(30_000, maxMillis * 0.2);
+  for (let i = 0; i < maxPages && Date.now() < metadataDeadline; i++) {
+    const result = await runCatalogIngestion(env, 0, {
+      deadlineMs: metadataDeadline,
+      includeRegional: false,
+      deferSearchSync: true,
+    });
     results.push(result);
-    remainingEpubs = Math.max(0, remainingEpubs - ingestionAssetAttempts(result));
     if (terminalIngestionResult(result)) break;
   }
-
-  return json({ ok: true, pagesAttempted: results.length, results });
+  const regional =
+    Date.now() < deadline
+      ? await runRegionalCatalogIngestion(env, 0, Math.min(deadline, Date.now() + 20_000)).catch(
+          (error) => ({
+            failed: true,
+            error: String(error),
+          }),
+        )
+      : { skipped: "deadline" };
+  const epubs = await runCatalogAssetMaintenance(env, epubLimit, deadline);
+  if (Date.now() < deadline) {
+    await syncSearchIndex(env, 500).catch((error) =>
+      console.warn("Catalog search sync failed", error),
+    );
+  }
+  return json({
+    ok: !results.some(
+      (value) => value && typeof value === "object" && "failed" in value && value.failed === true,
+    ),
+    pagesAttempted: results.length,
+    results,
+    regional,
+    epubs,
+  });
 }
 
 async function maintenance(env: BackendEnv) {
@@ -261,6 +285,11 @@ async function persistAudioTriggerDiagnostic(
 }
 
 async function triggerVercelAudio(env: BackendEnv, path: string) {
+  const admission = await audioComputeAdmission(env);
+  if (!admission.allowed) {
+    console.info("Cove audio compute deferred", admission.reason);
+    return;
+  }
   if (!env.FORE_PUBLIC_URL) {
     throw new Error("FORE_PUBLIC_URL is required for audio scheduling.");
   }
@@ -443,6 +472,10 @@ async function runScheduled(cron: string, env: BackendEnv) {
       await prunePublicCache(env).catch((error) =>
         console.warn("Public cache cleanup failed", error),
       );
+      if (!(await audioComputeAdmission(env)).allowed) {
+        await scheduledCatalog(env);
+        return;
+      }
       // This is the reliable primary cron, so it must make forward progress
       // even if a secondary alignment trigger is delayed or never fires.
       // Reserve alternating 15-minute windows for independent BioSync
@@ -718,6 +751,10 @@ export default {
 
     if (path === "/__cove/ingestion/catalog" && request.method === "POST") {
       return catalogBatch(request, env);
+    }
+    if (path === "/__cove/ingestion/audio-admission" && request.method === "POST") {
+      const input = (await request.json().catch(() => null)) as { reserve?: unknown } | null;
+      return json(await audioComputeAdmission(env, input?.reserve === true));
     }
     if (path === "/__cove/ingestion/maintenance" && request.method === "POST") {
       return maintenance(env);

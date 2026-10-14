@@ -2,6 +2,11 @@
 
 Cove uses Vercel Services for the public application and bounded audio compute, while a dedicated private persistence backend owns the existing D1 database and R2 object bucket.
 
+New audio/BioSync processing now defaults to paused to protect the exhausted
+Fluid CPU allowance. See [Fluid CPU controls](docs/FLUID_CPU_BUDGET.md) for the
+atomic admission budget, resume settings, and migration/deployment order. Existing
+prepared playback remains available.
+
 ## Production topology
 
 ```text
@@ -33,7 +38,7 @@ The persistence backend is intentionally the system of record. Vercel never pret
 - `audio_pipeline`: `scripts/`, FastAPI, internal only.
 - `app -> audio_pipeline`: `COVE_AUDIO_PIPELINE_URL`.
 - `audio_pipeline -> persistence backend`: direct HTTPS using `FORE_BACKEND_URL`, `FORE_BACKEND_TOKEN`, and its scoped `FORE_SERVICE_TOKEN`.
-- Production sets `COVE_AUDIO_EXECUTION_MODE=queue`, so Cloudflare scheduler calls enqueue quickly and Vercel Queue push subscribers perform heavyweight track/BioSync work. Preview deployments intentionally omit this variable and retain direct execution as a fallback.
+- Controllers explicitly select bounded direct execution. The internal service also supports queue execution through `COVE_AUDIO_EXECUTION_MODE=queue` when callers inherit its mode. Both execution paths require the same durable compute admission; switching to queues does not remove CPU cost.
 
 The Vercel binding is used only by authenticated ingestion controllers and should not be configured manually. The audio service deliberately calls the persistence backend directly, avoiding a circular service dependency.
 

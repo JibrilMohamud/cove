@@ -45,6 +45,7 @@ export function createActivity(bookId: string, userId: string | null, mode: "rea
   const visited = new Set<string>();
   let locator = "";
   let saving = Promise.resolve();
+  let lastSaved = "";
   function tick() {
     const current = performance.now(),
       elapsed = Math.min(5, (current - last) / 1000);
@@ -78,7 +79,7 @@ export function createActivity(bookId: string, userId: string | null, mode: "rea
       words = 0;
       visited.clear();
     } else void save();
-  }, 15000);
+  }, 60000);
   document.addEventListener("pointerdown", interact);
   document.addEventListener("keydown", interact);
   document.addEventListener("scroll", interact, true);
@@ -98,12 +99,15 @@ export function createActivity(bookId: string, userId: string | null, mode: "rea
   async function save() {
     if (!userId || active < 2) return;
     const value = snapshot();
+    const fingerprint = JSON.stringify([value.id, value.activeSeconds, value.wordsRead]);
     saving = saving
       .catch(() => {})
       .then(async () => {
+        if (fingerprint === lastSaved) return;
         await putRecord("outbox", { id: value.id, userId, session: value }).catch(() => {});
         try {
           await api("/sessions", "PUT", value);
+          lastSaved = fingerprint;
           await deleteRecord("outbox", value.id);
         } catch {
           /* Retained for the same signed-in user's next connection. */

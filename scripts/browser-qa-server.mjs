@@ -75,9 +75,7 @@ async function seed(progress = 1) {
       .run();
     await invoke("/social/me", "GET", undefined, user);
     await invoke("/library", "POST", { bookId: "1342" }, user);
-    await env.DB.prepare("UPDATE reading_states SET progress=? WHERE user_id=?")
-      .bind(progress, user.id)
-      .run();
+    await invoke("/library", "POST", { bookId: "1342", status: "reading", progress }, user);
   }
   const annotation = await invoke(
     "/annotations",
@@ -100,6 +98,7 @@ async function seed(progress = 1) {
       visibility: "member",
       recipientUserId: people.bob.id,
       shareNote: true,
+      expectedAnnotationVersion: annotation.version,
       audienceConfirmed: true,
     },
     people.alice,
@@ -140,8 +139,15 @@ async function seed(progress = 1) {
     },
     people.alice,
   );
+  const completed = await invoke(
+    "/library",
+    "POST",
+    { bookId: "1342", status: "finished", progress: 1 },
+    people.alice,
+  );
   return {
     people,
+    journeyId: completed.readingJourneyId,
     annotationId: annotation.id,
     groupId: group.id,
     groupName: `QA reading group ${suffix}`,
@@ -206,7 +212,54 @@ process.chdir(scratch);
 const server = await createServer({
   root: scratch,
   configFile: path.join(scratch, "vite.config.ts"),
-  server: { host: "127.0.0.1", port: 4173, strictPort: true },
+  // Prepare the first client graph before readiness. A cold dependency rebuild
+  // previously canceled @tanstack/history imports in Firefox/WebKit.
+  optimizeDeps: {
+    // Hydration also uses dynamic framework imports. Freeze the known client
+    // dependency set so discovering one cannot rebuild assets mid-navigation.
+    noDiscovery: true,
+    include: [
+      "@noble/hashes/sha2.js",
+      "@radix-ui/react-alert-dialog",
+      "@radix-ui/react-dialog",
+      "@radix-ui/react-progress",
+      "@radix-ui/react-select",
+      "@radix-ui/react-slider",
+      "@radix-ui/react-slot",
+      "@radix-ui/react-switch",
+      "@radix-ui/react-tabs",
+      "@supabase/supabase-js",
+      "@tanstack/history",
+      "@tanstack/react-query",
+      "@tanstack/react-router > @tanstack/react-store",
+      "@tanstack/router-core/ssr/client",
+      "class-variance-authority",
+      "clsx",
+      "epubjs",
+      "jszip",
+      "lucide-react",
+      "react-dom",
+      "react-dom/client",
+      "react",
+      "react/jsx-dev-runtime",
+      "react/jsx-runtime",
+      "sonner",
+      "tailwind-merge",
+      "zod",
+    ],
+  },
+  server: {
+    host: "127.0.0.1",
+    port: 4173,
+    strictPort: true,
+    warmup: {
+      clientFiles: [
+        "./src/router.tsx",
+        "./src/routes/__root.tsx",
+        "./src/features/fore/{App,Store,Book,Edition,Community,Reader}.tsx",
+      ],
+    },
+  },
   plugins: [fixturePlugin],
 });
 await server.listen();
@@ -244,6 +297,18 @@ await env.DB.prepare(
 )
   .bind(hash, bytes.length)
   .run();
+const client = server.environments.client;
+// The framework's virtual entry imports hydration-only dependencies that the
+// router graph does not reach. Prepare that graph too, before browsers arrive.
+const hydrationEntry = await client.transformRequest("virtual:tanstack-start-dev-client-entry");
+if (!hydrationEntry) throw new Error("Browser QA hydration entry did not transform");
+await client.warmupRequest("/src/router.tsx");
+await client.waitForRequestsIdle();
+await Promise.all(
+  Object.values(client.depsOptimizer?.metadata.discovered || {}).map(
+    (dependency) => dependency.processing,
+  ),
+);
 ready = true;
 console.log("Cove isolated browser QA ready at http://127.0.0.1:4173");
 if (process.env.COVE_QA_SMOKE === "1") {

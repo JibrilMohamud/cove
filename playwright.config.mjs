@@ -18,6 +18,21 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:4173",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    ...(process.env.COVE_QA_CHROMIUM_EXECUTABLE
+      ? {
+          launchOptions: {
+            executablePath: process.env.COVE_QA_CHROMIUM_EXECUTABLE,
+            args: [
+              "--single-process",
+              "--no-zygote",
+              "--disable-crash-reporter",
+              "--disable-breakpad",
+              "--disable-dev-shm-usage",
+              "--no-sandbox",
+            ],
+          },
+        }
+      : {}),
   },
   webServer: {
     command: "node scripts/browser-qa-server.mjs",

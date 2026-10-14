@@ -132,6 +132,9 @@ jobs:
           FORE_DEFAULT_TERRITORY = "US"
           FORE_CATALOG_PAGES_PER_TICK = "5"
           FORE_CATALOG_EPUBS_PER_TICK = "2"
+          FORE_AUDIO_COMPUTE_MODE = "paused"
+          FORE_AUDIO_MONTHLY_SECONDS = "3600"
+          FORE_AUDIO_MIN_INTERVAL_SECONDS = "86400"
 
           [secrets]
           required = ["FORE_INGESTION_SIGNING_KEY"]

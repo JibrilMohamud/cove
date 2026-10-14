@@ -1,4 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useAccount } from "./client";
 
 type Market = {
   countryCode: string;
@@ -52,20 +54,22 @@ async function fetchContext() {
   return r.json();
 }
 export function StorefrontLocaleProvider({ children }: { children: ReactNode }) {
-  const [raw, setRaw] = useState<any | null>(null);
-  const load = async () => {
-    try {
-      const x = await fetchContext();
-      setRaw(x);
-      document.documentElement.lang = x.locale || "en-US";
-      document.documentElement.dir = x.direction === "rtl" ? "rtl" : "ltr";
-    } catch {
-      /* server fallback keeps the storefront usable */
-    }
-  };
+  const { data } = useAccount();
+  const context = useQuery({
+    queryKey: ["storefront-context", data.user?.id || "guest"],
+    queryFn: fetchContext,
+    enabled: typeof window !== "undefined",
+    staleTime: 5 * 60_000,
+    gcTime: typeof window === "undefined" ? Infinity : 30 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  const raw = context.data;
   useEffect(() => {
-    void load();
-  }, []);
+    if (!raw) return;
+    document.documentElement.lang = raw.locale || "en-US";
+    document.documentElement.dir = raw.direction === "rtl" ? "rtl" : "ltr";
+  }, [raw]);
   const value = useMemo<ContextValue>(() => {
     const x = raw || {};
     const locale = String(x.locale || "en-US"),
@@ -104,12 +108,12 @@ export function StorefrontLocaleProvider({ children }: { children: ReactNode }) 
           const e = await r.json().catch(() => ({}));
           throw new Error(e.error || "Could not update storefront preferences");
         }
-        await load();
+        await context.refetch();
         location.reload();
       },
-      loading: !raw,
+      loading: context.isPending,
     };
-  }, [raw]);
+  }, [raw, context.isPending, context.refetch]);
   return (
     <StorefrontLocaleContext.Provider value={value}>{children}</StorefrontLocaleContext.Provider>
   );

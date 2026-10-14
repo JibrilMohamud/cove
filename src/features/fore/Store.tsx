@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStorefrontLocale } from "./localization";
 import { useQuery } from "@tanstack/react-query";
-import { useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Search,
   ArrowUpRight,
@@ -123,12 +123,12 @@ export function BookCard({ book, onOpen }: { book: CatalogBook; onOpen?: () => v
   }
   return (
     <article className="book-card">
-      <a className="cover-link" href={editionPath(book)} onClick={onOpen}>
+      <Link className="cover-link" to={editionPath(book)} onClick={onOpen} preload={false}>
         <BookArt book={book} />
         <span className="cover-open">
           Explore book <ArrowUpRight size={17} />
         </span>
-      </a>
+      </Link>
       <div className="book-meta">
         <p className="book-genre">
           {book.series?.[0]?.id ? (
@@ -146,9 +146,9 @@ export function BookCard({ book, onOpen }: { book: CatalogBook; onOpen?: () => v
               .split(" -- ")[0]
           )}
         </p>
-        <a href={editionPath(book)} className="book-title" onClick={onOpen}>
+        <Link to={editionPath(book)} className="book-title" onClick={onOpen} preload={false}>
           {book.title}
-        </a>
+        </Link>
         <p className="book-author">
           <AuthorLinks book={book} />
         </p>
@@ -705,6 +705,7 @@ function TaxonomyBrowse({
 
 export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
   const storefront = useStorefrontLocale();
+  const { data } = useAccount();
   const { params: url, update } = useUrlSearch(landingPath);
   const routePreset = pathPreset(landingPath);
   const q = url.get("q") || url.get("search") || "";
@@ -716,6 +717,9 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
   const storefrontPage = useQuery<StorefrontPage>({
     queryKey: ["storefront-page", landingPath, storefront.rightsCountry, storefront.locale],
     queryFn: () => api("/storefront/page?path=" + encodeURIComponent(landingPath)),
+    staleTime: 15 * 60_000,
+    gcTime: typeof window === "undefined" ? Infinity : 60 * 60_000,
+    refetchOnWindowFocus: false,
     retry: 0,
   });
   const cmsPreset = storefrontPage.data?.query || {};
@@ -785,10 +789,12 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
   }, [query]);
 
   const taxonomy = useQuery<TaxonomyResponse>({
-    queryKey: ["storefront-taxonomy", language],
+    queryKey: ["storefront-taxonomy", language, storefront.rightsCountry, storefront.locale],
     queryFn: () =>
       api("/taxonomy" + (language !== "all" ? "?language=" + encodeURIComponent(language) : "")),
-    staleTime: 5 * 60_000,
+    staleTime: 30 * 60_000,
+    gcTime: typeof window === "undefined" ? Infinity : 60 * 60_000,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
   useEffect(() => {
@@ -858,9 +864,18 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
   if (publishedBefore) params.set("publishedBefore", publishedBefore);
 
   const result = useQuery<CatalogResponse>({
-    queryKey: ["catalog", params.toString(), storefront.rightsCountry, storefront.locale],
+    queryKey: [
+      "catalog",
+      "v3",
+      params.toString(),
+      storefront.rightsCountry,
+      storefront.locale,
+      data.user?.id || "guest",
+    ],
     queryFn: ({ signal }) => api("/catalog?" + params, "GET", undefined, { signal }),
-    staleTime: 30_000,
+    staleTime: 5 * 60_000,
+    gcTime: typeof window === "undefined" ? Infinity : 60 * 60_000,
+    refetchOnWindowFocus: false,
     retry: false,
   });
   useEffect(() => {
@@ -888,7 +903,8 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
     queryFn: ({ signal }) =>
       api("/search/suggest?q=" + encodeURIComponent(suggestQuery), "GET", undefined, { signal }),
     enabled: searchFocused && suggestQuery.length >= 2,
-    staleTime: 30_000,
+    staleTime: 5 * 60_000,
+    gcTime: typeof window === "undefined" ? Infinity : 30 * 60_000,
     retry: 0,
   });
 
@@ -915,7 +931,6 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
     publishedBefore
   );
   const home = ["/", "/store"].includes(landingPath) && !filtered && page === 1;
-  const { data } = useAccount();
   const merch = useQuery<MerchResponse>({
     queryKey: ["merchandising", visitor, !!data.user],
     queryFn: () => api(`/merchandising?visitor=${encodeURIComponent(visitor)}`),
@@ -1497,7 +1512,10 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
           Showing results for <strong>{result.data.search.correctedQuery}</strong>.
         </p>
       )}
-      {result.data?.warning && <p className="notice">{result.data.warning}</p>}
+      {result.data?.warning &&
+        (!books.length || !result.data.warning.includes("catalog updater is retrying")) && (
+          <p className="notice">{result.data.warning}</p>
+        )}
       {result.error ? (
         <div className="empty-state">
           <h2>The catalog needs a moment.</h2>

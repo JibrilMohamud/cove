@@ -20,6 +20,9 @@ on:
       - "scripts/check-search-updater-cache.mjs"
       - "scripts/check-reader-sharing-offline.mjs"
       - "scripts/check-sharing-erasure.mjs"
+      - "scripts/check-journey-privacy-progress.mjs"
+      - "scripts/check-social-pagination.mjs"
+      - "scripts/check-compute-budget.mjs"
       - "scripts/check-store.mjs"
       - "drizzle/*.sql"
       - "vercel.json"
@@ -50,6 +53,9 @@ on:
       - "scripts/check-search-updater-cache.mjs"
       - "scripts/check-reader-sharing-offline.mjs"
       - "scripts/check-sharing-erasure.mjs"
+      - "scripts/check-journey-privacy-progress.mjs"
+      - "scripts/check-social-pagination.mjs"
+      - "scripts/check-compute-budget.mjs"
       - "scripts/check-store.mjs"
       - "drizzle/*.sql"
       - "vercel.json"
@@ -101,8 +107,15 @@ jobs:
         run: npm run test:reader-sharing-offline
       - name: Direct sharing, group discussions and account erasure
         run: npm run test:sharing-erasure
+      - name: Journey access, authoritative progress and social pagination
+        run: |
+          npm run test:journey-privacy-progress
+          npm run test:social-pagination
       - name: Catalog network recovery
         run: node scripts/check-catalog-fetch.mjs
+      - name: Compute budget and cache privacy
+        # Budget/privacy assertions run without paid services or production data.
+        run: npm run test:compute-budget
       - name: Python syntax
         run: python3 -m py_compile scripts/audio_pipeline/*.py
       - name: Audio runtime regressions

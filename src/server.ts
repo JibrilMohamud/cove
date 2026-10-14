@@ -2,8 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
-import { handleSeoDocumentRequest } from "./features/fore/seo.server";
-import { handleCoveApi } from "./features/fore/api.server";
+import { cachePublicDocument } from "./lib/public-document-cache";
 import { applySecurityHeaders, securityTxt } from "./lib/security-headers";
 import { handleVercelIngestionControl, proxyPersistenceApi } from "./lib/persistence-backend";
 
@@ -72,13 +71,18 @@ export default {
       if (ingestionControl) return applySecurityHeaders(request, ingestionControl, foreEnv);
       const persistenceResponse = await proxyPersistenceApi(request, foreEnv);
       if (persistenceResponse) return applySecurityHeaders(request, persistenceResponse, foreEnv);
-      const apiResponse = await handleCoveApi(request, foreEnv as any);
+      // A configured persistence gateway handles APIs without loading the entire
+      // catalog, publishing, commerce and audio backend into the Vercel process.
+      const apiResponse = new URL(request.url).pathname.startsWith("/api/fore/")
+        ? await (await import("./features/fore/api.server")).handleCoveApi(request, foreEnv as any)
+        : null;
       if (apiResponse) {
         return applySecurityHeaders(request, apiResponse, foreEnv);
       }
       const securityDocument = securityTxt(request, foreEnv);
       if (securityDocument) return applySecurityHeaders(request, securityDocument, foreEnv);
       if (foreEnv.DB) {
+        const { handleSeoDocumentRequest } = await import("./features/fore/seo.server");
         const seo = await handleSeoDocumentRequest(request, foreEnv.DB, foreEnv.FORE_PUBLIC_URL);
         if (seo) return applySecurityHeaders(request, seo, foreEnv);
       }
@@ -104,7 +108,7 @@ export default {
       const response = await handler.fetch(routedRequest, runtimeEnv, ctx);
       return applySecurityHeaders(
         request,
-        await normalizeCatastrophicSsrResponse(response),
+        cachePublicDocument(request, await normalizeCatastrophicSsrResponse(response)),
         foreEnv,
       );
     } catch (error) {

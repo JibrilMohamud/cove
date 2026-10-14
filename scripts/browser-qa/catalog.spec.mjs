@@ -1,0 +1,75 @@
+import { test, expect } from "@playwright/test";
+
+test("catalog navigation reuses cache and suppresses obsolete updater warnings", async ({
+  browser,
+}, testInfo) => {
+  const { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch } = testInfo.project.use;
+  const isolated = process.env.COVE_QA_CHROMIUM_EXECUTABLE
+    ? await browser.browserType().launch({ ...testInfo.project.use.launchOptions, headless: true })
+    : browser;
+  const context = await isolated.newContext({
+    baseURL: "http://127.0.0.1:4173",
+    viewport,
+    userAgent,
+    deviceScaleFactor,
+    isMobile,
+    hasTouch,
+  });
+  const page = await context.newPage();
+  try {
+    const errors = [],
+      calls = { catalog: 0, context: 0, taxonomy: 0 };
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("request", (request) => {
+      const path = new URL(request.url()).pathname;
+      if (path === "/api/fore/catalog") calls.catalog++;
+      if (path === "/api/fore/storefront/context") calls.context++;
+      if (path === "/api/fore/taxonomy") calls.taxonomy++;
+    });
+    // Also exercise mixed deployment versions: ignore an old updater warning
+    // only when usable books accompany it.
+    await page.route("**/api/fore/catalog?**", async (route) => {
+      const response = await route.fetch();
+      const data = await response.json();
+      await route.fulfill({
+        response,
+        json: {
+          ...data,
+          warning:
+            "The catalog updater is retrying in the background; cached books remain available.",
+          ingestion: { ...data.ingestion, status: "failed" },
+        },
+      });
+    });
+    await page.goto("/");
+    await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
+    await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
+    await expect(
+      page.getByText(
+        "The catalog updater is retrying in the background; cached books remain available.",
+        { exact: true },
+      ),
+    ).toHaveCount(0);
+    await expect.poll(() => calls.context).toBeGreaterThan(0);
+    await expect.poll(() => calls.taxonomy).toBeGreaterThan(0);
+    const before = { ...calls };
+    const sessionMarker = await page.evaluate(
+      () => (window.__coveQaNavigation = crypto.randomUUID()),
+    );
+    await page.locator(".book-grid:not(.merch-grid) .book-card .cover-link").first().click();
+    await expect(page).toHaveURL(/\/(edition|books|book)\//);
+    await expect(page.getByRole("link", { name: "Back to bookstore" })).toBeVisible();
+    await page.getByRole("link", { name: "Back to bookstore" }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
+    expect(calls).toEqual(before);
+    expect(await page.evaluate(() => window.__coveQaNavigation)).toBe(sessionMarker);
+    expect(errors).toEqual([]);
+    // Capture the visible storefront. A full catalog at mobile device scale can
+    // exceed WebKit's 32767-pixel image limit even when every assertion passes.
+    await page.screenshot({ path: testInfo.outputPath("warm-catalog.png") });
+  } finally {
+    await context.close();
+    if (isolated !== browser) await isolated.close();
+  }
+});
