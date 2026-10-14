@@ -280,7 +280,6 @@ export function ReaderPage({ id }: { id: string }) {
     return [...byId.values()];
   }, [data.annotations, bookAnnotationPages.data, annotationBookRef]);
 
-
   const activity = useRef<ReturnType<typeof createActivity> | null>(null),
     epubHash = useRef(""),
     sync = useRef<Awaited<ReturnType<typeof openBiosync>> | null>(null),
