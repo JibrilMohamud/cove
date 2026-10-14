@@ -1,4 +1,11 @@
 import { processAccountDeletionQueue } from "./features/fore/account-management.server";
+import { processNotificationDeliveryQueue } from "./features/fore/notifications.server";
+import { processAuthorSocialFanoutJobs } from "./features/fore/social.server";
+import { processPartnerFeedQueue } from "./features/fore/traditional-publishing.server";
+import { advancePreorders } from "./features/fore/preorder.server";
+import { processPreorderRefundJobs } from "./features/fore/commerce.server";
+import { queueAuthorReleaseAlerts, processAuthorReleaseAlerts } from "./features/fore/retail-intelligence.server";
+
 import {
   handleCoveApi,
   runCatalogIngestion,
@@ -343,6 +350,44 @@ async function scheduledCatalog(env: BackendEnv) {
   }
 }
 
+async function runCommercialQueues(cron: string, env: BackendEnv) {
+  if (await d1QuotaBlocked()) return;
+  const tasks: Array<[string, () => Promise<unknown>]> = [];
+  if (cron === "*/10 * * * *") {
+    tasks.push(["notifications", () => processNotificationDeliveryQueue(env, 50)]);
+  }
+  if (cron === "23 * * * *") {
+    tasks.push(
+      ["author-social-fanout", () => processAuthorSocialFanoutJobs(env.DB, 10, 250)],
+      ["partner-feed", () => processPartnerFeedQueue(env.DB, 15)],
+      ["author-release-alerts", async () => {
+        await queueAuthorReleaseAlerts(env.DB);
+        return processAuthorReleaseAlerts(env.DB, 50);
+      }],
+    );
+  }
+  if (cron === "41 4 * * *") {
+    tasks.push(["preorder-settlement", () => advancePreorders(env.DB)]);
+    if (env.FORE_STRIPE_SECRET_KEY)
+      tasks.push(["preorder-refunds", () => processPreorderRefundJobs(env, {
+        workerId: "cove-cloudflare-scheduled",
+        limit: 20,
+        leaseSeconds: 300,
+      })]);
+  }
+  for (const [name, operation] of tasks) {
+    try {
+      const result = await operation();
+      console.info(JSON.stringify({ event: "cove_queue_tick", name, result }));
+    } catch (error) {
+      console.error("Cove scheduled queue failed", name, error);
+      if (isD1QuotaError(error)) {
+        await markD1QuotaBlocked();
+        break;
+      }
+    }
+  }
+}
 async function scheduledMaintenance(env: BackendEnv) {
   const response = await maintenance(env);
   if (!response.ok) throw new Error("Scheduled Cove maintenance failed.");
@@ -693,6 +738,12 @@ async function hostedBiosyncTranscript(
 
 export default {
   async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
+    if (
+      controller.cron === "*/10 * * * *" ||
+      controller.cron === "23 * * * *" ||
+      controller.cron === "41 4 * * *"
+    ) ctx.waitUntil?.(runCommercialQueues(controller.cron, env));
+
     if (controller.cron === "23 * * * *")
       ctx.waitUntil?.(
         processAccountDeletionQueue(env, 5)
