@@ -56,10 +56,56 @@ import {
   downloadBlob,
   type Annotation,
   type Definition,
+  type LibraryBook,
 } from "./client";
 import { BookArt } from "./Store";
 import { inspectEpub, downloadBook, exportReadingData, downloadCoveBackup } from "./epub";
 import type { HighlightShareAudience, HighlightShareState } from "./Sharing";
+function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
+  kind: "library" | "annotations" | "definitions",
+  firstPage: T[],
+  accountId: string | undefined,
+) {
+  const [extra, setExtra] = useState<T[]>([]);
+  const [hasMore, setHasMore] = useState(firstPage.length >= 100);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    setExtra([]);
+    setHasMore(firstPage.length >= 100);
+  }, [accountId, kind]);
+  const items = [...firstPage, ...extra].filter((row, index, array) =>
+    array.findIndex((candidate) => (candidate.id || candidate.bookId) === (row.id || row.bookId)) === index
+  );
+  const loadMore = async () => {
+    if (!accountId || loading || !hasMore) return;
+    setLoading(true);
+    try {
+      const page = await api<{ items: T[]; hasMore: boolean }>(
+        "/account/collection?kind=" + kind + "&offset=" + (firstPage.length + extra.length),
+      );
+      setExtra((existing) => [...existing, ...page.items]);
+      setHasMore(page.hasMore);
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  return { items, hasMore, loading, loadMore };
+}
+function CollectionNextPage({ state }: {
+  state: { hasMore: boolean; loading: boolean; loadMore: () => Promise<void> };
+}) {
+  if (!state.hasMore) return null;
+  return (
+    <div className="collection-load-more">
+      <button type="button" className="button outline" disabled={state.loading}
+        onClick={() => void state.loadMore()}>
+        {state.loading ? "Loading more…" : "Load more"}
+      </button>
+    </div>
+  );
+}
 export function AccountGuard({ children }: { children: ReactNode }) {
   const { data, loading, error, reload, signIn } = useAccount();
   if (loading)
@@ -103,7 +149,8 @@ export function LibraryPage() {
     [busy, setBusy] = useState(false),
     [remove, setRemove] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const books = data.library.filter(
+  const pages = usePagedAccountCollection<LibraryBook>("library", data.library, data.user?.id);
+  const books = pages.items.filter(
     (x) =>
       (filter === "all" || x.status === filter) &&
       (!q ||
@@ -169,8 +216,8 @@ export function LibraryPage() {
       <AccountGuard>
         <div className="library-stats">
           <div>
-            <strong>{data.library.length}</strong>
-            <span>Books on your shelves</span>
+            <strong>{pages.items.length}</strong>
+            <span>Books loaded</span>
           </div>
           <div>
             <strong>{data.library.filter((x) => x.status === "reading").length}</strong>
@@ -273,6 +320,7 @@ export function LibraryPage() {
           </div>
         )}
       </AccountGuard>
+      <CollectionNextPage state={pages} />
       <ConfirmDelete
         open={!!remove}
         setOpen={() => setRemove("")}
@@ -350,7 +398,8 @@ export function HighlightsPage() {
     enabled: !!data.user && !!edit,
     staleTime: 0,
   });
-  const rows = data.annotations.filter(
+  const pages = usePagedAccountCollection<Annotation>("annotations", data.annotations, data.user?.id);
+  const rows = pages.items.filter(
     (a) =>
       (tab !== "notes" || a.note) &&
       (color === "all" || a.color === color) &&
@@ -708,12 +757,13 @@ export function HighlightsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <CollectionNextPage state={pages} />
       <ConfirmDelete
         open={!!remove}
         setOpen={() => setRemove("")}
         description="This removes the highlight and its note from your notebook."
         onConfirm={async () => {
-          const target = data.annotations.find((a) => a.id === remove);
+          const target = pages.items.find((a) => a.id === remove);
           if (!target) return setRemove("");
           await api("/annotations/" + remove, "DELETE", { expectedVersion: target.version });
           await reload();
@@ -858,7 +908,8 @@ export function DefinitionsPage() {
   const { data, reload } = useAccount();
   const [q, setQ] = useState(""),
     [remove, setRemove] = useState("");
-  const rows = data.definitions.filter((d) =>
+  const pages = usePagedAccountCollection<Definition>("definitions", data.definitions, data.user?.id);
+  const rows = pages.items.filter((d) =>
     [d.word, d.meaning, d.bookTitle].join(" ").toLowerCase().includes(q.toLowerCase()),
   );
   return (
@@ -930,6 +981,7 @@ export function DefinitionsPage() {
           </div>
         )}
       </AccountGuard>
+      <CollectionNextPage state={pages} />
       <ConfirmDelete
         open={!!remove}
         setOpen={() => setRemove("")}
