@@ -4457,8 +4457,40 @@ async function handleCoveRequest(
     if (request.method === "POST" && path === "/notifications/push/register")
       return json(await registerPushEndpoint(db, user.id, await body(request), request));
     if (request.method === "POST" && path === "/notifications/push/revoke") {
-      const x = z.object({ endpointId: z.string().min(1) }).parse(await body(request));
-      return json(await revokePushEndpoint(db, user.id, x.endpointId));
+      const x = z
+        .object({
+          endpointId: z.string().min(1).optional(),
+          endpoint: z.string().url().max(4096).optional(),
+        })
+        .refine((value) => !!(value.endpointId || value.endpoint))
+        .parse(await body(request));
+      return json(
+        await revokePushEndpoint(
+          db,
+          user.id,
+          x.endpoint || x.endpointId!,
+          !!x.endpoint,
+        ),
+      );
+    }
+    if (request.method === "POST" && path === "/notifications/reader-presence") {
+      const x = z.object({ reading: z.boolean() }).parse(await body(request));
+      if (x.reading) {
+        const at = now();
+        const expires = new Date(Date.now() + 150000).toISOString();
+        await db
+          .prepare(
+            "INSERT INTO reader_notification_silence(user_id,expires_at,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET expires_at=excluded.expires_at,updated_at=excluded.updated_at",
+          )
+          .bind(user.id, expires, at)
+          .run();
+      } else {
+        await db
+          .prepare("DELETE FROM reader_notification_silence WHERE user_id=?")
+          .bind(user.id)
+          .run();
+      }
+      return json({ saved: true });
     }
     if (request.method === "POST" && path === "/delivery/epub/grant") {
       await rateLimit(env, `delivery-grant:${user.id}`, 120);
