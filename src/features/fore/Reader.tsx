@@ -467,7 +467,7 @@ export function ReaderPage({ id }: { id: string }) {
       const stage = container.current?.closest(".reader-stage");
       if (!stage || !rendition.current) return;
       const stageRect = stage.getBoundingClientRect(),
-        markers: { hash: string; top: number; count: number }[] = [];
+        markers: { hash: string; top: number; count: number; passage: string; chapter: string }[] = [];
       for (const cluster of socialReader.data?.indicators || []) {
         if (!cluster.cfi) continue;
         for (const contents of rendition.current.getContents()) {
@@ -504,6 +504,10 @@ export function ReaderPage({ id }: { id: string }) {
               hash: cluster.passageHash,
               top,
               count: cluster.discussionCount + cluster.highlightCount,
+              chapter: String(cluster.chapter || "the current chapter"),
+              passage: String(
+                cluster.posts?.[0]?.passageText || cluster.highlights?.[0]?.quote || "",
+              ).replace(/\s+/g, " ").slice(0, 120),
             });
             break;
           } catch {
@@ -1754,8 +1758,8 @@ export function ReaderPage({ id }: { id: string }) {
                   setActiveSocialHash(marker.hash);
                   setPanel("social");
                 }}
-                title={`${marker.count} contributions at this passage`}
-                aria-label={`Open ${marker.count} contributions at this passage`}
+                title={`${marker.count} contributions at ${marker.chapter}`}
+                aria-label={`Open ${marker.count} reader contributions in ${marker.chapter}${marker.passage ? ": " + marker.passage : ""}`}
               >
                 <span>•</span>
                 <small>{marker.count}</small>
@@ -2249,6 +2253,7 @@ export function ReaderPage({ id }: { id: string }) {
                           <button
                             key={x.passageHash}
                             onClick={() => setActiveSocialHash(x.passageHash)}
+                            aria-label={`Open ${(x.discussionCount || 0) + (x.highlightCount || 0)} reader contributions in ${x.chapter || "this chapter"}: ${String(x.posts?.[0]?.passageText || x.highlights?.[0]?.quote || "").replace(/\s+/g, " ").slice(0, 120)}`}
                           >
                             <span>• {(x.discussionCount || 0) + (x.highlightCount || 0)}</span>
                             <strong>{x.chapter || "This passage"}</strong>
