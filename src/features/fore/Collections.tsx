@@ -59,6 +59,7 @@ import {
   type LibraryBook,
 } from "./client";
 import { BookArt } from "./Store";
+import { useStorefrontLocale } from "./localization";
 import { inspectEpub, downloadBook, exportReadingData, downloadCoveBackup } from "./epub";
 import type { HighlightShareAudience, HighlightShareState } from "./Sharing";
 function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
@@ -101,6 +102,7 @@ function CollectionNextPage({
 }: {
   state: { hasMore: boolean; loading: boolean; loadMore: () => Promise<void> };
 }) {
+  const { t: tr } = useStorefrontLocale();
   if (!state.hasMore) return null;
   return (
     <div className="collection-load-more">
@@ -110,27 +112,28 @@ function CollectionNextPage({
         disabled={state.loading}
         onClick={() => void state.loadMore()}
       >
-        {state.loading ? "Loading more…" : "Load more"}
+        {state.loading ? tr("collection.loadingMore", "Loading more…") : tr("collection.loadMore", "Load more")}
       </button>
     </div>
   );
 }
 export function AccountGuard({ children }: { children: ReactNode }) {
+  const { t: tr } = useStorefrontLocale();
   const { data, loading, error, reload, signIn } = useAccount();
   if (loading)
     return (
       <div className="empty-state">
         <Loader2 className="spin" />
-        <p>Opening your reading room…</p>
+        <p>{tr("account.loading", "Opening your reading room…")}</p>
       </div>
     );
   if (error)
     return (
       <div className="empty-state">
-        <h2>Your reading room needs a moment.</h2>
+        <h2>{tr("account.loadingError", "Your reading room needs a moment.")}</h2>
         <p>{error}</p>
         <button className="button gold" onClick={reload}>
-          Try again
+          {tr("common.retry", "Try again")}
         </button>
       </div>
     );
@@ -139,19 +142,20 @@ export function AccountGuard({ children }: { children: ReactNode }) {
       <div className="empty-state account-empty">
         <Library />
         <span className="page-eyebrow">A PLACE FOR YOUR READING LIFE</span>
-        <h2>Make yourself at home.</h2>
+        <h2>{tr("account.welcome", "Make yourself at home.")}</h2>
         <p>
           Sign in to build your library and keep your favorite passages, notes, and new words
           together.
         </p>
         <button className="button gold" onClick={signIn}>
-          Create an account or log in <ArrowUpRight size={17} />
+          {tr("account.signIn", "Create an account or log in")} <ArrowUpRight size={17} />
         </button>
       </div>
     );
   return <>{children}</>;
 }
 export function LibraryPage() {
+  const { t: tr } = useStorefrontLocale();
   const { data, reload } = useAccount();
   const [filter, setFilter] = useState("all"),
     [q, setQ] = useState(""),
@@ -230,20 +234,20 @@ export function LibraryPage() {
           </div>
           <div>
             <strong>{data.library.filter((x) => x.status === "reading").length}</strong>
-            <span>Currently reading</span>
+            <span>{tr("library.current", "Currently reading")}</span>
           </div>
           <div>
             <strong>{data.library.filter((x) => x.status === "finished").length}</strong>
-            <span>Finished</span>
+            <span>{tr("library.finished", "Finished")}</span>
           </div>
         </div>
         <div className="collection-toolbar">
           <div className="topic-tabs">
             {[
-              ["all", "All books"],
-              ["reading", "Reading"],
-              ["want-to-read", "Want to read"],
-              ["finished", "Finished"],
+              ["all", tr("library.all", "All books")],
+              ["reading", tr("library.reading", "Reading")],
+              ["want-to-read", tr("library.want", "Want to read")],
+              ["finished", tr("library.finished", "Finished")],
             ].map(([v, l]) => (
               <button className={filter === v ? "active" : ""} onClick={() => setFilter(v)} key={v}>
                 {l}
@@ -324,7 +328,7 @@ export function LibraryPage() {
             <h2>{q ? "Nothing on this shelf yet." : "Your next chapter starts here."}</h2>
             <p>Find something in the bookstore or import an EPUB you already own.</p>
             <a className="button gold" href="/">
-              Browse the bookstore <ArrowUpRight size={17} />
+              {tr("library.browse", "Browse the bookstore")} <ArrowUpRight size={17} />
             </a>
           </div>
         )}
@@ -384,6 +388,7 @@ function highlightAudienceName(share: HighlightShareAudience) {
   }[share.visibility];
 }
 export function HighlightsPage() {
+  const { t: tr } = useStorefrontLocale();
   const { data, reload } = useAccount();
   const [q, setQ] = useState(""),
     [color, setColor] = useState("all"),
@@ -916,6 +921,7 @@ export function DictionaryLookup({
   );
 }
 export function DefinitionsPage() {
+  const { t: tr } = useStorefrontLocale();
   const { data, reload } = useAccount();
   const [q, setQ] = useState(""),
     [remove, setRemove] = useState("");
@@ -944,7 +950,7 @@ export function DefinitionsPage() {
       <AccountGuard>
         <div className="collection-toolbar">
           <h2 className="section-title">
-            Saved definitions <span className="muted">{pages.items.length}</span>
+            {tr("definitions.saved", "Saved definitions")} <span className="muted">{pages.items.length}</span>
           </h2>
           <div className="small-search">
             <Search size={17} />
