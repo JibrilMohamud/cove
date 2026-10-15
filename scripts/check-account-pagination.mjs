@@ -113,15 +113,18 @@ try {
     assert.deepEqual(sizes, [100, 100, 25]);
     assert.equal(seen.size, 225, "all private rows remain reachable");
   }
-  const quoteSearch = await call(
-    a,
-    "/account/collection?kind=annotations&q=Test%20quote%20224",
+  const quoteSearch = await call(a, "/account/collection?kind=annotations&q=Test%20quote%20224");
+  assert.deepEqual(
+    quoteSearch.items.map((item) => item.id),
+    ["note-224"],
   );
-  assert.deepEqual(quoteSearch.items.map((item) => item.id), ["note-224"]);
   const escapedWildcard = await call(a, "/account/collection?kind=annotations&q=%25");
   assert.equal(escapedWildcard.items.length, 0, "search wildcards are literal");
   const definitionSearch = await call(a, "/account/collection?kind=definitions&q=word224");
-  assert.deepEqual(definitionSearch.items.map((item) => item.id), ["definition-224"]);
+  assert.deepEqual(
+    definitionSearch.items.map((item) => item.id),
+    ["definition-224"],
+  );
   const filtered = await call(a, "/account/collection?kind=annotations&bookId=1342&limit=100");
   assert.equal(filtered.items.length, 100);
   assert.ok(filtered.items.every((row) => row.bookId === "1342"));
