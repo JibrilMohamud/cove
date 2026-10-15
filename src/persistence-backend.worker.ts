@@ -1,5 +1,9 @@
 import { verifyAudioStorage } from "./features/fore/audio-coverage.server";
 import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
+import {
+  discoverSoundtrackCandidates,
+  importOneReviewedSoundtrack,
+} from "./features/fore/soundtracks.server";
 import { processAccountDeletionQueue } from "./features/fore/account-management.server";
 import { processNotificationDeliveryQueue } from "./features/fore/notifications.server";
 import { processAuthorSocialFanoutJobs } from "./features/fore/social.server";
@@ -608,6 +612,10 @@ async function runScheduled(cron: string, env: BackendEnv) {
       return;
     }
     if (cron === "*/10 * * * *") {
+      // Independent, approved-only music copies; never compete with the minute EPUB runner.
+      await importOneReviewedSoundtrack(env).catch((error) =>
+        console.warn("Soundtrack import failed", String(error).slice(0, 160)),
+      );
       const backlog = await env.DB.prepare(
         "SELECT COUNT(*) count FROM audio_jobs WHERE kind='track' AND status IN ('queued','running')",
       ).first<{ count?: number }>();
@@ -623,6 +631,8 @@ async function runScheduled(cron: string, env: BackendEnv) {
       await Promise.allSettled([
         warmOneShortBiosyncTranscript(env),
         triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align"),
+        // Strict 250-file metadata-only discovery budget; never auto-approves rights.
+        discoverSoundtrackCandidates(env),
       ]);
       return;
     }

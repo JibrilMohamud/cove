@@ -292,6 +292,7 @@ export function SiteShell({
             <a href="/privacy">{ui("Privacy Policy")}</a>
             <a href="/copyright">{ui("Copyright & DMCA")}</a>
             <a href="/help">{ui("Help & support")}</a>
+            <a href="/soundtracks">{ui("Soundtracks")}</a>
             <a href="/status">{ui("Service status")}</a>
             <a href="/privacy#contact-us">{ui("Contact & privacy requests")}</a>
           </nav>
