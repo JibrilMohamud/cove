@@ -88,6 +88,8 @@ jobs:
         run: npx eslint src/lib/persistence-backend.ts src/persistence-backend.worker.ts
       - name: Persistence architecture
         run: npm run test:persistence-backend
+      - name: Soundtrack library rights and delivery regressions
+        run: npm run test:soundtracks
       - name: Resumable hosted BioSync
         run: npm run test:biosync-chunks
       - name: Account sign-up and privacy requests
