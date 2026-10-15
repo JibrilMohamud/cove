@@ -576,7 +576,7 @@ try {
     new Request("https://backend.test/__cove/ingestion/catalog", {
       method: "POST",
       headers: { "x-cove-backend-token": token, "content-type": "application/json" },
-      body: JSON.stringify({ maxPages: 3, epubLimit: 2, maxMillis: 10000 }),
+      body: JSON.stringify({ maxPages: 3, epubLimit: 2, maxMillis: 30000 }),
     }),
     { ...env, FORE_BACKEND_TOKEN: token },
     {},
