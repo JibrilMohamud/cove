@@ -365,6 +365,14 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
         JSON.stringify(inst),JSON.stringify(moods),energy,vocals?1:0,
         original.title+" — "+performer+" · "+original.license_statement,
         JSON.stringify(territories),now,original.id).run();
+      await env.DB.prepare(
+        "INSERT INTO soundtrack_rights_decisions(id,recording_id,principal_id,action,evidence_json,decided_at) VALUES(?,?,?,?,?,?)",
+      ).bind(crypto.randomUUID(),original.id,reviewerPrincipal!.principalId,"approve",JSON.stringify({
+        reviewerTicket:reviewer,reviewEvidence:rationale,composer,performer,period:input.period,
+        territories,compositionRightsConfirmed:true,performanceRightsConfirmed:true,
+        attributionReviewed:true,sourceSha1:original.source_sha1,license:original.license_statement,
+        licenseUrl:original.license_url,sourcePage:original.source_page_url
+      }),now).run();
       return json({ approved:original.id,queuedForImport:true });
     }
     if (action === "retry" && original.status !== "import_failed")
@@ -373,12 +381,27 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
       await env.DB.prepare(
         "UPDATE soundtrack_recordings SET status='approved',updated_at=? WHERE id=? AND status='import_failed' AND reviewed_at IS NOT NULL",
       ).bind(new Date().toISOString(),original.id).run();
+      await env.DB.prepare(
+        "INSERT INTO soundtrack_rights_decisions(id,recording_id,principal_id,action,evidence_json,decided_at) VALUES(?,?,?,?,?,?)",
+      ).bind(crypto.randomUUID(),original.id,reviewerPrincipal!.principalId,"retry",
+        JSON.stringify({priorReviewAt:original.reviewed_at,sourceSha1:original.source_sha1}),
+        new Date().toISOString()).run();
       return json({ retried:original.id });
     }
-    if (original.storage_key && env.BUCKET) await env.BUCKET.delete(original.storage_key);
+    // Withdraw entitlement before deleting the object. An R2 outage must never
+    // leave a recording publicly authorized after its rights are revoked.
+    const revokedAt = new Date().toISOString();
     await env.DB.prepare(
       "UPDATE soundtrack_recordings SET status=?,storage_key=NULL,stored_at=NULL,storage_sha1=NULL,storage_bytes=NULL,allowed_territories_json='[]',updated_at=? WHERE id=?",
-    ).bind(action==="revoke"?"revoked":"rejected",new Date().toISOString(),original.id).run();
+    ).bind(action==="revoke"?"revoked":"rejected",revokedAt,original.id).run();
+    await env.DB.prepare(
+      "INSERT INTO soundtrack_rights_decisions(id,recording_id,principal_id,action,evidence_json,decided_at) VALUES(?,?,?,?,?,?)",
+    ).bind(crypto.randomUUID(),original.id,reviewerPrincipal!.principalId,action,
+      JSON.stringify({reason:clearText(input.reason,2000),sourceSha1:original.source_sha1,priorStatus:original.status}),revokedAt).run();
+    if (original.storage_key && env.BUCKET) {
+      try { await env.BUCKET.delete(original.storage_key); }
+      catch (error) { console.warn("Soundtrack revoked but R2 cleanup pending",original.id,String(error).slice(0,160)); }
+    }
     return json({ [action]:original.id });
   }
   if (!admin && idMatch && path.endsWith("/audio") && ["GET","HEAD"].includes(request.method)) {
