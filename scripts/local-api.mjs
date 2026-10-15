@@ -103,6 +103,11 @@ export function localBindings(root) {
         try {
           if (bytes?.getReader) await pipeline(Readable.fromWeb(bytes), fs.createWriteStream(temp));
           else fs.writeFileSync(temp, Buffer.from(bytes));
+          if (options?.sha1) {
+            const hash = createHash("sha1");
+            for await (const chunk of fs.createReadStream(temp)) hash.update(chunk);
+            if (hash.digest("hex") !== options.sha1) throw Error("Checksum mismatch");
+          }
           if (options?.sha256) {
             const hash = createHash("sha256");
             for await (const chunk of fs.createReadStream(temp)) hash.update(chunk);
