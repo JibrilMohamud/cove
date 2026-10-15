@@ -280,9 +280,13 @@ test("EPUB reader opens and joined members receive group margin discussions", as
     const passageMarker = bob.locator(".reader-social-gutter button").first();
     await expect(passageMarker).toBeVisible();
     await expect(passageMarker).toHaveAccessibleName(/reader contributions.*Browser QA passage/i);
+    await expect(passageMarker).toHaveAttribute("aria-controls", "reader-social-panel");
+    await expect(passageMarker).toHaveAttribute("aria-expanded", "false");
     // Exercise activation without a mouse; screen-reader users receive the quoted passage.
     await passageMarker.focus();
     await passageMarker.press("Enter");
+    await expect(passageMarker).toHaveAttribute("aria-expanded", "true");
+    await expect(bob.locator("#reader-social-panel")).toBeVisible();
     await expect(
       bob.locator(".reader-social-panel").getByText(discussion, { exact: true }),
     ).toBeVisible();
@@ -298,7 +302,8 @@ test("EPUB reader opens and joined members receive group margin discussions", as
     await expect(bob.getByRole("heading", { name: "Finished.", exact: true })).toHaveCount(0);
     const post = thread.locator(".social-post").first();
     const reaction = post.locator("footer button").first();
-    await reaction.click();
+    await reaction.focus();
+    await reaction.press("Enter");
     await expect(reaction).toHaveAttribute("aria-pressed", "true");
     await post.locator("footer button").nth(1).click();
     await thread.getByLabel("Write a reply").fill("A reply from the margin panel.");
