@@ -11,12 +11,13 @@ import { Headphones } from "lucide-react";
 import { createActivity, measureEpub } from "./reading-activity";
 import { flushReaderMutations, queueReaderMutation } from "./offline-reader-mutations";
 import { offlineAccountId } from "./offline-account";
+import { useStorefrontLocale } from "./localization";
 import { cachedReaderPosition, saveCachedReaderPosition } from "./offline-reading-position";
 import { sha256 } from "./offline";
 import { loadEdition } from "./audio-client";
 import { cueForAudio, type AudioEdition } from "./domain";
 import { loadBookMetadata } from "./epub";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import {
@@ -172,6 +173,7 @@ function conservativeCfiProgress(
   return Math.max(0, index - 1) / Math.max(1, book.locations.total);
 }
 export function ReaderPage({ id }: { id: string }) {
+  const { t: tr } = useStorefrontLocale();
   const queryClient = useQueryClient();
   const searchString = useRouterState({ select: (state) => state.location.searchStr || "" });
   const previewMode = new URLSearchParams(searchString).get("preview") === "1";
@@ -240,6 +242,37 @@ export function ReaderPage({ id }: { id: string }) {
       .map(String),
   );
   const matchesReadingBook = (ref: string) => bookReferences.current.has(String(ref));
+  const annotationBookRef =
+    metadata?.sourceName === "gutenberg" && metadata.sourceExternalId
+      ? String(metadata.sourceExternalId)
+      : id;
+  const bookAnnotationPages = useInfiniteQuery<{
+    items: Annotation[];
+    hasMore: boolean;
+    nextOffset: number;
+  }>({
+    queryKey: ["reader-annotation-pages", data.user?.id, annotationBookRef],
+    queryFn: ({ pageParam }) =>
+      api(
+        "/account/collection?kind=annotations&bookId=" +
+          encodeURIComponent(annotationBookRef) +
+          "&offset=" +
+          String(pageParam || 0),
+      ),
+    initialPageParam: 0,
+    getNextPageParam: (page) => (page.hasMore ? page.nextOffset : undefined),
+    enabled: !!data.user && !previewMode,
+    staleTime: 30_000,
+  });
+  const readerAnnotations = useMemo(() => {
+    const byId = new Map<string, Annotation>();
+    for (const annotation of data.annotations)
+      if (bookReferences.current.has(String(annotation.bookId)))
+        byId.set(annotation.id, annotation);
+    for (const page of bookAnnotationPages.data?.pages || [])
+      for (const annotation of page.items) byId.set(annotation.id, annotation);
+    return [...byId.values()];
+  }, [data.annotations, bookAnnotationPages.data, annotationBookRef]);
 
   const activity = useRef<ReturnType<typeof createActivity> | null>(null),
     epubHash = useRef(""),
@@ -278,7 +311,7 @@ export function ReaderPage({ id }: { id: string }) {
     chromeHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
     chromeVisibleRef = useRef(false);
   accountRef.current = data;
-  annotationRef.current = data.annotations;
+  annotationRef.current = readerAnnotations;
   useEffect(() => {
     const known = findLibraryBook(data.library, id);
     if (data.user?.id && known?.cfi)
@@ -455,7 +488,7 @@ export function ReaderPage({ id }: { id: string }) {
   };
   const activeSocial = clusters.get(activeSocialHash || "") || null;
   const [passageMarkers, setPassageMarkers] = useState<
-    { hash: string; top: number; count: number }[]
+    { hash: string; top: number; count: number; passage: string; chapter: string }[]
   >([]);
   useEffect(() => {
     if (!socialReader.data?.preferences?.enabled) {
@@ -467,7 +500,13 @@ export function ReaderPage({ id }: { id: string }) {
       const stage = container.current?.closest(".reader-stage");
       if (!stage || !rendition.current) return;
       const stageRect = stage.getBoundingClientRect(),
-        markers: { hash: string; top: number; count: number }[] = [];
+        markers: {
+          hash: string;
+          top: number;
+          count: number;
+          passage: string;
+          chapter: string;
+        }[] = [];
       for (const cluster of socialReader.data?.indicators || []) {
         if (!cluster.cfi) continue;
         for (const contents of rendition.current.getContents()) {
@@ -504,6 +543,12 @@ export function ReaderPage({ id }: { id: string }) {
               hash: cluster.passageHash,
               top,
               count: cluster.discussionCount + cluster.highlightCount,
+              chapter: String(cluster.chapter || "the current chapter"),
+              passage: String(
+                cluster.posts?.[0]?.passageText || cluster.highlights?.[0]?.quote || "",
+              )
+                .replace(/\s+/g, " ")
+                .slice(0, 120),
             });
             break;
           } catch {
@@ -1309,7 +1354,7 @@ export function ReaderPage({ id }: { id: string }) {
   useEffect(() => {
     if (!ready || !rendition.current) return;
     const r = rendition.current;
-    for (const a of data.annotations.filter((a) => matchesReadingBook(a.bookId)))
+    for (const a of readerAnnotations.filter((a) => matchesReadingBook(a.bookId)))
       try {
         r.annotations.remove(a.cfi, "highlight");
         r.annotations.highlight(a.cfi, { id: a.id }, undefined, "fore-highlight", {
@@ -1318,7 +1363,7 @@ export function ReaderPage({ id }: { id: string }) {
           "mix-blend-mode": "multiply",
         });
       } catch {}
-  }, [data.annotations, ready, id]);
+  }, [readerAnnotations, ready, id]);
   async function saveHighlight(withNote = false) {
     const ownerId = data.user?.id || offlineOwner();
     if (!ownerId) return signIn();
@@ -1707,7 +1752,7 @@ export function ReaderPage({ id }: { id: string }) {
       </header>
       <div className="reader-stage" style={{ background: themes[theme].bg }}>
         <button
-          aria-label="Previous page"
+          aria-label={tr("reader.previousPage", "Previous page")}
           className="reader-page-turn prev"
           disabled={!ready}
           onClick={() => {
@@ -1754,8 +1799,8 @@ export function ReaderPage({ id }: { id: string }) {
                   setActiveSocialHash(marker.hash);
                   setPanel("social");
                 }}
-                title={`${marker.count} contributions at this passage`}
-                aria-label={`Open ${marker.count} contributions at this passage`}
+                title={`${marker.count} contributions at ${marker.chapter}`}
+                aria-label={`Open ${marker.count} reader contributions in ${marker.chapter}${marker.passage ? ": " + marker.passage : ""}`}
               >
                 <span>•</span>
                 <small>{marker.count}</small>
@@ -1764,7 +1809,7 @@ export function ReaderPage({ id }: { id: string }) {
           </aside>
         )}
         <button
-          aria-label="Next page"
+          aria-label={tr("reader.nextPage", "Next page")}
           className="reader-page-turn next"
           disabled={!ready}
           onClick={() => {
@@ -1889,7 +1934,7 @@ export function ReaderPage({ id }: { id: string }) {
                 disabled={socialBusy}
                 onClick={() => void openHighlightSharing(activeAnnotation)}
               >
-                <Share2 size={14} /> Share this saved highlight
+                <Share2 size={14} /> {tr("reader.shareHighlight", "Share this saved highlight")}
               </button>
             )}
           </div>
@@ -1908,13 +1953,13 @@ export function ReaderPage({ id }: { id: string }) {
           <SheetHeader>
             <SheetTitle>
               {panel === "contents"
-                ? "Chapters"
+                ? tr("reader.chapters", "Chapters")
                 : panel === "search"
-                  ? "Find in this book"
+                  ? tr("reader.find", "Find in this book")
                   : panel === "highlights"
-                    ? "Your saved passages"
+                    ? tr("reader.savedPassages", "Your saved passages")
                     : panel === "bookmarks"
-                      ? "Your bookmarks"
+                      ? tr("reader.bookmarks", "Your bookmarks")
                       : panel === "social"
                         ? "Social Reading"
                         : "Make yourself comfortable"}
@@ -2006,8 +2051,8 @@ export function ReaderPage({ id }: { id: string }) {
             )}
             {panel === "highlights" && (
               <div className="reader-highlights">
-                {data.annotations.filter((a) => matchesReadingBook(a.bookId)).length ? (
-                  data.annotations
+                {readerAnnotations.filter((a) => matchesReadingBook(a.bookId)).length ? (
+                  readerAnnotations
                     .filter((a) => matchesReadingBook(a.bookId))
                     .map((a) => (
                       <div key={a.id}>
@@ -2033,6 +2078,19 @@ export function ReaderPage({ id }: { id: string }) {
                     Select a passage in the book, then choose Highlight or Note. Your saved passages
                     will appear here.
                   </p>
+                )}
+                {bookAnnotationPages.hasNextPage && (
+                  <button
+                    type="button"
+                    className="button outline"
+                    disabled={bookAnnotationPages.isFetchingNextPage}
+                    aria-label="Load older saved passages from this book"
+                    onClick={() => void bookAnnotationPages.fetchNextPage()}
+                  >
+                    {bookAnnotationPages.isFetchingNextPage
+                      ? tr("reader.loadingPassages", "Loading passages…")
+                      : tr("reader.morePassages", "Load more saved passages")}
+                  </button>
                 )}
               </div>
             )}
@@ -2249,6 +2307,11 @@ export function ReaderPage({ id }: { id: string }) {
                           <button
                             key={x.passageHash}
                             onClick={() => setActiveSocialHash(x.passageHash)}
+                            aria-label={`Open ${(x.discussionCount || 0) + (x.highlightCount || 0)} reader contributions in ${x.chapter || "this chapter"}: ${String(
+                              x.posts?.[0]?.passageText || x.highlights?.[0]?.quote || "",
+                            )
+                              .replace(/\s+/g, " ")
+                              .slice(0, 120)}`}
                           >
                             <span>• {(x.discussionCount || 0) + (x.highlightCount || 0)}</span>
                             <strong>{x.chapter || "This passage"}</strong>

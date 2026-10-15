@@ -1,3 +1,4 @@
+import { currencyMinorUnitDigits, minorUnitsToMajor } from "./currency";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
@@ -38,8 +39,9 @@ function isoDate(value: unknown) {
   const d = new Date(text);
   return Number.isNaN(d.valueOf()) ? text.slice(0, 10) : d.toISOString().slice(0, 10);
 }
-function price(amountMinor: unknown) {
-  return (Number(amountMinor || 0) / 100).toFixed(2);
+function price(amountMinor: unknown, currency: string) {
+  const digits = currencyMinorUnitDigits(currency);
+  return minorUnitsToMajor(Number(amountMinor || 0), currency).toFixed(digits);
 }
 function seoOrigin() {
   const request = getRequest(),
@@ -192,7 +194,7 @@ export const loadBookSeo = createServerFn({ method: "GET" })
         "@id": `${canonical}#offer`,
         url: canonical,
         priceCurrency: offer.currency,
-        price: price(offer.amountMinor),
+        price: price(offer.amountMinor, String(offer.currency || "USD")),
         availability,
         itemCondition: "https://schema.org/NewCondition",
         seller: { "@type": "Organization", name: "Cove", url: `${origin}/` },

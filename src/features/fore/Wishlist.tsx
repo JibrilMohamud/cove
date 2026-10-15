@@ -1,3 +1,4 @@
+import { formatMinorCurrency } from "./currency";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
@@ -40,11 +41,7 @@ type Cart = {
   subtotalMinor: number;
 };
 function money(v: number, c: string) {
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency: c }).format(v / 100);
-  } catch {
-    return `${c} ${(v / 100).toFixed(2)}`;
-  }
+  return formatMinorCurrency(v, c);
 }
 
 export function WishlistPage() {

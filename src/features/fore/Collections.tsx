@@ -3,7 +3,7 @@ import { AddToShelf } from "./Shelves";
 import { OfflineDownloads } from "./Audio";
 import { queueReaderMutation } from "./offline-reader-mutations";
 import { AccountManagementPanel } from "./AccountManagement";
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -56,26 +56,103 @@ import {
   downloadBlob,
   type Annotation,
   type Definition,
+  type LibraryBook,
 } from "./client";
 import { BookArt } from "./Store";
+import { useStorefrontLocale } from "./localization";
 import { inspectEpub, downloadBook, exportReadingData, downloadCoveBackup } from "./epub";
 import type { HighlightShareAudience, HighlightShareState } from "./Sharing";
+function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
+  kind: "library" | "annotations" | "definitions",
+  firstPage: T[],
+  accountId: string | undefined,
+) {
+  const [extra, setExtra] = useState<T[]>([]);
+  const [hasMore, setHasMore] = useState(firstPage.length >= 100);
+  const [loading, setLoading] = useState(false);
+  const accountScope = accountId + ":" + kind;
+  const scopeRef = useRef(accountScope);
+  const offsetRef = useRef(firstPage.length);
+  useEffect(() => {
+    if (scopeRef.current !== accountScope) {
+      // Never display a former account's private annotations after switching users.
+      scopeRef.current = accountScope;
+      offsetRef.current = firstPage.length;
+      setExtra([]);
+      setHasMore(firstPage.length >= 100);
+    } else if (offsetRef.current <= firstPage.length) {
+      // An authenticated account can hydrate its first page after the hook mounts.
+      offsetRef.current = firstPage.length;
+      setHasMore(firstPage.length >= 100);
+    }
+  }, [accountScope, firstPage.length]);
+  const items = useMemo(() => {
+    const seen = new Set<string>();
+    return [...firstPage, ...extra].filter((row) => {
+      const identity = row.id || row.bookId;
+      if (!identity) return true;
+      if (seen.has(identity)) return false;
+      seen.add(identity);
+      return true;
+    });
+  }, [firstPage, extra]);
+  const loadMore = async () => {
+    if (!accountId || loading || !hasMore) return;
+    setLoading(true);
+    try {
+      const page = await api<{ items: T[]; hasMore: boolean }>(
+        "/account/collection?kind=" + kind + "&offset=" + offsetRef.current,
+      );
+      offsetRef.current += page.items.length;
+      setExtra((existing) => [...existing, ...page.items]);
+      setHasMore(page.hasMore);
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  return { items, hasMore, loading, loadMore };
+}
+function CollectionNextPage({
+  state,
+}: {
+  state: { hasMore: boolean; loading: boolean; loadMore: () => Promise<void> };
+}) {
+  const { t: tr } = useStorefrontLocale();
+  if (!state.hasMore) return null;
+  return (
+    <div className="collection-load-more">
+      <button
+        type="button"
+        className="button outline"
+        disabled={state.loading}
+        onClick={() => void state.loadMore()}
+      >
+        {state.loading
+          ? tr("collection.loadingMore", "Loading more…")
+          : tr("collection.loadMore", "Load more")}
+      </button>
+    </div>
+  );
+}
 export function AccountGuard({ children }: { children: ReactNode }) {
+  const { t: tr } = useStorefrontLocale();
   const { data, loading, error, reload, signIn } = useAccount();
   if (loading)
     return (
       <div className="empty-state">
         <Loader2 className="spin" />
-        <p>Opening your reading room…</p>
+        <p>{tr("account.loading", "Opening your reading room…")}</p>
       </div>
     );
   if (error)
     return (
       <div className="empty-state">
-        <h2>Your reading room needs a moment.</h2>
+        <h2>{tr("account.loadingError", "Your reading room needs a moment.")}</h2>
         <p>{error}</p>
         <button className="button gold" onClick={reload}>
-          Try again
+          {tr("common.retry", "Try again")}
         </button>
       </div>
     );
@@ -84,26 +161,28 @@ export function AccountGuard({ children }: { children: ReactNode }) {
       <div className="empty-state account-empty">
         <Library />
         <span className="page-eyebrow">A PLACE FOR YOUR READING LIFE</span>
-        <h2>Make yourself at home.</h2>
+        <h2>{tr("account.welcome", "Make yourself at home.")}</h2>
         <p>
           Sign in to build your library and keep your favorite passages, notes, and new words
           together.
         </p>
         <button className="button gold" onClick={signIn}>
-          Create an account or log in <ArrowUpRight size={17} />
+          {tr("account.signIn", "Create an account or log in")} <ArrowUpRight size={17} />
         </button>
       </div>
     );
   return <>{children}</>;
 }
 export function LibraryPage() {
+  const { t: tr } = useStorefrontLocale();
   const { data, reload } = useAccount();
   const [filter, setFilter] = useState("all"),
     [q, setQ] = useState(""),
     [busy, setBusy] = useState(false),
     [remove, setRemove] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const books = data.library.filter(
+  const pages = usePagedAccountCollection<LibraryBook>("library", data.library, data.user?.id);
+  const books = pages.items.filter(
     (x) =>
       (filter === "all" || x.status === filter) &&
       (!q ||
@@ -169,25 +248,25 @@ export function LibraryPage() {
       <AccountGuard>
         <div className="library-stats">
           <div>
-            <strong>{data.library.length}</strong>
-            <span>Books on your shelves</span>
+            <strong>{pages.items.length}</strong>
+            <span>Books loaded</span>
           </div>
           <div>
             <strong>{data.library.filter((x) => x.status === "reading").length}</strong>
-            <span>Currently reading</span>
+            <span>{tr("library.current", "Currently reading")}</span>
           </div>
           <div>
             <strong>{data.library.filter((x) => x.status === "finished").length}</strong>
-            <span>Finished</span>
+            <span>{tr("library.finished", "Finished")}</span>
           </div>
         </div>
         <div className="collection-toolbar">
           <div className="topic-tabs">
             {[
-              ["all", "All books"],
-              ["reading", "Reading"],
-              ["want-to-read", "Want to read"],
-              ["finished", "Finished"],
+              ["all", tr("library.all", "All books")],
+              ["reading", tr("library.reading", "Reading")],
+              ["want-to-read", tr("library.want", "Want to read")],
+              ["finished", tr("library.finished", "Finished")],
             ].map(([v, l]) => (
               <button className={filter === v ? "active" : ""} onClick={() => setFilter(v)} key={v}>
                 {l}
@@ -268,11 +347,12 @@ export function LibraryPage() {
             <h2>{q ? "Nothing on this shelf yet." : "Your next chapter starts here."}</h2>
             <p>Find something in the bookstore or import an EPUB you already own.</p>
             <a className="button gold" href="/">
-              Browse the bookstore <ArrowUpRight size={17} />
+              {tr("library.browse", "Browse the bookstore")} <ArrowUpRight size={17} />
             </a>
           </div>
         )}
       </AccountGuard>
+      <CollectionNextPage state={pages} />
       <ConfirmDelete
         open={!!remove}
         setOpen={() => setRemove("")}
@@ -327,6 +407,7 @@ function highlightAudienceName(share: HighlightShareAudience) {
   }[share.visibility];
 }
 export function HighlightsPage() {
+  const { t: tr } = useStorefrontLocale();
   const { data, reload } = useAccount();
   const [q, setQ] = useState(""),
     [color, setColor] = useState("all"),
@@ -350,7 +431,12 @@ export function HighlightsPage() {
     enabled: !!data.user && !!edit,
     staleTime: 0,
   });
-  const rows = data.annotations.filter(
+  const pages = usePagedAccountCollection<Annotation>(
+    "annotations",
+    data.annotations,
+    data.user?.id,
+  );
+  const rows = pages.items.filter(
     (a) =>
       (tab !== "notes" || a.note) &&
       (color === "all" || a.color === color) &&
@@ -408,7 +494,7 @@ export function HighlightsPage() {
           </h1>
           <p>Return to the lines that made you pause.</p>
         </div>
-        {data.annotations.length > 0 && (
+        {pages.items.length > 0 && (
           <button className="button outline" onClick={exportNotes}>
             <Download size={17} />
             Export notes
@@ -420,10 +506,10 @@ export function HighlightsPage() {
           <div className="collection-toolbar">
             <TabsList className="fore-tabs">
               <TabsTrigger value="all">
-                All highlights <span>{data.annotations.length}</span>
+                All highlights <span>{pages.items.length}</span>
               </TabsTrigger>
               <TabsTrigger value="notes">
-                With notes <span>{data.annotations.filter((x) => x.note).length}</span>
+                With notes <span>{pages.items.filter((x) => x.note).length}</span>
               </TabsTrigger>
             </TabsList>
             <div className="small-search">
@@ -514,9 +600,7 @@ export function HighlightsPage() {
             <div className="empty-state">
               <Highlighter />
               <h2>
-                {data.annotations.length
-                  ? "No matching passages."
-                  : "Some lines deserve a second life."}
+                {pages.items.length ? "No matching passages." : "Some lines deserve a second life."}
               </h2>
               <p>
                 While reading, select a passage to highlight it or add a note. You’ll find every
@@ -708,12 +792,13 @@ export function HighlightsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <CollectionNextPage state={pages} />
       <ConfirmDelete
         open={!!remove}
         setOpen={() => setRemove("")}
         description="This removes the highlight and its note from your notebook."
         onConfirm={async () => {
-          const target = data.annotations.find((a) => a.id === remove);
+          const target = pages.items.find((a) => a.id === remove);
           if (!target) return setRemove("");
           await api("/annotations/" + remove, "DELETE", { expectedVersion: target.version });
           await reload();
@@ -855,10 +940,16 @@ export function DictionaryLookup({
   );
 }
 export function DefinitionsPage() {
+  const { t: tr } = useStorefrontLocale();
   const { data, reload } = useAccount();
   const [q, setQ] = useState(""),
     [remove, setRemove] = useState("");
-  const rows = data.definitions.filter((d) =>
+  const pages = usePagedAccountCollection<Definition>(
+    "definitions",
+    data.definitions,
+    data.user?.id,
+  );
+  const rows = pages.items.filter((d) =>
     [d.word, d.meaning, d.bookTitle].join(" ").toLowerCase().includes(q.toLowerCase()),
   );
   return (
@@ -878,7 +969,8 @@ export function DefinitionsPage() {
       <AccountGuard>
         <div className="collection-toolbar">
           <h2 className="section-title">
-            Saved definitions <span className="muted">{data.definitions.length}</span>
+            {tr("definitions.saved", "Saved definitions")}{" "}
+            <span className="muted">{pages.items.length}</span>
           </h2>
           <div className="small-search">
             <Search size={17} />
@@ -930,6 +1022,7 @@ export function DefinitionsPage() {
           </div>
         )}
       </AccountGuard>
+      <CollectionNextPage state={pages} />
       <ConfirmDelete
         open={!!remove}
         setOpen={() => setRemove("")}

@@ -1,3 +1,4 @@
+import { formatMinorCurrency } from "./currency";
 import { Reviews } from "./Reviews";
 import { AddToShelf } from "./Shelves";
 import { BookAudio } from "./Audio";
@@ -224,11 +225,7 @@ type ProductDetail = {
   }[];
 };
 function money(amount: number, currency: string) {
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount / 100);
-  } catch {
-    return `${currency} ${(amount / 100).toFixed(2)}`;
-  }
+  return formatMinorCurrency(amount, currency, navigator.language || "en-US");
 }
 function dateLabel(value?: string) {
   if (!value) return "";

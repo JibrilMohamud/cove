@@ -87,7 +87,15 @@ try {
   assert.equal(stats.data.totals.sessions, 1, "Duplicate client saves must not double count");
   assert.equal(stats.data.totals.wpm, 120);
   assert.equal(stats.data.goal.target, 15);
-  assert.equal(stats.data.daily.length, 1);
+  assert.ok(
+    stats.data.daily.length >= 1 && stats.data.daily.length <= 2,
+    "A session crossing local midnight may occupy two daily buckets",
+  );
+  assert.equal(
+    stats.data.daily.reduce((total, day) => total + Number(day.read_seconds || 0), 0),
+    60,
+    "Splitting a session at midnight must preserve its reading time",
+  );
   assert.equal(stats.data.vocabulary[0].word, "serendipity");
   const other = await request(bob, "/stats?days=30");
   assert.equal(other.status, 200);

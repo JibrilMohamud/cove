@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { api, useAccount, downloadBlob, bookPath, productPath } from "./client";
+import { useStorefrontLocale } from "./localization";
 import { AccountGuard } from "./Collections";
 const duration = (seconds: number) =>
   seconds >= 3600 ? `${(seconds / 3600).toFixed(1)} h` : `${Math.round(seconds / 60)} min`;
@@ -35,6 +36,7 @@ function Breakdown({ rows, empty }: { rows: { name: string; count: number }[]; e
   );
 }
 export function StatsPage() {
+  const { t: tr } = useStorefrontLocale();
   const { data } = useAccount(),
     [days, setDays] = useState("30"),
     [goal, setGoal] = useState(""),
@@ -70,33 +72,41 @@ export function StatsPage() {
     <>
       <div className="page-heading">
         <div>
-          <span className="page-eyebrow">A READING LIFE, IN NUMBERS</span>
+          <span className="page-eyebrow">{tr("stats.eyebrow", "A READING LIFE, IN NUMBERS")}</span>
           <h1>
-            Your stats<span className="gold-text">.</span>
+            {tr("stats.heading", "Your stats")}
+            <span className="gold-text">.</span>
           </h1>
-          <p>Time with books. Words discovered. Places your curiosity takes you.</p>
+          <p>
+            {tr(
+              "stats.description",
+              "Time with books. Words discovered. Places your curiosity takes you.",
+            )}
+          </p>
         </div>
         {data.user && (
           <button className="button outline" disabled={busy} onClick={exportData}>
             <Download size={16} />
-            Export my data
+            {tr("stats.export", "Export my data")}
           </button>
         )}
       </div>
       <AccountGuard>
         <div className="collection-toolbar">
-          <div className="privacy-label">Private · visible only to you</div>
+          <div className="privacy-label">
+            {tr("stats.private", "Private · visible only to you")}
+          </div>
           <Select value={days} onValueChange={setDays}>
-            <SelectTrigger aria-label="Statistics period">
+            <SelectTrigger aria-label={tr("stats.period.label", "Statistics period")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {[
-                ["7", "Last 7 days"],
-                ["30", "Last 30 days"],
-                ["90", "Last 90 days"],
-                ["365", "Last 365 days"],
-                ["all", "All time"],
+                ["7", tr("stats.period.7", "Last 7 days")],
+                ["30", tr("stats.period.30", "Last 30 days")],
+                ["90", tr("stats.period.90", "Last 90 days")],
+                ["365", tr("stats.period.365", "Last 365 days")],
+                ["all", tr("stats.period.all", "All time")],
               ].map(([v, l]) => (
                 <SelectItem key={v} value={v}>
                   {l}
