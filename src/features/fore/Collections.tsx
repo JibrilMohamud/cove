@@ -112,7 +112,9 @@ function CollectionNextPage({
         disabled={state.loading}
         onClick={() => void state.loadMore()}
       >
-        {state.loading ? tr("collection.loadingMore", "Loading more…") : tr("collection.loadMore", "Load more")}
+        {state.loading
+          ? tr("collection.loadingMore", "Loading more…")
+          : tr("collection.loadMore", "Load more")}
       </button>
     </div>
   );
@@ -950,7 +952,8 @@ export function DefinitionsPage() {
       <AccountGuard>
         <div className="collection-toolbar">
           <h2 className="section-title">
-            {tr("definitions.saved", "Saved definitions")} <span className="muted">{pages.items.length}</span>
+            {tr("definitions.saved", "Saved definitions")}{" "}
+            <span className="muted">{pages.items.length}</span>
           </h2>
           <div className="small-search">
             <Search size={17} />
