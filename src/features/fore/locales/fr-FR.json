@@ -726,5 +726,16 @@
   "We couldn’t load this right now.": "Nous n’avons pas pu charger ce contenu pour le moment.",
   "Please try again.": "Veuillez réessayer.",
   "Request reference: {reference}": "Référence de la demande : {reference}",
-  "Get help": "Obtenir de l’aide"
+  "Get help": "Obtenir de l’aide",
+  "Bookstore": "Librairie",
+  "Navigation": "Navigation",
+  "Primary": "Navigation principale",
+  "Desktop navigation": "Navigation sur ordinateur",
+  "Legal information": "Informations légales",
+  "Footer": "Pied de page",
+  "Cove legal and account links": "Liens juridiques et de compte Cove",
+  "Copyright & DMCA": "Droits d’auteur et DMCA",
+  "Help & support": "Aide et assistance",
+  "Service status": "État du service",
+  "Contact & privacy requests": "Contact et demandes relatives à la confidentialité"
 }
