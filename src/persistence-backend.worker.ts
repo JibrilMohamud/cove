@@ -636,8 +636,6 @@ async function runScheduled(cron: string, env: BackendEnv) {
       await Promise.allSettled([
         warmOneShortBiosyncTranscript(env),
         triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align"),
-        // Discovery is scheduled in bounded 10-minute batches.
-
       ]);
       return;
     }
