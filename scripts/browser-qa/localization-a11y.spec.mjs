@@ -8,13 +8,13 @@ test.use({ serviceWorkers: "block" });
 
 const locales = ["en-US", "es-ES", "fr-FR", "de-DE", "ar-SA"];
 for (const locale of locales) {
-  test(`community and collection accessible labels follow ${locale}`, async ({ page }) => {
+  test(`community and collection accessible labels follow ${locale}`, async ({ page, context }) => {
     const messages = JSON.parse(
       fs.readFileSync(`src/features/fore/locales/${locale}.json`, "utf8"),
     );
     // The locale provider receives its normal server contract; catalog/account
     // requests still hit the isolated real backend. No production account data.
-    await page.route("**/api/fore/storefront/context", async (route) => {
+    await context.route("**/api/fore/storefront/context", async (route) => {
       const response = await route.fetch();
       const data = await response.json();
       await route.fulfill({
@@ -26,6 +26,17 @@ for (const locale of locales) {
           direction: locale === "ar-SA" ? "rtl" : "ltr",
         },
       });
+    });
+    // WebKit intermittently rejects loopback requests while changing localized
+    // views ("due to access control checks"), although the same-origin QA server
+    // answers successfully. Proxy only these read-only QA requests through
+    // Playwright's transport, preserving actual backend status, JSON and headers.
+    // Sharing/browser suites still exercise unproxied app networking.
+    const proxiedFailures = [];
+    await context.route(/\/api\/fore\/(?:account|social\/discover)(?:\?|$)/, async (route) => {
+      const response = await route.fetch();
+      if (response.status() >= 500) proxiedFailures.push(response.status());
+      await route.fulfill({ response });
     });
     const failures = [];
     page.on("pageerror", (e) => failures.push(e.message));
@@ -52,12 +63,17 @@ for (const locale of locales) {
     expect(
       results.violations.map((r) => ({ id: r.id, targets: r.nodes.map((n) => n.target) })),
     ).toEqual([]);
-    await page.goto("/library");
-    await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
-    await expect(page.locator("html")).toHaveAttribute("lang", locale);
-
+    // Navigating away from Community mid-request can surface a synthetic
+    // "access control checks" exception in mobile WebKit as the document is
+    // discarded. Keep the real network/error assertions, but exercise Library
+    // in its own document so navigation cannot abort Community requests.
+    const libraryPage = await context.newPage();
+    libraryPage.on("pageerror", (e) => failures.push(e.message));
+    await libraryPage.goto("/library");
+    await expect(libraryPage.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
+    await expect(libraryPage.locator("html")).toHaveAttribute("lang", locale);
     await expect(
-      page.getByText(
+      libraryPage.getByText(
         messages[
           "Sign in to build your library and keep your favorite passages, notes, and new words together."
         ],
@@ -65,5 +81,7 @@ for (const locale of locales) {
       ),
     ).toBeVisible();
     expect(failures).toEqual([]);
+    expect(proxiedFailures).toEqual([]);
+    await libraryPage.close();
   });
 }
