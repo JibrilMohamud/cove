@@ -32,7 +32,7 @@ const nativeKeys = (keys) =>
     "-c",
     `import ctypes,time\nk=${JSON.stringify(keys)}\nfor v in k: ctypes.windll.user32.keybd_event(v,0,0,0)\ntime.sleep(0.08)\nfor v in reversed(k): ctypes.windll.user32.keybd_event(v,0,2,0)`,
   ]);
-let server, nvda, browser;
+let server, nvda, browser, page;
 const results = [];
 async function spokenSince(offset, expected, label) {
   const line = await wait(
@@ -75,8 +75,8 @@ try {
   const context = await browser.newContext({
       baseURL: "http://127.0.0.1:4173",
       viewport: { width: 1280, height: 900 },
-    }),
-    page = await context.newPage();
+    });
+  page = await context.newPage();
   await page.goto("/");
   await page.bringToFront();
   nvda = spawn(
@@ -91,6 +91,7 @@ try {
     { env: { ...process.env, COVE_NVDA_SPEECH_LOG: speech }, stdio: "ignore" },
   );
   await wait(() => read().some((x) => x.ready), "NVDA speech extension startup");
+  await page.bringToFront();
   let offset = read().length;
   nativeKeys([0x2d, 0x54]); // NVDA+T: read the native active-window title.
   await spokenSince(offset, /Cove|Bookstore/i, "Native active-window title");
@@ -163,6 +164,13 @@ try {
   };
   fs.writeFileSync(path.join(out, "report.json"), JSON.stringify(report, null, 2));
   console.log("PASS: " + JSON.stringify(report));
+} catch (error) {
+  if (page) {
+    await page.screenshot({ path: path.join(out, "failure.png") }).catch(() => {});
+    fs.writeFileSync(path.join(out, "failure.html"), await page.content().catch(() => ""));
+  }
+  fs.writeFileSync(path.join(out, "partial-results.json"), JSON.stringify(results, null, 2));
+  throw error;
 } finally {
   await browser?.close();
   if (nvda)

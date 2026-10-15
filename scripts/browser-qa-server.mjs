@@ -11,7 +11,9 @@ for (const key of Object.keys(process.env))
   if (/^(SUPABASE_|FORE_BACKEND_|FORE_INGESTION_)/.test(key)) delete process.env[key];
 process.env.FORE_AUTH_MODE = "browser-qa-managed";
 const checkout = process.cwd();
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "cove-browser-qa-"));
+// Windows TEMP can use an 8.3 name (RUNNER~1). Vite deliberately rejects
+// requests containing '~', even within its allow list. Expand the real path.
+const scratch = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "cove-browser-qa-")));
 for (const dir of ["src", "public", "drizzle"])
   fs.cpSync(path.join(checkout, dir), path.join(scratch, dir), { recursive: true });
 for (const file of ["package.json", "vite.config.ts", "tsconfig.json"])
