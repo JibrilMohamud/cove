@@ -76,7 +76,10 @@ function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
   if (scopeRef.current !== scope) scopeRef.current = scope;
   const requestRef = useRef(0);
   const [page, setPage] = useState<Page>({
-    scope, offset: 0, items: firstPage, hasMore: firstPage.length >= 100,
+    scope,
+    offset: 0,
+    items: firstPage,
+    hasMore: firstPage.length >= 100,
   });
   const [loading, setLoading] = useState(false);
   useEffect(() => {
@@ -91,9 +94,10 @@ function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
           : current,
     );
   }, [scope, firstPage]);
-  const visible = page.scope === scope
-    ? page
-    : { scope, offset: 0, items: firstPage, hasMore: firstPage.length >= 100 };
+  const visible =
+    page.scope === scope
+      ? page
+      : { scope, offset: 0, items: firstPage, hasMore: firstPage.length >= 100 };
   async function navigate(offset: number) {
     if (!accountId || loading || offset < 0) return;
     if (offset === 0) {
@@ -120,8 +124,7 @@ function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
       if (scopeRef.current === scope && requestRef.current === token)
         toast.error((error as Error).message);
     } finally {
-      if (scopeRef.current === scope && requestRef.current === token)
-        setLoading(false);
+      if (scopeRef.current === scope && requestRef.current === token) setLoading(false);
     }
   }
   return {
@@ -149,7 +152,10 @@ function CollectionNextPage({
   const { t: tr } = useStorefrontLocale();
   if (!state.hasMore && !state.hasPrevious) return null;
   return (
-    <nav className="collection-load-more" aria-label={tr("collection.pagination", "Collection pages")}>
+    <nav
+      className="collection-load-more"
+      aria-label={tr("collection.pagination", "Collection pages")}
+    >
       <button
         type="button"
         className="button outline"
@@ -167,7 +173,9 @@ function CollectionNextPage({
         disabled={state.loading || !state.hasMore}
         onClick={() => void state.loadMore()}
       >
-        {state.loading ? tr("collection.loadingMore", "Loading…") : tr("collection.next", "Next page")}
+        {state.loading
+          ? tr("collection.loadingMore", "Loading…")
+          : tr("collection.next", "Next page")}
       </button>
     </nav>
   );
