@@ -2101,7 +2101,10 @@ export function ReaderPage({ id }: { id: string }) {
                     <Users size={30} />
                     <h3>{tr("reader.social.guestTitle", "Read alongside people you choose.")}</h3>
                     <p>
-                      {tr("reader.social.guestDescription", "Sign in to enable spoiler-aware shared highlights and margin conversations.")}
+                      {tr(
+                        "reader.social.guestDescription",
+                        "Sign in to enable spoiler-aware shared highlights and margin conversations.",
+                      )}
                     </p>
                     <button className="button gold" onClick={signIn}>
                       {tr("reader.social.signIn", "Sign in")}
@@ -2113,7 +2116,10 @@ export function ReaderPage({ id }: { id: string }) {
                       <div>
                         <strong>{tr("reader.social.heading", "Social Reading")}</strong>
                         <p className="small muted">
-                          {tr("reader.social.description", "Off by default. The book stays clean until you ask for this layer.")}
+                          {tr(
+                            "reader.social.description",
+                            "Off by default. The book stays clean until you ask for this layer.",
+                          )}
                         </p>
                       </div>
                       <input
