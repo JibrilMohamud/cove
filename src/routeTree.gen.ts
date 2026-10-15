@@ -20,6 +20,7 @@ import { Route as DealsRouteImport } from './routes/deals'
 import { Route as DefinitionsRouteImport } from './routes/definitions'
 import { Route as DownloadsRouteImport } from './routes/downloads'
 import { Route as HelpRouteImport } from './routes/help'
+import { Route as SoundtracksRouteImport } from './routes/soundtracks'
 import { Route as HighlightsRouteImport } from './routes/highlights'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as MostReadRouteImport } from './routes/most-read'
@@ -116,6 +117,11 @@ const DownloadsRoute = DownloadsRouteImport.update({
 const HelpRoute = HelpRouteImport.update({
   id: '/help',
   path: '/help',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SoundtracksRoute = SoundtracksRouteImport.update({
+  id: '/soundtracks',
+  path: '/soundtracks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HighlightsRoute = HighlightsRouteImport.update({
@@ -341,6 +347,7 @@ export interface FileRoutesByFullPath {
   '/definitions': typeof DefinitionsRoute
   '/downloads': typeof DownloadsRoute
   '/help': typeof HelpRoute
+  '/soundtracks': typeof SoundtracksRoute
   '/highlights': typeof HighlightsRoute
   '/library': typeof LibraryRoute
   '/most-read': typeof MostReadRoute
@@ -396,6 +403,7 @@ export interface FileRoutesByTo {
   '/definitions': typeof DefinitionsRoute
   '/downloads': typeof DownloadsRoute
   '/help': typeof HelpRoute
+  '/soundtracks': typeof SoundtracksRoute
   '/highlights': typeof HighlightsRoute
   '/library': typeof LibraryRoute
   '/most-read': typeof MostReadRoute
@@ -452,6 +460,7 @@ export interface FileRoutesById {
   '/definitions': typeof DefinitionsRoute
   '/downloads': typeof DownloadsRoute
   '/help': typeof HelpRoute
+  '/soundtracks': typeof SoundtracksRoute
   '/highlights': typeof HighlightsRoute
   '/library': typeof LibraryRoute
   '/most-read': typeof MostReadRoute
@@ -509,6 +518,7 @@ export interface FileRouteTypes {
     | '/definitions'
     | '/downloads'
     | '/help'
+    | '/soundtracks'
     | '/highlights'
     | '/library'
     | '/most-read'
@@ -564,6 +574,7 @@ export interface FileRouteTypes {
     | '/definitions'
     | '/downloads'
     | '/help'
+    | '/soundtracks'
     | '/highlights'
     | '/library'
     | '/most-read'
@@ -619,6 +630,7 @@ export interface FileRouteTypes {
     | '/definitions'
     | '/downloads'
     | '/help'
+    | '/soundtracks'
     | '/highlights'
     | '/library'
     | '/most-read'
@@ -675,6 +687,7 @@ export interface RootRouteChildren {
   DefinitionsRoute: typeof DefinitionsRoute
   DownloadsRoute: typeof DownloadsRoute
   HelpRoute: typeof HelpRoute
+  SoundtracksRoute: typeof SoundtracksRoute
   HighlightsRoute: typeof HighlightsRoute
   LibraryRoute: typeof LibraryRoute
   MostReadRoute: typeof MostReadRoute
@@ -795,6 +808,13 @@ declare module '@tanstack/react-router' {
       path: '/help'
       fullPath: '/help'
       preLoaderRoute: typeof HelpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/soundtracks': {
+      id: '/soundtracks'
+      path: '/soundtracks'
+      fullPath: '/soundtracks'
+      preLoaderRoute: typeof SoundtracksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/highlights': {
@@ -1118,6 +1138,7 @@ const rootRouteChildren: RootRouteChildren = {
   DefinitionsRoute: DefinitionsRoute,
   DownloadsRoute: DownloadsRoute,
   HelpRoute: HelpRoute,
+  SoundtracksRoute: SoundtracksRoute,
   HighlightsRoute: HighlightsRoute,
   LibraryRoute: LibraryRoute,
   MostReadRoute: MostReadRoute,
