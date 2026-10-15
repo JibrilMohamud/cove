@@ -180,11 +180,17 @@ export async function cachedPublicApi(
       if (data) {
         if (path === "/api/fore/storefront/bootstrap") {
           const context = data.context as { rightsCountry?: unknown } | undefined;
-          const catalog = data.catalog as {
-            results?: unknown[];
-            count?: unknown;
-            search?: { backend?: unknown; correctedQuery?: string | null; [key: string]: unknown };
-          } | undefined;
+          const catalog = data.catalog as
+            | {
+                results?: unknown[];
+                count?: unknown;
+                search?: {
+                  backend?: unknown;
+                  correctedQuery?: string | null;
+                  [key: string]: unknown;
+                };
+              }
+            | undefined;
           if (
             typeof context?.rightsCountry !== "string" ||
             !/^[A-Z]{2}$/.test(context.rightsCountry) ||
@@ -194,14 +200,13 @@ export async function cachedPublicApi(
             typeof catalog.search?.backend !== "string"
           )
             throw new Error("Invalid cached storefront bootstrap.");
-          const results = catalog.results.filter(
-            (book: unknown): book is { productId: string } =>
-              Boolean(
-                book &&
-                  typeof book === "object" &&
-                  "productId" in book &&
-                  typeof book.productId === "string",
-              ),
+          const results = catalog.results.filter((book: unknown): book is { productId: string } =>
+            Boolean(
+              book &&
+                typeof book === "object" &&
+                "productId" in book &&
+                typeof book.productId === "string",
+            ),
           );
           if (results.length !== catalog.results.length)
             throw new Error("Malformed cached storefront products.");
@@ -312,10 +317,13 @@ export async function cachedPublicApi(
     // A query UUID and request diagnostics belong to one request, never the shared cache.
     if (data.search && typeof data.search === "object" && "queryId" in data.search)
       data.search.queryId = null;
-    if (path === "/api/fore/storefront/bootstrap" && data.catalog && typeof data.catalog === "object") {
+    if (
+      path === "/api/fore/storefront/bootstrap" &&
+      data.catalog &&
+      typeof data.catalog === "object"
+    ) {
       const nested = (data.catalog as Record<string, unknown>).search;
-      if (nested && typeof nested === "object" && "queryId" in nested)
-        nested.queryId = null;
+      if (nested && typeof nested === "object" && "queryId" in nested) nested.queryId = null;
     }
     const body = JSON.stringify(data);
     const ttl = publicCacheTtl(path);
