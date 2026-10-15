@@ -743,7 +743,7 @@ export async function upsertTaxonomyNode(db: CatalogDB, raw: unknown) {
   await db
     .prepare(
       `INSERT INTO storefront_taxonomy_nodes(id,taxonomy_id,parent_id,slug,path,name,description,depth,sort_order,visible,featured,seo_title,seo_description,created_at,updated_at)
-    VALUES(?,'tax_fore_books',?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    VALUES(?,'tax_fore_books',?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET parent_id=excluded.parent_id,slug=excluded.slug,path=excluded.path,name=excluded.name,description=excluded.description,depth=excluded.depth,sort_order=excluded.sort_order,visible=excluded.visible,featured=excluded.featured,seo_title=excluded.seo_title,seo_description=excluded.seo_description,updated_at=excluded.updated_at`,
     )
     .bind(

@@ -35,7 +35,14 @@ export function localBindings(root) {
         return { results: s.all(...values) };
       },
       async run() {
-        return s.run(...values);
+        const result = s.run(...values);
+        // Match D1's mutation result as well as SQLite's top-level fields. The
+        // production delivery guards rely on meta.changes for atomic claims.
+        return {
+          ...result,
+          success: true,
+          meta: { changes: Number(result.changes), last_row_id: Number(result.lastInsertRowid) },
+        };
       },
     };
   }

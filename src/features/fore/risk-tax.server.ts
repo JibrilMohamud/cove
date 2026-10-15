@@ -505,7 +505,7 @@ export async function ingestStripeRiskSignal(
     };
   await db
     .prepare(
-      "INSERT OR IGNORE INTO risk_provider_signals(id,provider,provider_signal_id,subject_type,subject_id,signal_type,score,level,payload_hash,normalized_json,created_at) VALUES(?,'stripe',?,'order',?,'radar_charge',?,?,?,?,?,?)",
+      "INSERT OR IGNORE INTO risk_provider_signals(id,provider,provider_signal_id,subject_type,subject_id,signal_type,score,level,payload_hash,normalized_json,created_at) VALUES(?,'stripe',?,'order',?,'radar_charge',?,?,?,?,?)",
     )
     .bind(
       uid("risk_ps"),

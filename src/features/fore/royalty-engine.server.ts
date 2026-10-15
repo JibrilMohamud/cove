@@ -583,7 +583,7 @@ export async function accrueSaleRoyaltiesForOrder(db: CatalogDB, orderId: string
     LEFT JOIN pricing_decisions pd ON pd.id=oi.pricing_decision_id LEFT JOIN promotions pr ON pr.id=pd.promotion_id
     LEFT JOIN promotion_campaigns pc ON pc.id=oi.promotion_campaign_id
     LEFT JOIN preorders po ON po.id=oi.preorder_id LEFT JOIN preorder_release_plans rp ON rp.id=po.release_plan_id
-    LEFT JOIN publishing_publications pub ON pub.id=(SELECT pub2.id FROM publishing_publications pub2 WHERE pub2.product_id=oi.product_id ORDER BY pub2.created_at DESC,pub2.id DESC LIMIT 1)
+    LEFT JOIN publishing_publications pub ON pub.id=(SELECT pub2.id FROM publishing_publications pub2 WHERE pub2.product_id=oi.product_id ORDER BY pub2.published_at DESC,pub2.id DESC LIMIT 1)
     LEFT JOIN publishing_submission_snapshots ss ON ss.id=pub.submission_id LEFT JOIN publishing_edition_drafts ped ON ped.id=ss.edition_id
     WHERE oi.order_id=?`,
       )

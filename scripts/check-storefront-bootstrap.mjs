@@ -16,6 +16,15 @@ try {
     logLevel: "silent",
   });
   const { handleCoveApi } = await import(path.join(root, "api.mjs"));
+  await build({
+    entryPoints: ["src/features/fore/taxonomy.server.ts"],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    outfile: path.join(root, "taxonomy.mjs"),
+    logLevel: "silent",
+  });
+  const { upsertTaxonomyNode } = await import(path.join(root, "taxonomy.mjs"));
   const env = localBindings(root);
   for (const [country, locale] of [
     ["US", "en-US"],
@@ -52,6 +61,29 @@ try {
       "bootstrap includes no private reading records",
     );
   }
+  const created = await upsertTaxonomyNode(env.DB, {
+    slug: "sandbox-category",
+    name: "Sandbox category",
+  });
+  assert.equal(created.path, "sandbox-category");
+  const child = await upsertTaxonomyNode(env.DB, {
+    slug: "child",
+    name: "Child",
+    parentId: created.id,
+  });
+  await upsertTaxonomyNode(env.DB, {
+    id: created.id,
+    slug: "renamed-category",
+    name: "Renamed category",
+  });
+  assert.equal(
+    (
+      await env.DB.prepare("SELECT path FROM storefront_taxonomy_nodes WHERE id=?")
+        .bind(child.id)
+        .first()
+    ).path,
+    "renamed-category/child",
+  );
   console.log(
     "PASS: combined storefront context/catalog/taxonomy bootstrap, matching first-page projections, currency and US/CA/SA/JP rights isolation.",
   );

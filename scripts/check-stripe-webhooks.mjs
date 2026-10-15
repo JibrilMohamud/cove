@@ -19,6 +19,15 @@ try {
   const { stripeWebhook, commerceConfig, invoiceHtml } = await import(
     path.join(root, "commerce.mjs")
   );
+  await build({
+    entryPoints: ["src/features/fore/risk-tax.server.ts"],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    outfile: path.join(root, "risk.mjs"),
+    logLevel: "silent",
+  });
+  const { ingestStripeRiskSignal } = await import(path.join(root, "risk.mjs"));
   const env = {
     ...localBindings(root),
     STRIPE_LIVEMODE: "false",
@@ -152,6 +161,19 @@ try {
     };
     await assert.rejects(stripeWebhook(env, request(mismatch)), /does not match/);
   }
+  await ingestStripeRiskSignal(
+    env.DB,
+    "ord-proof",
+    { outcome: { risk_score: 3, risk_level: "normal", network_status: "approved_by_network" } },
+    "evt_radar_success",
+  );
+  const radar = await original(
+    "SELECT score,level FROM risk_provider_signals WHERE provider_signal_id=?",
+  )
+    .bind("evt_radar_success")
+    .first();
+  assert.equal(radar.score, 3);
+  assert.equal(radar.level, "normal");
   assert.equal(
     (await original("SELECT status FROM commerce_orders WHERE id='ord-proof'").first()).status,
     "pending_payment",

@@ -1,6 +1,6 @@
 # Cove reading, localization and content release audit — 2026-10-15
 
-This is a release candidate based on main `00afef6` (PR #27). Changes are committed locally on `fix/coverage-localization-journeys`. Publication is blocked by automatic approval review, which requires current-chat authorization naming `https://github.com/JibrilMohamud/cove`. No production migrations, Worker variables, signing keys, payment keys, or catalog rights were changed during this work.
+This is a release candidate based on main `00afef6` (PR #27). Changes are committed locally on `fix/coverage-localization-journeys`. The user explicitly authorized publication, merge after CI, and deployment to `https://github.com/JibrilMohamud/cove`. PR #28 is open; publication uses the GitHub connector because the local Git CLI has no push credential. No production migrations, Worker variables, signing keys, payment keys, or catalog rights were changed during this work.
 
 ## Implemented
 
@@ -66,7 +66,7 @@ Required manual sessions: NVDA with Firefox/Chrome on Windows, VoiceOver with Sa
 
 ## Remaining completion gates
 
-- User authorization accepted by automatic review, public branch/PR creation, required GitHub checks, migration/deployment and production smoke.
+- Final-head GitHub checks, native NVDA job, migration/deployment and production smoke. Publication authorization is complete and PR #28 is open.
 - Backfill and storage-verification runs in production, plus review of terminal failures/rights exceptions. This revision does not instantly populate the backlog.
 - Full-app localization beyond the eight checked components: account-management, shell/footer labels, commerce, notifications, support, legal, publishing/admin surfaces, provider/API error messages and some dynamic prose still need separate coverage and native-language review. Authentication text now has render coverage, but native-language and browser/AT review remains required.
 - Independent native screen-reader sessions and a production installed-app cold-start/offline journey.
@@ -78,3 +78,12 @@ Required manual sessions: NVDA with Firefox/Chrome on Windows, VoiceOver with Sa
 Apply migrations 0054 (runner evidence, source backoff, media checks) and 0055 (webhook leases) before deploying the Worker. The new cron is `* * * * *`; retain the five existing schedules. Set `FORE_ASSETS_PER_MINUTE=32` and make catalog-only ticks use zero asset attempts. Production deployment uses `--keep-vars`, so inspect the effective variable after release; old dashboard-owned variables can outlive source defaults. Audio compute remains paused with its existing monthly cap.
 
 Rollback the code without dropping the additive tables/columns. Disable only the new asset runner by setting `FORE_ASSETS_PER_MINUTE=0`; source backoff and per-file state remain resumable. Preserve all production bindings, rights determinations and cryptographic secrets.
+
+
+## Authorized-release continuation
+
+PR #28 now also renders the initial Bookstore catalog on the server, hydrates the exact country/currency/locale/query data, keeps optional discovery below the first catalog, prioritizes covers, and removes CSP-blocked font requests. See `BOOKSTORE_PERFORMANCE_2026-10-15.md`. All six browser/device configurations passed on remote head `75ec124`, including the JavaScript-disabled first page and native IndexedDB EPUB test. WebKit's reproduced Blob-storage failure was resolved by storing public EPUB binary buffers while preserving legacy Blob reads. No independent human AT audit is claimed.
+
+The real isolated Stripe sandbox path now passed Cove quote/PaymentIntent creation, test-card success, Stripe CLI-delivered signed webhook, single entitlement, protected original fixture EPUB delivery, event replay, cross-account denial, refund/revocation and royalty accrual under a synthetic active contract. This exposed a Radar-signal SQL parameter-count defect and a royalty query ordering by a nonexistent publication timestamp. Both are fixed and have behavior regressions. Local database adapters now expose D1 mutation metadata so atomic delivery claims are tested accurately. A second SQL parameter-count defect in category administration was found during the same review and has a create/rename-subtree regression.
+
+Production Stripe remains unconfigured and Gutenberg products remain free. Sandbox credentials are ephemeral and are not in source, CI logs or production bindings. The sandbox checks are API/provider delivery evidence, not a completed browser Payment Element/SCA test or a production publisher-license certification. The new Windows/NVDA job captures native reader speech and focus; its result is pending until run.
