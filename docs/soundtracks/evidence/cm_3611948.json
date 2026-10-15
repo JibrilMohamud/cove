@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:53:07.429530+00:00",
+  "expectedSha1": "4ddf7f4425bc16f3c11fe6a1aee3c3a865eb4bfc",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=3611948",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Benedetto_Marcello_-_Flute_Sonata_in_F_major.ogg",
+        "duration": 384.4643990929705,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Albert Tipton (flute) and Mary Norris (piano)"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Albert Tipton|Compositions in F major|Audio files of Baroque period classical music|Pandora Music|Music for flute and piano|Sounds of western concert flutes|Compositions by Benedetto Marcello"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "The Al Goldstein collection in the <a rel=\"nofollow\" class=\"external text\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html\">Pandora Music</a> repository at ibiblio.org."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-02-25 08:55:46"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<p>Flute Sonata in F major, Op. 2 No. 1\n</p><p>These performances were made at various locations. Many were made\nduring performances sponsored by Columbia Concerts. They are unedited\n</p>\nexcept for timing between movements. They are somewhat noisy, but in our opinion the performances are outstanding."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Benedetto Marcello - Flute Sonata in F major"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"nofollow\" class=\"external text\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html\">license information</a> states that this file is \"available for free download subject to the <a href=\"//commons.wikimedia.org/wiki/EFF_OAL\" class=\"mw-redirect\" title=\"EFF OAL\">EFF OAL</a>\" (Open Audio License), which in turn <a rel=\"nofollow\" class=\"external text\" href=\"https://www.eff.org/IP/Open_licenses/eff_oal.php\">is interchangeable</a> with the <a href=\"//commons.wikimedia.org/wiki/CC-BY-SA-2.0\" class=\"mw-redirect\" title=\"CC-BY-SA-2.0\">CC-BY-SA-2.0</a>."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "4ddf7f4425bc16f3c11fe6a1aee3c3a865eb4bfc",
+        "size": 6785696,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/4/45/Benedetto_Marcello_-_Flute_Sonata_in_F_major.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 3611948,
+    "revisions": [
+      {
+        "parentid": 1117890543,
+        "revid": 1157341681,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description=Flute Sonata in F major, Op. 2 No. 1\n\nThese performances were made at various locations. Many were made\nduring performances sponsored by Columbia Concerts. They are unedited\nexcept for timing between movements. They are somewhat noisy, but in our opinion the performances are outstanding.\n\n|Source = The Al Goldstein collection in the [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html Pandora Music] repository at ibiblio.org.\n|Date =\n|Author =Albert Tipton (flute) and Mary Norris (piano)\n|Permission = The [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html license information] states that this file is \"available for free download subject to the [[EFF OAL]]\" (Open Audio License), which in turn [https://www.eff.org/IP/Open_licenses/eff_oal.php is interchangeable] with the [[CC-BY-SA-2.0]].\n}}\n== {{int:license-header}} ==\n{{cc-by-sa-2.0}}\n\n[[Category:Compositions by Benedetto Marcello|Flute Sonata in F major]]\n[[Category:Audio files of Baroque period classical music|Flute Sonata in F major]]\n[[Category:Albert Tipton]]\n[[Category:Pandora Music]]\n[[Category:Compositions in F major]]\n[[Category:Music for flute and piano]]\n[[Category:Sounds of western concert flutes]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-01-31T23:07:36Z"
+      }
+    ],
+    "title": "File:Benedetto Marcello - Flute Sonata in F major.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1157341681",
+  "recordingId": "cm_3611948",
+  "revisionId": 1157341681,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABenedetto_Marcello_-_Flute_Sonata_in_F_major.ogg",
+  "sourceSha1": "4ddf7f4425bc16f3c11fe6a1aee3c3a865eb4bfc"
+}

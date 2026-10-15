@@ -1,0 +1,101 @@
+{
+  "capturedAt": "2026-10-15T21:52:50.980896+00:00",
+  "expectedSha1": "bcf28fc2eead10b045c434b70ad13dae8f73024b",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=2694516",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Dowland_I_saw_my_lady_weep_performed_by_David_Solomons.ogg",
+        "duration": 288.48,
+        "extmetadata": {
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "GFDL|Files with no machine-readable author|Files with no machine-readable source|C-sharp minor|License migration completed|Media missing infobox template|Self-published work|D-flat minor|Files moved to Commons by BetacommandBot|Audio files of the male voice|Audio files of music of England|Audio files of renaissance period classical music|Files using the English language|Lute-songs by John Dowland"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2007-09-07 02:11:06"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "http://creativecommons.org/licenses/by-sa/3.0/"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Dowland I saw my lady weep performed by David Solomons"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "bcf28fc2eead10b045c434b70ad13dae8f73024b",
+        "size": 4794516,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/d/d3/Dowland_I_saw_my_lady_weep_performed_by_David_Solomons.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 2694516,
+    "revisions": [
+      {
+        "parentid": 934810579,
+        "revid": 1140663065,
+        "slots": {
+          "main": {
+            "content": "Transwiki approved by: [[w:en:User:Raul654]]\n\nThis file was copied from wikipedia:en. The original description was:\n\nDowland - I saw my lady weep - performed by David Solomons (guitar and alto)\n{{GFDL-self|migration=relicense}} [[w:en:User:Dwsolo|Dwsolo]] 14:35, 5 July 2007 (UTC)dwsolo\n\n=== {{original upload log}} ===\n{| class=wikitable\n! date/time || username || resolution || size || edit summary\n|----\n| 14:35, 5 July 2007 || [[w:en:User:Dwsolo]] ||  || 4.57 MB || <nowiki>Dwoland I saw my lady weep - performed by David Solomons (guitar and alto) {{GFDL-self}} ~~~~dwsolo</nowiki>\n|}\n\n=== Image description page history ===\n{| class=wikitable\n! link || date/time || username || edit summary\n|----\n| http://en.wikipedia.org/w/index.php?title=Image:Dowland_I_saw_my_lady_weep_performed_by_David_Solomons.ogg&redirect=no&oldid=142670658 || 06:26, 6 September 2007 || [[w:en:User:Raul654]] ||  \n|----\n| http://en.wikipedia.org/w/index.php?title=Image:Dowland_I_saw_my_lady_weep_performed_by_David_Solomons.ogg&redirect=no&oldid=142670658 || 14:36, 5 July 2007 || [[w:en:User:Dwsolo]] ||  \n|----\n| http://en.wikipedia.org/w/index.php?title=Image:Dowland_I_saw_my_lady_weep_performed_by_David_Solomons.ogg&redirect=no&oldid=142670548 || 14:35, 5 July 2007 || [[w:en:User:Dwsolo]] || <nowiki>(Dwoland I saw my lady weep - performed by David Solomons (guitar and alto) {{GFDL-self}} ~~~~dwsolo)</nowiki>\n|}\n\n[[Category:Files moved to Commons by BetacommandBot]]\n[[Category:Media missing infobox template]]\n[[Category:Files using the English language]]\n[[Category:Lute-songs by John Dowland]]\n[[Category:Audio files of music of England]]\n[[Category:Audio files of the male voice]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:C-sharp minor]]\n[[Category:D-flat minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-01-02T17:43:35Z"
+      }
+    ],
+    "title": "File:Dowland I saw my lady weep performed by David Solomons.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1140663065",
+  "recordingId": "cm_2694516",
+  "revisionId": 1140663065,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ADowland_I_saw_my_lady_weep_performed_by_David_Solomons.ogg",
+  "sourceSha1": "bcf28fc2eead10b045c434b70ad13dae8f73024b"
+}

@@ -1,0 +1,123 @@
+{
+  "capturedAt": "2026-10-15T21:53:10.357315+00:00",
+  "expectedSha1": "9bf91f564b0b9e12f17c26e8e29f8dadafd6a338",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=432292",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beethoven_-_Ecossaise_in_E-flat.ogg",
+        "duration": 30.928979591836736,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "Attribution": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Ecossaise in E-flat (WoO 86) Kevin MacLeod (incompetech.com)\n<p>Licensed under Creative Commons: By Attribution 3.0 License</p>\n<a rel=\"mw:ExtLink nofollow\" href=\"https://creativecommons.org/licenses/by/3.0/\" class=\"external free\">https://creativecommons.org/licenses/by/3.0/</a>"
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Piano music composed by Ludwig van Beethoven|Compositions in E-flat major|Media of the day|Audio files of music by Ludwig van Beethoven|Audio files of Classical period classical music|Audio files of classical music by Kevin MacLeod"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:ExtLink nofollow\" href=\"http://aux.incompetech.com/royalty-free/Ecossaise%20in%20E-flat.mp3\" class=\"external text\">from http://www.incompetech.com/m/c/royalty-free/beethoven.html</a> Manuscript from <a rel=\"mw:ExtLink nofollow\" href=\"http://www.unheardbeethoven.org/\" class=\"external autonumber\"></a> (Archived here:<a rel=\"mw:ExtLink nofollow\" href=\"https://web.archive.org/web/20151108185834/http://incompetech.com:80/music/royalty-free/index.html?genre=Classical&amp;page=5\" class=\"external free\">https://web.archive.org/web/20151108185834/http://incompetech.com:80/music/royalty-free/index.html?genre=Classical&amp;page=5</a>)"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2005-11-24 06:31:38"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Ecossaise in E-flat (WoO 86);"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beethoven - Ecossaise in E-flat"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Copyright: Kevin MacLeod (incompetech.com)"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "9bf91f564b0b9e12f17c26e8e29f8dadafd6a338",
+        "size": 412659,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/94/Beethoven_-_Ecossaise_in_E-flat.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 432292,
+    "revisions": [
+      {
+        "parentid": 1044292481,
+        "revid": 1044292488,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{information\n| description    = {{en|1=Ecossaise in E-flat (WoO 86); <!--ISRC: USUAN1100244-->}}\n| author         = {{Creator:Ludwig van Beethoven}};  Kevin MacLeod\n| source         = [http://aux.incompetech.com/royalty-free/Ecossaise%20in%20E-flat.mp3 from http://www.incompetech.com/m/c/royalty-free/beethoven.html] Manuscript from [http://www.unheardbeethoven.org/] (Archived here:https://web.archive.org/web/20151108185834/http://incompetech.com:80/music/royalty-free/index.html?genre=Classical&page=5)\n| date           = \n| permission     = Copyright: Kevin MacLeod (incompetech.com)\n| other_versions = \n| other fields =\n{{information field|Genre|Classical}}\n{{information field|Length|0:30}}\n{{information field|Tempo|144bpm}}\n{{information field|Instruments|Piano}}\n}}\n\n=={{int:license-header}}==\n{{Cc-by-3.0|attribution=Ecossaise in E-flat (WoO 86) Kevin MacLeod (incompetech.com)\nLicensed under Creative Commons: By Attribution 3.0 License\nhttps://creativecommons.org/licenses/by/3.0/}}\n\n== {{Assessment}} ==\n{{Media of the day|year=2009|month=07|day=06}}\n\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Piano music composed by Ludwig van Beethoven]]\n[[Category:Audio files of classical music by Kevin MacLeod]]\n[[Category:Compositions in E-flat major]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-06-15T17:24:47Z"
+      }
+    ],
+    "title": "File:Beethoven - Ecossaise in E-flat.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1044292488",
+  "recordingId": "cm_432292",
+  "revisionId": 1044292488,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethoven_-_Ecossaise_in_E-flat.ogg",
+  "sourceSha1": "9bf91f564b0b9e12f17c26e8e29f8dadafd6a338"
+}

@@ -1,3 +1,13 @@
+# Current review and audio QA workflow
+
+The implementation and payload requirements in [the clearance pilot runbook](soundtracks/README.md)
+supersede the original approval example below. Every write now requires an integer
+`version`; approval also requires a saved five-layer dossier and passing exact-file
+QA. Staff may use `/staff/soundtracks`; service integrations require the dedicated
+`soundtracks.review` scope. AI-assisted assessments are labeled explicitly and are
+not human or counsel attestations. Complex provenance and recording public-domain
+claims require an independent second principal. Approval and audit history are atomic.
+
 # Cove Soundtracks: recording-rights ingestion runbook
 
 ## Verified operational findings — 15 October 2026
@@ -48,10 +58,10 @@ database entitlement **before** removing the R2 object; inaccessible R2 should
 never delay an immediate distribution halt.
 
 ## What gets imported
-The Worker discovers up to 250 **metadata candidates** from selected Wikimedia Commons classical-music audio categories. Discovery is rate-limited to one 50-file metadata page per ten-minute maintenance window. Candidates claiming CC0, CC BY, CC BY-SA (supported versions), or a Commons public-domain claim may be staged, but they are never automatically approved, copied to R2 or publicly played. NC, ND, SA, unknown licenses, files over 25 MB, and unsupported audio types are excluded. Commons license metadata is not independent proof of recording rights.
+The Worker discovers up to 750 **metadata candidates** from selected Wikimedia Commons classical-music audio categories. Discovery is rate-limited to one 50-file metadata page per ten-minute maintenance window. Candidates claiming CC0, CC BY, CC BY-SA (supported versions), or a Commons public-domain claim may be staged, but they are never automatically approved, copied to R2 or publicly played. NC, ND, unknown licenses, files over 25 MB, and unsupported audio types are excluded. Commons license metadata is not independent proof of recording rights.
 
 ## Individual review
-A qualified rights reviewer obtains the pending candidates with an authenticated GET request to /api/fore/admin/soundtracks?status=pending_review&limit=40. The existing scoped audio.ingest service credential is required and must never be included in browser code.
+An accountable rights reviewer obtains the pending candidates with an authenticated GET request to /api/fore/admin/soundtracks?status=pending_review&limit=40. The existing scoped soundtracks.review service credential is required and must never be included in browser code.
 
 For each recording the reviewer must:
 - Open the original Commons page and inspect the individual version of the sound recording.
@@ -66,7 +76,7 @@ The server re-fetches Commons file metadata and invalidates approval if license,
 
 ## Lifecycle and takedown
 pending_review: discovered; no file or public visibility.
-approved: reviewed by a person; queued for storage.
+approved: evidence-backed accountable review recorded; passed exact-file QA; queued for storage.
 importing: exclusive ingestion in progress.
 ready: recorded review, checksum-matched R2 file, public only in approved territories.
 import_failed: requires investigation or an explicit retry.

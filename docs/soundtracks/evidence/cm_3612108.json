@@ -1,0 +1,122 @@
+{
+  "capturedAt": "2026-10-15T21:53:07.429936+00:00",
+  "expectedSha1": "b9f22dcc78a9e0c7b2531a42b30717c3dbf066f3",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=3612108",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beethoven_Prometheus_Creatures_Op._43_No._14_-_Solo_della_signora_Cassentini.oga",
+        "duration": 292.59630385487526,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Oboe music|Ballets by Ludwig van Beethoven|Piano reductions|Adagio (music)|Andante|Featured sounds on Wikipedia, English|Basset horns|1986-04-21|Media of the day|Pandora Music|Audio files of music by Ludwig van Beethoven|The Creatures of Prometheus|Audio files of classical music for piano|1986 concerts in the United States|Meany Hall|Files with Assessments template missing SDC Commons no value quality assessment|Cupid in art|Audio files of Classical period classical music|Audio files of classical music by Laila Storch|Audio files of classical music by William McColl|The Three Graces in art|Audio files of classical music by Anita Cummings|Recorded music in 1986"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/mp3/uw_archive/chamber/Soni_Ventorum/86_Apr/index.html\" class=\"external free\">http://music.ibiblio.org/pub/multimedia/pandora/mp3/uw_archive/chamber/Soni_Ventorum/86_Apr/index.html</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-02-25 10:13:55"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "1986-04-21"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<i>Creatures of Prometheus</i> — Op. 43/14, Solo della signora Casentini: oboe, basset horn, piano. Performed at the Meany Theatre on April 21, 1986 at 8:00 PM"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beethoven Prometheus Creatures Op. 43 No. 14 - Solo della signora Cassentini"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/HOMEPAGE.html\" class=\"external text\">license information</a> states that this file is \"available for free download subject to the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/EFF_OAL\" title=\"EFF OAL\" class=\"mw-redirect\">EFF OAL</a>\" (Open Audio License), which in turn <a rel=\"mw:ExtLink nofollow\" href=\"https://web.archive.org/web/20040803083103/http://www.eff.org/IP/Open_licenses/eff_oal.html\" class=\"external text\">is interchangeable</a> with the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/CC-BY-SA-2.0\" title=\"CC-BY-SA-2.0\" class=\"mw-redirect\">CC-BY-SA-2.0</a>."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "b9f22dcc78a9e0c7b2531a42b30717c3dbf066f3",
+        "size": 8207409,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/b/b1/Beethoven_Prometheus_Creatures_Op._43_No._14_-_Solo_della_signora_Cassentini.oga?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 3612108,
+    "revisions": [
+      {
+        "parentid": 1227003004,
+        "revid": 1227003012,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{en|''Creatures of Prometheus'' — Op. 43/14, Solo della signora Casentini: oboe, basset horn, piano. Performed at the Meany Theatre on April 21, 1986 at 8:00 PM}}\n{{fr|1=Beethoven, ''Les Créatures de Promethée'' — Op. 43/14, Solo della signora Casentini : hautbois, cor de basset, piano. Capté au Meany Theatre le 21 avril 1986 à 20 h.}}\n{{mk|Камерен аранжман на балетот „[[:mk:Суштествата на Прометеј|Суштествата на Прометеј]]“ од [[:mk:Лудвиг ван Бетовен|Лудвиг ван Бетовен]].}}\n|Source = http://music.ibiblio.org/pub/multimedia/pandora/mp3/uw_archive/chamber/Soni_Ventorum/86_Apr/index.html\n|Date =1986-04-21\n|Author =\n*musicians: Laila Storch (oboe), William McColl (basset horn a copy of his own construction), Anita Cummings (piano)\n*composer: {{Creator:Ludwig van Beethoven}}\n|Permission = The [http://music.ibiblio.org/pub/multimedia/pandora/HOMEPAGE.html license information] states that this file is \"available for free download subject to the [[EFF OAL]]\" (Open Audio License), which in turn [https://web.archive.org/web/20040803083103/http://www.eff.org/IP/Open_licenses/eff_oal.html is interchangeable] with the [[CC-BY-SA-2.0]].\n}}\n\n== {{int:license-header}} ==\n{{OAL-2}}\n\n== {{Assessment}} ==\n{{Media of the day|year=2010|month=11|day=24}}\n{{Assessments|enwiki=3|enwiki-nom=Andante from The Creatures of Prometheus by Beethoven}}\n\n[[:en:The Creatures of Prometheus]]\n[[:es:Las criaturas de Prometeo (Beethoven)]]\n[[:fi:Prometheus (Beethoven)]]\n[[:fr:Die Geschöpfe des Prometheus]]\n[[:it:Le creature di Prometeo]]\n[[:ja:プロメテウスの創造物]]\n[[:nl:Die Geschöpfe des Prometheus]]\n[[:pl:Twory Prometeusza]]\n[[:pt:As Criaturas de Prometeu]]\n[[:ru:Творения Прометея]]\n[[:uk:Творіння Прометея]]\n\n[[Category:Andante]]\n[[Category:Ballets by Ludwig van Beethoven]]\n[[Category:Audio files of classical music by Anita Cummings]]\n[[Category:Audio files of classical music by Laila Storch]]\n[[Category:Audio files of classical music by William McColl]]\n[[Category:Featured sounds on Wikipedia, English]]\n[[Category:The Creatures of Prometheus]]\n[[Category:Oboe music]]\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Pandora Music]]\n[[Category:Audio files of classical music for piano]]\n[[Category:Piano reductions]]\n[[Category:Basset horns]]\n[[Category:Meany Hall]]\n[[Category:1986-04-21]]\n[[Category:Recorded music in 1986]]\n[[Category:1986 concerts in the United States]]\n[[Category:Andante]]\n[[Category:Adagio (music)]]\n[[Category:The Three Graces in art]]\n[[Category:Cupid in art]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:32:58Z"
+      }
+    ],
+    "title": "File:Beethoven Prometheus Creatures Op. 43 No. 14 - Solo della signora Cassentini.oga"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227003012",
+  "recordingId": "cm_3612108",
+  "revisionId": 1227003012,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethoven_Prometheus_Creatures_Op._43_No._14_-_Solo_della_signora_Cassentini.oga",
+  "sourceSha1": "b9f22dcc78a9e0c7b2531a42b30717c3dbf066f3"
+}

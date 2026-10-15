@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:17.133179+00:00",
+  "expectedSha1": "902e46d7b1ddb8047075ce5adde655d8a2f56369",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=57240",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beethoven_-_opus47-3_03.ogg",
+        "duration": 501.31591836734697,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Presto|Compositions in A major|Violin Sonata No. 9 (Beethoven)|Media of the day|Audio files of music by Ludwig van Beethoven|Pages using the Phonos extension|Audio files of Classical period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:ExtLink nofollow\" href=\"http://hebb.mit.edu/FreeMusic/\" class=\"external free\">http://hebb.mit.edu/FreeMusic/</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2005-02-11 03:00:06"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "composition 1802-1803"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<i><b>Violin Sonata No. 9</b></i> — <b>3rd movement</b>, digital recording"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beethoven - opus47-3 03"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "902e46d7b1ddb8047075ce5adde655d8a2f56369",
+        "size": 10309683,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/d/d5/Beethoven_-_opus47-3_03.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 57240,
+    "revisions": [
+      {
+        "parentid": 778298713,
+        "revid": 820142765,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description=\n{{de|'''''Violinsonate Nr. 9''''', op. 47, 3. Satz}}\n{{en|'''''Violin Sonata No. 9''''' — '''3rd movement''', digital recording}}\n{{es|'''''Sonata para Violin No. 9''''' en La mayor (“Kreutzer”), 3er Movimiento}}\n{{fr|'''''Sonate pour violon n° 9''''' - Troisième mouvement}}\n{{ja|'''''ヴァイオリンソナタ第9番''''' (ベートーヴェン) — 3}}\n\n|Source=http://hebb.mit.edu/FreeMusic/ \n|Date=composition 1802-1803\n|Author={{Creator:Ludwig van Beethoven}}\nPerformed by: Paul Rosenthal and Edward Auer\n|Permission=\n|other_versions=\n{{audio|JOHN MICHEL CELLO-BEETHOVEN SONATA in A KREUTZER Presto.ogg|Same movement, performed by John Michel (piano)}}\n[[Image:JOHN MICHEL CELLO-BEETHOVEN SONATA in A KREUTZER Presto.ogg|50px]] \n}}\n{{Media of the day|year=2009|month=11|day=16}}\n\n== ← 2nd movement ==\n{{See also|Image:Beethoven - opus47-2 02.ogg}}\n[[Image:Beethoven - opus47-2 02.ogg]]\n\n== {{int:license-header}} ==\n{{Cc-by-sa-2.0}}\n\n[[:de:Image:Beethoven - opus47-1 01.ogg]]\n[[:en:Image:Beethoven - opus47-1 01.ogg]]\n[[:es:Image:Beethoven - opus47-1 01.ogg]]\n[[:fr:Image:Beethoven - opus47-1 01.ogg]]\n[[:nl:Image:Beethoven - opus47-1 01.ogg]]\n[[:ko:Image:Beethoven - opus47-1 01.ogg]]\n[[:ja:Image:Beethoven - opus47-1 01.ogg]]\n[[:pt:Image:Beethoven - opus47-1 01.ogg]]\n[[:ru:Image:Beethoven - opus47-1 01.ogg]]\n\n[[Category:Violin Sonata No. 9 (Beethoven)|3]]\n[[Category:Compositions in A major]]\n[[Category:Presto]]\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2023-11-09T17:02:11Z"
+      }
+    ],
+    "title": "File:Beethoven - opus47-3 03.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=820142765",
+  "recordingId": "cm_57240",
+  "revisionId": 820142765,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethoven_-_opus47-3_03.ogg",
+  "sourceSha1": "902e46d7b1ddb8047075ce5adde655d8a2f56369"
+}

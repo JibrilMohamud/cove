@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:52:22.702836+00:00",
+  "expectedSha1": "50d43668a3c863f801960877d89299be86f941ec",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1066215",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Alessandro_Poglietti_-_Toccatina.ogg",
+        "duration": 684.3765079365079,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Sylvia Kind"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Alessandro Poglietti|Audio files of Baroque period classical music|Pandora Music|Audio files of classical music by Sylvia Kind|Harpsichord music by A. Poglietti"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "The Al Goldstein collection in the <a rel=\"nofollow\" class=\"external text\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html\">Pandora Music</a> repository at ibiblio.org."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-08-18 11:18:12"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Toccatina, composed by <a href=\"//commons.wikimedia.org/w/index.php?title=Alessandro_Poglietti&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"Alessandro Poglietti (page does not exist)\">Alessandro Poglietti</a>"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Alessandro Poglietti - Toccatina"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"nofollow\" class=\"external text\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html\">license information</a> states that this file is \"available for free download subject to the <a href=\"//commons.wikimedia.org/wiki/EFF_OAL\" class=\"mw-redirect\" title=\"EFF OAL\">EFF OAL</a>\" (Open Audio License), which in turn <a rel=\"nofollow\" class=\"external text\" href=\"https://www.eff.org/IP/Open_licenses/eff_oal.php\">is interchangeable</a> with the <a href=\"//commons.wikimedia.org/wiki/CC-BY-SA-2.0\" class=\"mw-redirect\" title=\"CC-BY-SA-2.0\">CC-BY-SA-2.0</a>."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "50d43668a3c863f801960877d89299be86f941ec",
+        "size": 20631070,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/2/27/Alessandro_Poglietti_-_Toccatina.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1066215,
+    "revisions": [
+      {
+        "parentid": 642140969,
+        "revid": 788483172,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description =  Toccatina, composed by [[Alessandro Poglietti]]\n|Source = The Al Goldstein collection in the [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html Pandora Music] repository at ibiblio.org.\n|Date = \n|Author = Sylvia Kind\n|Permission = The [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html license information] states that this file is \"available for free download subject to the [[EFF OAL]]\" (Open Audio License), which in turn [https://www.eff.org/IP/Open_licenses/eff_oal.php is interchangeable] with the [[CC-BY-SA-2.0]].\n}}\n== {{int:license-header}} ==\n{{cc-by-sa-2.0}}\n\n[[Category:Pandora Music]]\n[[Category:Harpsichord music by A. Poglietti]]\n[[Category:Audio files of classical music by Sylvia Kind]]\n[[Category:Alessandro Poglietti]]\n[[Category:Audio files of Baroque period classical music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2023-07-31T00:28:27Z"
+      }
+    ],
+    "title": "File:Alessandro Poglietti - Toccatina.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=788483172",
+  "recordingId": "cm_1066215",
+  "revisionId": 788483172,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAlessandro_Poglietti_-_Toccatina.ogg",
+  "sourceSha1": "50d43668a3c863f801960877d89299be86f941ec"
+}

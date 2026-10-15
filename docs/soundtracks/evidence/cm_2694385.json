@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:52:50.980466+00:00",
+  "expectedSha1": "ac79e0a865e9997fa027e16b1aa1b6254f4888f5",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=2694385",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:JOHN_MICHEL_CELLO-BACH_AVE_MARIA.ogg",
+        "duration": 301.1657142857143,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<ul><li>Composer: <a href=\"//commons.wikimedia.org/wiki/Charles_Gounod\" title=\"Charles Gounod\">Charles Gounod</a> (1818–1893)</li>\n<li>Contemporary Performer: <a rel=\"nofollow\" class=\"external text\" href=\"http://johnmichel.com/\">John Michel</a>, a cello professor at Central Washington University</li></ul>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Ave Maria (Bach/Gounod)|Music in 1859|Ave Maria (music)|Author died more than 100 years ago public domain images|Featured sounds on Wikipedia, English|Compositions in C major|Items with VRTS permission confirmed|Media of the day|John Michel|CC-PD-Mark|Audio files of music by Johann Sebastian Bach|Audio files of Romantic period classical music|Files with Assessments template missing SDC Commons no value quality assessment|Audio files of cello music|Audio files of music by Charles Gounod"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"nofollow\" class=\"external free\" href=\"http://www.garageband.com/artist/cello\">http://www.garageband.com/artist/cello</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2007-09-07 01:01:28"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "Originally composed in 1859"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<i>Ave Maria</i> composed by <a href=\"//commons.wikimedia.org/wiki/Charles_Gounod\" title=\"Charles Gounod\">Charles Gounod</a>. <i>Ave Maria</i> was composed based off of the harmony and texture of <a href=\"//commons.wikimedia.org/wiki/Johann_Sebastian_Bach\" title=\"Johann Sebastian Bach\">Johann Sebastian Bach</a>'s Prelude No.1 in C Major from <a href=\"//commons.wikimedia.org/wiki/Well-Tempered_Clavier\" title=\"Well-Tempered Clavier\">Well-Tempered Clavier</a> Book I (BWV 846)."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "JOHN MICHEL CELLO-BACH AVE MARIA"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "<p><span class=\"layouttemplateargs\" style=\"display:none;speak:none;\" title=\"template=PermissionTicket 1%3Dhttps%3A%2F%2Fticket.wikimedia.org%2Fotrs%2Findex.pl%3FAction%3DAgentTicketZoom%26TicketNumber%3D2007090610014151 2%3D2007090610014151\"> </span>\n</p>\n<style data-mw-deduplicate=\"TemplateStyles:r1254222110\">.mw-parser-output .messagebox{margin:4px 0;width:auto;border-collapse:collapse;border:2px solid var(--border-color-progressive,#6485d1);background-color:var(--background-color-neutral-subtle,#fbfcff);color:var(--color-base,#202122);box-sizing:border-box;border-inline-start-width:8px}.mw-parser-output .messagebox.mbox-small{font-size:88%;line-height:1.25em}.mw-parser-output .mbox-warning,.mw-parser-output .mbox-speedy{border:2px solid var(--border-color-error,#b22222);background:var(--background-color-error-subtle,#ffdbdb);border-inline-start-width:8px}.mw-parser-output .mbox-serious,.mw-parser-output .mbox-delete,.mw-parser-output .mbox-stop{border:2px solid var(--border-color-error,#b22222);border-inline-start-width:8px}.mw-parser-output .mbox-issue,.mw-parser-output .mbox-content{border:2px solid #f28500;background:var(--background-color-warning-subtle,#ffe);border-inline-start-width:8px}.mw-parser-output .mbox-query,.mw-parser-output .mbox-style{border:2px solid #f4c430;background:var(--background-color-warning-subtle,#ffe);border-inline-start-width:8px}.mw-parser-output .mbox-shit{border:2px solid #960;border-inline-start-width:8px}.mw-parser-output .mbox-license{border:2px solid #88a;border-inline-start-width:initial}.mw-parser-output .mbox-legal{border:2px solid var(--border-color-notice,#666);background:var(--background-color-base,#fff);border-inline-start-width:8px}.mw-parser-output .mbox-honor{border:2px solid #ca3;background:var(--background-color-warning-subtle,#fcf4db);border-inline-start-width:8px}.mw-parser-output .mbox-growth{border:2px solid #8d4;background:var(--background-color-success-subtle,#d5fdf4);border-inline-start-width:8px}.mw-parser-output .mbox-move{border:2px solid #93c;border-inline-start-width:8px}.mw-parser-output .mbox-protection,.mw-parser-output .mbox-message{border:2px solid var(--border-color-base,#aaa);border-inline-start-width:8px}.mw-parser-output .messagebox .mbox-text{border:none;padding:0.25em 0.9em;width:100%}.mw-parser-output .messagebox .mbox-image{border:none;padding-top:2px;padding-bottom:2px;padding-inline-start:0.9em;padding-inline-end:0;text-align:center}.mw-parser-output .messagebox .mbox-imageright{border:none;padding-top:2px;padding-bottom:2px;padding-inline-start:0;padding-inline-end:0.9em;text-align:center}.mw-parser-output .messagebox .mbox-empty-cell{border:none;padding:0;width:1px}.mw-parser-output .messagebox .mbox-invalid-type{text-align:center}@media(min-width:720px){.mw-parser-output .messagebox{margin:4px 10%}.mw-parser-output .messagebox.mbox-small{clear:right;float:right;margin:4px 0 4px 1em;width:238px}}body.skin--responsive .mw-parser-output table.messagebox img{max-width:none!important}</style><table class=\"plainlinks messagebox mbox-notice layouttemplate\" role=\"presentation\" style=\"margin:0.3em 0;width:100%;\"><tbody><tr><td class=\"mbox-image\"><span typeof=\"mw:File\"><span title=\"VRT Wikimedia\"><img alt=\"VRT Wikimedia\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Permission_logo_2021.svg/120px-Permission_logo_2021.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" width=\"75\" height=\"48\" class=\"mw-file-element\" srcset=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Permission_logo_2021.svg/250px-Permission_logo_2021.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail 2x\" data-file-width=\"935\" data-file-height=\"600\"></span></span></td><td class=\"mbox-text\">This work is <a href=\"https://freedomdefined.org/Definition\" class=\"extiw\" title=\"freedomdefined:Definition\">free</a> and may be used by anyone for any purpose. If you wish to <b><a href=\"//commons.wikimedia.org/wiki/Commons:Reusing_content_outside_Wikimedia\" title=\"Commons:Reusing content outside Wikimedia\">use this content</a></b>, you do not need to request permission as long as you follow any licensing requirements mentioned on this page.\n<p>The Wikimedia Foundation has received an e-mail confirming that the copyright holder has approved publication under the terms mentioned on this page. This correspondence has been <b><span style=\"background:transparent;color:#0f7f1f;font-weight:400;\" title=\"transparent\">reviewed</span></b> by a <a href=\"//commons.wikimedia.org/wiki/Template:PermissionTicket/Users\" title=\"Template:PermissionTicket/Users\">Volunteer Response Team (VRT) member</a> and stored in our <a href=\"//commons.wikimedia.org/wiki/Commons:Volunteer_Response_Team\" title=\"Commons:Volunteer Response Team\">permission archive</a>. The correspondence is available to trusted volunteers as <b><a href=\"https://ticket.wikimedia.org/otrs/index.pl?Action=AgentTicketZoom&amp;TicketNumber=2007090610014151\" class=\"extiw\" title=\"ticket:2007090610014151\">ticket #2007090610014151</a></b>.\n</p><p><small>If you have questions about the archived correspondence, please use the <a href=\"//commons.wikimedia.org/wiki/Commons:Volunteer_Response_Team/Noticeboard\" title=\"Commons:Volunteer Response Team/Noticeboard\">VRT noticeboard</a>.</small>\n<small>Ticket link: <a class=\"external free\" href=\"https://ticket.wikimedia.org/otrs/index.pl?Action=AgentTicketZoom&amp;TicketNumber=2007090610014151\">https://ticket.wikimedia.org/otrs/index.pl?Action=AgentTicketZoom&amp;TicketNumber=2007090610014151</a></small>\n<br><small>Find other files from the same ticket:</small> <span typeof=\"mw:File\"><a href=\"https://wcqs-beta.wmflabs.org/#%23defaultView%3AImageGrid%09%0ASELECT%20%3Fimage%20%20%20%7B%0A%20%20%3Ffile%20wdt%3AP6305%20%222007090610014151%22%20.%0A%20%20%3Ffile%20schema%3Aurl%20%3Fimage.%0A%7D%20%0A\" title=\"SDC query (SPARQL)\" rel=\"nofollow\"><img alt=\"SDC query (SPARQL)\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/7/77/Wikimedia_Commons_Query_Service_Logo.svg/20px-Wikimedia_Commons_Query_Service_Logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" width=\"15\" height=\"20\" class=\"mw-file-element\" srcset=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/7/77/Wikimedia_Commons_Query_Service_Logo.svg/40px-Wikimedia_Commons_Query_Service_Logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail 2x\" data-file-width=\"512\" data-file-height=\"688\"></a></span>\n</p>\n<span id=\"field-otrs\" title=\"https://ticket.wikimedia.org/otrs/index.pl?Action=AgentTicketZoom&amp;TicketNumber=2007090610014151\"></span></td></tr></tbody></table>"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "ac79e0a865e9997fa027e16b1aa1b6254f4888f5",
+        "size": 6455192,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/d/d4/JOHN_MICHEL_CELLO-BACH_AVE_MARIA.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 2694385,
+    "revisions": [
+      {
+        "parentid": 649968100,
+        "revid": 1090767725,
+        "slots": {
+          "main": {
+            "content": "{{Media of the day|year=2013|month=8|day=31}}\n{{Assessments|enwiki=3|enwiki-nom=Ave Maria}}\n== {{int:filedesc}} ==\n{{Information\n|Description={{en|1=''Ave Maria'' composed by [[Charles Gounod]]. ''Ave Maria'' was composed based off of the harmony and texture of [[Johann Sebastian Bach]]'s Prelude No.1 in C Major from [[Well-Tempered Clavier]] Book I (BWV 846).}}\n|Source=http://www.garageband.com/artist/cello\n|Date=Originally composed in 1859 \n|Author=*Composer: [[Charles Gounod]] (1818–1893)\n*Contemporary Performer: [http://johnmichel.com/ John Michel], a cello professor at Central Washington University\n|Permission={{PermissionTicket|id=2007090610014151}}\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n===For the original score===\n{{PD-old-100}}\n\n===For the performance===\n{{cc-by-sa-3.0}}\n\n[[Category:Ave Maria (music)]]\n[[Category:Ave Maria (Bach/Gounod)]]\n[[Category:Compositions in C major]]\n[[Category:Audio files of cello music]]\n[[Category:John Michel]]\n[[Category:Music in 1859]]\n[[Category:Audio files of music by Charles Gounod]]\n[[Category:Audio files of Romantic period classical music]]\n[[Category:Audio files of music by Johann Sebastian Bach]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-09-25T14:38:31Z"
+      }
+    ],
+    "title": "File:JOHN MICHEL CELLO-BACH AVE MARIA.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1090767725",
+  "recordingId": "cm_2694385",
+  "revisionId": 1090767725,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AJOHN_MICHEL_CELLO-BACH_AVE_MARIA.ogg",
+  "sourceSha1": "ac79e0a865e9997fa027e16b1aa1b6254f4888f5"
+}

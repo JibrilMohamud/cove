@@ -20,6 +20,8 @@ type Recording = {
   license: string;
   licenseUrl: string;
   audioUrl: string;
+  modifications: string;
+  durationSeconds?: number;
 };
 export function SoundtrackLibraryPage() {
   const { rightsCountry } = useStorefrontLocale();
@@ -38,7 +40,7 @@ export function SoundtrackLibraryPage() {
     [catalog.data, filter],
   );
   return (
-    <main className="help-page" aria-label="Cove soundtrack recordings">
+    <section className="help-page" aria-label="Cove soundtrack recordings">
       <div className="page-eyebrow">COVE SOUNDTRACKS</div>
       <div className="page-heading">
         <div>
@@ -62,7 +64,7 @@ export function SoundtrackLibraryPage() {
       <div className="help-articles">
         {recordings.map((r) => (
           <article key={r.id} className="help-article" aria-label={r.title}>
-            <div className="page-eyebrow"><ShieldCheck size={16} aria-hidden="true" /> VERIFIED RECORDING</div>
+            <div className="page-eyebrow"><ShieldCheck size={16} aria-hidden="true" /> REVIEWED RECORDING</div>
             <h2>{r.title}</h2>
             <p>{r.composer} · Performed by {r.performer}</p>
             <p className="small muted">
@@ -80,6 +82,10 @@ export function SoundtrackLibraryPage() {
             <details>
               <summary>Recording rights and attribution</summary>
               <p>{r.attribution}</p>
+              <p>{r.modifications}</p>
+              <p><a href={r.audioUrl} download>Download original recording</a></p>
+              <p><a href="/copyright">Report a recording rights concern</a></p>
+              <p>The original recording remains available under its stated license. Cove adds no restrictions to that license.</p>
               <p>License: <a href={r.licenseUrl} target="_blank" rel="noopener noreferrer">{r.license}</a></p>
               <p><a href={r.sourcePage} target="_blank" rel="noopener noreferrer">View original Wikimedia Commons file and evidence</a></p>
             </details>
@@ -90,6 +96,6 @@ export function SoundtrackLibraryPage() {
         The canonical book and chapter playlists are a separate feature in development.
         Recordings are never assigned to a book without chapter-specific editorial review.
       </p>
-    </main>
+    </section>
   );
 }

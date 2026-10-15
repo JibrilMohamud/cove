@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:36.988174+00:00",
+  "expectedSha1": "ff1d47cab6bb7d84fe0a7de31d5044ec096f6a56",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=81197812",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Carl_Friedrich_Abel_(1723-1787)_-_Duetto_in_G-Major,_A35A_from_the_Maltzan_Collection.ogg",
+        "duration": 468.1665306122449,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Phillipwserna&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Phillipwserna (page does not exist)\">Dr. Phillip W. Serna</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Recording|Viol music|Self-published work|Audio files of Baroque period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2019-08-10 13:15:56"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2019-02-03"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Performed by Viol Medium (Eric Miller &amp; Philllip W. Serna) February 3, 2019 at Emmanuel Episcopal Church of La Grange part of ViolMedium's program Façades &amp; Duplicities - Beguiling Curiosities &amp; Excursions for Dueling Gambas, Copyright © 2019 ViolMedium."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Carl Friedrich Abel (1723-1787) - Duetto in G-Major, A35A from the Maltzan Collection"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "ff1d47cab6bb7d84fe0a7de31d5044ec096f6a56",
+        "size": 21632233,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/d/d8/Carl_Friedrich_Abel_%281723-1787%29_-_Duetto_in_G-Major%2C_A35A_from_the_Maltzan_Collection.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 81197812,
+    "revisions": [
+      {
+        "parentid": 664779979,
+        "revid": 848549662,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=Performed by Viol Medium (Eric Miller & Philllip W. Serna) February 3, 2019 at Emmanuel Episcopal Church of La Grange part of ViolMedium's program Façades & Duplicities - Beguiling Curiosities & Excursions for Dueling Gambas, Copyright © 2019 ViolMedium.}}\n|date=2019-02-03\n|source={{own}}\n|author=[[User:Phillipwserna|Dr. Phillip W. Serna]]\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-sa-4.0}}\n\n[[Category:Audio files of Baroque period classical music]]\n[[Category:Viol music]]\n[[Category:Recording]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-02-03T09:32:48Z"
+      }
+    ],
+    "title": "File:Carl Friedrich Abel (1723-1787) - Duetto in G-Major, A35A from the Maltzan Collection.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=848549662",
+  "recordingId": "cm_81197812",
+  "revisionId": 848549662,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ACarl_Friedrich_Abel_(1723-1787)_-_Duetto_in_G-Major%2C_A35A_from_the_Maltzan_Collection.ogg",
+  "sourceSha1": "ff1d47cab6bb7d84fe0a7de31d5044ec096f6a56"
+}

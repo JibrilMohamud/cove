@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:52:57.243888+00:00",
+  "expectedSha1": "5b073c319ce10b2d0ae7a011c8ba6c632bb6451d",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=28957372",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beethoven_Symphony_No._5_Movement_2,_La_Folia_Variation_(measures_166_-_183).ogg",
+        "duration": 27.039637188208616,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Symphony No. 5 (Beethoven)|Details|IMSLP|Audio files of music by Ludwig van Beethoven|Audio files of Classical period classical music|Audio files of classical music by the Fulda Symphonic Orchestra"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:ExtLink nofollow\" href=\"http://imslp.org/wiki/Symphony_No.5,_Op.67_(Beethoven,_Ludwig_van)\" class=\"external free\">http://imslp.org/wiki/Symphony_No.5,_Op.67_(Beethoven,_Ludwig_van)</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2013-10-11 18:58:33"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2013-10-11 14:52:08"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "1<a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/Symphony%20No.%205%20(Beethoven)\" title=\"en:Symphony No. 5 (Beethoven)\" class=\"extiw\">Symphony No. 5</a>, the 2nd movement, illustrating a use of the traditional <i><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/Folia\" title=\"en:Folia\" class=\"extiw\">La Folía</a></i> theme, starting at measure 166 of the movement"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beethoven Symphony No. 5 Movement 2, La Folia Variation (measures 166 - 183)"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "5b073c319ce10b2d0ae7a011c8ba6c632bb6451d",
+        "size": 499957,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/f/fe/Beethoven_Symphony_No._5_Movement_2%2C_La_Folia_Variation_%28measures_166_-_183%29.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 28957372,
+    "revisions": [
+      {
+        "parentid": 820145404,
+        "revid": 1109261760,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1[[:en:Symphony No. 5 (Beethoven)|Symphony No. 5]], the 2nd movement, illustrating a use of the traditional ''[[:en:Folia|La Folía]]'' theme, starting at measure 166 of the movement}}\n|date=2013-10-11 14:52:08\n|source=http://imslp.org/wiki/Symphony_No.5,_Op.67_(Beethoven,_Ludwig_van)\n|author={{Creator:Ludwig van Beethoven}}\nFulda Symphonic Orchestra, Simon Schindler (conductor), Recorded live March 10, 2002 at the Grosser Saal der Orangerie.\n|permission=\n|other_versions=\n|other_fields=\n}}\n\n=={{int:license-header}}==\n{{cc-by-sa-3.0}}\n\n[[Category:Symphony No. 5 (Beethoven)]]\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Audio files of classical music by the Fulda Symphonic Orchestra]]\n[[Category:Details]]\n[[Category:IMSLP]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-11-05T01:44:31Z"
+      }
+    ],
+    "title": "File:Beethoven Symphony No. 5 Movement 2, La Folia Variation (measures 166 - 183).ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1109261760",
+  "recordingId": "cm_28957372",
+  "revisionId": 1109261760,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethoven_Symphony_No._5_Movement_2%2C_La_Folia_Variation_(measures_166_-_183).ogg",
+  "sourceSha1": "5b073c319ce10b2d0ae7a011c8ba6c632bb6451d"
+}

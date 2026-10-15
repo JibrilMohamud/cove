@@ -1,0 +1,101 @@
+{
+  "capturedAt": "2026-10-15T21:52:39.718785+00:00",
+  "expectedSha1": "fcc94ac08af94e4a53fd57ec3bfa7c2e9e7dc78b",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1548573",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beispiel_1b_-_Takte_1bis5_mit_Kommadifferenzen_ohne_Naturseptime.ogg",
+        "duration": 20.750045351473922,
+        "extmetadata": {
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "GFDL|BWV 846|Musical tuning|Files with no machine-readable author|Files with no machine-readable source|License migration completed|Media missing infobox template|Self-published work|Audio files of Baroque period classical music|Audio files of music by Johann Sebastian Bach"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2007-01-10 12:03:22"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "http://creativecommons.org/licenses/by-sa/3.0/"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beispiel 1b - Takte 1bis5 mit Kommadifferenzen ohne Naturseptime"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "fcc94ac08af94e4a53fd57ec3bfa7c2e9e7dc78b",
+        "size": 390621,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/c/c1/Beispiel_1b_-_Takte_1bis5_mit_Kommadifferenzen_ohne_Naturseptime.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1548573,
+    "revisions": [
+      {
+        "parentid": 449106145,
+        "revid": 820345777,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\nselbst gemacht (mehr als 70 Jahre post mortem auctoris - J.S. Bach Präludium in C aus WTK 1 BWV 846)\n== {{int:license-header}} ==\n{{GFDL-self|migration=relicense}}\n\n[[Category:Musical tuning]]\n[[Category:BWV 846]]\n[[Category:Audio files of music by Johann Sebastian Bach]]\n[[Category:Audio files of Baroque period classical music]]\n[[Category:Media missing infobox template]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2023-11-10T08:48:25Z"
+      }
+    ],
+    "title": "File:Beispiel 1b - Takte 1bis5 mit Kommadifferenzen ohne Naturseptime.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=820345777",
+  "recordingId": "cm_1548573",
+  "revisionId": 820345777,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeispiel_1b_-_Takte_1bis5_mit_Kommadifferenzen_ohne_Naturseptime.ogg",
+  "sourceSha1": "fcc94ac08af94e4a53fd57ec3bfa7c2e9e7dc78b"
+}

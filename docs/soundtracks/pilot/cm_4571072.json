@@ -1,0 +1,77 @@
+{
+  "recordingId": "cm_4571072",
+  "title": "Brosig Larghetto aus op53",
+  "sourceSha1": "c3c7d07a7fd560d939ff47d1814a2320632b0d10",
+  "sourceRevision": 1276433585,
+  "reviewStage": "research_complete_pending_release_checks",
+  "dossier": {
+    "composition": {
+      "basis": "Larghetto from Fantasie Op.53; nineteenth-century organ work by Moritz Brosig (1815–1887). The original historical musical work is assessed separately from this modern recording; no modern score edition is redistributed. First publication 1882 (possibly 1881), Leipzig: F.E.C. Leuckart.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=1276433585",
+        "https://creativecommons.org/licenses/by-sa/3.0/",
+        "https://imslp.org/wiki/Fantasia_No.1,_Op.53_(Brosig,_Moritz)"
+      ]
+    },
+    "arrangement": {
+      "basis": "The source describes this performance of the named historical work and identifies no third-party modern arranger. Original interpretive contributions by the credited recording creator are included in the creator's self-release; the unmodified source recording alone is distributed.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=1276433585",
+        "https://creativecommons.org/licenses/by-sa/3.0/"
+      ]
+    },
+    "lyrics": {
+      "basis": "This is an instrumental recording. No sung lyrics or third-party modern text are identified on the source page.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=1276433585",
+        "https://creativecommons.org/licenses/by-sa/3.0/"
+      ]
+    },
+    "performance": {
+      "basis": "The original creator identifies Metzner and declares own work on the file page. The exact revision and the self-applied CC BY-SA 3.0 are preserved. This is an AI-assisted public-evidence assessment; no human identity attestation or private contract is claimed.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=1276433585",
+        "https://creativecommons.org/licenses/by-sa/3.0/"
+      ]
+    },
+    "master": {
+      "basis": "The recording is presented as the uploader's own recorded work under CC BY-SA 3.0. The selected license, original file SHA-1, and exact source revision are retained; Cove will not substitute another performance or remaster.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=1276433585",
+        "https://creativecommons.org/licenses/by-sa/3.0/"
+      ]
+    },
+    "grantingParty": "Metzner",
+    "recordingDate": "2008-08-15",
+    "territoryBasis": "Initial release limited to US. The historical composition is evaluated separately using the publication/death evidence stated here and US copyright duration rules; the modern recording relies on its explicit creator license. No worldwide public-domain conclusion is asserted. Reference: US Copyright Office Circular 15A, https://www.copyright.gov/circs/circ15a.pdf; historical publication dates must refer to the composition, not the modern recording.",
+    "streamingBasis": "The selected CC BY-SA 3.0 permits commercial reproduction and public distribution/performance of rights held by the licensor. Only the original recording is served with credit, source, and license link; no DRM, paywall, new sublicense, synchronized video or adaptation is added.",
+    "attributionText": "Brosig Larghetto aus op53 — Metzner. Music: Moritz Brosig. CC BY-SA 3.0. Source: https://commons.wikimedia.org/wiki/File%3ABrosig_Larghetto_aus_op53.ogg. License: https://creativecommons.org/licenses/by-sa/3.0/. Original source recording; unchanged by Cove.",
+    "modificationNotice": "Original source file; no modifications, normalization, or transcoding by Cove.",
+    "reviewMethod": "ai_assisted",
+    "complexProvenance": false,
+    "unresolved": []
+  },
+  "approval": {
+    "reviewer": "COVE-SOUNDTRACK-PILOT-4571072",
+    "reviewEvidence": "Individual AI-assisted source review: Larghetto from Fantasie Op.53; nineteenth-century organ work by Moritz Brosig (1815–1887). Creator self-release and exact source revision inspected; source permission supports the original recording. All remaining questions are recorded in the dossier. Approval is not a human or counsel attestation.",
+    "composer": "Moritz Brosig",
+    "performer": "Metzner",
+    "period": "romantic",
+    "instruments": [
+      "pipe organ"
+    ],
+    "moods": [
+      "solemn",
+      "melancholic"
+    ],
+    "energy": 0.3,
+    "hasVocals": false,
+    "territories": [
+      "US"
+    ],
+    "compositionRightsConfirmed": true,
+    "performanceRightsConfirmed": true,
+    "attributionReviewed": true,
+    "title": "Larghetto — Fantasia No. 1, Op. 53"
+  }
+}

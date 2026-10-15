@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:44.732623+00:00",
+  "expectedSha1": "0e64268c21e962f7450563b7d6f2f9b3c8bc5d7a",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=92940044",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:John_Dowland_(1563-1626)_-_Mistress_Nichols_Almand_%C3%A05,_Lachrimae,_No.20_for_Treble,_Tenor_%26_Bass_Viols_with_Great_Bass_Violone_in_G.ogg",
+        "duration": 40.512208333333334,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Phillipwserna&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Phillipwserna (page does not exist)\">Phillipwserna</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Music in 1604|B major|Viol music|Allemande|Self-published work|Audio files of renaissance period classical music|Instrumental music by John Dowland"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2020-08-07 03:17:08"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2020-08-06"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "\"Mistress Nichols Almand\" à5, <i><a href=\"https://en.wikipedia.org/wiki/Lachrimae,_or_Seaven_Teares\" class=\"extiw\" title=\"en:Lachrimae, or Seaven Teares\">Lachrimae</a></i>, No. 20 for Treble, Tenor &amp; Bass Viols with Great Bass Violone in G"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "John Dowland (1563-1626) - Mistress Nichols Almand à5, Lachrimae, No.20 for Treble, Tenor & Bass Viols with Great Bass Violone in G"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "0e64268c21e962f7450563b7d6f2f9b3c8bc5d7a",
+        "size": 2563860,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/6/6d/John_Dowland_%281563-1626%29_-_Mistress_Nichols_Almand_%C3%A05%2C_Lachrimae%2C_No.20_for_Treble%2C_Tenor_%26_Bass_Viols_with_Great_Bass_Violone_in_G.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 92940044,
+    "revisions": [
+      {
+        "parentid": 966047719,
+        "revid": 1140632353,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=\"Mistress Nichols Almand\" à5, ''[[:en:Lachrimae, or Seaven Teares|Lachrimae]]'', No. 20 for Treble, Tenor & Bass Viols with Great Bass Violone in G}}\n|date=2020-08-06\n|source={{own}}\n|author=[[User:Phillipwserna|Phillipwserna]]\n|permission=\n|other versions=\n}}\n\nRecorded, mixed & mastered at Dwarf Star Audio, Plainfield, IL. All parts performed by Dr. Phillip W. Serna, Treble, Tenor & Bass Viols with Great Bass/ Violone in G\n\n=={{int:license-header}}==\n{{self|cc-by-sa-4.0}}\n\n[[Category:Music in 1604]]\n[[Category:Instrumental music by John Dowland|Mistress Nichols]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:Allemande]]\n[[Category:Viol music]]\n[[Category:B major]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-01-02T16:34:55Z"
+      }
+    ],
+    "title": "File:John Dowland (1563-1626) - Mistress Nichols Almand à5, Lachrimae, No.20 for Treble, Tenor & Bass Viols with Great Bass Violone in G.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1140632353",
+  "recordingId": "cm_92940044",
+  "revisionId": 1140632353,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AJohn_Dowland_(1563-1626)_-_Mistress_Nichols_Almand_%C3%A05%2C_Lachrimae%2C_No.20_for_Treble%2C_Tenor_%26_Bass_Viols_with_Great_Bass_Violone_in_G.ogg",
+  "sourceSha1": "0e64268c21e962f7450563b7d6f2f9b3c8bc5d7a"
+}

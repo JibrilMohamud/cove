@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:52:57.244566+00:00",
+  "expectedSha1": "79973c436f1548c26a8e16b4436acfdd4f308ad9",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=3429756",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Anonymous_Cum_altre_ucele.ogg",
+        "duration": 138.08315192743765,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "sequencing by <a href=\"//commons.wikimedia.org/wiki/User:Tetraktys\" title=\"User:Tetraktys\">User:Tetraktys</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Music in the 14th century|Madrigals|Rossi Codex|Self-published work|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "Codex Rossi"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-01-21 01:39:02"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2008"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "\"Cum altre ucele\", anonymous italian madrigal, XIV century."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Anonymous Cum altre ucele"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "79973c436f1548c26a8e16b4436acfdd4f308ad9",
+        "size": 1964893,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/9b/Anonymous_Cum_altre_ucele.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 3429756,
+    "revisions": [
+      {
+        "parentid": 639804860,
+        "revid": 796334409,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description=\n{{en|\"Cum altre ucele\", anonymous italian madrigal, XIV century.}}\n{{es|\"Cum altre ucele\", versión instrumental de este madrigal italiano anónimo, recogido en el ''Codex Rossi'' (s. XIV).}}\n|Source=Codex Rossi\n|Date=2008\n|Author=sequencing by [[User:Tetraktys]]\n|Permission=\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n{{self|cc-by-sa-3.0}}\n\n[[Category:Music in the 14th century]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Madrigals]]\n[[Category:Rossi Codex]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2023-08-27T05:53:44Z"
+      }
+    ],
+    "title": "File:Anonymous Cum altre ucele.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=796334409",
+  "recordingId": "cm_3429756",
+  "revisionId": 796334409,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAnonymous_Cum_altre_ucele.ogg",
+  "sourceSha1": "79973c436f1548c26a8e16b4436acfdd4f308ad9"
+}

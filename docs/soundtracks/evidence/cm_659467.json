@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:27.425336+00:00",
+  "expectedSha1": "7b0f146d00a71b77ed36b1378136638b5ed5ac71",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=659467",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Cabezon_Caballero_Complete_Meantone.ogg",
+        "duration": 146.91750566893424,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "No machine-readable author provided. <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/User:Rs_newhouse\" title=\"User:Rs newhouse\">Rs newhouse</a> assumed (based on copyright claims).\n<link rel=\"mw:PageProp/Category\" href=\"./Category:Files_with_no_machine-readable_source\">"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "GFDL|CC-BY-SA-2.5,2.0,1.0|Music of Spain|Antonio de Cabezon|Files with no machine-readable source|D minor|License migration redundant|Self-published work|Assumed own work|Audio files of harpsichord music|Audio files of renaissance period classical music|Audio files of musical tuning"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "No machine-readable source provided. Own work assumed (based on copyright claims).<span class=\"mw-empty-elt\"><link rel=\"mw:PageProp/Category\" href=\"./Category:Assumed_own_work\"></span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-03-25 23:25:04"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "25 March 2006 (original upload date)"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/Antonio%20de%20Cabez%C3%B3n\" title=\"en:Antonio de Cabezón\" class=\"extiw\">Antonio de Cabezón</a>: <i>Canto del Caballero</i>.\n<p>This recording uses 1/4th comma <a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/Meantone%20temperament\" title=\"en:Meantone temperament\" class=\"extiw\">meantone temperament</a>. For demonstration, there exists a version of the first 16 bars using <a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/Equal%20temperament\" title=\"en:Equal temperament\" class=\"extiw\">equal temperament</a>: <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/File:Cabezon_Caballero_Beginning_Equal.ogg\" title=\"File:Cabezon Caballero Beginning Equal.ogg\">Image:Cabezon Caballero Beginning Equal.ogg</a>.</p>\nHarpsichord recording by <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/User:Rs_newhouse\" title=\"User:Rs newhouse\">Robert Schröter</a>."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "http://creativecommons.org/licenses/by-sa/3.0/"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Cabezon Caballero Complete Meantone"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "7b0f146d00a71b77ed36b1378136638b5ed5ac71",
+        "size": 3723345,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/b/b0/Cabezon_Caballero_Complete_Meantone.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 659467,
+    "revisions": [
+      {
+        "parentid": 845077581,
+        "revid": 887985403,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n |description = {{de|1=Ein schönes Instrument, perfekt gestimmt und aufgenommen ! \n15. Mai 22:40 Metzner}}\n{{en|1=[[:en:Antonio de Cabezón|Antonio de Cabezón]]: ''Canto del Caballero''.\nThis recording uses 1/4th comma [[:en:Meantone temperament|meantone temperament]]. For demonstration, there exists a version of the first 16 bars using [[:en:Equal temperament|equal temperament]]: [[:Image:Cabezon Caballero Beginning Equal.ogg]].\nHarpsichord recording by [[User:Rs newhouse|Robert Schröter]].}}\n |date = {{Original upload date|2006-03-25}}\n |source = {{own assumed}}\n |author = {{Author assumed|[[User:Rs newhouse|Rs newhouse]]}}\n |permission = \n |other_versions = \n}}\n\n== {{int:license-header}} ==\n{{self|GFDL|Cc-by-sa-3.0-migrated|Cc-by-sa-2.5,2.0,1.0}}\n\n[[Category:Antonio de Cabezon]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:Audio files of musical tuning]]\n[[Category:Audio files of harpsichord music]]\n[[Category:Music of Spain]]\n[[Category:D minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-06-25T13:21:52Z"
+      }
+    ],
+    "title": "File:Cabezon Caballero Complete Meantone.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=887985403",
+  "recordingId": "cm_659467",
+  "revisionId": 887985403,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ACabezon_Caballero_Complete_Meantone.ogg",
+  "sourceSha1": "7b0f146d00a71b77ed36b1378136638b5ed5ac71"
+}

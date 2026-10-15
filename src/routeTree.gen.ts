@@ -20,7 +20,6 @@ import { Route as DealsRouteImport } from './routes/deals'
 import { Route as DefinitionsRouteImport } from './routes/definitions'
 import { Route as DownloadsRouteImport } from './routes/downloads'
 import { Route as HelpRouteImport } from './routes/help'
-import { Route as SoundtracksRouteImport } from './routes/soundtracks'
 import { Route as HighlightsRouteImport } from './routes/highlights'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as MostReadRouteImport } from './routes/most-read'
@@ -37,6 +36,7 @@ import { Route as PublishingPolicyRouteImport } from './routes/publishing-policy
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SecurityRouteImport } from './routes/security'
 import { Route as ShelvesRouteImport } from './routes/shelves'
+import { Route as SoundtracksRouteImport } from './routes/soundtracks'
 import { Route as StatsRouteImport } from './routes/stats'
 import { Route as StatusRouteImport } from './routes/status'
 import { Route as StoreRouteImport } from './routes/store'
@@ -57,6 +57,7 @@ import { Route as ReadIdRouteImport } from './routes/read.$id'
 import { Route as SeriesIdRouteImport } from './routes/series/$id'
 import { Route as ShelfIdRouteImport } from './routes/shelf.$id'
 import { Route as StaffPublishingRouteImport } from './routes/staff/publishing'
+import { Route as StaffSoundtracksRouteImport } from './routes/staff/soundtracks'
 import { Route as StaffStorefrontRouteImport } from './routes/staff/storefront'
 import { Route as StaffSupportRouteImport } from './routes/staff/support'
 import { Route as WorkIdRouteImport } from './routes/work/$id'
@@ -117,11 +118,6 @@ const DownloadsRoute = DownloadsRouteImport.update({
 const HelpRoute = HelpRouteImport.update({
   id: '/help',
   path: '/help',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SoundtracksRoute = SoundtracksRouteImport.update({
-  id: '/soundtracks',
-  path: '/soundtracks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HighlightsRoute = HighlightsRouteImport.update({
@@ -202,6 +198,11 @@ const SecurityRoute = SecurityRouteImport.update({
 const ShelvesRoute = ShelvesRouteImport.update({
   id: '/shelves',
   path: '/shelves',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SoundtracksRoute = SoundtracksRouteImport.update({
+  id: '/soundtracks',
+  path: '/soundtracks',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StatsRoute = StatsRouteImport.update({
@@ -304,6 +305,11 @@ const StaffPublishingRoute = StaffPublishingRouteImport.update({
   path: '/staff/publishing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const StaffSoundtracksRoute = StaffSoundtracksRouteImport.update({
+  id: '/staff/soundtracks',
+  path: '/staff/soundtracks',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StaffStorefrontRoute = StaffStorefrontRouteImport.update({
   id: '/staff/storefront',
   path: '/staff/storefront',
@@ -347,7 +353,6 @@ export interface FileRoutesByFullPath {
   '/definitions': typeof DefinitionsRoute
   '/downloads': typeof DownloadsRoute
   '/help': typeof HelpRoute
-  '/soundtracks': typeof SoundtracksRoute
   '/highlights': typeof HighlightsRoute
   '/library': typeof LibraryRoute
   '/most-read': typeof MostReadRoute
@@ -364,6 +369,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/security': typeof SecurityRoute
   '/shelves': typeof ShelvesRoute
+  '/soundtracks': typeof SoundtracksRoute
   '/stats': typeof StatsRoute
   '/status': typeof StatusRoute
   '/store': typeof StoreRoute
@@ -384,6 +390,7 @@ export interface FileRoutesByFullPath {
   '/series/$id': typeof SeriesIdRoute
   '/shelf/$id': typeof ShelfIdRoute
   '/staff/publishing': typeof StaffPublishingRoute
+  '/staff/soundtracks': typeof StaffSoundtracksRoute
   '/staff/storefront': typeof StaffStorefrontRoute
   '/staff/support': typeof StaffSupportRoute
   '/work/$id': typeof WorkIdRoute
@@ -403,7 +410,6 @@ export interface FileRoutesByTo {
   '/definitions': typeof DefinitionsRoute
   '/downloads': typeof DownloadsRoute
   '/help': typeof HelpRoute
-  '/soundtracks': typeof SoundtracksRoute
   '/highlights': typeof HighlightsRoute
   '/library': typeof LibraryRoute
   '/most-read': typeof MostReadRoute
@@ -420,6 +426,7 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/security': typeof SecurityRoute
   '/shelves': typeof ShelvesRoute
+  '/soundtracks': typeof SoundtracksRoute
   '/stats': typeof StatsRoute
   '/status': typeof StatusRoute
   '/store': typeof StoreRoute
@@ -440,6 +447,7 @@ export interface FileRoutesByTo {
   '/series/$id': typeof SeriesIdRoute
   '/shelf/$id': typeof ShelfIdRoute
   '/staff/publishing': typeof StaffPublishingRoute
+  '/staff/soundtracks': typeof StaffSoundtracksRoute
   '/staff/storefront': typeof StaffStorefrontRoute
   '/staff/support': typeof StaffSupportRoute
   '/work/$id': typeof WorkIdRoute
@@ -460,7 +468,6 @@ export interface FileRoutesById {
   '/definitions': typeof DefinitionsRoute
   '/downloads': typeof DownloadsRoute
   '/help': typeof HelpRoute
-  '/soundtracks': typeof SoundtracksRoute
   '/highlights': typeof HighlightsRoute
   '/library': typeof LibraryRoute
   '/most-read': typeof MostReadRoute
@@ -477,6 +484,7 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/security': typeof SecurityRoute
   '/shelves': typeof ShelvesRoute
+  '/soundtracks': typeof SoundtracksRoute
   '/stats': typeof StatsRoute
   '/status': typeof StatusRoute
   '/store': typeof StoreRoute
@@ -497,6 +505,7 @@ export interface FileRoutesById {
   '/series/$id': typeof SeriesIdRoute
   '/shelf/$id': typeof ShelfIdRoute
   '/staff/publishing': typeof StaffPublishingRoute
+  '/staff/soundtracks': typeof StaffSoundtracksRoute
   '/staff/storefront': typeof StaffStorefrontRoute
   '/staff/support': typeof StaffSupportRoute
   '/work/$id': typeof WorkIdRoute
@@ -518,7 +527,6 @@ export interface FileRouteTypes {
     | '/definitions'
     | '/downloads'
     | '/help'
-    | '/soundtracks'
     | '/highlights'
     | '/library'
     | '/most-read'
@@ -535,6 +543,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/security'
     | '/shelves'
+    | '/soundtracks'
     | '/stats'
     | '/status'
     | '/store'
@@ -555,6 +564,7 @@ export interface FileRouteTypes {
     | '/series/$id'
     | '/shelf/$id'
     | '/staff/publishing'
+    | '/staff/soundtracks'
     | '/staff/storefront'
     | '/staff/support'
     | '/work/$id'
@@ -574,7 +584,6 @@ export interface FileRouteTypes {
     | '/definitions'
     | '/downloads'
     | '/help'
-    | '/soundtracks'
     | '/highlights'
     | '/library'
     | '/most-read'
@@ -591,6 +600,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/security'
     | '/shelves'
+    | '/soundtracks'
     | '/stats'
     | '/status'
     | '/store'
@@ -611,6 +621,7 @@ export interface FileRouteTypes {
     | '/series/$id'
     | '/shelf/$id'
     | '/staff/publishing'
+    | '/staff/soundtracks'
     | '/staff/storefront'
     | '/staff/support'
     | '/work/$id'
@@ -630,7 +641,6 @@ export interface FileRouteTypes {
     | '/definitions'
     | '/downloads'
     | '/help'
-    | '/soundtracks'
     | '/highlights'
     | '/library'
     | '/most-read'
@@ -647,6 +657,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/security'
     | '/shelves'
+    | '/soundtracks'
     | '/stats'
     | '/status'
     | '/store'
@@ -667,6 +678,7 @@ export interface FileRouteTypes {
     | '/series/$id'
     | '/shelf/$id'
     | '/staff/publishing'
+    | '/staff/soundtracks'
     | '/staff/storefront'
     | '/staff/support'
     | '/work/$id'
@@ -687,7 +699,6 @@ export interface RootRouteChildren {
   DefinitionsRoute: typeof DefinitionsRoute
   DownloadsRoute: typeof DownloadsRoute
   HelpRoute: typeof HelpRoute
-  SoundtracksRoute: typeof SoundtracksRoute
   HighlightsRoute: typeof HighlightsRoute
   LibraryRoute: typeof LibraryRoute
   MostReadRoute: typeof MostReadRoute
@@ -704,6 +715,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SecurityRoute: typeof SecurityRoute
   ShelvesRoute: typeof ShelvesRoute
+  SoundtracksRoute: typeof SoundtracksRoute
   StatsRoute: typeof StatsRoute
   StatusRoute: typeof StatusRoute
   StoreRoute: typeof StoreRoute
@@ -724,6 +736,7 @@ export interface RootRouteChildren {
   SeriesIdRoute: typeof SeriesIdRoute
   ShelfIdRoute: typeof ShelfIdRoute
   StaffPublishingRoute: typeof StaffPublishingRoute
+  StaffSoundtracksRoute: typeof StaffSoundtracksRoute
   StaffStorefrontRoute: typeof StaffStorefrontRoute
   StaffSupportRoute: typeof StaffSupportRoute
   WorkIdRoute: typeof WorkIdRoute
@@ -808,13 +821,6 @@ declare module '@tanstack/react-router' {
       path: '/help'
       fullPath: '/help'
       preLoaderRoute: typeof HelpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/soundtracks': {
-      id: '/soundtracks'
-      path: '/soundtracks'
-      fullPath: '/soundtracks'
-      preLoaderRoute: typeof SoundtracksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/highlights': {
@@ -927,6 +933,13 @@ declare module '@tanstack/react-router' {
       path: '/shelves'
       fullPath: '/shelves'
       preLoaderRoute: typeof ShelvesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/soundtracks': {
+      id: '/soundtracks'
+      path: '/soundtracks'
+      fullPath: '/soundtracks'
+      preLoaderRoute: typeof SoundtracksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/stats': {
@@ -1069,6 +1082,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StaffPublishingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/staff/soundtracks': {
+      id: '/staff/soundtracks'
+      path: '/staff/soundtracks'
+      fullPath: '/staff/soundtracks'
+      preLoaderRoute: typeof StaffSoundtracksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/staff/storefront': {
       id: '/staff/storefront'
       path: '/staff/storefront'
@@ -1138,7 +1158,6 @@ const rootRouteChildren: RootRouteChildren = {
   DefinitionsRoute: DefinitionsRoute,
   DownloadsRoute: DownloadsRoute,
   HelpRoute: HelpRoute,
-  SoundtracksRoute: SoundtracksRoute,
   HighlightsRoute: HighlightsRoute,
   LibraryRoute: LibraryRoute,
   MostReadRoute: MostReadRoute,
@@ -1155,6 +1174,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SecurityRoute: SecurityRoute,
   ShelvesRoute: ShelvesRoute,
+  SoundtracksRoute: SoundtracksRoute,
   StatsRoute: StatsRoute,
   StatusRoute: StatusRoute,
   StoreRoute: StoreRoute,
@@ -1175,6 +1195,7 @@ const rootRouteChildren: RootRouteChildren = {
   SeriesIdRoute: SeriesIdRoute,
   ShelfIdRoute: ShelfIdRoute,
   StaffPublishingRoute: StaffPublishingRoute,
+  StaffSoundtracksRoute: StaffSoundtracksRoute,
   StaffStorefrontRoute: StaffStorefrontRoute,
   StaffSupportRoute: StaffSupportRoute,
   WorkIdRoute: WorkIdRoute,

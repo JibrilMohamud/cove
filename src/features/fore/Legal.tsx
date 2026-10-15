@@ -3,7 +3,7 @@ import { CheckCircle2, ShieldCheck, Mail } from "lucide-react";
 import { api } from "./client";
 import "./legal.css";
 
-const effective = "October 11, 2026";
+const effective = "October 15, 2026";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   const id = title
@@ -218,6 +218,14 @@ export function TermsPage() {
           purchasing or obtaining access provides the limited personal reading or listening rights
           shown for that edition; it does not transfer copyright. Do not strip rights controls,
           redistribute restricted files, or use Cove to infringe anyone's rights.
+        </p>
+        <p>
+          Soundtrack recordings released under a Creative Commons license or public-domain
+          dedication retain the permissions stated in their individual credits. Those permissions
+          can include copying, redistribution, adaptation, and commercial reuse subject to that
+          license. These terms do not reduce those permissions or add personal-use-only,
+          noncommercial, or digital-rights-management restrictions to openly licensed recordings.
+          Cove's software and interface are separate from the recording licenses.
         </p>
         <p>
           Availability, prices, taxes, refunds, preorders, subscriptions, and entitlement duration

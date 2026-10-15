@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:36.618493+00:00",
+  "expectedSha1": "b0c59a5f69fe637e44ba8eaf29f9c33ccca5d734",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=153676978",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:%22Eugenia%22_by_Scott_Joplin_(1905).oga",
+        "duration": 265.321,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Scott Joplin"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Media from YouTube|PD-old-100-expired|CC-PD-Mark|Uploaded with video2commons|Audio files of classical music for piano|Audio files of ragtime music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<bdi lang=\"en\" dir=\"ltr\"><a href=\"//commons.wikimedia.org/wiki/Commons:YouTube_files\" title=\"Commons:YouTube files\">YouTube</a>: <a rel=\"nofollow\" class=\"external text\" href=\"https://www.youtube.com/watch?v=a04mvqZXhK0\"><bdi lang=\"\">Eugenia by Scott Joplin (1905)</bdi></a> – View/save archived versions on <a rel=\"nofollow\" class=\"external text\" href=\"https://web.archive.org/web/*/https://www.youtube.com/watch?v=a04mvqZXhK0\">archive.org</a></bdi>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2024-10-08 16:18:17"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "1905"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Original listing and sheet music here: <a rel=\"nofollow\" class=\"external free\" href=\"https://musescore.com/user/36482158/scores/11107603?from=youtube_share\">https://musescore.com/user/36482158/scores/11107603?from=youtube_share</a> \n<pre>Flowery rag from the king of ragtime writers, Scott Joplin, published during his short time spent living in Chicago. Published by Will Rossiter in Chicago in 1905.\n</pre>\n<p>Original score source was from the Charles Templeton Sheet Music Collection at Mississippi State University at this link:\n<a rel=\"nofollow\" class=\"external free\" href=\"https://scholarsjunction.msstate.edu/cht-sheet-music/2556/\">https://scholarsjunction.msstate.edu/cht-sheet-music/2556/</a>\nThis is a reproduction of the 1905 original score.\n</p><p>Hear Christina Pepper's excellent recital of \"Eugenia\":\n<a rel=\"nofollow\" class=\"external free\" href=\"https://www.youtube.com/watch?v=ITNc_Id19UU\">https://www.youtube.com/watch?v=ITNc_Id19UU</a>\n</p><p>Scott Joplin playlist is here:\n<a rel=\"nofollow\" class=\"external free\" href=\"https://www.youtube.com/playlist?list=PLWv_HHmWjvjXYOHNZK8ks1TcWqZeyHbmC\">https://www.youtube.com/playlist?list=PLWv_HHmWjvjXYOHNZK8ks1TcWqZeyHbmC</a>\n</p>\n<ol><li>ragtime #ragtimepiano #scottjoplin</li></ol>"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "\"Eugenia\" by Scott Joplin (1905)"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "b0c59a5f69fe637e44ba8eaf29f9c33ccca5d734",
+        "size": 4814464,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/3/32/%22Eugenia%22_by_Scott_Joplin_%281905%29.oga?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 153676978,
+    "revisions": [
+      {
+        "parentid": 1227002531,
+        "revid": 1227002538,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=Original listing and sheet music here: https://musescore.com/user/36482158/scores/11107603?from=youtube_share \n Flowery rag from the king of ragtime writers, Scott Joplin, published during his short time spent living in Chicago. Published by Will Rossiter in Chicago in 1905.\n\nOriginal score source was from the Charles Templeton Sheet Music Collection at Mississippi State University at this link:\nhttps://scholarsjunction.msstate.edu/cht-sheet-music/2556/\nThis is a reproduction of the 1905 original score.\n\nHear Christina Pepper's excellent recital of \"Eugenia\":\nhttps://www.youtube.com/watch?v=ITNc_Id19UU\n\nScott Joplin playlist is here:\nhttps://www.youtube.com/playlist?list=PLWv_HHmWjvjXYOHNZK8ks1TcWqZeyHbmC\n\n#ragtime #ragtimepiano #scottjoplin}}\n|date=1905\n|source={{From YouTube|1=a04mvqZXhK0|2=Eugenia by Scott Joplin (1905)}}\n|author=Scott Joplin\n}}\n\n=={{int:license-header}}==\n{{PD/1923|1917}}\n\n[[Category:Uploaded with video2commons]]\n[[Category:Audio files of ragtime music]]\n[[Category:Audio files of classical music for piano]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:32:11Z"
+      }
+    ],
+    "title": "File:\"Eugenia\" by Scott Joplin (1905).oga"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227002538",
+  "recordingId": "cm_153676978",
+  "revisionId": 1227002538,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3A%22Eugenia%22_by_Scott_Joplin_(1905).oga",
+  "sourceSha1": "b0c59a5f69fe637e44ba8eaf29f9c33ccca5d734"
+}

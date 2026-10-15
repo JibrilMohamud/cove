@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:44.733081+00:00",
+  "expectedSha1": "15dc804b42e139b1b08606429ef5f8c39ffe4d2a",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=93551060",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Esurientes-midi-flauti-fagotto.ogg",
+        "duration": 171.00045351473923,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:SZERV%C3%81C_Attila\" title=\"User:SZERVÁC Attila\">SZERVÁC Attila</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Self-published work|Audio files of Baroque period classical music|Audio files of music by Johann Sebastian Bach|Audio files of flute music|BWV 243 – Magnificat in D major|Libreart.net A4 project|Open Educational Resources by Attila Szervác|Magnificat settings"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2020-08-26 12:38:16"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2020-08-26"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/Johann_Sebastian_Bach\" title=\"Johann Sebastian Bach\">Johann Sebastian Bach</a>: Esurientes from Magnificat. midi with flutes &amp; bassoon source: <a rel=\"nofollow\" class=\"external free\" href=\"http://libreart.net/libreart-a4/libre-art-music/d/e/esurientes-r.ly\">http://libreart.net/libreart-a4/libre-art-music/d/e/esurientes-r.ly</a>"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Esurientes-midi-flauti-fagotto"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "15dc804b42e139b1b08606429ef5f8c39ffe4d2a",
+        "size": 2763862,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/4/45/Esurientes-midi-flauti-fagotto.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 93551060,
+    "revisions": [
+      {
+        "parentid": 1116106652,
+        "revid": 1233845966,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=[[Johann Sebastian Bach]]: Esurientes from Magnificat. midi with flutes & bassoon source: http://libreart.net/libreart-a4/libre-art-music/d/e/esurientes-r.ly }}\n|date=2020-08-26\n|source={{own}}\n|author=[[User:SZERVÁC Attila|SZERVÁC Attila]]\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-sa-4.0}}\n\n[[Category:Audio files of music by Johann Sebastian Bach]]\n[[Category:Audio files of flute music]]\n[[Category:BWV 243 – Magnificat in D major]]\n[[Category:Audio files of Baroque period classical music]]\n[[Category:Magnificat settings]]\n[[Category:Libreart.net A4 project]]\n[[Category:Open Educational Resources by Attila Szervác]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-19T04:28:27Z"
+      }
+    ],
+    "title": "File:Esurientes-midi-flauti-fagotto.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1233845966",
+  "recordingId": "cm_93551060",
+  "revisionId": 1233845966,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AEsurientes-midi-flauti-fagotto.ogg",
+  "sourceSha1": "15dc804b42e139b1b08606429ef5f8c39ffe4d2a"
+}

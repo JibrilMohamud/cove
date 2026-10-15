@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:53:17.132155+00:00",
+  "expectedSha1": "6c02e940750b8c8a7075f432c0cb537fce4a67bd",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=5267057",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Johan_Halvorsen_-_Passacaglia_on_a_theme_by_Handel.ogg",
+        "duration": 364.1542857142857,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Roxana Pavel Goldstein (violin) and Elias Goldstein (viola)"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Johan Halvorsen|Pandora Music|Audio files of Romantic period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "The Al Goldstein collection in the <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html\" class=\"external text\">Pandora Music</a> repository at ibiblio.org in the <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/contrib/Goldstein_string_duo/index.html\" class=\"external text\">Goldstein string duo directory</a>."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-11-24 02:47:39"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Passacaglia on a theme by Handel by Johan Halvorsen"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Johan Halvorsen - Passacaglia on a theme by Handel"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html\" class=\"external text\">license information</a> states that this file is \"available for free download subject to the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/EFF_OAL\" title=\"EFF OAL\" class=\"mw-redirect\">EFF OAL</a>\" (Open Audio License), which in turn <a rel=\"mw:ExtLink nofollow\" href=\"https://www.eff.org/IP/Open_licenses/eff_oal.php\" class=\"external text\">is interchangeable</a> with the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/CC-BY-SA-2.0\" title=\"CC-BY-SA-2.0\" class=\"mw-redirect\">CC-BY-SA-2.0</a>."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "6c02e940750b8c8a7075f432c0cb537fce4a67bd",
+        "size": 6987500,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/d/dc/Johan_Halvorsen_-_Passacaglia_on_a_theme_by_Handel.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 5267057,
+    "revisions": [
+      {
+        "parentid": 722720496,
+        "revid": 965627467,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description= Passacaglia on a theme by Handel by Johan Halvorsen\n|Source = The Al Goldstein collection in the [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html Pandora Music] repository at ibiblio.org in the [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/contrib/Goldstein_string_duo/index.html Goldstein string duo directory].\n|Date =\n|Author =Roxana Pavel Goldstein (violin) and Elias Goldstein (viola)\n|Permission = The [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html license information] states that this file is \"available for free download subject to the [[EFF OAL]]\" (Open Audio License), which in turn [https://www.eff.org/IP/Open_licenses/eff_oal.php is interchangeable] with the [[CC-BY-SA-2.0]].\n}}\n== {{int:license-header}} ==\n{{cc-by-sa-2.0}}\n\n[[Category:Johan Halvorsen]]\n[[Category:Audio files of Romantic period classical music]]\n[[Category:Pandora Music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-12-04T09:33:35Z"
+      }
+    ],
+    "title": "File:Johan Halvorsen - Passacaglia on a theme by Handel.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=965627467",
+  "recordingId": "cm_5267057",
+  "revisionId": 965627467,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AJohan_Halvorsen_-_Passacaglia_on_a_theme_by_Handel.ogg",
+  "sourceSha1": "6c02e940750b8c8a7075f432c0cb537fce4a67bd"
+}

@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:53:33.770685+00:00",
+  "expectedSha1": "0791ada34f4b58280b805592cb2508a40e6c525e",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=7159520",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Evening_prayer.ogg",
+        "duration": 100.31020408163265,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Rickyar&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Rickyar (page does not exist)\">Rickyar</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Engelbert Humperdinck (composer)|Hänsel und Gretel (opera)|Audio files of opera music|Self-published work|PD-self|Audio files of Romantic period classical music|Audio files of 20th-century period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2009-06-29 16:11:11"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2009"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "String quartet arrangement of Evening Prayer (\"Abendsegen\"), from <i><a href=\"https://en.wikipedia.org/wiki/H%C3%A4nsel_und_Gretel_(opera)\" class=\"extiw\" title=\"en:Hänsel und Gretel (opera)\">Hänsel und Gretel</a>, act II, scene 2 by <a href=\"https://en.wikipedia.org/wiki/Engelbert_Humperdinck\" class=\"extiw\" title=\"en:Engelbert Humperdinck\">Engelbert Humperdinck</a></i>"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Evening prayer"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "0791ada34f4b58280b805592cb2508a40e6c525e",
+        "size": 1551264,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/4/44/Evening_prayer.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 7159520,
+    "revisions": [
+      {
+        "parentid": 658973210,
+        "revid": 948150255,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{en|1=String quartet arrangement of Evening Prayer (\"Abendsegen\"), from ''[[:en:Hänsel und Gretel (opera)|Hänsel und Gretel]], act II, scene 2 by [[:en:Engelbert Humperdinck|Engelbert Humperdinck]] }}\n|Source={{Own}}\n|Author=[[User:Rickyar|Rickyar]]\n|Date=2009\n|Permission=\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Hänsel und Gretel (opera)]]\n[[Category:Engelbert Humperdinck (composer)]]\n[[Category:Audio files of 20th-century period classical music]]\n[[Category:Audio files of Romantic period classical music]]\n[[Category:Audio files of opera music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-10-22T14:59:54Z"
+      }
+    ],
+    "title": "File:Evening prayer.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=948150255",
+  "recordingId": "cm_7159520",
+  "revisionId": 948150255,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AEvening_prayer.ogg",
+  "sourceSha1": "0791ada34f4b58280b805592cb2508a40e6c525e"
+}

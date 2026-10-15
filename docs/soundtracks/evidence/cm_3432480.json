@@ -1,0 +1,114 @@
+{
+  "capturedAt": "2026-10-15T21:53:00.962142+00:00",
+  "expectedSha1": "7333d75f65f9af9c0d4017e4f6b27d8de52839e6",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=3432480",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Carl_Tausig_-_concert_etudes_for_piano,_op._1_-_moderato.ogg",
+        "duration": 255.79102040816326,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "(See Musopen for author information)"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Carl Tausig|PD-author|Etudes for the piano|Musopen|Audio files of classical music for piano|Audio files of Romantic period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<table class=\"layouttemplate sourcetemplate\" style=\"width:100%; clear:both; text-align:center; margin:0.5em auto; box-sizing: border-box; padding: 0; border-spacing: 8px; background-color: var(--background-color-neutral-subtle, #f6f7f5); color: var(--color-base, #202122); border: var(--border-subtle, 1px solid #555555);\" dir=\"ltr\" lang=\"en\">\n<tbody><tr>\n<td align=\"left\"><span typeof=\"mw:File\"><a href=\"//commons.wikimedia.org/wiki/File:Musopen_logo.svg\" class=\"mw-file-description\"><img src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6b/Musopen_logo.svg/250px-Musopen_logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" width=\"150\" height=\"18\" class=\"mw-file-element\" srcset=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6b/Musopen_logo.svg/330px-Musopen_logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail 2x\" data-file-width=\"185\" data-file-height=\"22\"></a></span>\n</td>\n<td>This work comes from the non profit U.S. organization <a href=\"https://en.wikipedia.org/wiki/Musopen\" class=\"extiw\" title=\"w:Musopen\">Musopen</a> where it is available at the following link:<br><small> <a rel=\"nofollow\" class=\"external free\" href=\"http://www.musopen.com\">http://www.musopen.com</a> </small><br>\n<p>The Musopen website requires all uploaders to \"represent and warrant that content uploaded to the site is in the public domain\" (see <a rel=\"nofollow\" class=\"external text\" href=\"https://musopen.org/faq/#id_entry_4\">FAQ #4</a>).\n</p><p><br>\nMusopen's own works (<small>\"Musopen Materials\" and \"Musopen Service\", not user content or public domain content</small>), <b>are fully copyrighted and may not be used freely</b> as stated in their <a rel=\"nofollow\" class=\"external text\" href=\"https://musopen.org/page/tos/\">Terms and Conditions of Use</a>.\n</p>\n</td></tr></tbody></table>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-01-21 18:41:52"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Concert etudes for piano, op. 1 - moderato"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Carl Tausig - concert etudes for piano, op. 1 - moderato"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "<p>Public domain music from musopen.com\n</p><p><i>Q: What restrictions are there for the music downloaded from this site, can I edit it? Share it? Use it for a film project? A: The music on this site is given a public domain license, therefore, there are technically no restrictions on what you do with it. We do ask, out of courtesy, two things. One, that you do not directly sell our recordings for profit, as a great amount of work has been donated to this project, and for the benefit of the public, not profit. Two, we ask that any commerical or derived works attribute Musopen somewhere, to give credit to this project. And for all the film students emailing, yes you may use it in your film, you can then sell the film, containing our music. It's in the public domain afterall. </i> -- <a rel=\"nofollow\" class=\"external free\" href=\"http://www.musopen.com/faq.html\">http://www.musopen.com/faq.html</a>\n</p>\nMusopen has requested in-line attribution in any article this file is used in."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "7333d75f65f9af9c0d4017e4f6b27d8de52839e6",
+        "size": 4236099,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/1/18/Carl_Tausig_-_concert_etudes_for_piano%2C_op._1_-_moderato.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 3432480,
+    "revisions": [
+      {
+        "parentid": 1227002975,
+        "revid": 1227002983,
+        "slots": {
+          "main": {
+            "content": "{{Information\n|Description=Concert etudes for piano, op. 1 - moderato\n|Source={{Musopen|http://www.musopen.com}}\n|Date=\n|Author=(See Musopen for author information)\n|Permission=Public domain music from musopen.com\n\n''Q: What restrictions are there for the music downloaded from this site, can I edit it? Share it? Use it for a film project? A: The music on this site is given a public domain license, therefore, there are technically no restrictions on what you do with it. We do ask, out of courtesy, two things. One, that you do not directly sell our recordings for profit, as a great amount of work has been donated to this project, and for the benefit of the public, not profit. Two, we ask that any commerical or derived works attribute Musopen somewhere, to give credit to this project. And for all the film students emailing, yes you may use it in your film, you can then sell the film, containing our music. It's in the public domain afterall. '' -- http://www.musopen.com/faq.html\n\nMusopen has requested in-line attribution in any article this file is used in. \n|other_versions=\n}}\n\n{{PD-author|[http://musopen.com Musopen]}}\n\n[[Category:Carl Tausig|Concert etudes for piano, 1]]\n[[Category:Audio files of classical music for piano]]\n[[Category:Audio files of Romantic period classical music]]\n[[Category:Etudes for the piano]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:32:56Z"
+      }
+    ],
+    "title": "File:Carl Tausig - concert etudes for piano, op. 1 - moderato.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227002983",
+  "recordingId": "cm_3432480",
+  "revisionId": 1227002983,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ACarl_Tausig_-_concert_etudes_for_piano%2C_op._1_-_moderato.ogg",
+  "sourceSha1": "7333d75f65f9af9c0d4017e4f6b27d8de52839e6"
+}

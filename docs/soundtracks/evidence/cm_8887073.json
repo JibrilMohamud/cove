@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:53:40.245719+00:00",
+  "expectedSha1": "7178eec5f346be7694516635b6d4c66aebc0883e",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=8887073",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Solage_-_Fumeux_fume_par_fum%C3%A9e.ogg",
+        "duration": 93.56952380952382,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Solage, versão midi de <a href=\"//commons.wikimedia.org/wiki/User:Tetraktys\" title=\"User:Tetraktys\">Tetraktys</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Self-published work|PD-self|Audio files of medieval period classical music|Solage"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2010-01-02 03:36:25"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "14<sup>th</sup> century<div style=\"display: none;\">date QS:P,+1350-00-00T00:00:00Z/7</div>"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Fumeux fume par fumée"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Solage - Fumeux fume par fumée"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "<table class=\"licensetpl\" style=\"display:none\">\n<tbody><tr>\n<td><span class=\"licensetpl_short\">Public domain</span><span class=\"licensetpl_long\">Public domain</span><span class=\"licensetpl_link_req\">false</span><span class=\"licensetpl_attr_req\">false</span>\n</td></tr></tbody></table>\n<table style=\"width: 100%; clear: both; margin: 0.5em auto; background-color: var(--background-color-progressive-subtle, #f7f8ff); color: var(--color-base, #202122); border: var(--border-subtle, 2px solid #8888aa); border-spacing: 8px; padding: 0px;\" dir=\"ltr\" class=\"layouttemplate\" lang=\"en\">\n<tbody><tr>\n<td><span typeof=\"mw:File\"><span title=\"Public domain\"><img alt=\"Public domain\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/PD-icon.svg/120px-PD-icon.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" width=\"64\" height=\"64\" class=\"mw-file-element\" srcset=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/PD-icon.svg/250px-PD-icon.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail 2x\" data-file-width=\"196\" data-file-height=\"196\"></span></span>\n</td>\n<td>I, the copyright holder of this work, release this work into the <b><a href=\"https://en.wikipedia.org/wiki/en:public_domain\" class=\"extiw\" title=\"w:en:public domain\">public domain</a></b>. This applies worldwide.<br><small>In some countries this may not be legally possible; if so:</small><br><i>I grant anyone the right to use this work <b>for any purpose</b>, without any conditions, unless such conditions are required by law.</i>\n</td></tr></tbody></table>"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "7178eec5f346be7694516635b6d4c66aebc0883e",
+        "size": 1120138,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/d/d1/Solage_-_Fumeux_fume_par_fum%C3%A9e.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 8887073,
+    "revisions": [
+      {
+        "parentid": 470109873,
+        "revid": 505587136,
+        "slots": {
+          "main": {
+            "content": "{{Information\n|Description=Fumeux fume par fumée\n|Source={{own}}\n|Date={{other date|century|14}}\n|Author=Solage, versão midi de [[User:Tetraktys|Tetraktys]]\n|Permission={{PD-self}}\n|other_versions=\n}}\n\n[[Category:Solage]]\n[[Category:Audio files of medieval period classical music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2020-10-28T21:30:13Z"
+      }
+    ],
+    "title": "File:Solage - Fumeux fume par fumée.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=505587136",
+  "recordingId": "cm_8887073",
+  "revisionId": 505587136,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ASolage_-_Fumeux_fume_par_fum%C3%A9e.ogg",
+  "sourceSha1": "7178eec5f346be7694516635b6d4c66aebc0883e"
+}

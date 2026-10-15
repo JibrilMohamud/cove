@@ -1,0 +1,105 @@
+{
+  "capturedAt": "2026-10-15T21:53:24.279355+00:00",
+  "expectedSha1": "84c24b868b447e3fbc30a1d03a4e4e1857beb74e",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=63807541",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:988-v04.lehman1.ogg",
+        "duration": 61.72981859410431,
+        "extmetadata": {
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Goldberg Variations|CC-Zero|Files with no machine-readable author|PD-old-100-expired|Audio files of Baroque period classical music|CC-PD-Mark|Audio files of music by Johann Sebastian Bach|Audio files of harpsichord music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:ExtLink nofollow\" href=\"https://archive.org/details/goldberg-variations-Grossman-Blanchet1720-Lehman-Prince/988-v05.lehman1.mp3\" class=\"external free\">https://archive.org/details/goldberg-variations-Grossman-Blanchet1720-Lehman-Prince/988-v05.lehman1.mp3</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2017-11-02 09:51:16"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "\"Variation 4\", <i>Goldberg Variations</i>"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "commons-desc-page",
+            "value": "<div class=\"fn\">\n\"Variation 4\", <i>Goldberg Variations</i></div>"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "84c24b868b447e3fbc30a1d03a4e4e1857beb74e",
+        "size": 1009716,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/6/6a/988-v04.lehman1.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 63807541,
+    "revisions": [
+      {
+        "parentid": 772771874,
+        "revid": 993364494,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Musical work\n |composer         ={{creator:Johann Sebastian Bach}}\n |lyrics_writer    =\n |performer        =Bradley Lehman and Dave Grossman\n |title            =\"Variation 4\", ''Goldberg Variations''\n |description      ={{en|1=\"Variation 4\", ''Goldberg Variations''}}\n |composition_date =1741\n |performance_date =2013-04-22\n |notes            =http://www.a30a.com/goldberg/gveworks.html\n |record_ID        =\n |image            =\n |references       =http://www.a30a.com/goldberg/gveworks.html\n |source           =https://archive.org/details/goldberg-variations-Grossman-Blanchet1720-Lehman-Prince/988-v05.lehman1.mp3\n |permission       =\n |other_versions   =\n}}\n\n=={{int:license-header}}==\n\n;Composition\n{{PD-old-100-1923}}\n;Perforamnce\n{{Cc-zero}}\n\n[[Category:Goldberg Variations]]\n[[Category:Audio files of harpsichord music]]\n[[Category:Audio files of music by Johann Sebastian Bach]]\n[[Category:Audio files of Baroque period classical music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-02-04T08:54:56Z"
+      }
+    ],
+    "title": "File:988-v04.lehman1.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=993364494",
+  "recordingId": "cm_63807541",
+  "revisionId": 993364494,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3A988-v04.lehman1.ogg",
+  "sourceSha1": "84c24b868b447e3fbc30a1d03a4e4e1857beb74e"
+}

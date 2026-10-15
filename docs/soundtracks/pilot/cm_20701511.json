@@ -1,0 +1,78 @@
+{
+  "recordingId": "cm_20701511",
+  "title": "Carl Friedrich Abel (1723- 1787) - Allegro, WKO 205 from 27 Pieces for Unaccompanied Viola da Gamba",
+  "sourceSha1": "2cd57851becfd8792eee348917af2205d5f77940",
+  "sourceRevision": 848549667,
+  "reviewStage": "research_complete_pending_release_checks",
+  "dossier": {
+    "composition": {
+      "basis": "WKO 205 from 27 Pieces for Unaccompanied Viola da Gamba; composer died 1787. The original historical musical work is assessed separately from this modern recording; no modern score edition is redistributed.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=848549667",
+        "https://creativecommons.org/licenses/by-sa/3.0/"
+      ]
+    },
+    "arrangement": {
+      "basis": "The source describes this performance of the named historical work and identifies no third-party modern arranger. Original interpretive contributions by the credited recording creator are included in the creator's self-release; the unmodified source recording alone is distributed.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=848549667",
+        "https://creativecommons.org/licenses/by-sa/3.0/"
+      ]
+    },
+    "lyrics": {
+      "basis": "This is an instrumental recording. No sung lyrics or third-party modern text are identified on the source page.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=848549667",
+        "https://creativecommons.org/licenses/by-sa/3.0/"
+      ]
+    },
+    "performance": {
+      "basis": "The original creator identifies Phillip W. Serna and declares own work on the file page. The exact revision and the self-applied CC BY-SA 3.0 are preserved. This is an AI-assisted public-evidence assessment; no human identity attestation or private contract is claimed.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=848549667",
+        "https://creativecommons.org/licenses/by-sa/3.0/"
+      ]
+    },
+    "master": {
+      "basis": "The recording is presented as the uploader's own recorded work under CC BY-SA 3.0. The selected license, original file SHA-1, and exact source revision are retained; Cove will not substitute another performance or remaster.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=848549667",
+        "https://creativecommons.org/licenses/by-sa/3.0/"
+      ]
+    },
+    "grantingParty": "Phillip W. Serna",
+    "recordingDate": "2010-08-16; master revised August 2019",
+    "territoryBasis": "Initial release limited to US. The historical composition is evaluated separately using the publication/death evidence stated here and US copyright duration rules; the modern recording relies on its explicit creator license. No worldwide public-domain conclusion is asserted. Reference: US Copyright Office Circular 15A, https://www.copyright.gov/circs/circ15a.pdf; historical publication dates must refer to the composition, not the modern recording.",
+    "streamingBasis": "The selected CC BY-SA 3.0 permits commercial reproduction and public distribution/performance of rights held by the licensor. Only the original recording is served with credit, source, and license link; no DRM, paywall, new sublicense, synchronized video or adaptation is added.",
+    "attributionText": "Carl Friedrich Abel (1723- 1787) - Allegro, WKO 205 from 27 Pieces for Unaccompanied Viola da Gamba — Phillip W. Serna. Music: Carl Friedrich Abel. CC BY-SA 3.0. Source: https://commons.wikimedia.org/wiki/File%3ACarl_Friedrich_Abel_(1723-_1787)_-_Allegro%2C_WKO_205_from_27_Pieces_for_Unaccompanied_Viola_da_Gamba.ogg. License: https://creativecommons.org/licenses/by-sa/3.0/. Original source recording; unchanged by Cove.",
+    "modificationNotice": "Original source file; no modifications, normalization, or transcoding by Cove.",
+    "reviewMethod": "ai_assisted",
+    "complexProvenance": true,
+    "unresolved": [
+      "Establish first-publication status and edition provenance for the formerly unpublished Abel manuscript."
+    ]
+  },
+  "approval": {
+    "reviewer": "COVE-SOUNDTRACK-PILOT-20701511",
+    "reviewEvidence": "Individual AI-assisted source review: WKO 205 from 27 Pieces for Unaccompanied Viola da Gamba; composer died 1787. Creator self-release and exact source revision inspected; source permission supports the original recording. All remaining questions are recorded in the dossier. Approval is not a human or counsel attestation.",
+    "composer": "Carl Friedrich Abel",
+    "performer": "Phillip W. Serna",
+    "period": "classical",
+    "instruments": [
+      "viola da gamba"
+    ],
+    "moods": [
+      "animated",
+      "dramatic"
+    ],
+    "energy": 0.7,
+    "hasVocals": false,
+    "territories": [
+      "US"
+    ],
+    "compositionRightsConfirmed": true,
+    "performanceRightsConfirmed": true,
+    "attributionReviewed": true,
+    "title": "Allegro, WKO 205 — 27 Pieces for Unaccompanied Viola da Gamba"
+  }
+}

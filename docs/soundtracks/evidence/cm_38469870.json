@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:07.430456+00:00",
+  "expectedSha1": "1cd0b9afd7bcea1090e55f78d054f4c189e25ccc",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=38469870",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Alb%C3%A9niz_-_Ronde%C3%B1a_from_Iberia.ogg",
+        "duration": 419.8167800453515,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<p><a href=\"//commons.wikimedia.org/wiki/Category:Isaac_Alb%C3%A9niz\" title=\"Category:Isaac Albéniz\">Isaac Albéniz</a> (1860 - 1909), composer\n</p>\n<a href=\"//commons.wikimedia.org/wiki/User:La_Pianista\" title=\"User:La Pianista\">La Pianista</a>, performer"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "1909 compositions|Serranía de Ronda|CC-Zero|D major|Self-published work|Audio files of 2014|Culture of Ronda|Audio files of classical music for piano|Audio files of music by Isaac Albéniz|Music for solo piano|Iberia (Albéniz)"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2015-02-19 00:02:21"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2014-04-12"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"https://en.wikipedia.org/wiki/Isaac_Alb%C3%A9niz\" class=\"extiw\" title=\"en:Isaac Albéniz\">Isaac Albéniz</a>'s Rondeña, from his piano suite <a href=\"https://en.wikipedia.org/wiki/Iberia_(Alb%C3%A9niz)\" class=\"extiw\" title=\"en:Iberia (Albéniz)\">Iberia</a>, Book II. Composed 1905-1909, performed by <a href=\"//commons.wikimedia.org/wiki/User:La_Pianista\" title=\"User:La Pianista\">La Pianista</a> in 2014. See \"<a href=\"https://en.wikipedia.org/wiki/Ronde%C3%B1a\" class=\"extiw\" title=\"en:Rondeña\">Rondeña</a>\"."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Albéniz - Rondeña from Iberia"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Zero, Public Domain Dedication"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "1cd0b9afd7bcea1090e55f78d054f4c189e25ccc",
+        "size": 7074404,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/8/88/Alb%C3%A9niz_-_Ronde%C3%B1a_from_Iberia.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 38469870,
+    "revisions": [
+      {
+        "parentid": 1227002284,
+        "revid": 1227002289,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=[[:en:Isaac Albéniz|Isaac Albéniz]]'s Rondeña, from his piano suite [[:en:Iberia (Albéniz)|Iberia]], Book II. Composed 1905-1909, performed by [[User:La Pianista|La Pianista]] in 2014. See \"[[:en:Rondeña|Rondeña]]\".}}\n|date=2014-04-12\n|source={{own}}\n|author={{c|Isaac Albéniz}} (1860 - 1909), composer\n[[User:La Pianista|La Pianista]], performer\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{self|cc-zero}}\n\n[[Category:Iberia (Albéniz)]]\n[[Category:Serranía de Ronda]]\n[[Category:Culture of Ronda]]\n[[Category:Audio files of 2014]]\n[[Category:Music for solo piano]]\n[[Category:1909 compositions]]\n[[Category:Audio files of music by Isaac Albéniz]]\n[[Category:Audio files of classical music for piano]]\n[[Category:D major]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:31:43Z"
+      }
+    ],
+    "title": "File:Albéniz - Rondeña from Iberia.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227002289",
+  "recordingId": "cm_38469870",
+  "revisionId": 1227002289,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAlb%C3%A9niz_-_Ronde%C3%B1a_from_Iberia.ogg",
+  "sourceSha1": "1cd0b9afd7bcea1090e55f78d054f4c189e25ccc"
+}

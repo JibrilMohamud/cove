@@ -1,0 +1,109 @@
+{
+  "capturedAt": "2026-10-15T21:53:24.279958+00:00",
+  "expectedSha1": "7438e0726e4290f8dc62bd8cfb78ff499c5d2cef",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=654214",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Santa_Maria.ogg",
+        "duration": 150.21333333333334,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:Makemi\" title=\"User:Makemi\">user:Makemi</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Cantigas de Santa María|Poetry of Spain|Music of Spain|Sun in art|G major|D minor|Dorian mode|Mixolydian mode|Self-published work|PD-self|Media of the day|Audio files of vocal music|Audio files of the female voice|Audio files of religious music|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-03-23 19:15:45"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "\"<i><a href=\"//commons.wikimedia.org/wiki/Category:Cantigas_de_Santa_Mar%C3%ADa\" title=\"Category:Cantigas de Santa María\">Cantigas de Santa María</a></i>\": \"<i>Santa Maria, Strela do Dia</i>\" (n. 100)."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Santa Maria"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "7438e0726e4290f8dc62bd8cfb78ff499c5d2cef",
+        "size": 4085744,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/1/13/Santa_Maria.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 654214,
+    "revisions": [
+      {
+        "parentid": 1189294615,
+        "revid": 1256693608,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{information\n| description    ={{en|\"''{{c|Cantigas de Santa María}}''\": \"''Santa Maria, Strela do Dia''\" (n. 100).}}\n\n\n\n{{es|[[:es:Cantigas de Santa María|Cantiga de Santa María]] [[:es:Cantigas de Santa María #Trascendencia|100]] (una de las [[:es:Cantigas de Santa María #Clasificación|cantigas de loor]]): ''[[:es:Cantigas de Santa María #Multimedia|Santa Maria strela do dia]]''.}}\n\n\n\n{{gl|[[:gl:Cantigas de Santa María|Cantiga de Santa María]] [[:gl:Cantigas de Santa María #Cantiga|100]] (unha das [[Cantigas de Santa María #Clasificación|cantigas de loor]]): ''[[:gl:Galería de imaxes das Cantigas de Santa María #Son|Santa Maria strela do dia]]''.}}\n\n\n\n{{pl|''Santa Maria, strela do&nbsp;Dia'' – jedna z&nbsp;420 pieśni ze&nbsp;zbioru [[:pl:Cantigas de Santa María|''Cantigas de&nbsp;Santa María'']] powstałego za&nbsp;panowania [[:pl:Alfons X Mądry|Alfonsa&nbsp;X Mądrego]].}}\n\n\n\n{{pt|[[:pt:Cantigas de Santa Maria|Cantiga de Santa Maria]] [[:pt:Cantigas de Santa Maria #Transcendência|100]] (uma das [[:pt:Cantigas de Santa Maria #Classificação|cantigas de loor]]): ''[[:pt:Cantigas de Santa Maria #Transcendência|Santa Maria strela do dia]]''.}}\n| author         = [[user:Makemi]]\n| source         = {{own}}\n| date           = \n| permission     = \n| other_versions = Score:\n\n{{f|CSM 100.jpg}}\n\n{{f|CSM 100.pdf}}\n\n{{f|CSM 100.png}}\n}}\n\n=={{Assessment}}==\n{{Media of the day|2019|06|20}}\n\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Music of Spain]]\n[[Category:Audio files of religious music]]\n[[Category:Cantigas de Santa María]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Audio files of vocal music]]\n[[Category:Audio files of the female voice]]\n[[Category:Poetry of Spain]]\n[[Category:Sun in art]]\n[[Category:D minor]]\n[[Category:Dorian mode]]\n[[Category:G major]]\n[[Category:Mixolydian mode]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-08-04T22:49:31Z"
+      }
+    ],
+    "title": "File:Santa Maria.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1256693608",
+  "recordingId": "cm_654214",
+  "revisionId": 1256693608,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ASanta_Maria.ogg",
+  "sourceSha1": "7438e0726e4290f8dc62bd8cfb78ff499c5d2cef"
+}

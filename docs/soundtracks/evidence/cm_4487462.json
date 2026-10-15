@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:53:13.536351+00:00",
+  "expectedSha1": "3f2c1de322d7cf5c74639e8bbbb9dea9bd7b9bcb",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=4487462",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:IsraelInEgypt18880629clicks_removed.ogg",
+        "duration": 147.69632653061225,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:George%20Edward%20Gouraud\" title=\"w:en:George Edward Gouraud\" class=\"extiw\"><span title=\"United States Army Medal of Honor recipient\">George Edward Gouraud</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Music in 1888|PD Edison Records|PD-old-100-expired|Self-published work|PD-self|Audio files of Baroque period classical music|Audio files from Edison Records|CC-PD-Mark|Audio files of 1888|Audio files of music by Georg Frideric Händel|Audio files of phonograph cylinder recordings"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:ExtLink nofollow\" href=\"http://www.nps.gov/archive/edis/edisonia/very_early.htm\" class=\"external free\">http://www.nps.gov/archive/edis/edisonia/very_early.htm</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-08-02 12:27:12"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "1888-06-29"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Excerpt of Israel in Egypt, earliest known music recording in existence."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "IsraelInEgypt18880629clicks removed"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "3f2c1de322d7cf5c74639e8bbbb9dea9bd7b9bcb",
+        "size": 1467482,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/4/4f/IsraelInEgypt18880629clicks_removed.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 4487462,
+    "revisions": [
+      {
+        "parentid": 1155048393,
+        "revid": 1284425174,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\nThis is the earliest known replayed recorded musical group in existence. I removed some of the clicks from the recording and I think it is better quality.\n\nInformation gathered from the [https://web.archive.org/web/20061012120243/http://www.nps.gov/archive/edis/edisonia/very_early.htm Edison National Historic Site]:\n\n'''On note with cylinder:''' \"A chorus of 4000 voices recorded with phonograph over 100 yards away\". '''Composed by:''' George Frideric Handel. '''Conducted by:''' August Manns. '''Record format:''' Edison yellow paraffin cylinder. '''Recorded by:''' Col. George Gouraud, foreign sales agent for Thomas Edison. '''Location:''' The Crystal Palace, London, England. '''Recording date''': June 29, 1888. '''ENHS object catalog number''': E-2440-20.\n\n{{Information\n|Description=Excerpt of Israel in Egypt, earliest known music recording in existence.\n|Source=http://www.nps.gov/archive/edis/edisonia/very_early.htm\n|Date=1888-06-29\n|Author={{Creator|wikidata=Q5538875}}\n|Permission=\n}}\n== {{int:license-header}} ==\nFor the restoring\n{{PD-self}}\n\nFor the recording\n{{PD-Edison Records}}\n\nFor the original  Score\n{{PD-old-100-1923}}\n\n[[Category:Audio files of music by Georg Frideric Händel|Excerpt of Israel in Egypt]]\n[[Category:Audio files of Baroque period classical music|Excerpt of Israel in Egypt]]\n[[Category:Audio files of phonograph cylinder recordings]]\n[[Category:Audio files of 1888]]\n[[Category:Music in 1888]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-10-08T03:51:40Z"
+      }
+    ],
+    "title": "File:IsraelInEgypt18880629clicks removed.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1284425174",
+  "recordingId": "cm_4487462",
+  "revisionId": 1284425174,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AIsraelInEgypt18880629clicks_removed.ogg",
+  "sourceSha1": "3f2c1de322d7cf5c74639e8bbbb9dea9bd7b9bcb"
+}

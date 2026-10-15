@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:53:17.131977+00:00",
+  "expectedSha1": "1a3fe300caebfe59215590bff6ce586fecd08586",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=4898814",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:O_frondens_2.ogg",
+        "duration": 96.07256235827664,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:Makemi\" title=\"User:Makemi\">User:Makemi</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Hildegard von Bingen|GFDL|User-created GFDL images|Riesencodex|E minor|Branches in art|Featured sounds on Wikipedia, English|License migration completed|Dorian mode|PD-old-100-expired|Self-published work|Media of the day|CC-PD-Mark|Audio files of vocal music|Audio files of 2006|Files with Assessments template missing SDC Commons no value quality assessment|Audio files of the female voice|Audio files of medieval period classical music|Dawn in art|Music for the Blessed Virgin Mary"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "Edited version (applause at end removed) of <a href=\"//commons.wikimedia.org/wiki/File:O_frondens.ogg\" title=\"File:O frondens.ogg\">File:O frondens.ogg</a>; Originally uploaded by creator"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-10-01 00:33:18"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2006"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "\"<i>O frondens virga</i>\" (\"Oh leafy branch\") by <a href=\"//commons.wikimedia.org/wiki/Category:Hildegard_von_Bingen\" title=\"Category:Hildegard von Bingen\">Hildegard of Bingen</a>, performed live by self. From \"<i><a href=\"https://en.wikipedia.org/wiki/Ordo_Virtutum\" class=\"extiw\" title=\"en:Ordo Virtutum\">Ordo Virtutem</a></i>\".\n<p><br>\n</p>\n<a rel=\"nofollow\" class=\"external text\" href=\"https://www.hildegard-society.org/2014/10/o-frondens-virga-antiphon.html\">Score, recordings, lyrics</a> of the song in <a href=\"https://en.wikipedia.org/wiki/Latin\" class=\"extiw\" title=\"en:Latin\">Latin</a> and their translation into <a href=\"https://en.wikipedia.org/wiki/English_language\" class=\"extiw\" title=\"en:English language\">English</a>."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "O frondens 2"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "1a3fe300caebfe59215590bff6ce586fecd08586",
+        "size": 1453597,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/a/ad/O_frondens_2.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 4898814,
+    "revisions": [
+      {
+        "parentid": 1189288834,
+        "revid": 1189290018,
+        "slots": {
+          "main": {
+            "content": "{{Media of the day|year=2012|month=10|day=15}}\n{{Assessments|enwiki=3|enwiki-nom=O frondens virga}}\n== {{int:filedesc}} ==\n{{Information\n|Description={{de|{{c|Hildegard von Bingen|Hildegard von Bingen}}: „''O frondens virga''“ („Grünender Zweig“), aus „''[[:de:Ordo virtutum|Ordo virtutum]]''“.\n\n\n[https://classicalexburns.com/2019/11/29/hildegard-von-bingen-o-frondens-virga-erhebe-uns-hoch/ Der Liedtext] in [[:de:Latein|Latein]] und seine [[:de:Deutsche Sprache|deutsche]] Übersetzung.}}\n\n\n\n{{en|\"''O frondens virga''\" (\"Oh leafy branch\") by {{c|Hildegard von Bingen|Hildegard of Bingen}}, performed live by self. From \"''[[:en:Ordo Virtutum|Ordo Virtutem]]''\".\n\n\n[https://www.hildegard-society.org/2014/10/o-frondens-virga-antiphon.html Score, recordings, lyrics] of the song in [[:en:Latin|Latin]] and their translation into [[:en:English language|English]].}}\n\n\n\n{{es|{{c|Hildegard von Bingen|Hildegarda de Bingen}}: \"''O frondens virga''\" (\"Oh rama frondosa\"), de \"''[[:es:Ordo virtutum|Ordo virtutum]]''\".\n\n\n[https://julianvalle.blogspot.com/2015/08/oh-frondosa-rama-o-frondens-virga.html La letra] en [[:es:Latín|latín]] y su traducción al [[:es:Idioma español|español]].}}\n\n\n\n{{fr|{{c|Hildegard von Bingen|Hildegarde de Bingen}} : « ''O frondens virga'' » (« Ô branche verdoyante »), de « ''[[:fr:Ordo virtutum|Ordo virtutum]]'' ».\n\n\n[https://www.patrick-burgan.com/audio/2Hildegard%20von%20Bingen.pdf Les paroles de la chanson] en [[:fr:Latin|latin]] et leur traduction en [[:fr:Français|français]].}}\n\n\n\n{{it|{{c|Hildegard von Bingen|Ildegarda di Bingen}}: \"''O frondens virga''\" (\"Oh verga frondosa\"), da \"''[[:it:Ordo Virtutum|Ordo Virtutum]]''\".\n\n\n[https://lyricstranslate.com/it/o-frondens-virga-o-verga-frondosa.html Il testo della canzone] in [[:it:Lingua latina|latino]] e la sua traduzione in [[:it:Lingua italiana|italiano]].}}\n\n\n\n:O frondens virga, \n:In tua nobilitate stans, \n:sicut aurora procedit.\n:Nunc gaude et laetare et nos debiles dignare\n:a mala consuetudine liberare,\n:atque manum tuam porrige ad erigendum nos.\n|Source=Edited version (applause at end removed) of [[:File:O frondens.ogg]]; Originally uploaded by creator\n|Date=2006\n|Author=[[User:Makemi]]\n|Permission=\n|other_versions=With applause at end:\n\n{{f|O frondens.ogg}}\n}}\n\n== {{int:license-header}} ==\n===Composition===\n{{PD-old-100-expired}}\n\n===Performance===\n{{GFDL-user|Makemi|migration=relicense}}\n\n[[Category:Featured sounds on Wikipedia, English]]\n[[Category:Audio files of 2006]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Audio files of the female voice]]\n[[Category:Audio files of vocal music]]\n[[Category:Hildegard von Bingen]]\n[[Category:Riesencodex]]\n[[Category:Music for the Blessed Virgin Mary]]\n[[Category:Branches in art]]\n[[Category:Dawn in art]]\n[[Category:E minor]]\n[[Category:Dorian mode]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-03-30T16:26:07Z"
+      }
+    ],
+    "title": "File:O frondens 2.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1189290018",
+  "recordingId": "cm_4898814",
+  "revisionId": 1189290018,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AO_frondens_2.ogg",
+  "sourceSha1": "1a3fe300caebfe59215590bff6ce586fecd08586"
+}

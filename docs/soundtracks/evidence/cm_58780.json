@@ -1,0 +1,97 @@
+{
+  "capturedAt": "2026-10-15T21:53:24.278459+00:00",
+  "expectedSha1": "70ad0f18df7f2f01ddfd74651f27c826b4bfe5af",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=58780",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Caruso-AveMaria.ogg",
+        "duration": 249.65224489795918,
+        "extmetadata": {
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Ave Maria (music)|PD US|Files with no machine-readable author|Files with no machine-readable source|Composers from England|A-flat major|20th-century composers from the United Kingdom|Audio files of classical music by Enrico Caruso|Media missing infobox template|1913 compositions|Audio files of 1913|Audio files of classical music for piano|Audio files of classical music for violin|Audio files of contemporary classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2005-02-13 03:52:14"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Caruso-AveMaria"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "70ad0f18df7f2f01ddfd74651f27c826b4bfe5af",
+        "size": 2716080,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Caruso-AveMaria.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 58780,
+    "revisions": [
+      {
+        "parentid": 1227002780,
+        "revid": 1227002789,
+        "slots": {
+          "main": {
+            "content": "Source: https://archive.org/download/Caruso_part1/Caruso-AveMaria.mp3 https://archive.org/audio/audio-details-db.php?collection=78rpms&collectionid=Caruso_part1\n\n1913 recording by Enrico Caruso. The music by [[:en:Percy Kahn|Percy Kahn]] was first published in USA that same year.\n\n{{PD-US}} \n\n[[Category:Media missing infobox template]]\n[[Category:Ave Maria (music)|caruso]]\n[[Category:20th-century composers from the United Kingdom]]\n[[Category:Composers from England]]\n[[Category:Audio files of contemporary classical music]]\n[[Category:1913 compositions]]\n[[Category:Audio files of 1913]]\n[[Category:Audio files of classical music by Enrico Caruso]]\n[[Category:Audio files of classical music for violin]]\n[[Category:Audio files of classical music for piano]]\n[[Category:A-flat major]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:32:39Z"
+      }
+    ],
+    "title": "File:Caruso-AveMaria.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227002789",
+  "recordingId": "cm_58780",
+  "revisionId": 1227002789,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ACaruso-AveMaria.ogg",
+  "sourceSha1": "70ad0f18df7f2f01ddfd74651f27c826b4bfe5af"
+}

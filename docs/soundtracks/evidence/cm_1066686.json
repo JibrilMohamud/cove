@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:52:25.995854+00:00",
+  "expectedSha1": "0563cb8bb850348f1824c2e434bfaf8836e98d38",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1066686",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Antonio_de_Cabezon_-_Duuiensela.ogg",
+        "duration": 249.57648526077097,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Joan Benson"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Clavichords|Music of Spain|Antonio de Cabezon|D minor|Media of the day|Pandora Music|Audio files of renaissance period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "The Al Goldstein collection in the <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html\" class=\"external text\">Pandora Music</a> repository at ibiblio.org."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-08-18 13:53:36"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<p>This is a transcription of a clavichord record by Joan Benson (Bridge S 2250).\nIt was a \"recommended recording of the year\" (1973) by the Saturday Review. This recording is on clavichords by Thomas Goff of England and Jacobus Verwolf\nof the Netherlands. To appear later will be selections on historical </p>\ninstruments: a 1568 Tosi,  and 1796 Schiedmayer."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Antonio de Cabezon - Duuiensela"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html\" class=\"external text\">license information</a> states that this file is \"available for free download subject to the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/EFF_OAL\" title=\"EFF OAL\" class=\"mw-redirect\">EFF OAL</a>\" (Open Audio License), which in turn <a rel=\"mw:ExtLink nofollow\" href=\"https://www.eff.org/IP/Open_licenses/eff_oal.php\" class=\"external text\">is interchangeable</a> with the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/CC-BY-SA-2.0\" title=\"CC-BY-SA-2.0\" class=\"mw-redirect\">CC-BY-SA-2.0</a>."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "0563cb8bb850348f1824c2e434bfaf8836e98d38",
+        "size": 4704971,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Antonio_de_Cabezon_-_Duuiensela.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1066686,
+    "revisions": [
+      {
+        "parentid": 799429546,
+        "revid": 887683100,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description = This is a transcription of a clavichord record by Joan Benson (Bridge S 2250).\nIt was a \"recommended recording of the year\" (1973) by the Saturday Review. This recording is on clavichords by Thomas Goff of England and Jacobus Verwolf\nof the Netherlands. To appear later will be selections on historical \ninstruments: a 1568 Tosi,  and 1796 Schiedmayer. \n|Source = The Al Goldstein collection in the [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html Pandora Music] repository at ibiblio.org.\n|Date = \n|Author = Joan Benson\n|Permission = The [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html license information] states that this file is \"available for free download subject to the [[EFF OAL]]\" (Open Audio License), which in turn [https://www.eff.org/IP/Open_licenses/eff_oal.php is interchangeable] with the [[CC-BY-SA-2.0]].\n}}\n{{Media of the day|2014|06|15}}\n\n== {{int:license-header}} ==\n{{cc-by-sa-2.0}}\n\n[[Category:Pandora Music]]\n[[Category:Clavichords]]\n[[Category:Antonio de Cabezon]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:Music of Spain]]\n[[Category:D minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-06-25T09:04:37Z"
+      }
+    ],
+    "title": "File:Antonio de Cabezon - Duuiensela.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=887683100",
+  "recordingId": "cm_1066686",
+  "revisionId": 887683100,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAntonio_de_Cabezon_-_Duuiensela.ogg",
+  "sourceSha1": "0563cb8bb850348f1824c2e434bfaf8836e98d38"
+}

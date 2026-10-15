@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:57.244329+00:00",
+  "expectedSha1": "576c3bab27acf17b34e5d69314a1be55782da890",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=3204493",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Apprentice.ogg",
+        "duration": 47.56897959183674,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:FortunateTheognis&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:FortunateTheognis (page does not exist)\">FortunateTheognis</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "L'Apprenti sorcier|F minor|Transcription (music)|Self-published work|PD-self|Unknown date|Audio files of Romantic period classical music|Audio files of organ music|Audio files of 20th-century period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2007-12-09 19:06:12"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "Unknown date"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<i><a href=\"//commons.wikimedia.org/wiki/Category:L%27Apprenti_sorcier\" title=\"Category:L'Apprenti sorcier\">L'Apprenti sorcier</a></i> (sound sample from Sorcerer's Apprentice; organ <a href=\"//commons.wikimedia.org/wiki/Category:Transcription_(music)\" title=\"Category:Transcription (music)\">transcription</a> by Josh Perschbacher)"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Apprentice"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "576c3bab27acf17b34e5d69314a1be55782da890",
+        "size": 773655,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/0/00/Apprentice.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 3204493,
+    "revisions": [
+      {
+        "parentid": 800053468,
+        "revid": 1250221539,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{en|''{{c|L'Apprenti sorcier}}'' (sound sample from Sorcerer's Apprentice; organ {{c|Transcription (music)|transcription}} by Josh Perschbacher)}}\n|Source={{Own}}\n|Date={{other date|?}}\n|Author= [[User:FortunateTheognis|FortunateTheognis]]\n|Permission=\n|other_versions= [[:en:File:Apprentice.ogg]]\n}}\n\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:L'Apprenti sorcier]]\n[[Category:Audio files of 20th-century period classical music]]\n[[Category:Audio files of Romantic period classical music]]\n[[Category:Transcription (music)]]\n[[Category:Audio files of organ music]]\n[[Category:F minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-07-21T13:39:40Z"
+      }
+    ],
+    "title": "File:Apprentice.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1250221539",
+  "recordingId": "cm_3204493",
+  "revisionId": 1250221539,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AApprentice.ogg",
+  "sourceSha1": "576c3bab27acf17b34e5d69314a1be55782da890"
+}

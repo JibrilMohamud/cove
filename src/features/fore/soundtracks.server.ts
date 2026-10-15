@@ -2,9 +2,12 @@
 import type { CoveEnv } from "./api.server";
 import { ApiError, json, readBody } from "./service";
 import { requireServiceScope } from "./privileged-access.server";
+import { requireStaffPermission } from "./moderation.server";
+import type { CoveIdentity } from "./auth.server";
+import { soundtrackDossierSchema, soundtrackQualitySchema, qualityPasses } from "./soundtrack-review";
 
 /** Rights-reviewed recording library. This is intentionally independent of audiobooks.
- * Discovery only queues candidates. Only an attested human review may authorize
+ * Discovery only queues candidates. Only an accountable, evidence-backed review may authorize
  * copying an individual performance to R2 or publicly serving it.
  */
 const CATEGORIES = [
@@ -15,7 +18,7 @@ const CATEGORIES = [
   { name: "Audio files of renaissance period classical music", period: "renaissance", instrument: "" },
   { name: "Audio files of medieval period classical music", period: "medieval", instrument: "" },
 ] as const;
-const MAX_DISCOVERED = 250;
+const MAX_DISCOVERED = 750;
 const MAX_BYTES = 25 * 1024 * 1024;
 const API = "https://commons.wikimedia.org/w/api.php";
 const AGENT = "CoveSoundtracks/0.2 (https://cove-puce-theta.vercel.app/help; rights-review)";
@@ -27,7 +30,8 @@ type CommonsInfo = {
   descriptionurl?: string;
   extmetadata?: Record<string, { value?: string }>;
 };
-type CommonsPage = { pageid?: number; title?: string; imageinfo?: CommonsInfo[] };
+type CommonsPage = { pageid?: number; title?: string; imageinfo?: CommonsInfo[];
+  revisions?: { revid: number; timestamp: string; slots?: { main?: { content?: string } } }[] };
 type CommonsReply = {
   query?: { pages?: Record<string, CommonsPage> };
   continue?: { gcmcontinue?: string };
@@ -41,7 +45,9 @@ export type SoundtrackRow = {
   instruments_json: string; moods_json: string; energy: number | null;
   has_vocals: number | null; status: string; reviewed_at: string | null;
   allowed_territories_json: string; storage_key: string | null;
-  storage_bytes: number | null; evidence_json: string;
+  storage_bytes: number | null; evidence_json: string; dossier_json: string;
+  quality_status: string; quality_report_json: string; source_snapshot_key: string | null;
+  review_version: number; updated_at: string; reviewed_by: string | null;
 };
 const clearText = (value: unknown, max = 300) =>
   String(value || "").replace(/<[^>]*>/g, " ").replace(/&(?:nbsp|amp);/g, " ")
@@ -210,8 +216,8 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
   }
 }
 async function commonsFile(title: string) {
-  const p = new URLSearchParams({ titles: title, prop: "imageinfo",
-    iiprop: "url|mime|size|sha1|extmetadata" });
+  const p = new URLSearchParams({ titles: title, prop: "imageinfo|revisions",
+    rvprop: "ids|timestamp|content", rvslots: "main", iiprop: "url|mime|size|sha1|extmetadata" });
   const data = await commonsRequest(p);
   return Object.values(data.query?.pages || {})[0] as CommonsPage | undefined;
 }
@@ -238,18 +244,35 @@ export async function importOneReviewedSoundtrack(env: CoveEnv) {
   ).bind(token,new Date(Date.now()+120_000).toISOString(),now).first<{ id:number }>();
   if (!lease) return { skipped: "leased" };
   try {
+    const cleanup = await env.DB.prepare("SELECT storage_key FROM soundtrack_cleanup_queue ORDER BY created_at LIMIT 1")
+      .first<{storage_key:string}>();
+    if (cleanup) {
+      await env.BUCKET.delete(cleanup.storage_key);
+      await env.DB.prepare("DELETE FROM soundtrack_cleanup_queue WHERE storage_key=?").bind(cleanup.storage_key).run();
+    }
+    // A terminated invocation may leave a claim behind. Never retry a revoked file.
+    await env.DB.prepare("UPDATE soundtrack_recordings SET status='approved',updated_at=? WHERE status='importing' AND updated_at<?")
+      .bind(now,new Date(Date.now()-10*60_000).toISOString()).run();
     const track = await env.DB.prepare(
-      "UPDATE soundtrack_recordings SET status='importing',updated_at=? WHERE id=(SELECT id FROM soundtrack_recordings WHERE status='approved' ORDER BY reviewed_at LIMIT 1) AND status='approved' RETURNING *",
+      "UPDATE soundtrack_recordings SET status='importing',updated_at=? WHERE id=(SELECT id FROM soundtrack_recordings WHERE status='approved' AND quality_status='passed' AND source_snapshot_key IS NOT NULL ORDER BY reviewed_at LIMIT 1) AND status='approved' RETURNING *",
     ).bind(now).first<SoundtrackRow>();
     if (!track) return { skipped: "no_approved_recordings" };
     try {
+      const report = soundtrackQualitySchema.parse(JSON.parse(track.quality_report_json));
+      if (!qualityPasses(report) || report.sourceSha1 !== track.source_sha1 || report.bytes !== track.source_size)
+        throw new Error("Audio QA does not match the approved source");
       const page = await commonsFile(track.source_title);
       if (!evidenceMatches(track,page?.imageinfo?.[0])) {
         await env.DB.prepare(
-          "UPDATE soundtrack_recordings SET status='pending_review',reviewed_at=NULL,reviewed_by=NULL,review_evidence=NULL,allowed_territories_json='[]',updated_at=? WHERE id=? AND status='importing'",
-        ).bind(now,track.id).run();
+          "UPDATE soundtrack_recordings SET status='pending_review',reviewed_at=NULL,reviewed_by=NULL,review_evidence=NULL,allowed_territories_json='[]',updated_at=? WHERE id=? AND status='importing' AND updated_at=?",
+        ).bind(now,track.id,now).run();
         return { invalidated: track.id, reason: "Source or rights metadata changed" };
       }
+      const snapshot = await env.BUCKET.get(track.source_snapshot_key!);
+      if (!snapshot?.body) throw new Error("Archived source evidence is missing");
+      const archived = JSON.parse(await new Response(snapshot.body).text()) as { revisionId?: number };
+      if (!archived.revisionId || archived.revisionId !== page?.revisions?.[0]?.revid)
+        throw new Error("Source revision changed; a fresh review is required");
       const upstream = await fetch(track.source_file_url, {
         headers: { "User-Agent": AGENT }, redirect: "manual",
         signal: AbortSignal.timeout(90_000),
@@ -260,9 +283,9 @@ export async function importOneReviewedSoundtrack(env: CoveEnv) {
         (track.mime === "audio/ogg" && contentType === "application/ogg");
       if (!upstream.ok || !upstream.body || (contentLength && Number(contentLength) !== track.source_size) ||
           !mimeCompatible) throw new Error("Source media size or type changed");
-      const key = "soundtracks/v1/" + track.id + (track.mime === "audio/mpeg" ? ".mp3" : ".ogg");
+      const key = "soundtracks/v1/" + track.id + "/" + token + (track.mime === "audio/mpeg" ? ".mp3" : ".ogg");
       // R2 validates the checksum while receiving the stream; do not buffer music in Worker memory.
-      await env.BUCKET.put(key,upstream.body,{ sha1: track.source_sha1,
+      await env.BUCKET.put(key,upstream.body,{ sha256: report.sha256,
         httpMetadata:{ contentType: track.mime }, customMetadata:{ source:"wikimedia_commons",id:track.id } });
       const head = await env.BUCKET.head?.(key);
       if (!head || head.size !== track.source_size) {
@@ -270,8 +293,8 @@ export async function importOneReviewedSoundtrack(env: CoveEnv) {
         throw new Error("Stored file size check failed");
       }
       const result = await env.DB.prepare(
-        "UPDATE soundtrack_recordings SET status='ready',storage_key=?,storage_sha1=?,storage_bytes=?,stored_at=?,updated_at=? WHERE id=? AND status='importing' AND reviewed_at=? RETURNING id",
-      ).bind(key,track.source_sha1,head.size,now,now,track.id,track.reviewed_at).first();
+        "UPDATE soundtrack_recordings SET status='ready',last_import_error='',storage_key=?,storage_sha1=?,storage_bytes=?,stored_at=?,updated_at=? WHERE id=? AND status='importing' AND reviewed_at=? AND updated_at=? RETURNING id",
+      ).bind(key,track.source_sha1,head.size,now,now,track.id,track.reviewed_at,now).first();
       if (!result) {
         await env.BUCKET.delete(key);
         return { canceled: track.id };
@@ -281,8 +304,8 @@ export async function importOneReviewedSoundtrack(env: CoveEnv) {
       return { stored: track.id };
     } catch (error) {
       await env.DB.prepare(
-        "UPDATE soundtrack_recordings SET status='import_failed',updated_at=? WHERE id=? AND status='importing'",
-      ).bind(now,track.id).run();
+        "UPDATE soundtrack_recordings SET status='import_failed',last_import_error=?,updated_at=? WHERE id=? AND status='importing' AND updated_at=?",
+      ).bind(String(error).slice(0,500),now,track.id,now).run();
       return { failed: track.id, reason: String(error).slice(0,180) };
     }
   } finally {
@@ -297,134 +320,229 @@ function publicRecord(r: SoundtrackRow) {
     energy:r.energy,hasVocals:r.has_vocals === null ? null : !!r.has_vocals,
     attribution:r.attribution_text,sourcePage:r.source_page_url,
     license:r.license_statement,licenseUrl:r.license_url,territories:JSON.parse(r.allowed_territories_json),
+    modifications: JSON.parse(r.dossier_json || "{}").modificationNotice || "Original file; no modifications.",
+    durationSeconds: JSON.parse(r.quality_report_json || "{}").durationSeconds,
     audioUrl:"/api/fore/soundtracks/recordings/"+r.id+"/audio" };
 }
-export async function handleSoundtracks(request: Request,env:CoveEnv,path:string,territory:string): Promise<Response | null> {
+export async function handleSoundtracks(request: Request,env:CoveEnv,path:string,territory:string, staffIdentity: CoveIdentity | null = null): Promise<Response | null> {
   if (!path.startsWith("/soundtracks") && !path.startsWith("/admin/soundtracks")) return null;
   const admin = path.startsWith("/admin/");
-  const reviewerPrincipal = admin
-    ? await requireServiceScope(env.DB,request,"audio.ingest")
-    : null;
+  let principalId = "";
+  if (admin) {
+    if (staffIdentity) {
+      const staff = await requireStaffPermission(env.DB,staffIdentity,"soundtracks.review",request);
+      principalId = "staff:" + staff.userId;
+    } else {
+      const principal = await requireServiceScope(env.DB,request,"soundtracks.review");
+      principalId = "service:" + principal.principalId;
+    }
+  }
   const url = new URL(request.url);
+  if (admin && path === "/admin/soundtracks/import-next" && request.method === "POST") {
+    // One bounded import per call; the same exclusive lease as scheduled work.
+    return json(await importOneReviewedSoundtrack(env));
+  }
   const idMatch = /^\/(?:admin\/)?soundtracks\/recordings\/(cm_[0-9]{1,15})(?:\/audio)?$/.exec(path);
   if (!admin && path === "/soundtracks/recordings" && request.method === "GET") {
     const rows = (await env.DB.prepare(
-      "SELECT * FROM soundtrack_recordings WHERE status='ready' ORDER BY title,id LIMIT 300",
+      "SELECT * FROM soundtrack_recordings WHERE status='ready' AND quality_status='passed' AND source_snapshot_key IS NOT NULL ORDER BY title,id LIMIT 300",
     ).all<SoundtrackRow>()).results.filter(r=>territoryAllowed(r,territory));
     return json({ recordings: rows.map(publicRecord),count:rows.length });
   }
   if (admin && path === "/admin/soundtracks" && request.method === "GET") {
     const counts = (await env.DB.prepare(
-      "SELECT status,COUNT(*) count FROM soundtrack_recordings GROUP BY status",
-    ).all<{ status:string; count:number }>()).results;
+      "SELECT status,quality_status,COUNT(*) count FROM soundtrack_recordings GROUP BY status,quality_status",
+    ).all<{ status:string; quality_status:string; count:number }>()).results;
     const limit = Math.min(100,Math.max(1,Number(url.searchParams.get("limit")) || 40));
+    const after = url.searchParams.get("after") || "";
     const rows = (await env.DB.prepare(
-      "SELECT * FROM soundtrack_recordings WHERE status=? ORDER BY discovered_at,id LIMIT ?",
-    ).bind(url.searchParams.get("status") || "pending_review",limit).all<SoundtrackRow>()).results;
-    return json({ counts,records:rows });
+      "SELECT * FROM soundtrack_recordings WHERE status=? AND id>? ORDER BY id LIMIT ?",
+    ).bind(url.searchParams.get("status") || "pending_review",after,limit+1).all<SoundtrackRow>()).results;
+    return json({ counts,records:rows.slice(0,limit),nextCursor:rows.length>limit?rows[limit-1].id:null });
   }
-  if (admin && idMatch && request.method === "POST" && path.startsWith("/admin/")) {
-    const input = await readBody(request,30000) as Record<string,unknown>;
+  if (admin && idMatch && request.method === "GET") {
+    const row = await env.DB.prepare("SELECT * FROM soundtrack_recordings WHERE id=?")
+      .bind(idMatch[1]).first<SoundtrackRow>();
+    if (!row) throw new ApiError(404,"Recording not found.");
+    const history = (await env.DB.prepare(
+      "SELECT * FROM soundtrack_review_events WHERE recording_id=? ORDER BY created_at DESC,id DESC LIMIT 100",
+    ).bind(row.id).all()).results;
+    return json({record:row,history});
+  }
+  if (admin && idMatch && request.method === "POST") {
+    const input = await readBody(request,60000) as Record<string,unknown>;
     const action = String(input.action || "");
-    if (!["approve","reject","revoke","retry"].includes(action))
+    if (!["draft","endorse","quality","approve","reject","revoke","retry"].includes(action))
       throw new ApiError(400,"Invalid review decision.");
-    const original = await env.DB.prepare(
-      "SELECT * FROM soundtrack_recordings WHERE id=?",
-    ).bind(idMatch[1]).first<SoundtrackRow>();
+    const original = await env.DB.prepare("SELECT * FROM soundtrack_recordings WHERE id=?")
+      .bind(idMatch[1]).first<SoundtrackRow>();
     if (!original) throw new ApiError(404,"Recording not found.");
+    if (input.version !== original.review_version)
+      throw new ApiError(409,"The review changed. Refresh before submitting this decision.");
+    const at = new Date().toISOString();
+    const version = original.review_version + 1;
+    const eventId = crypto.randomUUID();
+    const event = (payload:unknown) => env.DB.prepare(
+      "INSERT INTO soundtrack_review_events(id,recording_id,principal_id,event_type,source_sha1,payload_json,created_at) SELECT ?,id,?,?,?,?,? FROM soundtrack_recordings WHERE id=? AND review_version=? AND changes()=1",
+    ).bind(eventId,principalId,action,original.source_sha1,JSON.stringify(payload),at,original.id,version);
+    // The versioned update and its audit event commit together or both roll back.
+    const commit = async (update:ReturnType<CoveEnv["DB"]["prepare"]>,payload:unknown,decision=false) => {
+      const statements = [update,event(payload)];
+      if (["revoke","reject"].includes(action) && original.storage_key) statements.push(env.DB.prepare(
+        "INSERT OR IGNORE INTO soundtrack_cleanup_queue(storage_key,recording_id,created_at) SELECT ?,?,? WHERE EXISTS(SELECT 1 FROM soundtrack_review_events WHERE id=?)",
+      ).bind(original.storage_key,original.id,at,eventId));
+      if (decision) statements.push(env.DB.prepare(
+        "INSERT INTO soundtrack_rights_decisions(id,recording_id,principal_id,action,evidence_json,decided_at) SELECT ?,id,?,?,?,? FROM soundtrack_recordings WHERE id=? AND review_version=? AND EXISTS(SELECT 1 FROM soundtrack_review_events WHERE id=?)",
+      ).bind(eventId,principalId,action,JSON.stringify(payload),at,original.id,version,eventId));
+      await env.DB.batch(statements);
+      const committed = await env.DB.prepare("SELECT id FROM soundtrack_review_events WHERE id=?").bind(eventId).first();
+      if (!committed) throw new ApiError(409,"A concurrent review won. Refresh before trying again.");
+      return json({recordingId:original.id,action,version});
+    };
+    if (action === "quality") {
+      if (["ready","importing","revoked"].includes(original.status))
+        throw new ApiError(409,"Withdraw or finish the current release before replacing audio QA.");
+      const parsed = soundtrackQualitySchema.safeParse(input.report);
+      if (!parsed.success) throw new ApiError(422,"Complete measured audio QA is required.");
+      const report = parsed.data;
+      if (report.sourceSha1 !== original.source_sha1 || report.bytes !== original.source_size)
+        throw new ApiError(409,"Audio QA describes a different source file.");
+      const status = qualityPasses(report)?"passed":"failed";
+      return commit(env.DB.prepare(
+        "UPDATE soundtrack_recordings SET quality_report_json=?,quality_status=?,review_version=?,updated_at=? WHERE id=? AND review_version=?",
+      ).bind(JSON.stringify(report),status,version,at,original.id,original.review_version),{report,status});
+    }
+    if (action === "draft") {
+      if (!["pending_review","import_failed","rejected"].includes(original.status))
+        throw new ApiError(409,"Withdraw the released recording before editing its rights dossier.");
+      const parsed = soundtrackDossierSchema.safeParse(input.dossier);
+      if (!parsed.success) throw new ApiError(422,"Each rights layer requires a rationale and source links.");
+      return commit(env.DB.prepare(
+        "UPDATE soundtrack_recordings SET dossier_json=?,review_version=?,updated_at=? WHERE id=? AND review_version=?",
+      ).bind(JSON.stringify(parsed.data),version,at,original.id,original.review_version),{dossier:parsed.data});
+    }
+    if (action === "endorse") {
+      const reason = clearText(input.reason,2500);
+      if (reason.length<80) throw new ApiError(422,"An independent second-review rationale is required.");
+      const digest = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(original.dossier_json));
+      const dossierSha256 = Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
+      return commit(env.DB.prepare(
+        "UPDATE soundtrack_recordings SET review_version=?,updated_at=? WHERE id=? AND review_version=?",
+      ).bind(version,at,original.id,original.review_version),{reason,dossierSha256});
+    }
     if (action === "approve") {
       if (!["pending_review","import_failed","rejected"].includes(original.status))
         throw new ApiError(409,"The recording is not awaiting review.");
+      const parsed = soundtrackDossierSchema.safeParse(JSON.parse(original.dossier_json));
+      if (!parsed.success || parsed.data.unresolved.length)
+        throw new ApiError(422,"A complete dossier with no unresolved rights questions is required.");
+      const dossier = parsed.data;
+      if (original.quality_status!=="passed") throw new ApiError(422,"Measured audio QA must pass before approval.");
+      if (original.license_code === "PD" || dossier.complexProvenance) {
+        const digest = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(original.dossier_json));
+        const dossierSha256 = Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
+        const second = await env.DB.prepare(
+          "SELECT id FROM soundtrack_review_events WHERE recording_id=? AND source_sha1=? AND event_type='endorse' AND principal_id!=? AND json_extract(payload_json,'$.dossierSha256')=? LIMIT 1",
+        ).bind(original.id,original.source_sha1,principalId,dossierSha256).first();
+        if (!second) throw new ApiError(422,"This provenance requires a second independent reviewer of the current dossier.");
+      }
+      const duplicate = await env.DB.prepare(
+        "SELECT id FROM soundtrack_recordings WHERE source_sha1=? AND id!=? AND status IN ('approved','importing','ready') LIMIT 1",
+      ).bind(original.source_sha1,original.id).first();
+      if (duplicate) throw new ApiError(409,"This exact recording is already approved under another source identity.");
+      const displayTitle = clearText(input.title ?? original.title,250);
+      if (displayTitle.length<3) throw new ApiError(422,"A descriptive recording title is required.");
       const reviewer = clearText(input.reviewer,120);
       const rationale = clearText(input.reviewEvidence,2500);
-      const performer = clearText(input.performer ?? original.performer,400);
-      const composer = clearText(input.composer ?? original.composer,300);
+      const performer = clearText(input.performer,400);
+      const composer = clearText(input.composer,300);
       const territories = input.territories;
       const validTerritories = Array.isArray(territories) && territories.length>0 && territories.length<=250 &&
         territories.every(v=>typeof v==="string" && (v==="*" || /^[A-Z]{2}$/.test(v)));
-      const inst = input.instruments;
-      const moods = input.moods;
-      const energy = input.energy;
-      const vocals = input.hasVocals;
-      if (!reviewer || rationale.length<80 || !performer || /unverified|unknown/i.test(performer) ||
-          !composer || !validTerritories || input.compositionRightsConfirmed !== true ||
-          input.performanceRightsConfirmed !== true || input.attributionReviewed !== true ||
-          !Array.isArray(inst) || !Array.isArray(moods) || inst.length<1 || moods.length<1 ||
-          !inst.every(v=>typeof v==="string" && v.length>=2 && v.length<=40) ||
-          !moods.every(v=>typeof v==="string" && v.length>=2 && v.length<=40) ||
-          typeof energy!=="number" || energy<0 || energy>1 || typeof vocals!=="boolean")
-        throw new ApiError(422,"Individual composition/performance review, territories, attribution, and complete musical tags are required.");
-      // Recheck the upstream file's live evidence before human approval as well as before import.
+      const inst = input.instruments, moods = input.moods, energy = input.energy, vocals = input.hasVocals;
+      if (!reviewer || rationale.length<80 || !performer || /unverified|unknown/i.test(performer) || !composer ||
+          !validTerritories || input.compositionRightsConfirmed!==true || input.performanceRightsConfirmed!==true ||
+          input.attributionReviewed!==true || !Array.isArray(inst) || !Array.isArray(moods) ||
+          inst.length<1 || inst.length>20 || moods.length<1 || moods.length>20 ||
+          !inst.every(v=>typeof v==="string" && v.trim().length>=2 && v.length<=40) ||
+          !moods.every(v=>typeof v==="string" && v.trim().length>=2 && v.length<=40) ||
+          typeof energy!=="number" || !Number.isFinite(energy) || energy<0 || energy>1 || typeof vocals!=="boolean" ||
+          !["medieval","renaissance","baroque","classical","romantic","modern","contemporary"].includes(String(input.period)))
+        throw new ApiError(422,"Individual rights review, territories, attribution, and complete musical tags are required.");
       const current = await commonsFile(original.source_title);
-      if (!evidenceMatches(original,current?.imageinfo?.[0]))
-        throw new ApiError(409,"Commons source or license changed since discovery. Re-discover this recording.");
-      const now = new Date().toISOString();
-      await env.DB.prepare(
-        "UPDATE soundtrack_recordings SET status='approved',reviewed_at=?,reviewed_by=?,review_evidence=?,performer=?,composer=?,period=?,instruments_json=?,moods_json=?,energy=?,has_vocals=?,tag_source='reviewed',attribution_text=?,allowed_territories_json=?,updated_at=? WHERE id=? AND status IN ('pending_review','import_failed','rejected')",
-      ).bind(now,(reviewerPrincipal?.principalId || "unknown") + ":" + reviewer,rationale,performer,composer,clearText(input.period??original.period,60),
-        JSON.stringify(inst),JSON.stringify(moods),energy,vocals?1:0,
-        original.title+" — "+performer+" · "+original.license_statement,
-        JSON.stringify(territories),now,original.id).run();
-      await env.DB.prepare(
-        "INSERT INTO soundtrack_rights_decisions(id,recording_id,principal_id,action,evidence_json,decided_at) VALUES(?,?,?,?,?,?)",
-      ).bind(crypto.randomUUID(),original.id,reviewerPrincipal!.principalId,"approve",JSON.stringify({
-        reviewerTicket:reviewer,reviewEvidence:rationale,composer,performer,period:input.period,
-        territories,compositionRightsConfirmed:true,performanceRightsConfirmed:true,
-        attributionReviewed:true,sourceSha1:original.source_sha1,license:original.license_statement,
-        licenseUrl:original.license_url,sourcePage:original.source_page_url
-      }),now).run();
-      return json({ approved:original.id,queuedForImport:true });
+      if (!evidenceMatches(original,current?.imageinfo?.[0]) || !current?.revisions?.[0]?.revid)
+        throw new ApiError(409,"Commons source or license changed since discovery, or no source revision is available.");
+      if (!env.BUCKET) throw new ApiError(503,"Evidence storage unavailable.");
+      const revisionId = current.revisions[0].revid;
+      const snapshot = JSON.stringify({recordingId:original.id,capturedAt:at,revisionId,page:current,
+        permanentUrl:"https://commons.wikimedia.org/w/index.php?oldid="+revisionId});
+      if (snapshot.length>500000) throw new ApiError(422,"Source evidence exceeds the review snapshot limit.");
+      const digest = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(snapshot));
+      const snapshotSha256 = Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
+      const key = "soundtracks/evidence/"+original.id+"/"+snapshotSha256+".json";
+      await env.BUCKET.put(key,new TextEncoder().encode(snapshot),{sha256:snapshotSha256,httpMetadata:{contentType:"application/json"}});
+      return commit(env.DB.prepare(
+        "UPDATE soundtrack_recordings SET status='approved',reviewed_at=?,reviewed_by=?,review_evidence=?,title=?,performer=?,composer=?,period=?,instruments_json=?,moods_json=?,energy=?,has_vocals=?,tag_source='reviewed',attribution_text=?,allowed_territories_json=?,source_snapshot_key=?,review_version=?,updated_at=? WHERE id=? AND review_version=?",
+      ).bind(at,principalId+":"+reviewer,rationale,displayTitle,performer,composer,String(input.period),JSON.stringify(inst),JSON.stringify(moods),
+        energy,vocals?1:0,dossier.attributionText,JSON.stringify([...new Set(territories as string[])]),key,version,at,original.id,original.review_version),
+        {reviewerTicket:reviewer,reviewEvidence:rationale,dossier,title:displayTitle,composer,performer,territories,
+          sourceSha1:original.source_sha1,license:original.license_statement,licenseUrl:original.license_url,
+          sourcePage:original.source_page_url,revisionId,snapshotSha256,snapshotKey:key},true);
     }
-    if (action === "retry" && original.status !== "import_failed")
-      throw new ApiError(409,"Only failed imports can be retried.");
     if (action === "retry") {
-      await env.DB.prepare(
-        "UPDATE soundtrack_recordings SET status='approved',updated_at=? WHERE id=? AND status='import_failed' AND reviewed_at IS NOT NULL",
-      ).bind(new Date().toISOString(),original.id).run();
-      await env.DB.prepare(
-        "INSERT INTO soundtrack_rights_decisions(id,recording_id,principal_id,action,evidence_json,decided_at) VALUES(?,?,?,?,?,?)",
-      ).bind(crypto.randomUUID(),original.id,reviewerPrincipal!.principalId,"retry",
-        JSON.stringify({priorReviewAt:original.reviewed_at,sourceSha1:original.source_sha1}),
-        new Date().toISOString()).run();
-      return json({ retried:original.id });
+      if (original.status!=="import_failed" || !original.reviewed_at || !original.source_snapshot_key || original.quality_status!=="passed")
+        throw new ApiError(409,"Only reviewed, QA-passed failed imports can be retried.");
+      return commit(env.DB.prepare(
+        "UPDATE soundtrack_recordings SET status='approved',last_import_error='',review_version=?,updated_at=? WHERE id=? AND review_version=?",
+      ).bind(version,at,original.id,original.review_version),{priorReviewAt:original.reviewed_at,sourceSha1:original.source_sha1},true);
     }
-    // Withdraw entitlement before deleting the object. An R2 outage must never
-    // leave a recording publicly authorized after its rights are revoked.
-    const revokedAt = new Date().toISOString();
-    await env.DB.prepare(
-      "UPDATE soundtrack_recordings SET status=?,storage_key=NULL,stored_at=NULL,storage_sha1=NULL,storage_bytes=NULL,allowed_territories_json='[]',updated_at=? WHERE id=?",
-    ).bind(action==="revoke"?"revoked":"rejected",revokedAt,original.id).run();
-    await env.DB.prepare(
-      "INSERT INTO soundtrack_rights_decisions(id,recording_id,principal_id,action,evidence_json,decided_at) VALUES(?,?,?,?,?,?)",
-    ).bind(crypto.randomUUID(),original.id,reviewerPrincipal!.principalId,action,
-      JSON.stringify({reason:clearText(input.reason,2000),sourceSha1:original.source_sha1,priorStatus:original.status}),revokedAt).run();
+    const reason = clearText(input.reason,2500);
+    if (reason.length<20) throw new ApiError(422,"A withdrawal or rejection reason is required.");
+    // Withdraw the entitlement and commit its audit record before attempting object cleanup.
+    const result = await commit(env.DB.prepare(
+      "UPDATE soundtrack_recordings SET status=?,storage_key=NULL,stored_at=NULL,storage_sha1=NULL,storage_bytes=NULL,allowed_territories_json='[]',review_version=?,updated_at=? WHERE id=? AND review_version=?",
+    ).bind(action==="revoke"?"revoked":"rejected",version,at,original.id,original.review_version),
+      {reason,sourceSha1:original.source_sha1,priorStatus:original.status,cleanupKey:original.storage_key},true);
     if (original.storage_key && env.BUCKET) {
       try { await env.BUCKET.delete(original.storage_key); }
-      catch (error) { console.warn("Soundtrack revoked but R2 cleanup pending",original.id,String(error).slice(0,160)); }
+      catch (error) { console.warn("Soundtrack withdrawn; R2 cleanup pending",original.id,String(error).slice(0,160)); }
     }
-    return json({ [action]:original.id });
+    return result;
   }
   if (!admin && idMatch && path.endsWith("/audio") && ["GET","HEAD"].includes(request.method)) {
     const row = await env.DB.prepare(
-      "SELECT * FROM soundtrack_recordings WHERE id=? AND status='ready'",
+      "SELECT * FROM soundtrack_recordings WHERE id=? AND status='ready' AND quality_status='passed' AND source_snapshot_key IS NOT NULL",
     ).bind(idMatch[1]).first<SoundtrackRow>();
     if (!row || !territoryAllowed(row,territory) || !row.storage_key || !env.BUCKET)
       throw new ApiError(404,"Soundtrack recording is unavailable.");
     const head = await env.BUCKET.head?.(row.storage_key);
     if (!head || !row.storage_bytes || head.size !== row.storage_bytes)
       throw new ApiError(503,"Verified audio file is temporarily unavailable.");
-    const range = request.headers.get("range");
+    const range = request.method === "GET" ? request.headers.get("range") : null;
     let offset=0,length=head.size,status=200;
     if (range) {
-      const m = /^bytes=(\d+)-(\d*)$/.exec(range);
-      if (!m) throw new ApiError(416,"Invalid audio range.");
-      offset=Number(m[1]);
-      const last=m[2] ? Number(m[2]):head.size-1;
-      if (!Number.isSafeInteger(offset)||!Number.isSafeInteger(last)||offset<0||offset>=head.size||
-          last<offset||last>=head.size) throw new ApiError(416,"Invalid audio range.");
+      const invalid = () => new Response(null,{status:416,headers:{
+        "Content-Range":"bytes */"+head.size,"Accept-Ranges":"bytes","Cache-Control":"private, no-store",
+      }});
+      const m = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+      if (!m || (!m[1] && !m[2])) return invalid();
+      let last=head.size-1;
+      if (!m[1]) {
+        const suffix=Number(m[2]);
+        if (!Number.isSafeInteger(suffix) || suffix<=0) return invalid();
+        offset=Math.max(0,head.size-suffix);
+      } else {
+        offset=Number(m[1]);
+        if (m[2]) {
+          const requestedLast=Number(m[2]);
+          if (!Number.isSafeInteger(requestedLast) || requestedLast<offset) return invalid();
+          last=Math.min(requestedLast,head.size-1);
+        }
+        if (!Number.isSafeInteger(offset)||offset<0||offset>=head.size) return invalid();
+      }
       length=last-offset+1;status=206;
     }
-    const headers = new Headers({ "Content-Type":row.mime,"Cache-Control":"private, max-age=60",
+    const headers = new Headers({ "Content-Type":row.mime,"Cache-Control":"private, no-store",
       "Accept-Ranges":"bytes","Content-Length":String(length),
       "X-Content-Type-Options":"nosniff" });
     if (status===206) headers.set("Content-Range","bytes "+offset+"-"+(offset+length-1)+"/"+head.size);

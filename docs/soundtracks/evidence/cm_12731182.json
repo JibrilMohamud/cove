@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:52:32.874205+00:00",
+  "expectedSha1": "0526807835ccc1b61513a637fd22815ce1791042",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=12731182",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:De_Morales_Parce_mihi_Domine.ogg",
+        "duration": 221.71501133786848,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<p><a href=\"//commons.wikimedia.org/wiki/Category:Crist%C3%B3bal_de_Morales\" title=\"Category:Cristóbal de Morales\">Cristóbal de Morales</a> (<i>ca.</i> 1550 - 1553), composer.\n</p>\n<a href=\"//commons.wikimedia.org/w/index.php?title=User:Kay_Dekker&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Kay Dekker (page does not exist)\">Kay Dekker</a> did this realisation."
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "GFDL|A minor|1520s music|Motets|License migration redundant|Officium defunctorum|Self-published work|Audio files of renaissance period classical music|Audio versions of Wikipedia articles from 2011|Compositions by Cristóbal de Morales"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2011-01-17 22:13:17"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "Composed <i>ca.</i> 1526-28.  Realised 2011-01-17."
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "A realisation of the motet \"Parce mihi Domine\" from the Officum Defunctorum by Cristóbal de Morales. The realisation was made using Myriad Software's Harmony Assistant v9.5.1e and Virtual Singer v3.2."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "De Morales Parce mihi Domine"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "0526807835ccc1b61513a637fd22815ce1791042",
+        "size": 2234675,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/91/De_Morales_Parce_mihi_Domine.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 12731182,
+    "revisions": [
+      {
+        "parentid": 1169418703,
+        "revid": 1171165732,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{en|1=A realisation of the motet \"Parce mihi Domine\" from the Officum Defunctorum by Cristóbal de Morales. The realisation was made using Myriad Software's Harmony Assistant v9.5.1e and Virtual Singer v3.2.}}\n|Source={{own}}\n|Author={{c|Cristóbal de Morales|Cristóbal de Morales}} (''ca.'' 1550 - 1553), composer.\n[[User:Kay Dekker|Kay Dekker]] did this realisation.\n|Date=Composed ''ca.'' 1526-28.  Realised 2011-01-17.\n|Permission=\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n{{self|cc-by-sa-3.0|GFDL}}\n\n[[Category:Audio versions of Wikipedia articles from 2011]]\n[[Category:1520s music]]\n[[Category:Motets]]\n[[Category:Officium defunctorum]]\n[[Category:Compositions by Cristóbal de Morales]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:A minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-02-24T07:40:06Z"
+      }
+    ],
+    "title": "File:De Morales Parce mihi Domine.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1171165732",
+  "recordingId": "cm_12731182",
+  "revisionId": 1171165732,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ADe_Morales_Parce_mihi_Domine.ogg",
+  "sourceSha1": "0526807835ccc1b61513a637fd22815ce1791042"
+}

@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:52:47.457481+00:00",
+  "expectedSha1": "cc825ef8e36644e6af8408c3d7fb8fee9d11c7ce",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=20760192",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:John_Playford_(1623-1686)_-_Franklin,_No.23_%26_Focky_Went_to_the_Wood,_No._27,_Musicks_Recreation_on_the_Viol,_Lyra-Way,_1669_%26_1682.ogg",
+        "duration": 66.71673469387756,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Phillipwserna&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Phillipwserna (page does not exist)\">Phillip W. Serna</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Historically informed performance|John Playford|Self-published work|Audio files of renaissance period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2012-08-21 02:52:16"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2007-05-22"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Performed by Dr. Phillip W. Serna on May 22, 2007 at Northwestern University Doctoral Lecture Recital at Jeanne Vail Chapel, Alice S. Millar Religious Center, 1870 Sheridan Road, Evanston, IL. Based in the Chicago area, Dr. Serna works to bring the early western string instrument family known as the viola da gamba into many area schools – demonstrating solo literature from the Renaissance, Baroque and early Classical periods for treble viol, tenor viol, bass viol &amp; violone. For more information, visit <a rel=\"nofollow\" class=\"external free\" href=\"http://www.thegambacast.org/\">http://www.thegambacast.org/</a> &amp; <a rel=\"nofollow\" class=\"external free\" href=\"http://www.violsinourschools.org/\">http://www.violsinourschools.org/</a>."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "John Playford (1623-1686) - Franklin, No.23 & Focky Went to the Wood, No. 27, Musicks Recreation on the Viol, Lyra-Way, 1669 & 1682"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "cc825ef8e36644e6af8408c3d7fb8fee9d11c7ce",
+        "size": 3078208,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/6/69/John_Playford_%281623-1686%29_-_Franklin%2C_No.23_%26_Focky_Went_to_the_Wood%2C_No._27%2C_Musicks_Recreation_on_the_Viol%2C_Lyra-Way%2C_1669_%26_1682.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 20760192,
+    "revisions": [
+      {
+        "parentid": 496992857,
+        "revid": 1221652878,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=Performed by Dr. Phillip W. Serna on May 22, 2007 at Northwestern University Doctoral Lecture Recital at Jeanne Vail Chapel, Alice S. Millar Religious Center, 1870 Sheridan Road, Evanston, IL. Based in the Chicago area, Dr. Serna works to bring the early western string instrument family known as the viola da gamba into many area schools – demonstrating solo literature from the Renaissance, Baroque and early Classical periods for treble viol, tenor viol, bass viol & violone. For more information, visit http://www.thegambacast.org/ & http://www.violsinourschools.org/.}}\n|date=2007-05-22\n|source={{own}}\n|author=[[User:Phillipwserna|Phillip W. Serna]]\n|permission=\n|other_versions=\n|other_fields=\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-sa-3.0}}\n\n[[Category:Historically informed performance]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:John Playford]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-05-28T12:22:06Z"
+      }
+    ],
+    "title": "File:John Playford (1623-1686) - Franklin, No.23 & Focky Went to the Wood, No. 27, Musicks Recreation on the Viol, Lyra-Way, 1669 & 1682.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1221652878",
+  "recordingId": "cm_20760192",
+  "revisionId": 1221652878,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AJohn_Playford_(1623-1686)_-_Franklin%2C_No.23_%26_Focky_Went_to_the_Wood%2C_No._27%2C_Musicks_Recreation_on_the_Viol%2C_Lyra-Way%2C_1669_%26_1682.ogg",
+  "sourceSha1": "cc825ef8e36644e6af8408c3d7fb8fee9d11c7ce"
+}

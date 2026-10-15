@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:52:22.701415+00:00",
+  "expectedSha1": "c59bbc497c21a660d5ef0027ba60faae0b18f442",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1065687",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Giacomo_Meyerbeer_-_Hirtenlied.ogg",
+        "duration": 351.29333333333335,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/Giacomo_Meyerbeer\" title=\"Giacomo Meyerbeer\">Giacomo Meyerbeer</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Montserrat Alavedra|Pandora Music|Fortepiano music|Audio files of sopranos singing|Audio files of Romantic period classical music|Compositions by Giacomo Meyerbeer"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "The Al Goldstein collection in the <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html\" class=\"external text\">Pandora Music</a> repository at ibiblio.org."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-08-18 07:10:08"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Soprano <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/Montserrat_Alavedra_i_Comas?action=edit&amp;redlink=1\" title=\"Montserrat Alavedra i Comas (page does not exist)\" class=\"new\" typeof=\"mw:LocalizedAttrs\" data-mw-i18n='{\"title\":{\"lang\":\"x-page\",\"key\":\"red-link-title\",\"params\":[\"Montserrat Alavedra i Comas\"]}}'>Montserrat Alavedra i Comas</a> is joined by <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/William_McColl?action=edit&amp;redlink=1\" title=\"William McColl (page does not exist)\" class=\"new\" typeof=\"mw:LocalizedAttrs\" data-mw-i18n='{\"title\":{\"lang\":\"x-page\",\"key\":\"red-link-title\",\"params\":[\"William McColl\"]}}'>William McColl</a>, clarinet, and <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/Joseph_Levine?action=edit&amp;redlink=1\" title=\"Joseph Levine (page does not exist)\" class=\"new\" typeof=\"mw:LocalizedAttrs\" data-mw-i18n='{\"title\":{\"lang\":\"x-page\",\"key\":\"red-link-title\",\"params\":[\"Joseph Levine\"]}}'>Joseph Levine</a>, fortepiano. The clarinet is a Bb clarinet made by Mollenhauer in <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/Fulda,_Germany?action=edit&amp;redlink=1\" title=\"Fulda, Germany (page does not exist)\" class=\"new\" typeof=\"mw:LocalizedAttrs\" data-mw-i18n='{\"title\":{\"lang\":\"x-page\",\"key\":\"red-link-title\",\"params\":[\"Fulda, Germany\"]}}'>Fulda, Germany</a> about 1820 - 1825. The <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/Fortepiano?action=edit&amp;redlink=1\" title=\"Fortepiano (page does not exist)\" class=\"new\" typeof=\"mw:LocalizedAttrs\" data-mw-i18n='{\"title\":{\"lang\":\"x-page\",\"key\":\"red-link-title\",\"params\":[\"Fortepiano\"]}}'>fortepiano</a> was a copy of a Mozart-era instrument."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Giacomo Meyerbeer - Hirtenlied"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html\" class=\"external text\">license information</a> states that this file is \"available for free download subject to the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/EFF_OAL\" title=\"EFF OAL\" class=\"mw-redirect\">EFF OAL</a>\" (Open Audio License), which in turn <a rel=\"mw:ExtLink nofollow\" href=\"https://www.eff.org/IP/Open_licenses/eff_oal.php\" class=\"external text\">is interchangeable</a> with the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/CC-BY-SA-2.0\" title=\"CC-BY-SA-2.0\" class=\"mw-redirect\">CC-BY-SA-2.0</a>."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "c59bbc497c21a660d5ef0027ba60faae0b18f442",
+        "size": 8385400,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/0/0f/Giacomo_Meyerbeer_-_Hirtenlied.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1065687,
+    "revisions": [
+      {
+        "parentid": 773410235,
+        "revid": 1272878486,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description = Soprano [[Montserrat Alavedra i Comas]] is joined by [[William McColl]], clarinet, and [[Joseph Levine]], fortepiano. The clarinet is a Bb clarinet made by Mollenhauer in [[Fulda, Germany]] about 1820 - 1825. The [[fortepiano]] was a copy of a Mozart-era instrument.\n|Source = The Al Goldstein collection in the [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html Pandora Music] repository at ibiblio.org.\n|Date = \n|Author =[[Giacomo Meyerbeer]]\n|Permission = The [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html license information] states that this file is \"available for free download subject to the [[EFF OAL]]\" (Open Audio License), which in turn [https://www.eff.org/IP/Open_licenses/eff_oal.php is interchangeable] with the [[CC-BY-SA-2.0]].\n}}\n== {{int:license-header}} ==\n{{cc-by-sa-2.0}}\n\n[[Category:Compositions by Giacomo Meyerbeer|Hirtenlied]]\n[[Category:Montserrat Alavedra]]\n[[Category:Audio files of Romantic period classical music]]\n[[Category:Audio files of sopranos singing]]\n[[Category:Fortepiano music]]\n[[Category:Pandora Music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-09-06T00:59:38Z"
+      }
+    ],
+    "title": "File:Giacomo Meyerbeer - Hirtenlied.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1272878486",
+  "recordingId": "cm_1065687",
+  "revisionId": 1272878486,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AGiacomo_Meyerbeer_-_Hirtenlied.ogg",
+  "sourceSha1": "c59bbc497c21a660d5ef0027ba60faae0b18f442"
+}

@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:36.618367+00:00",
+  "expectedSha1": "0d935c1b379c8161ecc1b49d8bd5e147b6e1bbf5",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=15068151",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:20091104_Alisa_Weilerstein_and_Sujari_Britt_-_Boccherini%27s_Sonata_for_Two_Cellos_in_C_Major,_1st_movement_Allegro_moderato.ogg",
+        "duration": 198.12,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"https://en.wikipedia.org/wiki/Luigi_Boccherini\" class=\"extiw\" title=\"w:Luigi Boccherini\">Luigi Boccherini</a>, <a href=\"https://en.wikipedia.org/wiki/Whitehouse.gov\" class=\"extiw\" title=\"w:Whitehouse.gov\">Whitehouse.gov</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "PD US Government|Alisa Weilerstein|Author died more than 100 years ago public domain images|Cello sonatas|Self-published work|PD-self|CC-PD-Mark|Audio files of music by Luigi Boccherini|Audio files of Classical period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"nofollow\" class=\"external free\" data-mw-original-href=\"http://www.whitehouse.gov/photos-and-video/video/alisa-weilerstein-and-sujari-britt-perform-white-house-4-8\" href=\"https://www.whitehouse.gov/photos-and-video/video/alisa-weilerstein-and-sujari-britt-perform-white-house-4-8\">http://www.whitehouse.gov/photos-and-video/video/alisa-weilerstein-and-sujari-britt-perform-white-house-4-8</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2011-05-31 14:50:29"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2009-11-04"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"https://en.wikipedia.org/wiki/Luigi_Boccherini\" class=\"extiw\" title=\"w:Luigi Boccherini\">Luigi Boccherini</a>'s Sonata for Two Cellos in C Major, 1st movement: Allegro moderato performed by <a href=\"https://en.wikipedia.org/wiki/Alisa_Weilerstein\" class=\"extiw\" title=\"w:Alisa Weilerstein\">Alisa Weilerstein</a> and 8 year-old Sujari Britt at the <a href=\"https://en.wikipedia.org/wiki/White_House\" class=\"extiw\" title=\"w:White House\">w:White House</a> Evening of Classical Music"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "20091104 Alisa Weilerstein and Sujari Britt - Boccherini's Sonata for Two Cellos in C Major, 1st movement Allegro moderato"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "0d935c1b379c8161ecc1b49d8bd5e147b6e1bbf5",
+        "size": 2047784,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/99/20091104_Alisa_Weilerstein_and_Sujari_Britt_-_Boccherini%27s_Sonata_for_Two_Cellos_in_C_Major%2C_1st_movement_Allegro_moderato.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 15068151,
+    "revisions": [
+      {
+        "parentid": 750338810,
+        "revid": 955665676,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description    ={{en|1=[[:w:Luigi Boccherini|Luigi Boccherini]]'s Sonata for Two Cellos in C Major, 1st movement: Allegro moderato performed by [[:w:Alisa Weilerstein|Alisa Weilerstein]] and 8 year-old Sujari Britt at the [[:w:White House]] Evening of Classical Music}}\n|Source         =http://www.whitehouse.gov/photos-and-video/video/alisa-weilerstein-and-sujari-britt-perform-white-house-4-8\n|Author         =[[:w:Luigi Boccherini|Luigi Boccherini]], [[:w:Whitehouse.gov|Whitehouse.gov]]\n|Date           =2009-11-04\n|Permission     =\n|other_versions =[[:File:20091104 Alisa Weilerstein and Sujari Britt - Boccherini's Sonata for Two Cellos in C Major, 1st movement Allegro moderato.theora.ogv]]\n}}\n\n== {{int:license-header}} ==\nThe composition is {{PD-old-100}} the performance is {{CC-BY-3.0}} and assumable to be {{PD-release}} the recording is {{PD-USGov}}\n\n[[Category:Audio files of music by Luigi Boccherini]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Alisa Weilerstein]]\n[[Category:Cello sonatas]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-11-11T16:47:35Z"
+      }
+    ],
+    "title": "File:20091104 Alisa Weilerstein and Sujari Britt - Boccherini's Sonata for Two Cellos in C Major, 1st movement Allegro moderato.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=955665676",
+  "recordingId": "cm_15068151",
+  "revisionId": 955665676,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3A20091104_Alisa_Weilerstein_and_Sujari_Britt_-_Boccherini's_Sonata_for_Two_Cellos_in_C_Major%2C_1st_movement_Allegro_moderato.ogg",
+  "sourceSha1": "0d935c1b379c8161ecc1b49d8bd5e147b6e1bbf5"
+}

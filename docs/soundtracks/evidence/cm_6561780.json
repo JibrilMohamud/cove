@@ -1,0 +1,122 @@
+{
+  "capturedAt": "2026-10-15T21:53:27.423895+00:00",
+  "expectedSha1": "e340378d498eb7bfd30cdf3d6204dce66df96db4",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=6561780",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Claude_Paul_Taffanel_-_Wind_Quintet_in_G_minor_-_1._Allegro_con_moto.ogg",
+        "duration": 574.800045351474,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"nofollow\" class=\"external text\" href=\"http://soniventorum.com/\">Soni Ventorum Wind Quintet</a>, composed of Felix Skowronek, flute; Laila Storch, oboe; William McColl, clarinet; David Kappy, horn; Arthur Grossman, bassoon."
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Claude-Paul Taffanel|Pandora Music|Audio files of Romantic period classical music|Audio files of classical music by the Soni Ventorum Wind Quintet"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "The Al Goldstein collection in the <a rel=\"nofollow\" class=\"external text\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html\">Pandora Music</a> repository at ibiblio.org."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2009-04-18 07:55:45"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "1980-01-19"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "The Soni Ventorum Wind Quintet, performing a program of French woodwind music, on January 19, 1980 at 8:00 PM in the Meany Theatre"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Claude Paul Taffanel - Wind Quintet in G minor - 1. Allegro con moto"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"nofollow\" class=\"external text\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/Homepage.html\">license information</a> states that this file is \"available for free download subject to the <a href=\"//commons.wikimedia.org/wiki/EFF_OAL\" class=\"mw-redirect\" title=\"EFF OAL\">EFF OAL</a>\" (Open Audio License), which in turn <a rel=\"nofollow\" class=\"external text\" href=\"https://www.eff.org/IP/Open_licenses/eff_oal.php\">is interchangeable</a> with the <a href=\"//commons.wikimedia.org/wiki/CC-BY-SA-2.0\" class=\"mw-redirect\" title=\"CC-BY-SA-2.0\">CC-BY-SA-2.0</a>."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "e340378d498eb7bfd30cdf3d6204dce66df96db4",
+        "size": 11213174,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/b/bc/Claude_Paul_Taffanel_-_Wind_Quintet_in_G_minor_-_1._Allegro_con_moto.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 6561780,
+    "revisions": [
+      {
+        "parentid": 861809424,
+        "revid": 1032257375,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description=The Soni Ventorum Wind Quintet, performing a program of French woodwind music, on January 19, 1980 at 8:00 PM in the Meany Theatre\n|Source = The Al Goldstein collection in the [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html Pandora Music] repository at ibiblio.org.\n|Date =1980-01-19 \n|Author =The [http://soniventorum.com/ Soni Ventorum Wind Quintet], composed of Felix Skowronek, flute; Laila Storch, oboe; William McColl, clarinet; David Kappy, horn; Arthur Grossman, bassoon.\n|Permission = The [http://music.ibiblio.org/pub/multimedia/pandora/Homepage.html license information] states that this file is \"available for free download subject to the [[EFF OAL]]\" (Open Audio License), which in turn [https://www.eff.org/IP/Open_licenses/eff_oal.php is interchangeable] with the [[CC-BY-SA-2.0]].\n}}\n== {{int:license-header}} ==\n{{cc-by-sa-2.0}}\n\n[[Category:Audio files of Romantic period classical music]]\n[[Category:Pandora Music]]\n[[Category:Claude-Paul Taffanel]]\n[[Category:Audio files of classical music by the Soni Ventorum Wind Quintet]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-05-16T16:13:28Z"
+      }
+    ],
+    "title": "File:Claude Paul Taffanel - Wind Quintet in G minor - 1. Allegro con moto.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1032257375",
+  "recordingId": "cm_6561780",
+  "revisionId": 1032257375,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AClaude_Paul_Taffanel_-_Wind_Quintet_in_G_minor_-_1._Allegro_con_moto.ogg",
+  "sourceSha1": "e340378d498eb7bfd30cdf3d6204dce66df96db4"
+}

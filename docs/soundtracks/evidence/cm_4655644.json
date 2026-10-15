@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:13.536771+00:00",
+  "expectedSha1": "5f3dfd78ca38af789abb62e59fea96db12ae1ba1",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=4655644",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beethoven_4-1_Skala.ogg",
+        "duration": 26.20027210884354,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "GFDL|Symphony No. 1 (Beethoven)|CC-BY-SA-3.0,2.5,2.0,1.0|License migration redundant|Self-published work|Audio files of music by Ludwig van Beethoven|Audio files of Classical period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-08-29 14:15:00"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2008-08-29"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Symphony Nr. 1, 4th Movement, Introduction"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beethoven 4-1 Skala"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "5f3dfd78ca38af789abb62e59fea96db12ae1ba1",
+        "size": 285754,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/b/b0/Beethoven_4-1_Skala.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 4655644,
+    "revisions": [
+      {
+        "parentid": 658994224,
+        "revid": 820143079,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{en|1=Symphony Nr. 1, 4th Movement, Introduction}}\n{{de|1=Sinfonie Nr. 1, 4. Satz, Einleitung}}\n|Source={{own}}\n|Author={{Creator:Ludwig van Beethoven}}\n[[User:DasBee|DasBee]]\n|Date=2008-08-29\n|Permission=\n|other_versions=\n}}\n== {{int:license-header}} ==\n{{self|GFDL|cc-by-sa-3.0,2.5,2.0,1.0}}\n\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Symphony No. 1 (Beethoven)]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2023-11-09T17:02:52Z"
+      }
+    ],
+    "title": "File:Beethoven 4-1 Skala.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=820143079",
+  "recordingId": "cm_4655644",
+  "revisionId": 820143079,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethoven_4-1_Skala.ogg",
+  "sourceSha1": "5f3dfd78ca38af789abb62e59fea96db12ae1ba1"
+}

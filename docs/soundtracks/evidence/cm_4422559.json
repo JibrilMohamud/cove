@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:53:13.535607+00:00",
+  "expectedSha1": "2106d91dad32626d14a8cb6c072c08b5b40c6b60",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=4422559",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Carlos_Gomes_-_Alvorada.ogg",
+        "duration": 432.03,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Carlos Gomes"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "19th-century songs|Orquestra Sinfônica Nacional da Universidade Federal Fluminense|Self-published work|PD-self|Unknown date|Audio files of Romantic period classical music|Audio files of music by Carlos Gomes"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"nofollow\" class=\"external autonumber\" href=\"http://www.dominiopublico.gov.br/pesquisa/ResultadoPesquisaObraForm.do?first=50&amp;skip=0&amp;ds_titulo=&amp;co_autor=&amp;no_autor=&amp;co_categoria=96&amp;pagina=1&amp;select_action=Submit&amp;co_midia=3&amp;co_obra=&amp;co_idioma=&amp;colunaOrdenar=null&amp;ordem=null\">[1]</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-07-22 03:10:47"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "Unknown date"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Alvorada. Orquestra Sinfônica Nacional da Universidade Federal Fluminense"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Carlos Gomes - Alvorada"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Domínio público"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "2106d91dad32626d14a8cb6c072c08b5b40c6b60",
+        "size": 6314396,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/3/3b/Carlos_Gomes_-_Alvorada.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 4422559,
+    "revisions": [
+      {
+        "parentid": 1016056520,
+        "revid": 1016056741,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description=Alvorada. Orquestra Sinfônica Nacional da Universidade Federal Fluminense\n|Source=[http://www.dominiopublico.gov.br/pesquisa/ResultadoPesquisaObraForm.do?first=50&skip=0&ds_titulo=&co_autor=&no_autor=&co_categoria=96&pagina=1&select_action=Submit&co_midia=3&co_obra=&co_idioma=&colunaOrdenar=null&ordem=null]\n|Date={{other date|?}}\n|Author=Carlos Gomes \n|Permission=Domínio público\n|other_versions=\n}}\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Audio files of music by Carlos Gomes]]\n[[Category:19th-century songs]]\n[[Category:Audio files of Romantic period classical music]]\n[[Category:Orquestra Sinfônica Nacional da Universidade Federal Fluminense]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-04-01T17:23:10Z"
+      }
+    ],
+    "title": "File:Carlos Gomes - Alvorada.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1016056741",
+  "recordingId": "cm_4422559",
+  "revisionId": 1016056741,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ACarlos_Gomes_-_Alvorada.ogg",
+  "sourceSha1": "2106d91dad32626d14a8cb6c072c08b5b40c6b60"
+}

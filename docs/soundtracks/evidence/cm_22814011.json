@@ -1,0 +1,135 @@
+{
+  "capturedAt": "2026-10-15T21:52:47.459223+00:00",
+  "expectedSha1": "4eb0ffa6910e1652bc07e33a191f23ed161748f1",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=22814011",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beethoven_Symphony_2_D_major_Op_36_-_1_Adagio_molto_%E2%80%93_Allegro_con_brio.oga",
+        "duration": 747.9379591836735,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "Attribution": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "<div style=\"clear:both;\"></div>\n<div class=\"commons-creator vcard\">\n<span class=\"mw-empty-elt\"><link rel=\"mw-deduplicated-inline-style\" href=\"mw-data:TemplateStyles:r966088355\" about=\"#mwt9\" typeof=\"mw:Extension/templatestyles\" data-mw='{\"name\":\"templatestyles\",\"attrs\":{\"src\":\"Module:Creator/styles.css\"},\"body\":{\"extsrc\":\"\"}}'></span>\n<table class=\"commons-creator-table mw-collapsible mw-collapsed mw-content-ltr\" dir=\"ltr\" lang=\"en\">\n<tbody><tr>\n<th colspan=\"4\"><span class=\"fn\" id=\"creator\"><bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi></span><span typeof=\"mw:Entity\"> </span>(1770<span typeof=\"mw:Entity\">–</span>1827)<span typeof=\"mw:Entity\"> </span><span class=\"skin-invert\" typeof=\"mw:File\"><a href=\"https://commons.wikimedia.org/wiki/Creator:Ludwig_van_Beethoven\" title=\"Creator:Ludwig van Beethoven\"><img resource=\"https://commons.wikimedia.org/wiki/File:Blue_pencil.svg\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/7/73/Blue_pencil.svg/20px-Blue_pencil.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" srcset=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/7/73/Blue_pencil.svg/40px-Blue_pencil.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail 2x\" data-file-width=\"600\" data-file-height=\"600\" data-file-type=\"drawing\" height=\"15\" width=\"15\" class=\"mw-file-element\"></a></span><span typeof=\"mw:Entity\"> </span><span typeof=\"mw:File\" data-mw='{\"caption\":\"wikidata:Q255\"}'><a href=\"https://commons.wikimedia.org/wiki/wikidata:Q255\" title=\"wikidata:Q255\"><img resource=\"https://commons.wikimedia.org/wiki/File:Wikidata-logo.svg\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/f/ff/Wikidata-logo.svg/20px-Wikidata-logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" srcset=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/f/ff/Wikidata-logo.svg/40px-Wikidata-logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail 2x\" alt=\"wikidata:Q255\" data-file-width=\"1050\" data-file-height=\"590\" data-file-type=\"drawing\" height=\"11\" width=\"20\" class=\"mw-file-element\"></a></span><span typeof=\"mw:Entity\"> </span><span typeof=\"mw:File\" data-mw='{\"caption\":\"s:en:Author:Ludwig van Beethoven\"}'><a href=\"https://commons.wikimedia.org/wiki/s:en:Author:Ludwig_van_Beethoven\" title=\"s:en:Author:Ludwig van Beethoven\"><img resource=\"https://commons.wikimedia.org/wiki/File:Wikisource-logo.svg\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/Wikisource-logo.svg/20px-Wikisource-logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" srcset=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4c/Wikisource-logo.svg/40px-Wikisource-logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail 2x\" alt=\"s:en:Author:Ludwig van Beethoven\" data-file-width=\"410\" data-file-height=\"430\" data-file-type=\"drawing\" height=\"16\" width=\"15\" class=\"mw-file-element\"></a></span><span typeof=\"mw:Entity\"> </span><span typeof=\"mw:File\" data-mw='{\"caption\":\"q:en:Ludwig van Beethoven\"}'><a href=\"https://commons.wikimedia.org/wiki/q:en:Ludwig_van_Beethoven\" title=\"q:en:Ludwig van Beethoven\"><img resource=\"https://commons.wikimedia.org/wiki/File:Wikiquote-logo.svg\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fa/Wikiquote-logo.svg/20px-Wikiquote-logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" srcset=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fa/Wikiquote-logo.svg/40px-Wikiquote-logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail 2x\" alt=\"q:en:Ludwig van Beethoven\" data-file-width=\"300\" data-file-height=\"355\" data-file-type=\"drawing\" height=\"18\" width=\"15\" class=\"mw-file-element\"></a></span> <div class=\"mw-collapsible-toggle mw-collapsible-toggle-collapsed\"><span class=\"mw-collapsible-arrowtoggle skin-invert\"><span typeof=\"mw:Entity\"> </span></span></div></th>\n</tr>\n<tr>\n<td rowspan=\"8\" style=\"width:120px\" id=\"fileinfotpl_creator_image\"><span class=\"wpImageAnnotatorControl wpImageAnnotatorOff\"><span class=\"photo\" typeof=\"mw:File mw:ExpandedAttrs\" about=\"#mwt10\" data-mw='{\"attribs\":[[\"alt\",{\"html\":\"alt=&lt;a rel=\\\"mw:WikiLink/Interwiki\\\" href=\\\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\\\" title=\\\"w:en:Ludwig van Beethoven\\\" class=\\\"extiw\\\" id=\\\"mwEg\\\"&gt;&lt;span title=\\\"German composer (1770-1827)\\\" id=\\\"mwEw\\\"&gt;Ludwig van Beethoven&lt;/span&gt;&lt;/a&gt;\",\"txt\":\"Ludwig van Beethoven\"}]]}'><a href=\"https://commons.wikimedia.org/wiki/File:Beethoven.jpg\" class=\"mw-file-description\"><img resource=\"https://commons.wikimedia.org/wiki/File:Beethoven.jpg\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6f/Beethoven.jpg/120px-Beethoven.jpg?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" srcset=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6f/Beethoven.jpg/250px-Beethoven.jpg?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail 2x\" alt=\"Ludwig van Beethoven\" data-file-width=\"1200\" data-file-height=\"1443\" data-file-type=\"bitmap\" height=\"144\" width=\"120\" class=\"mw-file-element\"></a></span></span></td>\n</tr>\n<tr>\n<th scope=\"row\">Alternative names</th>\n<td colspan=\"2\" class=\"fullwidth\" id=\"fileinfotpl_creator_alt-name_value\"><div class=\"nickname\">\nLudwik van Beethoven; Ludwig von Beethoven; Ludvig van Beethoven; L. v. Beethoven; L. van Betkhoven; L. Bethovenas; Louis van Beethoven</div></td></tr>\n<tr>\n<th scope=\"row\">Description</th>\n<td colspan=\"2\" class=\"fullwidth\" id=\"fileinfotpl_creator_desc_value\">Austrian-German composer</td></tr>\n<tr>\n<th scope=\"row\">Date of birth/death</th>\n<td class=\"halfwidth\" id=\"fileinfotpl_creator_birthdate_value\">\n17 December 1770 (baptised)</td><td class=\"halfwidth\" id=\"fileinfotpl_creator_deathdate_value\">\n<time class=\"dtstart\" datetime=\"1827-03-26\" lang=\"en\" dir=\"ltr\" style=\"white-space:nowrap\">26 March 1827</time><span typeof=\"mw:Entity\"> </span><span class=\"mw-valign-text-top noprint\" typeof=\"mw:File/Frameless\" data-mw='{\"caption\":\"Edit this at Wikidata\"}'><a href=\"https://commons.wikimedia.org/wiki/d:Q255#P570\" title=\"Edit this at Wikidata\"><img resource=\"https://commons.wikimedia.org/wiki/File:OOjs_UI_icon_edit-ltr-progressive.svg\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8a/OOjs_UI_icon_edit-ltr-progressive.svg/20px-OOjs_UI_icon_edit-ltr-progressive.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" alt=\"Edit this at Wikidata\" data-file-width=\"20\" data-file-height=\"20\" data-file-type=\"drawing\" height=\"10\" width=\"10\" class=\"mw-file-element\"></a></span></td></tr>\n<tr>\n<th scope=\"row\">Location of birth/death</th>\n<td class=\"halfwidth\" id=\"fileinfotpl_creator_birthloc_value\">\n<a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Bonn\" title=\"w:en:Bonn\" class=\"extiw\"><span title=\"city in Germany and capital of former West Germany\">Bonn</span></a><span typeof=\"mw:Entity\"> </span><span class=\"mw-valign-text-top noprint\" typeof=\"mw:File/Frameless\" data-mw='{\"caption\":\"Edit this at Wikidata\"}'><a href=\"https://commons.wikimedia.org/wiki/d:Q255#P19\" title=\"Edit this at Wikidata\"><img resource=\"https://commons.wikimedia.org/wiki/File:OOjs_UI_icon_edit-ltr-progressive.svg\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8a/OOjs_UI_icon_edit-ltr-progressive.svg/20px-OOjs_UI_icon_edit-ltr-progressive.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" alt=\"Edit this at Wikidata\" data-file-width=\"20\" data-file-height=\"20\" data-file-type=\"drawing\" height=\"10\" width=\"10\" class=\"mw-file-element\"></a></span></td><td class=\"halfwidth\" id=\"fileinfotpl_creator_deathloc_value\">\n<a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Vienna\" title=\"w:en:Vienna\" class=\"extiw\"><span title=\"capital of and state in Austria\">Vienna</span></a><span typeof=\"mw:Entity\"> </span><span class=\"mw-valign-text-top noprint\" typeof=\"mw:File/Frameless\" data-mw='{\"caption\":\"Edit this at Wikidata\"}'><a href=\"https://commons.wikimedia.org/wiki/d:Q255#P20\" title=\"Edit this at Wikidata\"><img resource=\"https://commons.wikimedia.org/wiki/File:OOjs_UI_icon_edit-ltr-progressive.svg\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8a/OOjs_UI_icon_edit-ltr-progressive.svg/20px-OOjs_UI_icon_edit-ltr-progressive.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" alt=\"Edit this at Wikidata\" data-file-width=\"20\" data-file-height=\"20\" data-file-type=\"drawing\" height=\"10\" width=\"10\" class=\"mw-file-element\"></a></span></td></tr>\n<tr>\n<th scope=\"row\">Work period</th>\n<td colspan=\"2\" class=\"fullwidth\" id=\"fileinfotpl_creator_work-period_value\">1782<span typeof=\"mw:Entity\"> </span><span class=\"mw-valign-text-top noprint\" typeof=\"mw:File/Frameless\" data-mw='{\"caption\":\"Edit this at Wikidata\"}'><a href=\"https://commons.wikimedia.org/wiki/d:Q255#P2031\" title=\"Edit this at Wikidata\"><img resource=\"https://commons.wikimedia.org/wiki/File:OOjs_UI_icon_edit-ltr-progressive.svg\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8a/OOjs_UI_icon_edit-ltr-progressive.svg/20px-OOjs_UI_icon_edit-ltr-progressive.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" alt=\"Edit this at Wikidata\" data-file-width=\"20\" data-file-height=\"20\" data-file-type=\"drawing\" height=\"10\" width=\"10\" class=\"mw-file-element\"></a></span><span typeof=\"mw:Entity\">–</span>1827<span typeof=\"mw:Entity\"> </span><span class=\"mw-valign-text-top noprint\" typeof=\"mw:File/Frameless\" data-mw='{\"caption\":\"Edit this at Wikidata\"}'><a href=\"https://commons.wikimedia.org/wiki/d:Q255#P2032\" title=\"Edit this at Wikidata\"><img resource=\"https://commons.wikimedia.org/wiki/File:OOjs_UI_icon_edit-ltr-progressive.svg\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8a/OOjs_UI_icon_edit-ltr-progressive.svg/20px-OOjs_UI_icon_edit-ltr-progressive.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" alt=\"Edit this at Wikidata\" data-file-width=\"20\" data-file-height=\"20\" data-file-type=\"drawing\" height=\"10\" width=\"10\" class=\"mw-file-element\"></a></span></td></tr>\n<tr>\n<th scope=\"row\">Work location</th>\n<td colspan=\"2\" class=\"fullwidth\" id=\"fileinfotpl_creator_work-location\"><div class=\"locality\">\n<a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Bonn\" title=\"w:en:Bonn\" class=\"extiw\"><span title=\"city in Germany and capital of former West Germany\">Bonn</span></a>; <a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Vienna\" title=\"w:en:Vienna\" class=\"extiw\"><span title=\"capital of and state in Austria\">Vienna</span></a>; <a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:M%C3%B6dling\" title=\"w:en:Mödling\" class=\"extiw\"><span title=\"town in Mödling District, Lower Austria, Austria\">Mödling</span></a>; <a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Baden%20bei%20Wien\" title=\"w:en:Baden bei Wien\" class=\"extiw\"><span title=\"municipality in Lower Austria, Austria\">Baden</span></a><span typeof=\"mw:Entity\"> </span><span class=\"mw-valign-text-top noprint\" typeof=\"mw:File/Frameless\" data-mw='{\"caption\":\"Edit this at Wikidata\"}'><a href=\"https://commons.wikimedia.org/wiki/d:Q255#P937\" title=\"Edit this at Wikidata\"><img resource=\"https://commons.wikimedia.org/wiki/File:OOjs_UI_icon_edit-ltr-progressive.svg\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8a/OOjs_UI_icon_edit-ltr-progressive.svg/20px-OOjs_UI_icon_edit-ltr-progressive.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" alt=\"Edit this at Wikidata\" data-file-width=\"20\" data-file-height=\"20\" data-file-type=\"drawing\" height=\"10\" width=\"10\" class=\"mw-file-element\"></a></span></div></td></tr>\n<tr>\n<th scope=\"row\"><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Authority%20file\" title=\"w:en:Authority file\" class=\"extiw\"><span title=\"collection of authority records, where each record picks preferred heading, alternative heading and other information, used for bibliographic information\">Authority file</span></a></th>\n<td colspan=\"2\" class=\"fullwidth\" id=\"fileinfotpl_creator_authority_value\"><div class=\"hlist\">\n<ul><li><span typeof=\"mw:File\" data-mw='{\"caption\":\"wikidata:Q255\"}'><a href=\"https://commons.wikimedia.org/wiki/wikidata:Q255\" title=\"wikidata:Q255\"><img resource=\"https://commons.wikimedia.org/wiki/File:Wikidata-logo.svg\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/f/ff/Wikidata-logo.svg/20px-Wikidata-logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" srcset=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/f/ff/Wikidata-logo.svg/40px-Wikidata-logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail 2x\" alt=\"wikidata:Q255\" data-file-width=\"1050\" data-file-height=\"590\" data-file-type=\"drawing\" height=\"11\" width=\"20\" class=\"mw-file-element\"></a></span>: <a rel=\"mw:WikiLink/Interwiki\" href=\"https://www.wikidata.org/wiki/Q255\" title=\"d:Q255\" class=\"extiw\">Q255</a></li>\n<li><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Virtual%20International%20Authority%20File\" title=\"w:en:Virtual International Authority File\" class=\"extiw\">VIAF</a>:<span typeof=\"mw:Entity\"> </span><span class=\"uid\"><span class=\"plainlinks\"><a rel=\"mw:WikiLink/Interwiki\" href=\"https://viaf.org/viaf/32182557\" title=\"viaf:32182557\" class=\"extiw\">32182557</a></span></span></li>\n<li><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:International%20Standard%20Name%20Identifier\" title=\"w:en:International Standard Name Identifier\" class=\"extiw\">ISNI</a>:<span typeof=\"mw:Entity\"> </span><span class=\"uid\"><span class=\"plainlinks\"><a rel=\"mw:ExtLink nofollow\" href=\"https://isni.oclc.org/cbs/DB=1.2//CMD?ACT=SRCH&amp;IKT=8006&amp;TRM=ISN%3A0000000121268987\" class=\"external text\">0000000121268987</a></span></span></li>\n<li><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Union%20List%20of%20Artist%20Names\" title=\"w:en:Union List of Artist Names\" class=\"extiw\">ULAN</a>:<span typeof=\"mw:Entity\"> </span><span class=\"uid\"><span class=\"plainlinks\"><a rel=\"mw:ExtLink nofollow\" href=\"https://www.getty.edu/vow/ULANFullDisplay?find=&amp;role=&amp;nation=&amp;subjectid=500339269\" class=\"external text\">500339269</a></span></span></li>\n<li><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:LCCN%20(identifier)\" title=\"w:en:LCCN (identifier)\" class=\"extiw\">LCCN</a>:<span typeof=\"mw:Entity\"> </span><span class=\"uid\"><span class=\"plainlinks\"><a rel=\"mw:ExtLink nofollow\" href=\"https://id.loc.gov/authorities/n79107741\" class=\"external text\">n79107741</a></span></span></li>\n<li><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:NLA%20(identifier)\" title=\"w:en:NLA (identifier)\" class=\"extiw\">NLA</a>:<span typeof=\"mw:Entity\"> </span><span class=\"uid\"><span class=\"plainlinks\"><a rel=\"mw:ExtLink nofollow\" href=\"https://librariesaustralia.nla.gov.au/search/display?dbid=auth&amp;id=35016586\" class=\"external text\">35016586</a></span></span></li>\n<li><span class=\"uid\"><a rel=\"mw:ExtLink nofollow\" href=\"//www.worldcat.org/identities/lccn-n79107741\" class=\"external text\">WorldCat</a></span></li></ul>\n</div></td></tr>\n\n</tbody></table>\n\n</div>\n<div style=\"display: none;\">creator QS:P170,Q255</div>"
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Media from YouTube|Symphony No. 2 (Beethoven)|Allegro (music)|Audio files of music by Ludwig van Beethoven|Audio files of 2011|Triple meter|Files with coordinates missing SDC location of creation|Audio files of adagio (music)|Audio files of Classical period classical music|Audio files of classical music by the Tsumugi Orchestra"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:ExtLink nofollow\" href=\"https://www.youtube.com/playlist?list=PL5179BFA402D2592F&amp;feature=plcp\" class=\"external free\">https://www.youtube.com/playlist?list=PL5179BFA402D2592F&amp;feature=plcp</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2012-11-22 12:25:38"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "<p>1800～1802</p>\n<dl><dd>2011-09-19</dd></dl>"
+          },
+          "GPSLatitude": {
+            "source": "commons-desc-page",
+            "value": "33.583074"
+          },
+          "GPSLongitude": {
+            "source": "commons-desc-page",
+            "value": "130.322307"
+          },
+          "GPSMapDatum": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "WGS-84"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "\"Symphony No. 2, D major, Op. 36\", 1st movement - Adagio molto – Allegro con brio.\n\nPerformed by the Tsumugi Orchestra conducted by Takashi Inoue on 19 Sep 2011 at the Fukuoka City West Public Hall."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beethoven Symphony 2 D major Op 36 - 1 Adagio molto – Allegro con brio"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "4eb0ffa6910e1652bc07e33a191f23ed161748f1",
+        "size": 5697200,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/8/86/Beethoven_Symphony_2_D_major_Op_36_-_1_Adagio_molto_%E2%80%93_Allegro_con_brio.oga?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 22814011,
+    "revisions": [
+      {
+        "parentid": 986813851,
+        "revid": 1194457053,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{ja|1=[[:ja:ルートヴィヒ・ヴァン・ベートーヴェン|ベートーヴェン, ルートヴィヒ・ヴァン]]、『交響曲第2番ニ長調 作品番号36』より第一楽章、アダージョ・モルト～アレグロ・コン・ブリオ。\n\n井上京（指揮）、管弦楽団紬による演奏、2011年9月19日、福岡市西市民センターホールにて。}}{{en|1=\"Symphony No. 2, D major, Op. 36\", 1st movement - Adagio molto – Allegro con brio.\n\nPerformed by the Tsumugi Orchestra conducted by Takashi Inoue on 19 Sep 2011 at the Fukuoka City West Public Hall.}}\n|date=1800～1802\n:2011-09-19\n|source=https://www.youtube.com/playlist?list=PL5179BFA402D2592F&feature=plcp\n|author={{Creator:Ludwig van Beethoven}}\nThe Tsumugi Orchestra conducted by Takashi Inoue\n|permission=\n|other_versions=\n|other_fields=\n}}\n{{Location dec|33.583074|130.322307}}\nOga converted by [[user:Akaniji]].\n\n=={{int:license-header}}==\n {{YouTube|{{Creator:Ludwig van Beethoven}}}}\n\n[[Category:Symphony No. 2 (Beethoven)]]\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Audio files of classical music by the Tsumugi Orchestra]]\n[[Category:Audio files of 2011]]\n[[Category:Audio files of adagio (music)]]\n[[Category:Allegro (music)]]\n[[Category:Triple meter]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-04-09T18:26:10Z"
+      }
+    ],
+    "title": "File:Beethoven Symphony 2 D major Op 36 - 1 Adagio molto – Allegro con brio.oga"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1194457053",
+  "recordingId": "cm_22814011",
+  "revisionId": 1194457053,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethoven_Symphony_2_D_major_Op_36_-_1_Adagio_molto_%E2%80%93_Allegro_con_brio.oga",
+  "sourceSha1": "4eb0ffa6910e1652bc07e33a191f23ed161748f1"
+}

@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:29.891304+00:00",
+  "expectedSha1": "d9713c8861f484f88257ff9472680c814bbca0d9",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=12046227",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Machaut_Douce_Dame_Jolie.ogg",
+        "duration": 51.920430839002265,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:Future_Perfect_at_Sunrise\" title=\"User:Future Perfect at Sunrise\">Future Perfect at Sunrise</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Music in the 14th century|Guillaume de Machaut|G minor|Virelai|Self-published work|PD-self|MIDI files of classical music|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2010-11-13 23:51:06"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2010-11-13"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "\"<a href=\"https://en.wikipedia.org/wiki/Douce_Dame_Jolie\" class=\"extiw\" title=\"en:Douce Dame Jolie\">Douce Dame Jolie</a>\", 1-part <a href=\"https://en.wikipedia.org/wiki/Virelai\" class=\"extiw\" title=\"en:Virelai\">Virelai</a> by 14th-century composer and poet <a href=\"https://en.wikipedia.org/wiki/Guillame_de_Machaut\" class=\"extiw\" title=\"en:Guillame de Machaut\">Guillame de Machaut</a>.\nAfter an edition in Timothy Roden, Craig Wright, Bryan Simms, <i>Anthology for Music in Western Civilization,</i> vol. 1, p.103."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Machaut Douce Dame Jolie"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "d9713c8861f484f88257ff9472680c814bbca0d9",
+        "size": 832513,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/3/32/Machaut_Douce_Dame_Jolie.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 12046227,
+    "revisions": [
+      {
+        "parentid": 637812224,
+        "revid": 887420246,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{en|1=\"[[:en:Douce Dame Jolie|Douce Dame Jolie]]\", 1-part [[:en:Virelai|Virelai]] by 14th-century composer and poet [[:en:Guillame de Machaut|Guillame de Machaut]].\n\nAfter an edition in Timothy Roden, Craig Wright, Bryan Simms, ''Anthology for Music in Western Civilization,'' vol. 1, p.103.}}\n|Source={{own}}\n|Author=[[User:Future Perfect at Sunrise|Future Perfect at Sunrise]]\n|Date=2010-11-13\n|Permission=\n|other_versions=Score image: [[:File:Machaut Douce Dame Jolie.svg]]\n}}\n\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Music in the 14th century]]\n[[Category:Guillaume de Machaut]]\n[[Category:MIDI files of classical music]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Virelai]]\n[[Category:G minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-06-24T14:14:20Z"
+      }
+    ],
+    "title": "File:Machaut Douce Dame Jolie.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=887420246",
+  "recordingId": "cm_12046227",
+  "revisionId": 887420246,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AMachaut_Douce_Dame_Jolie.ogg",
+  "sourceSha1": "d9713c8861f484f88257ff9472680c814bbca0d9"
+}

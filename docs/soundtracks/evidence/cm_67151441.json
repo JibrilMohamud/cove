@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:33.769783+00:00",
+  "expectedSha1": "5b79b8bcf8678e8a0e954d039bc10b73e11b02cd",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=67151441",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Ecossaise.ogg",
+        "duration": 48.588820861678,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Aya Higuchi"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Musopen|Audio files of classical music for piano|Audio files of Romantic period classical music|Audio files of music by Frédéric Chopin"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<table class=\"layouttemplate sourcetemplate\" style=\"width:100%; clear:both; text-align:center; margin:0.5em auto; box-sizing: border-box; padding: 0; border-spacing: 8px; background-color: var(--background-color-neutral-subtle, #f6f7f5); color: var(--color-base, #202122); border: var(--border-subtle, 1px solid #555555);\" dir=\"ltr\" lang=\"en\">\n<tbody><tr>\n<td align=\"left\"><span typeof=\"mw:File\"><a href=\"//commons.wikimedia.org/wiki/File:Musopen_logo.svg\" class=\"mw-file-description\"><img src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6b/Musopen_logo.svg/250px-Musopen_logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" width=\"150\" height=\"18\" class=\"mw-file-element\" srcset=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6b/Musopen_logo.svg/330px-Musopen_logo.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail 2x\" data-file-width=\"185\" data-file-height=\"22\"></a></span>\n</td>\n<td>This work comes from the non profit U.S. organization <a href=\"https://en.wikipedia.org/wiki/Musopen\" class=\"extiw\" title=\"w:Musopen\">Musopen</a> where it is available at the following link:<br><small> <a rel=\"nofollow\" class=\"external free\" href=\"https://musopen.org/music/138/frederic-chopin/mazurkas-op-17/\">https://musopen.org/music/138/frederic-chopin/mazurkas-op-17/</a> </small><br>\n<p>The Musopen website requires all uploaders to \"represent and warrant that content uploaded to the site is in the public domain\" (see <a rel=\"nofollow\" class=\"external text\" href=\"https://musopen.org/faq/#id_entry_4\">FAQ #4</a>).\n</p><p><br>\nMusopen's own works (<small>\"Musopen Materials\" and \"Musopen Service\", not user content or public domain content</small>), <b>are fully copyrighted and may not be used freely</b> as stated in their <a rel=\"nofollow\" class=\"external text\" href=\"https://musopen.org/page/tos/\">Terms and Conditions of Use</a>.\n</p>\n</td></tr></tbody></table>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2018-03-08 07:23:18"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2018-03-08"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Chopin, Ecossaise Nr. 1"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Ecossaise"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "5b79b8bcf8678e8a0e954d039bc10b73e11b02cd",
+        "size": 808005,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Ecossaise.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 67151441,
+    "revisions": [
+      {
+        "parentid": 1227003723,
+        "revid": 1227003726,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{de|1=Chopin, Ecossaise Nr. 1}}\n|date=2018-03-08\n|source={{Musopen|https://musopen.org/music/138/frederic-chopin/mazurkas-op-17/}}\n|author=Aya Higuchi\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{cc-by-sa-4.0}}\n\n[[Category:Audio files of music by Frédéric Chopin]]\n[[Category:Audio files of classical music for piano]]\n[[Category:Audio files of Romantic period classical music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:34:19Z"
+      }
+    ],
+    "title": "File:Ecossaise.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227003726",
+  "recordingId": "cm_67151441",
+  "revisionId": 1227003726,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AEcossaise.ogg",
+  "sourceSha1": "5b79b8bcf8678e8a0e954d039bc10b73e11b02cd"
+}

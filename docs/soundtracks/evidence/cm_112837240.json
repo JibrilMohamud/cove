@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:52:29.888897+00:00",
+  "expectedSha1": "cd17fcdbd2869deee0fcf599f61b4d06d7eb2449",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=112837240",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:ClimentBarber.20161129.EpistolesFarcides.ogg",
+        "duration": 216.87466666666666,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Perezmartin40&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Perezmartin40 (page does not exist)\">Perezmartin40</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Saint Mary of Valencia Cathedral|Self-published work|Unidentified music|Audio files of medieval period classical music|Unidentified cultural heritage"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2021-11-26 12:31:53"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2016-11-29"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Mn Climent i Barber descriu la Epístola farcida Sant Esteve"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "ClimentBarber.20161129.EpistolesFarcides"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "cd17fcdbd2869deee0fcf599f61b4d06d7eb2449",
+        "size": 3063708,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/6/62/ClimentBarber.20161129.EpistolesFarcides.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 112837240,
+    "revisions": [
+      {
+        "parentid": 1275004850,
+        "revid": 1275010403,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{ca|1=Mn Climent i Barber descriu la Epístola farcida Sant Esteve}}\n|date=2016-11-29\n|source={{own}}\n|author=[[User:Perezmartin40|Perezmartin40]]\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-sa-4.0}}\n\n[[Category:Unidentified cultural heritage]]\n[[Category:Unidentified music]]\n[[Category:Saint Mary of Valencia Cathedral]]\n[[Category:Audio files of medieval period classical music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-09-11T08:38:31Z"
+      }
+    ],
+    "title": "File:ClimentBarber.20161129.EpistolesFarcides.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1275010403",
+  "recordingId": "cm_112837240",
+  "revisionId": 1275010403,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AClimentBarber.20161129.EpistolesFarcides.ogg",
+  "sourceSha1": "cd17fcdbd2869deee0fcf599f61b4d06d7eb2449"
+}

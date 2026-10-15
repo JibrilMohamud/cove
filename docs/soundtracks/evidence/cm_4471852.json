@@ -1,0 +1,122 @@
+{
+  "capturedAt": "2026-10-15T21:53:13.536005+00:00",
+  "expectedSha1": "b155624d2dd79249f61dce04b723641d98501c04",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=4471852",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Cavazzoni-Ave_Maris_Stella.ogg",
+        "duration": 149.86160997732426,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/User:BastienM\" title=\"User:BastienM\">BastienM</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Girolamo Cavazzoni|GFDL|1543 works|CC-BY-SA-3.0,2.5,2.0,1.0|C major|License migration redundant|Ave maris stella|Self-published work|Audio files of organ music|Audio files of renaissance period classical music|Half cadences|1540s music in Italy"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-07-30 16:02:25"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2008-07-30"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/Category:Girolamo_Cavazzoni\" title=\"Category:Girolamo Cavazzoni\">Girolamo Cavazzoni</a>'s <i>Ave Maris Stella</i>, played on MyOrgan.\n<p>\n<br></p>\nSee also \"<a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/Girolamo%20Cavazzoni%20#List_of_works\" title=\"en:Girolamo Cavazzoni \" class=\"extiw\"><i>Intavolatura cioe recercari, canzoni, himni, magnificat [...] libro primo</i> (Venice, 1543)</a>\"."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Cavazzoni-Ave Maris Stella"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "original work in public domain"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "b155624d2dd79249f61dce04b723641d98501c04",
+        "size": 3178906,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/4/44/Cavazzoni-Ave_Maris_Stella.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 4471852,
+    "revisions": [
+      {
+        "parentid": 1110743760,
+        "revid": 1282224888,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{en|{{c|Girolamo Cavazzoni}}'s ''Ave Maris Stella'', played on MyOrgan.\n\n\nSee also \"[[:en:Girolamo Cavazzoni #List of works|''Intavolatura cioe recercari, canzoni, himni, magnificat [...] libro primo'' (Venice, 1543)]]\".}} \n\n\n\n{{fr|''Ave Maris Stella'', de {{c|Girolamo Cavazzoni}}, utilisant MyOrgan.\n\n\nVoir aussi \"[[:fr:Girolamo Cavazzoni #Détail|''Intavolatura cioè Recercari, Canzoni, Himni, Magnificat composti per Hieronimo de Marcantonio da Bologna, detto d'Urbino, Libro Primo'' (Venise, 1543)]]\".}}\n\n\n\n\n{{it|''Ave Maris Stella'', de {{c|Girolamo Cavazzoni}}, suonato a MyOrgan.\n\n\nVedi anche \"[[:it:Girolamo Cavazzoni #Opere|Intavolatura cioe recercari, canzoni, himni, magnificat [...] libro primo (Venezia, 1543): Quattro inni]]\".}}\n|Source={{Own}}\n|Date=2008-07-30\n|Author= [[User:BastienM|BastienM]]\n|Permission=original work in public domain\n|other_versions=\n}}\n== {{int:license-header}} ==\n{{self|GFDL|cc-by-sa-3.0,2.5,2.0,1.0}}\n\n[[Category:Audio files of renaissance period classical music]]\n[[Category:Audio files of organ music]]\n[[Category:Ave maris stella]]\n[[Category:Girolamo Cavazzoni]]\n[[Category:1540s music in Italy]]\n[[Category:1543 works]]\n[[Category:C major]]\n[[Category:Half cadences]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-10-01T17:12:18Z"
+      }
+    ],
+    "title": "File:Cavazzoni-Ave Maris Stella.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1282224888",
+  "recordingId": "cm_4471852",
+  "revisionId": 1282224888,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ACavazzoni-Ave_Maris_Stella.ogg",
+  "sourceSha1": "b155624d2dd79249f61dce04b723641d98501c04"
+}

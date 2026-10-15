@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:52:39.719710+00:00",
+  "expectedSha1": "d52947b5549cfae08467b27bc3d42df1cfab3f3c",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=16080386",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Als_Luise_(Mozart).ogg",
+        "duration": 95.32222222222222,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a href=\"https://en.wikipedia.org/wiki/en:Wolfgang_Amadeus_Mozart\" class=\"extiw\" title=\"w:en:Wolfgang Amadeus Mozart\"><span title=\"Austrian composer of the Classical period (1756-1791)\">Wolfgang Amadeus Mozart</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Music in 1787|K 520|PD US not renewed|Janny van Wering|PD-old-100-expired|CC-PD-Mark|Audio files of music by Wolfgang Amadeus Mozart|Audio files of Classical period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"nofollow\" class=\"external text\" href=\"https://archive.org/details/lp-00894_BeG\">The Internet Archive</a>; Public Classical Music Beeld en Geluid Collection"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2011-08-13 02:28:46"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "Composition: 26 May 1787<br>Recording: 19–20 June 1952"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Mozart's song \"<a href=\"https://en.wikipedia.org/wiki/Als_Luise_die_Briefe_ihres_ungetreuen_Liebhabers_verbrannte\" class=\"extiw\" title=\"en:Als Luise die Briefe ihres ungetreuen Liebhabers verbrannte\">Als Luise die Briefe ihres ungetreuen Liebhabers verbrannte</a>\", K. 520"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Als Luise (Mozart)"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "<i>This work is in the <b><a href=\"https://en.wikipedia.org/wiki/public_domain\" class=\"extiw\" title=\"w:public domain\">public domain</a></b> because it was published in the United States between 1931 and 1963, and although there may or may not have been a copyright notice, the <b><a href=\"https://en.wikipedia.org/wiki/Copyright_renewal_in_the_United_States\" class=\"extiw\" title=\"w:Copyright renewal in the United States\">copyright was not renewed</a></b>. For further explanation, see <a href=\"//commons.wikimedia.org/wiki/Commons:Hirtle_chart\" title=\"Commons:Hirtle chart\">Commons:Hirtle chart</a> and <a rel=\"nofollow\" class=\"external text\" href=\"http://onlinebooks.library.upenn.edu/cce/\">the copyright renewal logs</a>. <div class=\"navigation-not-searchable\">Note that it may still be copyrighted in jurisdictions that do not apply the <a href=\"https://en.wikipedia.org/wiki/rule_of_the_shorter_term\" class=\"extiw\" title=\"w:rule of the shorter term\">rule of the shorter term</a> for US works (depending on the date of the author's death), such as Canada (70 years <a href=\"https://en.wikipedia.org/wiki/List_of_Latin_phrases_(P)#Post_mortem_auctoris\" class=\"extiw\" title=\"w:List of Latin phrases (P)\">p.m.a.</a>), Mainland China (50 years p.m.a., not Hong Kong or Macao), Germany (70 years p.m.a.), Mexico (100 years p.m.a.), Switzerland (70 years p.m.a.), and other countries with individual treaties.</div></i>"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "d52947b5549cfae08467b27bc3d42df1cfab3f3c",
+        "size": 1682793,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/e/e8/Als_Luise_%28Mozart%29.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 16080386,
+    "revisions": [
+      {
+        "parentid": 1046862133,
+        "revid": 1051347046,
+        "slots": {
+          "main": {
+            "content": "{{Information\n|Description    ={{en|1=Mozart's song \"[[:en:Als Luise die Briefe ihres ungetreuen Liebhabers verbrannte|Als Luise die Briefe ihres ungetreuen Liebhabers verbrannte]]\", K. 520}}\n|Source         =[https://archive.org/details/lp-00894_BeG The Internet Archive]; Public Classical Music Beeld en Geluid Collection\n|Author         ={{Creator:Wolfgang Amadeus Mozart}}<br />Recording: Janny van Wering (piano); Elisabeth Margano (soprano)\n|Date           =Composition: 26 May 1787<br />Recording: 19–20 June 1952\n|Permission     =Composition: {{PD/1923|1791}}<br />Recording: {{PD-US-not renewed}}\n|other_versions =\n}}\n\n[[Category:K 520]]\n[[Category:Music in 1787]]\n[[Category:Audio files of music by Wolfgang Amadeus Mozart]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Janny van Wering]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-07-02T02:58:17Z"
+      }
+    ],
+    "title": "File:Als Luise (Mozart).ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1051347046",
+  "recordingId": "cm_16080386",
+  "revisionId": 1051347046,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAls_Luise_(Mozart).ogg",
+  "sourceSha1": "d52947b5549cfae08467b27bc3d42df1cfab3f3c"
+}

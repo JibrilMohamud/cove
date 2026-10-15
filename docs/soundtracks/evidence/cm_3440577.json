@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:00.962705+00:00",
+  "expectedSha1": "1e388d730dd575c798670e391908e5d41ce7b4ff",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=3440577",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Frescobaldi_Toccata_avanti_la_Messa_della_Domenica.ogg",
+        "duration": 73.83945578231292,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:Random_pipings\" title=\"User:Random pipings\">Random pipings</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "GFDL|Girolamo Frescobaldi|D-sharp minor|E-flat minor|Yale Divinity School|License migration redundant|Self-published work|Audio files of 2008|Audio files of organ music|Audio files of renaissance period classical music|Sterling Divinity Quadrangle|1635 music in Venice"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-01-23 03:43:34"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "Recorded on Monday, January 21, 2008 on the Taylor and Boody organ at Marquand Chapel, Yale University"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Toccata avanti la Messa della Domenica; the first movement of the \"Fiori Musicali\", a collection of early organ music by the Italian composer Girolamo Frescobaldi"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Frescobaldi Toccata avanti la Messa della Domenica"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "1e388d730dd575c798670e391908e5d41ce7b4ff",
+        "size": 741334,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/5/5f/Frescobaldi_Toccata_avanti_la_Messa_della_Domenica.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 3440577,
+    "revisions": [
+      {
+        "parentid": 1110744613,
+        "revid": 1261458348,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description=Toccata avanti la Messa della Domenica; the first movement of the \"Fiori Musicali\", a collection of early organ music by the Italian composer Girolamo Frescobaldi\n|Source={{Own}}\n|Date=Recorded on Monday, January 21, 2008 on the Taylor and Boody organ at Marquand Chapel, Yale University\n|Author= [[User:Random pipings|Random pipings]]\n|Permission=\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n{{self|GFDL|cc-by-3.0}}\n\n[[Category:Yale Divinity School]]\n[[Category:Sterling Divinity Quadrangle]]\n[[Category:Audio files of 2008]]\n[[Category:1635 music in Venice]]\n[[Category:Girolamo Frescobaldi|toccata avanti messa Domenica]]\n[[Category:Audio files of organ music]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:D-sharp minor]]\n[[Category:E-flat minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-08-15T04:52:33Z"
+      }
+    ],
+    "title": "File:Frescobaldi Toccata avanti la Messa della Domenica.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1261458348",
+  "recordingId": "cm_3440577",
+  "revisionId": 1261458348,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AFrescobaldi_Toccata_avanti_la_Messa_della_Domenica.ogg",
+  "sourceSha1": "1e388d730dd575c798670e391908e5d41ce7b4ff"
+}

@@ -1,0 +1,109 @@
+{
+  "capturedAt": "2026-10-15T21:53:24.280336+00:00",
+  "expectedSha1": "b694de98f9a7b0a4d447ad6419a0f5c4208228d6",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=654546",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Breves_dies_hominis.ogg",
+        "duration": 211.88,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:ExtLink\" href=\"https://www.wikidata.org/wiki/Q297501\" class=\"external text\">Leonin</a> or <a rel=\"mw:ExtLink\" href=\"https://www.wikidata.org/wiki/Q206275\" class=\"external text\">Perotin</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Songs about death|F minor|Notre Dame school|Dorian mode|Self-published work|PD-self|Media of the day|Audio files of vocal music|Audio files of medieval period classical music|Christian hymns about dying and death"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-03-23 22:28:52"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "\"Breves dies hominis\" by either <a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/L%C3%A9onin\" title=\"en:Léonin\" class=\"extiw\">Léonin</a> or <a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/P%C3%A9rotin\" title=\"en:Pérotin\" class=\"extiw\">Pérotin</a>. Performed live by self."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Breves dies hominis"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "b694de98f9a7b0a4d447ad6419a0f5c4208228d6",
+        "size": 5496687,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/d/dd/Breves_dies_hominis.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 654546,
+    "revisions": [
+      {
+        "parentid": 1189212054,
+        "revid": 1189218000,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description    = {{en|\"Breves dies hominis\" by either [[:en:Léonin|Léonin]] or [[:en:Pérotin|Pérotin]]. Performed live by self.}}\n{{hidden begin|Text:}}\n:Breves dies hominis\n:mundi vita\n:humane propaginis\n:que sit vita, cogita!\n\n:Nitimur in vetitum\n:caro contra spiritum.\n\n:Pelle moram propera \n:mora non est libera.\n\n:Mundo nil immundius\n:que facis, fac citius!\n\n:Corpus, quod corrumpitur\n:animam persequitur.\n\n:Et bonum propositum\n:revocat in irritum.\n\n:Alios quod doceo\n:ipse docens impleo.\n\n:Christum ne exasperem\n:pauper sequor pauperem.\n\n:Corpus meum corrigo\n:et in servum redigo.{{hidden end}}\n{{uk|1=''«Дні людини короткі»''  від {{wu|Леонін}}а або {{wu|Перотін}}а. Виконує наживо та записує Макемі.}}\n|Source         = {{own}}\n|Date           = \n|Author         = [https://www.wikidata.org/wiki/Q297501 Leonin] or [https://www.wikidata.org/wiki/Q206275 Perotin]\n|Permission     = \n|Other_versions =\n}}\n\n=={{Assessment}}==\n{{Media of the day|2022|8|31}}\n\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Audio files of vocal music]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Notre Dame school]]\n[[Category:F minor]]\n[[Category:Dorian mode]]\n[[Category:Christian hymns about dying and death]]\n[[Category:Songs about death]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-03-30T12:53:29Z"
+      }
+    ],
+    "title": "File:Breves dies hominis.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1189218000",
+  "recordingId": "cm_654546",
+  "revisionId": 1189218000,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABreves_dies_hominis.ogg",
+  "sourceSha1": "b694de98f9a7b0a4d447ad6419a0f5c4208228d6"
+}

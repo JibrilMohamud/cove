@@ -1,0 +1,105 @@
+{
+  "capturedAt": "2026-10-15T21:52:29.890919+00:00",
+  "expectedSha1": "edec7827fd98365d4dd195f906102f180493bda3",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=11728024",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Anthem_of_Europe_(US_Navy_instrumental_short_version).ogg",
+        "duration": 60.957800453514736,
+        "extmetadata": {
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Files with no machine-readable author|PD-old-100-expired|PD US Navy|Media of the day|Audio files of music by Ludwig van Beethoven|Files with derivative versions|CC-PD-Mark|Ode an die Freude|Audio files with closed captioning in Italian|Audio files with closed captioning in Hindi|Audio files with closed captioning in Czech|Audio files with closed captioning in Chinese|Audio files with closed captioning in Dutch|Audio files with closed captioning in English|Audio files with closed captioning in French|Audio files with closed captioning in Hungarian|Audio files with closed captioning in Japanese|Audio files with closed captioning in Korean|Audio files with closed captioning in Polish|Audio files with closed captioning in Portuguese|Audio files with closed captioning in Spanish|Audio files with closed captioning in Tagalog|Audio files with closed captioning in Thai|Audio files with closed captioning in Esperanto|Audio files with closed captioning in German|Audio files with closed captioning in Turkish|Audio files of Classical period classical music|Audio files with closed captioning in Latin|Audio files of music by the United States Navy Band|Audio files with closed captioning in Cebuano|Audio files with closed captioning in Swedish|Audio files with closed captioning in Finnish"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<p><a rel=\"mw:ExtLink nofollow\" href=\"http://www.navyband.navy.mil/national_anthems.html\" class=\"external free\">http://www.navyband.navy.mil/national_anthems.html</a></p>\n<ul><li><a rel=\"mw:ExtLink nofollow\" href=\"http://www.navyband.navy.mil/national_anthems_eu.shtml\" class=\"external free\">http://www.navyband.navy.mil/national_anthems_eu.shtml</a></li>\n<li><a rel=\"mw:ExtLink nofollow\" href=\"https://web.archive.org/web/20090725153740/http://www.navyband.navy.mil/anthems/ANTHEMS/EU%20Short.mp3\" class=\"external free\">https://web.archive.org/web/20090725153740/http://www.navyband.navy.mil/anthems/ANTHEMS/EU%20Short.mp3</a></li></ul>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2021-10-19 11:40:23"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/Anthem%20of%20Europe\" title=\"en:Anthem of Europe\" class=\"extiw\">Anthem of Europe</a>, based on the final movement (\"Ode to Joy\") of Beethoven's 9th Symphony composed in 1823. Performed by the <a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/United%20States%20Navy%20Band\" title=\"en:United States Navy Band\" class=\"extiw\">United States Navy Band</a>. This is the short version without introduction."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "commons-desc-page",
+            "value": "<div class=\"fn\">\n\"Ode to Joy\"</div>"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "edec7827fd98365d4dd195f906102f180493bda3",
+        "size": 1159195,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/f/f3/Anthem_of_Europe_%28US_Navy_instrumental_short_version%29.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 11728024,
+    "revisions": [
+      {
+        "parentid": 955075756,
+        "revid": 1261157274,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Musical work\n|composer={{Creator:Ludwig van Beethoven}}\n|lyrics_writer={{Creator:Friedrich Schiller}}\n|performer=United States Navy Band\n|title=\"Ode to Joy\"\n|description={{en|1=The [[:en:Anthem of Europe|Anthem of Europe]], based on the final movement (\"Ode to Joy\") of Beethoven's 9th Symphony composed in 1823. Performed by the [[:en:United States Navy Band|United States Navy Band]]. This is the short version without introduction.}}\n|composition_date=1934\n|performance_date={{circa|2007|02}}\n|notes=\n|references= Text (Translation -- see history of [[Special:PrefixIndex/TimedText:Anthem of Europe (US Navy instrumental short version).ogg|your translation]]).\n|source=http://www.navyband.navy.mil/national_anthems.html\n*http://www.navyband.navy.mil/national_anthems_eu.shtml\n*https://web.archive.org/web/20090725153740/http://www.navyband.navy.mil/anthems/ANTHEMS/EU%20Short.mp3\n|permission=\n|other versions={{DerivativeVersions|LKMK B Beethoven.ogg}}, [[:File:Anthem of Europe (US Navy instrumental long version).ogg|Long version]]\n}}\n{{Closed captions}}\n\n== {{int:license-header}} ==\n;Performance\n{{PD-USGov-Military-Navy}}\n;Composition\n{{PD-old-100-1923}}\n\n=={{Assessment}}==\n{{Media of the day|2018|09|29}}\n\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Ode an die Freude]]\n[[Category:Audio files of music by the United States Navy Band]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-08-14T15:24:41Z"
+      }
+    ],
+    "title": "File:Anthem of Europe (US Navy instrumental short version).ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1261157274",
+  "recordingId": "cm_11728024",
+  "revisionId": 1261157274,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAnthem_of_Europe_(US_Navy_instrumental_short_version).ogg",
+  "sourceSha1": "edec7827fd98365d4dd195f906102f180493bda3"
+}

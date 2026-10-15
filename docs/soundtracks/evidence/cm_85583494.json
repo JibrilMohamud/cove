@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:53:40.244379+00:00",
+  "expectedSha1": "5ea9047b48e07ff11bc686d78d32d3715d4068d4",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=85583494",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:CLAPISSON-Antoine-1er-duo-des-3-Duos-concertant-pour-2-cors-opus-8.ogg",
+        "duration": 89.2865306122449,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Antoine Clapisson"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Louis Clapisson|PD-old-70-expired|CC-PD-Mark|Audio files of Romantic period classical music|PD-old missing SDC copyright status"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "fichier midi"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2020-01-03 21:59:59"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "1824-01-01"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "duo pour 2 cors par le compositeur Antoine Clapisson"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "CLAPISSON-Antoine-1er-duo-des-3-Duos-concertant-pour-2-cors-opus-8"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "5ea9047b48e07ff11bc686d78d32d3715d4068d4",
+        "size": 721550,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/d/da/CLAPISSON-Antoine-1er-duo-des-3-Duos-concertant-pour-2-cors-opus-8.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 85583494,
+    "revisions": [
+      {
+        "parentid": 843157612,
+        "revid": 1107897119,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{fr|1=duo pour 2 cors par le compositeur Antoine Clapisson}}\n|date=1824-01-01\n|source=fichier midi\n|author=Antoine Clapisson\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{PD-old-70-1923}}\n\n[[Category:Louis Clapisson]]\n[[Category:Audio files of Romantic period classical music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-11-02T11:51:24Z"
+      }
+    ],
+    "title": "File:CLAPISSON-Antoine-1er-duo-des-3-Duos-concertant-pour-2-cors-opus-8.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1107897119",
+  "recordingId": "cm_85583494",
+  "revisionId": 1107897119,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ACLAPISSON-Antoine-1er-duo-des-3-Duos-concertant-pour-2-cors-opus-8.ogg",
+  "sourceSha1": "5ea9047b48e07ff11bc686d78d32d3715d4068d4"
+}

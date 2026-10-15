@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:52:44.078247+00:00",
+  "expectedSha1": "12d1d8d56ff718a402b02af22f6080b44d4cfa71",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=20694131",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Captaine_Tobias_Hume_-_Tobacco,_No.3_The_First_Part_of_Ayres_-_The_Musicall_Humours1605.ogg",
+        "duration": 100.872,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Phillipwserna&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Phillipwserna (page does not exist)\">Dr. Phillip W. Serna</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Tobias Hume|Music in 1605|Historically informed performance|D minor|Viol music|Self-published work|Tobacco in art|Audio files of renaissance period classical music|Audio files of male singing"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2012-08-16 14:37:55"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2010-12-13"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "No. 3 The First Part of Ayres - The Musicall Humours 1605\n<p>Performed by Dr. Phillip W. Serna. Based in the Chicago area, Dr. Serna works to bring the early western string instrument family known as the viola da gamba into many area schools – demonstrating solo literature from the Renaissance, Baroque and early Classical periods for treble viol, tenor viol, bass viol &amp; violone.\n</p>\nFor more information, visit <a rel=\"nofollow\" class=\"external free\" href=\"http://www.thegambacast.org/\">http://www.thegambacast.org/</a> &amp; <a rel=\"nofollow\" class=\"external free\" href=\"http://www.violsinourschools.org/\">http://www.violsinourschools.org/</a>."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Captaine Tobias Hume - Tobacco, No.3 The First Part of Ayres - The Musicall Humours1605"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "12d1d8d56ff718a402b02af22f6080b44d4cfa71",
+        "size": 5209046,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/93/Captaine_Tobias_Hume_-_Tobacco%2C_No.3_The_First_Part_of_Ayres_-_The_Musicall_Humours1605.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 20694131,
+    "revisions": [
+      {
+        "parentid": 848047923,
+        "revid": 888057467,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=No. 3 The First Part of Ayres - The Musicall Humours 1605\n\nPerformed by Dr. Phillip W. Serna. Based in the Chicago area, Dr. Serna works to bring the early western string instrument family known as the viola da gamba into many area schools – demonstrating solo literature from the Renaissance, Baroque and early Classical periods for treble viol, tenor viol, bass viol & violone.\n\nFor more information, visit http://www.thegambacast.org/ & http://www.violsinourschools.org/.}}\n|date=2010-12-13\n|source={{own}}\n|author=[[User:Phillipwserna|Dr. Phillip W. Serna]]\n|permission=\n|other_versions=\n|other_fields=\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-3.0}}\n\n[[Category:Tobacco in art]]\n[[Category:Music in 1605]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:Historically informed performance]]\n[[Category:Tobias Hume]]\n[[Category:Viol music]]\n[[Category:Audio files of male singing]]\n[[Category:D minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-06-25T14:34:30Z"
+      }
+    ],
+    "title": "File:Captaine Tobias Hume - Tobacco, No.3 The First Part of Ayres - The Musicall Humours1605.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=888057467",
+  "recordingId": "cm_20694131",
+  "revisionId": 888057467,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ACaptaine_Tobias_Hume_-_Tobacco%2C_No.3_The_First_Part_of_Ayres_-_The_Musicall_Humours1605.ogg",
+  "sourceSha1": "12d1d8d56ff718a402b02af22f6080b44d4cfa71"
+}

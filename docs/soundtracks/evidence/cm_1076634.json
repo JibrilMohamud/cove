@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:52:25.996714+00:00",
+  "expectedSha1": "df7052df4f72836226a63eb7de0ea21901df97a7",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1076634",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Carl_Almenr%C3%A4der_-_Bassoon_Pieces.ogg",
+        "duration": 661.058231292517,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=Arthur_Grossman&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"Arthur Grossman (page does not exist)\">Arthur Grossman</a> (musician)"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Carl Almenräder|Audio files of piano music|Pandora Music|Audio files of classical music for piano|Audio files of Romantic period classical music|Audio files of bassoon music|Alegretto"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "The Al Goldstein collection in the <a rel=\"nofollow\" class=\"external text\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html\">Pandora Music</a> repository at ibiblio.org."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-08-21 14:03:12"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Potpourri: Introduzione - Allegretto by <a href=\"//commons.wikimedia.org/w/index.php?title=Carl_Almenr%C3%A4der&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"Carl Almenräder (page does not exist)\">Carl Almenräder</a>"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Carl Almenräder - Bassoon Pieces"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"nofollow\" class=\"external text\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html\">license information</a> states that this file is \"available for free download subject to the <a href=\"//commons.wikimedia.org/wiki/EFF_OAL\" class=\"mw-redirect\" title=\"EFF OAL\">EFF OAL</a>\" (Open Audio License), which in turn <a rel=\"nofollow\" class=\"external text\" href=\"https://www.eff.org/IP/Open_licenses/eff_oal.php\">is interchangeable</a> with the <a href=\"//commons.wikimedia.org/wiki/CC-BY-SA-2.0\" class=\"mw-redirect\" title=\"CC-BY-SA-2.0\">CC-BY-SA-2.0</a>."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "df7052df4f72836226a63eb7de0ea21901df97a7",
+        "size": 13061984,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/5/50/Carl_Almenr%C3%A4der_-_Bassoon_Pieces.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1076634,
+    "revisions": [
+      {
+        "parentid": 1044296104,
+        "revid": 1044296107,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description = Potpourri: Introduzione - Allegretto by [[Carl Almenräder]]\n|Source = The Al Goldstein collection in the [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html Pandora Music] repository at ibiblio.org.\n|Date = \n|Author = [[Arthur Grossman]] (musician)\n|Permission = The [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html license information] states that this file is \"available for free download subject to the [[EFF OAL]]\" (Open Audio License), which in turn [https://www.eff.org/IP/Open_licenses/eff_oal.php is interchangeable] with the [[CC-BY-SA-2.0]].\n}}\n\n== {{int:license-header}} ==\n{{cc-by-sa-2.0}}\n\n[[Category:Carl Almenräder|Bassoon Pieces]]\n[[Category:Audio files of bassoon music]]\n[[Category:Audio files of piano music]]\n[[Category:Audio files of Romantic period classical music]]\n[[Category:Audio files of classical music for piano]]\n[[Category:Pandora Music]]\n[[Category:Alegretto]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-06-15T17:31:31Z"
+      }
+    ],
+    "title": "File:Carl Almenräder - Bassoon Pieces.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1044296107",
+  "recordingId": "cm_1076634",
+  "revisionId": 1044296107,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ACarl_Almenr%C3%A4der_-_Bassoon_Pieces.ogg",
+  "sourceSha1": "df7052df4f72836226a63eb7de0ea21901df97a7"
+}

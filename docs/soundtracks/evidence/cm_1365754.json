@@ -1,0 +1,122 @@
+{
+  "capturedAt": "2026-10-15T21:52:36.617352+00:00",
+  "expectedSha1": "ae1b821a8932eb6820d94c5a3f81243379f32a5a",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1365754",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Robertsbridgecodex_fol44r.ogg",
+        "duration": 16.719569160997732,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Codex:unknown, Recording: Wetwassermann"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "GFDL|G major|License migration redundant|Robertsbridge Codex|2006-11-13|Self-published work|Audio files of medieval period classical music|Audio files of organ music (unidentified composer)"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "Recording = own work"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-11-13 10:20:14"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "Codex from about 1330, Appendix written about 1350,  Recording 13.11.2006 with digital organ"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Beginning of <i>\"Tribum, quem non abhorruit\"</i> from <i>\"<a href=\"//commons.wikimedia.org/wiki/Category:Robertsbridge_Codex\" title=\"Category:Robertsbridge Codex\">Robertsbridge Codex</a>\"</i>, about 1330."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "http://creativecommons.org/licenses/by-sa/3.0/"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Robertsbridgecodex fol44r"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Codex: PD, Recording: GFDL"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "ae1b821a8932eb6820d94c5a3f81243379f32a5a",
+        "size": 211720,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/91/Robertsbridgecodex_fol44r.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1365754,
+    "revisions": [
+      {
+        "parentid": 1082852511,
+        "revid": 1248612353,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{en|Beginning of ''\"Tribum, quem non abhorruit\"'' from ''\"{{c|Robertsbridge Codex}}\"'', about 1330.}}\n|Source=Recording = own work\n|Date=Codex from about 1330, Appendix written about 1350,  Recording 13.11.2006 with digital organ\n|Author=Codex:unknown, Recording: Wetwassermann\n|Permission=Codex: PD, Recording: GFDL\n\n}}\n\n== {{int:license-header}} ==\n{{Self|GFDL|Cc-by-sa-3.0-migrated}}\n\n[[Category:Audio files of organ music (unidentified composer)]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Robertsbridge Codex]]\n[[Category:G major]]\n[[Category:2006-11-13]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-07-17T15:58:23Z"
+      }
+    ],
+    "title": "File:Robertsbridgecodex fol44r.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1248612353",
+  "recordingId": "cm_1365754",
+  "revisionId": 1248612353,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ARobertsbridgecodex_fol44r.ogg",
+  "sourceSha1": "ae1b821a8932eb6820d94c5a3f81243379f32a5a"
+}

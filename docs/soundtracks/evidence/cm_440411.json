@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:53:10.357914+00:00",
+  "expectedSha1": "76c0f8bb08eb59e2a323b386f5ad0f10694dbd70",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=440411",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:CuiSarWedding.ogg",
+        "duration": 204.41666666666666,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "No machine-readable author provided. <a href=\"//commons.wikimedia.org/wiki/User:Mllefifi\" title=\"User:Mllefifi\">Mllefifi</a> assumed (based on copyright claims)."
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Gloria patri|Files with no machine-readable source|Operas by César Cui|Self-published work|PD-self|Assumed own work|Audio files of music of Russia|Audio files of Romantic period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "No machine-readable source provided. Own work assumed (based on copyright claims)."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2005-11-30 02:27:17"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "30 November 2005 (original upload date)"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<p>Composer: <a href=\"https://en.wikipedia.org/wiki/en:C%C3%A9sar_Cui\" class=\"extiw\" title=\"w:en:César Cui\">César Cui (1835-1918)</a>\n</p>\n<ul><li>Title:  Gloria Patri and Wedding Recessional from the opera \"<a href=\"https://en.wikipedia.org/wiki/en:The_Saracen_(opera)\" class=\"extiw\" title=\"w:en:The Saracen (opera)\">The Saracen</a>\"</li>\n<li>Printed source:  Piano-vocal score published in Moscow by P. Jurgenson, 1899.</li>\n<li>This is a rudimentary MIDI arrangement and Ogg recording therefrom made by <a href=\"https://en.wikipedia.org/wiki/en:User:Mllefifi\" class=\"extiw\" title=\"w:en:User:Mllefifi\">Mllefifi</a>, Nov. 29, 2005</li></ul>\nThe music itself is in the public domain.  Mllefifi is making this audio file available to promote the composer and for whatever other use can be made of it, besides linking it to the article \"<a href=\"https://en.wikipedia.org/wiki/en:The_Saracen_(opera)\" class=\"extiw\" title=\"w:en:The Saracen (opera)\">The Saracen (opera)</a>\"."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "CuiSarWedding"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "76c0f8bb08eb59e2a323b386f5ad0f10694dbd70",
+        "size": 3298785,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/7/7c/CuiSarWedding.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 440411,
+    "revisions": [
+      {
+        "parentid": 722744536,
+        "revid": 871829558,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n |description = Composer: [[w:en:César Cui|César Cui (1835-1918)]]\n*Title:  Gloria Patri and Wedding Recessional from the opera \"[[w:en:The Saracen (opera)|The Saracen]]\"\n*Printed source:  Piano-vocal score published in Moscow by P. Jurgenson, 1899.\n*This is a rudimentary MIDI arrangement and Ogg recording therefrom made by [[w:en:User:Mllefifi|Mllefifi]], Nov. 29, 2005\nThe music itself is in the public domain.  Mllefifi is making this audio file available to promote the composer and for whatever other use can be made of it, besides linking it to the article \"[[w:en:The Saracen (opera)|The Saracen (opera)]]\".\n |date = {{Original upload date|2005-11-30}}\n |source = {{own assumed}}\n |author = {{Author assumed|[[User:Mllefifi|Mllefifi]]}}\n |permission = \n |other_versions = \n}}\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Audio files of Romantic period classical music]]\n[[Category:Audio files of music of Russia]]\n[[Category:Operas by César Cui]]\n[[Category:Gloria patri]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-04-27T20:11:03Z"
+      }
+    ],
+    "title": "File:CuiSarWedding.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=871829558",
+  "recordingId": "cm_440411",
+  "revisionId": 871829558,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ACuiSarWedding.ogg",
+  "sourceSha1": "76c0f8bb08eb59e2a323b386f5ad0f10694dbd70"
+}

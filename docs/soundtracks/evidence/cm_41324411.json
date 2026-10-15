@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:10.355789+00:00",
+  "expectedSha1": "658a1aec581d344f27c2395201e6ff54c3847f9f",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=41324411",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beata_virgine_Des_Prez.ogg",
+        "duration": 32.78657596371882,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/User:Andiport\" title=\"User:Andiport\" class=\"mw-redirect\">Andiport</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Hymns to Virgin Mary|Josquin des Prez|G minor|Self-published work|Audio files of renaissance period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2015-07-02 11:21:35"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2015-07-02"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Beata virgine Des Prez"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beata virgine Des Prez"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "658a1aec581d344f27c2395201e6ff54c3847f9f",
+        "size": 402015,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/6/6d/Beata_virgine_Des_Prez.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 41324411,
+    "revisions": [
+      {
+        "parentid": 819620568,
+        "revid": 887925231,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{ca|1=Beata virgine Des Prez}}\n|date=2015-07-02\n|source={{own}}\n|author=[[User:Andiport|Andiport]]\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-sa-4.0}}\n\n[[Category:Josquin des Prez]]\n[[Category:Hymns to Virgin Mary]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:G minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-06-25T12:29:56Z"
+      }
+    ],
+    "title": "File:Beata virgine Des Prez.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=887925231",
+  "recordingId": "cm_41324411",
+  "revisionId": 887925231,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeata_virgine_Des_Prez.ogg",
+  "sourceSha1": "658a1aec581d344f27c2395201e6ff54c3847f9f"
+}

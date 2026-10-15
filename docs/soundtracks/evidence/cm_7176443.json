@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:53:33.770834+00:00",
+  "expectedSha1": "607514bfddf1f548cad7fc90f14938bb892df724",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=7176443",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Antifona_Terra_Tremuit_mIV.ogg",
+        "duration": 68.45242630385488,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Grosasm&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Grosasm (page does not exist)\">user:grosasm</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Antiphon|Self-published work|PD-self|Audio files of vocal music|Audio files of Christian music|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "Cedido por 'Ensamble Lauda' de su Album: Dominica Resurrectionis, sin derechos de autor"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2009-07-01 13:24:03"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2009-07-01"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Antífona <i>Terra Tremuit</i> modo IV; Autor:Wyllian Byrd; Genero:Sacro; Lenguaje:Latín."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Antifona Terra Tremuit mIV"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain. PD-Self"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "607514bfddf1f548cad7fc90f14938bb892df724",
+        "size": 1081948,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/1/1c/Antifona_Terra_Tremuit_mIV.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 7176443,
+    "revisions": [
+      {
+        "parentid": 799138252,
+        "revid": 1044346407,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{es|1=Antífona ''Terra Tremuit'' modo IV; Autor:Wyllian Byrd; Genero:Sacro; Lenguaje:Latín.}} \n|Source=Cedido por 'Ensamble Lauda' de su Album: Dominica Resurrectionis, sin derechos de autor\n|Date=2009-07-01\n|Author=[[user:grosasm]]\n|Permission=Public domain. PD-Self\n|other_versions=ChoralWiki\n}}\n\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Antiphon]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Audio files of Christian music]]\n[[Category:Audio files of vocal music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-06-15T20:30:21Z"
+      }
+    ],
+    "title": "File:Antifona Terra Tremuit mIV.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1044346407",
+  "recordingId": "cm_7176443",
+  "revisionId": 1044346407,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAntifona_Terra_Tremuit_mIV.ogg",
+  "sourceSha1": "607514bfddf1f548cad7fc90f14938bb892df724"
+}

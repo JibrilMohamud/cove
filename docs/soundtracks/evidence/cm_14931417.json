@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:52:36.618066+00:00",
+  "expectedSha1": "0a04430025101fcb536e7c92fd106166ec1f04d0",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=14931417",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Bartok_cordes_percussion_celesta.ogg",
+        "duration": 48.99410430839002,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<p><a href=\"//commons.wikimedia.org/wiki/Category:B%C3%A9la_Bart%C3%B3k\" title=\"Category:Béla Bartók\">Béla Bartók</a> (1881-1945), composer\n</p>\nLITTLEJAZZMAN, uploader"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Celestas|Paul Sacher|January 1937|D-sharp minor|Kammerorchester Basel|Allegro (music)|E-flat major|E-flat minor|Percussion music|Pizzicato|Compositions for keyboard|1936 compositions|String orchestra music|Self-published work|Duple meter|Audio files of classical music for piano|1936-09-07|Audio files of instrumental music|Audio files of music by Béla Bartók|Minor pentatonic scales|Major pentatonic scales|MIDI files of music theory and analysis"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2011-04-16 12:49:03"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2011-04-15"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Mesures 200 à 242 Musique pour cordes, percussion et célésta de Bela Bartok second mouvement"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Bartok cordes percussion celesta"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "0a04430025101fcb536e7c92fd106166ec1f04d0",
+        "size": 497194,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/5/51/Bartok_cordes_percussion_celesta.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 14931417,
+    "revisions": [
+      {
+        "parentid": 1227003097,
+        "revid": 1227003102,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description    ={{fr|1=Mesures 200 à 242 Musique pour cordes, percussion et célésta de Bela Bartok second mouvement}}\n|Source         ={{Own}}\n|Author         = {{c|Béla Bartók}} (1881-1945), composer\nLITTLEJAZZMAN, uploader\n|Date           =2011-04-15\n|Permission     =\n|other_versions = {{f|Bartok cordes percussion celesta.mid}}\n}}\n\n== {{int:license-header}} ==\n{{self|cc-by-sa-3.0}}\n\n[[Category:MIDI files of music theory and analysis]]\n[[Category:Audio files of instrumental music]]\n[[Category:Audio files of music by Béla Bartók]]\n[[Category:Paul Sacher]]\n[[Category:1936 compositions]]\n[[Category:1936-09-07]]\n[[Category:String orchestra music]]\n[[Category:Pizzicato]]\n[[Category:Percussion music]]\n[[Category:Compositions for keyboard]]\n[[Category:Celestas]]\n[[Category:Audio files of classical music for piano]]\n[[Category:Kammerorchester Basel]]\n[[Category:January 1937]]\n[[Category:Allegro (music)]]\n[[Category:Duple meter]]\n[[Category:D-sharp minor]]\n[[Category:E-flat minor]]\n[[Category:Minor pentatonic scales]]\n[[Category:E-flat major]]\n[[Category:Major pentatonic scales]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:33:07Z"
+      }
+    ],
+    "title": "File:Bartok cordes percussion celesta.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227003102",
+  "recordingId": "cm_14931417",
+  "revisionId": 1227003102,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABartok_cordes_percussion_celesta.ogg",
+  "sourceSha1": "0a04430025101fcb536e7c92fd106166ec1f04d0"
+}

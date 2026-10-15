@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:52:29.888697+00:00",
+  "expectedSha1": "315532189ffdcca9db4009a1b426049f68a749e0",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=11244885",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:02Branle_gayVAttaignant.ogg",
+        "duration": 62.09315192743764,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:Metzner\" title=\"User:Metzner\">Metzner</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Pierre Attaignant|G minor|Branle|Self-published work|Audio files of organ music|Audio files of renaissance period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2010-08-21 22:50:30"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2010-08-19"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Eigene Einspielung der „<i>Branle gay V</i>“ aus <a href=\"//commons.wikimedia.org/wiki/Category:Pierre_Attaignant\" title=\"Category:Pierre Attaignant\">Attaignants</a> Tanzbuch: „<i>Quatorze Gaillardes neuf Pavennes, sept Branles et deux Basses Dances le tout reduict de musique en la tabulature du jeu d'Orgues Espinettes Manicordions et telz semblables instrumentz musicaulx...</i>“ („Vierzehn Galliarden, neun Pavane, sieben Branle und zwei Basstänze, alle in Tabulatur für Orgeln, Spinette, Manichorde und ähnliche Musikinstrumente umgesetzt…“ / Februar 1531 ?)\n<p><br>\n</p>\nSiehe auch \"<a href=\"//commons.wikimedia.org/wiki/Category:Galliard\" title=\"Category:Galliard\">Galliarde</a>\", \"<a href=\"//commons.wikimedia.org/wiki/Category:Pavane\" title=\"Category:Pavane\">Pavane</a>, \"<a href=\"//commons.wikimedia.org/wiki/Category:Branle\" title=\"Category:Branle\">Branle</a>\", \"<a href=\"//commons.wikimedia.org/wiki/Category:Basse_danse\" title=\"Category:Basse danse\">Basstanz</a>\", \"<a href=\"//commons.wikimedia.org/wiki/Category:Tablatures\" title=\"Category:Tablatures\">Tabulatur</a>\", \"<a href=\"//commons.wikimedia.org/wiki/Category:Spinet\" title=\"Category:Spinet\">Spinette</a>\" und \"<a href=\"//commons.wikimedia.org/wiki/Category:Clavichords\" title=\"Category:Clavichords\">Clavichord</a>\"."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "02Branle gayVAttaignant"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "315532189ffdcca9db4009a1b426049f68a749e0",
+        "size": 1014360,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/f/f4/02Branle_gayVAttaignant.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 11244885,
+    "revisions": [
+      {
+        "parentid": 887655478,
+        "revid": 1197795854,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{de|Eigene Einspielung der „''Branle gay V''“ aus {{c|Pierre Attaignant|Attaignant}}s Tanzbuch: „''Quatorze Gaillardes neuf Pavennes, sept Branles et deux Basses Dances le tout reduict de musique en la tabulature du jeu d'Orgues Espinettes Manicordions et telz semblables instrumentz musicaulx...''“ („Vierzehn Galliarden, neun Pavane, sieben Branle und zwei Basstänze, alle in Tabulatur für Orgeln, Spinette, Manichorde und ähnliche Musikinstrumente umgesetzt…“ / Februar 1531 ?)\n\n\nSiehe auch \"{{c|Galliard|Galliarde}}\", \"{{c|Pavane}}, \"{{c|Branle}}\", \"{{c|Basse danse|Basstanz}}\", \"{{c|Tablatures|Tabulatur}}\", \"{{c|Spinet|Spinette}}\" und \"{{c|Clavichords|Clavichord}}\".}}\n\n|Source={{own}}\n|Author=[[User:Metzner|Metzner]]\n|Date=2010-08-19\n|Permission=\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n{{self|cc-by-3.0}}\n\n[[Category:Pierre Attaignant]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:Branle]]\n[[Category:Audio files of organ music]]\n[[Category:G minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-04-15T12:23:33Z"
+      }
+    ],
+    "title": "File:02Branle gayVAttaignant.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1197795854",
+  "recordingId": "cm_11244885",
+  "revisionId": 1197795854,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3A02Branle_gayVAttaignant.ogg",
+  "sourceSha1": "315532189ffdcca9db4009a1b426049f68a749e0"
+}

@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:52:22.701221+00:00",
+  "expectedSha1": "c5256f53006e256cb95f7709017cdcf7ba337161",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1063623",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beethoven_-_Sonata_in_A_major_(opus_47),_movement_3.ogg",
+        "duration": 501.3000453514739,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Presto|Compositions in A major|Violin Sonata No. 9 (Beethoven)|Pandora Music|Audio files of music by Ludwig van Beethoven|Pages using the Phonos extension|Audio files of Classical period classical music|Audio files of classical music by Edward Auer|Audio files of classical music by Paul Rosenthal"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "The Al Goldstein collection in the <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html\" class=\"external text\">Pandora Music</a> repository at ibiblio.org."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-08-17 13:17:28"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<i><b>Violin Sonata No. 9, Amaj, opus 47 (Kreutzer)</b></i> („Kreutzer Sonata“) — <b>3rd movement</b>. This recording was made in 1982, at the Lakeside School in Seattle."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beethoven - Sonata in A major (opus 47), movement 3"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html\" class=\"external text\">license information</a> states that this file is \"available for free download subject to the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/EFF_OAL\" title=\"EFF OAL\" class=\"mw-redirect\">EFF OAL</a>\" (Open Audio License), which in turn <a rel=\"mw:ExtLink nofollow\" href=\"https://www.eff.org/IP/Open_licenses/eff_oal.php\" class=\"external text\">is interchangeable</a> with the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/CC-BY-SA-2.0\" title=\"CC-BY-SA-2.0\" class=\"mw-redirect\">CC-BY-SA-2.0</a>."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "c5256f53006e256cb95f7709017cdcf7ba337161",
+        "size": 10335279,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/91/Beethoven_-_Sonata_in_A_major_%28opus_47%29%2C_movement_3.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1063623,
+    "revisions": [
+      {
+        "parentid": 778298709,
+        "revid": 820140056,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description = \n{{de|'''''Violinsonate Nr. 9, opus 47''''' („Kreutzer-Sonate“) — '''3. Satz'''}}\n{{en|'''''Violin Sonata No. 9, Amaj, opus 47 (Kreutzer)''''' („Kreutzer Sonata“) — '''3rd movement'''. This recording was made in 1982, at the Lakeside School in Seattle. }}\n{{es|'''''Sonata para Violin No. 9''''' en La mayor („Sonata a Kreutzer“), Opus 47 — '''3'''}}\n{{fr|'''''Sonate pour violon n° 9''''' („Sonate à Kreutzer“) — '''3'''}}\n{{ja|ヴァイオリンソナタ第9番 (ベートーヴェン) — '''3'''}}\n\n|Source = The Al Goldstein collection in the [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html Pandora Music] repository at ibiblio.org.\n|Date = \n|Author = {{Creator:Ludwig van Beethoven}}\nMusicians: Paul Rosenthal and Edward Auer.\n|Permission = The [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html license information] states that this file is \"available for free download subject to the [[EFF OAL]]\" (Open Audio License), which in turn [https://www.eff.org/IP/Open_licenses/eff_oal.php is interchangeable] with the [[CC-BY-SA-2.0]].\n}}\n\n==See also==\n{{audio|Beethoven - opus47-2 02.ogg|← 2nd movement}}\n[[Image:Beethoven - opus47-2 02.ogg]]\n\n== {{int:license-header}} == \n{{cc-by-sa-2.0}}\n\n[[:de:Datei:Beethoven - opus47-1 01.ogg]]\n[[:en:File:Beethoven - opus47-1 01.ogg]]\n[[:es:Archivo:Beethoven - opus47-1 01.ogg]]\n[[:ja:ファイル:Beethoven - opus47-1 01.ogg]]\n[[:ko:파일:Beethoven - opus47-1 01.ogg]]\n[[:nl:Bestand:Beethoven - opus47-1 01.ogg]]\n[[:pt:Ficheiro:Beethoven - opus47-1 01.ogg]]\n[[:ru:Файл:Beethoven - opus47-1 01.ogg]]\n\n[[Category:Violin Sonata No. 9 (Beethoven)|3]]\n[[Category:Pandora Music]]\n[[Category:Presto]]\n[[Category:Compositions in A major]]\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Audio files of classical music by Paul Rosenthal]]\n[[Category:Audio files of classical music by Edward Auer]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2023-11-09T16:52:32Z"
+      }
+    ],
+    "title": "File:Beethoven - Sonata in A major (opus 47), movement 3.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=820140056",
+  "recordingId": "cm_1063623",
+  "revisionId": 820140056,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethoven_-_Sonata_in_A_major_(opus_47)%2C_movement_3.ogg",
+  "sourceSha1": "c5256f53006e256cb95f7709017cdcf7ba337161"
+}

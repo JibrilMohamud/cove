@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:53:10.356659+00:00",
+  "expectedSha1": "abf9dcc728a89e66d9e5a69ce7393974aa5eaee4",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=4298862",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Edison_cylinder_Lost_Chord.ogg",
+        "duration": 126.74612244897959,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Recorded by George Gouraud, performers unknown."
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Arthur Sullivan|Music in 1888|PD Edison Records|Author died more than 100 years ago public domain images|Featured sounds on Wikipedia, English|Audio files from Edison Records|CC-PD-Mark|Audio files of 1888|Audio files of Romantic period classical music|PD US record expired|Files with Assessments template missing SDC Commons no value quality assessment|Audio files of phonograph cylinder recordings"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"nofollow\" class=\"external free\" href=\"http://www.nps.gov/archive/edis/edisonia/very_early.htm\">http://www.nps.gov/archive/edis/edisonia/very_early.htm</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-06-30 03:11:32"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "circa 1888<div style=\"display: none;\">date QS:P,+1888-00-00T00:00:00Z/9,P1480,Q5727902</div>"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "An Edison \"Perfected\" Phonograph cylinder recording of <i><a href=\"https://en.wikipedia.org/wiki/The_Lost_Chord\" class=\"extiw\" title=\"en:The Lost Chord\">The Lost Chord</a></i> (composed 1877) by <a href=\"//commons.wikimedia.org/wiki/Category:Arthur_Sullivan\" title=\"Category:Arthur Sullivan\">Arthur Sullivan</a> (1842-1900), played on piano and <a href=\"https://en.wikipedia.org/wiki/cornet\" class=\"extiw\" title=\"en:cornet\">cornet</a>.  One of the earliest surviving recordings of music; was played at the press conference that introduced the phonograph to London on August 14 1888. \n<p>Cuts off slightly before the ending of the song.  The recorded version is somewhat abridged (a middle section has been cut, possibly due to time constraints).  Overall a well-preserved example of wax cylinder recording technology.\n</p><p><br>\n</p>\nLength: 2:07"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Edison cylinder Lost Chord"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Not all audio files are \"sound recordings\". Sounds accompanying a motion picture or other audiovisual work are not sound recordings under U.S. copyright law. Use this template's equivalent, {{<a href=\"//commons.wikimedia.org/wiki/Template:PD-US-expired\" title=\"Template:PD-US-expired\">PD-US-expired</a>}}, for works that are not sound recordings."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "abf9dcc728a89e66d9e5a69ce7393974aa5eaee4",
+        "size": 1118399,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/e/e2/Edison_cylinder_Lost_Chord.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 4298862,
+    "revisions": [
+      {
+        "parentid": 658974892,
+        "revid": 964826646,
+        "slots": {
+          "main": {
+            "content": "{{Assessments|enwiki=3}}\n{{Information\n|Description={{en|1=An Edison \"Perfected\" Phonograph cylinder recording of ''[[:en:The Lost Chord|The Lost Chord]]'' (composed 1877) by [[:Category:Arthur Sullivan|Arthur Sullivan]] (1842-1900), played on piano and [[:en:cornet|cornet]].  One of the earliest surviving recordings of music; was played at the press conference that introduced the phonograph to London on August 14 1888. \n\nCuts off slightly before the ending of the song.  The recorded version is somewhat abridged (a middle section has been cut, possibly due to time constraints).  Overall a well-preserved example of wax cylinder recording technology.\n\n\nLength: 2:07 }}\n|Source=http://www.nps.gov/archive/edis/edisonia/very_early.htm\n|Author=Recorded by George Gouraud, performers unknown.\n|Date={{other date|ca|1888}}\n|Permission=For the original composition {{PD-old-100}} \nFor the Recording {{PD-Edison Records}}{{PD-US-record-expired}}\n|other_versions=\n}}\n\n[[Category:Audio files of Romantic period classical music]]\n[[Category:Arthur Sullivan]]\n[[Category:Audio files of phonograph cylinder recordings]]\n[[Category:Music in 1888]]\n[[Category:Audio files of 1888]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-12-02T17:33:21Z"
+      }
+    ],
+    "title": "File:Edison cylinder Lost Chord.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=964826646",
+  "recordingId": "cm_4298862",
+  "revisionId": 964826646,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AEdison_cylinder_Lost_Chord.ogg",
+  "sourceSha1": "abf9dcc728a89e66d9e5a69ce7393974aa5eaee4"
+}

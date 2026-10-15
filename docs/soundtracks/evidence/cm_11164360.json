@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:25.997160+00:00",
+  "expectedSha1": "5e606a0898f8f8cd6dcefafe01f252af1779d39d",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=11164360",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Puer.natus.est.ogg",
+        "duration": 77.97521541950114,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Membeth&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Membeth (page does not exist)\">Membeth</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Introit Puer natus|Self-published work|Audio files of Christmas music|PD-self|Media of the day|Audio files of Gregorian chant|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2010-08-12 21:07:25"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2010-08-12"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Introit of Chrismas Eve, Gregorian Chant"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Puer.natus.est"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "5e606a0898f8f8cd6dcefafe01f252af1779d39d",
+        "size": 1211892,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/4/44/Puer.natus.est.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 11164360,
+    "revisions": [
+      {
+        "parentid": 473520375,
+        "revid": 734101407,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{mld\n|en=Introit of Chrismas Eve, Gregorian Chant\n|fr=[[:w:fr:Introit|Introit]] d'un chant grégorien soulignant le [[:w:fr:réveillon de Noël|réveillon de Noël]].\n}}\n|Source={{own}}\n|Author=[[User:Membeth|Membeth]]\n|Date=2010-08-12\n|Permission=\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n{{PD-self}}\n\n{{Media of the day|year=2011|month=12|day=25}}\n\n[[Category:Introit Puer natus]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Audio files of Christmas music]]\n[[Category:Audio files of Gregorian chant]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2023-02-20T10:30:21Z"
+      }
+    ],
+    "title": "File:Puer.natus.est.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=734101407",
+  "recordingId": "cm_11164360",
+  "revisionId": 734101407,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3APuer.natus.est.ogg",
+  "sourceSha1": "5e606a0898f8f8cd6dcefafe01f252af1779d39d"
+}

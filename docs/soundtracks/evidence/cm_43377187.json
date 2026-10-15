@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:10.357731+00:00",
+  "expectedSha1": "2bc99481d2263571cba8afc412759b72bdddbe59",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=43377187",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Cupido_-_Peter_Nahon.ogg",
+        "duration": 68.71929705215419,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Arrastramiente&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Arrastramiente (page does not exist)\">Arrastramiente</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "A minor|Baroque music|Église Saint-Paul-Saint-François-Xavier|Culture of Linz|Culture of Bordeaux|Music in 1613|Music in 1612|Music based on European myths and legends|Self-published work|Audio files of Baroque period classical music|Music in 1611|Organ tablatures|Pipe organs of churches in Gironde|Cupid in art|Audio files of organ music (unidentified composer)"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2015-09-18 16:40:08"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2015-09-18"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<i>Cupido</i>: piece for organ from the <a href=\"https://en.wikipedia.org/wiki/Linzer_Orgeltabulatur\" class=\"extiw\" title=\"en:Linzer Orgeltabulatur\">Linzer Orgeltabulatur</a> (1613) played by Peter Nahon (organ of the <a href=\"//commons.wikimedia.org/wiki/Category:%C3%89glise_Saint-Paul-Saint-Fran%C3%A7ois-Xavier\" title=\"Category:Église Saint-Paul-Saint-François-Xavier\">Saint Paul Church</a>, Bordeaux, France)."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Cupido - Peter Nahon"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "2bc99481d2263571cba8afc412759b72bdddbe59",
+        "size": 1005198,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/9f/Cupido_-_Peter_Nahon.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 43377187,
+    "revisions": [
+      {
+        "parentid": 1196242551,
+        "revid": 1248590118,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|''Cupido'': piece for organ from the [[:en:Linzer Orgeltabulatur|Linzer Orgeltabulatur]] (1613) played by Peter Nahon (organ of the {{c|Église Saint-Paul-Saint-François-Xavier|Saint Paul Church}}, Bordeaux, France).}}\n|date=2015-09-18\n|source={{own}}\n|author=[[User:Arrastramiente|Arrastramiente]]\n|permission=\n|other versions=\n}}\nStops : Trompette harmonique\n\n=={{int:license-header}}==\n{{self|cc-by-sa-4.0}}\n\n[[Category:Music based on European myths and legends]]\n[[Category:Cupid in art]]\n[[Category:Audio files of organ music (unidentified composer)]]\n[[Category:Culture of Linz]]\n[[Category:Baroque music]]\n[[Category:Organ tablatures]]\n[[Category:Audio files of Baroque period classical music]]\n[[Category:Music in 1611]]\n[[Category:Music in 1612]]\n[[Category:Music in 1613]]\n[[Category:Culture of Bordeaux]]\n[[Category:Pipe organs of churches in Gironde]]\n[[Category:Église Saint-Paul-Saint-François-Xavier]]\n[[Category:A minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-07-17T14:07:35Z"
+      }
+    ],
+    "title": "File:Cupido - Peter Nahon.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1248590118",
+  "recordingId": "cm_43377187",
+  "revisionId": 1248590118,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ACupido_-_Peter_Nahon.ogg",
+  "sourceSha1": "2bc99481d2263571cba8afc412759b72bdddbe59"
+}

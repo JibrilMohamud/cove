@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:52:32.873669+00:00",
+  "expectedSha1": "9c2c54067d8ed2b752e8fbcea6141c9455bdcdad",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=121099268",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Ariadne_Musica_-_J._C._F._Fischer,_Prelude_and_Fugue_n._1,_Arranged_for_Piano.mp3",
+        "duration": 72.8446875,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:Millennium_bug\" title=\"User:Millennium bug\">Eduardo Feld</a> arranging music by J. C. F. Fischer using Sibelius Ultimate"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Johann Caspar Ferdinand Fischer|PD US|Created with Sibelius|Author died more than 100 years ago public domain images|Self-published work|Audio files of Baroque period classical music|CC-PD-Mark"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2022-07-26 07:36:58"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2022-07-25"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Ariadne Musica (J. C. F. Fischer), that influenced Bach's Well-Tempered Clavier, Prelude and Fugue n. 1, originally written for organ, here Arranged for Piano by <a href=\"//commons.wikimedia.org/wiki/User:Millennium_bug\" title=\"User:Millennium bug\">user:Millennium bug</a>\n<ul><li>Original published by Fischer, J. C. F. in 1702 as referred in <a rel=\"nofollow\" class=\"external free\" href=\"http://www-personal.umich.edu/~bpl/larips/cd1002.html\">http://www-personal.umich.edu/~bpl/larips/cd1002.html</a></li>\n<li>Other works on the same theme:\n<ul><li><a rel=\"nofollow\" class=\"external free\" href=\"http://vmirror.imslp.org/files/imglnks/usimg/4/4b/IMSLP250721-PMLP45354-IMSLP219978-WIMA.d1a6-FischSco.pdf\">http://vmirror.imslp.org/files/imglnks/usimg/4/4b/IMSLP250721-PMLP45354-IMSLP219978-WIMA.d1a6-FischSco.pdf</a></li></ul></li></ul>"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Ariadne Musica - J. C. F. Fischer, Prelude and Fugue n. 1, Arranged for Piano"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "This image might not be in the public domain outside of the United States; this especially applies in the countries and areas that do not apply the <a href=\"https://en.wikipedia.org/wiki/rule_of_the_shorter_term\" class=\"extiw\" title=\"w:rule of the shorter term\">rule of the shorter term</a> for US works, such as Canada, Mainland China (not Hong Kong or Macao), Germany, Mexico, and Switzerland. The creator and year of publication are essential information and must be provided. See <a href=\"https://en.wikipedia.org/wiki/Wikipedia:Public_domain\" class=\"extiw\" title=\"w:Wikipedia:Public domain\">Wikipedia:Public domain</a> and <a href=\"https://en.wikipedia.org/wiki/Wikipedia:Copyrights\" class=\"extiw\" title=\"w:Wikipedia:Copyrights\">Wikipedia:Copyrights</a> for more details."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "audio/mpeg",
+        "sha1": "9c2c54067d8ed2b752e8fbcea6141c9455bdcdad",
+        "size": 1166613,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/f/f8/Ariadne_Musica_-_J._C._F._Fischer%2C_Prelude_and_Fugue_n._1%2C_Arranged_for_Piano.mp3?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 121099268,
+    "revisions": [
+      {
+        "parentid": 801292878,
+        "revid": 1065061784,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=Ariadne Musica (J. C. F. Fischer), that influenced Bach's Well-Tempered Clavier, Prelude and Fugue n. 1, originally written for organ, here Arranged for Piano by [[user:Millennium bug]]\n* Original published by Fischer, J. C. F. in 1702 as referred in http://www-personal.umich.edu/~bpl/larips/cd1002.html\n* Other works on the same theme:\n** http://vmirror.imslp.org/files/imglnks/usimg/4/4b/IMSLP250721-PMLP45354-IMSLP219978-WIMA.d1a6-FischSco.pdf}}\n|date=2022-07-25\n|source={{own}}\n|author=[[User:Millennium bug|Eduardo Feld]] arranging music by J. C. F. Fischer using Sibelius Ultimate\n|permission={{PD-old-100}},{{PD-US}}\n|other versions=https://www.empik.com/fischer-20-preludes-fugues-ariadne-musica-no-1-in-c-major,p1127144264,ebooki-i-mp3-p\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-sa-4.0}}\n\n[[Category:Audio files of Baroque period classical music]]\n[[Category:Created with Sibelius]]\n[[Category:Johann Caspar Ferdinand Fischer]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-08-02T17:12:31Z"
+      }
+    ],
+    "title": "File:Ariadne Musica - J. C. F. Fischer, Prelude and Fugue n. 1, Arranged for Piano.mp3"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1065061784",
+  "recordingId": "cm_121099268",
+  "revisionId": 1065061784,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAriadne_Musica_-_J._C._F._Fischer%2C_Prelude_and_Fugue_n._1%2C_Arranged_for_Piano.mp3",
+  "sourceSha1": "9c2c54067d8ed2b752e8fbcea6141c9455bdcdad"
+}

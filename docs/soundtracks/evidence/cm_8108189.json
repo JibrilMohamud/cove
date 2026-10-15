@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:36.988050+00:00",
+  "expectedSha1": "48d7860c113fae11aaddb87e40e5a21d10046e14",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=8108189",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Carcassi_Op_60_No_1.ogg",
+        "duration": 89.09496875,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:Jujutacular\" title=\"User:Jujutacular\">Jujutacular</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "GFDL|Matteo Carcassi|License migration redundant|Self-published work|Audio files of Romantic period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2009-10-18 00:12:01"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "19th century, recorded October 17, 2009"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<i>25 Melodic and Progressive Studies</i> - Opus 60 No 1 by <a href=\"//commons.wikimedia.org/wiki/Matteo_Carcassi\" title=\"Matteo Carcassi\">Matteo Carcassi</a> for guitar"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Carcassi Op 60 No 1"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "48d7860c113fae11aaddb87e40e5a21d10046e14",
+        "size": 4701254,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/96/Carcassi_Op_60_No_1.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 8108189,
+    "revisions": [
+      {
+        "parentid": 490070451,
+        "revid": 848303685,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{en|1=''25 Melodic and Progressive Studies'' - Opus 60 No 1 by [[Matteo Carcassi]] for guitar}}\n|Source={{own}}\n|Author=[[User:Jujutacular|Jujutacular]]\n|Date=19th century, recorded October 17, 2009\n|Permission=\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n{{self|cc-by-sa-3.0|GFDL}}\n\n[[Category:Matteo Carcassi]]\n[[Category:Audio files of Romantic period classical music|Carcassi, 60.1]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-02-02T16:45:54Z"
+      }
+    ],
+    "title": "File:Carcassi Op 60 No 1.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=848303685",
+  "recordingId": "cm_8108189",
+  "revisionId": 848303685,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ACarcassi_Op_60_No_1.ogg",
+  "sourceSha1": "48d7860c113fae11aaddb87e40e5a21d10046e14"
+}

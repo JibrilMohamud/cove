@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:29.888185+00:00",
+  "expectedSha1": "4eed29927c2ab42a3298b0fe6dd52eb73299bf17",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=11164507",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Rorate.ogg",
+        "duration": 61.83981859410431,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Membeth&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Membeth (page does not exist)\">Membeth</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Rorate Mass|Rorate Coeli|Self-published work|PD-self|Audio files of Gregorian chant|Music sung in Latin|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2010-08-12 21:19:38"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2010-08-12"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Introit of the fourth Advent"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Rorate"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "4eed29927c2ab42a3298b0fe6dd52eb73299bf17",
+        "size": 946785,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/4/4f/Rorate.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 11164507,
+    "revisions": [
+      {
+        "parentid": 643617503,
+        "revid": 734083642,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{en|1=Introit of the fourth Advent}}\n|Source={{own}}\n|Author=[[User:Membeth|Membeth]]\n|Date=2010-08-12\n|Permission=\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Audio files of medieval period classical music]]\n[[Category:Music sung in Latin]]\n[[Category:Rorate Mass]]\n[[Category:Rorate Coeli]]\n[[Category:Audio files of Gregorian chant]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2023-02-20T09:18:08Z"
+      }
+    ],
+    "title": "File:Rorate.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=734083642",
+  "recordingId": "cm_11164507",
+  "revisionId": 734083642,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ARorate.ogg",
+  "sourceSha1": "4eed29927c2ab42a3298b0fe6dd52eb73299bf17"
+}

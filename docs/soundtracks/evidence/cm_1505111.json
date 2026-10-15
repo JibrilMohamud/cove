@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:52:36.618203+00:00",
+  "expectedSha1": "8b6ab7f7e3e6480a8eb6f30922d5472e64692306",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1505111",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Balbastre_Joseph_est_bien_mari%C3%A9.ogg",
+        "duration": 285.46598639455783,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Claude Balbastre (1724-1799)"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Claude Balbastre|D minor|Self-published work|PD-self|Audio files of organ music|Audio files of Classical period classical music|Audio files of Christmas carols|Marriage in 18th-century art|Marriage in music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "Enregistrement personnel / Personal recording / Isnard Organ"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-12-29 22:29:31"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2006-12-24"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<i>Joseph est bien marié</i> - Pièce pour orgue pour le temps de Noël, de <a href=\"//commons.wikimedia.org/wiki/Category:Claude_Balbastre\" title=\"Category:Claude Balbastre\">Claude Balbastre</a>.\n<p><br>\n</p>\nVoir aussi \"<i><a href=\"https://fr.wikipedia.org/wiki/Quand_Biron_voulut_danser\" class=\"extiw\" title=\"fr:Quand Biron voulut danser\">Quand Biron voulut danser</a></i>\"."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Balbastre Joseph est bien marié"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "<table class=\"licensetpl\" style=\"display:none\">\n<tbody><tr>\n<td><span class=\"licensetpl_short\">Public domain</span><span class=\"licensetpl_long\">Public domain</span><span class=\"licensetpl_link_req\">false</span><span class=\"licensetpl_attr_req\">false</span>\n</td></tr></tbody></table>\n<table style=\"width: 100%; clear: both; margin: 0.5em auto; background-color: var(--background-color-progressive-subtle, #f7f8ff); color: var(--color-base, #202122); border: var(--border-subtle, 2px solid #8888aa); border-spacing: 8px; padding: 0px;\" dir=\"ltr\" class=\"layouttemplate\" lang=\"en\">\n<tbody><tr>\n<td><span typeof=\"mw:File\"><span title=\"Public domain\"><img alt=\"Public domain\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/PD-icon.svg/120px-PD-icon.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" width=\"64\" height=\"64\" class=\"mw-file-element\" srcset=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/PD-icon.svg/250px-PD-icon.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail 2x\" data-file-width=\"196\" data-file-height=\"196\"></span></span>\n</td>\n<td>I, the copyright holder of this work, release this work into the <b><a href=\"https://en.wikipedia.org/wiki/en:public_domain\" class=\"extiw\" title=\"w:en:public domain\">public domain</a></b>. This applies worldwide.<br><small>In some countries this may not be legally possible; if so:</small><br><i>I grant anyone the right to use this work <b>for any purpose</b>, without any conditions, unless such conditions are required by law.</i>\n</td></tr></tbody></table>"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "8b6ab7f7e3e6480a8eb6f30922d5472e64692306",
+        "size": 3172764,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/8/80/Balbastre_Joseph_est_bien_mari%C3%A9.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1505111,
+    "revisions": [
+      {
+        "parentid": 1273069962,
+        "revid": 1273982446,
+        "slots": {
+          "main": {
+            "content": "{{Information\n|Description={{fr|''Joseph est bien marié'' - Pièce pour orgue pour le temps de Noël, de {{c|Claude Balbastre}}.\n\n\nVoir aussi \"''[[:fr:Quand Biron voulut danser|Quand Biron voulut danser]]''\".}}\n|Source=Enregistrement personnel / Personal recording / Isnard Organ\n|Date=2006-12-24\n|Author=Claude Balbastre (1724-1799)\n|Permission={{PD-self}}\n|other_versions=\n}}\n\n[[Category:Claude Balbastre]]\n[[Category:Marriage in 18th-century art]]\n[[Category:Marriage in music]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Audio files of organ music]]\n[[Category:D minor]]\n[[Category:Audio files of Christmas carols]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-09-08T15:59:28Z"
+      }
+    ],
+    "title": "File:Balbastre Joseph est bien marié.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1273982446",
+  "recordingId": "cm_1505111",
+  "revisionId": 1273982446,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABalbastre_Joseph_est_bien_mari%C3%A9.ogg",
+  "sourceSha1": "8b6ab7f7e3e6480a8eb6f30922d5472e64692306"
+}

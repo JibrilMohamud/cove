@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:53:36.987729+00:00",
+  "expectedSha1": "84e6bd86d1236c5628e2942ac75fbcb1227c8342",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=803245",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:BeethovenSymphony5Mvt4Bar244.ogg",
+        "duration": 5.897868480725624,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Symphony No. 5 (Beethoven)|Files with no machine-readable source|Self-published work|PD-self|Assumed own work|Audio files of music by Ludwig van Beethoven|Audio files of Classical period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "No machine-readable source provided. Own work assumed (based on copyright claims).<span class=\"mw-empty-elt\"><link rel=\"mw:PageProp/Category\" href=\"./Category:Assumed_own_work\"></span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-05-22 21:06:34"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "22 May 2006 (original upload date)"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "De la wiki en inglés. Sound example from fourth movement of Beethoven's 5th Symphony, recorded by Opus33 using an acoustic piano.  This music is in the public domain.  This recording is released into the public domain by Opus33."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "BeethovenSymphony5Mvt4Bar244"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "84e6bd86d1236c5628e2942ac75fbcb1227c8342",
+        "size": 65636,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/0/02/BeethovenSymphony5Mvt4Bar244.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 803245,
+    "revisions": [
+      {
+        "parentid": 658993696,
+        "revid": 820139197,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n |description = De la wiki en inglés. Sound example from fourth movement of Beethoven's 5th Symphony, recorded by Opus33 using an acoustic piano.  This music is in the public domain.  This recording is released into the public domain by Opus33.\n |date = {{Original upload date|2006-05-22}}\n |source = {{own assumed}}\n |author = {{Creator:Ludwig van Beethoven}}\n:{{Author assumed|[[User:Subitosera|Subitosera]]}}\n |permission = \n |other_versions = \n}}\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Symphony No. 5 (Beethoven)]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2023-11-09T16:49:01Z"
+      }
+    ],
+    "title": "File:BeethovenSymphony5Mvt4Bar244.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=820139197",
+  "recordingId": "cm_803245",
+  "revisionId": 820139197,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethovenSymphony5Mvt4Bar244.ogg",
+  "sourceSha1": "84e6bd86d1236c5628e2942ac75fbcb1227c8342"
+}

@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:53:40.245543+00:00",
+  "expectedSha1": "a408d0005fe0a20845cdeca55ddc7ff5457d7461",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=8887040",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Jacob_de_Senleches_-_Fuions_de_ci.ogg",
+        "duration": 289.49061224489793,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Jacob de Senleches, versão midi de <a href=\"//commons.wikimedia.org/wiki/User:Tetraktys\" title=\"User:Tetraktys\">Tetraktys</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "G minor|Ars subtilior|Self-published work|PD-self|MIDI files of classical music|Audio files of medieval period classical music|Fuions de ci"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2010-01-02 03:23:51"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "14<sup>th</sup> century<div style=\"display: none;\">date QS:P,+1350-00-00T00:00:00Z/7</div>"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Balada Fuions de ci"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Jacob de Senleches - Fuions de ci"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "<table class=\"licensetpl\" style=\"display:none\">\n<tbody><tr>\n<td><span class=\"licensetpl_short\">Public domain</span><span class=\"licensetpl_long\">Public domain</span><span class=\"licensetpl_link_req\">false</span><span class=\"licensetpl_attr_req\">false</span>\n</td></tr></tbody></table>\n<table style=\"width: 100%; clear: both; margin: 0.5em auto; background-color: var(--background-color-progressive-subtle, #f7f8ff); color: var(--color-base, #202122); border: var(--border-subtle, 2px solid #8888aa); border-spacing: 8px; padding: 0px;\" dir=\"ltr\" class=\"layouttemplate\" lang=\"en\">\n<tbody><tr>\n<td><span typeof=\"mw:File\"><span title=\"Public domain\"><img alt=\"Public domain\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/PD-icon.svg/120px-PD-icon.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" width=\"64\" height=\"64\" class=\"mw-file-element\" srcset=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/PD-icon.svg/250px-PD-icon.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail 2x\" data-file-width=\"196\" data-file-height=\"196\"></span></span>\n</td>\n<td>I, the copyright holder of this work, release this work into the <b><a href=\"https://en.wikipedia.org/wiki/en:public_domain\" class=\"extiw\" title=\"w:en:public domain\">public domain</a></b>. This applies worldwide.<br><small>In some countries this may not be legally possible; if so:</small><br><i>I grant anyone the right to use this work <b>for any purpose</b>, without any conditions, unless such conditions are required by law.</i>\n</td></tr></tbody></table>"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "a408d0005fe0a20845cdeca55ddc7ff5457d7461",
+        "size": 3515420,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/7/7c/Jacob_de_Senleches_-_Fuions_de_ci.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 8887040,
+    "revisions": [
+      {
+        "parentid": 885749193,
+        "revid": 1139212795,
+        "slots": {
+          "main": {
+            "content": "{{Information\n|Description=Balada Fuions de ci\n|Source={{own}}\n|Date={{other date|century|14}}\n|Author=Jacob de Senleches, versão midi de [[User:Tetraktys|Tetraktys]]\n|Permission={{PD-self}}\n|other_versions=\n}}\n\n[[Category:Ars subtilior]]\n[[Category:MIDI files of classical music]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Fuions de ci]]\n[[Category:G minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-12-30T17:58:46Z"
+      }
+    ],
+    "title": "File:Jacob de Senleches - Fuions de ci.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1139212795",
+  "recordingId": "cm_8887040",
+  "revisionId": 1139212795,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AJacob_de_Senleches_-_Fuions_de_ci.ogg",
+  "sourceSha1": "a408d0005fe0a20845cdeca55ddc7ff5457d7461"
+}

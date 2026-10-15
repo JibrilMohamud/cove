@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:52:53.991462+00:00",
+  "expectedSha1": "c416f652e2114dc7f8763c72310c0b5e612e1d04",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=2893368",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Bach_Sinfonien01.ogg",
+        "duration": 75.15419501133788,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Johann%20Sebastian%20Bach\" title=\"w:en:Johann Sebastian Bach\" class=\"extiw\"><span title=\"German composer (1685–1750)\">Johann Sebastian Bach</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Pandora Music|Audio files of classical music for piano|Audio files of two-part Inventions and three-part Sinfonias by Johann Sebastian Bach|Audio files of classical music by Randolph Hokanson|BWV 787"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "The Al Goldstein collection in the <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html\" class=\"external text\">Pandora Music</a> repository at ibiblio.org."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2007-10-10 11:59:22"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Sinfonia 1, C-Dur c, BWV 787"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Bach Sinfonien01"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html\" class=\"external text\">license information</a> states that this file is \"available for free download subject to the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/EFF_OAL\" title=\"EFF OAL\" class=\"mw-redirect\">EFF OAL</a>\" (Open Audio License), which in turn <a rel=\"mw:ExtLink nofollow\" href=\"https://www.eff.org/IP/Open_licenses/eff_oal.php\" class=\"external text\">is interchangeable</a> with the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/CC-BY-SA-2.0\" title=\"CC-BY-SA-2.0\" class=\"mw-redirect\">CC-BY-SA-2.0</a>."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "c416f652e2114dc7f8763c72310c0b5e612e1d04",
+        "size": 1358960,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/a/a9/Bach_Sinfonien01.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 2893368,
+    "revisions": [
+      {
+        "parentid": 1227002097,
+        "revid": 1227002104,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description =Sinfonia 1, C-Dur c, BWV 787\n|Source = The Al Goldstein collection in the [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html Pandora Music] repository at ibiblio.org.\n|Date = \n|Author ={{Creator:Johann Sebastian Bach}}\nRandolph Hokanson\n|Permission = The [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html license information] states that this file is \"available for free download subject to the [[EFF OAL]]\" (Open Audio License), which in turn [https://www.eff.org/IP/Open_licenses/eff_oal.php is interchangeable] with the [[CC-BY-SA-2.0]].\n}}\n== {{int:license-header}} ==\n{{cc-by-sa-2.0}}\n\n[[Category:Audio files of two-part Inventions and three-part Sinfonias by Johann Sebastian Bach]]\n[[Category:BWV 787|Sinfonia 1]]\n[[Category:Pandora Music]]\n[[Category:Audio files of classical music by Randolph Hokanson]]\n[[Category:Audio files of classical music for piano]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:31:23Z"
+      }
+    ],
+    "title": "File:Bach Sinfonien01.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227002104",
+  "recordingId": "cm_2893368",
+  "revisionId": 1227002104,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABach_Sinfonien01.ogg",
+  "sourceSha1": "c416f652e2114dc7f8763c72310c0b5e612e1d04"
+}

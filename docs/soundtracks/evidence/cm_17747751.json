@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:44.077735+00:00",
+  "expectedSha1": "6992796753c9e31f8b8ff50cffe3c8b8d4cd0290",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=17747751",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Alles_was_Odem_hat1928.oga",
+        "duration": 174.7330612244898,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:AnRo0002\" title=\"User:AnRo0002\">AnRo0002</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "1928 works in Germany|BWV 225 – Motet \"Singet dem Herrn ein neues Lied\"|PD Old|Audio files of Baroque period classical music|CC-PD-Mark|Audio files of music by Johann Sebastian Bach|PD-old missing SDC copyright status"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "torrent"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2011-12-21 01:43:49"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "1928"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "\"Alles was Odem hat\" (Johann Sebastian Bach)"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Alles was Odem hat1928"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "6992796753c9e31f8b8ff50cffe3c8b8d4cd0290",
+        "size": 1398931,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/b/bc/Alles_was_Odem_hat1928.oga?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 17747751,
+    "revisions": [
+      {
+        "parentid": 845714166,
+        "revid": 1046343272,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{de|\"Alles was Odem hat\" (Johann Sebastian Bach)}}\n|Source=torrent\n|Author=[[User:AnRo0002|AnRo0002]]\n|Date=1928\n|Permission=\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n{{PD-old}}\n\n[[Category:Audio files of music by Johann Sebastian Bach]]\n[[Category:Audio files of Baroque period classical music]]\n[[Category:1928 works in Germany]]\n[[Category:BWV 225 – Motet \"Singet dem Herrn ein neues Lied\"]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-06-20T11:11:11Z"
+      }
+    ],
+    "title": "File:Alles was Odem hat1928.oga"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1046343272",
+  "recordingId": "cm_17747751",
+  "revisionId": 1046343272,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAlles_was_Odem_hat1928.oga",
+  "sourceSha1": "6992796753c9e31f8b8ff50cffe3c8b8d4cd0290"
+}

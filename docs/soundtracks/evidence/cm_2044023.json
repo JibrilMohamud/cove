@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:44.077909+00:00",
+  "expectedSha1": "f17406f7225dff000aa75daa2882d115aee1e7d7",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=2044023",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Victimae_Paschali_Laudes.ogg",
+        "duration": 108.85222222222222,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"https://en.wikipedia.org/wiki/en:User:Makemi\" class=\"extiw\" title=\"w:en:User:Makemi\">Makemi</a>/Wipo of Burgundy"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "GFDL|Victimae paschali laudes|Location not applicable|D minor|Featured sounds on Wikipedia, English|License migration completed|Hexatonic musical scales|Dorian mode|Featured media|PD-old-100-expired|Self-published work|Media of the day|CC-PD-Mark|Audio files of vocal music|Audio files of the female voice|Audio files of medieval period classical music|Featured media of music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "Recorded 2007-05-02 by <a href=\"https://en.wikipedia.org/wiki/en:User:Makemi\" class=\"extiw\" title=\"w:en:User:Makemi\">Makemi</a>, recorded by Makemi, private venue."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2007-05-02 00:51:55"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "originally written 11th century"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Sequence \"<a href=\"https://en.wikipedia.org/wiki/Victimae_paschali_laudes\" class=\"extiw\" title=\"w:Victimae paschali laudes\">Victimae Paschali Laudes</a>\", traditionally attributed to <a href=\"https://en.wikipedia.org/wiki/Wipo_of_Burgundy\" class=\"extiw\" title=\"w:Wipo of Burgundy\">Wipo of Burgundy</a>. For text, see <a href=\"https://en.wikisource.org/wiki/Victimae_Paschali_Laudes\" class=\"extiw\" title=\"s:Victimae Paschali Laudes\">Victimae Paschali Laudes</a>. For an image of a score (not the one I performed from) see <a rel=\"nofollow\" class=\"external text\" href=\"http://usuarios.lycos.es/cantate/victimepaschali.gif\">this gif</a>. Recorded using GarageBand with some reverb added. Normalised using Audacity. It is a single continuous take. Time: 1:49."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Victimae Paschali Laudes"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "f17406f7225dff000aa75daa2882d115aee1e7d7",
+        "size": 1999170,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/d/d3/Victimae_Paschali_Laudes.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 2044023,
+    "revisions": [
+      {
+        "parentid": 1022243788,
+        "revid": 1188346268,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{en|Sequence \"[[w:Victimae paschali laudes|Victimae Paschali Laudes]]\", traditionally attributed to [[w:Wipo of Burgundy|Wipo of Burgundy]]. For text, see [[s:Victimae Paschali Laudes|Victimae Paschali Laudes]]. For an image of a score (not the one I performed from) see [http://usuarios.lycos.es/cantate/victimepaschali.gif this gif]. Recorded using GarageBand with some reverb added. Normalised using Audacity. It is a single continuous take. Time: 1:49.}}\n{{uk|1=Християнська послідовність «Victimae Paschali Laudes» (укр: Похвала пасхальній жертві), призначена для католицької меси та деяких літургійних протестантських євхаристійних служб у {{wu|Великодню неділю}}}}\n\n|Source=Recorded 2007-05-02 by [[:w:en:User:Makemi|Makemi]], recorded by Makemi, private venue.\n|Date= originally written 11th century\n|Author=[[:w:en:User:Makemi|Makemi]]/Wipo of Burgundy\n}}\n\n== {{int:license-header}} ==\n=== Composition ===\n{{PD-old-100-expired}}\n\n=== Performance ===\n{{Self|GFDL|migration=relicense}}\n\n== {{Assessment}} ==\n{{FM promoted}}\n{{Media of the day|2025|4|20}}\n\n[[Category:Featured media of music]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Audio files of vocal music]]\n[[Category:Audio files of the female voice]]\n[[Category:Featured sounds on Wikipedia, English]]\n[[Category:Location not applicable]]\n[[Category:Victimae paschali laudes]]\n[[Category:D minor]]\n[[Category:Hexatonic musical scales]]\n[[Category:Dorian mode]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-03-28T19:20:36Z"
+      }
+    ],
+    "title": "File:Victimae Paschali Laudes.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1188346268",
+  "recordingId": "cm_2044023",
+  "revisionId": 1188346268,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AVictimae_Paschali_Laudes.ogg",
+  "sourceSha1": "f17406f7225dff000aa75daa2882d115aee1e7d7"
+}

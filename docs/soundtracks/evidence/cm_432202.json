@@ -1,0 +1,105 @@
+{
+  "capturedAt": "2026-10-15T21:53:10.356797+00:00",
+  "expectedSha1": "5dcf5f7ce10c8794b4d862bc08038d3a881dce5d",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=432202",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Air_(Bach).ogg",
+        "duration": 259.9,
+        "extmetadata": {
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Air on the G string|Files with no machine-readable author|Author died more than 70 years ago public domain images|Compositions in D major|Media lacking author information|Media of the day|CC-PD-Mark|Audio files of classical music for piano|Audio files of classical music for violin|Audio files of suites by Johann Sebastian Bach|Classical music sound by Joel Belov|Classical music sound by Robert Gayler"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"nofollow\" class=\"external text\" href=\"https://cylinders.s3-us-west-2.amazonaws.com/1000/1089/cusb-cyl1089d.mp3\">from http://cylinders.library.ucsb.edu/search.php?queryType=@attr%201=1016%20&amp;query=Bach&amp;num=1&amp;start=1&amp;sortBy=&amp;sortOrder=id</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2005-11-24 03:03:13"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "1920 recording of Bach's Air for G string (Air on the G string) (BWV 1068, D major. arr). Violin solo by Joel Belov with piano accompaniment by Robert Gayler."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Air (Bach)"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "5dcf5f7ce10c8794b4d862bc08038d3a881dce5d",
+        "size": 2758350,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/1/1e/Air_%28Bach%29.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 432202,
+    "revisions": [
+      {
+        "parentid": 1227002016,
+        "revid": 1227002027,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{information\n| description    = {{en|1=1920 recording of Bach's Air for G string (Air on the G string) (BWV 1068, D major. arr). Violin solo by Joel Belov with piano accompaniment by Robert Gayler. }}\n| author         =\n| source         = [https://cylinders.s3-us-west-2.amazonaws.com/1000/1089/cusb-cyl1089d.mp3 from http://cylinders.library.ucsb.edu/search.php?queryType=@attr%201=1016%20&query=Bach&num=1&start=1&sortBy=&sortOrder=id]\n| date           = \n| permission     = \n| other_versions = \n}}\n{{Media of the day|year=2010|month=03|day=06}}\n\n== {{int:license-header}} ==\n{{PD-old-70}}\n\n[[Category:Audio files of suites by Johann Sebastian Bach]]\n[[Category:Compositions in D major]]\n[[Category:Classical music sound by Joel Belov]]\n[[Category:Classical music sound by Robert Gayler]]\n[[Category:Air on the G string]]\n[[Category:Audio files of classical music for violin]]\n[[Category:Audio files of classical music for piano]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:31:16Z"
+      }
+    ],
+    "title": "File:Air (Bach).ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227002027",
+  "recordingId": "cm_432202",
+  "revisionId": 1227002027,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAir_(Bach).ogg",
+  "sourceSha1": "5dcf5f7ce10c8794b4d862bc08038d3a881dce5d"
+}

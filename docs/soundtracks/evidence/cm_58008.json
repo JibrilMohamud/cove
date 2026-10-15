@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:53:21.107025+00:00",
+  "expectedSha1": "a25360e33f17f472ab3d1e69e09fc371261239c7",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=58008",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Brahms-waltz11.ogg",
+        "duration": 87.65664399092971,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Johannes%20Brahms\" title=\"w:en:Johannes Brahms\" class=\"extiw\"><span title=\"German composer (1833–1897)\">Johannes Brahms</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Media of the day|Pandora Music|Audio files of classical music by Martha Goldstein|Audio files of classical music for piano|Audio files of 16 Waltzes (Brahms)"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:ExtLink nofollow\" href=\"http://hebb.mit.edu/FreeMusic/\" class=\"external autonumber\"></a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2005-11-25 10:45:57"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "16 Waltzes, Op. 39, # 11"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Brahms-waltz11"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "a25360e33f17f472ab3d1e69e09fc371261239c7",
+        "size": 2181800,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/5/51/Brahms-waltz11.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 58008,
+    "revisions": [
+      {
+        "parentid": 1227002689,
+        "revid": 1227002695,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description    = {{en|16 Waltzes, Op. 39, # 11 }}\n|Source         = [http://hebb.mit.edu/FreeMusic/]\n|Date           = \n|Author         = {{Creator:Johannes Brahms}}\nPerformed by [[Martha Goldstein]]\n|Permission     = \n|Other_versions =\n}}\n{{Media of the day|year=2009|month=11|day=05}}\n\n== {{int:license-header}} ==\n{{Cc-by-sa-2.0}}\n\n[[Category:Audio files of 16 Waltzes (Brahms)|16 Waltzes, 11]]\n[[Category:Audio files of classical music for piano]]\n[[Category:Audio files of classical music by Martha Goldstein]]\n[[Category:Pandora Music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:32:27Z"
+      }
+    ],
+    "title": "File:Brahms-waltz11.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227002695",
+  "recordingId": "cm_58008",
+  "revisionId": 1227002695,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABrahms-waltz11.ogg",
+  "sourceSha1": "a25360e33f17f472ab3d1e69e09fc371261239c7"
+}

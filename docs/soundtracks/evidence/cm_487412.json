@@ -1,0 +1,114 @@
+{
+  "capturedAt": "2026-10-15T21:53:13.538025+00:00",
+  "expectedSha1": "3d318df8a09d0bb2e6659bf6677a5802f6429308",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=487412",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:AmicusMeus.ogg",
+        "duration": 166.97469387755103,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/Category:Tom%C3%A1s_Luis_de_Victoria\" title=\"Category:Tomás Luis de Victoria\">Tomás Luis de Victoria</a> (ca. 1548 - 1611)"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Judas Iscariot|Tomás Luis de Victoria|1585 works|Holy Week in Spain|F minor|Classical music of Spain|Music in 1585|PD-old-100-expired|Media of the day|CC-PD-Mark|Audio files of Christian music|Audio files of choral music|Music sung in Latin|Audio files of renaissance period classical music|Half cadences|Spanish church music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"nofollow\" class=\"external free\" href=\"http://www.cipoo.net/downloads/mp3/AmicusMeus.mp3\">http://www.cipoo.net/downloads/mp3/AmicusMeus.mp3</a> from <a rel=\"nofollow\" class=\"external free\" href=\"http://www.cipoo.net/music_a.html\">http://www.cipoo.net/music_a.html</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2005-12-31 11:21:47"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "\"<i>Amicus meus</i>\", from \"<i>Officium Hebdomadae Sanctae</i>\" (1585) by <a href=\"//commons.wikimedia.org/wiki/Category:Tom%C3%A1s_Luis_de_Victoria\" title=\"Category:Tomás Luis de Victoria\">Tomás Luis de Victoria</a>."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "AmicusMeus"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "License: \"MP3s exclusively come from live or studio performances of the amatorial choirs where we used to sing and are all regarding public domain music. To the best of our knowledge, all the files published on this site are only relevant to public domain music; otherwise we have obtained proper authorization from the owner to publish them.\" -- <a rel=\"nofollow\" class=\"external free\" href=\"http://www.cipoo.net/fileinfo_e.html\">http://www.cipoo.net/fileinfo_e.html</a>"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "3d318df8a09d0bb2e6659bf6677a5802f6429308",
+        "size": 1220052,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/1/1c/AmicusMeus.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 487412,
+    "revisions": [
+      {
+        "parentid": 1197809091,
+        "revid": 1256968177,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|Description = {{en|\"''Amicus meus''\", from \"''Officium Hebdomadae Sanctae''\" (1585) by {{c|Tomás Luis de Victoria}}.}} \n|Source      = http://www.cipoo.net/downloads/mp3/AmicusMeus.mp3 from http://www.cipoo.net/music_a.html\n|Date        = \n|Author      = {{c|Tomás Luis de Victoria}} (ca. 1548 - 1611)\n|Permission  = License: \"MP3s exclusively come from live or studio performances of the amatorial choirs where we used to sing and are all regarding public domain music. To the best of our knowledge, all the files published on this site are only relevant to public domain music; otherwise we have obtained proper authorization from the owner to publish them.\" -- http://www.cipoo.net/fileinfo_e.html\n|other_versions = \n}}\n{{Media of the day|year=2009|month=09|day=09}}\n\n== {{int:license-header}} ==\n{{PD-old-100-expired}}\n\n[[Category:Tomás Luis de Victoria]]\n[[Category:Spanish church music]]\n[[Category:Classical music of Spain]]\n[[Category:Judas Iscariot]]\n[[Category:Holy Week in Spain]]\n[[Category:Audio files of choral music]]\n[[Category:Audio files of Christian music]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:Music sung in Latin]]\n[[Category:F minor]]\n[[Category:Half cadences]]\n[[Category:Music in 1585]]\n[[Category:1585 works]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-08-05T13:23:11Z"
+      }
+    ],
+    "title": "File:AmicusMeus.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1256968177",
+  "recordingId": "cm_487412",
+  "revisionId": 1256968177,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAmicusMeus.ogg",
+  "sourceSha1": "3d318df8a09d0bb2e6659bf6677a5802f6429308"
+}

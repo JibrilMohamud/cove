@@ -1,0 +1,114 @@
+{
+  "capturedAt": "2026-10-15T21:53:30.605310+00:00",
+  "expectedSha1": "ac40600456252ccee19e010828975626c2e8775d",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=66563233",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Albeniz_Albaicin_SuiteIberia_Esmuc.ogg",
+        "duration": 484.31702947845804,
+        "extmetadata": {
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "1909 compositions|B-flat minor|Files with no machine-readable author|F major|B-flat major|Phrygian mode|Items with VRTS permission confirmed|Audio files of 2017|Audio files of classical music for piano|Flamenco mode|Audio files of music by Isaac Albéniz|Albaicín in art|Audio files supported by Escola Superior de Música de Catalunya|Iberia (Albéniz)"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/Category:Escola_Superior_de_M%C3%BAsica_de_Catalunya\" title=\"Category:Escola Superior de Música de Catalunya\">Escola Superior de Música de Catalunya</a> (ESMUC)"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2018-02-18 16:22:12"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<p>Piano\n</p>"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "commons-desc-page",
+            "value": "<div class=\"fn\">\nEl Albaicín, Suite Iberia</div>"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "This file was provided to Wikimedia Commons by <a href=\"https://en.wikipedia.org/wiki/Catalonia_College_of_Music\" class=\"extiw\" title=\"en:Catalonia College of Music\">Catalonia College of Music</a> as part of an ongoing <a href=\"https://ca.wikipedia.org/wiki/Viquiprojecte:Esmuc\" class=\"extiw\" title=\"ca:Viquiprojecte:Esmuc\">cooperative GLAMWIKI project</a> with <a href=\"https://meta.wikimedia.org/wiki/Amical_Wikimedia\" class=\"extiw\" title=\"meta:Amical Wikimedia\">Amical Wikimedia</a>. The college has performing rights, personality rights and distribution rights under licence CC-BY-SA-3.0 of files produced as part of his activities by students."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "ac40600456252ccee19e010828975626c2e8775d",
+        "size": 16126265,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/0/0d/Albeniz_Albaicin_SuiteIberia_Esmuc.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 66563233,
+    "revisions": [
+      {
+        "parentid": 1227002326,
+        "revid": 1227002330,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Musical work\n |composer         = {{c|Isaac Albéniz}} (1860 - 1909)\n |lyrics_writer    =\n |performer        = Víctor Braojos (piano), student.\n |title            = El Albaicín, Suite Iberia \n |description      = Piano\n |composition_date = 1907\n |performance_date = 2017\n |notes            = Gabriel Garcia (sonology), student.\n |record_ID        =\n |image            =\n |references       =\n |source           ={{c|Escola Superior de Música de Catalunya}} (ESMUC)\n |permission       ={{ESMUC}}\n |other_versions   = \n}}\n\n\n== {{int:license-header}} ==\n{{CC-BY-SA 4.0}}\n\n[[Category:Iberia (Albéniz)]]\n[[Category:Albaicín in art]]\n[[Category:Audio files supported by Escola Superior de Música de Catalunya]]\n[[Category:Audio files of 2017]]\n[[Category:1909 compositions]]\n[[Category:Audio files of music by Isaac Albéniz]]\n[[Category:Audio files of classical music for piano]]\n[[Category:F major]]\n[[Category:Phrygian mode]]\n[[Category:Flamenco mode]]\n[[Category:B-flat minor]]\n[[Category:B-flat major]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:31:48Z"
+      }
+    ],
+    "title": "File:Albeniz Albaicin SuiteIberia Esmuc.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227002330",
+  "recordingId": "cm_66563233",
+  "revisionId": 1227002330,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAlbeniz_Albaicin_SuiteIberia_Esmuc.ogg",
+  "sourceSha1": "ac40600456252ccee19e010828975626c2e8775d"
+}
