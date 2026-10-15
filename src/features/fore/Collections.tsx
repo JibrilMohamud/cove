@@ -3,7 +3,7 @@ import { AddToShelf } from "./Shelves";
 import { OfflineDownloads } from "./Audio";
 import { queueReaderMutation } from "./offline-reader-mutations";
 import { AccountManagementPanel } from "./AccountManagement";
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -70,23 +70,40 @@ function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
   const [extra, setExtra] = useState<T[]>([]);
   const [hasMore, setHasMore] = useState(firstPage.length >= 100);
   const [loading, setLoading] = useState(false);
+  const accountScope = accountId + ":" + kind;
+  const scopeRef = useRef(accountScope);
+  const offsetRef = useRef(firstPage.length);
   useEffect(() => {
-    setExtra([]);
-    setHasMore(firstPage.length >= 100);
-  }, [accountId, kind, firstPage]);
-  const items = [...firstPage, ...extra].filter(
-    (row, index, array) =>
-      array.findIndex(
-        (candidate) => (candidate.id || candidate.bookId) === (row.id || row.bookId),
-      ) === index,
-  );
+    if (scopeRef.current !== accountScope) {
+      // Never display a former account's private annotations after switching users.
+      scopeRef.current = accountScope;
+      offsetRef.current = firstPage.length;
+      setExtra([]);
+      setHasMore(firstPage.length >= 100);
+    } else if (offsetRef.current <= firstPage.length) {
+      // An authenticated account can hydrate its first page after the hook mounts.
+      offsetRef.current = firstPage.length;
+      setHasMore(firstPage.length >= 100);
+    }
+  }, [accountScope, firstPage.length]);
+  const items = useMemo(() => {
+    const seen = new Set<string>();
+    return [...firstPage, ...extra].filter((row) => {
+      const identity = row.id || row.bookId;
+      if (!identity) return true;
+      if (seen.has(identity)) return false;
+      seen.add(identity);
+      return true;
+    });
+  }, [firstPage, extra]);
   const loadMore = async () => {
     if (!accountId || loading || !hasMore) return;
     setLoading(true);
     try {
       const page = await api<{ items: T[]; hasMore: boolean }>(
-        "/account/collection?kind=" + kind + "&offset=" + (firstPage.length + extra.length),
+        "/account/collection?kind=" + kind + "&offset=" + offsetRef.current,
       );
+      offsetRef.current += page.items.length;
       setExtra((existing) => [...existing, ...page.items]);
       setHasMore(page.hasMore);
     } catch (error) {
