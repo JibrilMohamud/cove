@@ -45,6 +45,7 @@ jobs:
         run: |
           npm run test:ui-localization
           npm run test:content-coverage
+          npm run test:storefront-bootstrap
           npm run test:social-reading
           npm run test:stripe-webhooks
       - name: Seven-day licensed EPUB signed-receipt regressions

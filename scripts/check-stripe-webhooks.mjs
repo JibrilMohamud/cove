@@ -30,6 +30,14 @@ try {
     true,
   );
   assert.equal(
+    commerceConfig({ ...env, STRIPE_SECRET_KEY: "rkcs_test_cove_fixture" }).stripeReady,
+    true,
+  );
+  assert.equal(
+    commerceConfig({ ...env, STRIPE_SECRET_KEY: "rkcs_live_cove_fixture" }).stripeReady,
+    false,
+  );
+  assert.equal(
     commerceConfig({ ...env, STRIPE_SECRET_KEY: "rk_live_cove_fixture" }).stripeReady,
     false,
   );

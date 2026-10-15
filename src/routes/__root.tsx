@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -12,6 +13,20 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { CoveProvider } from "../features/fore/App";
+import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap";
+
+function useInitialStorefront() {
+  return useRouterState({
+    select: (state) => {
+      for (const match of state.matches) {
+        const data = match.loaderData as
+          { storefrontBootstrap?: StorefrontBootstrap | null } | undefined;
+        if (data?.storefrontBootstrap) return data.storefrontBootstrap;
+      }
+      return undefined;
+    },
+  });
+}
 
 function NotFoundComponent() {
   return (
@@ -107,12 +122,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/icons/cove-192.png" },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap",
-      },
     ],
   }),
   shellComponent: RootShell,
@@ -122,8 +131,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  const initial = useInitialStorefront();
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang={initial?.context.locale || "en"}
+      dir={initial?.context.direction || "ltr"}
+      suppressHydrationWarning
+    >
       <head>
         <HeadContent />
         <script
@@ -142,9 +156,10 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const initial = useInitialStorefront();
   return (
     <QueryClientProvider client={queryClient}>
-      <CoveProvider>
+      <CoveProvider initialStorefront={initial?.context}>
         <Outlet />
       </CoveProvider>
     </QueryClientProvider>

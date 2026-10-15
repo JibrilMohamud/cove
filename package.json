@@ -61,6 +61,7 @@
     "test:journey-privacy-progress": "node scripts/check-journey-privacy-progress.mjs",
     "test:ui-localization": "node scripts/check-ui-localization.mjs && node scripts/check-auth-localization.mjs",
     "test:content-coverage": "node scripts/check-content-coverage.mjs",
+    "test:storefront-bootstrap": "node scripts/check-storefront-bootstrap.mjs",
     "test:social-journeys": "node scripts/check-sharing-erasure.mjs && node scripts/check-journey-privacy-progress.mjs && node scripts/check-social-pagination.mjs",
     "test:stripe-webhooks": "node scripts/check-stripe-webhooks.mjs"
   },

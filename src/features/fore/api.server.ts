@@ -2952,6 +2952,42 @@ async function handleCoveRequest(
       env.FORE_DEFAULT_TERRITORY || "US",
     );
     const storefrontTerritory = storefront.rightsCountry;
+    if (request.method === "GET" && path === "/storefront/bootstrap") {
+      // One context/rights resolution and parallel reads replace four independent
+      // cold-load requests. Only public catalog data goes into the SSR document.
+      await rateLimitSearchRequest(request, env, currentIdentity?.id || null, "catalog", 180);
+      const catalogQuery = new URLSearchParams({
+        search: "",
+        sort: "popular",
+        page: "1",
+        currency: storefront.currency,
+      }).toString();
+      const [page, taxonomy, firstPage, availableMarkets] = await Promise.all([
+        resolveStorefrontPage(
+          dbForContext,
+          "/",
+          storefrontTerritory,
+          storefront.language,
+          storefront.locale,
+        ),
+        taxonomyTree(dbForContext, storefrontTerritory, "", storefront.locale),
+        catalog(
+          env,
+          new URL(`/api/fore/catalog?${catalogQuery}`, url.origin),
+          null,
+          storefrontTerritory,
+        ),
+        storefrontMarkets(dbForContext),
+      ]);
+      return json({
+        context: { ...storefront, availableMarkets },
+        page,
+        taxonomy,
+        catalog: firstPage,
+        catalogQuery,
+        at: Date.now(),
+      });
+    }
     if (request.method === "GET" && path === "/storefront/context") {
       await recordStorefrontContext(dbForContext, storefront, currentIdentity?.id || null);
       return json({ ...storefront, availableMarkets: await storefrontMarkets(dbForContext) });

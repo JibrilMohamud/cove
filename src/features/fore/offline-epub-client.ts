@@ -58,9 +58,12 @@ export async function publicEpubBytes(bookId: string) {
       ? publicEpubKey(bookId)
       : null;
   if (!key || (record && !record.assetIds.includes(key))) return null;
-  const asset = await getRecord<{ blob: Blob; sha256?: string }>("assets", key);
-  if (!asset?.blob) return null;
-  const bytes = await asset.blob.arrayBuffer();
+  const asset = await getRecord<{ bytes?: ArrayBuffer; blob?: Blob; sha256?: string }>(
+    "assets",
+    key,
+  );
+  if (!asset?.bytes && !asset?.blob) return null;
+  const bytes = asset.bytes || (await asset.blob!.arrayBuffer());
   const signature = new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength));
   if (signature[0] !== 0x50 || signature[1] !== 0x4b)
     throw new Error("The saved EPUB is damaged. Remove it and save it again.");
@@ -77,7 +80,9 @@ export async function savePublicEpub(book: CatalogBook, bytes: ArrayBuffer) {
   await putRecord("assets", {
     id: key,
     sha256: checksum,
-    blob: new Blob([bytes], { type: "application/epub+zip" }),
+    // Binary buffers clone reliably into private/ephemeral WebKit IndexedDB.
+    // Continue reading legacy Blob records above for existing downloads.
+    bytes,
   });
   await putRecord("downloads", {
     id: key,

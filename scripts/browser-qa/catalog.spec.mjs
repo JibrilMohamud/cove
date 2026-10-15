@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test("catalog navigation reuses cache and suppresses obsolete updater warnings", async ({
+test("filtered catalog navigation reuses cache and suppresses obsolete updater warnings", async ({
   browser,
 }, testInfo) => {
   const { viewport, userAgent, deviceScaleFactor, isMobile, hasTouch } = testInfo.project.use;
@@ -41,7 +41,7 @@ test("catalog navigation reuses cache and suppresses obsolete updater warnings",
         },
       });
     });
-    await page.goto("/");
+    await page.goto("/?sort=popular");
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
     await expect(
@@ -71,5 +71,56 @@ test("catalog navigation reuses cache and suppresses obsolete updater warnings",
   } finally {
     await context.close();
     if (isolated !== browser) await isolated.close();
+  }
+});
+
+test("initial bookstore renders books without JavaScript and reuses its server data", async ({
+  browser,
+  request,
+}, testInfo) => {
+  const response = await request.get("/");
+  expect(response.ok()).toBe(true);
+  const html = await response.text();
+  expect(html).toContain('class="book-card"');
+  expect(response.headers()["cache-control"]).toContain("no-store");
+  const noScript = await browser.newContext({
+    javaScriptEnabled: false,
+    baseURL: "http://127.0.0.1:4173",
+  });
+  try {
+    const page = await noScript.newPage();
+    await page.goto("/");
+    await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
+    await expect(
+      page.locator(".book-grid:not(.merch-grid) img[loading=eager]").first(),
+    ).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("bookstore-without-javascript.png") });
+  } finally {
+    await noScript.close();
+  }
+  const context = await browser.newContext({
+    baseURL: "http://127.0.0.1:4173",
+    serviceWorkers: "block",
+  });
+  try {
+    const page = await context.newPage();
+    const calls = [];
+    page.on("request", (request) => {
+      if (
+        /\/api\/fore\/(catalog|taxonomy|storefront\/(context|page))\b/.test(
+          new URL(request.url()).pathname,
+        )
+      )
+        calls.push(request.url());
+    });
+    // All necessary first-page data must be present even if these follow-up
+    // requests cannot succeed. Account/personalized discovery use their real API.
+    await page.route("**/api/fore/catalog?**", (route) => route.abort());
+    await page.goto("/");
+    await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
+    await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
+    expect(calls).toEqual([]);
+  } finally {
+    await context.close();
   }
 });

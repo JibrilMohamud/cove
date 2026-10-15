@@ -283,6 +283,12 @@ try {
     assert.deepEqual(await epub.epubBytes(ref), epubBytes);
     assert.equal((await epub.loadBookMetadata(ref)).id, book.id);
   }
+  await offline.putRecord("assets", { id: `epub:${book.id}`, blob: new Blob([epubBytes]) });
+  assert.deepEqual(
+    await publicEpub.publicEpubBytes(book.id),
+    epubBytes,
+    "legacy public Blob records remain readable",
+  );
   await account.setOfflineAccount("bob");
   assert.deepEqual(
     await epub.epubBytes(book.id),

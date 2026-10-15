@@ -49,7 +49,7 @@ function expectedLivemode(env: CoveEnv) {
     : String(env.STRIPE_LIVEMODE).toLowerCase() !== "false";
 }
 function secretMatchesMode(key: string, live: boolean) {
-  return live ? /^(sk|rk)_live_/.test(key) : /^(sk|rk)_test_/.test(key);
+  return live ? /^(sk|rk)_live_/.test(key) : /^(sk|rk|rkcs)_test_/.test(key);
 }
 function stripeSecret(env: CoveEnv) {
   const key = String(env.STRIPE_SECRET_KEY || "").trim(),
@@ -59,7 +59,7 @@ function stripeSecret(env: CoveEnv) {
       503,
       "Stripe checkout is configured with a placeholder secret key. Set STRIPE_SECRET_KEY on the server before accepting payments.",
     );
-  if (!/^(sk|rk)_/.test(key))
+  if (!/^(sk|rk|rkcs)_/.test(key))
     throw new ApiError(503, "STRIPE_SECRET_KEY is not a Stripe secret or restricted API key.");
   if (!secretMatchesMode(key, live))
     throw new ApiError(

@@ -1,4 +1,5 @@
 import { AuthDialog, type AuthMode } from "./Auth";
+import type { StorefrontBootstrap } from "./storefront-bootstrap";
 import { ConnectionNotice } from "./ConnectionNotice";
 import { CoveRequestError } from "./api-transport";
 import { Link } from "@tanstack/react-router";
@@ -61,7 +62,13 @@ const nav = [
   ["/publishing", "nav.publishing", "Cove Publishing", Building2],
   ["/help", "nav.help", "Help & support", LifeBuoy],
 ] as const;
-export function CoveProvider({ children }: { children: ReactNode }) {
+export function CoveProvider({
+  children,
+  initialStorefront,
+}: {
+  children: ReactNode;
+  initialStorefront?: StorefrontBootstrap["context"];
+}) {
   const queryClient = useQueryClient();
   const lastAccount = useRef<string | null | undefined>(undefined);
   const [data, setData] = useState<AccountData>({
@@ -178,7 +185,7 @@ export function CoveProvider({ children }: { children: ReactNode }) {
         signUp: () => setAuth("signup"),
       }}
     >
-      <StorefrontLocaleProvider key={data.user?.id || "guest"}>
+      <StorefrontLocaleProvider key={data.user?.id || "guest"} initialContext={initialStorefront}>
         {children}
         <AuthDialog mode={auth} onChange={setAuth} onSuccess={reload} />
         <Toaster theme="dark" position="bottom-right" richColors />

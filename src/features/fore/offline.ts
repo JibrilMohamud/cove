@@ -26,10 +26,12 @@ export async function putRecord(store: string, value: any) {
   const d = await db();
   return new Promise<void>((resolve, reject) => {
     const tx = d.transaction(store, "readwrite");
-    tx.objectStore(store).put(value);
+    const write = tx.objectStore(store).put(value);
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error);
+    tx.onerror = () =>
+      reject(write.error || tx.error || new Error("Offline storage write failed."));
+    tx.onabort = () =>
+      reject(write.error || tx.error || new Error("Offline storage write was aborted."));
   });
 }
 export async function getRecord<T = any>(store: string, id: string): Promise<T | undefined> {
