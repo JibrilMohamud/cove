@@ -12,6 +12,8 @@ const MAX_BYTES = 256 * 1024;
 export function publicCacheTtl(path: string) {
   if (path === "/api/fore/service-status") return 30;
   if (path === "/api/fore/catalog") return 300;
+  // Guest-only, market-partitioned initial HTML data. Avoid the repeated multi-query D1 bootstrap.
+  if (path === "/api/fore/storefront/bootstrap") return 60;
   if (path === "/api/fore/taxonomy") return 1800;
   if (path === "/api/fore/storefront/page") return 900;
   if (path === "/api/fore/search/suggest") return 60;
@@ -154,14 +156,18 @@ export async function cachedPublicApi(
     }
   }
   if (hit) {
-    if (path === "/api/fore/catalog" || path === "/api/fore/search/suggest") {
+    if (
+      path === "/api/fore/catalog" ||
+      path === "/api/fore/storefront/bootstrap" ||
+      path === "/api/fore/search/suggest"
+    ) {
       try {
         await rateLimitSearchRequest(
           request,
           env,
           null,
-          path.endsWith("catalog") ? "catalog" : "suggest",
-          path.endsWith("catalog") ? 180 : 240,
+          path.endsWith("suggest") ? "suggest" : "catalog",
+          path.endsWith("suggest") ? 240 : 180,
         );
       } catch (error) {
         if (error instanceof ApiError)
@@ -172,6 +178,70 @@ export async function cachedPublicApi(
     try {
       const data = await boundedJson(hit);
       if (data) {
+        if (path === "/api/fore/storefront/bootstrap") {
+          const context = data.context as { rightsCountry?: unknown } | undefined;
+          const catalog = data.catalog as
+            | {
+                results?: unknown[];
+                count?: unknown;
+                search?: {
+                  backend?: unknown;
+                  correctedQuery?: string | null;
+                  [key: string]: unknown;
+                };
+              }
+            | undefined;
+          if (
+            typeof context?.rightsCountry !== "string" ||
+            !/^[A-Z]{2}$/.test(context.rightsCountry) ||
+            typeof data.catalogQuery !== "string" ||
+            !Array.isArray(catalog?.results) ||
+            typeof catalog.count !== "number" ||
+            typeof catalog.search?.backend !== "string"
+          )
+            throw new Error("Invalid cached storefront bootstrap.");
+          const results = catalog.results.filter((book: unknown): book is { productId: string } =>
+            Boolean(
+              book &&
+              typeof book === "object" &&
+              "productId" in book &&
+              typeof book.productId === "string",
+            ),
+          );
+          if (results.length !== catalog.results.length)
+            throw new Error("Malformed cached storefront products.");
+          const catalogUrl = new URL(`/api/fore/catalog?${data.catalogQuery}`, request.url);
+          // The cache is not a rights authority: re-check every edition against
+          // current territory, publication and suppression rules on each HIT.
+          if (
+            !(await cachedCatalogPageAllowed(
+              env,
+              catalogUrl,
+              results.map((book) => book.productId),
+              context.rightsCountry,
+            ))
+          )
+            throw new Error("Cached storefront rights changed.");
+          const queryId = await recordCachedSearchQuery(
+            env,
+            catalogUrl,
+            {
+              results,
+              count: catalog.count,
+              search: {
+                backend: catalog.search.backend,
+                correctedQuery: catalog.search.correctedQuery,
+                queryId: null,
+              },
+            },
+            context.rightsCountry,
+          ).catch((error: unknown) => {
+            console.warn("Cached storefront analytics unavailable", error);
+            return null;
+          });
+          catalog.search = { ...catalog.search, queryId, processingTimeMs: 0 };
+          return decorate(Response.json(data), "HIT", true);
+        }
         if (
           path === "/api/fore/catalog" &&
           Array.isArray(data.results) &&
@@ -247,6 +317,14 @@ export async function cachedPublicApi(
     // A query UUID and request diagnostics belong to one request, never the shared cache.
     if (data.search && typeof data.search === "object" && "queryId" in data.search)
       data.search.queryId = null;
+    if (
+      path === "/api/fore/storefront/bootstrap" &&
+      data.catalog &&
+      typeof data.catalog === "object"
+    ) {
+      const nested = (data.catalog as Record<string, unknown>).search;
+      if (nested && typeof nested === "object" && "queryId" in nested) nested.queryId = null;
+    }
     const body = JSON.stringify(data);
     const ttl = publicCacheTtl(path);
     if (useDb) await writeCatalogCache(env.DB, dbKey, body, Date.now() + ttl * 1000, PREFIX, 128);
