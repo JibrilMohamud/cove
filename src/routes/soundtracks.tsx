@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Module will be normalized when the soundtrack review UI stabilizes. */
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteShell } from "@/features/fore/App";
 import { SoundtrackLibraryPage } from "@/features/fore/SoundtrackLibrary";
