@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:36.616613+00:00",
+  "expectedSha1": "1daede1b93124af4e8b2212819d798e8cef88733",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1332426",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Duo_cors_de_chasse_Dandrieu.ogg",
+        "duration": 73.95732426303854,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/Category:Jean-Fran%C3%A7ois_Dandrieu\" title=\"Category:Jean-François Dandrieu\">Jean-François Dandrieu</a> (1682-1738)"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Duets|Compositions in D major|PD Old|Audio files of Baroque period classical music|CC-PD-Mark|Audio files of suites|Audio files of organ music|Audio files of music by Jean-François Dandrieu"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "Enregistrement personnel / Personal recording (AM 2003)"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-11-02 09:18:59"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2003"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Jagdhorn-Duo für Orgel (<a rel=\"mw:WikiLink/Interwiki\" href=\"https://de.wikipedia.org/wiki/Bombarde%20(Orgel)\" title=\"de:Bombarde (Orgel)\" class=\"extiw\">Bombarde</a> und Trompete) – aus der Suite für Orgel in D-Dur von <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/Category:Jean-Fran%C3%A7ois_Dandrieu\" title=\"Category:Jean-François Dandrieu\">Jean-François Dandrieu</a>.\n<p>\n<br></p>\nSiehe auch \"<a rel=\"mw:WikiLink/Interwiki\" href=\"https://de.wikipedia.org/wiki/Orgelpfeife%20#Systematik\" title=\"de:Orgelpfeife \" class=\"extiw\">Systematik von Bauformen der Zungenpfeifen und deren Schallbecher: trichterförmig: Trompete</a>\" und \"<a rel=\"mw:WikiLink/Interwiki\" href=\"https://de.wikipedia.org/wiki/Jean-Fran%C3%A7ois%20Dandrieu%20#H%C3%B6rbeispiele\" title=\"de:Jean-François Dandrieu \" class=\"extiw\">Duo für Bombarde und Trompete aus der Orgelsuite in D-Dur</a>\"."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Duo cors de chasse Dandrieu"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "1daede1b93124af4e8b2212819d798e8cef88733",
+        "size": 731571,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/b/bd/Duo_cors_de_chasse_Dandrieu.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1332426,
+    "revisions": [
+      {
+        "parentid": 1283505946,
+        "revid": 1283506222,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{de|Jagdhorn-Duo für Orgel ([[:de:Bombarde (Orgel)|Bombarde]] und Trompete) – aus der Suite für Orgel in D-Dur von {{c|Jean-François Dandrieu}}.\n\n\nSiehe auch \"[[:de:Orgelpfeife #Systematik|Systematik von Bauformen der Zungenpfeifen und deren Schallbecher: trichterförmig: Trompete]]\" und \"[[:de:Jean-François Dandrieu #Hörbeispiele|Duo für Bombarde und Trompete aus der Orgelsuite in D-Dur]]\".}}\n\n\n\n{{fr|Duo de cors de chasse pour orgue ([[:fr:Bombarde (orgue)|bombarde]] et [[:fr:Trompette (orgue)|trompette]]) - de la Suite pour Orgue en ré majeur de {{c|Jean-François Dandrieu}}.}}\n|Source=Enregistrement personnel / Personal recording (AM 2003)\n|Date=2003\n|Author={{c|Jean-François Dandrieu}} (1682-1738)\n|Permission=\n}}\n\n== {{int:license-header}} ==\n{{PD-old}}\n\n[[Category:Audio files of Baroque period classical music]]\n[[Category:Audio files of organ music]]\n[[Category:Audio files of music by Jean-François Dandrieu]]\n[[Category:Audio files of suites]]\n[[Category:Compositions in D major]]\n[[Category:Duets]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-10-05T17:42:20Z"
+      }
+    ],
+    "title": "File:Duo cors de chasse Dandrieu.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1283506222",
+  "recordingId": "cm_1332426",
+  "revisionId": 1283506222,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ADuo_cors_de_chasse_Dandrieu.ogg",
+  "sourceSha1": "1daede1b93124af4e8b2212819d798e8cef88733"
+}

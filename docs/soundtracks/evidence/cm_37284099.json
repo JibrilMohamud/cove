@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:53:07.430239+00:00",
+  "expectedSha1": "63096f51652198834a47bd2043d0300a2d3958ea",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=37284099",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Ant%C3%B4nio_Carlos_Gomes_-_Alvorada.ogg",
+        "duration": 433.0057142857143,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Antônio Carlos Gomes, performed by Orquestra Sinfônica Nacional da Universidade Federal Fluminense"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "PD other reasons|Orquestra Sinfônica Nacional da Universidade Federal Fluminense|Audio files of Romantic period classical music|PD other reasons new|Audio files of music by Carlos Gomes"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"nofollow\" class=\"external text\" href=\"http://www.dominiopublico.gov.br/pesquisa/DetalheObraForm.do?select_action=&amp;co_obra=29723\">Dominiopublico.gov.br</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2014-12-14 01:06:50"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2009"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Alvorada (Aurora Luminosa: música brasileira no alvorecer do séc.XX)"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Antônio Carlos Gomes - Alvorada"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "63096f51652198834a47bd2043d0300a2d3958ea",
+        "size": 8761640,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/94/Ant%C3%B4nio_Carlos_Gomes_-_Alvorada.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 37284099,
+    "revisions": [
+      {
+        "parentid": 799608046,
+        "revid": 1016056374,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=Alvorada (Aurora Luminosa: música brasileira no alvorecer do séc.XX) }}\n|date=2009\n|source=[http://www.dominiopublico.gov.br/pesquisa/DetalheObraForm.do?select_action=&co_obra=29723 Dominiopublico.gov.br]\n|author=Antônio Carlos Gomes, performed by Orquestra Sinfônica Nacional da Universidade Federal Fluminense\n|permission=\n|other versions=\n}}\n\n== {{int:license-header}} ==\n{{PD-because|see below}}\n\n===English===\nBrazilian government files from [http://www.dominiopublico.gov.br dominiopublico.gov.br] are in the public domain.\n\n[[Category:Audio files of music by Carlos Gomes]]\n[[Category:Audio files of Romantic period classical music]]\n[[Category:Orquestra Sinfônica Nacional da Universidade Federal Fluminense]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-04-01T17:22:13Z"
+      }
+    ],
+    "title": "File:Antônio Carlos Gomes - Alvorada.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1016056374",
+  "recordingId": "cm_37284099",
+  "revisionId": 1016056374,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAnt%C3%B4nio_Carlos_Gomes_-_Alvorada.ogg",
+  "sourceSha1": "63096f51652198834a47bd2043d0300a2d3958ea"
+}

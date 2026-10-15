@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:52:57.244682+00:00",
+  "expectedSha1": "f0025dd4fa9fc9a130305543546c16218ee5a099",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=3429801",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Ypocrite-Velut_stelle-Et_gaudebit.ogg",
+        "duration": 200.708231292517,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Sequencing of this instrumental version by <a href=\"//commons.wikimedia.org/wiki/User:Tetraktys\" title=\"User:Tetraktys\">User:Tetraktys</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Music in the 14th century|Motets|Self-published work|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "Florence MS"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-01-21 02:05:14"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2008"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Motet \"Ypocrite / Velut stelle / Et gaudebit\", with one different text for each voice. XIV century, Italy"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Ypocrite-Velut stelle-Et gaudebit"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "f0025dd4fa9fc9a130305543546c16218ee5a099",
+        "size": 2730078,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/c/ce/Ypocrite-Velut_stelle-Et_gaudebit.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 3429801,
+    "revisions": [
+      {
+        "parentid": 501779295,
+        "revid": 522056505,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description=Motet \"Ypocrite / Velut stelle / Et gaudebit\", with one different text for each voice. XIV century, Italy\n|Source=Florence MS\n|Date=2008\n|Author=Sequencing of this instrumental version by [[User:Tetraktys]]\n|Permission=\n|other_versions=\n}}\n== {{int:license-header}} ==\n{{self|cc-by-sa-3.0}}\n\n[[Category:Audio files of medieval period classical music]]\n[[Category:Music in the 14th century]]\n[[Category:Motets]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2020-12-29T00:27:11Z"
+      }
+    ],
+    "title": "File:Ypocrite-Velut stelle-Et gaudebit.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=522056505",
+  "recordingId": "cm_3429801",
+  "revisionId": 522056505,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AYpocrite-Velut_stelle-Et_gaudebit.ogg",
+  "sourceSha1": "f0025dd4fa9fc9a130305543546c16218ee5a099"
+}

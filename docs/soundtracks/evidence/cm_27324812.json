@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:52:53.990753+00:00",
+  "expectedSha1": "694dabdd51eb634109db2e7c6d6b39e4f62e8feb",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=27324812",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beethoven_piano_concerto_3_-_2nd_mvt.ogg",
+        "duration": 562.5280725623583,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Piano Concerto No. 3 (Beethoven)|Largo (music)|IMSLP|Audio files of music by Ludwig van Beethoven|Audio files of Classical period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:ExtLink nofollow\" href=\"http://imslp.org/wiki/Piano_Concerto_No.3,_Op.37_%28Beethoven,_Ludwig_van%29#Recordings\" class=\"external text\">imslp.org</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2013-07-18 23:52:13"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2012-09-18"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/w:Piano%20Concerto%20No.%203%20(Beethoven)\" title=\"en:w:Piano Concerto No. 3 (Beethoven)\" class=\"extiw\">Piano Concerto No. 3 in C minor, Op. 37</a>: II. Largo"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beethoven piano concerto 3 - 2nd mvt"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "694dabdd51eb634109db2e7c6d6b39e4f62e8feb",
+        "size": 6748872,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/1/10/Beethoven_piano_concerto_3_-_2nd_mvt.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 27324812,
+    "revisions": [
+      {
+        "parentid": 658994149,
+        "revid": 820146068,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=[[:en:w:Piano Concerto No. 3 (Beethoven)|Piano Concerto No. 3 in C minor, Op. 37]]: II. Largo}}\n|date=2012-09-18\n|source=[http://imslp.org/wiki/Piano_Concerto_No.3,_Op.37_%28Beethoven,_Ludwig_van%29#Recordings imslp.org]\n|author=\ncomposer:{{Creator:Ludwig van Beethoven}}\npiano, conductor: Stefano Ligoratti, ClassicaViva Orchestra\n|permission=\n|other_versions=\n|other_fields=\n}}\n\n=={{int:license-header}}==\n{{cc-by-3.0}}\n\n==See also==\n*1st movement: [[:File:Beethoven piano concerto 3 - 1rst mvt.ogg]]\n*3rd movement: [[:File:Beethoven piano concerto 3 - 3rd mvt.ogg]]\n\n[[Category:Piano Concerto No. 3 (Beethoven)|2]]\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Largo (music)]]\n[[Category:IMSLP]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2023-11-09T17:19:13Z"
+      }
+    ],
+    "title": "File:Beethoven piano concerto 3 - 2nd mvt.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=820146068",
+  "recordingId": "cm_27324812",
+  "revisionId": 820146068,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethoven_piano_concerto_3_-_2nd_mvt.ogg",
+  "sourceSha1": "694dabdd51eb634109db2e7c6d6b39e4f62e8feb"
+}

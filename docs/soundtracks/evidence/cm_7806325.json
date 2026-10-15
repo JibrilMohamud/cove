@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:53:36.987120+00:00",
+  "expectedSha1": "0ed0a66639d1d05795a5a026509adfb705d7356f",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=7806325",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Epro_theremin_middle_bach.ogg",
+        "duration": 14.15625850340136,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Effebit&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Effebit (page does not exist)\">Effebit</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Theremin|BWV 147:6/10|Self-published work|PD-self|Audio files of Baroque period classical music|Audio files of music by Johann Sebastian Bach|Etherwave Pro"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2009-09-13 23:22:43"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2009-08-21"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Just some tone of an Etherwave epro theremin by Moog played in the middle range. The player is the italian thereminist Fabio Pesce. The tune is the beginning of \"Jesu, Joy of Man's Desiring\" by Johann Sebastian Bach."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Epro theremin middle bach"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "0ed0a66639d1d05795a5a026509adfb705d7356f",
+        "size": 110472,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/a/a3/Epro_theremin_middle_bach.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 7806325,
+    "revisions": [
+      {
+        "parentid": 718945956,
+        "revid": 1162074456,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{en|1=Just some tone of an Etherwave epro theremin by Moog played in the middle range. The player is the italian thereminist Fabio Pesce. The tune is the beginning of \"Jesu, Joy of Man's Desiring\" by Johann Sebastian Bach.}}\n|Source={{Own}}\n|Author=[[User:Effebit|Effebit]]\n|Date=2009-08-21\n|Permission=\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Theremin]]\n[[Category:Etherwave Pro]]\n[[Category:Audio files of music by Johann Sebastian Bach]]\n[[Category:Audio files of Baroque period classical music]]\n[[Category:BWV 147:6/10]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-02-08T21:16:43Z"
+      }
+    ],
+    "title": "File:Epro theremin middle bach.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1162074456",
+  "recordingId": "cm_7806325",
+  "revisionId": 1162074456,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AEpro_theremin_middle_bach.ogg",
+  "sourceSha1": "0ed0a66639d1d05795a5a026509adfb705d7356f"
+}

@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:53:10.356203+00:00",
+  "expectedSha1": "b740f242499c9bc17a4af6e9ef1d5adc520ab605",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=4173704",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Bergeret_sans_roch.ogg",
+        "duration": 65.66868480725624,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/User:Metzner\" title=\"User:Metzner\">Metzner</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Tielman Susato|Music in the 16th century|GFDL|Basse danse|C major|16th-century dance|License migration redundant|Ionian mode|Self-published work|Folk dance of France|Music in 1550|Audio files of renaissance period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-06-06 18:13:30"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Basse danse \"Bergeret sans roch\" Tylmann Susato (<i>ca.</i> 1550 )"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "http://creativecommons.org/licenses/by-sa/3.0/"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Bergeret sans roch"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "b740f242499c9bc17a4af6e9ef1d5adc520ab605",
+        "size": 1504152,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/8/84/Bergeret_sans_roch.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 4173704,
+    "revisions": [
+      {
+        "parentid": 821539606,
+        "revid": 887937984,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{de|1=Basse danse \"Bergeret sans roch\" Tylmann Susato (''ca.'' 1550 )}}\n|Source={{own}}\n|Author=[[User:Metzner|Metzner]]\n|Date=\n|Permission=\n|other_versions=\n}}\nerstellt mit Finale 2007\n\n== {{int:license-header}} ==\n{{Self|GFDL|Cc-by-sa-3.0-migrated}}\n\n[[Category:Music in the 16th century]]\n[[Category:16th-century dance]]\n[[Category:Folk dance of France]]\n[[Category:Basse danse]]\n[[Category:Tielman Susato]]\n[[Category:Music in 1550]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:C major]]\n[[Category:Ionian mode]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-06-25T12:41:37Z"
+      }
+    ],
+    "title": "File:Bergeret sans roch.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=887937984",
+  "recordingId": "cm_4173704",
+  "revisionId": 887937984,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABergeret_sans_roch.ogg",
+  "sourceSha1": "b740f242499c9bc17a4af6e9ef1d5adc520ab605"
+}

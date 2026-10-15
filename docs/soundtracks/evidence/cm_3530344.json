@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:53:00.963247+00:00",
+  "expectedSha1": "0eccea7ccf50b3b449006e24235b7e90632a17d8",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=3530344",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beethoven_-_Diabelli_Variations_-_03-04.ogg",
+        "duration": 141.89351473922903,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Diabelli Variations|Pandora Music|Audio files of music by Ludwig van Beethoven|Audio files of Classical period classical music|Audio files of classical music by Neal O'Doan"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "The Al Goldstein collection in the <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html\" class=\"external text\">Pandora Music</a> repository at ibiblio.org."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-02-10 07:09:19"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Diabelli Variations"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beethoven - Diabelli Variations - 03-04"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html\" class=\"external text\">license information</a> states that this file is \"available for free download subject to the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/EFF_OAL\" title=\"EFF OAL\" class=\"mw-redirect\">EFF OAL</a>\" (Open Audio License), which in turn <a rel=\"mw:ExtLink nofollow\" href=\"https://www.eff.org/IP/Open_licenses/eff_oal.php\" class=\"external text\">is interchangeable</a> with the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/CC-BY-SA-2.0\" title=\"CC-BY-SA-2.0\" class=\"mw-redirect\">CC-BY-SA-2.0</a>."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "0eccea7ccf50b3b449006e24235b7e90632a17d8",
+        "size": 2603228,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/d/df/Beethoven_-_Diabelli_Variations_-_03-04.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 3530344,
+    "revisions": [
+      {
+        "parentid": 820139476,
+        "revid": 1036894929,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|Description =Diabelli Variations\n|Source = The Al Goldstein collection in the [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html Pandora Music] repository at ibiblio.org.\n|Date =\n|Author ={{Creator:Ludwig van Beethoven}}\nNeal O'Doan\n|Permission = The [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html license information] states that this file is \"available for free download subject to the [[EFF OAL]]\" (Open Audio License), which in turn [https://www.eff.org/IP/Open_licenses/eff_oal.php is interchangeable] with the [[CC-BY-SA-2.0]].\n}}\n== {{int:license-header}} ==\n{{cc-by-sa-2.0}}\n\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Diabelli Variations|03-04]]\n[[Category:Audio files of classical music by Neal O'Doan]]\n[[Category:Pandora Music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-05-28T02:27:52Z"
+      }
+    ],
+    "title": "File:Beethoven - Diabelli Variations - 03-04.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1036894929",
+  "recordingId": "cm_3530344",
+  "revisionId": 1036894929,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethoven_-_Diabelli_Variations_-_03-04.ogg",
+  "sourceSha1": "0eccea7ccf50b3b449006e24235b7e90632a17d8"
+}

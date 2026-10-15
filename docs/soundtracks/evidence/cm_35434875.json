@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:53:07.428673+00:00",
+  "expectedSha1": "204625ee30cb05f30243f4f498990dcf60edd925",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=35434875",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beethoven_Prometheus_Creatures_Op._43_No._1_-_Overture.ogg",
+        "duration": 289.78503401360547,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Audio files of music by Ludwig van Beethoven|PD EU Audio|The Creatures of Prometheus|Audio files of Classical period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<p><a rel=\"mw:ExtLink nofollow\" href=\"https://www.europeana.eu/portal/record/2022102/urn_axmedis_00000_obj_fd287d61_2293_40a2_92b6_6453b123f42b.html\" class=\"external free\">https://www.europeana.eu/portal/record/2022102/urn_axmedis_00000_obj_fd287d61_2293_40a2_92b6_6453b123f42b.html</a></p>\nPDM marked by europeana. Original identifier: LP-22104/A-3.  Data provider: Sound &amp; Vision (Beeld en Geluid), The Netherlands."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2014-09-17 13:13:37"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "1944-12"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "The overture of the Creatures of Prometheus, op. 43"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beethoven Prometheus Creatures Op. 43 No. 1 - Overture"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "204625ee30cb05f30243f4f498990dcf60edd925",
+        "size": 13339508,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/c/cb/Beethoven_Prometheus_Creatures_Op._43_No._1_-_Overture.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 35434875,
+    "revisions": [
+      {
+        "parentid": 738204602,
+        "revid": 820144041,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=The overture of the Creatures of Prometheus, op. 43}}\n|date=1944-12\n|source=https://www.europeana.eu/portal/record/2022102/urn_axmedis_00000_obj_fd287d61_2293_40a2_92b6_6453b123f42b.html\nPDM marked by europeana. Original identifier: LP-22104/A-3.  Data provider: Sound & Vision (Beeld en Geluid), The Netherlands.\n|author= {{Creator:Ludwig van Beethoven}}\nNBC Symphony Orchestra conducted by Arturo Toscanini, recorded in 1944-12\nrecorded in 1944-12. \n|permission=\n|other_versions=\n}}\n\n=={{int:license-header}}==\n{{PD-EU-audio}}\n\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:The Creatures of Prometheus]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2023-11-09T17:07:27Z"
+      }
+    ],
+    "title": "File:Beethoven Prometheus Creatures Op. 43 No. 1 - Overture.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=820144041",
+  "recordingId": "cm_35434875",
+  "revisionId": 820144041,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethoven_Prometheus_Creatures_Op._43_No._1_-_Overture.ogg",
+  "sourceSha1": "204625ee30cb05f30243f4f498990dcf60edd925"
+}

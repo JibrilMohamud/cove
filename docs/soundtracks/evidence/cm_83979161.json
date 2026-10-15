@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:36.988301+00:00",
+  "expectedSha1": "e432642307ae80a259d31efa7e61d815f9353318",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=83979161",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Baroque_Prog_Suite,_by_Eduardo_Feld_-_side_B,_mov._4_-_gavotte,_5_-_menuet,_6_-_badinerie.mp3",
+        "duration": 415.34697982865407,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:Millennium_bug\" title=\"User:Millennium bug\">Eduardo Feld</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Created with Sibelius|Gavotte|E minor|C major|Minuet|Self-published work|Audio files of Baroque period classical music|Audio files of classical music (unidentified composer)"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2019-11-15 04:08:40"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2019-11-15"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Contemporary classical music piece (suite), baroque prog style, second side wih 3 movements - gavotte, menuet and badinerie"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Baroque Prog Suite, by Eduardo Feld - side B, mov. 4 - gavotte, 5 - menuet, 6 - badinerie"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "audio/mpeg",
+        "sha1": "e432642307ae80a259d31efa7e61d815f9353318",
+        "size": 9953768,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Baroque_Prog_Suite%2C_by_Eduardo_Feld_-_side_B%2C_mov._4_-_gavotte%2C_5_-_menuet%2C_6_-_badinerie.mp3?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 83979161,
+    "revisions": [
+      {
+        "parentid": 938483854,
+        "revid": 1248585258,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=Contemporary classical music piece (suite), baroque prog style, second side wih 3 movements - gavotte, menuet and badinerie}}\n|date=2019-11-15\n|source={{own}}\n|author=[[User:Millennium bug|Eduardo Feld]]\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-sa-4.0}}\n\n[[Category:Created with Sibelius]]\n[[Category:Audio files of Baroque period classical music]]\n[[Category:Audio files of classical music (unidentified composer)]]\n[[Category:Gavotte]]\n[[Category:Minuet]]\n[[Category:C major]]\n[[Category:E minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-07-17T13:41:40Z"
+      }
+    ],
+    "title": "File:Baroque Prog Suite, by Eduardo Feld - side B, mov. 4 - gavotte, 5 - menuet, 6 - badinerie.mp3"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1248585258",
+  "recordingId": "cm_83979161",
+  "revisionId": 1248585258,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABaroque_Prog_Suite%2C_by_Eduardo_Feld_-_side_B%2C_mov._4_-_gavotte%2C_5_-_menuet%2C_6_-_badinerie.mp3",
+  "sourceSha1": "e432642307ae80a259d31efa7e61d815f9353318"
+}

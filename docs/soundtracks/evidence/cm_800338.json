@@ -1,0 +1,97 @@
+{
+  "capturedAt": "2026-10-15T21:53:36.987488+00:00",
+  "expectedSha1": "30bab7e9fca30b0f6dfa5a13737936820bec462a",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=800338",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beethoven5thSymphonyMozartBorrowing.ogg",
+        "duration": 9.2778231292517,
+        "extmetadata": {
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Audacity|Symphony No. 5 (Beethoven)|Files with no machine-readable author|Files with no machine-readable source|Media missing infobox template|Self-published work|PD-self|Audio files of music by Ludwig van Beethoven|Audio files of KV 550 by Wolfgang Amadeus Mozart|Audio files of Classical period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-05-21 18:07:25"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beethoven5thSymphonyMozartBorrowing"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "30bab7e9fca30b0f6dfa5a13737936820bec462a",
+        "size": 98895,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/c/c0/Beethoven5thSymphonyMozartBorrowing.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 800338,
+    "revisions": [
+      {
+        "parentid": 658994007,
+        "revid": 820139019,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n\nMusical demonstration of how Beethoven borrowed a theme from Mozart's 40th Symphony for his own Fifth Symphony.  Recorded on an acoustic piano by Opus33 using Audacity software. All music played here is in the public domain. This sound file is hereby released into the public domain by Opus33.\n\n{{Creator:Wolfgang Amadeus Mozart}}\n\nde la wiki en inglés\n\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Audio files of KV 550 by Wolfgang Amadeus Mozart]]\n[[Category:Symphony No. 5 (Beethoven)]]\n[[Category:Media missing infobox template]]\n[[Category:Audacity]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2023-11-09T16:48:12Z"
+      }
+    ],
+    "title": "File:Beethoven5thSymphonyMozartBorrowing.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=820139019",
+  "recordingId": "cm_800338",
+  "revisionId": 820139019,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethoven5thSymphonyMozartBorrowing.ogg",
+  "sourceSha1": "30bab7e9fca30b0f6dfa5a13737936820bec462a"
+}

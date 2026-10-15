@@ -21,6 +21,7 @@ try {
   const music = Buffer.from("synthetic bytes: not a musical recording");
   const sha1 = createHash("sha1").update(music).digest("hex");
   const good = (id, label, license = "CC0", url = "http://creativecommons.org/publicdomain/zero/1.0/deed.en") => ({
+    revisions:[{revid:123,timestamp:"2026-01-01T00:00:00Z",slots:{main:{content:"Original creator release (test fixture)"}}}],
     pageid: id, title: "File:" + label + ".ogg",
     imageinfo: [{
       mime: "application/ogg", size: music.length, sha1,
@@ -45,7 +46,9 @@ try {
   const originalPut = env.BUCKET.put;
   env.BUCKET.put = async (...args) => {
     mediaStored++;
-    assert.equal(args[2].sha1, sha1, "R2 receives the expected source checksum");
+    if (String(args[0]).startsWith("soundtracks/v1/")) {
+      assert.equal(args[2].sha256, createHash("sha256").update(music).digest("hex"), "R2 validates the measured exact-file SHA-256");
+    } else mediaStored--;
     return originalPut(...args);
   };
   globalThis.fetch = async (url, options) => {
@@ -97,7 +100,53 @@ try {
   assert.match(row.evidence_json,/UNVERIFIED/);
   assert.equal(mediaStored,0);
 
-  // Simulate a genuine review by writing the attested state in the fixture.
+  const token = "fore_svc_testreview.secret";
+  const at = new Date().toISOString();
+  await env.DB.prepare("INSERT INTO service_principals(id,name,owner_team,created_at,updated_at) VALUES('test-review','Fixture reviewer','Test',?,?)").bind(at,at).run();
+  await env.DB.prepare("INSERT INTO service_principal_scopes(principal_id,scope,granted_at) VALUES('test-review','soundtracks.review',?)").bind(at).run();
+  await env.DB.prepare("INSERT INTO service_principal_credentials(id,principal_id,token_prefix,token_sha256,created_at) VALUES('test-cred','test-review','fore_svc_testreview',?,?)").bind(createHash("sha256").update(token).digest("hex"),at).run();
+  const adminPath = "/admin/soundtracks/recordings/cm_101";
+  const review = async (action, extra = {}, version) => {
+    const row = await env.DB.prepare("SELECT review_version FROM soundtrack_recordings WHERE id='cm_101'").first();
+    return lib.handleSoundtracks(new Request("https://cove.test/api/fore"+adminPath,{
+      method:"POST",headers:{authorization:"Bearer "+token,"content-type":"application/json"},
+      body:JSON.stringify({action,version:version ?? row.review_version,...extra}),
+    }),env,adminPath,"US");
+  };
+  const basis = {basis:"Fixture evidence: original composition from a historical published score with an original creator recording release.", evidenceUrls:["https://commons.wikimedia.org/wiki/File:Fixture.ogg"]};
+  const dossier = {composition:basis,arrangement:basis,lyrics:basis,performance:basis,master:basis,
+    grantingParty:"Example pianist",recordingDate:"2020-01-01",territoryBasis:basis.basis,streamingBasis:basis.basis,
+    attributionText:"Example pianist — Nocturne (fixture only)",modificationNotice:"Original source file; no modifications.",
+    reviewMethod:"ai_assisted",complexProvenance:false,unresolved:[]};
+  const approval = {reviewer:"TEST-101",reviewEvidence:basis.basis,performer:"Example pianist",composer:"Example composer",
+    territories:["US"],compositionRightsConfirmed:true,performanceRightsConfirmed:true,attributionReviewed:true,
+    period:"romantic",instruments:["piano"],moods:["reflective"],energy:0.25,hasVocals:false};
+  await assert.rejects(()=>review("approve",approval),/dossier/i,"Missing layer evidence blocks approval");
+  await review("draft",{dossier:{...dossier,unresolved:["Master ownership is disputed"]}});
+  await assert.rejects(()=>review("approve",approval),/unresolved/i);
+  await review("draft",{dossier});
+  await assert.rejects(()=>review("approve",approval),/audio QA/i);
+  const report = {sourceSha1:sha1,sha256:createHash("sha256").update(music).digest("hex"),bytes:music.length,
+    durationSeconds:120,channels:2,sampleRate:44100,integratedLufs:-20,truePeakDbfs:-1,silenceRatio:0.01,
+    clippedSampleRatio:0,decodedFully:true,tool:"Fixture measurements only",measuredAt:at};
+  await assert.rejects(()=>review("quality",{report:{...report,sourceSha1:"f".repeat(40)}}),/different source/i);
+  await review("quality",{report:{...report,truePeakDbfs:2}});
+  await assert.rejects(()=>review("approve",approval),/audio QA/i,"Clipping/true-peak failure blocks release");
+  await review("quality",{report});
+  await review("draft",{dossier:{...dossier,complexProvenance:true}});
+  await review("endorse",{reason:basis.basis});
+  await assert.rejects(()=>review("approve",approval),/second independent/i,"Self-endorsement cannot satisfy second review");
+  await review("draft",{dossier});
+  await assert.rejects(()=>review("draft",{dossier},0),/changed/i,"Stale review cannot overwrite another decision");
+  const approved = await review("approve",approval);
+  assert.equal(approved.status,200);
+  const snapshotRow = await env.DB.prepare("SELECT * FROM soundtrack_recordings WHERE id='cm_101'").first();
+  assert.ok(snapshotRow.source_snapshot_key);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_rights_decisions WHERE action='approve'").first()).n,1);
+  await assert.rejects(()=>env.DB.prepare("UPDATE soundtrack_rights_decisions SET principal_id='forged'").run(),/append-only/);
+  await assert.rejects(()=>env.DB.prepare("DELETE FROM soundtrack_review_events").run(),/append-only/);
+
+  // Source drift must invalidate the approval even after the complete review flow.
   const reviewed = new Date().toISOString();
   await env.DB.prepare(
     "UPDATE soundtrack_recordings SET status='approved',reviewed_at=?,reviewed_by='test reviewer',review_evidence='Independent record of composer and performance rights',allowed_territories_json='[\"US\"]' WHERE id='cm_101'",
@@ -130,6 +179,24 @@ try {
   await assert.rejects(() => lib.handleSoundtracks(
     new Request("https://cove.test/api/fore/admin/soundtracks"),env,"/admin/soundtracks","US"),
   /credential/i,"review endpoints never accept anonymous access");
+  const rowBeforeRace = await env.DB.prepare("SELECT review_version FROM soundtrack_recordings WHERE id='cm_101'").first();
+  const originalBatch = env.DB.batch;
+  env.DB.batch = async statements => {
+    env.DB.batch = originalBatch;
+    await env.DB.prepare("UPDATE soundtrack_recordings SET review_version=review_version+1 WHERE id='cm_101'").run();
+    return originalBatch(statements);
+  };
+  await assert.rejects(()=>review("revoke",{reason:"Simulated concurrent withdrawal review."},rowBeforeRace.review_version),/concurrent review/i);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_rights_decisions WHERE action='revoke'").first()).n,0,"A failed optimistic update cannot write a successful audit event");
+  const originalDelete = env.BUCKET.delete;
+  env.BUCKET.delete = async () => { throw new Error("Fixture storage outage"); };
+  await review("revoke",{reason:"Fixture rights challenge: withdraw immediately pending investigation."});
+  assert.equal((await (await listing()).json()).count,0,"Withdrawal blocks catalog access despite storage outage");
+  await assert.rejects(()=>lib.handleSoundtracks(new Request("https://cove.test/api/fore"+audioPath),env,audioPath,"US"),/unavailable/i);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_cleanup_queue").first()).n,1);
+  env.BUCKET.delete = originalDelete;
+  await lib.importOneReviewedSoundtrack(env);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_cleanup_queue").first()).n,0,"Cleanup is durably retried after withdrawal");
   assert.equal(mediaRequests,1);
   console.log("Soundtrack discovery, license filters, review gate, source drift, R2 checksum, attribution, territory and streaming passed.");
 } finally {

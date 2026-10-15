@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:50.979792+00:00",
+  "expectedSha1": "a2f8b894117e887bd2273178813262e04abc7dc7",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=23134522",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Bach.Busoni.Nun.komm.der.Heiden.Heiland.BWV.659.mitteltoenig.ogg",
+        "duration": 283.07945578231295,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Membeth&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Membeth (page does not exist)\">Membeth</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "CC-Zero|Self-published work|PD-self|Uploaded with en.wp upload wizard|Audio files of music by Johann Sebastian Bach|Audio files of classical music for piano|Arrangements by Ferruccio Busoni|BWV 659|Arrangements of Great Eighteen Chorale Preludes"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "own recording"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2012-12-11 08:25:11"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2012-12-07"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Johann Sebastian Bach (1685-1750): Choral prelude for organ ‘’Now comes the gentiles' Saviour’’ (about 1708-1717), BWV 659, Adagio, G minor, transcription for piano (1907-1909) by Feruccio Busoni (1866-1924), dedicated to José Vianna da Motta (1868-1948) in meantone temperament"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Bach.Busoni.Nun.komm.der.Heiden.Heiland.BWV.659.mitteltoenig"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "a2f8b894117e887bd2273178813262e04abc7dc7",
+        "size": 6710219,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/97/Bach.Busoni.Nun.komm.der.Heiden.Heiland.BWV.659.mitteltoenig.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 23134522,
+    "revisions": [
+      {
+        "parentid": 1227002255,
+        "revid": 1227002263,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Uploaded with en.wp UW marker|year=2012|month=12|day=11}}\n{{Information\n|Description = {{en|Johann Sebastian Bach (1685-1750): Choral prelude for organ ‘’Now comes the gentiles' Saviour’’ (about 1708-1717), BWV 659, Adagio, G minor, transcription for piano (1907-1909) by Feruccio Busoni (1866-1924), dedicated to José Vianna da Motta (1868-1948) in meantone temperament\n\n}}\n|Source = own recording\n|Date = 2012-12-07\n|Author = [[User:Membeth|Membeth]]\n}}\n\n{{cc-zero}}\n\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Arrangements of Great Eighteen Chorale Preludes]]\n[[Category:Audio files of classical music for piano]]\n[[Category:Audio files of music by Johann Sebastian Bach]]\n[[Category:Arrangements by Ferruccio Busoni]]\n[[Category:BWV 659]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:31:39Z"
+      }
+    ],
+    "title": "File:Bach.Busoni.Nun.komm.der.Heiden.Heiland.BWV.659.mitteltoenig.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227002263",
+  "recordingId": "cm_23134522",
+  "revisionId": 1227002263,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABach.Busoni.Nun.komm.der.Heiden.Heiland.BWV.659.mitteltoenig.ogg",
+  "sourceSha1": "a2f8b894117e887bd2273178813262e04abc7dc7"
+}

@@ -1,0 +1,109 @@
+{
+  "capturedAt": "2026-10-15T21:53:36.987608+00:00",
+  "expectedSha1": "e6aa083ae0dc785846e1b4e396ed0367199909cc",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=803224",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:BeethovenSymphony5Mvt2Bar76.ogg",
+        "duration": 7.082086167800454,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Symphony No. 5 (Beethoven)|Audio files of music|Self-published work|PD-self|Audio files of music by Ludwig van Beethoven|Audio files of Classical period classical music|Classical music sound by Opus33"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-05-22 20:56:58"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Brief musical illustration from Beethoven's Fifth Symphony, played on an acoustic piano by Opus33."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "BeethovenSymphony5Mvt2Bar76"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "e6aa083ae0dc785846e1b4e396ed0367199909cc",
+        "size": 77680,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/b/bf/BeethovenSymphony5Mvt2Bar76.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 803224,
+    "revisions": [
+      {
+        "parentid": 658993680,
+        "revid": 820139174,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description    = {{en|Brief musical illustration from Beethoven's Fifth Symphony, played on an acoustic piano by Opus33.}}\n|Source         = {{own}}\n|Date           = \n|Author         = {{Creator:Ludwig van Beethoven}}\n[[user:Opus33]]\n|Permission     = \n|Other_versions =\n}}\nDe la wiki en inglés.\n\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Symphony No. 5 (Beethoven)]]\n[[Category:Audio files of music]]\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Classical music sound by Opus33]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2023-11-09T16:48:55Z"
+      }
+    ],
+    "title": "File:BeethovenSymphony5Mvt2Bar76.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=820139174",
+  "recordingId": "cm_803224",
+  "revisionId": 820139174,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethovenSymphony5Mvt2Bar76.ogg",
+  "sourceSha1": "e6aa083ae0dc785846e1b4e396ed0367199909cc"
+}

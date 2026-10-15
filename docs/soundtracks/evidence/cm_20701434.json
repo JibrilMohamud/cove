@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:52:44.078683+00:00",
+  "expectedSha1": "e737114c8c8caae3f86da58c6f808d9f7c10a55e",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=20701434",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Captaine_Hume%E2%80%99s_Pavan,_No.46,_the_First_Part_of_Ayres_(1605).ogg",
+        "duration": 313.1134467120181,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/User:Phillipwserna?action=edit&amp;redlink=1\" title=\"User:Phillipwserna (page does not exist)\" class=\"new\" typeof=\"mw:LocalizedAttrs\" data-mw-i18n='{\"title\":{\"lang\":\"x-page\",\"key\":\"red-link-title\",\"params\":[\"User:Phillipwserna\"]}}'>Phillip W. Serna</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Tobias Hume|Music in 1605|Viols|Historically informed performance|G minor|Viol music|Self-published work|Audio files of 2008|Audio files of renaissance period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2012-08-17 04:04:42"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2008-05-13"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Performed May 13, 2008, by Dr. Phillip W. Serna. Based in the Chicago area, Dr. Serna works to bring the early western string instrument family known as the viola da gamba into many area schools – demonstrating solo literature from the Renaissance, Baroque and early Classical periods for treble viol, tenor viol, bass viol &amp; violone. For more information, visit <a rel=\"mw:ExtLink nofollow\" href=\"http://www.thegambacast.org/\" class=\"external free\">http://www.thegambacast.org/</a> &amp; <a rel=\"mw:ExtLink nofollow\" href=\"http://www.violsinourschools.org/\" class=\"external free\">http://www.violsinourschools.org/</a>."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Captaine Hume’s Pavan, No.46, the First Part of Ayres (1605)"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "e737114c8c8caae3f86da58c6f808d9f7c10a55e",
+        "size": 17752480,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/a/ac/Captaine_Hume%E2%80%99s_Pavan%2C_No.46%2C_the_First_Part_of_Ayres_%281605%29.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 20701434,
+    "revisions": [
+      {
+        "parentid": 888021285,
+        "revid": 888051559,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=Performed May 13, 2008, by Dr. Phillip W. Serna. Based in the Chicago area, Dr. Serna works to bring the early western string instrument family known as the viola da gamba into many area schools – demonstrating solo literature from the Renaissance, Baroque and early Classical periods for treble viol, tenor viol, bass viol & violone. For more information, visit http://www.thegambacast.org/ & http://www.violsinourschools.org/.}}\n|date=2008-05-13\n|source={{own}}\n|author=[[User:Phillipwserna|Phillip W. Serna]]\n|permission=\n|other_versions=\n|other_fields=\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-sa-3.0}}\n\n[[Category:Audio files of 2008]]\n[[Category:Music in 1605]]\n[[Category:Viols]]\n[[Category:Viol music]]\n[[Category:Tobias Hume]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:Historically informed performance]]\n[[Category:G minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-06-25T14:29:34Z"
+      }
+    ],
+    "title": "File:Captaine Hume’s Pavan, No.46, the First Part of Ayres (1605).ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=888051559",
+  "recordingId": "cm_20701434",
+  "revisionId": 888051559,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ACaptaine_Hume%E2%80%99s_Pavan%2C_No.46%2C_the_First_Part_of_Ayres_(1605).ogg",
+  "sourceSha1": "e737114c8c8caae3f86da58c6f808d9f7c10a55e"
+}

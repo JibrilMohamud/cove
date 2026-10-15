@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:10.356521+00:00",
+  "expectedSha1": "284a93b69950c2a1fbf0587b979cf3413b1a1575",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=42053529",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Strochnoy_chant_of_Pentacost.ogg",
+        "duration": 262.00110416666666,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Upupka&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Upupka (page does not exist)\">Upupka</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Chantes|Polyphony|Self-published work|Audio files of music of Russia|Audio files of Christian music|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2015-08-03 17:30:05"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2015-05-20"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Strochnoy chant of Pentacost"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Strochnoy chant of Pentacost"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "284a93b69950c2a1fbf0587b979cf3413b1a1575",
+        "size": 13379522,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/9e/Strochnoy_chant_of_Pentacost.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 42053529,
+    "revisions": [
+      {
+        "parentid": 637510944,
+        "revid": 1044347345,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{ru|1=Строчная стихира Пятидесятницы}}{{en|1=Strochnoy chant of Pentacost}}\n|date=2015-05-20\n|source={{own}}\n|author=[[User:Upupka|Upupka]]\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-sa-4.0}}\n\n[[Category:Audio files of Christian music]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Chantes]]\n[[Category:Polyphony]]\n[[Category:Audio files of music of Russia]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-06-15T20:31:00Z"
+      }
+    ],
+    "title": "File:Strochnoy chant of Pentacost.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1044347345",
+  "recordingId": "cm_42053529",
+  "revisionId": 1044347345,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AStrochnoy_chant_of_Pentacost.ogg",
+  "sourceSha1": "284a93b69950c2a1fbf0587b979cf3413b1a1575"
+}

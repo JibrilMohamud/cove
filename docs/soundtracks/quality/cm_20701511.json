@@ -1,0 +1,15 @@
+{
+  "sourceSha1": "2cd57851becfd8792eee348917af2205d5f77940",
+  "sha256": "b7681c14c15141582308aa7144b7c5c428aa8bcd0eb30cdb056aa2be0e978696",
+  "bytes": 5949339,
+  "durationSeconds": 123.048,
+  "channels": 2,
+  "sampleRate": 48000,
+  "integratedLufs": -16.3,
+  "truePeakDbfs": -0.2,
+  "silenceRatio": 0.038889132696183604,
+  "clippedSampleRatio": 0,
+  "decodedFully": true,
+  "tool": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+  "measuredAt": "2026-10-15T21:58:44.025789+00:00"
+}

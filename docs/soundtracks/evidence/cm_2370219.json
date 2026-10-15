@@ -1,0 +1,122 @@
+{
+  "capturedAt": "2026-10-15T21:52:50.980329+00:00",
+  "expectedSha1": "f17742c391e07aa117ca157b5221b98f57da1f7a",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=2370219",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Attaignant_Tourdion_Sung_by_the_dwsChorale.ogg",
+        "duration": 87.2667120181406,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/User:Dwsolo\" title=\"User:Dwsolo\">Dwsolo</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "Attribution": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "I, <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/User:Dwsolo\" title=\"User:Dwsolo\">Dwsolo</a>"
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Pierre Attaignant|Drinking songs|GFDL|CC-BY-SA-2.5,2.0,1.0|Tourdion|E minor|License migration redundant|Self-published work|Wine drinking in art|Files using the French language|Audio files of renaissance period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2007-07-08 13:03:33"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2006"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Attaignant: Tourdion (Quant je bois du vin clairet) - performed by the dwsChorale"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "http://creativecommons.org/licenses/by-sa/3.0/"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Attaignant Tourdion Sung by the dwsChorale"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "f17742c391e07aa117ca157b5221b98f57da1f7a",
+        "size": 1446765,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/5/5f/Attaignant_Tourdion_Sung_by_the_dwsChorale.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 2370219,
+    "revisions": [
+      {
+        "parentid": 806840975,
+        "revid": 887918023,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description=Attaignant: Tourdion (Quant je bois du vin clairet) - performed by the dwsChorale\n|Source={{Own}}\n|Date=2006\n|Author= [[User:Dwsolo|Dwsolo]]\n}}\n\n== {{int:license-header}} ==\n{{Self|GFDL|Cc-by-sa-3.0-migrated|cc-by-sa-2.5,2.0,1.0|author=I, [[User:Dwsolo|Dwsolo]]}}\n\n[[Category:Drinking songs]]\n[[Category:Wine drinking in art]]\n[[Category:Pierre Attaignant]]\n[[Category:Files using the French language]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:Tourdion]]\n[[Category:E minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-06-25T12:23:35Z"
+      }
+    ],
+    "title": "File:Attaignant Tourdion Sung by the dwsChorale.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=887918023",
+  "recordingId": "cm_2370219",
+  "revisionId": 887918023,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAttaignant_Tourdion_Sung_by_the_dwsChorale.ogg",
+  "sourceSha1": "f17742c391e07aa117ca157b5221b98f57da1f7a"
+}

@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:44.731904+00:00",
+  "expectedSha1": "8a83569eac7eea0ab42f71851ce0779497cf3090",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=90594472",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Dowland%27s_realization_of_Caccini.ogg",
+        "duration": 35.64263038548753,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Ttocserp&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Ttocserp (page does not exist)\">Ttocserp</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "John Dowland|Lutenists|Self-published work|Audio files of Baroque period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2020-05-24 11:37:38"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "1610"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Audio file of Dowland's lute realization of Caccini's <i>Amarilli mia bella</i>"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Dowland's realization of Caccini"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "8a83569eac7eea0ab42f71851ce0779497cf3090",
+        "size": 534797,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/3/3a/Dowland%27s_realization_of_Caccini.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 90594472,
+    "revisions": [
+      {
+        "parentid": 733491229,
+        "revid": 1211940094,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=Audio file of Dowland's lute realization of Caccini's ''Amarilli mia bella''}}\n|date=1610\n|source={{own}}\n|author=[[User:Ttocserp|Ttocserp]]\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-sa-4.0}}\n\n[[Category:Lutenists]]\n[[Category:Audio files of Baroque period classical music]]\n[[Category:John Dowland]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-05-10T20:38:41Z"
+      }
+    ],
+    "title": "File:Dowland's realization of Caccini.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1211940094",
+  "recordingId": "cm_90594472",
+  "revisionId": 1211940094,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ADowland's_realization_of_Caccini.ogg",
+  "sourceSha1": "8a83569eac7eea0ab42f71851ce0779497cf3090"
+}

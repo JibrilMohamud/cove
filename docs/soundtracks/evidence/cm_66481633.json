@@ -1,0 +1,122 @@
+{
+  "capturedAt": "2026-10-15T21:53:30.604443+00:00",
+  "expectedSha1": "120b33b926af66d3509c50136bcdaa846be36178",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=66481633",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Claudin_de_Sermisy_--_Tant_que_vivray.opus",
+        "duration": 146.701,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:ExtLink nofollow\" href=\"https://www.youtube.com/user/CVBydgoszcz\" class=\"external text\">Collegium Vocale</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "Attribution": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Collegium Vocale"
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Claudin de Sermisy|Media from YouTube|Collegium Vocale Bydgoszcz|F major|Files from external sources with reviewed licenses|Uploaded with video2commons|Files using the French language|Audio files of renaissance period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<bdi lang=\"en\" dir=\"ltr\"><a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/Commons:YouTube_files\" title=\"Commons:YouTube files\">YouTube</a>:<span typeof=\"mw:Entity\"> </span><a rel=\"mw:ExtLink nofollow\" href=\"https://www.youtube.com/watch?v=67AwPmr1nm0\" class=\"external text\"><bdi lang=\"\">Claudin de Sermisy // Tant que vivray</bdi></a><span typeof=\"mw:Entity\"> </span>– View/save archived versions on <a rel=\"mw:ExtLink nofollow\" href=\"https://web.archive.org/web/*/https://www.youtube.com/watch?v=67AwPmr1nm0\" class=\"external text\">archive.org</a></bdi><link rel=\"mw:PageProp/Category\" href=\"./Category:Media_from_YouTube\">"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2018-02-16 09:39:22"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2016-09-22"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "You are welcome to listen to the entire album (free MQS edition 2017):\n/redirect?v=67AwPmr1nm0&amp;redir_token=9GlLFMTSTsqqU_MrtdkqpFv9Ba18MTUxODg2MDI4M0AxNTE4NzczODgz&amp;q=https%3A%2F%2Fdrive.google.com%2Fuc%3Fid%3D0B-iaqm2wc7E1SHVBOVRNWC1CVnc%26export%3Ddownload&amp;event=video_description"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Claudin de Sermisy -- Tant que vivray"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "120b33b926af66d3509c50136bcdaa846be36178",
+        "size": 2387914,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/5/55/Claudin_de_Sermisy_--_Tant_que_vivray.opus?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 66481633,
+    "revisions": [
+      {
+        "parentid": 888080323,
+        "revid": 1030748527,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=You are welcome to listen to the entire album (free MQS edition 2017):\n/redirect?v=67AwPmr1nm0&redir_token=9GlLFMTSTsqqU_MrtdkqpFv9Ba18MTUxODg2MDI4M0AxNTE4NzczODgz&q=https%3A%2F%2Fdrive.google.com%2Fuc%3Fid%3D0B-iaqm2wc7E1SHVBOVRNWC1CVnc%26export%3Ddownload&event=video_description}}\n|date=2016-09-22\n|source={{From YouTube|1=67AwPmr1nm0|2=Claudin de Sermisy // Tant que vivray}}\n|author=[https://www.youtube.com/user/CVBydgoszcz Collegium Vocale]\n|permission=\n|other_versions=\n|other_fields=\n}}\n\n=={{int:license-header}}==\n{{YouTube CC-BY|Collegium Vocale}}\n{{LicenseReview|site={{From YouTube|1=67AwPmr1nm0|2=Claudin de Sermisy // Tant que vivray}}|user=Explicit|date=2018-06-23}}\n\n[[Category:Uploaded with video2commons]]\n[[Category:Files using the French language]]\n[[Category:Collegium Vocale Bydgoszcz]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:Claudin de Sermisy]]\n[[Category:F major]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-05-11T13:24:25Z"
+      }
+    ],
+    "title": "File:Claudin de Sermisy -- Tant que vivray.opus"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1030748527",
+  "recordingId": "cm_66481633",
+  "revisionId": 1030748527,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AClaudin_de_Sermisy_--_Tant_que_vivray.opus",
+  "sourceSha1": "120b33b926af66d3509c50136bcdaa846be36178"
+}

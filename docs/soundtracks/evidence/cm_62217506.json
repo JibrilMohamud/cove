@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:24.279024+00:00",
+  "expectedSha1": "defd49618d015d5085576f557ab72f65c0f5398d",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=62217506",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Bach_Invention_2P_14th.ogg",
+        "duration": 112.358820861678,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:Jason_M._C.,_Han\" title=\"User:Jason M. C., Han\">Jason M. C., Han</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Piano education|Self-published work|Audio files of classical music for piano|Piano education in music laboratory|Audio files of two-part Inventions and three-part Sinfonias by Johann Sebastian Bach"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2017-09-06 03:52:11"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2017-09-06"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Among those inventions Bach created, 14th Invention (Two parts) used to teach me what was gracefulness. Though my current life really cannot be represented through this word to describe (maybe, this subjective thinking was caused by my fast improved aesthetic senses ), re-picking up it from the classroom built a channel back watching an original dream, by drunk in which I was able to 'taste' those changes, on-goings, interactions of 'colours', shades, and 'lights' alongside an slowly up-towards sight throughout some symmetrical patterns and balanced decorations mirrored set upon multiple-painted Baroque celling (Architecture: <a class=\"external free\" href=\"https://en.wikipedia.org/wiki/Baroque_architecture\">https://en.wikipedia.org/wiki/Baroque_architecture</a>). Afterwards, besides Pipe organ's top edges, colourfully glazed window opened my imagination to a holly land outside. Yes, inside this Baroque building of his (my) young teenager (maybe 13rd or 14th year old), little Jason hasn't known too many complicated tonality knowledge (shifts and solutions), and texture-analysis (Currently, he can hear polyphonic theme, mirrored responses, counterpoint weaving-body, Canon &amp; imitation, minor-third doubling, duet climbing and a very graceful salutation..., after his oversea study and some of online musicology courses). What I (he) was really attracted were winged pure knowledge-angels (spirits) flying by as notes, through melodic lines crying for a peaceful situation among people's minds and materialist objects... They were singing and praying out some joyful words from earth's beauties in some common laws lasting for eternity. Though some people would argue: Jason, would they be truly and relatively existing? But, in that Time &amp; Space building, with good wishes, I almost touched some true joyfulness from them, or just was watching beside my imaginational trip. At least, in my mind, Invention 14th's being was a perfect sample revealing a unperfected dream of Sir Bach. \n<p>Oh, Jason, we knew it was one of your favorites. Would it still contain a sad frowning in this positive melody? Yes, absolutely, everything would experience it. You can hear B9-B11 was still expressing a little bit of this mood under an entirely sunshine background. But, finally, mother's Chinese comment (translated) - this time, the feeling was fine, was rare that she could add to son's play. \n</p>\nOh, it was another September that students would have returned back to schools. And usually, I would have been trapped in my own tiredness after a hot summer and hard to get out for a period. No matter how, in my gracefulness, thanks to your slower wandering and a listening of 14th Invention in Jason's Baroque building... I would better it in another time..."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Bach Invention 2P 14th"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "defd49618d015d5085576f557ab72f65c0f5398d",
+        "size": 1251793,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/f/f8/Bach_Invention_2P_14th.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 62217506,
+    "revisions": [
+      {
+        "parentid": 1227002318,
+        "revid": 1227002321,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=Among those inventions Bach created, 14th Invention (Two parts) used to teach me what was gracefulness. Though my current life really cannot be represented through this word to describe (maybe, this subjective thinking was caused by my fast improved aesthetic senses ), re-picking up it from the classroom built a channel back watching an original dream, by drunk in which I was able to 'taste' those changes, on-goings, interactions of 'colours', shades, and 'lights' alongside an slowly up-towards sight throughout some symmetrical patterns and balanced decorations mirrored set upon multiple-painted Baroque celling (Architecture: https://en.wikipedia.org/wiki/Baroque_architecture). Afterwards, besides Pipe organ's top edges, colourfully glazed window opened my imagination to a holly land outside. Yes, inside this Baroque building of his (my) young teenager (maybe 13rd or 14th year old), little Jason hasn't known too many complicated tonality knowledge (shifts and solutions), and texture-analysis (Currently, he can hear polyphonic theme, mirrored responses, counterpoint weaving-body, Canon & imitation, minor-third doubling, duet climbing and a very graceful salutation..., after his oversea study and some of online musicology courses). What I (he) was really attracted were winged pure knowledge-angels (spirits) flying by as notes, through melodic lines crying for a peaceful situation among people's minds and materialist objects... They were singing and praying out some joyful words from earth's beauties in some common laws lasting for eternity. Though some people would argue: Jason, would they be truly and relatively existing? But, in that Time & Space building, with good wishes, I almost touched some true joyfulness from them, or just was watching beside my imaginational trip. At least, in my mind, Invention 14th's being was a perfect sample revealing a unperfected dream of Sir Bach. \nOh, Jason, we knew it was one of your favorites. Would it still contain a sad frowning in this positive melody? Yes, absolutely, everything would experience it. You can hear B9-B11 was still expressing a little bit of this mood under an entirely sunshine background. But, finally, mother's Chinese comment (translated) - this time, the feeling was fine, was rare that she could add to son's play. \nOh, it was another September that students would have returned back to schools. And usually, I would have been trapped in my own tiredness after a hot summer and hard to get out for a period. No matter how, in my gracefulness, thanks to your slower wandering and a listening of 14th Invention in Jason's Baroque building... I would better it in another time...}}\n|date=2017-09-06\n|source={{own}}\n|author=[[User:Jason M. C., Han|Jason M. C., Han]]\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-sa-4.0}}\n\n[[Category:Audio files of classical music for piano]]\n[[Category:Piano education]]\n[[Category:Piano education in music laboratory]]\n[[Category:Audio files of two-part Inventions and three-part Sinfonias by Johann Sebastian Bach]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:31:47Z"
+      }
+    ],
+    "title": "File:Bach Invention 2P 14th.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227002321",
+  "recordingId": "cm_62217506",
+  "revisionId": 1227002321,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABach_Invention_2P_14th.ogg",
+  "sourceSha1": "defd49618d015d5085576f557ab72f65c0f5398d"
+}

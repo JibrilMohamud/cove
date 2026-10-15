@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:36.987271+00:00",
+  "expectedSha1": "2bd104da2250c4076acddba3ee2477022997e06c",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=79774136",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Agnus_Dei_(Missa_a_5_veus).ogg",
+        "duration": 71.9934693877551,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Perezmartin40&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Perezmartin40 (page does not exist)\">Perezmartin40</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Agnus Dei (mass)|Figured bass|Self-published work|Audio files of Baroque period classical music|Audio files of vocal music|Baroque music in Spain"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2019-06-18 06:55:02"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2019-06-17"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"https://ca.wikipedia.org/wiki/Vicent_Rodr%C3%ADguez_Monllor\" class=\"extiw\" title=\"ca:Vicent Rodríguez Monllor\">Vicent Rodríguez Monllor</a>"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Agnus Dei (Missa a 5 veus)"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "2bd104da2250c4076acddba3ee2477022997e06c",
+        "size": 921904,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/8/8a/Agnus_Dei_%28Missa_a_5_veus%29.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 79774136,
+    "revisions": [
+      {
+        "parentid": 786297032,
+        "revid": 891452345,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{ca|1=[[:ca:Vicent Rodríguez Monllor|Vicent Rodríguez Monllor]]}}\n|date=2019-06-17\n|source={{own}}\n|author=[[User:Perezmartin40|Perezmartin40]]\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-sa-4.0}}\n\n[[Category:Agnus Dei (mass)]]\n[[Category:Baroque music in Spain]]\n[[Category:Audio files of Baroque period classical music]]\n[[Category:Figured bass]]\n[[Category:Audio files of vocal music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-07-02T21:08:33Z"
+      }
+    ],
+    "title": "File:Agnus Dei (Missa a 5 veus).ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=891452345",
+  "recordingId": "cm_79774136",
+  "revisionId": 891452345,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAgnus_Dei_(Missa_a_5_veus).ogg",
+  "sourceSha1": "2bd104da2250c4076acddba3ee2477022997e06c"
+}

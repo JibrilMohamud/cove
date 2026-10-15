@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:44.077565+00:00",
+  "expectedSha1": "b5944afff7b8729da65e7db885e27b616d533af7",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1754934",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Austria.ogg",
+        "duration": 65.37559375,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a href=\"https://en.wikipedia.org/wiki/en:Wolfgang_Amadeus_Mozart\" class=\"extiw\" title=\"w:en:Wolfgang Amadeus Mozart\"><span title=\"Austrian composer of the Classical period (1756-1791)\">Wolfgang Amadeus Mozart</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "PD Austria|National anthem of the Republic of Austria|Audio files of Austria|Audio files of music by Wolfgang Amadeus Mozart|Audio files with closed captioning in Czech|Audio files with closed captioning in English|Audio files with closed captioning in Russian|Audio files with closed captioning in Spanish|Audio files with closed captioning in German|Audio files of Classical period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<bdi lang=\"en\" dir=\"ltr\">Transferred from <span class=\"plainlinks\"><a class=\"external text\" data-mw-original-href=\"//es.wikipedia.org\" href=\"https://es.wikipedia.org\">es.wikipedia</a></span> to Commons.</bdi>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2007-03-07 14:53:46"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2 November 2004 (original upload date)"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Himno nacional de Austria<br>"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Austria"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "b5944afff7b8729da65e7db885e27b616d533af7",
+        "size": 786652,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/e/e3/Austria.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1754934,
+    "revisions": [
+      {
+        "parentid": 1032697035,
+        "revid": 1032697365,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description=Himno nacional de Austria<br>\n|Source={{Transferred from|es.wikipedia}}\n|Date={{original upload date|2004-11-02}}\n|Author={{Creator:Wolfgang Amadeus Mozart}}\n\n|Permission=\n|other_versions=\n}}\n{{Closed captions}}\n\n== {{int:license-header}} ==\n{{PD-AustrianGov}}\n<!-- Templates \"Template:Himnos de angelsh\" were used in the original description page as well , but do not appear to exist on commons. -->\n\n== {{original upload log}} ==\n{{original description page|es.wikipedia|Austria.ogg}}\n* 2004-11-02 23:40 [[:es:User:Angelsh|Angelsh]] 0×0×0 (786652 bytes) ''<nowiki>Himno nacional de Austria</nowiki>''\n\n[[Category:National anthem of the Republic of Austria]]\n[[Category:Audio files of music by Wolfgang Amadeus Mozart]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Audio files of Austria]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-05-17T23:26:34Z"
+      }
+    ],
+    "title": "File:Austria.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1032697365",
+  "recordingId": "cm_1754934",
+  "revisionId": 1032697365,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAustria.ogg",
+  "sourceSha1": "b5944afff7b8729da65e7db885e27b616d533af7"
+}

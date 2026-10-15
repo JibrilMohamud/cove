@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:53:33.771015+00:00",
+  "expectedSha1": "03a468053c10f73a6ecac455d3e3408e01c41014",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=7411440",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Ut_Queant_Laxis.ogg",
+        "duration": 70.69419501133787,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Paulus Diaconus (c. 720 – 799)"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Music in the 8th century|PD-user|Ut queant laxis|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "Self-made after <a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/File:Ut_Queant_Laxis_MT.png\" title=\"en:File:Ut Queant Laxis MT.png\" class=\"extiw\">en:File:Ut_Queant_Laxis_MT.png</a> and various recordings."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2009-07-28 18:07:49"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "Originally 8th century, this version made 2009."
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "MIDI of \"<a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/Ut%20Queant%20Laxis\" title=\"en:Ut Queant Laxis\" class=\"extiw\">Ut Queant Laxis</a>\", an 8th century hymn best known for being the basis for Ut-Re-Mi-Fa-Sol-La, later modified to the familiar Do-Re-Mi-Fa-Sol-La-Ti. Each line begins with a note that moves up the scale from Do to La (Ti not being used in music of that period)."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Ut Queant Laxis"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "<table class=\"licensetpl\" style=\"display:none\">\n<tbody><tr><td><span class=\"licensetpl_short\">Public domain</span><span class=\"licensetpl_long\">Public domain</span><span class=\"licensetpl_link_req\">false</span><span class=\"licensetpl_attr_req\">false</span></td></tr>\n</tbody></table>\n<table style=\"width: 100%; clear: both; margin: 0.5em auto; background-color: var(--background-color-progressive-subtle, #f7f8ff); color: var(--color-base, #202122); border: var(--border-subtle, 2px solid #8888aa); border-spacing: 8px; padding: 0px;\" dir=\"ltr\" class=\"layouttemplate\" lang=\"en\">\n<tbody><tr><td><span typeof=\"mw:File\" data-mw='{\"caption\":\"Public domain\"}'><span title=\"Public domain\"><img resource=\"https://commons.wikimedia.org/wiki/File:PD-icon.svg\" src=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/PD-icon.svg/120px-PD-icon.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail\" decoding=\"async\" loading=\"lazy\" srcset=\"https://thumb.wikimedia.org/wikipedia/commons/thumb/6/62/PD-icon.svg/250px-PD-icon.svg.png?utm_source=commons.wikimedia.org&amp;utm_campaign=parser&amp;utm_content=thumbnail 2x\" alt=\"Public domain\" data-file-width=\"196\" data-file-height=\"196\" data-file-type=\"drawing\" height=\"64\" width=\"64\" class=\"mw-file-element\"></span></span></td>\n<td>This work has been released into the <b><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:public%20domain\" title=\"w:en:public domain\" class=\"extiw\">public domain</a></b> by its author, <b><span class=\"licensetpl_attr\"><a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/User:Adam_Cuerden\" title=\"User:Adam Cuerden\">Adam Cuerden</a></span></b>. This applies worldwide.<br>\n<p><small>In some countries this may not be legally possible; if so:</small><br>\n<i><span class=\"licensetpl_attr\"><a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/User:Adam_Cuerden\" title=\"User:Adam Cuerden\">Adam Cuerden</a></span> grants anyone the right to use this work <b>for any purpose</b>, without any conditions, unless such conditions are required by law.</i></p></td></tr>\n</tbody></table><span class=\"mw-empty-elt\"><link rel=\"mw:PageProp/Category\" href=\"./Category:PD-user#Ut%20Queant%20Laxis.ogg\"></span>"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "03a468053c10f73a6ecac455d3e3408e01c41014",
+        "size": 692528,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/93/Ut_Queant_Laxis.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 7411440,
+    "revisions": [
+      {
+        "parentid": 458719775,
+        "revid": 1028199599,
+        "slots": {
+          "main": {
+            "content": "{{Information\n|Description=MIDI of \"[[:en:Ut Queant Laxis|Ut Queant Laxis]]\", an 8th century hymn best known for being the basis for Ut-Re-Mi-Fa-Sol-La, later modified to the familiar Do-Re-Mi-Fa-Sol-La-Ti. Each line begins with a note that moves up the scale from Do to La (Ti not being used in music of that period).\n|Source=Self-made after [[:en:File:Ut_Queant_Laxis_MT.png]] and various recordings.\n|Date=Originally 8th century, this version made 2009.\n|Author=Paulus Diaconus (c. 720 – 799)\n|Permission={{PD-user|Adam Cuerden}}\n|other_versions=[[:File:Ut Queant Laxis.mid]]\n}}\n\n[[Category:Music in the 8th century]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Ut queant laxis]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-05-05T03:56:20Z"
+      }
+    ],
+    "title": "File:Ut Queant Laxis.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1028199599",
+  "recordingId": "cm_7411440",
+  "revisionId": 1028199599,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AUt_Queant_Laxis.ogg",
+  "sourceSha1": "03a468053c10f73a6ecac455d3e3408e01c41014"
+}

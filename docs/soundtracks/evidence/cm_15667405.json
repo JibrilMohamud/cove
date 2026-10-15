@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:39.719573+00:00",
+  "expectedSha1": "73567ce5812e22b83ae5babb79024a85ef69cfa5",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=15667405",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:20091104_Awadagin_Pratt_-_Scriabin,_%C3%89tude_Op._8_No._12_edit1.ogg",
+        "duration": 124,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Alexander Scriabin"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Music in 1894|PD US Government|Etudes for the piano|PD Old|Awadagin Pratt|CC-PD-Mark|Audio files of classical music for piano|Audio files of music by Alexander Scriabin"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"nofollow\" class=\"external free\" data-mw-original-href=\"http://www.whitehouse.gov/photos-and-video/video/white-house-workshop-classical-music\" href=\"https://www.whitehouse.gov/photos-and-video/video/white-house-workshop-classical-music\">http://www.whitehouse.gov/photos-and-video/video/white-house-workshop-classical-music</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2011-06-30 20:22:14"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2009-11-04"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Ogg file of Awadagin Pratt playing Alexander Scriabin's Étude Op. 8 No. 12"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "20091104 Awadagin Pratt - Scriabin, Étude Op. 8 No. 12 edit1"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "73567ce5812e22b83ae5babb79024a85ef69cfa5",
+        "size": 4664907,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/9/92/20091104_Awadagin_Pratt_-_Scriabin%2C_%C3%89tude_Op._8_No._12_edit1.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 15667405,
+    "revisions": [
+      {
+        "parentid": 1227002242,
+        "revid": 1227002249,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n\n{{Information\n|Description={{en|\nOgg file of Awadagin Pratt playing Alexander Scriabin's Étude Op. 8 No. 12\n}}\n|Source=http://www.whitehouse.gov/photos-and-video/video/white-house-workshop-classical-music\n|Date=2009-11-04\n|Author=Alexander Scriabin\n|Permission=\n|other_versions=[[:en:File:20091104_Awadagin_Pratt_-_Scriabin,_Étude_Op._8_No._12.ogg|File:20091104_Awadagin_Pratt_-_Scriabin,_Étude_Op._8_No._12.ogg]]\n}}\n\n== {{int:license-header}} ==\n{{PD-USGov}}\n{{PD-old}}\n\n== {{Original upload log}} ==\n{{transferred from|en.wikipedia|Addihockey10|CommonsHelper}} {{original description page|en.wikipedia|20091104_Awadagin_Pratt_-_Scriabin%2C_%C3%89tude_Op._8_No._12_edit1.ogg}}\n* 2011-05-25 18:08 [[:en:User:Major Bloodnok|Major Bloodnok]] 0×0× (4664907 bytes) ''<nowiki> {{Information |Description ={{en|1=[[:w:Awadagin Pratt]] performs [[:w:Alexander Scriabin]]'s [[:w:Étude Op. 8 No. 12 (Scriabin)|Étude Op. 8 No. 12]] at the White House Classical Music Student Workshop Concert. In the 1 hour session this is from abo</nowiki>''\n\n[[Category:Music in 1894]]\n[[Category:Audio files of classical music for piano]]\n[[Category:Audio files of music by Alexander Scriabin]]\n[[Category:Etudes for the piano]]\n[[Category:Awadagin Pratt]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:31:38Z"
+      }
+    ],
+    "title": "File:20091104 Awadagin Pratt - Scriabin, Étude Op. 8 No. 12 edit1.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227002249",
+  "recordingId": "cm_15667405",
+  "revisionId": 1227002249,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3A20091104_Awadagin_Pratt_-_Scriabin%2C_%C3%89tude_Op._8_No._12_edit1.ogg",
+  "sourceSha1": "73567ce5812e22b83ae5babb79024a85ef69cfa5"
+}

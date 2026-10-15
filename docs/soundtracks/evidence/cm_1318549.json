@@ -1,0 +1,122 @@
+{
+  "capturedAt": "2026-10-15T21:52:32.875048+00:00",
+  "expectedSha1": "27bb4bc01a6a023e1d1155a71356ac71804c82e8",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1318549",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Flow,_my_tears.ogg",
+        "duration": 213.18625850340135,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Self"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Music in 1600|GFDL|John Dowland|A minor|License migration redundant|Music in 1596|Self-published work|Media of the day|Audio files of 2004|Audio files of sopranos singing|Audio files of music of England|Audio files of renaissance period classical music|Flow, my tears"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "Live performance by self (soprano voice with lute)"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-10-28 23:28:21"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2004"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "The lute song \"Flow, my tears\" by John Dowland"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-2.5"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY 2.5"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by/2.5"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Flow, my tears"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Self"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution 2.5"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "27bb4bc01a6a023e1d1155a71356ac71804c82e8",
+        "size": 1473938,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/7/73/Flow%2C_my_tears.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1318549,
+    "revisions": [
+      {
+        "parentid": 1140622280,
+        "revid": 1140625593,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description=The lute song \"Flow, my tears\" by John Dowland\n|Source=Live performance by self (soprano voice with lute)\n|Date=2004\n|Author=Self\n|Permission=Self\n|other_versions=\n}}\n{{Media of the day|year=2010|month=02|day=12}}\n\n== {{int:license-header}} ==\n{{Self|GFDL|Cc-by-sa-3.0-migrated|Cc-by-2.5}}\n\n[[Category:Audio files of 2004]]\n[[Category:Music in 1596]]\n[[Category:Music in 1600]]\n[[Category:John Dowland]]\n[[Category:Flow, my tears]]\n[[Category:Audio files of music of England]]\n[[Category:Audio files of sopranos singing]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:A minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-01-02T16:18:30Z"
+      }
+    ],
+    "title": "File:Flow, my tears.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1140625593",
+  "recordingId": "cm_1318549",
+  "revisionId": 1140625593,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AFlow%2C_my_tears.ogg",
+  "sourceSha1": "27bb4bc01a6a023e1d1155a71356ac71804c82e8"
+}

@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:25.997035+00:00",
+  "expectedSha1": "12153e4b790266bbdb5ba6b3b301bf4167182b1c",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=11164224",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Ostersequenz.ogg",
+        "duration": 102.04145124716554,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Membeth&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Membeth (page does not exist)\">Membeth</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Victimae paschali laudes|Melodies from \"Gotteslob\" (2013)|Self-published work|PD-self|Melodies from \"Gotteslob\" (1975)|Audio files of Gregorian chant|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2010-08-12 20:59:06"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2010-08-12"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Sequence of Easter, Gregorian Chant"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Ostersequenz"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "12153e4b790266bbdb5ba6b3b301bf4167182b1c",
+        "size": 1562888,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/2/24/Ostersequenz.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 11164224,
+    "revisions": [
+      {
+        "parentid": 734128295,
+        "revid": 901777995,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{en|1=Sequence of Easter, Gregorian Chant}}{{de|Ostersequenz ''Victimae paschali laudes'', Gotteslob (2013) 320; Gotteslob (1975) 215}}\n|Source={{own}}\n|Author=[[User:Membeth|Membeth]]\n|Date=2010-08-12\n|Permission=\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Victimae paschali laudes]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Melodies from \"Gotteslob\" (2013)]]\n[[Category:Melodies from \"Gotteslob\" (1975)]]\n[[Category:Audio files of Gregorian chant]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-07-21T19:44:47Z"
+      }
+    ],
+    "title": "File:Ostersequenz.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=901777995",
+  "recordingId": "cm_11164224",
+  "revisionId": 901777995,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AOstersequenz.ogg",
+  "sourceSha1": "12153e4b790266bbdb5ba6b3b301bf4167182b1c"
+}

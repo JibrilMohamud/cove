@@ -1,0 +1,122 @@
+{
+  "capturedAt": "2026-10-15T21:53:13.536201+00:00",
+  "expectedSha1": "db7200c243b4f84aa2eacb80f4f8693a8d1332f7",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=4475990",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Chominciamento_de_Gioia1.ogg",
+        "duration": 367.25278911564624,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Ririkuku"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Vielle|GFDL|Estampie|D major|License migration redundant|Percussion music|CC-BY-SA-4.0,3.0,2.5,2.0,1.0|Add MS 29987|Self-published work|Audio files of flute music|Sounds of percussion instruments|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "Recorded Live @ FIMAM 2008 - Cordon - France"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2008-07-31 11:57:21"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2008-07-29"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "From London, British Museum, <a href=\"//commons.wikimedia.org/wiki/Category:Add_MS_29987\" title=\"Category:Add MS 29987\">add.29987</a> : \"<i>Chominciamento de Gioia</i>\" (n. <a href=\"https://en.wikipedia.org/wiki/British_Library,_Add_MS_29987#List_of_contents_of_the_manuscript\" class=\"extiw\" title=\"en:British Library, Add MS 29987\">78</a>)."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Chominciamento de Gioia1"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Own Work"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "db7200c243b4f84aa2eacb80f4f8693a8d1332f7",
+        "size": 16940730,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/e/ef/Chominciamento_de_Gioia1.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 4475990,
+    "revisions": [
+      {
+        "parentid": 885740127,
+        "revid": 1189302825,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{ca|\"''Chominciamento de Gioia''\", n.º 78 del \"{{c|Add MS 29987|Manuscrit de Londres}}\".}}\n\n\n\n{{en|From London, British Museum, {{c|Add MS 29987|add.29987}} : \"''Chominciamento de Gioia''\" (n. [[:en:British Library, Add MS 29987 #List of contents of the manuscript|78]]).}}\n\n\n\n{{es|\"''Chominciamento de Gioia''\", n.º 78 del \"{{c|Add MS 29987|Manuscrito de Londres}}\".}}\n\n\n\n{{it|\"''[[:it:Manoscritto di Londra #Le opere|Chominciamento de Gioia]]''\", n. 78 del \"{{c|Add MS 29987|Manoscritto di Londra}}\".}}\n|Source=Recorded Live @ FIMAM 2008 - Cordon - France\n|Author=Ririkuku\n|Date=2008-07-29\n|Permission=Own Work\n|other_versions=\n}}\n2 Flutes, {{c|Vielle|Vielle}}, Percussions\nrecorded with DPA 4006/Sound Devices 788T\nNo sound treatment\n\n45.922289,6.610272\n== {{int:license-header}} ==\n{{self|GFDL|cc-by-sa-all}}\n\n[[Category:Add MS 29987]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Estampie]]\n[[Category:Audio files of flute music]]\n[[Category:Vielle]]\n[[Category:D major]]\n[[Category:Percussion music]]\n[[Category:Sounds of percussion instruments]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-03-30T17:08:00Z"
+      }
+    ],
+    "title": "File:Chominciamento de Gioia1.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1189302825",
+  "recordingId": "cm_4475990",
+  "revisionId": 1189302825,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AChominciamento_de_Gioia1.ogg",
+  "sourceSha1": "db7200c243b4f84aa2eacb80f4f8693a8d1332f7"
+}

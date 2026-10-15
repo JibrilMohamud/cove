@@ -1,0 +1,101 @@
+{
+  "capturedAt": "2026-10-15T21:52:50.980645+00:00",
+  "expectedSha1": "aab92724a73bc82ba5baa88c7e2d78a3cbdf90b3",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=2694514",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Henry_VIII_pastime_with_good_company_performed_by_the_dwsChorale.ogg",
+        "duration": 88.29387755102042,
+        "extmetadata": {
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "GFDL|Files with no machine-readable author|Files with no machine-readable source|G minor|License migration completed|Media missing infobox template|Self-published work|Files moved to Commons by BetacommandBot|Audio files of choral music|Pastime with Good Company|Audio files of renaissance period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2007-09-07 02:10:39"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "http://creativecommons.org/licenses/by-sa/3.0/"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Henry VIII pastime with good company performed by the dwsChorale"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "aab92724a73bc82ba5baa88c7e2d78a3cbdf90b3",
+        "size": 1490999,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/b/b1/Henry_VIII_pastime_with_good_company_performed_by_the_dwsChorale.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 2694514,
+    "revisions": [
+      {
+        "parentid": 888368310,
+        "revid": 888368888,
+        "slots": {
+          "main": {
+            "content": "Transwiki approved by: [[w:en:User:Raul654]]\n\nThis image was copied from wikipedia:en. The original description was:\n\n== {{int:filedesc}} ==\nPastime with good company attributed to King Henry VIII. Performed by the dwsChorale\n{{GFDL-self|migration=relicense}} [[w:en:User:Dwsolo|Dwsolo]] 13:01, 5 July 2007 (UTC)dwsolo\n\n== {{int:license-header}} ==\n{{GFDL|migration=relicense}}\n\n\n\n=== {{original upload log}} ===\n{| class=wikitable\n! date/time || username || resolution || size || edit summary\n|----\n| 13:01, 5 July 2007 || [[w:en:User:Dwsolo]] ||  || 1.42 MB || <nowiki>Pastime with company attributed to King Henry VIII - performed by the dwsChorale {{GFDL-self}} ~~~~dwsolo</nowiki>\n|}\n=== Image description page history ===\n{| class=wikitable\n! link || date/time || username || edit summary\n|----\n| http://en.wikipedia.org/w/index.php?title=Image:Henry_VIII_pastime_with_good_company_performed_by_the_dwsChorale.ogg&redirect=no&oldid=142655510 || 06:26, 6 September 2007 || [[w:en:User:Raul654]] ||  \n|----\n| http://en.wikipedia.org/w/index.php?title=Image:Henry_VIII_pastime_with_good_company_performed_by_the_dwsChorale.ogg&redirect=no&oldid=142655510 || 13:02, 5 July 2007 || [[w:en:User:Dwsolo]] ||  \n|----\n| http://en.wikipedia.org/w/index.php?title=Image:Henry_VIII_pastime_with_good_company_performed_by_the_dwsChorale.ogg&redirect=no&oldid=142655447 || 13:01, 5 July 2007 || [[w:en:User:Dwsolo]] || <nowiki>(Pastime with company attributed to King Henry VIII - performed by the dwsChorale {{GFDL-self}} ~~~~dwsolo)</nowiki>\n|}\n\n[[Category:Media missing infobox template]]\n[[Category:Files moved to Commons by BetacommandBot]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:Audio files of choral music]]\n[[Category:Pastime with Good Company]]\n[[Category:G minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-06-26T08:05:31Z"
+      }
+    ],
+    "title": "File:Henry VIII pastime with good company performed by the dwsChorale.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=888368888",
+  "recordingId": "cm_2694514",
+  "revisionId": 888368888,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AHenry_VIII_pastime_with_good_company_performed_by_the_dwsChorale.ogg",
+  "sourceSha1": "aab92724a73bc82ba5baa88c7e2d78a3cbdf90b3"
+}

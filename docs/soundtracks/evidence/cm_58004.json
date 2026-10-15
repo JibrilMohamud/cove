@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:21.106564+00:00",
+  "expectedSha1": "9ee006ec0a22b3cf45bd156858566930cd872d05",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=58004",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Brahms-waltz08.ogg",
+        "duration": 100.17959183673469,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Johannes%20Brahms\" title=\"w:en:Johannes Brahms\" class=\"extiw\"><span title=\"German composer (1833–1897)\">Johannes Brahms</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Compositions in B-flat major|Media of the day|Unknown date|Audio files of classical music by Martha Goldstein|Audio files of classical music for piano|Audio files of 16 Waltzes (Brahms)"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:ExtLink nofollow\" href=\"http://hebb.mit.edu/FreeMusic/\" class=\"external free\">http://hebb.mit.edu/FreeMusic/</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2005-02-12 00:31:05"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "Unknown date<span class=\"mw-empty-elt\"><link rel=\"mw:PageProp/Category\" href=\"./Category:Unknown_date\"></span>"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "16 Waltzes, Op.39, #8 (b-flat major)"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Brahms-waltz08"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "9ee006ec0a22b3cf45bd156858566930cd872d05",
+        "size": 1843232,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/6/66/Brahms-waltz08.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 58004,
+    "revisions": [
+      {
+        "parentid": 1227002635,
+        "revid": 1227002641,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description= 16 Waltzes, Op.39, #8 (b-flat major)\n|Source=http://hebb.mit.edu/FreeMusic/ \n|Date={{other date|?}}\n|Author={{Creator:Johannes Brahms}} \n:Performed by: Martha Goldstein\n|Permission=\n|other_versions=\n}}\n{{Media of the day|year=2009|month=08|day=05}}\n\n== {{int:license-header}} ==\n{{Cc-by-sa-2.0}}\n\n[[:en:File:Brahms-waltz08.ogg]]\n\n[[Category:Audio files of 16 Waltzes (Brahms)|8]]\n[[Category:Audio files of classical music for piano]]\n[[Category:Compositions in B-flat major]]\n[[Category:Audio files of classical music by Martha Goldstein]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:32:21Z"
+      }
+    ],
+    "title": "File:Brahms-waltz08.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227002641",
+  "recordingId": "cm_58004",
+  "revisionId": 1227002641,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABrahms-waltz08.ogg",
+  "sourceSha1": "9ee006ec0a22b3cf45bd156858566930cd872d05"
+}

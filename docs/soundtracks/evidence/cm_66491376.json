@@ -1,0 +1,122 @@
+{
+  "capturedAt": "2026-10-15T21:53:30.605183+00:00",
+  "expectedSha1": "439e794c3fd239b2e7d00d1395dc49d37e0f011e",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=66491376",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Anonymous_--_C%27est_mon_amy_(Magdalena_Tomsinska).opus",
+        "duration": 87.381,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Magdalena Tomsinska/<a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Collegium%20Vocale%20Bydgoszcz\" title=\"w:en:Collegium Vocale Bydgoszcz\" class=\"extiw\">Collegium Vocale Bydgoszcz</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "Attribution": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Collegium Vocale"
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Media from YouTube|Collegium Vocale Bydgoszcz|C minor|License review needed (audio)|YouTube review needed|Arranged license review project|Files with archived source and marked for license review|Renaissance lutes|Uploaded with video2commons|Audio files of renaissance period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<bdi lang=\"en\" dir=\"ltr\"><a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/Commons:YouTube_files\" title=\"Commons:YouTube files\">YouTube</a>:<span typeof=\"mw:Entity\"> </span><a rel=\"mw:ExtLink nofollow\" href=\"https://www.youtube.com/watch?v=IBd7JQWPeGk\" class=\"external text\"><bdi lang=\"\">Anonymous // C'est mon amy (Magdalena Tomsinska)</bdi></a><span typeof=\"mw:Entity\"> </span>– View/save archived versions on <a rel=\"mw:ExtLink nofollow\" href=\"https://web.archive.org/web/*/https://www.youtube.com/watch?v=IBd7JQWPeGk\" class=\"external text\">archive.org</a></bdi><link rel=\"mw:PageProp/Category\" href=\"./Category:Media_from_YouTube\">"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2018-02-16 16:51:45"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2010"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "C'est mon ami"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Anonymous -- C'est mon amy (Magdalena Tomsinska)"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "439e794c3fd239b2e7d00d1395dc49d37e0f011e",
+        "size": 1627905,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/f/f0/Anonymous_--_C%27est_mon_amy_%28Magdalena_Tomsinska%29.opus?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 66491376,
+    "revisions": [
+      {
+        "parentid": 1030748411,
+        "revid": 1197834743,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{fr|1=C'est mon ami}}\n|date=2010\n|source={{From YouTube|1=IBd7JQWPeGk|2=Anonymous // C'est mon amy (Magdalena Tomsinska)}}\n|author=Magdalena Tomsinska/[[w:en:Collegium Vocale Bydgoszcz|Collegium Vocale Bydgoszcz]]\n|permission=\n|other_versions=\n|other_fields=\n}}\n\n=={{int:license-header}}==\n{{YouTube CC-BY|Collegium Vocale}}\n{{LicenseReview}}\n{{ArrangedLicenseReview|kateg0ri=YouTube review needed|archive=https://web.archive.org/web/20200308031817/https://www.youtube.com/watch?v=IBd7JQWPeGk}}\n\n[[Category:Uploaded with video2commons]]\n[[Category:Collegium Vocale Bydgoszcz]]\n[[Category:Renaissance lutes]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:C minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-04-15T13:45:01Z"
+      }
+    ],
+    "title": "File:Anonymous -- C'est mon amy (Magdalena Tomsinska).opus"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1197834743",
+  "recordingId": "cm_66491376",
+  "revisionId": 1197834743,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AAnonymous_--_C'est_mon_amy_(Magdalena_Tomsinska).opus",
+  "sourceSha1": "439e794c3fd239b2e7d00d1395dc49d37e0f011e"
+}

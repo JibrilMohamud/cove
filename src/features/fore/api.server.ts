@@ -3942,7 +3942,7 @@ async function handleCoveRequest(
         identity(request)?.id || null,
         storefrontTerritory,
       )) ||
-      (await handleSoundtracks(request, env, path, storefrontTerritory)) ||
+      (await handleSoundtracks(request, env, path, storefrontTerritory, identity(request))) ||
       (await handleAudio(request, env, path, identity(request)?.id || null, storefrontTerritory)) ||
       (await handleSocial(request, env, path, identity(request)?.id || null)) ||
       (await handleCommunity(

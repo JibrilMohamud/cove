@@ -1,0 +1,105 @@
+{
+  "capturedAt": "2026-10-15T21:53:17.132456+00:00",
+  "expectedSha1": "a6b3b28925339e2f5aab188e030c14ca8b4e2682",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=55024987",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Bartok_-_Sonatina.ogg",
+        "duration": 220.5978231292517,
+        "extmetadata": {
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "GFDL|1915 compositions|A minor|Files with no machine-readable author|Piano sonatas|C major|D major|Featured sounds on Wikipedia, English|License migration redundant|Mixolydian mode|Aeolian mode|Ionian mode|Self-published work|Folk music of Romania|Media of the day|PD-old-80-expired|CC-PD-Mark|Audio files of classical music for piano|Files with Assessments template missing SDC Commons no value quality assessment|Audio files of music by Béla Bartók"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2017-01-14 22:18:36"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/B%C3%A9la%20Bart%C3%B3k\" title=\"en:Béla Bartók\" class=\"extiw\">Bartók's</a> <a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/Sonatina%20(Bart%C3%B3k)\" title=\"en:Sonatina (Bartók)\" class=\"extiw\">Sonatina</a>."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Bartok - Sonatina"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "a6b3b28925339e2f5aab188e030c14ca8b4e2682",
+        "size": 3580820,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/1/1c/Bartok_-_Sonatina.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 55024987,
+    "revisions": [
+      {
+        "parentid": 1227003207,
+        "revid": 1227003214,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Musical work\n| Description    = {{en|[[:en:Béla Bartók|Bartók's]] [[:en:Sonatina (Bartók)|Sonatina]].}}\n| Source         = {{own}}\n| composition_date = 1915\n |performance_date = 2009\n| composer       = {{c|Béla Bartók}} (1881-1945)\n| performer      = Wikipedian [[user:La Pianista|La Pianista]]\n| Permission     = \n| other_versions = \n}}\n\n=={{Assessment}}==\n{{Media of the day|2020|2|5}}\n{{Assessments\n   |enwiki=3\n   |enwiki-nom=Wikipedia:Featured sound candidates/Bartok - Sonatina\n }}\n\n== {{int:license-header}} ==\n===For the composition===\n{{PD-old-auto-1923|1945}}\n\n===For the Recording===\n{{self|cc-by-sa-3.0|GFDL|migration=redundant|author=[[User:La Pianista|La Pianista]]}}\n\n== {{Original upload log}} ==\n{{original description|en.wikipedia|Bartok+-+Sonatina.ogg}}\n{| class=\"wikitable\"\n! {{int:filehist-datetime}} !! {{int:filehist-dimensions}} !! {{int:filehist-user}} !! {{int:filehist-comment}}\n|-\n| 2011-05-28 22:49 || 0×0× (3580820 bytes) || [[:en:User:La Pianista|La Pianista]] || ''<nowiki>amplified</nowiki>''\n|-\n| 2011-03-03 01:04 || 0×0× (3614109 bytes) || [[:en:User:La Pianista|La Pianista]] || ''<nowiki>[[Béla Bartók|Bartók]]'s [[Sonatina (Bartók)|Sonatina]], written in 1915 and performed by Wikipedian [[user:La Pianista|La Pianista]] in 2009</nowiki>''\n|}\n\n[[Category:Audio files of music by Béla Bartók]]\n[[Category:1915 compositions]]\n[[Category:Folk music of Romania]]\n[[Category:Piano sonatas]]\n[[Category:Audio files of classical music for piano]]\n[[Category:D major]]\n[[Category:Mixolydian mode]]\n[[Category:C major]]\n[[Category:Ionian mode]]\n[[Category:A minor]]\n[[Category:Aeolian mode]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:33:18Z"
+      }
+    ],
+    "title": "File:Bartok - Sonatina.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227003214",
+  "recordingId": "cm_55024987",
+  "revisionId": 1227003214,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABartok_-_Sonatina.ogg",
+  "sourceSha1": "a6b3b28925339e2f5aab188e030c14ca8b4e2682"
+}

@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:44.732056+00:00",
+  "expectedSha1": "4bc2f4bc07c5270dedc95add8a57358dd2816cc3",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=91633913",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:DieKoenige.ogg",
+        "duration": 133.82827664399093,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:Bautsch\" title=\"User:Bautsch\">Bautsch</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Peter Cornelius (composer)|CC-Zero|Epiphany music|Self-published work|Audio files of Romantic period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2020-06-27 17:11:29"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2020-06-27"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "\"Three Kings from Persian lands\" from <i>Weihnachtslieder</i> (<i>Christmas Songs</i>) Opus 8.3 by Peter Cornelius. The piano accompaniment represents the chorale \"How brightly beams the morning star\""
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "DieKoenige"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Zero, Public Domain Dedication"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "4bc2f4bc07c5270dedc95add8a57358dd2816cc3",
+        "size": 2544487,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/1/1d/DieKoenige.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 91633913,
+    "revisions": [
+      {
+        "parentid": 982157015,
+        "revid": 1128486185,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{de|1=\"Die Könige\", aus: ''Weihnachtslieder'' Opus 8,3 von Peter Cornelius. Die Klavierbegleitung stellt den Choral \"Wie schön leuchtet der Morgenstern\" dar.}}\n{{en|1=\"Three Kings from Persian lands\" from ''Weihnachtslieder'' (''Christmas Songs'') Opus 8.3 by Peter Cornelius. The piano accompaniment represents the chorale \"How brightly beams the morning star\"}}\n|date=2020-06-27\n|source={{own}}\n|author=[[User:Bautsch|Bautsch]]\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{self|cc-zero}}\n\n[[Category:Peter Cornelius (composer)]]\n[[Category:Audio files of Romantic period classical music]]\n[[Category:Epiphany music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-12-10T01:25:19Z"
+      }
+    ],
+    "title": "File:DieKoenige.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1128486185",
+  "recordingId": "cm_91633913",
+  "revisionId": 1128486185,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ADieKoenige.ogg",
+  "sourceSha1": "4bc2f4bc07c5270dedc95add8a57358dd2816cc3"
+}

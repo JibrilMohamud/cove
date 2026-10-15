@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:53:30.604273+00:00",
+  "expectedSha1": "0849b7a92da5044a6e2dcc7b0a0f5c8e836b2d7b",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=6622825",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Julius_Weissenborn_-_Six_Trios_for_3_Bassoons_Op._4_-_3._Polka.ogg",
+        "duration": 211.65,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Arthur Grossman, Terry Ewell and Bruce Grainger (bassoons)"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Julius Weissenborn|Pandora Music|Audio files of Romantic period classical music|Audio files of bassoon music|Six Trios for Three Bassoons (Op. 4)"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "The Al Goldstein collection in the <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html\" class=\"external text\">Pandora Music</a> repository at ibiblio.org. Direct link: <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/contrib/Bassoonia/1Weissenborn.ogg\" class=\"external free\">http://music.ibiblio.org/pub/multimedia/pandora/vorbis/contrib/Bassoonia/1Weissenborn.ogg</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2009-04-25 07:59:56"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Trios for 3 Bassoons Op. 4 by Julius Weissenborn"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Julius Weissenborn - Six Trios for 3 Bassoons Op. 4 - 3. Polka"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/Homepage.html\" class=\"external text\">license information</a> states that this file is \"available for free download subject to the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/EFF_OAL\" title=\"EFF OAL\" class=\"mw-redirect\">EFF OAL</a>\" (Open Audio License), which in turn <a rel=\"mw:ExtLink nofollow\" href=\"https://www.eff.org/IP/Open_licenses/eff_oal.php\" class=\"external text\">is interchangeable</a> with the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/CC-BY-SA-2.0\" title=\"CC-BY-SA-2.0\" class=\"mw-redirect\">CC-BY-SA-2.0</a>."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "0849b7a92da5044a6e2dcc7b0a0f5c8e836b2d7b",
+        "size": 3985637,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/f/f6/Julius_Weissenborn_-_Six_Trios_for_3_Bassoons_Op._4_-_3._Polka.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 6622825,
+    "revisions": [
+      {
+        "parentid": 664950655,
+        "revid": 1107380321,
+        "slots": {
+          "main": {
+            "content": "{{Information\n|Description=Trios for 3 Bassoons Op. 4 by Julius Weissenborn\n|Source = The Al Goldstein collection in the [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html Pandora Music] repository at ibiblio.org. Direct link: http://music.ibiblio.org/pub/multimedia/pandora/vorbis/contrib/Bassoonia/1Weissenborn.ogg\n|Date = \n|Author = Arthur Grossman, Terry Ewell and Bruce Grainger (bassoons)\n|Permission = The [http://music.ibiblio.org/pub/multimedia/pandora/Homepage.html license information] states that this file is \"available for free download subject to the [[EFF OAL]]\" (Open Audio License), which in turn [https://www.eff.org/IP/Open_licenses/eff_oal.php is interchangeable] with the [[CC-BY-SA-2.0]].\n}}\n== {{int:license-header}} ==\n{{cc-by-sa-2.0}}\n\n[[Category:Audio files of bassoon music]]\n[[Category:Six Trios for Three Bassoons (Op. 4)]]\n[[Category:Julius Weissenborn]]\n[[Category:Audio files of Romantic period classical music]]\n[[Category:Pandora Music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-11-01T11:17:09Z"
+      }
+    ],
+    "title": "File:Julius Weissenborn - Six Trios for 3 Bassoons Op. 4 - 3. Polka.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1107380321",
+  "recordingId": "cm_6622825",
+  "revisionId": 1107380321,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AJulius_Weissenborn_-_Six_Trios_for_3_Bassoons_Op._4_-_3._Polka.ogg",
+  "sourceSha1": "0849b7a92da5044a6e2dcc7b0a0f5c8e836b2d7b"
+}

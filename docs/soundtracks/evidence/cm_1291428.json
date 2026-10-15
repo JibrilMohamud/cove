@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:52:32.874347+00:00",
+  "expectedSha1": "cd36d04cf3cb2dddc3e5b2f71c745d1dfcf3df68",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1291428",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Cabaniles_Tiento.ogg",
+        "duration": 157.00172335600908,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/Category:Joan_Baptista_Cabanilles\" title=\"Category:Joan Baptista Cabanilles\">Joan Cabanilles</a> (1655-1712)"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Joan Baptista Cabanilles|GFDL|License migration redundant|Picardy thirds|Dorian mode|Compositions in D minor|PD Old|Self-published work|Audio files of Baroque period classical music|CC-PD-Mark|Baroque music in Spain|Audio files of organ music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "Enregistrement personnel/Personal recording (Ashtar Moïra, Orgue <a href=\"https://fr.wikipedia.org/wiki/Jean-Esprit_Isnard\" class=\"extiw\" title=\"fr:Jean-Esprit Isnard\">Isnard</a>)"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-10-22 15:02:28"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2003"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/Category:Joan_Baptista_Cabanilles\" title=\"Category:Joan Baptista Cabanilles\">Joan Cabanilles</a>: \"<i>Tiento del primer tono</i>\", for organ.\n<p>Ashtar Moïra : <a href=\"https://en.wikipedia.org/wiki/Jean-Esprit_Isnard\" class=\"extiw\" title=\"en:Jean-Esprit Isnard\">Isnard</a> organ.\n</p>\nSee also \"<a href=\"https://en.wikipedia.org/wiki/Tiento\" class=\"extiw\" title=\"en:Tiento\">Tiento</a>\"."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Cabaniles Tiento"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "You may select the license of your choice."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "cd36d04cf3cb2dddc3e5b2f71c745d1dfcf3df68",
+        "size": 1604040,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/b/b3/Cabaniles_Tiento.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1291428,
+    "revisions": [
+      {
+        "parentid": 1277333501,
+        "revid": 1278178440,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{ca|{{c|Joan Baptista Cabanilles|Joan Cabanilles}}: \"''Tiento del primer tono''\", per a orgue.\n\n\nVegeu també \"[[:ca:Tiento|Tiento]]\".}}\n\n\n\n{{de|{{c|Joan Baptista Cabanilles|Joan Cabanilles}}: \"''Tiento del primer tono''\", für Orgel.\n\nAshtar Moïra : [[:fr:Jean-Esprit Isnard|Isnard]]orgel.\n\nSiehe auch \"[[:de:Tiento|Tiento]]\" und \"[[:de:Juan Cabanilles #Hörbeispiele|Hörbeispiele von Musik von Cabanilles]]\".}}\n\n\n\n{{en|{{c|Joan Baptista Cabanilles|Joan Cabanilles}}: \"''Tiento del primer tono''\", for organ.\n\nAshtar Moïra : [[:en:Jean-Esprit Isnard|Isnard]] organ.\n\nSee also \"[[:en:Tiento|Tiento]]\".}}\n\n\n\n{{es|{{c|Joan Baptista Cabanilles|Joan Cabanilles}}: \"Tiento del primer tono\", para órgano.\n\n\nV. también \"[[:es:Tiento|Tiento]]\" y \"[[:es:Juan Cabanilles #Ejemplos musicales|Grabaciones de obras de Cabanilles]]\".}} \n\n\n\n{{fr|''Tiento de Iº tono'' - pour orgue - {{c|Joan Baptista Cabanilles|Joan Cabanilles}}.\n\n\nAshtar Moïra : orgue [[:fr:Jean-Esprit Isnard|Isnard]].\n\n\nVoir aussi \"[[:fr:Tiento (classique)|Tiento (classique)]]\".}}\n\n\n\n{{it|{{c|Joan Baptista Cabanilles|Joan Cabanilles}}: \"''Tiento del primer tono''\", per organo.\n\n\nVedi anche \"[[:it:Tiento|Tiento]]\".}}\n|Source=Enregistrement personnel/Personal recording (Ashtar Moïra, Orgue [[:fr:Jean-Esprit Isnard|Isnard]])\n|Date=2003\n|Author={{c|Joan Baptista Cabanilles|Joan Cabanilles}} (1655-1712)\n|Permission={{Self|GFDL|Cc-by-sa-3.0-migrated|Cc-by-2.5}}\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n{{PD-old}}\n\n[[Category:Baroque music in Spain]]\n[[Category:Audio files of Baroque period classical music]]\n[[Category:Audio files of organ music]]\n[[Category:Joan Baptista Cabanilles]]\n[[Category:Compositions in D minor]]\n[[Category:Dorian mode]]\n[[Category:Picardy thirds]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-09-18T12:47:31Z"
+      }
+    ],
+    "title": "File:Cabaniles Tiento.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1278178440",
+  "recordingId": "cm_1291428",
+  "revisionId": 1278178440,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ACabaniles_Tiento.ogg",
+  "sourceSha1": "cd36d04cf3cb2dddc3e5b2f71c745d1dfcf3df68"
+}

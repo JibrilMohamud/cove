@@ -1,0 +1,109 @@
+{
+  "capturedAt": "2026-10-15T21:53:17.132300+00:00",
+  "expectedSha1": "fbf6ae53638f2093a26cf1d74f842d774aa1523c",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=536661",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:FoliaBoschvanRosenthal.ogg",
+        "duration": 29.860861678004536,
+        "extmetadata": {
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Music in 1695|GFDL|Files with no machine-readable author|D minor|Gelders Archief|Folia (musical theme)|License migration completed|Media lacking author information|Audio files of renaissance period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:ExtLink nofollow\" href=\"http://www.folias.nl/html5.html#AN16\" class=\"external autonumber\"></a> (with permission)"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-01-26 20:19:09"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Anonymous (1695). <i>La folij de Espagne</i>, Arnhem, the Netherlands. Manuscript from the archive Bosch van Rosenthal, Gelders Archief (Netherlands).<br>La Folia theme, without variations. Keyboard music, converted from <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/MIDI\" title=\"MIDI\" class=\"mw-redirect\">MIDI</a> (290KB, MIME type: application/ogg))"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "http://creativecommons.org/licenses/by-sa/3.0/"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "FoliaBoschvanRosenthal"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "fbf6ae53638f2093a26cf1d74f842d774aa1523c",
+        "size": 297108,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/0/0a/FoliaBoschvanRosenthal.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 536661,
+    "revisions": [
+      {
+        "parentid": 888110050,
+        "revid": 1255746643,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description    = {{en|Anonymous (1695). ''La folij de Espagne'', Arnhem, the Netherlands. Manuscript from the archive Bosch van Rosenthal, Gelders Archief (Netherlands).<br>La Folia theme, without variations. Keyboard music, converted from [[MIDI]] (290KB, MIME type: application/ogg))}}\n|Source         = [http://www.folias.nl/html5.html#AN16] (with permission)\n|Date           = \n|Author         =\n|Permission     = \n|Other_versions =\n}}\n\n== {{int:license-header}} ==\n{{GFDL|migration=relicense}}\n\n[[Category:Gelders Archief]]\n[[Category:Audio files of renaissance period classical music]]\n[[Category:Music in 1695]]\n[[Category:Folia (musical theme)]]\n[[Category:D minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-08-02T22:07:56Z"
+      }
+    ],
+    "title": "File:FoliaBoschvanRosenthal.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1255746643",
+  "recordingId": "cm_536661",
+  "revisionId": 1255746643,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AFoliaBoschvanRosenthal.ogg",
+  "sourceSha1": "fbf6ae53638f2093a26cf1d74f842d774aa1523c"
+}

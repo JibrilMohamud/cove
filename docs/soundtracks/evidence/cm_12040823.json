@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:29.891070+00:00",
+  "expectedSha1": "a95cc8e3a188dc4fbaf0ea9db221bc7c9807721b",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=12040823",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Machaut_Doulz_Viaire.ogg",
+        "duration": 71.00043083900226,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:Future_Perfect_at_Sunrise\" title=\"User:Future Perfect at Sunrise\">Future Perfect at Sunrise</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Music in the 14th century|Guillaume de Machaut|G minor|Rondeau|Self-published work|PD-self|MIDI files of classical music|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2010-11-13 12:37:55"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2010-11-13"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "MIDI synthesized rendering of a 14th-century <a href=\"https://en.wikipedia.org/wiki/Rondeau_(music)\" class=\"extiw\" title=\"en:Rondeau (music)\">Rondeau</a>, \"Doulz viaire gracieus\" by <a href=\"https://en.wikipedia.org/wiki/Guillaume_de_Machaut\" class=\"extiw\" title=\"en:Guillaume de Machaut\">Guillaume de Machaut</a>.\nProduced with <a href=\"https://en.wikipedia.org/wiki/Lilypond\" class=\"extiw\" title=\"en:Lilypond\">Lilypond</a>, after an edition of the piece in <cite class=\"book\" style=\"font-style:normal\">Eggebrecht, Hans Heinrich       <i> Musik im Abendland</i>, <a href=\"https://en.wikipedia.org/wiki/en:Munich\" class=\"extiw\" title=\"w:en:Munich\"><span title=\"capital and most populous city of Bavaria, Germany\">Munich</span></a>:  Piper, p. 237  <small></small></cite>"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Machaut Doulz Viaire"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "a95cc8e3a188dc4fbaf0ea9db221bc7c9807721b",
+        "size": 1142314,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/c/c7/Machaut_Doulz_Viaire.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 12040823,
+    "revisions": [
+      {
+        "parentid": 451027399,
+        "revid": 887420489,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{en|1=MIDI synthesized rendering of a 14th-century [[:en:Rondeau (music)|Rondeau]], \"Doulz viaire gracieus\" by [[:en:Guillaume de Machaut|Guillaume de Machaut]].\n\nProduced with [[:en:Lilypond|Lilypond]], after an edition of the piece in {{cite book|first=Hans Heinrich|last=Eggebrecht|title=Musik im Abendland|page=237|location=Munich|publisher=Piper}}}}\n|Source={{own}}\n|Author=[[User:Future Perfect at Sunrise|Future Perfect at Sunrise]]\n|Date=2010-11-13\n|Permission=\n|other_versions=score image: [[:File:Machaut Doulz Viaire.svg]]\n}}\n\n== {{int:license-header}} ==\n{{PD-self}}\n\n[[Category:Music in the 14th century]]\n[[Category:Guillaume de Machaut]]\n[[Category:MIDI files of classical music]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Rondeau]]\n[[Category:G minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-06-24T14:16:06Z"
+      }
+    ],
+    "title": "File:Machaut Doulz Viaire.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=887420489",
+  "recordingId": "cm_12040823",
+  "revisionId": 887420489,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AMachaut_Doulz_Viaire.ogg",
+  "sourceSha1": "a95cc8e3a188dc4fbaf0ea9db221bc7c9807721b"
+}

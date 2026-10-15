@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:24.279760+00:00",
+  "expectedSha1": "d44ca4f623d12fc8916cc69c3f781c6079a9b82a",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=64033115",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Sumer_Is_Icumen_In_(13th_century_English_round).ogg",
+        "duration": 53.58004535147392,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/w/index.php?title=User:Brandtnight2000&amp;action=edit&amp;redlink=1\" class=\"new\" title=\"User:Brandtnight2000 (page does not exist)\">Brandtnight2000</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "History of music|Self-published work|Audio files of instrumental music|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2017-11-12 20:28:44"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2017-11-12"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "A 13th century English round, the earliest known copy of which was found at Reading Abbey and dates to 1261-1264. The earliest known musical composition with six part polyphony."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Sumer Is Icumen In (13th century English round)"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "d44ca4f623d12fc8916cc69c3f781c6079a9b82a",
+        "size": 797401,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/0/06/Sumer_Is_Icumen_In_%2813th_century_English_round%29.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 64033115,
+    "revisions": [
+      {
+        "parentid": 642899941,
+        "revid": 941076751,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=A 13th century English round, the earliest known copy of which was found at Reading Abbey and dates to 1261-1264. The earliest known musical composition with six part polyphony.}}\n|date=2017-11-12\n|source={{own}}\n|author=[[User:Brandtnight2000|Brandtnight2000]]\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-sa-4.0}}\n\n\n[[Category:Audio files of medieval period classical music]]\n[[Category:History of music]]\n[[Category:Audio files of instrumental music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-10-13T11:28:39Z"
+      }
+    ],
+    "title": "File:Sumer Is Icumen In (13th century English round).ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=941076751",
+  "recordingId": "cm_64033115",
+  "revisionId": 941076751,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ASumer_Is_Icumen_In_(13th_century_English_round).ogg",
+  "sourceSha1": "d44ca4f623d12fc8916cc69c3f781c6079a9b82a"
+}

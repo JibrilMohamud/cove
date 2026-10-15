@@ -1,0 +1,77 @@
+{
+  "recordingId": "cm_20695527",
+  "title": "Captaine Tobias Hume (1569 - 1645) - The Spirit of Gambo (The Lord Dewys Favoret) from Captaine Hume’s Poeticall Musicke (1607)",
+  "sourceSha1": "d46cfa803856dd5f2b82407feb91a3baddc84fb4",
+  "sourceRevision": 888046392,
+  "reviewStage": "research_complete_pending_release_checks",
+  "dossier": {
+    "composition": {
+      "basis": "The Spirit of Gambo (The Lord Dewys Favoret), Poeticall Musicke, published 1607. The original historical musical work is assessed separately from this modern recording; no modern score edition is redistributed.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=888046392",
+        "https://creativecommons.org/licenses/by-sa/3.0/"
+      ]
+    },
+    "arrangement": {
+      "basis": "The source describes this performance of the named historical work and identifies no third-party modern arranger. Original interpretive contributions by the credited recording creator are included in the creator's self-release; the unmodified source recording alone is distributed.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=888046392",
+        "https://creativecommons.org/licenses/by-sa/3.0/"
+      ]
+    },
+    "lyrics": {
+      "basis": "This is an instrumental recording. No sung lyrics or third-party modern text are identified on the source page.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=888046392",
+        "https://creativecommons.org/licenses/by-sa/3.0/"
+      ]
+    },
+    "performance": {
+      "basis": "The original creator identifies Phillip W. Serna and Christopher Burrus and declares own work on the file page. The exact revision and the self-applied CC BY-SA 3.0 are preserved. This is an AI-assisted public-evidence assessment; no human identity attestation or private contract is claimed.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=888046392",
+        "https://creativecommons.org/licenses/by-sa/3.0/"
+      ]
+    },
+    "master": {
+      "basis": "The recording is presented as the uploader's own recorded work under CC BY-SA 3.0. The selected license, original file SHA-1, and exact source revision are retained; Cove will not substitute another performance or remaster.",
+      "evidenceUrls": [
+        "https://commons.wikimedia.org/w/index.php?oldid=888046392",
+        "https://creativecommons.org/licenses/by-sa/3.0/"
+      ]
+    },
+    "grantingParty": "Phillip W. Serna and Christopher Burrus",
+    "recordingDate": "2012-04-22",
+    "territoryBasis": "Initial release limited to US. The historical composition is evaluated separately using the publication/death evidence stated here and US copyright duration rules; the modern recording relies on its explicit creator license. No worldwide public-domain conclusion is asserted. Reference: US Copyright Office Circular 15A, https://www.copyright.gov/circs/circ15a.pdf; historical publication dates must refer to the composition, not the modern recording.",
+    "streamingBasis": "The selected CC BY-SA 3.0 permits commercial reproduction and public distribution/performance of rights held by the licensor. Only the original recording is served with credit, source, and license link; no DRM, paywall, new sublicense, synchronized video or adaptation is added.",
+    "attributionText": "Captaine Tobias Hume (1569 - 1645) - The Spirit of Gambo (The Lord Dewys Favoret) from Captaine Hume’s Poeticall Musicke (1607) — Phillip W. Serna and Christopher Burrus. Music: Tobias Hume. CC BY-SA 3.0. Source: https://commons.wikimedia.org/wiki/File%3ACaptaine_Tobias_Hume_(1569_-_1645)_-_The_Spirit_of_Gambo_(The_Lord_Dewys_Favoret)_from_Captaine_Hume%E2%80%99s_Poeticall_Musicke_(1607).ogg. License: https://creativecommons.org/licenses/by-sa/3.0/. Original source recording; unchanged by Cove.",
+    "modificationNotice": "Original source file; no modifications, normalization, or transcoding by Cove.",
+    "reviewMethod": "ai_assisted",
+    "complexProvenance": true,
+    "unresolved": [
+      "Second review required for the scope of the co-performer permission statement, including commercial licensing."
+    ]
+  },
+  "approval": {
+    "reviewer": "COVE-SOUNDTRACK-PILOT-20695527",
+    "reviewEvidence": "Individual AI-assisted source review: The Spirit of Gambo (The Lord Dewys Favoret), Poeticall Musicke, published 1607. Creator self-release and exact source revision inspected; source permission supports the original recording. All remaining questions are recorded in the dossier. Approval is not a human or counsel attestation.",
+    "composer": "Tobias Hume",
+    "performer": "Phillip W. Serna and Christopher Burrus",
+    "period": "renaissance",
+    "instruments": [
+      "viola da gamba"
+    ],
+    "moods": [
+      "animated",
+      "graceful"
+    ],
+    "energy": 0.6,
+    "hasVocals": false,
+    "territories": [
+      "US"
+    ],
+    "compositionRightsConfirmed": true,
+    "performanceRightsConfirmed": true,
+    "attributionReviewed": true
+  }
+}

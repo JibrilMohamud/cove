@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:52:32.874645+00:00",
+  "expectedSha1": "029c76b264f89ab7614123813d693e4af85972e1",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=13126188",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Nous_vous_verens_bien,_Malebouche.ogg",
+        "duration": 50.22666666666667,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Gilles Binchois. This rendition by <a href=\"//commons.wikimedia.org/wiki/User:Tetraktys\" title=\"User:Tetraktys\">Tetraktys</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Gilles Binchois|Self-published work|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2011-02-06 16:29:56"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2011"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Nous vous verens bien, Malebouche"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Nous vous verens bien, Malebouche"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "029c76b264f89ab7614123813d693e4af85972e1",
+        "size": 714849,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/6/64/Nous_vous_verens_bien%2C_Malebouche.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 13126188,
+    "revisions": [
+      {
+        "parentid": 487962346,
+        "revid": 1209083240,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description=Nous vous verens bien, Malebouche\n|Source={{own}}\n|Date=2011\n|Author=Gilles Binchois. This rendition by [[User:Tetraktys|Tetraktys]]\n|Permission=\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n{{self|cc-by-3.0}}\n\n[[Category:Gilles Binchois]]\n[[Category:Audio files of medieval period classical music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-05-05T21:10:38Z"
+      }
+    ],
+    "title": "File:Nous vous verens bien, Malebouche.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1209083240",
+  "recordingId": "cm_13126188",
+  "revisionId": 1209083240,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ANous_vous_verens_bien%2C_Malebouche.ogg",
+  "sourceSha1": "029c76b264f89ab7614123813d693e4af85972e1"
+}

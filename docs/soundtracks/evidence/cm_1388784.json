@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:52:36.617530+00:00",
+  "expectedSha1": "5fc2e2123df252fccf59863c6e353bdacb3e6362",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1388784",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:A_Chantar.ogg",
+        "duration": 71.49278911564626,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<p>Composer: <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/Category:Beatriz_de_Dia\" title=\"Category:Beatriz de Dia\">Comtessa de Dia</a></p> \n\nSinger and uploader: <a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/User:Makemi\" title=\"en:User:Makemi\" class=\"extiw\">User:Makemi</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "GFDL|Beatriz de Dia|Occitan language|D minor|License migration redundant|Music of Occitania|Aeolian mode|Self-published work|Audio files of vocal music|Audio files of the female voice|Singing in art|Audio files of medieval period classical music|Songs about music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "recording is own work"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-12-17 22:46:36"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "written 12th century, recorded 12/17/06"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "\"<i>A chantar m'er de so qu'eu no volria</i>\" (\"To sing me a tune that I would not want\"), a 12th century Occitan language song by <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/Category:Beatriz_de_Dia\" title=\"Category:Beatriz de Dia\">Comtessa de Dia</a>. It is the only surviving music by a woman troubadour."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "http://creativecommons.org/licenses/by-sa/3.0/"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "A Chantar"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "5fc2e2123df252fccf59863c6e353bdacb3e6362",
+        "size": 977142,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/e/ef/A_Chantar.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1388784,
+    "revisions": [
+      {
+        "parentid": 1189243650,
+        "revid": 1189245668,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description={{ca|{{c|Beatriz de Dia|Comtessa de Dia}}: \"''A chantar m'er''\"\n\n\nLa seva cançó \"''A chantar m'er de so qu'eu no volria''\" (\"Per cantar-me un so que no voldria\") és l'única peça trobadoresca d'autoria femenina la música de la qual sobreviu intacta.}}\n\n\n\n{{de|\"''A chantar m'er de so qu'eu no volria''\" („Um mir einen Klang zu singen, den ich nicht möchte“), ein Lied des 12. Jahrhunderts in okzitanischer Sprache von der {{c|Beatriz de Dia|Comtessa de Dia}}, ist die einzige überlieferte Melodie eines weiblichen Trobadors.}}\n\n\n\n{{en|\"''A chantar m'er de so qu'eu no volria''\" (\"To sing me a tune that I would not want\"), a 12th century Occitan language song by {{c|Beatriz de Dia|Comtessa de Dia}}. It is the only surviving music by a woman troubadour.}}\n\n\n\n{{es|{{c|Beatriz de Dia|Comtessa de Dia}}: \"''A chantar m'er de so qu'eu no volria''\" (\"Para cantarme un son que no querría\"), la única canción existente por una trovadora occitania que ha llegado hasta nuestros días con música.}}\n\n\n\n{{gl|{{c|Beatriz de Dia|Comtessa de Dia}}: a súa canción \"''A chantar m'er de so qu'eu no volria''\" (\"Para cantarme un son que eu non querería\") é a única peza trobadoresca dunha muller que chegou até nos con a música que acompañaba.}}\n\n\n\n{{mk|\"''A chantar m'er de so qu'eu no volria''\" („Морам да пејам за она што не сакам“) - трубадурска песна на [[:mk:окситански јазик|окситански јазик]] од XII век. Автор е грофицата {{c|Beatriz de Dia|Беатриса де Дија}}. Ова е единствената зачувана песна на жена-трубадур.}}\n\n\n\n{{oc|{{c|Beatriz de Dia|Comtessa de Dia}}: sa cançon \"A chantar m'er de so qu'eu no volria\" es la sola peça trobadoresca d'una femna que se ne siá servada intacta la musica.}}\n\n\n\n{{pt|\"''A chantar m'er de so qu'eu no volria''\" (\"Para me cantar um som que eu não gostaria de ter\") por a {{c|Beatriz de Dia|Comtessa de Dia}}, a única canção por uma trovadora que sobrevive com música.}}\n\n\n\n{{sv|\"''A chantar m'er de so qu'eu no volria''\" (\"Att sjunga mig er av ljud som jag inte skulle vilja ha\") av {{c|Beatriz de Dia|Grevinnan de Dia}} är den enda sång skriven av en kvinnliga trobadourerna som idag finns bevarad med både text och musik.}}\n|Source= recording is own work\n|Date= written 12th century, recorded 12/17/06\n|Author= Composer: {{c|Beatriz de Dia|Comtessa de Dia}} \n\nSinger and uploader: [[:en:User:Makemi|User:Makemi]]\n|Permission= \n|other_versions= Recording:\n\n{{f|A Chantar2.ogg}} \n\n\nMusical score ({{c|Neumes|neumatic}} notation):\n\n{{f|A chantar pg. 1crop.jpg}} \n\n{{f|A chantar pg. 2.jpg}}\n\n\nMusical score (modern notation): \n\n{{f|A chantar.png}}\n}}\n\n== {{int:license-header}} ==\n{{Self|GFDL|Cc-by-sa-3.0-migrated}}\n\n[[Category:Music of Occitania]]\n[[Category:Audio files of medieval period classical music]]\n[[Category:Beatriz de Dia]]\n[[Category:Songs about music]]\n[[Category:Singing in art]]\n[[Category:Audio files of vocal music]]\n[[Category:Audio files of the female voice]]\n[[Category:Occitan language]]\n[[Category:D minor]]\n[[Category:Aeolian mode]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-03-30T14:03:59Z"
+      }
+    ],
+    "title": "File:A Chantar.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1189245668",
+  "recordingId": "cm_1388784",
+  "revisionId": 1189245668,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AA_Chantar.ogg",
+  "sourceSha1": "5fc2e2123df252fccf59863c6e353bdacb3e6362"
+}

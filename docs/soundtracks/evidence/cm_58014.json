@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:53:21.107573+00:00",
+  "expectedSha1": "a5b31a67599017c4894274c87d9dfe1212608bac",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=58014",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Brahms-waltz15.ogg",
+        "duration": 88.34612244897959,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Performed by: Martha Goldstein"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Media of the day|Pandora Music|Audio files of classical music by Martha Goldstein|Audio files of classical music for piano|Pages using the Phonos extension|Audio files of 16 Waltzes (Brahms)"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"nofollow\" class=\"external autonumber\" href=\"http://hebb.mit.edu/FreeMusic/\">[1]</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2005-11-25 10:41:40"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Johannes Brahms's 16 Waltzes, Op.39, #15"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Brahms-waltz15"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "a5b31a67599017c4894274c87d9dfe1212608bac",
+        "size": 1606501,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/0/04/Brahms-waltz15.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 58014,
+    "revisions": [
+      {
+        "parentid": 1227002769,
+        "revid": 1227002776,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description    = {{en|Johannes Brahms's 16 Waltzes, Op.39, #15}}\n|Source         = [http://hebb.mit.edu/FreeMusic/]\n|Date           = \n|Author         = Performed by: Martha Goldstein\n|Permission     = \n|Other_versions =\n}}\n{{Media of the day|year=2009|month=07|day=21}}\n\nNext: {{audio|Brahms-waltz16.ogg|#16}}\n [[Image:Brahms-waltz16.ogg]]\n== {{int:license-header}} ==\n{{Cc-by-sa-2.0}}\n\n[[:en:File:Brahms-waltz15.ogg]]\n\n[[Category:Audio files of 16 Waltzes (Brahms)|15]]\n[[Category:Audio files of classical music for piano]]\n[[Category:Audio files of classical music by Martha Goldstein]]\n[[Category:Pandora Music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:32:37Z"
+      }
+    ],
+    "title": "File:Brahms-waltz15.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227002776",
+  "recordingId": "cm_58014",
+  "revisionId": 1227002776,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABrahms-waltz15.ogg",
+  "sourceSha1": "a5b31a67599017c4894274c87d9dfe1212608bac"
+}

@@ -1,0 +1,118 @@
+{
+  "capturedAt": "2026-10-15T21:52:25.996849+00:00",
+  "expectedSha1": "7e50fb1894573659fa117b2888f930205bf71736",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1076665",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Jules_Demersseman_-_Introduction_and_Polanaise.ogg",
+        "duration": 474.80002267573695,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/Arthur_Grossman?action=edit&amp;redlink=1\" title=\"Arthur Grossman (page does not exist)\" class=\"new\" typeof=\"mw:LocalizedAttrs\" data-mw-i18n='{\"title\":{\"lang\":\"x-page\",\"key\":\"red-link-title\",\"params\":[\"Arthur Grossman\"]}}'>Arthur Grossman</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Jules Demersseman|Pandora Music|Audio files of classical music for piano|Audio files of Romantic period classical music|Audio files of bassoon music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "The Al Goldstein collection in the <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html\" class=\"external text\">Pandora Music</a> repository at ibiblio.org."
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2006-08-21 14:06:22"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Introduction and Polanaise"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Jules Demersseman - Introduction and Polanaise"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "The <a rel=\"mw:ExtLink nofollow\" href=\"http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html\" class=\"external text\">license information</a> states that this file is \"available for free download subject to the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/EFF_OAL\" title=\"EFF OAL\" class=\"mw-redirect\">EFF OAL</a>\" (Open Audio License), which in turn <a rel=\"mw:ExtLink nofollow\" href=\"https://www.eff.org/IP/Open_licenses/eff_oal.php\" class=\"external text\">is interchangeable</a> with the <a rel=\"mw:WikiLink\" href=\"https://commons.wikimedia.org/wiki/CC-BY-SA-2.0\" title=\"CC-BY-SA-2.0\" class=\"mw-redirect\">CC-BY-SA-2.0</a>."
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "7e50fb1894573659fa117b2888f930205bf71736",
+        "size": 8141110,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/8/8a/Jules_Demersseman_-_Introduction_and_Polanaise.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1076665,
+    "revisions": [
+      {
+        "parentid": 1227004557,
+        "revid": 1227004561,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description = Introduction and Polanaise\n|Source = The Al Goldstein collection in the [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/index.html Pandora Music] repository at ibiblio.org.\n|Date = \n|Author = [[Arthur Grossman]]\n|Permission = The [http://music.ibiblio.org/pub/multimedia/pandora/vorbis/Read.html license information] states that this file is \"available for free download subject to the [[EFF OAL]]\" (Open Audio License), which in turn [https://www.eff.org/IP/Open_licenses/eff_oal.php is interchangeable] with the [[CC-BY-SA-2.0]].\n}}\n== {{int:license-header}} ==\n{{cc-by-sa-2.0}}\n\n[[Category:Jules Demersseman|Introduction and Polanaise]]\n[[Category:Audio files of classical music for piano]]\n[[Category:Audio files of bassoon music]]\n[[Category:Pandora Music]]\n[[Category:Audio files of Romantic period classical music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:35:59Z"
+      }
+    ],
+    "title": "File:Jules Demersseman - Introduction and Polanaise.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227004561",
+  "recordingId": "cm_1076665",
+  "revisionId": 1227004561,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AJules_Demersseman_-_Introduction_and_Polanaise.ogg",
+  "sourceSha1": "7e50fb1894573659fa117b2888f930205bf71736"
+}

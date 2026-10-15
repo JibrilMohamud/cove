@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:53:36.986703+00:00",
+  "expectedSha1": "f02befea7e4dfc4371687619ba4c3d8acb766577",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=77199584",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:3-parts_Invention_No._8_(F_major)_in_piano-girl_Jia_Xin%27s_view.ogg",
+        "duration": 92.26448979591837,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:Jason_M._C.,_Han\" title=\"User:Jason M. C., Han\">Jason M. C., Han</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Counterpoint|Piano education|Self-published work|Audio files of Baroque period classical music|Piano education in music laboratory|Audio files of two-part Inventions and three-part Sinfonias by Johann Sebastian Bach|BWV 794"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2019-03-09 04:31:35"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2019-03-09"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Jason, is this sound file your edition in terms of Sir Bach's BWV 794 – Sinfonia (Invention) No. 8 in F major? No, no, it's my piano student Jia Xin's real classroom version, through my publishing online ability, after getting her permission, for piano-education. I am only her version`s recorder, and all by her own hands. After recording many times, I think her January 23rd edition of 2019 was great. At the very beginning of this sound file, you can hear  several Chinese characteristics I said, which means: Hurry up, good,  let`s begin... \n<pre>Jia Xin, Guo is a very clever big Chinese girl, whose name means: Guo family has a girl with the excellent-intelligence and rich-vitality. The reality seems as in their best wishes- in her age - 12 years old, this girl can divide musical parts into a very clever way, meanwhile, her mathematics and English are great. Therefore, focusing on her talent, I chose some inventions for her piano learning, including this piece. She took it really cool... To be very honest, before her failure in China's Grade Test (not about this one), she can make even better versions in piano classroom, caused by a long period we applied to research Sir Bach's fashion, and make some trainings of counterpoints, polyphony, and cross-manners in coda part...  Now, after her failure, it's another time we are together to recover our well-being and mostly of which might be gotten back again... Girl Jia Xin is from a farming family, who has many other things to do beyond piano. She can almost manage all well, like those in her 3-parts Invention. Last year, in my classroom, she has been working so hard to learn,  to correct her hands-manners, to think of and make out each layer clear and reasonable...  As her teacher, I want to give her a 'Like'. Jia Xin, try to learn more. And in your teacher's eyes, you are always 'excellent' as your name.  Sir Bach, you can hear: after many centuries, you music is still famous to many places - reasonable and clear, famous and graceful... \n</pre>\nFor more technique-comments, please watch her Wikiversity Portal. Thanks for your listening to !"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-4.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 4.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/4.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "3-parts Invention No. 8 (F major) in piano-girl Jia Xin's view"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 4.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "f02befea7e4dfc4371687619ba4c3d8acb766577",
+        "size": 1353738,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/d/dd/3-parts_Invention_No._8_%28F_major%29_in_piano-girl_Jia_Xin%27s_view.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 77199584,
+    "revisions": [
+      {
+        "parentid": 767129820,
+        "revid": 906890934,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|description={{en|1=Jason, is this sound file your edition in terms of Sir Bach's BWV 794 – Sinfonia (Invention) No. 8 in F major? No, no, it's my piano student Jia Xin's real classroom version, through my publishing online ability, after getting her permission, for piano-education. I am only her version`s recorder, and all by her own hands. After recording many times, I think her January 23rd edition of 2019 was great. At the very beginning of this sound file, you can hear  several Chinese characteristics I said, which means: Hurry up, good,  let`s begin... \n\n Jia Xin, Guo is a very clever big Chinese girl, whose name means: Guo family has a girl with the excellent-intelligence and rich-vitality. The reality seems as in their best wishes- in her age - 12 years old, this girl can divide musical parts into a very clever way, meanwhile, her mathematics and English are great. Therefore, focusing on her talent, I chose some inventions for her piano learning, including this piece. She took it really cool... To be very honest, before her failure in China's Grade Test (not about this one), she can make even better versions in piano classroom, caused by a long period we applied to research Sir Bach's fashion, and make some trainings of counterpoints, polyphony, and cross-manners in coda part...  Now, after her failure, it's another time we are together to recover our well-being and mostly of which might be gotten back again... Girl Jia Xin is from a farming family, who has many other things to do beyond piano. She can almost manage all well, like those in her 3-parts Invention. Last year, in my classroom, she has been working so hard to learn,  to correct her hands-manners, to think of and make out each layer clear and reasonable...  As her teacher, I want to give her a 'Like'. Jia Xin, try to learn more. And in your teacher's eyes, you are always 'excellent' as your name.  Sir Bach, you can hear: after many centuries, you music is still famous to many places - reasonable and clear, famous and graceful... \n\nFor more technique-comments, please watch her Wikiversity Portal. Thanks for your listening to !}}\n|date=2019-03-09\n|source={{own}}\n|author=[[User:Jason M. C., Han|Jason M. C., Han]]\n|permission=\n|other versions=\n}}\n\n=={{int:license-header}}==\n{{self|cc-by-sa-4.0}}\n\n[[Category:BWV 794]]\n[[Category:Audio files of two-part Inventions and three-part Sinfonias by Johann Sebastian Bach]]\n[[Category:Audio files of Baroque period classical music]]\n[[Category:Counterpoint]]\n[[Category:Piano education]]\n[[Category:Piano education in music laboratory]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2024-08-06T03:11:48Z"
+      }
+    ],
+    "title": "File:3-parts Invention No. 8 (F major) in piano-girl Jia Xin's view.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=906890934",
+  "recordingId": "cm_77199584",
+  "revisionId": 906890934,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3A3-parts_Invention_No._8_(F_major)_in_piano-girl_Jia_Xin's_view.ogg",
+  "sourceSha1": "f02befea7e4dfc4371687619ba4c3d8acb766577"
+}

@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-10-15T21:52:39.720030+00:00",
+  "expectedSha1": "68f7ee5858d4fb15732aefb7d78ab7559590f20a",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=1674704",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beethoven_F%C3%BCr_Elise_Rondo.ogg",
+        "duration": 104.16666666666667,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Für Elise|Self-published work|Audio files of music by Ludwig van Beethoven|Audio files of Classical period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/ja:%E5%88%A9%E7%94%A8%E8%80%85:Tenko\" title=\"wikipedia:ja:利用者:Tenko\" class=\"extiw\">Qoo</a>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2007-02-14 16:19:26"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "1810-04-27"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/F%C3%BCr%20Elise\" title=\"en:Für Elise\" class=\"extiw\">Für Elise</a> (Rondo)"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-2.5"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 2.5"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/2.5"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beethoven Für Elise Rondo"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 2.5"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "68f7ee5858d4fb15732aefb7d78ab7559590f20a",
+        "size": 1591618,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/6/6c/Beethoven_F%C3%BCr_Elise_Rondo.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 1674704,
+    "revisions": [
+      {
+        "parentid": 459244941,
+        "revid": 820143471,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description=[[:en:Für Elise|Für Elise]] (Rondo)\n|Source=[[Wikipedia:ja:利用者:Tenko|Qoo]]\n|Date=1810-04-27\n|Author={{Creator:Ludwig van Beethoven}}\n[[Wikipedia:ja:利用者:Tenko|Qoo]] (Made On a [[Wikipedia:Macintosh|Mac]], [[Wikipedia:GarageBand|GarageBand]])\n}}\n== {{int:license-header}} ==\n{{self|cc-by-sa-2.5}}\n\n[[Category:Für Elise]]\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2023-11-09T17:04:45Z"
+      }
+    ],
+    "title": "File:Beethoven Für Elise Rondo.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=820143471",
+  "recordingId": "cm_1674704",
+  "revisionId": 820143471,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethoven_F%C3%BCr_Elise_Rondo.ogg",
+  "sourceSha1": "68f7ee5858d4fb15732aefb7d78ab7559590f20a"
+}

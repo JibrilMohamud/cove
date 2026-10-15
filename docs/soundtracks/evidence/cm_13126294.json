@@ -1,0 +1,122 @@
+{
+  "capturedAt": "2026-10-15T21:52:32.874767+00:00",
+  "expectedSha1": "189256aef0e6a7f21a14b0df18daa322acd09a75",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=13126294",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Virgo_Rosa.ogg",
+        "duration": 62.882993197278914,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "Gilles Binchois. This rendition by <a href=\"//commons.wikimedia.org/wiki/User:Tetraktys\" title=\"User:Tetraktys\">Tetraktys</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Gilles Binchois|Self-published work|Audio files of medieval period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2011-02-06 16:40:02"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2011"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Virgo Rosa"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Virgo Rosa"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "I, the copyright holder of this work, hereby publish it under the following license:"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "189256aef0e6a7f21a14b0df18daa322acd09a75",
+        "size": 737928,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/7/7e/Virgo_Rosa.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 13126294,
+    "revisions": [
+      {
+        "parentid": 489526572,
+        "revid": 516427480,
+        "slots": {
+          "main": {
+            "content": "{{Information\n|Description=Virgo Rosa\n|Source={{own}}\n|Date=2011\n|Author=Gilles Binchois. This rendition by [[User:Tetraktys|Tetraktys]]\n|Permission={{self|cc-by-3.0}}\n|other_versions=\n}}\n[[Category:Gilles Binchois]]\n[[Category:Audio files of medieval period classical music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2020-12-02T22:27:34Z"
+      }
+    ],
+    "title": "File:Virgo Rosa.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=516427480",
+  "recordingId": "cm_13126294",
+  "revisionId": 516427480,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3AVirgo_Rosa.ogg",
+  "sourceSha1": "189256aef0e6a7f21a14b0df18daa322acd09a75"
+}

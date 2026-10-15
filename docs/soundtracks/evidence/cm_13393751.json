@@ -1,0 +1,113 @@
+{
+  "capturedAt": "2026-10-15T21:52:36.617050+00:00",
+  "expectedSha1": "402f2f70196c43572b16c7fc7bd5d7561a2ce82d",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=13393751",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Beethoven_-_32_Variations_in_C_Minor,_WoO_80.ogg",
+        "duration": 728.3671201814059,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<bdi><a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/en:Ludwig%20van%20Beethoven\" title=\"w:en:Ludwig van Beethoven\" class=\"extiw\"><span title=\"German composer (1770-1827)\">Ludwig van Beethoven</span></a></bdi>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "false"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Music in 1806|CC-Zero|Piano music composed by Ludwig van Beethoven|Author died more than 100 years ago public domain images|Compositions in C minor|Featured sounds on Wikipedia, English|Self-published work|Media of the day|Audio files of music by Ludwig van Beethoven|Files with derivative versions|CC-PD-Mark|Files with Assessments template missing SDC Commons no value quality assessment|Audio files of Classical period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "False"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2011-05-29 01:25:02"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "1806"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "<a rel=\"mw:WikiLink/Interwiki\" href=\"https://en.wikipedia.org/wiki/32%20Variations%20in%20C%20minor%20(Beethoven)\" title=\"en:32 Variations in C minor (Beethoven)\" class=\"extiw\">32 Variations in C minor, WoO 80</a>."
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "pd"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Beethoven - 32 Variations in C Minor, WoO 80"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Public domain"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "402f2f70196c43572b16c7fc7bd5d7561a2ce82d",
+        "size": 12270034,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Beethoven_-_32_Variations_in_C_Minor%2C_WoO_80.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 13393751,
+    "revisions": [
+      {
+        "parentid": 820139445,
+        "revid": 1083508770,
+        "slots": {
+          "main": {
+            "content": "=={{int:filedesc}}==\n{{Information\n|Description    ={{en|1=[[:en:32 Variations in C minor (Beethoven)|32 Variations in C minor, WoO 80]].}}\n|Source         ={{Own}}\n|Author         ={{Creator:Ludwig van Beethoven}}\n[[User:La Pianista|La Pianista]]\n|Date           =1806\n:2010-11-27\n|Permission     =\n|other_versions={{Derivative versions|LKMK B Beethoven.ogg}}\n}}\n\n== {{int:license-header}} ==\n===Composition===\n{{PD-old-100}}\n===Performance===\n{{self|Cc-zero}}\n== {{Assessment}} ==\n{{Media of the day|year=2012|month=10|day=27}}\n\n{{assessments|enwiki=3|enwiki-nom=Beethoven - 32 Variations in C Minor, WoO 80}}\n\n[[Category:Piano music composed by Ludwig van Beethoven]]\n[[Category:Audio files of music by Ludwig van Beethoven]]\n[[Category:Audio files of Classical period classical music]]\n[[Category:Music in 1806]]\n[[Category:Compositions in C minor]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2025-09-10T05:24:03Z"
+      }
+    ],
+    "title": "File:Beethoven - 32 Variations in C Minor, WoO 80.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1083508770",
+  "recordingId": "cm_13393751",
+  "revisionId": 1083508770,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABeethoven_-_32_Variations_in_C_Minor%2C_WoO_80.ogg",
+  "sourceSha1": "402f2f70196c43572b16c7fc7bd5d7561a2ce82d"
+}

@@ -1,0 +1,122 @@
+{
+  "capturedAt": "2026-10-15T21:52:57.244447+00:00",
+  "expectedSha1": "2701c3802dae189dd59b4980aa363a1d467a9007",
+  "page": {
+    "imageinfo": [
+      {
+        "descriptionshorturl": "https://commons.wikimedia.org/w/index.php?curid=3308570",
+        "descriptionurl": "https://commons.wikimedia.org/wiki/File:Berceuse_Burgmuller.ogg",
+        "duration": 84.57836734693878,
+        "extmetadata": {
+          "Artist": {
+            "source": "commons-desc-page",
+            "value": "<a href=\"//commons.wikimedia.org/wiki/User:BastienM\" title=\"User:BastienM\">BastienM</a>"
+          },
+          "Assessments": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": ""
+          },
+          "AttributionRequired": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "true"
+          },
+          "Categories": {
+            "hidden": "",
+            "source": "commons-categories",
+            "value": "Friedrich Burgmüller|GFDL|CC-BY-SA-3.0,2.5,2.0,1.0|License migration redundant|Self-published work|Audio files of classical music for piano|Audio files of Romantic period classical music"
+          },
+          "CommonsMetadataExtension": {
+            "hidden": "",
+            "source": "extension",
+            "value": 1.2
+          },
+          "Copyrighted": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "True"
+          },
+          "Credit": {
+            "source": "commons-desc-page",
+            "value": "<span class=\"int-own-work\" lang=\"en\">Own work</span>"
+          },
+          "DateTime": {
+            "hidden": "",
+            "source": "mediawiki-metadata",
+            "value": "2007-12-31 09:59:13"
+          },
+          "DateTimeOriginal": {
+            "source": "commons-desc-page",
+            "value": "2007-12"
+          },
+          "ImageDescription": {
+            "source": "commons-desc-page",
+            "value": "Berceuse de Friedrich Burgmüller Op.109 n°7 (Piano)"
+          },
+          "License": {
+            "hidden": "",
+            "source": "commons-templates",
+            "value": "cc-by-sa-3.0"
+          },
+          "LicenseShortName": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "CC BY-SA 3.0"
+          },
+          "LicenseUrl": {
+            "source": "commons-desc-page",
+            "value": "https://creativecommons.org/licenses/by-sa/3.0"
+          },
+          "ObjectName": {
+            "source": "mediawiki-metadata",
+            "value": "Berceuse Burgmuller"
+          },
+          "Permission": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": "Work on public domain"
+          },
+          "Restrictions": {
+            "hidden": "",
+            "source": "commons-desc-page",
+            "value": ""
+          },
+          "UsageTerms": {
+            "source": "commons-desc-page",
+            "value": "Creative Commons Attribution-Share Alike 3.0"
+          }
+        },
+        "height": 0,
+        "mime": "application/ogg",
+        "sha1": "2701c3802dae189dd59b4980aa363a1d467a9007",
+        "size": 1143541,
+        "url": "https://upload.wikimedia.org/wikipedia/commons/4/4f/Berceuse_Burgmuller.ogg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+        "width": 0
+      }
+    ],
+    "imagerepository": "local",
+    "ns": 6,
+    "pageid": 3308570,
+    "revisions": [
+      {
+        "parentid": 1227002964,
+        "revid": 1227002970,
+        "slots": {
+          "main": {
+            "content": "== {{int:filedesc}} ==\n{{Information\n|Description=Berceuse de Friedrich Burgmüller Op.109 n°7 (Piano)\n|Source={{Own}}\n|Date=2007-12\n|Author= [[User:BastienM|BastienM]]\n|Permission=Work on public domain\n|other_versions=\n}}\n\n== {{int:license-header}} ==\n{{self|GFDL|cc-by-sa-3.0,2.5,2.0,1.0}}\n\n[[Category:Friedrich Burgmüller|Berceuse]]\n[[Category:Audio files of classical music for piano]]\n[[Category:Audio files of Romantic period classical music]]",
+            "contentformat": "text/x-wiki",
+            "contentmodel": "wikitext"
+          }
+        },
+        "timestamp": "2026-06-06T23:32:55Z"
+      }
+    ],
+    "title": "File:Berceuse Burgmuller.ogg"
+  },
+  "permanentUrl": "https://commons.wikimedia.org/w/index.php?oldid=1227002970",
+  "recordingId": "cm_3308570",
+  "revisionId": 1227002970,
+  "sourcePage": "https://commons.wikimedia.org/wiki/File%3ABerceuse_Burgmuller.ogg",
+  "sourceSha1": "2701c3802dae189dd59b4980aa363a1d467a9007"
+}
