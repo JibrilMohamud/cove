@@ -12,13 +12,13 @@ const CATEGORIES = [
   { name: "Audio files of Baroque period classical music", period: "baroque", instrument: "" },
   { name: "Audio files of Classical period classical music", period: "classical", instrument: "" },
   { name: "Audio files of Romantic period classical music", period: "romantic", instrument: "" },
-  { name: "Audio files of Renaissance period classical music", period: "renaissance", instrument: "" },
-  { name: "Audio files of audio recordings of orchestral music", period: "mixed", instrument: "orchestra" },
+  { name: "Audio files of renaissance period classical music", period: "renaissance", instrument: "" },
+  { name: "Audio files of medieval period classical music", period: "medieval", instrument: "" },
 ] as const;
 const MAX_DISCOVERED = 250;
 const MAX_BYTES = 25 * 1024 * 1024;
 const API = "https://commons.wikimedia.org/w/api.php";
-const AGENT = "CoveSoundtracks/0.1 (https://cove-puce-theta.vercel.app/help; rights-review)";
+const AGENT = "CoveSoundtracks/0.2 (https://cove-puce-theta.vercel.app/help; rights-review)";
 type CommonsInfo = {
   mime?: string;
   size?: number;
@@ -47,27 +47,54 @@ const clearText = (value: unknown, max = 300) =>
   String(value || "").replace(/<[^>]*>/g, " ").replace(/&(?:nbsp|amp);/g, " ")
     .replace(/\s+/g, " ").trim().slice(0, max);
 
+function normalizeLicenseUrl(value: string) {
+  try {
+    const u = new URL(value);
+    if (!["http:", "https:"].includes(u.protocol) || u.hostname !== "creativecommons.org" ||
+        u.username || u.password || u.port || u.search || u.hash) return "";
+    return "https://creativecommons.org" + u.pathname.replace(/\/(?:deed(?:\.[a-z-]+)?)\/?$/i, "/")
+      .replace(/\/?$/, "/");
+  } catch { return ""; }
+}
 function licensed(info: CommonsInfo) {
   const m = info.extmetadata || {};
   const stated = clearText(m.LicenseShortName?.value, 80);
-  const link = clearText(m.LicenseUrl?.value, 300);
-  if (/^CC0(?: 1\.0)?$/i.test(stated) && /^https?:\/\/creativecommons\.org\/publicdomain\/zero\/1\.0\/?$/i.test(link))
+  const rawLink = clearText(m.LicenseUrl?.value, 300);
+  const link = normalizeLicenseUrl(rawLink);
+  if (/^CC0(?: 1\.0)?$/i.test(stated) && link === "https://creativecommons.org/publicdomain/zero/1.0/")
     return { code: "CC0", link, statement: stated };
-  if (/^CC BY (?:[234]\.0)$/i.test(stated) && /^https?:\/\/creativecommons\.org\/licenses\/by\/[234]\.0\/?$/i.test(link))
+  const by = /^CC BY ([234](?:\.0|\.5))$/i.exec(stated);
+  if (by && link === "https://creativecommons.org/licenses/by/" + by[1] + "/")
     return { code: "CC-BY", link, statement: stated };
-  // A public-domain mark is discovery evidence only. The jurisdiction of BOTH
-  // the composition and sound recording still requires independent review.
-  if (/^(public domain|pd)$/i.test(stated) && /^https?:\/\/creativecommons\.org\/publicdomain\/mark\/1\.0\/?$/i.test(link))
-    return { code: "PD", link, statement: stated };
+  // BY-SA allows commercial redistribution of the original recording, but also
+  // requires attribution, a license link, indication of modifications and respect
+  // for share-alike/no-additional-restrictions. Candidate status is NOT approval.
+  const sa = /^CC BY-SA ([234](?:\.0|\.5))$/i.exec(stated);
+  if (sa && link === "https://creativecommons.org/licenses/by-sa/" + sa[1] + "/")
+    return { code: "CC-BY-SA", link, statement: stated };
+  // Commons often supplies no LicenseUrl for a plain PD tag. This is a SOURCE
+  // CLAIM, not legal evidence that an arrangement, performance or master is free.
+  if (/^(public domain|pd)$/i.test(stated) && !rawLink &&
+      /^false$/i.test(clearText(m.Copyrighted?.value, 10)))
+    return { code: "PD", link: "https://commons.wikimedia.org/wiki/Commons:Licensing", statement: "Public domain (Commons claim)" };
   return null;
 }
-function audioSource(info: CommonsInfo) {
+function playableMime(info: CommonsInfo) {
+  if (info.mime === "application/ogg" || info.mime === "audio/ogg") return "audio/ogg";
+  if (info.mime === "audio/mpeg") return "audio/mpeg";
+  return null;
+}
+function sourceFileUrl(info: CommonsInfo) {
   try {
     const u = new URL(String(info.url || ""));
-    return u.protocol === "https:" && u.hostname === "upload.wikimedia.org" &&
-      !u.username && !u.password && !u.port && !u.search && !u.hash &&
-      /^\/wikipedia\/commons\//.test(u.pathname);
-  } catch { return false; }
+    if (u.protocol !== "https:" || u.hostname !== "upload.wikimedia.org" ||
+        u.username || u.password || u.port || u.hash || !/^\/wikipedia\/commons\//.test(u.pathname) ||
+        [...u.searchParams.keys()].some(key => !/^utm_[a-z0-9_]+$/i.test(key))) return null;
+    // MediaWiki adds analytics query parameters to immutable file URLs; never
+    // include those in the stored media identity or outbound download request.
+    u.search = "";
+    return u.toString();
+  } catch { return null; }
 }
 function profile(title: string, category: (typeof CATEGORIES)[number]) {
   const t = title.toLowerCase();
@@ -93,7 +120,7 @@ async function commonsRequest(params: URLSearchParams): Promise<CommonsReply> {
   params.set("maxlag", "5");
   const result = await fetch(API + "?" + params.toString(), {
     headers: { "Api-User-Agent": AGENT, "Accept": "application/json" },
-    redirect: "error", signal: AbortSignal.timeout(15_000),
+    redirect: "manual", signal: AbortSignal.timeout(15_000),
   });
   if (!result.ok) throw new Error("Commons metadata unavailable: HTTP " + result.status);
   const data = await result.json() as CommonsReply;
@@ -102,26 +129,31 @@ async function commonsRequest(params: URLSearchParams): Promise<CommonsReply> {
 }
 function validCandidate(page: CommonsPage) {
   const info = page.imageinfo?.[0];
-  const mime = info?.mime === "audio/ogg" || info?.mime === "audio/mpeg" ? info.mime : null;
+  const mime = info && playableMime(info);
   const size = Number(info?.size);
   const sha1 = String(info?.sha1 || "").toLowerCase();
   const license = info && licensed(info);
   if (!page.pageid || !page.title?.startsWith("File:") || !mime || !license ||
       !Number.isSafeInteger(size) || size <= 0 || size > MAX_BYTES ||
-      !/^[a-f0-9]{40}$/.test(sha1) || !audioSource(info!)) return null;
+      !/^[a-f0-9]{40}$/.test(sha1) || !sourceFileUrl(info!)) return null;
   const title = clearText(page.title.slice(5).replace(/\.(ogg|oga|mp3)$/i, ""), 250);
   const sourcePage = "https://commons.wikimedia.org/wiki/" + encodeURIComponent(page.title.replace(/ /g, "_"));
   const performer = clearText(info!.extmetadata?.Artist?.value, 400);
   const attribution = title + " — " + (performer || "performer unverified") + " · " + license.statement;
   return { id: "cm_" + page.pageid, title, sourcePage, info: info!,
-    size, sha1, license, performer, attribution };
+    mediaUrl: sourceFileUrl(info!)!, mime, size, sha1, license, performer, attribution };
 }
 export async function discoverSoundtrackCandidates(env: CoveEnv) {
-  const state = await env.DB.prepare("SELECT * FROM soundtrack_ingestion_state WHERE id=1").first<{ category_index:number; continuation:string; discovered:number; last_discovery_at:string }>();
-  if (!state || state.discovered >= MAX_DISCOVERED || state.category_index >= CATEGORIES.length)
+  const state = await env.DB.prepare("SELECT * FROM soundtrack_ingestion_state WHERE id=1").first<{
+    category_index:number; continuation:string; discovered:number; last_discovery_at:string; category_cursors_json:string
+  }>();
+  if (!state || state.discovered >= MAX_DISCOVERED)
     return { skipped: "complete", discovered: Number(state?.discovered || 0) };
+  const cursors = JSON.parse(state.category_cursors_json || "{}") as Record<string,string>;
+  if (CATEGORIES.every(cat => cursors[cat.name] === "DONE"))
+    return { skipped: "categories_exhausted", discovered: Number(state.discovered) };
   const now = new Date().toISOString();
-  if (state.last_discovery_at && Date.now() - Date.parse(state.last_discovery_at) < 50 * 60_000)
+  if (state.last_discovery_at && Date.now() - Date.parse(state.last_discovery_at) < 8 * 60_000)
     return { skipped: "cadence" };
   const token = crypto.randomUUID();
   const lease = await env.DB.prepare(
@@ -129,13 +161,18 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
   ).bind(token, new Date(Date.now()+90_000).toISOString(), now).first<{ id:number }>();
   if (!lease) return { skipped: "leased" };
   try {
-    const category = CATEGORIES[Number(state.category_index)];
+    let categoryIndex = Number(state.category_index) % CATEGORIES.length;
+    for (let index = 0; index < CATEGORIES.length; index++) {
+      if (cursors[CATEGORIES[categoryIndex].name] !== "DONE") break;
+      categoryIndex = (categoryIndex + 1) % CATEGORIES.length;
+    }
+    const category = CATEGORIES[categoryIndex];
     const params = new URLSearchParams({
       generator: "categorymembers", gcmtitle: "Category:" + category.name,
-      gcmtype: "file", gcmlimit: "100", prop: "imageinfo",
+      gcmtype: "file", gcmlimit: "50", prop: "imageinfo",
       iiprop: "url|mime|size|sha1|extmetadata",
     });
-    if (state.continuation) params.set("gcmcontinue", state.continuation);
+    if (cursors[category.name]) params.set("gcmcontinue", cursors[category.name]);
     const data = await commonsRequest(params);
     let added = 0;
     const pages = Object.values(data.query?.pages || {}).sort((a,b) => (a.pageid || 0)-(b.pageid || 0));
@@ -146,23 +183,25 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
       const tags = profile(c.title, category);
       const result = await env.DB.prepare(
         "INSERT OR IGNORE INTO soundtrack_recordings (id,source_title,source_page_url,source_file_url,source_sha1,source_size,mime,title,performer,license_code,license_url,license_statement,attribution_text,period,instruments_json,moods_json,energy,has_vocals,evidence_json,discovered_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-      ).bind(c.id, page.title, c.sourcePage, c.info.url, c.sha1,c.size,c.info.mime,c.title,
+      ).bind(c.id, page.title, c.sourcePage, c.mediaUrl, c.sha1,c.size,c.mime,c.title,
         c.performer,c.license.code,c.license.link,c.license.statement,c.attribution,
         category.period,JSON.stringify(tags.instruments),JSON.stringify(tags.moods),
         tags.energy,tags.hasVocals,JSON.stringify({ source:"commons_imageinfo",filePage:c.sourcePage,
           claimedLicense:c.license.statement,claimedLicenseUrl:c.license.link,
+          rawLicenseUrl:c.info.extmetadata?.LicenseUrl?.value || "",
           sourceSha1:c.sha1,sourceSize:c.size,artist:c.performer,
-          capturedAt:now,rightsNote:"UNVERIFIED: composition and performance need individual review" }),
+          sourceMime:c.info.mime,sourceUrl:c.info.url,
+          capturedAt:now,rightsNote:"UNVERIFIED: composition, arrangement and master recording require individual rights review" }),
         now,now).run() as { meta?: { changes?: number } };
       added += Number(result?.meta?.changes || 0);
     }
     const reachedLimit = Number(state.discovered) + added >= MAX_DISCOVERED;
+    cursors[category.name] = data.continue?.gcmcontinue || "DONE";
     await env.DB.prepare(
-      "UPDATE soundtrack_ingestion_state SET category_index=?,continuation=?,discovered=discovered+?,last_discovery_at=?,last_error='',lease_until='',lease_token='' WHERE id=1 AND lease_token=?",
-    ).bind(reachedLimit ? CATEGORIES.length : (data.continue?.gcmcontinue ? state.category_index : Number(state.category_index)+1),
-      reachedLimit ? "" : (data.continue?.gcmcontinue || ""),added,now,token).run();
+      "UPDATE soundtrack_ingestion_state SET category_index=?,category_cursors_json=?,continuation='',discovered=discovered+?,last_discovery_at=?,last_error='',lease_until='',lease_token='' WHERE id=1 AND lease_token=?",
+    ).bind((categoryIndex+1)%CATEGORIES.length,JSON.stringify(cursors),added,now,token).run();
     return { scanned: pages.length, queuedForRightsReview: added, total: Number(state.discovered)+added,
-      source: category.name };
+      reachedLimit, source: category.name };
   } catch (error) {
     await env.DB.prepare(
       "UPDATE soundtrack_ingestion_state SET lease_until='',lease_token='',last_error=?,last_discovery_at=? WHERE id=1 AND lease_token=?",
@@ -182,7 +221,7 @@ function evidenceMatches(r: SoundtrackRow, info: CommonsInfo | undefined) {
     current.link === r.license_url && current.statement === r.license_statement &&
     Number(info.size) === r.source_size &&
     String(info.sha1 || "").toLowerCase() === r.source_sha1 &&
-    info.mime === r.mime && info.url === r.source_file_url && audioSource(info);
+    playableMime(info) === r.mime && sourceFileUrl(info) === r.source_file_url;
 }
 function territoryAllowed(record: SoundtrackRow, territory: string) {
   try {
@@ -212,12 +251,15 @@ export async function importOneReviewedSoundtrack(env: CoveEnv) {
         return { invalidated: track.id, reason: "Source or rights metadata changed" };
       }
       const upstream = await fetch(track.source_file_url, {
-        headers: { "User-Agent": AGENT }, redirect: "error",
+        headers: { "User-Agent": AGENT }, redirect: "manual",
         signal: AbortSignal.timeout(90_000),
       });
-      if (!upstream.ok || !upstream.body || Number(upstream.headers.get("content-length")) !== track.source_size ||
-          !String(upstream.headers.get("content-type") || "").toLowerCase().startsWith(track.mime))
-        throw new Error("Source media size or type changed");
+      const contentLength = upstream.headers.get("content-length");
+      const contentType = (upstream.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+      const mimeCompatible = contentType === track.mime ||
+        (track.mime === "audio/ogg" && contentType === "application/ogg");
+      if (!upstream.ok || !upstream.body || (contentLength && Number(contentLength) !== track.source_size) ||
+          !mimeCompatible) throw new Error("Source media size or type changed");
       const key = "soundtracks/v1/" + track.id + (track.mime === "audio/mpeg" ? ".mp3" : ".ogg");
       // R2 validates the checksum while receiving the stream; do not buffer music in Worker memory.
       await env.BUCKET.put(key,upstream.body,{ sha1: track.source_sha1,
@@ -323,6 +365,14 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
         JSON.stringify(inst),JSON.stringify(moods),energy,vocals?1:0,
         original.title+" — "+performer+" · "+original.license_statement,
         JSON.stringify(territories),now,original.id).run();
+      await env.DB.prepare(
+        "INSERT INTO soundtrack_rights_decisions(id,recording_id,principal_id,action,evidence_json,decided_at) VALUES(?,?,?,?,?,?)",
+      ).bind(crypto.randomUUID(),original.id,reviewerPrincipal!.principalId,"approve",JSON.stringify({
+        reviewerTicket:reviewer,reviewEvidence:rationale,composer,performer,period:input.period,
+        territories,compositionRightsConfirmed:true,performanceRightsConfirmed:true,
+        attributionReviewed:true,sourceSha1:original.source_sha1,license:original.license_statement,
+        licenseUrl:original.license_url,sourcePage:original.source_page_url
+      }),now).run();
       return json({ approved:original.id,queuedForImport:true });
     }
     if (action === "retry" && original.status !== "import_failed")
@@ -331,12 +381,27 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
       await env.DB.prepare(
         "UPDATE soundtrack_recordings SET status='approved',updated_at=? WHERE id=? AND status='import_failed' AND reviewed_at IS NOT NULL",
       ).bind(new Date().toISOString(),original.id).run();
+      await env.DB.prepare(
+        "INSERT INTO soundtrack_rights_decisions(id,recording_id,principal_id,action,evidence_json,decided_at) VALUES(?,?,?,?,?,?)",
+      ).bind(crypto.randomUUID(),original.id,reviewerPrincipal!.principalId,"retry",
+        JSON.stringify({priorReviewAt:original.reviewed_at,sourceSha1:original.source_sha1}),
+        new Date().toISOString()).run();
       return json({ retried:original.id });
     }
-    if (original.storage_key && env.BUCKET) await env.BUCKET.delete(original.storage_key);
+    // Withdraw entitlement before deleting the object. An R2 outage must never
+    // leave a recording publicly authorized after its rights are revoked.
+    const revokedAt = new Date().toISOString();
     await env.DB.prepare(
       "UPDATE soundtrack_recordings SET status=?,storage_key=NULL,stored_at=NULL,storage_sha1=NULL,storage_bytes=NULL,allowed_territories_json='[]',updated_at=? WHERE id=?",
-    ).bind(action==="revoke"?"revoked":"rejected",new Date().toISOString(),original.id).run();
+    ).bind(action==="revoke"?"revoked":"rejected",revokedAt,original.id).run();
+    await env.DB.prepare(
+      "INSERT INTO soundtrack_rights_decisions(id,recording_id,principal_id,action,evidence_json,decided_at) VALUES(?,?,?,?,?,?)",
+    ).bind(crypto.randomUUID(),original.id,reviewerPrincipal!.principalId,action,
+      JSON.stringify({reason:clearText(input.reason,2000),sourceSha1:original.source_sha1,priorStatus:original.status}),revokedAt).run();
+    if (original.storage_key && env.BUCKET) {
+      try { await env.BUCKET.delete(original.storage_key); }
+      catch (error) { console.warn("Soundtrack revoked but R2 cleanup pending",original.id,String(error).slice(0,160)); }
+    }
     return json({ [action]:original.id });
   }
   if (!admin && idMatch && path.endsWith("/audio") && ["GET","HEAD"].includes(request.method)) {

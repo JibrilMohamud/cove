@@ -612,7 +612,12 @@ async function runScheduled(cron: string, env: BackendEnv) {
       return;
     }
     if (cron === "*/10 * * * *") {
-      // Independent, approved-only music copies; never compete with the minute EPUB runner.
+      // Small metadata-only Commons batch every ten minutes. This is independent
+      // of the public storefront and never copies an unreviewed sound recording.
+      await discoverSoundtrackCandidates(env).catch((error) =>
+        console.warn("Soundtrack discovery failed", String(error).slice(0, 160)),
+      );
+      // Only reviewed recordings may be mirrored to private R2.
       await importOneReviewedSoundtrack(env).catch((error) =>
         console.warn("Soundtrack import failed", String(error).slice(0, 160)),
       );
@@ -631,8 +636,6 @@ async function runScheduled(cron: string, env: BackendEnv) {
       await Promise.allSettled([
         warmOneShortBiosyncTranscript(env),
         triggerVercelAudio(env, "/api/fore/internal/ingestion/audio-align"),
-        // Strict 250-file metadata-only discovery budget; never auto-approves rights.
-        discoverSoundtrackCandidates(env),
       ]);
       return;
     }

@@ -20,11 +20,11 @@ try {
   const env = localBindings(root);
   const music = Buffer.from("synthetic bytes: not a musical recording");
   const sha1 = createHash("sha1").update(music).digest("hex");
-  const good = (id, label, license = "CC0 1.0", url = "https://creativecommons.org/publicdomain/zero/1.0/") => ({
+  const good = (id, label, license = "CC0", url = "http://creativecommons.org/publicdomain/zero/1.0/deed.en") => ({
     pageid: id, title: "File:" + label + ".ogg",
     imageinfo: [{
-      mime: "audio/ogg", size: music.length, sha1,
-      url: "https://upload.wikimedia.org/wikipedia/commons/a/ab/" + label + ".ogg",
+      mime: "application/ogg", size: music.length, sha1,
+      url: "https://upload.wikimedia.org/wikipedia/commons/a/ab/" + label + ".ogg?utm_source=commons.wikimedia.org&utm_content=original",
       extmetadata: {
         LicenseShortName: { value: license },
         LicenseUrl: { value: url },
@@ -33,10 +33,11 @@ try {
     }],
   });
   const pages = [
-    good(101,"Nocturne", "CC0 1.0"),
+    good(101,"Nocturne", "CC0"),
     good(102,"Allegro","CC BY 4.0","https://creativecommons.org/licenses/by/4.0/"),
     good(103,"Noncommercial","CC BY-NC 4.0","https://creativecommons.org/licenses/by-nc/4.0/"),
     good(104,"NoRights","unknown",""),
+    good(105,"Minuet","CC BY-SA 3.0","https://creativecommons.org/licenses/by-sa/3.0"),
   ];
   let upstreamChanged = false;
   let mediaRequests = 0;
@@ -60,14 +61,15 @@ try {
     }
     if (target.startsWith("https://upload.wikimedia.org/")) {
       mediaRequests++;
+      assert.equal(new URL(target).search, "", "untrusted tracking query is not proxied");
       return new Response(music, {
-        headers: {"content-type":"audio/ogg","content-length": String(music.length) },
+        headers: {"content-type":"application/ogg","content-length": String(music.length) },
       });
     }
     throw Error("Untrusted destination: " + target);
   };
   const initial = await lib.discoverSoundtrackCandidates(env);
-  assert.equal(initial.queuedForRightsReview,2,"only allowed license classes are staged");
+  assert.equal(initial.queuedForRightsReview,3,"CC0, CC BY, and original CC BY-SA may be staged; NC/unknown excluded");
   assert.equal(mediaRequests,0,"candidate discovery never downloads media");
   const publicRequest = new Request("https://cove.test/api/fore/soundtracks/recordings");
   const listing = () => lib.handleSoundtracks(publicRequest,env,"/soundtracks/recordings","US");
@@ -75,6 +77,17 @@ try {
   assert.equal((await lib.importOneReviewedSoundtrack(env)).skipped,"no_approved_recordings");
   const row = await env.DB.prepare("SELECT * FROM soundtrack_recordings WHERE id='cm_101'").first();
   assert.equal(row.status,"pending_review");
+  assert.equal(row.mime,"audio/ogg","Commons application/ogg must normalize for browser playback");
+  assert.equal(row.license_url,"https://creativecommons.org/publicdomain/zero/1.0/");
+  assert.ok(!row.source_file_url.includes("?"),"metadata analytics params must not become media URL");
+  const shareAlike = await env.DB.prepare("SELECT * FROM soundtrack_recordings WHERE id='cm_105'").first();
+  assert.equal(shareAlike.license_code,"CC-BY-SA");
+  assert.equal(shareAlike.status,"pending_review");
+  // Rotate between periods instead of filling the entire pool with piano pieces.
+  await env.DB.prepare("UPDATE soundtrack_ingestion_state SET last_discovery_at='' WHERE id=1").run();
+  const next = await lib.discoverSoundtrackCandidates(env);
+  assert.match(next.source,/Baroque/);
+  assert.equal(next.queuedForRightsReview,0,"duplicate Commons files are not re-inserted");
   assert.equal(row.period,"mixed");
   assert.match(row.moods_json,/reflective/);
   assert.equal(row.energy,0.25);
