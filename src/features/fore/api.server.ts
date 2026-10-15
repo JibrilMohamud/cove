@@ -2,6 +2,7 @@ import { validateStoredEpub } from "./stored-epub.server";
 import { createAuth, resolvedIdentity } from "./auth.server";
 import { handleLegalContact } from "./legal.server";
 import { mirrorUrl } from "./gutenberg-source";
+import { hasEpubDownloadWindow, planEpubRetry } from "./epub-retry-policy";
 import { fetchCatalogPage, CatalogSourceError } from "./catalog-fetch.server";
 import {
   canonicalizeRegionalDocument,
@@ -1346,7 +1347,7 @@ async function cachePendingEpubs(
   onAttempt?: () => void,
 ) {
   const safeLimit = Math.max(0, Math.min(64, Math.floor(Number(limit) || 0)));
-  if (!env.BUCKET || !safeLimit || Date.now() >= deadlineMs)
+  if (!env.BUCKET || !safeLimit || !hasEpubDownloadWindow(deadlineMs))
     return { attempted: 0, downloaded: 0, failed: 0, quarantined: 0 };
   const db = database(env);
   const staleDownloadBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
@@ -1385,7 +1386,7 @@ async function cachePendingEpubs(
   };
   const frontiers: PendingEpub[][] = [];
   for (const source of sources.results) {
-    if (Date.now() >= deadlineMs) break;
+    if (!hasEpubDownloadWindow(deadlineMs)) break;
     const due = await db
       .prepare(
         `SELECT id,title,authors_json,languages_json,source_id,source_item_id,formats_json,epub_attempts,rights_territories_json,rights_evidence_url,source_url,content_hash,source_metadata_json
@@ -1410,7 +1411,7 @@ async function cachePendingEpubs(
     attempted = 0;
   const pausedSources = new Set<string>();
   for (const row of queued) {
-    if (Date.now() >= deadlineMs) break;
+    if (!hasEpubDownloadWindow(deadlineMs)) break;
     const id = String(row.id);
     const sourceId = String(row.source_id || "pg_us") as "pg_us" | RegionalSourceId;
     if (pausedSources.has(sourceId)) continue;
@@ -1585,15 +1586,7 @@ async function cachePendingEpubs(
       const attempts = Number(row.epub_attempts || 0) + 1;
       const message =
         error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500);
-      const deterministicOversize = /file is too large|epub limit is 25 mb/i.test(message);
-      const persistentMissingAsset =
-        /(?:epub|html) source returned 404/i.test(message) && attempts >= 3;
-      const terminal = deterministicOversize || persistentMissingAsset || attempts >= 8;
-      const retryAt = terminal
-        ? ""
-        : new Date(
-            Date.now() + Math.min(24 * 60 * 60 * 1000, Math.pow(2, attempts) * 5 * 60 * 1000),
-          ).toISOString();
+      const { terminal, retryAt } = planEpubRetry(message, attempts);
       await db
         .prepare(
           "UPDATE gutenberg_source_cache SET epub_status=?,epub_attempts=?,epub_next_attempt_at=?,epub_last_error=? WHERE id=?",
