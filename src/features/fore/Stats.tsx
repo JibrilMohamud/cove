@@ -74,9 +74,15 @@ export function StatsPage() {
         <div>
           <span className="page-eyebrow">{tr("stats.eyebrow", "A READING LIFE, IN NUMBERS")}</span>
           <h1>
-            {tr("stats.heading", "Your stats")}<span className="gold-text">.</span>
+            {tr("stats.heading", "Your stats")}
+            <span className="gold-text">.</span>
           </h1>
-          <p>{tr("stats.description", "Time with books. Words discovered. Places your curiosity takes you.")}</p>
+          <p>
+            {tr(
+              "stats.description",
+              "Time with books. Words discovered. Places your curiosity takes you.",
+            )}
+          </p>
         </div>
         {data.user && (
           <button className="button outline" disabled={busy} onClick={exportData}>
@@ -87,7 +93,9 @@ export function StatsPage() {
       </div>
       <AccountGuard>
         <div className="collection-toolbar">
-          <div className="privacy-label">{tr("stats.private", "Private · visible only to you")}</div>
+          <div className="privacy-label">
+            {tr("stats.private", "Private · visible only to you")}
+          </div>
           <Select value={days} onValueChange={setDays}>
             <SelectTrigger aria-label={tr("stats.period.label", "Statistics period")}>
               <SelectValue />
