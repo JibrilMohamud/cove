@@ -80,6 +80,10 @@ try {
     assert.equal(bootstrap.context.rightsCountry, "US");
     assert.equal(bootstrap.context.currency, "USD");
     assert.equal(bootstrap.context.direction, locale === "ar-SA" ? "rtl" : "ltr");
+    if (locale === "de-DE") {
+      assert.equal(bootstrap.context.messages["account.create"], "Konto erstellen");
+      assert.equal(bootstrap.context.messages["reader.social.heading"], "Gemeinsames Lesen");
+    }
     const us = bootstrap.context.availableMarkets.find((x) => x.countryCode === "US");
     assert.ok(us.locales.includes(locale), "US readers may choose " + locale);
   }
