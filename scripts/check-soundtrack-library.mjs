@@ -48,9 +48,12 @@ try {
     assert.equal(args[2].sha1, sha1, "R2 receives the expected source checksum");
     return originalPut(...args);
   };
-  globalThis.fetch = async (url) => {
+  globalThis.fetch = async (url, options) => {
     const target = String(url);
     if (target.startsWith("https://commons.wikimedia.org/w/api.php")) {
+      assert.match(options?.headers?.["User-Agent"] || "", /^CoveSoundtracks\//);
+      assert.match(options?.headers?.["Api-User-Agent"] || "", /^CoveSoundtracks\//);
+      assert.equal(options?.redirect, "manual", "Workers can only use manual redirects");
       const query = new URL(target).searchParams;
       if (query.get("generator")) return Response.json({ query: { pages } });
       const page = pages.find((p) => p.title === query.get("titles"));
