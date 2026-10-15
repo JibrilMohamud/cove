@@ -62,78 +62,114 @@ import { BookArt } from "./Store";
 import { useStorefrontLocale } from "./localization";
 import { inspectEpub, downloadBook, exportReadingData, downloadCoveBackup } from "./epub";
 import type { HighlightShareAudience, HighlightShareState } from "./Sharing";
+// Render a single bounded page rather than accumulating thousands of private
+// annotations/definitions in React state. Every request is tied to the account
+// identity that initiated it, including when an account switch races a fetch.
 function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
   kind: "library" | "annotations" | "definitions",
   firstPage: T[],
   accountId: string | undefined,
 ) {
-  const [extra, setExtra] = useState<T[]>([]);
-  const [hasMore, setHasMore] = useState(firstPage.length >= 100);
+  type Page = { scope: string; items: T[]; offset: number; hasMore: boolean };
+  const scope = (accountId || "guest") + ":" + kind;
+  const scopeRef = useRef(scope);
+  if (scopeRef.current !== scope) scopeRef.current = scope;
+  const requestRef = useRef(0);
+  const [page, setPage] = useState<Page>({
+    scope, offset: 0, items: firstPage, hasMore: firstPage.length >= 100,
+  });
   const [loading, setLoading] = useState(false);
-  const accountScope = accountId + ":" + kind;
-  const scopeRef = useRef(accountScope);
-  const offsetRef = useRef(firstPage.length);
   useEffect(() => {
-    if (scopeRef.current !== accountScope) {
-      // Never display a former account's private annotations after switching users.
-      scopeRef.current = accountScope;
-      offsetRef.current = firstPage.length;
-      setExtra([]);
-      setHasMore(firstPage.length >= 100);
-    } else if (offsetRef.current <= firstPage.length) {
-      // An authenticated account can hydrate its first page after the hook mounts.
-      offsetRef.current = firstPage.length;
-      setHasMore(firstPage.length >= 100);
+    // Reset the visible page immediately when the account context changes.
+    requestRef.current += 1;
+    setLoading(false);
+    setPage((current) =>
+      current.scope !== scope
+        ? { scope, offset: 0, items: firstPage, hasMore: firstPage.length >= 100 }
+        : current.offset === 0
+          ? { scope, offset: 0, items: firstPage, hasMore: firstPage.length >= 100 }
+          : current,
+    );
+  }, [scope, firstPage]);
+  const visible = page.scope === scope
+    ? page
+    : { scope, offset: 0, items: firstPage, hasMore: firstPage.length >= 100 };
+  async function navigate(offset: number) {
+    if (!accountId || loading || offset < 0) return;
+    if (offset === 0) {
+      requestRef.current += 1;
+      setPage({ scope, offset: 0, items: firstPage, hasMore: firstPage.length >= 100 });
+      return;
     }
-  }, [accountScope, firstPage.length]);
-  const items = useMemo(() => {
-    const seen = new Set<string>();
-    return [...firstPage, ...extra].filter((row) => {
-      const identity = row.id || row.bookId;
-      if (!identity) return true;
-      if (seen.has(identity)) return false;
-      seen.add(identity);
-      return true;
-    });
-  }, [firstPage, extra]);
-  const loadMore = async () => {
-    if (!accountId || loading || !hasMore) return;
     setLoading(true);
+    const token = ++requestRef.current;
     try {
-      const page = await api<{ items: T[]; hasMore: boolean }>(
-        "/account/collection?kind=" + kind + "&offset=" + offsetRef.current,
+      const response = await api<{ items: T[]; hasMore: boolean; nextOffset: number }>(
+        "/account/collection?kind=" + kind + "&offset=" + offset + "&limit=100",
       );
-      offsetRef.current += page.items.length;
-      setExtra((existing) => [...existing, ...page.items]);
-      setHasMore(page.hasMore);
+      // A stale request can neither reveal the prior account's private data
+      // nor replace a newer page request.
+      if (scopeRef.current !== scope || requestRef.current !== token) return;
+      setPage({
+        scope,
+        offset,
+        items: response.items,
+        hasMore: response.hasMore,
+      });
     } catch (error) {
-      toast.error((error as Error).message);
+      if (scopeRef.current === scope && requestRef.current === token)
+        toast.error((error as Error).message);
     } finally {
-      setLoading(false);
+      if (scopeRef.current === scope && requestRef.current === token)
+        setLoading(false);
     }
+  }
+  return {
+    items: visible.items,
+    hasMore: visible.hasMore,
+    hasPrevious: visible.offset > 0,
+    pageNumber: Math.floor(visible.offset / 100) + 1,
+    loading,
+    loadMore: () => navigate(visible.offset + 100),
+    loadPrevious: () => navigate(Math.max(0, visible.offset - 100)),
   };
-  return { items, hasMore, loading, loadMore };
 }
 function CollectionNextPage({
   state,
 }: {
-  state: { hasMore: boolean; loading: boolean; loadMore: () => Promise<void> };
+  state: {
+    hasMore: boolean;
+    hasPrevious: boolean;
+    pageNumber: number;
+    loading: boolean;
+    loadMore: () => Promise<void>;
+    loadPrevious: () => Promise<void>;
+  };
 }) {
   const { t: tr } = useStorefrontLocale();
-  if (!state.hasMore) return null;
+  if (!state.hasMore && !state.hasPrevious) return null;
   return (
-    <div className="collection-load-more">
+    <nav className="collection-load-more" aria-label={tr("collection.pagination", "Collection pages")}>
       <button
         type="button"
         className="button outline"
-        disabled={state.loading}
+        disabled={state.loading || !state.hasPrevious}
+        onClick={() => void state.loadPrevious()}
+      >
+        {tr("collection.previous", "Previous page")}
+      </button>
+      <span aria-live="polite">
+        {tr("collection.page", "Page")} {state.pageNumber}
+      </span>
+      <button
+        type="button"
+        className="button outline"
+        disabled={state.loading || !state.hasMore}
         onClick={() => void state.loadMore()}
       >
-        {state.loading
-          ? tr("collection.loadingMore", "Loading more…")
-          : tr("collection.loadMore", "Load more")}
+        {state.loading ? tr("collection.loadingMore", "Loading…") : tr("collection.next", "Next page")}
       </button>
-    </div>
+    </nav>
   );
 }
 export function AccountGuard({ children }: { children: ReactNode }) {
