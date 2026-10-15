@@ -37,6 +37,8 @@ jobs:
         run: npm run test:large-library
       - name: Offline reading, account restoration and reader-safe notifications
         run: npm run test:reader-recovery
+      - name: Seven-day licensed EPUB signed-receipt regressions
+        run: npm run test:licensed-epub
       - name: Notification delivery and opt-out regressions
         run: npm run test:notifications-delivery
       - name: Customer support, status and recovery regressions
