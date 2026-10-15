@@ -208,6 +208,24 @@ try {
     key("https://backend.test/api/fore/catalog", { "accept-language": "zz,fr;q=0.9" }),
     key("https://backend.test/api/fore/catalog", { "accept-language": "zz,en;q=0.9" }),
   );
+  assert.equal(
+    key("https://backend.test/api/fore/storefront/bootstrap", {
+      "accept-language": "FR-fr, en-US;q=0.800, de-DE;q=0.3",
+    }),
+    key("https://backend.test/api/fore/storefront/bootstrap", {
+      "accept-language": "fr-FR;q=1.0,en-us;q=0.7,de-de;q=0.1",
+    }),
+    "Equivalent language priorities must share the same guest bootstrap cache",
+  );
+  assert.notEqual(
+    key("https://backend.test/api/fore/storefront/bootstrap", {
+      "accept-language": "fr-FR;q=0.7,en-US",
+    }),
+    key("https://backend.test/api/fore/storefront/bootstrap", {
+      "accept-language": "fr-FR,en-US;q=0.7",
+    }),
+    "Different negotiated language priorities must not share a cache entry",
+  );
   assert.notEqual(
     key("https://backend.test/api/fore/catalog", { "x-cove-client-country": "US" }),
     key("https://backend.test/api/fore/catalog", { "x-cove-client-country": "CA" }),
