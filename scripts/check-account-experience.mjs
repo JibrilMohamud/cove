@@ -92,7 +92,7 @@ try {
     "A session crossing local midnight may occupy two daily buckets",
   );
   assert.equal(
-    stats.data.daily.reduce((total, day) => total + Number(day.readSeconds || 0), 0),
+    stats.data.daily.reduce((total, day) => total + Number(day.read_seconds || 0), 0),
     60,
     "Splitting a session at midnight must preserve its reading time",
   );
