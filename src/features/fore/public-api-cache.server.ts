@@ -13,7 +13,7 @@ export function publicCacheTtl(path: string) {
   if (path === "/api/fore/service-status") return 30;
   if (path === "/api/fore/catalog") return 300;
   // Guest-only, market-partitioned initial HTML data. Avoid the repeated multi-query D1 bootstrap.
-  if (path === "/api/fore/storefront/bootstrap") return 60;
+  if (path === "/api/fore/storefront/bootstrap") return 300;
   if (path === "/api/fore/taxonomy") return 1800;
   if (path === "/api/fore/storefront/page") return 900;
   if (path === "/api/fore/search/suggest") return 60;
