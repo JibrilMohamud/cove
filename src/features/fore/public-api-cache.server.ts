@@ -21,6 +21,28 @@ export function publicCacheTtl(path: string) {
   if (/^\/api\/fore\/books\/[^/]+(?:\/detail)?$/.test(path)) return 60;
   return 0;
 }
+/**
+ * Mirror storefront language negotiation's quality sorting while excluding
+ * incidental q-values, whitespace and casing from the cache identity.
+ * Preserve priority/order, including unsupported locales: the active locale
+ * configuration can change without a deployment.
+ */
+export function canonicalAcceptLanguage(header: string) {
+  return header
+    .split(",")
+    .map((part, index) => {
+      const [tag, ...params] = part.trim().split(";");
+      let q = 1;
+      for (const param of params)
+        if (param.trim().startsWith("q=")) q = Number(param.trim().slice(2)) || 0;
+      return { tag: tag.trim().replace(/_/g, "-").toLowerCase(), q, index };
+    })
+    .filter((part) => part.tag && part.tag !== "*")
+    .sort((a, b) => b.q - a.q || a.index - b.index)
+    .map((part) => part.tag)
+    .join(",");
+}
+
 export function publicCacheKey(request: Request, fallbackCountry = "US") {
   const url = new URL(request.url);
   const rawCountry = (
@@ -38,7 +60,7 @@ export function publicCacheKey(request: Request, fallbackCountry = "US") {
   // Locale selection uses the complete quality-weighted header, including fallbacks.
   url.searchParams.set(
     "__cove_language",
-    (request.headers.get("accept-language") || "").trim().toLowerCase(),
+    canonicalAcceptLanguage(request.headers.get("accept-language") || ""),
   );
   url.searchParams.set("__cove_cache_version", "3");
   // Guest storefront preferences are safe variants, not authentication.
