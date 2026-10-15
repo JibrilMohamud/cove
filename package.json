@@ -48,6 +48,7 @@
     "test:reader-sharing-offline": "node scripts/check-reader-sharing-offline.mjs",
     "test:reader-recovery": "node scripts/check-reader-recovery.mjs",
     "test:account-pagination": "node scripts/check-account-pagination.mjs",
+    "test:localization-coverage": "node scripts/check-localization-coverage.mjs",
     "test:currency-minor-units": "node scripts/check-currency-minor-units.mjs",
     "test:large-library": "node scripts/check-large-library-pagination.mjs",
     "test:licensed-epub": "node scripts/check-licensed-epub-receipts.mjs && node scripts/check-licensed-epub-client.mjs",
