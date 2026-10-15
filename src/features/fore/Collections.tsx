@@ -123,8 +123,7 @@ function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
             toast.error((error as Error).message);
         })
         .finally(() => {
-          if (scopeRef.current === scope && requestRef.current === token)
-            setLoading(false);
+          if (scopeRef.current === scope && requestRef.current === token) setLoading(false);
         });
     }, 250);
     return () => window.clearTimeout(timer);
@@ -157,8 +156,7 @@ function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
       if (scopeRef.current === scope && requestRef.current === token)
         toast.error((error as Error).message);
     } finally {
-      if (scopeRef.current === scope && requestRef.current === token)
-        setLoading(false);
+      if (scopeRef.current === scope && requestRef.current === token) setLoading(false);
     }
   }
   return {
@@ -259,7 +257,13 @@ export function LibraryPage() {
     [busy, setBusy] = useState(false),
     [remove, setRemove] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const pages = usePagedAccountCollection<LibraryBook>("library", data.library, data.user?.id, q, filter);
+  const pages = usePagedAccountCollection<LibraryBook>(
+    "library",
+    data.library,
+    data.user?.id,
+    q,
+    filter,
+  );
   const books = pages.items.filter(
     (x) =>
       (filter === "all" || x.status === filter) &&
