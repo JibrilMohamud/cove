@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
 
+// This suite mocks the rights API. A registered worker can otherwise bypass
+// Playwright routes on the second navigation, especially in WebKit. The offline
+// sharing suites cover the real worker separately.
+test.use({ serviceWorkers: "block" });
+
 test("soundtrack credits, opt-in playback, and versioned staff review submissions", async ({
   page,
 }) => {
