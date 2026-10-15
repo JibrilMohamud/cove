@@ -240,12 +240,19 @@ try {
     "https://backend.example.workers.dev/api/fore/storefront/bootstrap",
   );
   assert.equal(cache.publicCacheTtl("/api/fore/storefront/bootstrap"), 60);
+  const bootstrapHandler = async (req) => {
+    const response = await handler(req);
+    const value = await response.json();
+    // A cache hit must never replay a previous request's analytics identifier.
+    value.catalog.search.queryId = "uncacheable-bootstrap-query-id";
+    return Response.json(value);
+  };
   const bootstrapMiss = await cache.cachedPublicApi(
     bootstrapLogical,
     bootstrapBackend,
     env,
     ctx,
-    handler,
+    bootstrapHandler,
   );
   assert.equal(bootstrapMiss.headers.get("x-cove-backend-cache"), "MISS");
   const firstBootstrap = await bootstrapMiss.json();
@@ -257,12 +264,12 @@ try {
     bootstrapBackend,
     env,
     ctx,
-    handler,
+    bootstrapHandler,
   );
   assert.equal(bootstrapHit.headers.get("x-cove-backend-cache"), "HIT");
   assert.equal(handlerCalls, callsAfterBootstrapMiss);
   const cachedBootstrap = await bootstrapHit.json();
-  assert.ok(cachedBootstrap.catalog.search.queryId);
+  assert.equal(firstBootstrap.catalog.search.queryId, "uncacheable-bootstrap-query-id");
   assert.notEqual(cachedBootstrap.catalog.search.queryId, firstBootstrap.catalog.search.queryId);
   const firstBootstrapProduct = cachedBootstrap.catalog.results[0].productId;
   await env.DB.prepare("UPDATE catalog_search_documents SET suppressed=1 WHERE product_id=?")
@@ -273,7 +280,7 @@ try {
     bootstrapBackend,
     env,
     ctx,
-    handler,
+    bootstrapHandler,
   );
   assert.equal(changedBootstrap.headers.get("x-cove-backend-cache"), "MISS");
   assert.equal(
