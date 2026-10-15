@@ -144,11 +144,16 @@ function validCandidate(page: CommonsPage) {
     mediaUrl: sourceFileUrl(info!)!, mime, size, sha1, license, performer, attribution };
 }
 export async function discoverSoundtrackCandidates(env: CoveEnv) {
-  const state = await env.DB.prepare("SELECT * FROM soundtrack_ingestion_state WHERE id=1").first<{ category_index:number; continuation:string; discovered:number; last_discovery_at:string }>();
-  if (!state || state.discovered >= MAX_DISCOVERED || state.category_index >= CATEGORIES.length)
+  const state = await env.DB.prepare("SELECT * FROM soundtrack_ingestion_state WHERE id=1").first<{
+    category_index:number; continuation:string; discovered:number; last_discovery_at:string; category_cursors_json:string
+  }>();
+  if (!state || state.discovered >= MAX_DISCOVERED)
     return { skipped: "complete", discovered: Number(state?.discovered || 0) };
+  const cursors = JSON.parse(state.category_cursors_json || "{}") as Record<string,string>;
+  if (CATEGORIES.every(cat => cursors[cat.name] === "DONE"))
+    return { skipped: "categories_exhausted", discovered: Number(state.discovered) };
   const now = new Date().toISOString();
-  if (state.last_discovery_at && Date.now() - Date.parse(state.last_discovery_at) < 50 * 60_000)
+  if (state.last_discovery_at && Date.now() - Date.parse(state.last_discovery_at) < 8 * 60_000)
     return { skipped: "cadence" };
   const token = crypto.randomUUID();
   const lease = await env.DB.prepare(
@@ -156,13 +161,18 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
   ).bind(token, new Date(Date.now()+90_000).toISOString(), now).first<{ id:number }>();
   if (!lease) return { skipped: "leased" };
   try {
-    const category = CATEGORIES[Number(state.category_index)];
+    let categoryIndex = Number(state.category_index) % CATEGORIES.length;
+    for (let index = 0; index < CATEGORIES.length; index++) {
+      if (cursors[CATEGORIES[categoryIndex].name] !== "DONE") break;
+      categoryIndex = (categoryIndex + 1) % CATEGORIES.length;
+    }
+    const category = CATEGORIES[categoryIndex];
     const params = new URLSearchParams({
       generator: "categorymembers", gcmtitle: "Category:" + category.name,
-      gcmtype: "file", gcmlimit: "100", prop: "imageinfo",
+      gcmtype: "file", gcmlimit: "50", prop: "imageinfo",
       iiprop: "url|mime|size|sha1|extmetadata",
     });
-    if (state.continuation) params.set("gcmcontinue", state.continuation);
+    if (cursors[category.name]) params.set("gcmcontinue", cursors[category.name]);
     const data = await commonsRequest(params);
     let added = 0;
     const pages = Object.values(data.query?.pages || {}).sort((a,b) => (a.pageid || 0)-(b.pageid || 0));
@@ -173,23 +183,25 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
       const tags = profile(c.title, category);
       const result = await env.DB.prepare(
         "INSERT OR IGNORE INTO soundtrack_recordings (id,source_title,source_page_url,source_file_url,source_sha1,source_size,mime,title,performer,license_code,license_url,license_statement,attribution_text,period,instruments_json,moods_json,energy,has_vocals,evidence_json,discovered_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-      ).bind(c.id, page.title, c.sourcePage, c.info.url, c.sha1,c.size,c.info.mime,c.title,
+      ).bind(c.id, page.title, c.sourcePage, c.mediaUrl, c.sha1,c.size,c.mime,c.title,
         c.performer,c.license.code,c.license.link,c.license.statement,c.attribution,
         category.period,JSON.stringify(tags.instruments),JSON.stringify(tags.moods),
         tags.energy,tags.hasVocals,JSON.stringify({ source:"commons_imageinfo",filePage:c.sourcePage,
           claimedLicense:c.license.statement,claimedLicenseUrl:c.license.link,
+          rawLicenseUrl:c.info.extmetadata?.LicenseUrl?.value || "",
           sourceSha1:c.sha1,sourceSize:c.size,artist:c.performer,
-          capturedAt:now,rightsNote:"UNVERIFIED: composition and performance need individual review" }),
+          sourceMime:c.info.mime,sourceUrl:c.info.url,
+          capturedAt:now,rightsNote:"UNVERIFIED: composition, arrangement and master recording require individual rights review" }),
         now,now).run() as { meta?: { changes?: number } };
       added += Number(result?.meta?.changes || 0);
     }
     const reachedLimit = Number(state.discovered) + added >= MAX_DISCOVERED;
+    cursors[category.name] = data.continue?.gcmcontinue || "DONE";
     await env.DB.prepare(
-      "UPDATE soundtrack_ingestion_state SET category_index=?,continuation=?,discovered=discovered+?,last_discovery_at=?,last_error='',lease_until='',lease_token='' WHERE id=1 AND lease_token=?",
-    ).bind(reachedLimit ? CATEGORIES.length : (data.continue?.gcmcontinue ? state.category_index : Number(state.category_index)+1),
-      reachedLimit ? "" : (data.continue?.gcmcontinue || ""),added,now,token).run();
+      "UPDATE soundtrack_ingestion_state SET category_index=?,category_cursors_json=?,continuation='',discovered=discovered+?,last_discovery_at=?,last_error='',lease_until='',lease_token='' WHERE id=1 AND lease_token=?",
+    ).bind((categoryIndex+1)%CATEGORIES.length,JSON.stringify(cursors),added,now,token).run();
     return { scanned: pages.length, queuedForRightsReview: added, total: Number(state.discovered)+added,
-      source: category.name };
+      reachedLimit, source: category.name };
   } catch (error) {
     await env.DB.prepare(
       "UPDATE soundtrack_ingestion_state SET lease_until='',lease_token='',last_error=?,last_discovery_at=? WHERE id=1 AND lease_token=?",
