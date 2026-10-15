@@ -32,7 +32,8 @@ try {
     assert.equal(response.status, 200, JSON.stringify(data));
     return data;
   }
-  const a = "paging-alice", b = "paging-bob";
+  const a = "paging-alice",
+    b = "paging-bob";
   await call(a, "/account");
   await call(b, "/account");
   const at = new Date("2026-10-14T12:00:00.000Z").toISOString();
@@ -45,22 +46,55 @@ try {
   for (let i = 0; i < 225; i++) {
     const rowId = "note-" + String(i).padStart(3, "0");
     const bookId = i % 2 ? "1342" : "84";
-    await insertNote.bind(
-      rowId, a, bookId, "A test title", "Author",
-      "Test quote " + i, "epubcfi(/6/2!)", "Chapter One",
-      "yellow", "Private note " + i, at, at,
-    ).run();
-    await insertDefinition.bind(
-      "definition-" + String(i).padStart(3, "0"),
-      a, "word" + i, "", "Meaning " + i, "noun",
-      bookId, "A test title", "epubcfi(/6/2!)", "Context", "reader", at,
-    ).run();
+    await insertNote
+      .bind(
+        rowId,
+        a,
+        bookId,
+        "A test title",
+        "Author",
+        "Test quote " + i,
+        "epubcfi(/6/2!)",
+        "Chapter One",
+        "yellow",
+        "Private note " + i,
+        at,
+        at,
+      )
+      .run();
+    await insertDefinition
+      .bind(
+        "definition-" + String(i).padStart(3, "0"),
+        a,
+        "word" + i,
+        "",
+        "Meaning " + i,
+        "noun",
+        bookId,
+        "A test title",
+        "epubcfi(/6/2!)",
+        "Context",
+        "reader",
+        at,
+      )
+      .run();
   }
-  await insertNote.bind(
-    "bob-private", b, "1342", "A test title", "Author",
-    "Bob only", "epubcfi(/6/2!)", "Chapter One",
-    "yellow", "PRIVATE", at, at,
-  ).run();
+  await insertNote
+    .bind(
+      "bob-private",
+      b,
+      "1342",
+      "A test title",
+      "Author",
+      "Bob only",
+      "epubcfi(/6/2!)",
+      "Chapter One",
+      "yellow",
+      "PRIVATE",
+      at,
+      at,
+    )
+    .run();
   const summary = await call(a, "/account");
   assert.equal(summary.annotations.length, 100, "account bootstrap must be bounded");
   assert.equal(summary.definitions.length, 100);
@@ -79,9 +113,7 @@ try {
     assert.deepEqual(sizes, [100, 100, 25]);
     assert.equal(seen.size, 225, "all private rows remain reachable");
   }
-  const filtered = await call(
-    a, "/account/collection?kind=annotations&bookId=1342&limit=100",
-  );
+  const filtered = await call(a, "/account/collection?kind=annotations&bookId=1342&limit=100");
   assert.equal(filtered.items.length, 100);
   assert.ok(filtered.items.every((row) => row.bookId === "1342"));
   assert.equal(filtered.hasMore, true);
@@ -93,7 +125,9 @@ try {
     env,
   );
   assert.equal(guest.status, 401, "guests cannot page private annotations");
-  console.log("PASS: 225-row paging, per-book filtering, 100-row bootstrap, no duplicates, account isolation");
+  console.log(
+    "PASS: 225-row paging, per-book filtering, 100-row bootstrap, no duplicates, account isolation",
+  );
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });
 }
