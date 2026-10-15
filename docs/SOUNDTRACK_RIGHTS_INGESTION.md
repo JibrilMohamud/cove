@@ -1,5 +1,13 @@
 # Current review and audio QA workflow
 
+The owner's [source-reliance policy](soundtracks/SOURCE_RELIANCE_POLICY.md)
+supersedes requirements below for independent re-investigation of routine
+repository declarations. `reviewMethod: source_license` records reliance on the
+exact recording's published PD/CC0/CC BY/CC BY-SA declaration. It does not represent
+independent human clearance. Source identity, attribution, audio QA, known conflicts
+and territory restrictions remain enforced. Straightforward PD source reliance
+does not require a second reviewer; complex provenance still does.
+
 The implementation and payload requirements in [the clearance pilot runbook](soundtracks/README.md)
 supersede the original approval example below. Every write now requires an integer
 `version`; approval also requires a saved five-layer dossier and passing exact-file
@@ -11,6 +19,7 @@ claims require an independent second principal. Approval and audit history are a
 # Cove Soundtracks: recording-rights ingestion runbook
 
 ## Verified operational findings — 15 October 2026
+
 The original first release made zero progress: Cloudflare's Fetch runtime rejects
 `redirect: "error"`. Commons exposes playable Ogg files as
 `application/ogg`, frequently appends UTM parameters to its upload URLs,
@@ -32,6 +41,7 @@ performances, is only a **claim** until rights in score, arrangement, recording,
 performers and source jurisdictions have been independently established.
 
 ### Individual research example (candidate; not final approval)
+
 Source: [Albéniz — Rondeña from Iberia, performed by La Pianista](https://commons.wikimedia.org/wiki/File:Alb%C3%A9niz_-_Ronde%C3%B1a_from_Iberia.ogg)
 
 - The file page identifies composer Isaac Albéniz (1860–1909), work composed
@@ -50,6 +60,7 @@ Source: [Albéniz — Rondeña from Iberia, performed by La Pianista](https://co
   completed rights clearance.
 
 ### Rights audit
+
 Every authenticated approve, reject, revoke and retry action is written to
 `soundtrack_rights_decisions`, including the responsible service principal,
 source checksum and the submitted rights evidence. This is a decision history,
@@ -58,12 +69,15 @@ database entitlement **before** removing the R2 object; inaccessible R2 should
 never delay an immediate distribution halt.
 
 ## What gets imported
+
 The Worker discovers up to 750 **metadata candidates** from selected Wikimedia Commons classical-music audio categories. Discovery is rate-limited to one 50-file metadata page per ten-minute maintenance window. Candidates claiming CC0, CC BY, CC BY-SA (supported versions), or a Commons public-domain claim may be staged, but they are never automatically approved, copied to R2 or publicly played. NC, ND, unknown licenses, files over 25 MB, and unsupported audio types are excluded. Commons license metadata is not independent proof of recording rights.
 
 ## Individual review
+
 An accountable rights reviewer obtains the pending candidates with an authenticated GET request to /api/fore/admin/soundtracks?status=pending_review&limit=40. The existing scoped soundtracks.review service credential is required and must never be included in browser code.
 
 For each recording the reviewer must:
+
 - Open the original Commons page and inspect the individual version of the sound recording.
 - Verify composition, arrangement, performance, performer, master-recording rights and historical dates independently of the Commons tag.
 - Document allowed territories. A public-domain composition does not imply public-domain recording rights.
@@ -75,6 +89,7 @@ Submit POST /api/fore/admin/soundtracks/recordings/cm_<pageid> with an authentic
 The server re-fetches Commons file metadata and invalidates approval if license, URL, SHA-1, size or MIME has changed. On the 10-minute schedule, only approved recordings may be downloaded, directly to private R2; SHA-1 is verified on upload and the object size is verified before publication.
 
 ## Lifecycle and takedown
+
 pending_review: discovered; no file or public visibility.
 approved: evidence-backed accountable review recorded; passed exact-file QA; queued for storage.
 importing: exclusive ingestion in progress.
@@ -86,6 +101,7 @@ revoked: file removed from R2 and withdrawn from public delivery.
 Reviewers may submit reject, revoke, or retry actions on the same endpoint. Rights challenges should trigger prompt revocation and escalation. Review evidence and source provenance remain preserved on the D1 row.
 
 ## Public use
+
 The /soundtracks page displays composer and performer, source link, license text/link, credit, and corrected musical tags alongside an opt-in audio player. Public APIs only return ready tracks for the active rights territory. Byte-range audio streams are served from private R2 rather than hotlinked to Wikimedia Commons.
 
 To audit the rollout, query SELECT status,COUNT(*) FROM soundtrack_recordings GROUP BY status; and verify R2 objects for ready rows. A pool of 250 staged candidates is NOT 250 rights-cleared songs. Initially the ready count is expected to be zero until individual independent reviews and imports complete.

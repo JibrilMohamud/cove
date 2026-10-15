@@ -1,5 +1,16 @@
 # Cove soundtrack clearance pilot — 15 October 2026
 
+## Updated source policy
+
+The owner has authorized [recording-level source reliance](SOURCE_RELIANCE_POLICY.md)
+for routine imports. The review workspace supports `source_license` alongside
+human and AI-assisted assessment. This accepts the repository's exact recording
+declaration without a separate independent clearance opinion. It does not override
+known conflicts or failed audio QA, or turn a Creative Commons recording into
+public domain. Plain PD source reliance is initially US-only and needs no second
+principal; complex provenance still requires one. Earlier independent-review
+instructions below apply to the older assessment modes.
+
 This folder contains evidence, individual research dossiers, and measured audio
 reports. It does not replace a rights holder's license or claim a human lawyer
 reviewed the catalog. `reviewMethod: ai_assisted` means an AI inspected the source

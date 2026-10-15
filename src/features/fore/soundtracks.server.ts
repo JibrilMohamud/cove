@@ -437,8 +437,13 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
       if (!parsed.success || parsed.data.unresolved.length)
         throw new ApiError(422,"A complete dossier with no unresolved rights questions is required.");
       const dossier = parsed.data;
+      const reliance = dossier.sourceReliance;
+      if (dossier.reviewMethod === "source_license" && (!reliance ||
+          reliance.sourcePageUrl !== original.source_page_url || reliance.sourceSha1 !== original.source_sha1 ||
+          reliance.licenseCode !== original.license_code || reliance.licenseUrl !== original.license_url))
+        throw new ApiError(422,"Source-license reliance must match this exact recording and its published license.");
       if (original.quality_status!=="passed") throw new ApiError(422,"Measured audio QA must pass before approval.");
-      if (original.license_code === "PD" || dossier.complexProvenance) {
+      if ((original.license_code === "PD" && dossier.reviewMethod !== "source_license") || dossier.complexProvenance) {
         const digest = await crypto.subtle.digest("SHA-256",new TextEncoder().encode(original.dossier_json));
         const dossierSha256 = Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
         const second = await env.DB.prepare(
@@ -459,6 +464,9 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
       const territories = input.territories;
       const validTerritories = Array.isArray(territories) && territories.length>0 && territories.length<=250 &&
         territories.every(v=>typeof v==="string" && (v==="*" || /^[A-Z]{2}$/.test(v)));
+      if (original.license_code === "PD" && dossier.reviewMethod === "source_license" &&
+          (!Array.isArray(territories) || territories.some(v=>v!=="US")))
+        throw new ApiError(422,"Repository-declared public-domain reliance is initially limited to the US; other territories need a separate rights assessment.");
       const inst = input.instruments, moods = input.moods, energy = input.energy, vocals = input.hasVocals;
       if (!reviewer || rationale.length<80 || !performer || /unverified|unknown/i.test(performer) || !composer ||
           !validTerritories || input.compositionRightsConfirmed!==true || input.performanceRightsConfirmed!==true ||

@@ -13,6 +13,7 @@ type ReviewRow = {
   performer: string;
   period: string;
   license_statement: string;
+  license_code: "PD" | "CC0" | "CC-BY" | "CC-BY-SA";
   license_url: string;
   dossier_json: string;
   quality_status: string;
@@ -181,13 +182,34 @@ function ReviewEditor({
               setDossier({
                 ...dossier,
                 reviewMethod: e.target.value as SoundtrackDossier["reviewMethod"],
+                ...(e.target.value === "source_license"
+                  ? {
+                      sourceReliance: {
+                        sourcePageUrl: row.source_page_url,
+                        sourceSha1: row.source_sha1,
+                        licenseCode: row.license_code,
+                        licenseUrl: row.license_url,
+                        declarationBasis:
+                          "Cove accepts the repository's published declaration for this exact recording as the licensing basis. This records source reliance, not an independent human or legal certification.",
+                      },
+                    }
+                  : {}),
               })
             }
           >
             <option value="human">Human review</option>
             <option value="ai_assisted">AI assisted evidence review</option>
+            <option value="source_license">Rely on repository recording license</option>
           </select>
         </label>
+        {dossier.reviewMethod === "source_license" ? (
+          <p>
+            Accept this recording's published license as the rights basis. Save source links and
+            license conditions in the dossier. Straightforward declarations need no independent
+            second review; known conflicts and failed audio QA still block release. Public-domain
+            reliance initially covers the US only.
+          </p>
+        ) : null}
         <label>
           <input
             type="checkbox"

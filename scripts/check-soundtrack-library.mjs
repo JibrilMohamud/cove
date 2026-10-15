@@ -113,12 +113,13 @@ try {
   assert.equal((await lib.handleSoundtracks(staffRequest,env,"/admin/soundtracks","US",staffIdentity)).status,200,"Dedicated reviewer role works with a verified MFA session");
   await assert.rejects(()=>lib.handleSoundtracks(staffRequest,env,"/admin/soundtracks","US",{...staffIdentity,id:"unassigned"}),/not provisioned/i);
   const adminPath = "/admin/soundtracks/recordings/cm_101";
-  const review = async (action, extra = {}, version) => {
-    const row = await env.DB.prepare("SELECT review_version FROM soundtrack_recordings WHERE id='cm_101'").first();
-    return lib.handleSoundtracks(new Request("https://cove.test/api/fore"+adminPath,{
+  const review = async (action, extra = {}, version, id = "cm_101") => {
+    const row = await env.DB.prepare("SELECT review_version FROM soundtrack_recordings WHERE id=?").bind(id).first();
+    const target = "/admin/soundtracks/recordings/" + id;
+    return lib.handleSoundtracks(new Request("https://cove.test/api/fore"+target,{
       method:"POST",headers:{authorization:"Bearer "+token,"content-type":"application/json"},
       body:JSON.stringify({action,version:version ?? row.review_version,...extra}),
-    }),env,adminPath,"US");
+    }),env,target,"US");
   };
   const basis = {basis:"Fixture evidence: original composition from a historical published score with an original creator recording release.", evidenceUrls:["https://commons.wikimedia.org/wiki/File:Fixture.ogg"]};
   const dossier = {composition:basis,arrangement:basis,lyrics:basis,performance:basis,master:basis,
@@ -221,6 +222,34 @@ try {
   await lib.importOneReviewedSoundtrack(env);
   assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_cleanup_queue").first()).n,0,"Cleanup is durably retried after withdrawal");
   assert.equal(mediaRequests,1);
+  // Repository reliance is explicit, exact-file-bound and auditable. It does not
+  // pretend an independent reviewer checked the declaration.
+  const sourceRow = await env.DB.prepare("SELECT * FROM soundtrack_recordings WHERE id='cm_105'").first();
+  const pdUrl = "https://commons.wikimedia.org/wiki/Commons:Licensing";
+  await env.DB.prepare("UPDATE soundtrack_recordings SET license_code='PD',license_url=?,license_statement='Public domain (Commons claim)' WHERE id='cm_105'").bind(pdUrl).run();
+  pages[4].imageinfo[0].extmetadata.LicenseShortName.value = "Public domain";
+  pages[4].imageinfo[0].extmetadata.LicenseUrl.value = "";
+  pages[4].imageinfo[0].extmetadata.Copyrighted = {value:"False"};
+  const sourceDossier = {...dossier, reviewMethod:"source_license", sourceReliance:{
+    sourcePageUrl:sourceRow.source_page_url,sourceSha1:sha1,licenseCode:"PD",licenseUrl:pdUrl,
+    declarationBasis:"Accept the recording-specific repository declaration under Cove's source-reliance policy; no independent human review is represented."}};
+  const sourceReview = (action,extra) => review(action,extra,undefined,"cm_105");
+  await assert.rejects(()=>sourceReview("draft",{dossier:{...dossier,reviewMethod:"source_license"}}),/source links/i);
+  await sourceReview("quality",{report});
+  await sourceReview("draft",{dossier:{...sourceDossier,sourceReliance:{...sourceDossier.sourceReliance,sourceSha1:"0".repeat(40)}}});
+  await assert.rejects(()=>sourceReview("approve",approval),/exact recording/i);
+  await sourceReview("draft",{dossier:{...sourceDossier,unresolved:["Conflicting master ownership"]}});
+  await assert.rejects(()=>sourceReview("approve",approval),/unresolved/i);
+  await sourceReview("draft",{dossier:{...sourceDossier,complexProvenance:true}});
+  await assert.rejects(()=>sourceReview("approve",approval),/second independent/i);
+  await sourceReview("draft",{dossier:sourceDossier});
+  await assert.rejects(()=>sourceReview("approve",{...approval,territories:["*"]}),/limited to the US/i);
+  upstreamChanged = true;
+  await assert.rejects(()=>sourceReview("approve",approval),/source or license changed/i);
+  upstreamChanged = false;
+  assert.equal((await sourceReview("approve",approval)).status,200,"Straightforward repository PD reliance needs no second principal");
+  const sourceDecision = await env.DB.prepare("SELECT evidence_json FROM soundtrack_rights_decisions WHERE recording_id='cm_105' AND action='approve'").first();
+  assert.equal(JSON.parse(sourceDecision.evidence_json).dossier.reviewMethod,"source_license");
   console.log("Soundtrack discovery, license filters, review gate, source drift, R2 checksum, attribution, territory and streaming passed.");
 } finally {
   globalThis.fetch=originalFetch;
