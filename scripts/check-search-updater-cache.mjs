@@ -239,7 +239,7 @@ try {
   const bootstrapBackend = new Request(
     "https://backend.example.workers.dev/api/fore/storefront/bootstrap",
   );
-  assert.equal(cache.publicCacheTtl("/api/fore/storefront/bootstrap"), 60);
+  assert.equal(cache.publicCacheTtl("/api/fore/storefront/bootstrap"), 300);
   const bootstrapHandler = async (req) => {
     const response = await handler(req);
     const value = await response.json();
