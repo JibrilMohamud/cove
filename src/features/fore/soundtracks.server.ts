@@ -119,7 +119,7 @@ async function commonsRequest(params: URLSearchParams): Promise<CommonsReply> {
   params.set("formatversion", "2");
   params.set("maxlag", "5");
   const result = await fetch(API + "?" + params.toString(), {
-    headers: { "Api-User-Agent": AGENT, "Accept": "application/json" },
+    headers: { "User-Agent": AGENT, "Api-User-Agent": AGENT, "Accept": "application/json" },
     redirect: "manual", signal: AbortSignal.timeout(15_000),
   });
   if (!result.ok) throw new Error("Commons metadata unavailable: HTTP " + result.status);
