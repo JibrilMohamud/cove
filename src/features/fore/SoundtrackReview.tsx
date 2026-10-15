@@ -90,6 +90,7 @@ function ReviewEditor({ row, refresh }: { row: ReviewRow; refresh: () => Promise
         ...extra,
       });
       setMessage("Saved " + action + ".");
+      report(row.title + ": saved " + action + ".");
       await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Review could not be saved.");
@@ -349,6 +350,7 @@ function ReviewEditor({ row, refresh }: { row: ReviewRow; refresh: () => Promise
 }
 export function SoundtrackReviewPage() {
   const cache = useQueryClient();
+  const [notice, setNotice] = useState("");
   const [status, setStatus] = useState("pending_review"),
     [after, setAfter] = useState("");
   const [selected, setSelected] = useState("");
@@ -364,6 +366,9 @@ export function SoundtrackReviewPage() {
   return (
     <main className="help-page">
       <h1>Soundtrack rights review</h1>
+      <p role="status" aria-live="polite">
+        {notice}
+      </p>
       <p>
         Staff access requires the soundtracks.review permission. Credentials stay in your
         authenticated session.
@@ -433,8 +438,9 @@ export function SoundtrackReviewPage() {
       ) : null}
       {row ? (
         <ReviewEditor
-          key={row.id + ":" + row.review_version}
+          key={row.id}
           row={row}
+          report={setNotice}
           refresh={() => cache.invalidateQueries({ queryKey: ["soundtrack-review"] })}
         />
       ) : null}

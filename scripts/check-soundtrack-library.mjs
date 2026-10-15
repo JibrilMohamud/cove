@@ -160,8 +160,13 @@ try {
   await env.DB.prepare(
     "UPDATE soundtrack_recordings SET status='approved',reviewed_at=?,reviewed_by='test reviewer',review_evidence='Reviewed composition and performance',allowed_territories_json='[\"US\"]' WHERE id='cm_101'",
   ).bind(reviewed).run();
-  const stored = await lib.importOneReviewedSoundtrack(env);
+  const importPath = "/admin/soundtracks/import-next";
+  const imported = await lib.handleSoundtracks(new Request("https://cove.test/api/fore"+importPath,{
+    method:"POST",headers:{authorization:"Bearer "+token,"content-type":"application/json"},body:"{}",
+  }),env,importPath,"US");
+  const stored = await imported.json();
   assert.equal(stored.stored,"cm_101");
+  await assert.rejects(()=>lib.handleSoundtracks(new Request("https://cove.test/api/fore"+importPath,{method:"POST"}),env,importPath,"US"),/credential/i);
   assert.equal(mediaStored,1);
   assert.equal((await (await listing()).json()).count,1);
   const international = await lib.handleSoundtracks(publicRequest,env,"/soundtracks/recordings","FR");
@@ -173,6 +178,16 @@ try {
   assert.equal(audio.status,206);
   assert.equal(await audio.text(),music.subarray(0,8).toString());
   assert.equal(audio.headers.get("content-range"),"bytes 0-7/"+music.length);
+  const suffix = await lib.handleSoundtracks(new Request("https://cove.test/api/fore"+audioPath,{headers:{range:"bytes=-8"}}),env,audioPath,"US");
+  assert.equal(suffix.status,206);
+  assert.equal(await suffix.text(),music.subarray(-8).toString(),"Suffix ranges support seeking");
+  const clamped = await lib.handleSoundtracks(new Request("https://cove.test/api/fore"+audioPath,{headers:{range:"bytes=0-999999"}}),env,audioPath,"US");
+  assert.equal(clamped.status,206);assert.equal(clamped.headers.get("content-length"),String(music.length));
+  const unsatisfiable = await lib.handleSoundtracks(new Request("https://cove.test/api/fore"+audioPath,{headers:{range:"bytes=999999-"}}),env,audioPath,"US");
+  assert.equal(unsatisfiable.status,416);assert.equal(unsatisfiable.headers.get("content-range"),"bytes */"+music.length);
+  const headRequest = await lib.handleSoundtracks(new Request("https://cove.test/api/fore"+audioPath,{method:"HEAD",headers:{range:"bytes=0-7"}}),env,audioPath,"US");
+  assert.equal(headRequest.status,200);assert.equal(headRequest.headers.get("content-length"),String(music.length));
+
   await assert.rejects(() => lib.handleSoundtracks(
     new Request("https://cove.test/api/fore" + audioPath),env,audioPath,"FR"),
   /unavailable/i);

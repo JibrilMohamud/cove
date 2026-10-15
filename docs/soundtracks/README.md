@@ -65,8 +65,12 @@ grants rights-review access. Do not put service tokens into browser code.
 
 Requests to `/api/fore/admin/soundtracks/recordings/cm_<id>` support `draft`,
 `quality`, `endorse`, `approve`, `reject`, `revoke`, and `retry`, with the current
-integer `version` in every write. A stale write returns 409. The admin list uses
+integer `version` in every recording-review write. A stale write returns 409. The admin list uses
 `after` pagination and exposes `nextCursor`; detail responses include audit history.
+
+Authorized operators can POST `{}` to `/api/fore/admin/soundtracks/import-next`
+to run one bounded import immediately using the same exclusive lease as cron.
+It never bypasses review or exact-file QA.
 
 Withdrawal immediately removes public authorization. Failed object cleanup is
 queued durably and retried by maintenance. Review evidence and immutable decision

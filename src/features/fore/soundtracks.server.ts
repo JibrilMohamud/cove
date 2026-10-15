@@ -338,6 +338,10 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
     }
   }
   const url = new URL(request.url);
+  if (admin && path === "/admin/soundtracks/import-next" && request.method === "POST") {
+    // One bounded import per call; the same exclusive lease as scheduled work.
+    return json(await importOneReviewedSoundtrack(env));
+  }
   const idMatch = /^\/(?:admin\/)?soundtracks\/recordings\/(cm_[0-9]{1,15})(?:\/audio)?$/.exec(path);
   if (!admin && path === "/soundtracks/recordings" && request.method === "GET") {
     const rows = (await env.DB.prepare(
@@ -512,15 +516,28 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
     const head = await env.BUCKET.head?.(row.storage_key);
     if (!head || !row.storage_bytes || head.size !== row.storage_bytes)
       throw new ApiError(503,"Verified audio file is temporarily unavailable.");
-    const range = request.headers.get("range");
+    const range = request.method === "GET" ? request.headers.get("range") : null;
     let offset=0,length=head.size,status=200;
     if (range) {
-      const m = /^bytes=(\d+)-(\d*)$/.exec(range);
-      if (!m) throw new ApiError(416,"Invalid audio range.");
-      offset=Number(m[1]);
-      const last=m[2] ? Number(m[2]):head.size-1;
-      if (!Number.isSafeInteger(offset)||!Number.isSafeInteger(last)||offset<0||offset>=head.size||
-          last<offset||last>=head.size) throw new ApiError(416,"Invalid audio range.");
+      const invalid = () => new Response(null,{status:416,headers:{
+        "Content-Range":"bytes */"+head.size,"Accept-Ranges":"bytes","Cache-Control":"private, no-store",
+      }});
+      const m = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+      if (!m || (!m[1] && !m[2])) return invalid();
+      let last=head.size-1;
+      if (!m[1]) {
+        const suffix=Number(m[2]);
+        if (!Number.isSafeInteger(suffix) || suffix<=0) return invalid();
+        offset=Math.max(0,head.size-suffix);
+      } else {
+        offset=Number(m[1]);
+        if (m[2]) {
+          const requestedLast=Number(m[2]);
+          if (!Number.isSafeInteger(requestedLast) || requestedLast<offset) return invalid();
+          last=Math.min(requestedLast,head.size-1);
+        }
+        if (!Number.isSafeInteger(offset)||offset<0||offset>=head.size) return invalid();
+      }
       length=last-offset+1;status=206;
     }
     const headers = new Headers({ "Content-Type":row.mime,"Cache-Control":"private, no-store",
