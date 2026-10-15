@@ -18,6 +18,7 @@ try {
       "audio.server",
       "pipeline.server",
       "stored-epub.server",
+      "epub-retry-policy",
       "public-status.server",
     ].map((f) => `src/features/fore/${f}.ts`),
     bundle: true,
@@ -28,6 +29,14 @@ try {
     logLevel: "silent",
   });
   const api = await import(path.join(root, "api.server.mjs"));
+  const policy = await import(path.join(root, "epub-retry-policy.mjs"));
+  assert.equal(policy.hasEpubDownloadWindow(Date.now() + 1000), false);
+  assert.equal(policy.hasEpubDownloadWindow(Date.now() + 20_000), true);
+  assert.equal(policy.hasEpubDownloadWindow(Infinity), true);
+  assert.equal(policy.planEpubRetry("The operation was aborted due to timeout", 8, 0).terminal, false);
+  assert.equal(policy.planEpubRetry("The operation was aborted due to timeout", 12, 0).terminal, true);
+  assert.equal(policy.planEpubRetry("EPUB source returned 404", 3, 0).terminal, true);
+  assert.equal(policy.planEpubRetry("This file is too large. The EPUB limit is 25 MB.", 1, 0).terminal, true);
   const { runStoredAssetTick } = await import(path.join(root, "catalog-assets.server.mjs"));
   const { audioCoverage } = await import(path.join(root, "audio-coverage.mjs"));
   const env = localBindings(root);
@@ -109,7 +118,9 @@ try {
   );
   // A bad origin must back off without losing other assets, and exhausted ticks do no I/O.
   globalThis.fetch = async () => new Response("Unavailable", { status: 503 });
-  const failure = await api.runCatalogAssetMaintenance(env, 1, Date.now() + 1000);
+  const tooLate = await api.runCatalogAssetMaintenance(env, 1, Date.now() + 1000);
+  assert.equal(tooLate.attempted, 0, "short remaining batch time cannot consume a retry");
+  const failure = await api.runCatalogAssetMaintenance(env, 1, Date.now() + 20_000);
   assert.equal(failure.failed, 1);
   const retry = await env.DB.prepare(
     "SELECT epub_attempts,epub_next_attempt_at FROM gutenberg_source_cache WHERE epub_status='retry'",
@@ -120,7 +131,7 @@ try {
   await env.DB.prepare("UPDATE gutenberg_source_states SET epub_retry_after='' ").run();
   globalThis.fetch = async () => new Response("PK fake archive");
   assert.equal(
-    (await api.runCatalogAssetMaintenance(env, 1, Date.now() + 1000)).downloaded,
+    (await api.runCatalogAssetMaintenance(env, 1, Date.now() + 20_000)).downloaded,
     0,
     "a magic-byte lookalike cannot be stored",
   );
@@ -130,7 +141,7 @@ try {
     limitedCalls++;
     return new Response("rate limited", { status: 429, headers: { "retry-after": "3600" } });
   };
-  await api.runCatalogAssetMaintenance(env, 32, Date.now() + 1000);
+  await api.runCatalogAssetMaintenance(env, 32, Date.now() + 20_000);
   assert.equal(limitedCalls, 1, "a rate-limited source gets no more attempts in the batch");
   const cooldown = await env.DB.prepare(
     "SELECT epub_retry_after FROM gutenberg_source_states WHERE source_id='pg_us'",
@@ -139,7 +150,7 @@ try {
     Date.parse(cooldown.epub_retry_after) > Date.now() + 3500_000,
     "upstream Retry-After persists across ticks",
   );
-  assert.equal((await api.runCatalogAssetMaintenance(env, 32, Date.now() + 1000)).attempted, 0);
+  assert.equal((await api.runCatalogAssetMaintenance(env, 32, Date.now() + 20_000)).attempted, 0);
   const hash = "a".repeat(64),
     map = { trackId: "one", sha256: hash, wordCount: 30, coverage: 0.9 };
   const edition = {
