@@ -28,6 +28,24 @@ attestation. Open questions stay in `unresolved` and block approval.
 revision links, evidence checksums, pilot dossiers, reports and outstanding work.
 Its research dispositions are not production approval or playback counts.
 
+## Production pilot release
+
+PR [#42](https://github.com/JibrilMohamud/cove/pull/42) deployed the workflow to
+production. The pilot has **17 approved and stored recordings**, limited to the US,
+with 38.6 minutes of original audio. All 25 dossiers and QA reports were submitted;
+eight recordings remain held (three failed technical QA and five additional
+recordings have unresolved rights evidence). None of those holds was overridden.
+
+The [production verification record](PRODUCTION_VERIFICATION_2026-10-15.json)
+contains the deployed commit, successful CI/deployment references, per-file
+SHA-256 receipts, live range/download checks, browser playback/seek checks, and
+specific held-file reasons. The temporary review credential was revoked and its
+principal retired; no staff account was elevated. Source-based AI-assisted review
+is explicitly recorded in the dossiers and audit history.
+
+This is a released pilot, **not completion of the 150–300 recording target**.
+Independent human listening and the other acceptance gates below remain open.
+
 ## Reproduce and operate
 
 Run from the repository root with Python 3, FFmpeg and ffprobe available:

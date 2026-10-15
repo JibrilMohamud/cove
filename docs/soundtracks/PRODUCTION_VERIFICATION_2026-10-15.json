@@ -1,0 +1,307 @@
+{
+  "verifiedAt": "2026-10-15T22:39:23.973259+00:00",
+  "releaseCommit": "3a0347281666f7b73bab132ced2d48c14cae1ca6",
+  "pullRequest": "https://github.com/JibrilMohamud/cove/pull/42",
+  "origin": "https://cove-puce-theta.vercel.app",
+  "territory": "US",
+  "reviewMethod": "ai_assisted",
+  "baselineSourceSnapshots": 250,
+  "discoveryObserved": {
+    "candidates": 291,
+    "lastDiscoveryAt": "2026-10-15T22:30:30.391Z",
+    "lastError": ""
+  },
+  "pilot": {
+    "dossiers": 25,
+    "qualityReports": 25,
+    "approved": 17,
+    "ready": 17,
+    "held": 8,
+    "totalPublishedBytes": 54876604,
+    "totalPublishedMinutes": 38.617211766666664,
+    "reviewEvents": {
+      "draft": 25,
+      "quality": 25,
+      "approve": 17
+    },
+    "failedOrActiveImports": 0
+  },
+  "deployment": {
+    "cloudflareMigration": "0060_soundtrack_review_quality.sql",
+    "cloudflareDeployRun": 38817255436,
+    "vercelDeployment": "dpl_GTjwXBXWVkwJ6T9BHiywNj2Nas5Q",
+    "state": "successful"
+  },
+  "checks": {
+    "preMergeActions": "all successful on 118e77e1e683867e280e2e958af5d0af6304811e",
+    "postMergeActions": "all successful on releaseCommit",
+    "browserMatrix": [
+      "chromium-desktop",
+      "firefox-desktop",
+      "webkit-desktop",
+      "android-chrome",
+      "iphone-safari",
+      "ipad-safari"
+    ],
+    "nativeScreenReaderCI": "successful; automated NVDA checks do not establish human listening or usability acceptance",
+    "liveFileChecks": "Full SHA-256 and byte count, attribution/license/source/modification fields, private no-store, prefix/suffix/clamped ranges, unsatisfiable 416, HEAD on every published file",
+    "liveBrowser": {
+      "rightsCountry": "US",
+      "apiStatus": 200,
+      "apiCount": 17,
+      "audioCount": 17,
+      "initialAllPaused": true,
+      "noAutoplay": true,
+      "preloadNone": true,
+      "creditsCount": 17,
+      "sourceLinks": 17,
+      "licenseLinks": 17,
+      "downloadLinks": 17,
+      "playAdvanced": true,
+      "duration": 71.492789,
+      "seekAdvanced": true,
+      "stopped": true
+    }
+  },
+  "temporaryAccess": {
+    "scope": "soundtracks.review",
+    "credentialRevokedAt": "2026-10-15T22:38:42.335Z",
+    "principalStatus": "retired",
+    "staffAccountsGranted": 0,
+    "revokedCredentialHttpStatus": 401,
+    "localTokenRemoved": true
+  },
+  "recordings": [
+    {
+      "id": "cm_11244730",
+      "bytes": 1017416,
+      "sha256": "fb7b95780430e0dc854022ca9b41575e5a530f977ec839a2d176849c9abea0a2",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_11244885",
+      "bytes": 1014360,
+      "sha256": "86da0419abddcd6569a17d2540f57443a24673dd157b3563ff5784de71865df4",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_1388784",
+      "bytes": 977142,
+      "sha256": "9d35630b86bbc9ac5ba1d990371c4d7feaa76db780677208b9dc9cf8500808f2",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_20694131",
+      "bytes": 5209046,
+      "sha256": "04bd2ea16e0c11d1e0d8c33d1d257d2901a68ffb820f6b2d828c7d9ba69d501f",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_20701434",
+      "bytes": 17752480,
+      "sha256": "ec010f7512e5738dd4a2a87921b0a213a38070a20390b93e22bf2a7ca533297f",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_20760192",
+      "bytes": 3078208,
+      "sha256": "2311568066b51285a558a621b161f6adb6e340d82467f57d270f13055ac46fc9",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_3440577",
+      "bytes": 741334,
+      "sha256": "c9f70c8a7e84168c56fad4a6d0ebae22c4f2fec2efe19867f1fb69f1435dfc80",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_3440589",
+      "bytes": 609425,
+      "sha256": "cc99e9525644beb9096187d5b8729860bc4a40902da8a4b326f5055e8ca46207",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_38469870",
+      "bytes": 7074404,
+      "sha256": "5cb9909af80c145c2b9064153d0221c1a1ea72a562582d2cd88292927c462c89",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_4571072",
+      "bytes": 2629303,
+      "sha256": "c6e78cf3ce0238e6ee28be6c1d7af131976968d05a5f846bed4fdebfc80a2efa",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_4809035",
+      "bytes": 2638326,
+      "sha256": "2aae56b22956ac2f259e9508dc71ed44c87be5ef435d8c0a79af0d38ebe4f930",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_4845259",
+      "bytes": 1041333,
+      "sha256": "432f9723437f14f2014894c67dfad7a9f984c99301448ebc371308fa5e8ac9e0",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_62217506",
+      "bytes": 1251793,
+      "sha256": "d1f5511e1e7aab6db469560c0f6de49cbaa982744485c66595f5181c466912a0",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_7457616",
+      "bytes": 1738867,
+      "sha256": "af9edffc73cbf9b96c046bc03b39897f3f9b4280137854aad63da38c57ceaf2c",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_7457693",
+      "bytes": 1397035,
+      "sha256": "9eae219ecdc745f195458b786ff90950010d81617797df25f9fd1f36ee05e670",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_7500159",
+      "bytes": 2004878,
+      "sha256": "dd0b91c1c2d0da28c083a0dc72754b79e91ad89d97ae6f89b5be1369f61e56de",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    },
+    {
+      "id": "cm_8108189",
+      "bytes": 4701254,
+      "sha256": "943f8370ed2001e819a475413a37a1b4631013e625de47d5068b2b82c2e3a9e7",
+      "fullFile": true,
+      "ranges": true,
+      "head": true,
+      "credits": true
+    }
+  ],
+  "heldRecordings": [
+    {
+      "id": "cm_20695524",
+      "status": "pending_review",
+      "qualityStatus": "passed",
+      "truePeakDbfs": -0.4,
+      "unresolved": [
+        "Second review required for the scope of the co-performer permission statement, including commercial licensing."
+      ]
+    },
+    {
+      "id": "cm_20695527",
+      "status": "pending_review",
+      "qualityStatus": "passed",
+      "truePeakDbfs": -0.8,
+      "unresolved": [
+        "Second review required for the scope of the co-performer permission statement, including commercial licensing."
+      ]
+    },
+    {
+      "id": "cm_20701511",
+      "status": "pending_review",
+      "qualityStatus": "passed",
+      "truePeakDbfs": -0.2,
+      "unresolved": [
+        "Establish first-publication status and edition provenance for the formerly unpublished Abel manuscript."
+      ]
+    },
+    {
+      "id": "cm_20701512",
+      "status": "pending_review",
+      "qualityStatus": "passed",
+      "truePeakDbfs": -2.4,
+      "unresolved": [
+        "Identify exact work/catalogue number and first publication of the formerly unpublished manuscript."
+      ]
+    },
+    {
+      "id": "cm_2369837",
+      "status": "pending_review",
+      "qualityStatus": "passed",
+      "truePeakDbfs": -1.6,
+      "unresolved": [
+        "Confirm recording date, all performers, and arrangement provenance from a direct creator source."
+      ]
+    },
+    {
+      "id": "cm_2370219",
+      "status": "pending_review",
+      "qualityStatus": "failed",
+      "truePeakDbfs": 0.3,
+      "unresolved": [
+        "Confirm all performers and the arrangement/text used by dwsChorale against a direct creator source."
+      ]
+    },
+    {
+      "id": "cm_3308570",
+      "status": "pending_review",
+      "qualityStatus": "failed",
+      "truePeakDbfs": 0.2,
+      "unresolved": []
+    },
+    {
+      "id": "cm_654356",
+      "status": "pending_review",
+      "qualityStatus": "failed",
+      "truePeakDbfs": 0.5,
+      "unresolved": [
+        "Source page does not specify the recording date; confirm before release."
+      ]
+    }
+  ],
+  "remainingAcceptanceGates": [
+    "The 150\u2013300 unique approved recording target is incomplete: 17 are live; at least 133 additional eligible recordings are required.",
+    "Resolve the held source/performer/edition questions; complex provenance requires a genuinely independent reviewer.",
+    "Human listening while reading, music-rights framework review and human assistive-technology usability acceptance have not been performed.",
+    "Chapter-specific editorial review and canonical book/chapter playlists remain a separate later phase."
+  ]
+}
