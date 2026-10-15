@@ -4189,6 +4189,7 @@ async function handleCoveRequest(
         .parse(url.searchParams.get("limit") || 100);
       const bookId = url.searchParams.get("bookId");
       let items: unknown[] = [];
+      let hasMore = false;
       if (kind === "annotations") {
         const sql = bookId
           ? "SELECT * FROM annotations WHERE user_id=? AND book_id=? AND deleted_at IS NULL ORDER BY updated_at DESC,id DESC LIMIT ? OFFSET ?"
@@ -4199,6 +4200,7 @@ async function handleCoveRequest(
           .bind(...binds)
           .all<Record<string, unknown>>();
         items = rows.results.map(annotationRow);
+        hasMore = rows.results.length > limit;
       } else if (kind === "definitions") {
         const rows = await db
           .prepare(
@@ -4207,6 +4209,7 @@ async function handleCoveRequest(
           .bind(user.id, limit + 1, offset)
           .all<Record<string, unknown>>();
         items = rows.results.map(definitionRow);
+        hasMore = rows.results.length > limit;
       } else {
         const rows = await db
           .prepare(
@@ -4214,6 +4217,8 @@ async function handleCoveRequest(
           )
           .bind(user.id, now(), now(), limit + 1, offset)
           .all<Record<string, unknown>>();
+        // Catalog misses must not hide later eligible pages.
+        hasMore = rows.results.length > limit;
         for (let i = 0; i < rows.results.length; i += 8) {
           const chunk = rows.results.slice(i, i + 8);
           const books = await Promise.all(
@@ -4225,7 +4230,7 @@ async function handleCoveRequest(
       }
       return json({
         items: items.slice(0, limit),
-        hasMore: items.length > limit,
+        hasMore,
         nextOffset: offset + limit,
       });
     }
