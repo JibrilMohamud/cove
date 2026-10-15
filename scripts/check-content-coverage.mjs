@@ -33,10 +33,19 @@ try {
   assert.equal(policy.hasEpubDownloadWindow(Date.now() + 1000), false);
   assert.equal(policy.hasEpubDownloadWindow(Date.now() + 20_000), true);
   assert.equal(policy.hasEpubDownloadWindow(Infinity), true);
-  assert.equal(policy.planEpubRetry("The operation was aborted due to timeout", 8, 0).terminal, false);
-  assert.equal(policy.planEpubRetry("The operation was aborted due to timeout", 12, 0).terminal, true);
+  assert.equal(
+    policy.planEpubRetry("The operation was aborted due to timeout", 8, 0).terminal,
+    false,
+  );
+  assert.equal(
+    policy.planEpubRetry("The operation was aborted due to timeout", 12, 0).terminal,
+    true,
+  );
   assert.equal(policy.planEpubRetry("EPUB source returned 404", 3, 0).terminal, true);
-  assert.equal(policy.planEpubRetry("This file is too large. The EPUB limit is 25 MB.", 1, 0).terminal, true);
+  assert.equal(
+    policy.planEpubRetry("This file is too large. The EPUB limit is 25 MB.", 1, 0).terminal,
+    true,
+  );
   const { runStoredAssetTick } = await import(path.join(root, "catalog-assets.server.mjs"));
   const { audioCoverage } = await import(path.join(root, "audio-coverage.mjs"));
   const env = localBindings(root);
