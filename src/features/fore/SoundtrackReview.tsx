@@ -54,7 +54,15 @@ function blankDossier(): SoundtrackDossier {
     unresolved: [],
   };
 }
-function ReviewEditor({ row, refresh }: { row: ReviewRow; refresh: () => Promise<unknown> }) {
+function ReviewEditor({
+  row,
+  refresh,
+  report,
+}: {
+  row: ReviewRow;
+  refresh: () => Promise<unknown>;
+  report: (message: string) => void;
+}) {
   const [dossier, setDossier] = useState<SoundtrackDossier>(() => ({
     ...blankDossier(),
     ...JSON.parse(row.dossier_json),
