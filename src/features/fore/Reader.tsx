@@ -2101,31 +2101,37 @@ export function ReaderPage({ id }: { id: string }) {
                 {!data.user ? (
                   <div className="empty-state">
                     <Users size={30} />
-                    <h3>Read alongside people you choose.</h3>
+                    <h3>{tr("reader.social.guestTitle", "Read alongside people you choose.")}</h3>
                     <p>
-                      Sign in to enable spoiler-aware shared highlights and margin conversations.
+                      {tr(
+                        "reader.social.guestDescription",
+                        "Sign in to enable spoiler-aware shared highlights and margin conversations.",
+                      )}
                     </p>
                     <button className="button gold" onClick={signIn}>
-                      Sign in
+                      {tr("reader.social.signIn", "Sign in")}
                     </button>
                   </div>
                 ) : (
                   <>
                     <div className="social-reading-toggle">
                       <div>
-                        <strong>Social Reading</strong>
+                        <strong>{tr("reader.social.heading", "Social Reading")}</strong>
                         <p className="small muted">
-                          Off by default. The book stays clean until you ask for this layer.
+                          {tr(
+                            "reader.social.description",
+                            "Off by default. The book stays clean until you ask for this layer.",
+                          )}
                         </p>
                       </div>
                       <input
-                        aria-label="Enable Social Reading"
+                        aria-label={tr("reader.social.enable", "Enable Social Reading")}
                         type="checkbox"
                         checked={!!socialReader.data?.preferences?.enabled}
                         onChange={(e) => saveSocialPreferences({ enabled: e.target.checked })}
                       />
                     </div>
-                    <label>Whose activity</label>
+                    <label>{tr("reader.social.audience", "Whose activity")}</label>
                     <Select
                       value={socialReader.data?.preferences?.audienceMode || "friends"}
                       onValueChange={(v) =>
@@ -2184,7 +2190,7 @@ export function ReaderPage({ id }: { id: string }) {
                             saveSocialPreferences({ showDiscussions: e.target.checked })
                           }
                         />{" "}
-                        Discussions
+                        {tr("reader.social.discussions", "Discussions")}
                       </label>
                       <label>
                         <input
@@ -2194,7 +2200,7 @@ export function ReaderPage({ id }: { id: string }) {
                             saveSocialPreferences({ showHighlights: e.target.checked })
                           }
                         />{" "}
-                        Shared highlights
+                        {tr("reader.social.sharedHighlights", "Shared highlights")}
                       </label>
                       <label>
                         <input
@@ -2204,7 +2210,7 @@ export function ReaderPage({ id }: { id: string }) {
                             saveSocialPreferences({ showReactions: e.target.checked })
                           }
                         />{" "}
-                        Reactions
+                        {tr("reader.social.reactions", "Reactions")}
                       </label>
                     </div>
                     <label>
