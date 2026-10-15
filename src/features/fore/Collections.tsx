@@ -62,78 +62,154 @@ import { BookArt } from "./Store";
 import { useStorefrontLocale } from "./localization";
 import { inspectEpub, downloadBook, exportReadingData, downloadCoveBackup } from "./epub";
 import type { HighlightShareAudience, HighlightShareState } from "./Sharing";
+// Render a single bounded page rather than accumulating thousands of private
+// annotations/definitions in React state. Every request is tied to the account
+// identity that initiated it, including when an account switch races a fetch.
 function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
   kind: "library" | "annotations" | "definitions",
   firstPage: T[],
   accountId: string | undefined,
+  searchQuery = "",
+  statusFilter = "all",
 ) {
-  const [extra, setExtra] = useState<T[]>([]);
-  const [hasMore, setHasMore] = useState(firstPage.length >= 100);
-  const [loading, setLoading] = useState(false);
-  const accountScope = accountId + ":" + kind;
-  const scopeRef = useRef(accountScope);
-  const offsetRef = useRef(firstPage.length);
-  useEffect(() => {
-    if (scopeRef.current !== accountScope) {
-      // Never display a former account's private annotations after switching users.
-      scopeRef.current = accountScope;
-      offsetRef.current = firstPage.length;
-      setExtra([]);
-      setHasMore(firstPage.length >= 100);
-    } else if (offsetRef.current <= firstPage.length) {
-      // An authenticated account can hydrate its first page after the hook mounts.
-      offsetRef.current = firstPage.length;
-      setHasMore(firstPage.length >= 100);
-    }
-  }, [accountScope, firstPage.length]);
-  const items = useMemo(() => {
-    const seen = new Set<string>();
-    return [...firstPage, ...extra].filter((row) => {
-      const identity = row.id || row.bookId;
-      if (!identity) return true;
-      if (seen.has(identity)) return false;
-      seen.add(identity);
-      return true;
-    });
-  }, [firstPage, extra]);
-  const loadMore = async () => {
-    if (!accountId || loading || !hasMore) return;
-    setLoading(true);
-    try {
-      const page = await api<{ items: T[]; hasMore: boolean }>(
-        "/account/collection?kind=" + kind + "&offset=" + offsetRef.current,
-      );
-      offsetRef.current += page.items.length;
-      setExtra((existing) => [...existing, ...page.items]);
-      setHasMore(page.hasMore);
-    } catch (error) {
-      toast.error((error as Error).message);
-    } finally {
-      setLoading(false);
-    }
+  type Page = { scope: string; items: T[]; offset: number; hasMore: boolean };
+  const query = searchQuery.trim();
+  const filtered = Boolean(query || (kind === "library" && statusFilter !== "all"));
+  const scope = JSON.stringify([accountId || "guest", kind, query, statusFilter]);
+  const scopeRef = useRef(scope);
+  if (scopeRef.current !== scope) scopeRef.current = scope;
+  const requestRef = useRef(0);
+  const initial: Page = {
+    scope,
+    offset: 0,
+    items: filtered ? [] : firstPage,
+    hasMore: !filtered && firstPage.length >= 100,
   };
-  return { items, hasMore, loading, loadMore };
+  const [page, setPage] = useState<Page>(initial);
+  const [loading, setLoading] = useState(false);
+
+  function endpoint(offset: number) {
+    const params = new URLSearchParams({
+      kind,
+      offset: String(offset),
+      limit: "100",
+    });
+    if (query) params.set("q", query);
+    if (kind === "library" && statusFilter !== "all") params.set("status", statusFilter);
+    return "/account/collection?" + params.toString();
+  }
+
+  useEffect(() => {
+    // The account/filter identity is part of the request; never show an
+    // older account's private response while a new account is loading.
+    const token = ++requestRef.current;
+    setLoading(false);
+    setPage({
+      scope,
+      offset: 0,
+      items: filtered ? [] : firstPage,
+      hasMore: !filtered && firstPage.length >= 100,
+    });
+    if (!filtered || !accountId) return;
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      void api<{ items: T[]; hasMore: boolean }>(endpoint(0))
+        .then((response) => {
+          if (scopeRef.current !== scope || requestRef.current !== token) return;
+          setPage({ scope, offset: 0, items: response.items, hasMore: response.hasMore });
+        })
+        .catch((error) => {
+          if (scopeRef.current === scope && requestRef.current === token)
+            toast.error((error as Error).message);
+        })
+        .finally(() => {
+          if (scopeRef.current === scope && requestRef.current === token) setLoading(false);
+        });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [scope, filtered, accountId]);
+
+  useEffect(() => {
+    if (filtered) return;
+    setPage((current) =>
+      current.scope === scope && current.offset === 0
+        ? { scope, offset: 0, items: firstPage, hasMore: firstPage.length >= 100 }
+        : current,
+    );
+  }, [scope, filtered, firstPage]);
+
+  const visible = page.scope === scope ? page : initial;
+  async function navigate(offset: number) {
+    if (!accountId || loading || offset < 0) return;
+    if (offset === 0 && !filtered) {
+      requestRef.current += 1;
+      setPage({ scope, offset: 0, items: firstPage, hasMore: firstPage.length >= 100 });
+      return;
+    }
+    setLoading(true);
+    const token = ++requestRef.current;
+    try {
+      const response = await api<{ items: T[]; hasMore: boolean }>(endpoint(offset));
+      if (scopeRef.current !== scope || requestRef.current !== token) return;
+      setPage({ scope, offset, items: response.items, hasMore: response.hasMore });
+    } catch (error) {
+      if (scopeRef.current === scope && requestRef.current === token)
+        toast.error((error as Error).message);
+    } finally {
+      if (scopeRef.current === scope && requestRef.current === token) setLoading(false);
+    }
+  }
+  return {
+    items: visible.items,
+    hasMore: visible.hasMore,
+    hasPrevious: visible.offset > 0,
+    pageNumber: Math.floor(visible.offset / 100) + 1,
+    loading,
+    loadMore: () => navigate(visible.offset + 100),
+    loadPrevious: () => navigate(Math.max(0, visible.offset - 100)),
+  };
 }
 function CollectionNextPage({
   state,
 }: {
-  state: { hasMore: boolean; loading: boolean; loadMore: () => Promise<void> };
+  state: {
+    hasMore: boolean;
+    hasPrevious: boolean;
+    pageNumber: number;
+    loading: boolean;
+    loadMore: () => Promise<void>;
+    loadPrevious: () => Promise<void>;
+  };
 }) {
   const { t: tr } = useStorefrontLocale();
-  if (!state.hasMore) return null;
+  if (!state.hasMore && !state.hasPrevious) return null;
   return (
-    <div className="collection-load-more">
+    <nav
+      className="collection-load-more"
+      aria-label={tr("collection.pagination", "Collection pages")}
+    >
       <button
         type="button"
         className="button outline"
-        disabled={state.loading}
+        disabled={state.loading || !state.hasPrevious}
+        onClick={() => void state.loadPrevious()}
+      >
+        {tr("collection.previous", "Previous page")}
+      </button>
+      <span aria-live="polite">
+        {tr("collection.page", "Page")} {state.pageNumber}
+      </span>
+      <button
+        type="button"
+        className="button outline"
+        disabled={state.loading || !state.hasMore}
         onClick={() => void state.loadMore()}
       >
         {state.loading
-          ? tr("collection.loadingMore", "Loading more…")
-          : tr("collection.loadMore", "Load more")}
+          ? tr("collection.loadingMore", "Loading…")
+          : tr("collection.next", "Next page")}
       </button>
-    </div>
+    </nav>
   );
 }
 export function AccountGuard({ children }: { children: ReactNode }) {
@@ -181,7 +257,13 @@ export function LibraryPage() {
     [busy, setBusy] = useState(false),
     [remove, setRemove] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const pages = usePagedAccountCollection<LibraryBook>("library", data.library, data.user?.id);
+  const pages = usePagedAccountCollection<LibraryBook>(
+    "library",
+    data.library,
+    data.user?.id,
+    q,
+    filter,
+  );
   const books = pages.items.filter(
     (x) =>
       (filter === "all" || x.status === filter) &&
@@ -435,6 +517,7 @@ export function HighlightsPage() {
     "annotations",
     data.annotations,
     data.user?.id,
+    q,
   );
   const rows = pages.items.filter(
     (a) =>
@@ -948,6 +1031,7 @@ export function DefinitionsPage() {
     "definitions",
     data.definitions,
     data.user?.id,
+    q,
   );
   const rows = pages.items.filter((d) =>
     [d.word, d.meaning, d.bookTitle].join(" ").toLowerCase().includes(q.toLowerCase()),

@@ -37,6 +37,10 @@ jobs:
         run: npm run test:large-library
       - name: Offline reading, account restoration and reader-safe notifications
         run: npm run test:reader-recovery
+      - name: Paginated private account data and cross-user isolation
+        run: npm run test:account-pagination
+      - name: Full wired-label coverage in all five supported locales
+        run: npm run test:localization-coverage
       - name: Seven-day licensed EPUB signed-receipt regressions
         run: npm run test:licensed-epub
       - name: Notification delivery and opt-out regressions
