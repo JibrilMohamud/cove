@@ -1799,8 +1799,10 @@ export function ReaderPage({ id }: { id: string }) {
                   setActiveSocialHash(marker.hash);
                   setPanel("social");
                 }}
-                title={`${marker.count} contributions at ${marker.chapter}`}
+                title={`${marker.count} contributions in ${marker.chapter}${marker.passage ? ": " + marker.passage.slice(0, 120) : ""}`}
                 aria-label={`Open ${marker.count} reader contributions in ${marker.chapter}${marker.passage ? ": " + marker.passage : ""}`}
+                aria-controls="reader-social-panel"
+                aria-expanded={panel === "social" && activeSocialHash === marker.hash}
               >
                 <span>•</span>
                 <small>{marker.count}</small>
@@ -2095,7 +2097,7 @@ export function ReaderPage({ id }: { id: string }) {
               </div>
             )}
             {panel === "social" && (
-              <div className="reader-social-panel">
+              <div className="reader-social-panel" id="reader-social-panel">
                 {!data.user ? (
                   <div className="empty-state">
                     <Users size={30} />
