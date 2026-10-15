@@ -1023,7 +1023,9 @@ async function catalog(
   storefrontTerritory = "US",
 ) {
   try {
-    await seedCatalog(env);
+    // Production catalog initialization belongs to the ingestion scheduler.
+    // Avoid an INSERT OR IGNORE and a source-cache probe on every public read.
+    if (env.FORE_ENVIRONMENT !== "production") await seedCatalog(env);
     const input = { ...parseSearchInput(url), territory: storefrontTerritory };
     const result = await searchCatalog(env, input, userId);
     // Operations counters do not belong on every search request.

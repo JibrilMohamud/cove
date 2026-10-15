@@ -133,38 +133,40 @@ async function supportedLocale(db: StorefrontDB, country: string, requested: str
 }
 
 async function loadMessages(db: StorefrontDB, locale: string) {
-  const result: Record<string, string> = {};
-  const visited = new Set<string>();
-  let cursor: string | null = locale;
-  // Apply fallback first, locale last, so the most specific active bundle wins.
-  const chain: string[] = [];
-  while (cursor && !visited.has(cursor) && chain.length < 5) {
-    visited.add(cursor);
-    chain.push(cursor);
-    const row: { fallback_locale: string | null } | null = await db
-      .prepare("SELECT fallback_locale FROM storefront_locales WHERE locale=? AND status='active'")
-      .bind(cursor)
-      .first<any>();
-    cursor = row?.fallback_locale ? String(row.fallback_locale) : null;
-  }
-  if (!chain.some((x) => x.toLowerCase() === "en-us")) chain.push("en-US");
-  for (const loc of chain.reverse()) {
-    const bundle = await db
+  // One D1 round trip instead of recursively loading each locale and each
+  // bundle's messages in series. Follow up to five configured fallbacks,
+  // detect cycles, then merge English first and the requested locale last.
+  const rows = (
+    await db
       .prepare(
-        "SELECT id FROM ui_translation_bundles WHERE locale=? AND status='active' ORDER BY version DESC LIMIT 1",
+        `WITH RECURSIVE locale_chain(locale,depth,seen) AS (
+          SELECT ? AS locale,0 AS depth,','||lower(?)||',' AS seen
+          UNION ALL
+          SELECT l.fallback_locale,c.depth+1,c.seen||lower(l.fallback_locale)||','
+          FROM locale_chain c JOIN storefront_locales l ON l.locale=c.locale AND l.status='active'
+          WHERE l.fallback_locale IS NOT NULL AND c.depth<4
+            AND instr(c.seen,','||lower(l.fallback_locale)||',')=0
+        ), ordered_locales AS (
+          SELECT locale,depth AS precedence FROM locale_chain
+          UNION ALL SELECT 'en-US',99
+          WHERE NOT EXISTS(SELECT 1 FROM locale_chain WHERE lower(locale)='en-us')
+        )
+        SELECT m.message_key,m.message_value
+        FROM ordered_locales o
+        JOIN ui_translation_bundles b ON b.id=(
+          SELECT id FROM ui_translation_bundles
+          WHERE locale=o.locale AND status='active'
+          ORDER BY version DESC LIMIT 1
+        )
+        JOIN ui_translation_messages m ON m.bundle_id=b.id
+        ORDER BY o.precedence DESC`,
       )
-      .bind(loc)
-      .first<any>();
-    if (!bundle) continue;
-    const rows = (
-      await db
-        .prepare("SELECT message_key,message_value FROM ui_translation_messages WHERE bundle_id=?")
-        .bind(bundle.id)
-        .all<any>()
-    ).results;
-    for (const row of rows) result[String(row.message_key)] = String(row.message_value);
-  }
-  return result;
+      .bind(locale, locale)
+      .all<{ message_key: string; message_value: string }>()
+  ).results;
+  const messages: Record<string, string> = {};
+  for (const row of rows) messages[String(row.message_key)] = String(row.message_value);
+  return messages;
 }
 
 export async function resolveStorefrontContext(
@@ -233,16 +235,17 @@ export async function resolveStorefrontContext(
     }
   }
 
-  const methods = (
-    await db
+  const [paymentMethods, messages] = await Promise.all([
+    db
       .prepare(
         `SELECT payment_method,provider,currency,availability,priority FROM storefront_payment_methods
     WHERE country_code=? AND availability='available' AND (currency IS NULL OR currency=?) ORDER BY priority,payment_method`,
       )
       .bind(effectiveCountry, currency)
-      .all<any>()
-  ).results;
-  const messages = await loadMessages(db, String(loc.locale));
+      .all<any>(),
+    loadMessages(db, String(loc.locale)),
+  ]);
+  const methods = paymentMethods.results;
   return {
     storefrontCountry: effectiveCountry,
     rightsCountry:

@@ -80,9 +80,43 @@ try {
     assert.equal(bootstrap.context.rightsCountry, "US");
     assert.equal(bootstrap.context.currency, "USD");
     assert.equal(bootstrap.context.direction, locale === "ar-SA" ? "rtl" : "ltr");
+    if (locale === "de-DE") {
+      assert.equal(bootstrap.context.messages["account.create"], "Konto erstellen");
+      assert.equal(bootstrap.context.messages["reader.social.heading"], "Gemeinsames Lesen");
+    }
     const us = bootstrap.context.availableMarkets.find((x) => x.countryCode === "US");
     assert.ok(us.locales.includes(locale), "US readers may choose " + locale);
   }
+  // Retail reads must not repeat catalog seeding writes after production
+  // initialization. The scheduler still exercises seedCatalog independently.
+  const productionEnv = {
+    ...env,
+    FORE_ENVIRONMENT: "production",
+    DB: new Proxy(env.DB, {
+      get(target, property) {
+        if (property === "prepare")
+          return (sql) => {
+            assert.ok(!sql.includes("INSERT OR IGNORE INTO catalog_state"), "GET seeded catalog");
+            assert.ok(
+              !sql.includes("SELECT 1 present FROM gutenberg_source_cache LIMIT 1"),
+              "GET repeated source seeding probe",
+            );
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, property);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }),
+  };
+  const productionCatalog = await handleCoveApi(
+    new Request("https://cove.test/api/fore/catalog?search=pride", {
+      headers: { "cf-ipcountry": "US" },
+    }),
+    productionEnv,
+  );
+  assert.equal(productionCatalog.status, 200);
+  assert.ok((await productionCatalog.json()).results.length);
+
   const created = await upsertTaxonomyNode(env.DB, {
     slug: "sandbox-category",
     name: "Sandbox category",
