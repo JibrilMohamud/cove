@@ -23,7 +23,6 @@ type Recording = {
 export function SoundtrackLibraryPage() {
   const { rightsCountry } = useStorefrontLocale();
   const [filter, setFilter] = useState("");
-  const [playing, setPlaying] = useState<string | null>(null);
   const catalog = useQuery({
     queryKey: ["soundtracks", rightsCountry],
     queryFn: () => api<{ recordings: Recording[]; count: number }>("/soundtracks/recordings"),
@@ -75,10 +74,7 @@ export function SoundtrackLibraryPage() {
                 document.querySelectorAll<HTMLAudioElement>("audio").forEach((other) => {
                   if (other !== event.currentTarget) other.pause();
                 });
-                setPlaying(r.id);
               }}
-              onPause={() => setPlaying((id) => id === r.id ? null : id)}
-              onEnded={() => setPlaying((id) => id === r.id ? null : id)}
             />
             <details>
               <summary>Recording rights and attribution</summary>
