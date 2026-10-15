@@ -11,6 +11,7 @@ import { Headphones } from "lucide-react";
 import { createActivity, measureEpub } from "./reading-activity";
 import { flushReaderMutations, queueReaderMutation } from "./offline-reader-mutations";
 import { offlineAccountId } from "./offline-account";
+import { useStorefrontLocale } from "./localization";
 import { cachedReaderPosition, saveCachedReaderPosition } from "./offline-reading-position";
 import { sha256 } from "./offline";
 import { loadEdition } from "./audio-client";
@@ -172,6 +173,7 @@ function conservativeCfiProgress(
   return Math.max(0, index - 1) / Math.max(1, book.locations.total);
 }
 export function ReaderPage({ id }: { id: string }) {
+  const { t: tr } = useStorefrontLocale();
   const queryClient = useQueryClient();
   const searchString = useRouterState({ select: (state) => state.location.searchStr || "" });
   const previewMode = new URLSearchParams(searchString).get("preview") === "1";
@@ -1750,7 +1752,7 @@ export function ReaderPage({ id }: { id: string }) {
       </header>
       <div className="reader-stage" style={{ background: themes[theme].bg }}>
         <button
-          aria-label="Previous page"
+          aria-label={tr("reader.previousPage", "Previous page")}
           className="reader-page-turn prev"
           disabled={!ready}
           onClick={() => {
@@ -1807,7 +1809,7 @@ export function ReaderPage({ id }: { id: string }) {
           </aside>
         )}
         <button
-          aria-label="Next page"
+          aria-label={tr("reader.nextPage", "Next page")}
           className="reader-page-turn next"
           disabled={!ready}
           onClick={() => {
@@ -1932,7 +1934,7 @@ export function ReaderPage({ id }: { id: string }) {
                 disabled={socialBusy}
                 onClick={() => void openHighlightSharing(activeAnnotation)}
               >
-                <Share2 size={14} /> Share this saved highlight
+                <Share2 size={14} /> {tr("reader.shareHighlight", "Share this saved highlight")}
               </button>
             )}
           </div>
@@ -1951,13 +1953,13 @@ export function ReaderPage({ id }: { id: string }) {
           <SheetHeader>
             <SheetTitle>
               {panel === "contents"
-                ? "Chapters"
+                ? tr("reader.chapters", "Chapters")
                 : panel === "search"
-                  ? "Find in this book"
+                  ? tr("reader.find", "Find in this book")
                   : panel === "highlights"
-                    ? "Your saved passages"
+                    ? tr("reader.savedPassages", "Your saved passages")
                     : panel === "bookmarks"
-                      ? "Your bookmarks"
+                      ? tr("reader.bookmarks", "Your bookmarks")
                       : panel === "social"
                         ? "Social Reading"
                         : "Make yourself comfortable"}
@@ -2086,8 +2088,8 @@ export function ReaderPage({ id }: { id: string }) {
                     onClick={() => void bookAnnotationPages.fetchNextPage()}
                   >
                     {bookAnnotationPages.isFetchingNextPage
-                      ? "Loading passages…"
-                      : "Load more saved passages"}
+                      ? tr("reader.loadingPassages", "Loading passages…")
+                      : tr("reader.morePassages", "Load more saved passages")}
                   </button>
                 )}
               </div>
