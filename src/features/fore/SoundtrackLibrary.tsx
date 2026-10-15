@@ -40,7 +40,7 @@ export function SoundtrackLibraryPage() {
     [catalog.data, filter],
   );
   return (
-    <main className="help-page" aria-label="Cove soundtrack recordings">
+    <section className="help-page" aria-label="Cove soundtrack recordings">
       <div className="page-eyebrow">COVE SOUNDTRACKS</div>
       <div className="page-heading">
         <div>
@@ -95,6 +95,6 @@ export function SoundtrackLibraryPage() {
         The canonical book and chapter playlists are a separate feature in development.
         Recordings are never assigned to a book without chapter-specific editorial review.
       </p>
-    </main>
+    </section>
   );
 }

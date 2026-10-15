@@ -4,7 +4,7 @@ import csv,hashlib,json,pathlib
 rows=json.load(open('docs/soundtrack-candidates-2026-10-15.json'))
 fields=['id','title','license','claimed_creator','priority','disposition','source_revision','source_sha1','snapshot_sha256','source_page','permanent_url','pilot_dossier','quality_report','outstanding_questions']
 with open('docs/soundtracks/REVIEW_REGISTER.csv','w',newline='') as f:
- writer=csv.DictWriter(f,fieldnames=fields);writer.writeheader()
+ writer=csv.DictWriter(f,fieldnames=fields,lineterminator="\n");writer.writeheader()
  for row in rows:
   rid=row['id'];e=pathlib.Path('docs/soundtracks/evidence')/(rid+'.json');raw=e.read_bytes();d=json.loads(raw)
   pilot=pathlib.Path('docs/soundtracks/pilot')/(rid+'.json');qa=pathlib.Path('docs/soundtracks/quality')/(rid+'.json')

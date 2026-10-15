@@ -86,6 +86,7 @@ function ReviewEditor({
         history: { id: string; event_type: string; principal_id: string; created_at: string }[];
       }>("/admin/soundtracks/recordings/" + row.id),
     retry: false,
+    enabled: typeof window !== "undefined",
   });
   async function submit(action: string, extra: Record<string, unknown> = {}) {
     setBusy(true);
@@ -369,10 +370,11 @@ export function SoundtrackReviewPage() {
         "/admin/soundtracks?status=" + status + "&limit=20&after=" + encodeURIComponent(after),
       ),
     retry: false,
+    enabled: typeof window !== "undefined",
   });
   const row = query.data?.records.find((r) => r.id === selected);
   return (
-    <main className="help-page">
+    <section className="help-page" aria-label="Soundtrack rights review workspace">
       <h1>Soundtrack rights review</h1>
       <p role="status" aria-live="polite">
         {notice}
@@ -452,6 +454,6 @@ export function SoundtrackReviewPage() {
           refresh={() => cache.invalidateQueries({ queryKey: ["soundtrack-review"] })}
         />
       ) : null}
-    </main>
+    </section>
   );
 }

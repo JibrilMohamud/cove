@@ -6,17 +6,19 @@
   "reviewStage": "research_complete_pending_release_checks",
   "dossier": {
     "composition": {
-      "basis": "Andante con moto, No.6 from Vingt pieces pour orgue; composer (1837–1871). The original historical musical work is assessed separately from this modern recording; no modern score edition is redistributed.",
+      "basis": "Andante con moto, No.6 from Vingt pieces pour orgue; composer (1837–1871). The original historical musical work is assessed separately from this modern recording; no modern score edition is redistributed. Sibley Music Library catalogs the collected Vingt celebres pieces edition as Paris, Heugel, 1896, including the named collection. This is bibliographic date evidence, not a license to its modern scan.",
       "evidenceUrls": [
         "https://commons.wikimedia.org/w/index.php?oldid=1250216013",
-        "https://creativecommons.org/licenses/by-sa/3.0/"
+        "https://creativecommons.org/licenses/by-sa/3.0/",
+        "https://urresearch.rochester.edu/institutionalPublicationPublicView.action?institutionalItemId=3861&versionNumber=1"
       ]
     },
     "arrangement": {
-      "basis": "The source describes this performance of the named historical work and identifies no third-party modern arranger. Original interpretive contributions by the credited recording creator are included in the creator's self-release; the unmodified source recording alone is distributed.",
+      "basis": "The source describes this performance of the named historical work and identifies no third-party modern arranger. Original interpretive contributions by the credited recording creator are included in the creator's self-release; the unmodified source recording alone is distributed. The historical collected edition credits Théodore Dubois (1837–1924), published 1896; any arrangement embodied in that edition is separately beyond the US publication term. No score scans are distributed.",
       "evidenceUrls": [
         "https://commons.wikimedia.org/w/index.php?oldid=1250216013",
-        "https://creativecommons.org/licenses/by-sa/3.0/"
+        "https://creativecommons.org/licenses/by-sa/3.0/",
+        "https://urresearch.rochester.edu/institutionalPublicationPublicView.action?institutionalItemId=3861&versionNumber=1"
       ]
     },
     "lyrics": {

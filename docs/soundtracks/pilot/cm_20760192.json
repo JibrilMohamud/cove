@@ -6,10 +6,11 @@
   "reviewStage": "research_complete_pending_release_checks",
   "dossier": {
     "composition": {
-      "basis": "Franklin No.23 and Focky Went to the Wood No.27, Musicks Recreation on the Viol, Lyra-Way, editions 1669 and 1682. The original historical musical work is assessed separately from this modern recording; no modern score edition is redistributed.",
+      "basis": "Franklin No.23 and Focky Went to the Wood No.27, Musicks Recreation on the Viol, Lyra-Way, editions 1669 and 1682. The original historical musical work is assessed separately from this modern recording; no modern score edition is redistributed. The Huntington rare-book catalog, call number 81621, independently confirms the 1669 publication of Musicks recreation on the viol, lyra-way.",
       "evidenceUrls": [
         "https://commons.wikimedia.org/w/index.php?oldid=1221652878",
-        "https://creativecommons.org/licenses/by-sa/3.0/"
+        "https://creativecommons.org/licenses/by-sa/3.0/",
+        "https://www.huntington.org/collections/lib-81621"
       ]
     },
     "arrangement": {
