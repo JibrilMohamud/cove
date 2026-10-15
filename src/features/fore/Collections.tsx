@@ -69,38 +69,80 @@ function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
   kind: "library" | "annotations" | "definitions",
   firstPage: T[],
   accountId: string | undefined,
+  searchQuery = "",
+  statusFilter = "all",
 ) {
   type Page = { scope: string; items: T[]; offset: number; hasMore: boolean };
-  const scope = (accountId || "guest") + ":" + kind;
+  const query = searchQuery.trim();
+  const filtered = Boolean(query || (kind === "library" && statusFilter !== "all"));
+  const scope = JSON.stringify([accountId || "guest", kind, query, statusFilter]);
   const scopeRef = useRef(scope);
   if (scopeRef.current !== scope) scopeRef.current = scope;
   const requestRef = useRef(0);
-  const [page, setPage] = useState<Page>({
+  const initial: Page = {
     scope,
     offset: 0,
-    items: firstPage,
-    hasMore: firstPage.length >= 100,
-  });
+    items: filtered ? [] : firstPage,
+    hasMore: !filtered && firstPage.length >= 100,
+  };
+  const [page, setPage] = useState<Page>(initial);
   const [loading, setLoading] = useState(false);
+
+  function endpoint(offset: number) {
+    const params = new URLSearchParams({
+      kind,
+      offset: String(offset),
+      limit: "100",
+    });
+    if (query) params.set("q", query);
+    if (kind === "library" && statusFilter !== "all") params.set("status", statusFilter);
+    return "/account/collection?" + params.toString();
+  }
+
   useEffect(() => {
-    // Reset the visible page immediately when the account context changes.
-    requestRef.current += 1;
+    // The account/filter identity is part of the request; never show an
+    // older account's private response while a new account is loading.
+    const token = ++requestRef.current;
     setLoading(false);
+    setPage({
+      scope,
+      offset: 0,
+      items: filtered ? [] : firstPage,
+      hasMore: !filtered && firstPage.length >= 100,
+    });
+    if (!filtered || !accountId) return;
+    const timer = window.setTimeout(() => {
+      setLoading(true);
+      void api<{ items: T[]; hasMore: boolean }>(endpoint(0))
+        .then((response) => {
+          if (scopeRef.current !== scope || requestRef.current !== token) return;
+          setPage({ scope, offset: 0, items: response.items, hasMore: response.hasMore });
+        })
+        .catch((error) => {
+          if (scopeRef.current === scope && requestRef.current === token)
+            toast.error((error as Error).message);
+        })
+        .finally(() => {
+          if (scopeRef.current === scope && requestRef.current === token)
+            setLoading(false);
+        });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [scope, filtered, accountId]);
+
+  useEffect(() => {
+    if (filtered) return;
     setPage((current) =>
-      current.scope !== scope
+      current.scope === scope && current.offset === 0
         ? { scope, offset: 0, items: firstPage, hasMore: firstPage.length >= 100 }
-        : current.offset === 0
-          ? { scope, offset: 0, items: firstPage, hasMore: firstPage.length >= 100 }
-          : current,
+        : current,
     );
-  }, [scope, firstPage]);
-  const visible =
-    page.scope === scope
-      ? page
-      : { scope, offset: 0, items: firstPage, hasMore: firstPage.length >= 100 };
+  }, [scope, filtered, firstPage]);
+
+  const visible = page.scope === scope ? page : initial;
   async function navigate(offset: number) {
     if (!accountId || loading || offset < 0) return;
-    if (offset === 0) {
+    if (offset === 0 && !filtered) {
       requestRef.current += 1;
       setPage({ scope, offset: 0, items: firstPage, hasMore: firstPage.length >= 100 });
       return;
@@ -108,23 +150,15 @@ function usePagedAccountCollection<T extends { id?: string; bookId?: string }>(
     setLoading(true);
     const token = ++requestRef.current;
     try {
-      const response = await api<{ items: T[]; hasMore: boolean; nextOffset: number }>(
-        "/account/collection?kind=" + kind + "&offset=" + offset + "&limit=100",
-      );
-      // A stale request can neither reveal the prior account's private data
-      // nor replace a newer page request.
+      const response = await api<{ items: T[]; hasMore: boolean }>(endpoint(offset));
       if (scopeRef.current !== scope || requestRef.current !== token) return;
-      setPage({
-        scope,
-        offset,
-        items: response.items,
-        hasMore: response.hasMore,
-      });
+      setPage({ scope, offset, items: response.items, hasMore: response.hasMore });
     } catch (error) {
       if (scopeRef.current === scope && requestRef.current === token)
         toast.error((error as Error).message);
     } finally {
-      if (scopeRef.current === scope && requestRef.current === token) setLoading(false);
+      if (scopeRef.current === scope && requestRef.current === token)
+        setLoading(false);
     }
   }
   return {
@@ -225,7 +259,7 @@ export function LibraryPage() {
     [busy, setBusy] = useState(false),
     [remove, setRemove] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const pages = usePagedAccountCollection<LibraryBook>("library", data.library, data.user?.id);
+  const pages = usePagedAccountCollection<LibraryBook>("library", data.library, data.user?.id, q, filter);
   const books = pages.items.filter(
     (x) =>
       (filter === "all" || x.status === filter) &&
@@ -479,6 +513,7 @@ export function HighlightsPage() {
     "annotations",
     data.annotations,
     data.user?.id,
+    q,
   );
   const rows = pages.items.filter(
     (a) =>
@@ -992,6 +1027,7 @@ export function DefinitionsPage() {
     "definitions",
     data.definitions,
     data.user?.id,
+    q,
   );
   const rows = pages.items.filter((d) =>
     [d.word, d.meaning, d.bookTitle].join(" ").toLowerCase().includes(q.toLowerCase()),
