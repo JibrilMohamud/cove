@@ -61,6 +61,28 @@ try {
       "bootstrap includes no private reading records",
     );
   }
+  // Presentation language must be selectable independently of the legally
+  // determined storefront country. A cookie does not grant Saudi-region rights.
+  for (const locale of ["ar-SA", "es-ES", "fr-FR", "de-DE"]) {
+    const response = await handleCoveApi(
+      new Request("https://cove.test/api/fore/storefront/bootstrap", {
+        headers: {
+          "cf-ipcountry": "US",
+          cookie: "fore-locale=" + locale + "; fore-storefront-country=SA",
+        },
+      }),
+      env,
+    );
+    assert.equal(response.status, 200);
+    const bootstrap = await response.json();
+    assert.equal(bootstrap.context.locale, locale);
+    assert.equal(bootstrap.context.storefrontCountry, "US");
+    assert.equal(bootstrap.context.rightsCountry, "US");
+    assert.equal(bootstrap.context.currency, "USD");
+    assert.equal(bootstrap.context.direction, locale === "ar-SA" ? "rtl" : "ltr");
+    const us = bootstrap.context.availableMarkets.find((x) => x.countryCode === "US");
+    assert.ok(us.locales.includes(locale), "US readers may choose " + locale);
+  }
   const created = await upsertTaxonomyNode(env.DB, {
     slug: "sandbox-category",
     name: "Sandbox category",
