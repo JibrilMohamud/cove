@@ -27,6 +27,17 @@ for (const locale of locales) {
         },
       });
     });
+    // WebKit intermittently rejects loopback requests while changing localized
+    // views ("due to access control checks"), although the same-origin QA server
+    // answers successfully. Proxy only these read-only QA requests through
+    // Playwright's transport, preserving actual backend status, JSON and headers.
+    // Sharing/browser suites still exercise unproxied app networking.
+    const proxiedFailures = [];
+    await context.route(/\/api\/fore\/(?:account|social\/discover)(?:\?|$)/, async (route) => {
+      const response = await route.fetch();
+      if (response.status() >= 500) proxiedFailures.push(response.status());
+      await route.fulfill({ response });
+    });
     const failures = [];
     page.on("pageerror", (e) => failures.push(e.message));
     await page.goto("/community");
@@ -70,6 +81,7 @@ for (const locale of locales) {
       ),
     ).toBeVisible();
     expect(failures).toEqual([]);
+    expect(proxiedFailures).toEqual([]);
     await libraryPage.close();
   });
 }
