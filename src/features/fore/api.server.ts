@@ -36,6 +36,7 @@ import {
 } from "./social.server";
 import { handlePipeline } from "./pipeline.server";
 import { handleAudio } from "./audio.server";
+import { handleSoundtracks } from "./soundtracks.server";
 import { handleVercelPublicRequest } from "./vercel-public.server";
 import {
   commercialAudioPublisherSnapshot,
@@ -3941,6 +3942,7 @@ async function handleCoveRequest(
         identity(request)?.id || null,
         storefrontTerritory,
       )) ||
+      (await handleSoundtracks(request, env, path, storefrontTerritory)) ||
       (await handleAudio(request, env, path, identity(request)?.id || null, storefrontTerritory)) ||
       (await handleSocial(request, env, path, identity(request)?.id || null)) ||
       (await handleCommunity(
