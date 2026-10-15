@@ -4175,25 +4175,6 @@ async function handleCoveRequest(
       const kind = z
         .enum(["library", "annotations", "definitions"])
         .parse(url.searchParams.get("kind"));
-      const offset = z.coerce
-        .number()
-        .int()
-        .min(0)
-        .max(1000000)
-        .parse(url.searchParams.get("offset") || 0);
-      const limit = z.coerce
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .parse(url.searchParams.get("limit") || 100);
-      const search = z
-        .string()
-        .trim()
-        .max(80)
-        .parse(url.searchParams.get("q") || "");
-      const match = "%" + search.toLowerCase().replace(/[\\%_]/g, "\\        .enum(["library", "annotations", "definitions"])
-        .parse(url.searchParams.get("kind"));
       const offset = z.coerce.number().int().min(0).max(1000000)
         .parse(url.searchParams.get("offset") || 0);
       const limit = z.coerce.number().int().min(1).max(100)
@@ -4203,69 +4184,45 @@ async function handleCoveRequest(
       const bookId = url.searchParams.get("bookId");
       const status = z.enum(["all", "reading", "finished", "want-to-read"])
         .parse(url.searchParams.get("status") || "all");
-      let rows: Record<string, unknown>[] = [];") + "%";
-      const bookId = url.searchParams.get("bookId");
-      const status = z
-        .enum(["all", "reading", "finished", "want-to-read"])
-        .parse(url.searchParams.get("status") || "all");
       let rows: Record<string, unknown>[] = [];
       let items: unknown[] = [];
       if (kind === "annotations") {
         let sql = "SELECT * FROM annotations WHERE user_id=? AND deleted_at IS NULL";
         const binds: unknown[] = [user.id];
-        if (bookId) {
-          sql += " AND book_id=?";
-          binds.push(bookId);
-        }
+        if (bookId) { sql += " AND book_id=?"; binds.push(bookId); }
         if (search) {
-          sql +=
-            " AND (LOWER(quote) LIKE ? ESCAPE '\\' OR LOWER(note) LIKE ? ESCAPE '\\' OR LOWER(book_title) LIKE ? ESCAPE '\\')";
+          sql += " AND (LOWER(quote) LIKE ? ESCAPE '\\' OR LOWER(note) LIKE ? ESCAPE '\\' OR LOWER(book_title) LIKE ? ESCAPE '\\')";
           binds.push(match, match, match);
         }
         sql += " ORDER BY updated_at DESC,id DESC LIMIT ? OFFSET ?";
-        rows = (
-          await db
-            .prepare(sql)
-            .bind(...binds, limit + 1, offset)
-            .all<Record<string, unknown>>()
-        ).results;
+        rows = (await db.prepare(sql).bind(...binds, limit + 1, offset)
+          .all<Record<string, unknown>>()).results;
         items = rows.map(annotationRow);
       } else if (kind === "definitions") {
         let sql = "SELECT * FROM definitions WHERE user_id=?";
         const binds: unknown[] = [user.id];
         if (search) {
-          sql +=
-            " AND (LOWER(word) LIKE ? ESCAPE '\\' OR LOWER(meaning) LIKE ? ESCAPE '\\' OR LOWER(book_title) LIKE ? ESCAPE '\\')";
+          sql += " AND (LOWER(word) LIKE ? ESCAPE '\\' OR LOWER(meaning) LIKE ? ESCAPE '\\' OR LOWER(book_title) LIKE ? ESCAPE '\\')";
           binds.push(match, match, match);
         }
         sql += " ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?";
-        rows = (
-          await db
-            .prepare(sql)
-            .bind(...binds, limit + 1, offset)
-            .all<Record<string, unknown>>()
-        ).results;
+        rows = (await db.prepare(sql).bind(...binds, limit + 1, offset)
+          .all<Record<string, unknown>>()).results;
         items = rows.map(definitionRow);
       } else {
-        let sql =
-          "SELECT rs.* FROM reading_states rs JOIN products p ON p.id=rs.product_id JOIN editions ed ON ed.id=p.edition_id WHERE rs.user_id=? AND rs.in_library=1 AND EXISTS (SELECT 1 FROM entitlements e WHERE e.user_id=rs.user_id AND e.product_id=rs.product_id AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?) )";
+        let sql = "SELECT rs.* FROM reading_states rs JOIN products p ON p.id=rs.product_id JOIN editions ed ON ed.id=p.edition_id WHERE rs.user_id=? AND rs.in_library=1 AND EXISTS (SELECT 1 FROM entitlements e WHERE e.user_id=rs.user_id AND e.product_id=rs.product_id AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?) )";
         const binds: unknown[] = [user.id, now(), now()];
         if (status !== "all") {
           sql += " AND rs.status=?";
           binds.push(status);
         }
         if (search) {
-          sql +=
-            " AND (LOWER(ed.title) LIKE ? ESCAPE '\\' OR LOWER(rs.legacy_shelves_json) LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM work_contributors wc JOIN contributors c ON c.id=wc.contributor_id WHERE wc.work_id=ed.work_id AND LOWER(c.name) LIKE ? ESCAPE '\\'))";
+          sql += " AND (LOWER(ed.title) LIKE ? ESCAPE '\\' OR LOWER(rs.legacy_shelves_json) LIKE ? ESCAPE '\\' OR EXISTS (SELECT 1 FROM work_contributors wc JOIN contributors c ON c.id=wc.contributor_id WHERE wc.work_id=ed.work_id AND LOWER(c.name) LIKE ? ESCAPE '\\'))";
           binds.push(match, match, match);
         }
         sql += " ORDER BY rs.updated_at DESC,rs.product_id DESC LIMIT ? OFFSET ?";
-        rows = (
-          await db
-            .prepare(sql)
-            .bind(...binds, limit + 1, offset)
-            .all<Record<string, unknown>>()
-        ).results;
+        rows = (await db.prepare(sql).bind(...binds, limit + 1, offset)
+          .all<Record<string, unknown>>()).results;
         for (let i = 0; i < rows.length; i += 8) {
           const chunk = rows.slice(i, i + 8);
           const books = await Promise.all(
