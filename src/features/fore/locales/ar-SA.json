@@ -726,5 +726,16 @@
   "We couldn’t load this right now.": "تعذر تحميل هذا المحتوى الآن.",
   "Please try again.": "يرجى المحاولة مرة أخرى.",
   "Request reference: {reference}": "مرجع الطلب: {reference}",
-  "Get help": "الحصول على المساعدة"
+  "Get help": "الحصول على المساعدة",
+  "Bookstore": "متجر الكتب",
+  "Navigation": "التنقل",
+  "Primary": "التنقل الرئيسي",
+  "Desktop navigation": "التنقل على سطح المكتب",
+  "Legal information": "المعلومات القانونية",
+  "Footer": "تذييل الصفحة",
+  "Cove legal and account links": "روابط Cove القانونية وروابط الحساب",
+  "Copyright & DMCA": "حقوق النشر وقانون DMCA",
+  "Help & support": "المساعدة والدعم",
+  "Service status": "حالة الخدمة",
+  "Contact & privacy requests": "التواصل وطلبات الخصوصية"
 }

@@ -726,5 +726,16 @@
   "We couldn’t load this right now.": "We couldn’t load this right now.",
   "Please try again.": "Please try again.",
   "Request reference: {reference}": "Request reference: {reference}",
-  "Get help": "Get help"
+  "Get help": "Get help",
+  "Bookstore": "Bookstore",
+  "Navigation": "Navigation",
+  "Primary": "Primary navigation",
+  "Desktop navigation": "Desktop navigation",
+  "Legal information": "Legal information",
+  "Footer": "Footer",
+  "Cove legal and account links": "Cove legal and account links",
+  "Copyright & DMCA": "Copyright & DMCA",
+  "Help & support": "Help & support",
+  "Service status": "Service status",
+  "Contact & privacy requests": "Contact & privacy requests"
 }

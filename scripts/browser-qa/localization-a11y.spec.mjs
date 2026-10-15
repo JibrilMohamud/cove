@@ -44,6 +44,24 @@ for (const locale of locales) {
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await expect(page.locator("html")).toHaveAttribute("lang", locale);
     await expect(page.locator("html")).toHaveAttribute("dir", locale === "ar-SA" ? "rtl" : "ltr");
+    await expect(page.locator("aside.sidebar nav.main-nav")).toHaveAttribute(
+      "aria-label",
+      messages["Primary"],
+    );
+    await expect(page.locator(".cove-site-footer")).toHaveAttribute(
+      "aria-label",
+      messages["Cove legal and account links"],
+    );
+    await expect(page.locator(".cove-site-footer nav")).toHaveAttribute(
+      "aria-label",
+      messages["Footer"],
+    );
+    await expect(page.locator('.cove-site-footer a[href="/help"]')).toHaveText(
+      messages["Help & support"],
+    );
+    await expect(page.locator('.cove-site-footer a[href="/privacy#contact-us"]')).toHaveText(
+      messages["Contact & privacy requests"],
+    );
     await expect(
       page.getByRole("heading", { name: messages["Read together without leaving the book."] }),
     ).toBeVisible();

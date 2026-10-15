@@ -45,6 +45,7 @@ import {
   StorefrontLocaleProvider,
   useStorefrontLocale,
 } from "./localization";
+import { useUiText } from "./ui-text";
 const nav = [
   ["/", "nav.bookstore", "Bookstore", BookOpen],
   ["/audiobooks", "nav.audiobooks", "Audiobooks", Headphones],
@@ -204,6 +205,7 @@ export function SiteShell({
 }) {
   const [open, setOpen] = useState(false);
   const store = useStorefrontLocale();
+  const ui = useUiText();
   const links = (
     <>
       <Link to="/" className="brand" onClick={() => setOpen(false)}>
@@ -213,7 +215,7 @@ export function SiteShell({
         cove<span className="brand-period">.</span>
       </Link>
       <div className="nav-label">{store.t("shell.yourReadingRoom", "YOUR READING ROOM")}</div>
-      <nav className="main-nav" aria-label="Primary">
+      <nav className="main-nav" aria-label={ui("Primary")}>
         {nav.map(([href, key, fallback, Icon]) => (
           <Link
             to={href}
@@ -235,10 +237,10 @@ export function SiteShell({
           {store.t("shell.tagline2", "always a beginning.")}
         </p>
         <span>{store.t("shell.tagline3", "YOUR BOOKSTORE. YOUR READING ROOM.")}</span>
-        <nav className="sidebar-legal-links" aria-label="Legal information">
-          <a href="/terms">Terms</a>
-          <a href="/privacy">Privacy</a>
-          <a href="/copyright">Copyright</a>
+        <nav className="sidebar-legal-links" aria-label={ui("Legal information")}>
+          <a href="/terms">{ui("Terms")}</a>
+          <a href="/privacy">{ui("Privacy")}</a>
+          <a href="/copyright">{ui("Copyright")}</a>
         </nav>
       </div>
     </>
@@ -248,7 +250,7 @@ export function SiteShell({
       <a className="skip-link" href="#fore-main">
         {store.t("shell.skip", "Skip to main content")}
       </a>
-      <aside className="sidebar" aria-label="Desktop navigation">
+      <aside className="sidebar" aria-label={ui("Desktop navigation")}>
         {links}
       </aside>
       <Sheet open={open} onOpenChange={setOpen}>
@@ -256,7 +258,7 @@ export function SiteShell({
           side={store.direction === "rtl" ? "right" : "left"}
           className="mobile-sidebar"
         >
-          <SheetTitle className="sr-only">Navigation</SheetTitle>
+          <SheetTitle className="sr-only">{ui("Navigation")}</SheetTitle>
           {links}
         </SheetContent>
       </Sheet>
@@ -272,7 +274,7 @@ export function SiteShell({
             </button>
             <span>{store.t("shell.readingRoom", "Reading room")}</span>
             <ChevronRight size={13} />
-            <strong>{title}</strong>
+            <strong>{ui(title)}</strong>
           </div>
           <div className="topbar-actions">
             <StorefrontLocaleControl />
@@ -283,15 +285,15 @@ export function SiteShell({
           <ConnectionNotice />
           {children}
         </main>
-        <footer className="cove-site-footer" aria-label="Cove legal and account links">
+        <footer className="cove-site-footer" aria-label={ui("Cove legal and account links")}>
           <span>© {new Date().getFullYear()} Cove</span>
-          <nav aria-label="Footer">
-            <a href="/terms">Terms of Service</a>
-            <a href="/privacy">Privacy Policy</a>
-            <a href="/copyright">Copyright &amp; DMCA</a>
-            <a href="/help">Help &amp; support</a>
-            <a href="/status">Service status</a>
-            <a href="/privacy#contact-us">Contact &amp; privacy requests</a>
+          <nav aria-label={ui("Footer")}>
+            <a href="/terms">{ui("Terms of Service")}</a>
+            <a href="/privacy">{ui("Privacy Policy")}</a>
+            <a href="/copyright">{ui("Copyright & DMCA")}</a>
+            <a href="/help">{ui("Help & support")}</a>
+            <a href="/status">{ui("Service status")}</a>
+            <a href="/privacy#contact-us">{ui("Contact & privacy requests")}</a>
           </nav>
         </footer>
       </div>
