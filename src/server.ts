@@ -49,6 +49,7 @@ function isH3SwallowedErrorBody(body: string): boolean {
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    const requestStarted = performance.now();
     try {
       const runtimeEnv =
         env && typeof env === "object" ? env : typeof process !== "undefined" ? process.env : {};
@@ -104,13 +105,43 @@ export default {
         routedInit.duplex = "half";
       }
       const routedRequest = new Request(request.url, routedInit);
+      const entryStarted = performance.now();
       const handler = await getServerEntry();
+      const entryDurationMs = performance.now() - entryStarted;
+      const renderStarted = performance.now();
       const response = await handler.fetch(routedRequest, runtimeEnv, ctx);
-      return applySecurityHeaders(
+      const renderDurationMs = performance.now() - renderStarted;
+      const secured = applySecurityHeaders(
         request,
         cachePublicDocument(request, await normalizeCatastrophicSsrResponse(response)),
         foreEnv,
       );
+      // Server Timing exposes aggregate durations only, never cookies, paths,
+      // visitor data, catalog contents or backend credentials. These timings
+      // distinguish Vercel cold module loading from backend/SSR render work.
+      // In particular, Vercel runtime logs may be unavailable to the audit.
+      if (
+        request.method === "GET" &&
+        new URL(request.url).pathname === "/" &&
+        secured.status === 200 &&
+        secured.headers.get("content-type")?.includes("text/html")
+      ) {
+        const headers = new Headers(secured.headers);
+        headers.append(
+          "Server-Timing",
+          [
+            `cove_entry;dur=${entryDurationMs.toFixed(1)}`,
+            `cove_render;dur=${renderDurationMs.toFixed(1)}`,
+            `cove_total;dur=${(performance.now() - requestStarted).toFixed(1)}`,
+          ].join(", "),
+        );
+        return new Response(secured.body, {
+          status: secured.status,
+          statusText: secured.statusText,
+          headers,
+        });
+      }
+      return secured;
     } catch (error) {
       console.error(error);
       return applySecurityHeaders(
