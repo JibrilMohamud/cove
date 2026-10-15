@@ -12,13 +12,13 @@ const CATEGORIES = [
   { name: "Audio files of Baroque period classical music", period: "baroque", instrument: "" },
   { name: "Audio files of Classical period classical music", period: "classical", instrument: "" },
   { name: "Audio files of Romantic period classical music", period: "romantic", instrument: "" },
-  { name: "Audio files of Renaissance period classical music", period: "renaissance", instrument: "" },
-  { name: "Audio files of audio recordings of orchestral music", period: "mixed", instrument: "orchestra" },
+  { name: "Audio files of renaissance period classical music", period: "renaissance", instrument: "" },
+  { name: "Audio files of medieval period classical music", period: "medieval", instrument: "" },
 ] as const;
 const MAX_DISCOVERED = 250;
 const MAX_BYTES = 25 * 1024 * 1024;
 const API = "https://commons.wikimedia.org/w/api.php";
-const AGENT = "CoveSoundtracks/0.1 (https://cove-puce-theta.vercel.app/help; rights-review)";
+const AGENT = "CoveSoundtracks/0.2 (https://cove-puce-theta.vercel.app/help; rights-review)";
 type CommonsInfo = {
   mime?: string;
   size?: number;
@@ -47,27 +47,54 @@ const clearText = (value: unknown, max = 300) =>
   String(value || "").replace(/<[^>]*>/g, " ").replace(/&(?:nbsp|amp);/g, " ")
     .replace(/\s+/g, " ").trim().slice(0, max);
 
+function normalizeLicenseUrl(value: string) {
+  try {
+    const u = new URL(value);
+    if (!["http:", "https:"].includes(u.protocol) || u.hostname !== "creativecommons.org" ||
+        u.username || u.password || u.port || u.search || u.hash) return "";
+    return "https://creativecommons.org" + u.pathname.replace(/\/(?:deed(?:\.[a-z-]+)?)\/?$/i, "/")
+      .replace(/\/?$/, "/");
+  } catch { return ""; }
+}
 function licensed(info: CommonsInfo) {
   const m = info.extmetadata || {};
   const stated = clearText(m.LicenseShortName?.value, 80);
-  const link = clearText(m.LicenseUrl?.value, 300);
-  if (/^CC0(?: 1\.0)?$/i.test(stated) && /^https?:\/\/creativecommons\.org\/publicdomain\/zero\/1\.0\/?$/i.test(link))
+  const rawLink = clearText(m.LicenseUrl?.value, 300);
+  const link = normalizeLicenseUrl(rawLink);
+  if (/^CC0(?: 1\.0)?$/i.test(stated) && link === "https://creativecommons.org/publicdomain/zero/1.0/")
     return { code: "CC0", link, statement: stated };
-  if (/^CC BY (?:[234]\.0)$/i.test(stated) && /^https?:\/\/creativecommons\.org\/licenses\/by\/[234]\.0\/?$/i.test(link))
+  const by = /^CC BY ([234](?:\.0|\.5))$/i.exec(stated);
+  if (by && link === "https://creativecommons.org/licenses/by/" + by[1] + "/")
     return { code: "CC-BY", link, statement: stated };
-  // A public-domain mark is discovery evidence only. The jurisdiction of BOTH
-  // the composition and sound recording still requires independent review.
-  if (/^(public domain|pd)$/i.test(stated) && /^https?:\/\/creativecommons\.org\/publicdomain\/mark\/1\.0\/?$/i.test(link))
-    return { code: "PD", link, statement: stated };
+  // BY-SA allows commercial redistribution of the original recording, but also
+  // requires attribution, a license link, indication of modifications and respect
+  // for share-alike/no-additional-restrictions. Candidate status is NOT approval.
+  const sa = /^CC BY-SA ([234](?:\.0|\.5))$/i.exec(stated);
+  if (sa && link === "https://creativecommons.org/licenses/by-sa/" + sa[1] + "/")
+    return { code: "CC-BY-SA", link, statement: stated };
+  // Commons often supplies no LicenseUrl for a plain PD tag. This is a SOURCE
+  // CLAIM, not legal evidence that an arrangement, performance or master is free.
+  if (/^(public domain|pd)$/i.test(stated) && !rawLink &&
+      /^false$/i.test(clearText(m.Copyrighted?.value, 10)))
+    return { code: "PD", link: "https://commons.wikimedia.org/wiki/Commons:Licensing", statement: "Public domain (Commons claim)" };
   return null;
 }
-function audioSource(info: CommonsInfo) {
+function playableMime(info: CommonsInfo) {
+  if (info.mime === "application/ogg" || info.mime === "audio/ogg") return "audio/ogg";
+  if (info.mime === "audio/mpeg") return "audio/mpeg";
+  return null;
+}
+function sourceFileUrl(info: CommonsInfo) {
   try {
     const u = new URL(String(info.url || ""));
-    return u.protocol === "https:" && u.hostname === "upload.wikimedia.org" &&
-      !u.username && !u.password && !u.port && !u.search && !u.hash &&
-      /^\/wikipedia\/commons\//.test(u.pathname);
-  } catch { return false; }
+    if (u.protocol !== "https:" || u.hostname !== "upload.wikimedia.org" ||
+        u.username || u.password || u.port || u.hash || !/^\/wikipedia\/commons\//.test(u.pathname) ||
+        [...u.searchParams.keys()].some(key => !/^utm_[a-z0-9_]+$/i.test(key))) return null;
+    // MediaWiki adds analytics query parameters to immutable file URLs; never
+    // include those in the stored media identity or outbound download request.
+    u.search = "";
+    return u.toString();
+  } catch { return null; }
 }
 function profile(title: string, category: (typeof CATEGORIES)[number]) {
   const t = title.toLowerCase();
@@ -93,7 +120,7 @@ async function commonsRequest(params: URLSearchParams): Promise<CommonsReply> {
   params.set("maxlag", "5");
   const result = await fetch(API + "?" + params.toString(), {
     headers: { "Api-User-Agent": AGENT, "Accept": "application/json" },
-    redirect: "error", signal: AbortSignal.timeout(15_000),
+    redirect: "manual", signal: AbortSignal.timeout(15_000),
   });
   if (!result.ok) throw new Error("Commons metadata unavailable: HTTP " + result.status);
   const data = await result.json() as CommonsReply;
@@ -102,19 +129,19 @@ async function commonsRequest(params: URLSearchParams): Promise<CommonsReply> {
 }
 function validCandidate(page: CommonsPage) {
   const info = page.imageinfo?.[0];
-  const mime = info?.mime === "audio/ogg" || info?.mime === "audio/mpeg" ? info.mime : null;
+  const mime = info && playableMime(info);
   const size = Number(info?.size);
   const sha1 = String(info?.sha1 || "").toLowerCase();
   const license = info && licensed(info);
   if (!page.pageid || !page.title?.startsWith("File:") || !mime || !license ||
       !Number.isSafeInteger(size) || size <= 0 || size > MAX_BYTES ||
-      !/^[a-f0-9]{40}$/.test(sha1) || !audioSource(info!)) return null;
+      !/^[a-f0-9]{40}$/.test(sha1) || !sourceFileUrl(info!)) return null;
   const title = clearText(page.title.slice(5).replace(/\.(ogg|oga|mp3)$/i, ""), 250);
   const sourcePage = "https://commons.wikimedia.org/wiki/" + encodeURIComponent(page.title.replace(/ /g, "_"));
   const performer = clearText(info!.extmetadata?.Artist?.value, 400);
   const attribution = title + " — " + (performer || "performer unverified") + " · " + license.statement;
   return { id: "cm_" + page.pageid, title, sourcePage, info: info!,
-    size, sha1, license, performer, attribution };
+    mediaUrl: sourceFileUrl(info!)!, mime, size, sha1, license, performer, attribution };
 }
 export async function discoverSoundtrackCandidates(env: CoveEnv) {
   const state = await env.DB.prepare("SELECT * FROM soundtrack_ingestion_state WHERE id=1").first<{ category_index:number; continuation:string; discovered:number; last_discovery_at:string }>();
@@ -182,7 +209,7 @@ function evidenceMatches(r: SoundtrackRow, info: CommonsInfo | undefined) {
     current.link === r.license_url && current.statement === r.license_statement &&
     Number(info.size) === r.source_size &&
     String(info.sha1 || "").toLowerCase() === r.source_sha1 &&
-    info.mime === r.mime && info.url === r.source_file_url && audioSource(info);
+    playableMime(info) === r.mime && sourceFileUrl(info) === r.source_file_url;
 }
 function territoryAllowed(record: SoundtrackRow, territory: string) {
   try {
@@ -212,12 +239,15 @@ export async function importOneReviewedSoundtrack(env: CoveEnv) {
         return { invalidated: track.id, reason: "Source or rights metadata changed" };
       }
       const upstream = await fetch(track.source_file_url, {
-        headers: { "User-Agent": AGENT }, redirect: "error",
+        headers: { "User-Agent": AGENT }, redirect: "manual",
         signal: AbortSignal.timeout(90_000),
       });
-      if (!upstream.ok || !upstream.body || Number(upstream.headers.get("content-length")) !== track.source_size ||
-          !String(upstream.headers.get("content-type") || "").toLowerCase().startsWith(track.mime))
-        throw new Error("Source media size or type changed");
+      const contentLength = upstream.headers.get("content-length");
+      const contentType = (upstream.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+      const mimeCompatible = contentType === track.mime ||
+        (track.mime === "audio/ogg" && contentType === "application/ogg");
+      if (!upstream.ok || !upstream.body || (contentLength && Number(contentLength) !== track.source_size) ||
+          !mimeCompatible) throw new Error("Source media size or type changed");
       const key = "soundtracks/v1/" + track.id + (track.mime === "audio/mpeg" ? ".mp3" : ".ogg");
       // R2 validates the checksum while receiving the stream; do not buffer music in Worker memory.
       await env.BUCKET.put(key,upstream.body,{ sha1: track.source_sha1,
