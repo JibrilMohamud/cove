@@ -1,3 +1,4 @@
+import { validateStoredEpub } from "./stored-epub.server";
 import { createAuth, resolvedIdentity } from "./auth.server";
 import { handleLegalContact } from "./legal.server";
 import { mirrorUrl } from "./gutenberg-source";
@@ -1342,7 +1343,7 @@ async function cachePendingEpubs(
   deadlineMs = Infinity,
   onAttempt?: () => void,
 ) {
-  const safeLimit = Math.max(0, Math.min(16, Math.floor(Number(limit) || 0)));
+  const safeLimit = Math.max(0, Math.min(64, Math.floor(Number(limit) || 0)));
   if (!env.BUCKET || !safeLimit || Date.now() >= deadlineMs)
     return { attempted: 0, downloaded: 0, failed: 0, quarantined: 0 };
   const db = database(env);
@@ -1355,30 +1356,62 @@ async function cachePendingEpubs(
     )
     .bind(now(), staleDownloadBefore)
     .run();
-  const queued = await db
+  const sources = await db
     .prepare(
-      `WITH ranked AS (
-      SELECT id,title,authors_json,languages_json,source_id,source_item_id,formats_json,epub_attempts,rights_territories_json,rights_evidence_url,source_url,content_hash,source_metadata_json,
-        ROW_NUMBER() OVER(
-          PARTITION BY source_id
-          ORDER BY CASE epub_status WHEN 'retry' THEN 0 ELSE 1 END,updated_at ASC,id ASC
-        ) source_rank
-      FROM gutenberg_source_cache WHERE epub_status IN ('pending','retry') AND ingest_status<>'quarantined'
-        AND (epub_next_attempt_at='' OR epub_next_attempt_at<=?)
-    ) SELECT r.id,r.title,r.authors_json,r.languages_json,r.source_id,r.source_item_id,r.formats_json,r.epub_attempts,r.rights_territories_json,r.rights_evidence_url,r.source_url,r.content_hash,r.source_metadata_json
-      FROM ranked r LEFT JOIN gutenberg_source_states st ON st.source_id=r.source_id
-      ORDER BY r.source_rank ASC,COALESCE(st.epub_last_attempt_at,'') ASC,r.source_id ASC,r.id ASC LIMIT ?`,
+      `SELECT s.id FROM gutenberg_sources s LEFT JOIN gutenberg_source_states st ON st.source_id=s.id
+       WHERE s.enabled=1 AND COALESCE(st.epub_retry_after,'')<=?
+       ORDER BY COALESCE(st.epub_last_attempt_at,''),s.id`,
     )
-    .bind(now(), safeLimit)
-    .all<any>();
+    .bind(now())
+    .all<{ id: string }>();
+  // Read only an indexed frontier per source. Ranking the entire pending queue
+  // every minute would make D1 reads grow with backlog size, rather than work.
+  type PendingEpub = {
+    id: string;
+    title: string;
+    authors_json: string;
+    languages_json: string;
+    source_id: string;
+    source_item_id: string;
+    formats_json: string;
+    epub_attempts: number;
+    rights_territories_json: string;
+    rights_evidence_url: string;
+    source_url: string;
+    content_hash: string;
+    source_metadata_json: string;
+  };
+  const frontiers: PendingEpub[][] = [];
+  for (const source of sources.results) {
+    if (Date.now() >= deadlineMs) break;
+    const due = await db
+      .prepare(
+        `SELECT id,title,authors_json,languages_json,source_id,source_item_id,formats_json,epub_attempts,rights_territories_json,rights_evidence_url,source_url,content_hash,source_metadata_json
+         FROM gutenberg_source_cache
+         WHERE source_id=? AND epub_status IN ('pending','retry') AND ingest_status<>'quarantined' AND epub_next_attempt_at<=?
+         ORDER BY epub_status DESC,epub_next_attempt_at,updated_at,id LIMIT ?`,
+      )
+      .bind(source.id, now(), safeLimit)
+      .all<PendingEpub>();
+    frontiers.push(due.results);
+  }
+  const queued: PendingEpub[] = [];
+  for (let rank = 0; rank < safeLimit && queued.length < safeLimit; rank++) {
+    for (const frontier of frontiers) {
+      if (frontier[rank]) queued.push(frontier[rank]);
+      if (queued.length === safeLimit) break;
+    }
+  }
   let downloaded = 0,
     failed = 0,
     quarantined = 0,
     attempted = 0;
-  for (const row of queued.results) {
+  const pausedSources = new Set<string>();
+  for (const row of queued) {
     if (Date.now() >= deadlineMs) break;
     const id = String(row.id);
     const sourceId = String(row.source_id || "pg_us") as "pg_us" | RegionalSourceId;
+    if (pausedSources.has(sourceId)) continue;
     const formats = parseJsonObject(row.formats_json);
     const sourceAsset =
       sourceId === "pg_us"
@@ -1424,10 +1457,31 @@ async function cachePendingEpubs(
         sourceAsset.mimeType,
         deadlineMs,
       );
-      if (!response.ok)
+      if (response.status === 429 || response.status === 503) {
+        const raw = response.headers.get("retry-after") || "";
+        const requested = /^\d+$/.test(raw) ? Date.now() + Number(raw) * 1000 : Date.parse(raw);
+        const until = new Date(
+          Date.now() +
+            Math.max(
+              60_000,
+              Math.min(
+                24 * 3600_000,
+                Number.isFinite(requested) ? requested - Date.now() : 5 * 60_000,
+              ),
+            ),
+        ).toISOString();
+        await db
+          .prepare("UPDATE gutenberg_source_states SET epub_retry_after=? WHERE source_id=?")
+          .bind(until, sourceId)
+          .run();
+        pausedSources.add(sourceId);
+      }
+      if (!response.ok) {
+        await response.body?.cancel();
         throw new Error(
           `${sourceAsset.mimeType === "text/html" ? "HTML" : "EPUB"} source returned ${response.status}`,
         );
+      }
       const rawBytes = await bounded(response, 30 * 1024 * 1024);
       let bytes = rawBytes,
         contentHash = await sha256Hex(rawBytes),
@@ -1468,8 +1522,9 @@ async function cachePendingEpubs(
           }
           throw error;
         }
-      } else if (bytes[0] !== 0x50 || bytes[1] !== 0x4b)
-        throw new Error("Downloaded file is not an EPUB archive.");
+      } else {
+        await validateStoredEpub(bytes);
+      }
       await env.BUCKET.put(`epubs/${id}.epub`, bytes, {
         httpMetadata: { contentType: "application/epub+zip", cacheControl: "31536000" },
         customMetadata: {
@@ -2897,6 +2952,42 @@ async function handleCoveRequest(
       env.FORE_DEFAULT_TERRITORY || "US",
     );
     const storefrontTerritory = storefront.rightsCountry;
+    if (request.method === "GET" && path === "/storefront/bootstrap") {
+      // One context/rights resolution and parallel reads replace four independent
+      // cold-load requests. Only public catalog data goes into the SSR document.
+      await rateLimitSearchRequest(request, env, currentIdentity?.id || null, "catalog", 180);
+      const catalogQuery = new URLSearchParams({
+        search: "",
+        sort: "popular",
+        page: "1",
+        currency: storefront.currency,
+      }).toString();
+      const [page, taxonomy, firstPage, availableMarkets] = await Promise.all([
+        resolveStorefrontPage(
+          dbForContext,
+          "/",
+          storefrontTerritory,
+          storefront.language,
+          storefront.locale,
+        ),
+        taxonomyTree(dbForContext, storefrontTerritory, "", storefront.locale),
+        catalog(
+          env,
+          new URL(`/api/fore/catalog?${catalogQuery}`, url.origin),
+          null,
+          storefrontTerritory,
+        ),
+        storefrontMarkets(dbForContext),
+      ]);
+      return json({
+        context: { ...storefront, availableMarkets },
+        page,
+        taxonomy,
+        catalog: firstPage,
+        catalogQuery,
+        at: Date.now(),
+      });
+    }
     if (request.method === "GET" && path === "/storefront/context") {
       await recordStorefrontContext(dbForContext, storefront, currentIdentity?.id || null);
       return json({ ...storefront, availableMarkets: await storefrontMarkets(dbForContext) });

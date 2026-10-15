@@ -52,15 +52,28 @@ function seoOrigin() {
     return new URL(request.url).origin;
   }
 }
-function publicFetch(path: string) {
+async function publicFetch(path: string) {
   const request = getRequest(),
     origin = new URL(request.url).origin;
   const headers = new Headers({ accept: "application/json" });
   const country = request.headers.get("cf-ipcountry");
   if (country) headers.set("cf-ipcountry", country);
-  return fetch(new URL(path, origin), { headers }).then(async (r) =>
-    r.ok ? await r.json() : null,
-  );
+  for (const name of ["x-vercel-ip-country", "accept-language"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  try {
+    const { proxyPersistenceApi } = await import("@/lib/persistence-backend");
+    const target = new Request(new URL(path, origin), {
+      headers,
+      signal: AbortSignal.timeout(4000),
+    });
+    const env = typeof process === "undefined" ? {} : process.env;
+    const response = (await proxyPersistenceApi(target, env)) ?? (await fetch(target));
+    return response.ok ? await response.json() : null;
+  } catch {
+    return null;
+  }
 }
 
 export const loadSiteSeo = createServerFn({ method: "GET" }).handler(

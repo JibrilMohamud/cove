@@ -1,5 +1,6 @@
+import { useStorefrontLocale } from "./localization";
+import { useUiText } from "./ui-text";
 import { openBiosync, resolveText, resolveAudio, editionBook } from "./biosync-client";
-import { timingSummary } from "./biosync";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -48,6 +49,8 @@ export const narrationLabel = (e: AudioEdition) =>
       ? "Computer narration"
       : "Narration unclassified";
 export function AudiobooksPage() {
+  const { formatMoney } = useStorefrontLocale();
+  const ui = useUiText();
   const [search, setSearch] = useState(""),
     [q, setQ] = useState(""),
     [kind, setKind] = useState("all"),
@@ -72,13 +75,15 @@ export function AudiobooksPage() {
     <>
       <div className="page-heading">
         <div>
-          <span className="page-eyebrow">FORE AUDIOBOOKS</span>
+          <span className="page-eyebrow">{ui("FORE AUDIOBOOKS")}</span>
           <h1>
-            Let the story come to you<span className="gold-text">.</span>
+            {ui("Let the story come to you")}
+            <span className="gold-text">.</span>
           </h1>
           <p>
-            Commercial and public-domain audiobooks, with narration and rights information clearly
-            marked.
+            {ui(
+              "Commercial and public-domain audiobooks, with narration and rights information clearly marked.",
+            )}
           </p>
         </div>
         <Headphones className="audio-heading-icon" size={48} />
@@ -86,8 +91,8 @@ export function AudiobooksPage() {
       <div className="catalog-search">
         <Search size={20} />
         <input
-          aria-label="Search audiobooks"
-          placeholder="Search titles, authors, or narrators…"
+          aria-label={ui("Search audiobooks")}
+          placeholder={ui("Search titles, authors, or narrators…")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -101,9 +106,9 @@ export function AudiobooksPage() {
           }}
         >
           <TabsList className="fore-tabs">
-            <TabsTrigger value="all">All voices</TabsTrigger>
-            <TabsTrigger value="human">Human</TabsTrigger>
-            <TabsTrigger value="computer">Computer</TabsTrigger>
+            <TabsTrigger value="all">{ui("All voices")}</TabsTrigger>
+            <TabsTrigger value="human">{ui("Human")}</TabsTrigger>
+            <TabsTrigger value="computer">{ui("Computer")}</TabsTrigger>
           </TabsList>
         </Tabs>
         <Select
@@ -113,25 +118,25 @@ export function AudiobooksPage() {
             setPage(1);
           }}
         >
-          <SelectTrigger aria-label="Sort audiobooks">
+          <SelectTrigger aria-label={ui("Sort audiobooks")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="title">Title A–Z</SelectItem>
-            <SelectItem value="new">Recently added</SelectItem>
+            <SelectItem value="title">{ui("Title A–Z")}</SelectItem>
+            <SelectItem value="new">{ui("Recently added")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
       <p className="small muted">
-        {r.data?.count || 0} audiobook editions · Commercial titles and verified public-domain
-        recordings
+        {r.data?.count || 0}{" "}
+        {ui("audiobook editions · Commercial titles and verified public-domain recordings")}
       </p>
       {r.error ? (
         <p className="notice">
-          {r.error.message} <button onClick={() => r.refetch()}>Retry</button>
+          {r.error.message} <button onClick={() => r.refetch()}>{ui("Retry")}</button>
         </p>
       ) : r.isLoading ? (
-        <p>Finding recordings…</p>
+        <p>{ui("Finding recordings…")}</p>
       ) : r.data?.results.length ? (
         <div className="audio-grid">
           {r.data.results.map((e) => (
@@ -141,27 +146,30 @@ export function AudiobooksPage() {
                 <span>{e.title}</span>
               </div>
               <div>
-                <span className={"voice-badge " + e.narration}>{narrationLabel(e)}</span>
+                <span className={"voice-badge " + e.narration}>{ui(narrationLabel(e))}</span>
                 <h2>{e.title}</h2>
                 <p>{e.authors.map((a) => a.name).join(", ")}</p>
                 <span className="small muted">
-                  {e.narrator || "Narrator not listed"} ·{" "}
-                  {e.tracks.length ? `${e.tracks.length} tracks` : "Tracks load when opened"}
+                  {e.narrator || ui("Narrator not listed")} ·{" "}
+                  {e.tracks.length ? `${e.tracks.length} tracks` : ui("Tracks load when opened")}
                   {e.commercial && e.audioPublisher ? ` · ${e.audioPublisher}` : ""}
                 </span>
                 {e.commercial && (
                   <span className="small muted">
                     {e.hasAccess
-                      ? "In your library"
+                      ? ui("In your library")
                       : e.offer
-                        ? `${new Intl.NumberFormat(undefined, { style: "currency", currency: e.offer.currency }).format(e.offer.amountMinor / 100)}`
-                        : "Commercial edition"}
+                        ? formatMoney(e.offer.amountMinor, e.offer.currency)
+                        : ui("Commercial edition")}
                   </span>
                 )}
                 {e.alignment && (
                   <span className="biosync-badge">
                     <Link2 size={13} />
-                    {timingSummary(e)}
+                    {ui("BioSync · {checked} of {total} tracks checked", {
+                      checked: e.coverage?.checkedTracks || 0,
+                      total: e.tracks.length,
+                    })}
                   </span>
                 )}
               </div>
@@ -171,10 +179,11 @@ export function AudiobooksPage() {
       ) : (
         <div className="empty-state">
           <Headphones />
-          <h2>No recordings match yet.</h2>
+          <h2>{ui("No recordings match yet.")}</h2>
           <p>
-            Try another voice or search. Availability follows your storefront and each edition’s
-            rights.
+            {ui(
+              "Try another voice or search. Availability follows your storefront and each edition’s rights.",
+            )}
           </p>
           <a
             href="https://www.gutenberg.org/browse/categories/2"
@@ -182,7 +191,7 @@ export function AudiobooksPage() {
             rel="noreferrer"
             className="text-link"
           >
-            Explore Gutenberg’s computer-audio catalog
+            {ui("Explore Gutenberg’s computer-audio catalog")}
           </a>
         </div>
       )}
@@ -193,7 +202,7 @@ export function AudiobooksPage() {
             disabled={page === 1}
             onClick={() => setPage((p) => p - 1)}
           >
-            Previous
+            {ui("Previous")}
           </button>
           <span>
             {page} / {r.data?.pages}
@@ -203,7 +212,7 @@ export function AudiobooksPage() {
             disabled={page === r.data?.pages}
             onClick={() => setPage((p) => p + 1)}
           >
-            Next
+            {ui("Next")}
           </button>
         </div>
       )}
@@ -217,6 +226,7 @@ export function AudioDownloads({
   edition: AudioEdition;
   book?: CatalogBook | null;
 }) {
+  const ui = useUiText();
   const [busy, setBusy] = useState(""),
     [progress, setProgress] = useState(""),
     abort = useRef<AbortController | null>(null);
@@ -256,18 +266,18 @@ export function AudioDownloads({
       <div className="inline-actions">
         <button className="button outline" disabled={!!busy} onClick={() => run("offline")}>
           <Download size={16} />
-          Save audio offline
+          {ui("Save audio offline")}
         </button>
         {!edition.commercial && (
           <button className="button outline" disabled={!!busy} onClick={() => run("audio")}>
-            Audio ZIP
+            {ui("Audio ZIP")}
           </button>
         )}
         {book && !edition.commercial && (
           <button className="button gold" disabled={!!busy} onClick={() => run("both")}>
             <BookOpen size={16} />
             <Headphones size={16} />
-            Download text + audio
+            {ui("Download text + audio")}
           </button>
         )}
       </div>
@@ -275,7 +285,7 @@ export function AudioDownloads({
         <p role="status" className="small">
           {progress || "Preparing download…"}{" "}
           <button className="text-link" onClick={() => abort.current?.abort()}>
-            Cancel
+            {ui("Cancel")}
           </button>
         </p>
       )}
@@ -283,6 +293,7 @@ export function AudioDownloads({
   );
 }
 export function BookAudio({ book }: { book: CatalogBook }) {
+  const ui = useUiText();
   const result = useQuery<{ results: AudioEdition[] }>({
       queryKey: ["book-audio", book.id],
       queryFn: () => api("/audiobooks?bookId=" + book.id),
@@ -297,41 +308,48 @@ export function BookAudio({ book }: { book: CatalogBook }) {
       <div className="section-heading">
         <h2>
           <Headphones size={21} />
-          Also available to listen
+          {ui("Also available to listen")}
         </h2>
-        <span className="voice-badge">{narrationLabel(edition)}</span>
+        <span className="voice-badge">{ui(narrationLabel(edition))}</span>
       </div>
       {editions.length > 1 && (
         <Select value={edition.id} onValueChange={setId}>
-          <SelectTrigger aria-label="Audiobook edition">
+          <SelectTrigger aria-label={ui("Audiobook edition")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {editions.map((e) => (
               <SelectItem key={e.id} value={e.id}>
-                {e.narrator || e.title} · {narrationLabel(e)}
+                {e.narrator || e.title} · {ui(narrationLabel(e))}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       )}
       <p>
-        {edition.narrator || "Narrator not listed"} · {edition.tracks.length} tracks
+        {edition.narrator || ui("Narrator not listed")} · {edition.tracks.length} {ui("tracks")}
       </p>
       <a className="button outline" href={"/listen/" + edition.id}>
         <Headphones size={16} />
-        Open audiobook
+        {ui("Open audiobook")}
       </a>
+      <RecordingCoverage edition={edition} />
       <AudioDownloads edition={edition} book={book} />
       <p className="small muted">
         {edition.alignment
-          ? timingSummary(edition) + ". Checked passages support text/audio handoff."
-          : "Text and audio can be downloaded together. A verified text-to-audio map is not yet available for this recording."}
+          ? ui("BioSync · {checked} of {total} tracks checked", {
+              checked: edition.coverage?.checkedTracks || 0,
+              total: edition.tracks.length,
+            }) + ". Checked passages support text/audio handoff."
+          : ui(
+              "Text and audio can be downloaded together. A verified text-to-audio map is not yet available for this recording.",
+            )}
       </p>
     </section>
   );
 }
 export function AudioPlayerPage({ id }: { id: string }) {
+  const ui = useUiText();
   const { data, loading, error } = useAccount();
   const ownerId = data.user?.id || (error ? offlineAccountId() : "");
   const r = useQuery<AudioEdition>({
@@ -347,7 +365,7 @@ export function AudioPlayerPage({ id }: { id: string }) {
         {r.error && <p>{r.error.message}</p>}
         {r.error && (
           <button className="button outline" onClick={() => void r.refetch()}>
-            Retry
+            {ui("Retry")}
           </button>
         )}
       </div>
@@ -359,25 +377,23 @@ function AudioPlayer({ edition: e }: { edition: AudioEdition }) {
   return <EntitledAudioPlayer edition={e} />;
 }
 function CommercialAudioPreview({ edition: e }: { edition: AudioEdition }) {
-  const price = e.offer
-    ? new Intl.NumberFormat(undefined, { style: "currency", currency: e.offer.currency }).format(
-        e.offer.amountMinor / 100,
-      )
-    : "See price";
+  const { formatMoney } = useStorefrontLocale();
+  const ui = useUiText();
+  const price = e.offer ? formatMoney(e.offer.amountMinor, e.offer.currency) : "See price";
   return (
     <>
       <a className="text-link" href="/audiobooks">
-        ← Audiobooks
+        {ui("← Audiobooks")}
       </a>
       <div className="listening-layout">
         <div className="listen-art">
           <Headphones size={55} />
           <h1>{e.title}</h1>
           <p>{e.authors.map((a) => a.name).join(", ")}</p>
-          <span className={"voice-badge " + e.narration}>{narrationLabel(e)}</span>
+          <span className={"voice-badge " + e.narration}>{ui(narrationLabel(e))}</span>
         </div>
         <section className="player-panel">
-          <span className="page-eyebrow">COMMERCIAL AUDIOBOOK</span>
+          <span className="page-eyebrow">{ui("COMMERCIAL AUDIOBOOK")}</span>
           <h2>{price}</h2>
           <p>
             {e.audioPublisher || "Audio publisher"}
@@ -385,7 +401,7 @@ function CommercialAudioPreview({ edition: e }: { edition: AudioEdition }) {
           </p>
           {e.previewAvailable ? (
             <>
-              <h3>Preview</h3>
+              <h3>{ui("Preview")}</h3>
               <audio
                 controls
                 preload="metadata"
@@ -393,15 +409,16 @@ function CommercialAudioPreview({ edition: e }: { edition: AudioEdition }) {
               />
             </>
           ) : (
-            <p className="muted">A preview is not available for this edition.</p>
+            <p className="muted">{ui("A preview is not available for this edition.")}</p>
           )}
           <a className="button gold" href={e.sourceUrl}>
             <BookOpen size={17} />
-            View book & purchase options
+            {ui("View book & purchase options")}
           </a>
           <p className="small muted">
-            Full playback is unlocked only by an active purchase or eligible subscription
-            entitlement. Offline copies use renewable device-bound licenses.
+            {ui(
+              "Full playback is unlocked only by an active purchase or eligible subscription entitlement. Offline copies use renewable device-bound licenses.",
+            )}
           </p>
         </section>
       </div>
@@ -409,6 +426,7 @@ function CommercialAudioPreview({ edition: e }: { edition: AudioEdition }) {
   );
 }
 function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
+  const ui = useUiText();
   const { data, signIn, loading } = useAccount(),
     audio = useRef<HTMLAudioElement>(null),
     [index, setIndex] = useState(0),
@@ -491,7 +509,7 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
           await putRecord("assets", { ...local, version: p.version, pending: false }).catch(
             () => {},
           );
-          setSaveState("Position saved");
+          setSaveState(ui("Position saved"));
         } catch (err) {
           setSaveState((err as Error).message);
           if ((err as any).status === 409) {
@@ -717,19 +735,19 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
   return (
     <>
       <a className="text-link" href="/audiobooks">
-        ← Audiobooks
+        {ui("← Audiobooks")}
       </a>
       <div className="listening-layout">
         <div className="listen-art">
           <Headphones size={55} />
           <h1>{e.title}</h1>
           <p>{e.authors.map((a) => a.name).join(", ")}</p>
-          <span className={"voice-badge " + e.narration}>{narrationLabel(e)}</span>
+          <span className={"voice-badge " + e.narration}>{ui(narrationLabel(e))}</span>
         </div>
         <section className="player-panel">
-          <span className="page-eyebrow">NOW LISTENING</span>
+          <span className="page-eyebrow">{ui("NOW LISTENING")}</span>
           <h2>{track.title}</h2>
-          <p>{e.narrator || "Narrator not listed"}</p>
+          <p>{e.narrator || ui("Narrator not listed")}</p>
           <audio
             ref={audio}
             src={source || undefined}
@@ -813,13 +831,13 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
               className="icon-button"
               disabled={index === 0 || !ready}
               onClick={() => selectTrack(index - 1)}
-              aria-label="Previous track"
+              aria-label={ui("Previous track")}
             >
               <SkipBack size={22} />
             </button>
             <button
               className="icon-button"
-              aria-label="Rewind 15 seconds"
+              aria-label={ui("Rewind 15 seconds")}
               onClick={() => {
                 if (audio.current) audio.current.currentTime = Math.max(0, seconds - 15);
               }}
@@ -832,7 +850,7 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
             </span>
             <button
               className="icon-button"
-              aria-label="Forward 15 seconds"
+              aria-label={ui("Forward 15 seconds")}
               onClick={() => {
                 if (audio.current) audio.current.currentTime = Math.min(duration, seconds + 15);
               }}
@@ -844,33 +862,34 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
               className="icon-button"
               disabled={index === e.tracks.length - 1 || !ready}
               onClick={() => selectTrack(index + 1)}
-              aria-label="Next track"
+              aria-label={ui("Next track")}
             >
               <SkipForward size={22} />
             </button>
           </div>
           <div className="review-options">
             <Select value={String(speed)} onValueChange={(v) => setSpeed(Number(v))}>
-              <SelectTrigger aria-label="Playback speed">
+              <SelectTrigger aria-label={ui("Playback speed")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3].map((v) => (
                   <SelectItem key={v} value={String(v)}>
-                    {v}× speed
+                    {v}
+                    {ui("× speed")}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={sleep} onValueChange={setSleep}>
-              <SelectTrigger aria-label="Sleep timer">
+              <SelectTrigger aria-label={ui("Sleep timer")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="off">Sleep timer off</SelectItem>
+                <SelectItem value="off">{ui("Sleep timer off")}</SelectItem>
                 {[5, 15, 30, 45, 60].map((v) => (
                   <SelectItem key={v} value={String(v)}>
-                    Stop after {v} minutes
+                    {ui("Stop after")} {v} {ui("minutes")}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -878,13 +897,13 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
           </div>
           {error && (
             <p className="notice">
-              {error} <button onClick={() => audio.current?.load()}>Retry</button>
+              {error} <button onClick={() => audio.current?.load()}>{ui("Retry")}</button>
             </p>
           )}
           {conflict && (
             <p className="notice">
-              Another device has a newer position.{" "}
-              <button onClick={() => location.reload()}>Load latest position</button>
+              {ui("Another device has a newer position.")}{" "}
+              <button onClick={() => location.reload()}>{ui("Load latest position")}</button>
             </p>
           )}
           <p className="small muted" role="status">
@@ -892,7 +911,7 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
               saveState || "Your position saves as you listen."
             ) : (
               <button className="text-link" onClick={signIn}>
-                Sign in to sync listening across devices
+                {ui("Sign in to sync listening across devices")}
               </button>
             )}
           </p>
@@ -914,20 +933,28 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
           )}
           <p className="small muted">
             {e.alignment
-              ? timingSummary(e) +
+              ? ui("BioSync · {checked} of {total} tracks checked", {
+                  checked: e.coverage?.checkedTracks || 0,
+                  total: e.tracks.length,
+                }) +
                 ". Timing is checked automatically. Introductions and unmatched passages are excluded."
-              : "This recording has no verified text alignment yet. Your text and listening bookmarks are kept separately."}
+              : ui(
+                  "This recording has no verified text alignment yet. Your text and listening bookmarks are kept separately.",
+                )}
           </p>
+          <RecordingCoverage edition={e} />
           <AudioDownloads edition={e} book={book.data || (e.bookId ? editionBook(e) : null)} />
           <a className="text-link small" href={e.sourceUrl} target="_blank" rel="noreferrer">
-            Recording / edition details
+            {ui("Recording / edition details")}
           </a>
         </section>
       </div>
       <section className="track-list">
         <div className="section-heading">
-          <h2>Tracks</h2>
-          <span className="muted">{e.tracks.length} tracks</span>
+          <h2>{ui("Tracks")}</h2>
+          <span className="muted">
+            {e.tracks.length} {ui("tracks")}
+          </span>
         </div>
         {e.tracks.map((t, i) => (
           <div key={t.id} className={index === i ? "active" : ""}>
@@ -951,6 +978,7 @@ function EntitledAudioPlayer({ edition: e }: { edition: AudioEdition }) {
   );
 }
 export function OfflineDownloads() {
+  const ui = useUiText();
   const { data, error } = useAccount();
   const ownerId = data.user?.id || (error ? offlineAccountId() : "");
   const [rows, setRows] = useState<any[]>([]);
@@ -982,7 +1010,7 @@ export function OfflineDownloads() {
   }, [load]);
   return (
     <section className="offline-downloads">
-      <h2>Saved on this device</h2>
+      <h2>{ui("Saved on this device")}</h2>
       {rows.filter((row) => !row.edition?.commercial || row.ownerId === ownerId).length ? (
         rows
           .filter((row) => !row.edition?.commercial || row.ownerId === ownerId)
@@ -1002,7 +1030,7 @@ export function OfflineDownloads() {
                   {r.commercialLicense?.expiresAt && (
                     <>
                       {" "}
-                      · Access expires{" "}
+                      {ui("· Access expires")}{" "}
                       {new Date(r.commercialLicense.expiresAt).toLocaleDateString()}
                     </>
                   )}
@@ -1016,16 +1044,43 @@ export function OfflineDownloads() {
                     .catch((e) => toast.error(e.message))
                 }
               >
-                Remove download
+                {ui("Remove download")}
               </button>
             </div>
           ))
       ) : (
         <p className="muted">
-          Use “Save offline” on a book or recording. Downloads stay in this browser until you remove
-          them or clear site data.
+          {ui(
+            "Use “Save offline” on a book or recording. Downloads stay in this browser until you remove them or clear site data.",
+          )}
         </p>
       )}
     </section>
+  );
+}
+
+function RecordingCoverage({ edition }: { edition: AudioEdition }) {
+  const ui = useUiText();
+  if (edition.commercial) return null;
+  const coverage = edition.coverage;
+  if (!coverage)
+    return <p className="small muted">{ui("Recent storage verification is pending.")}</p>;
+  return (
+    <div className="small muted" aria-live="polite">
+      <p>
+        {coverage.completeRecording
+          ? ui("All {total} tracks passed recent storage checks.", { total: coverage.totalTracks })
+          : ui(
+              "{prepared} of {total} tracks passed recent storage checks. Remaining tracks may need an online connection.",
+              { prepared: coverage.preparedTracks, total: coverage.totalTracks },
+            )}
+      </p>
+      <p>
+        {ui(
+          "{checked} of {total} tracks have verified passage timing. Whole-book text coverage has not been verified.",
+          { checked: coverage.checkedTracks, total: coverage.totalTracks },
+        )}
+      </p>
+    </div>
   );
 }

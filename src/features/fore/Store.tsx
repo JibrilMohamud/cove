@@ -1,3 +1,4 @@
+import { formatMinorCurrency } from "./currency";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStorefrontLocale } from "./localization";
 import { useQuery } from "@tanstack/react-query";
@@ -38,8 +39,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { StorefrontBootstrap } from "./storefront-bootstrap";
 
-export function BookArt({ book, className = "" }: { book: CatalogBook; className?: string }) {
+export function BookArt({
+  book,
+  className = "",
+  priority = false,
+}: {
+  book: CatalogBook;
+  className?: string;
+  priority?: boolean;
+}) {
   const [broken, setBroken] = useState(false);
   const url = coverOf(book);
   return (
@@ -49,7 +59,11 @@ export function BookArt({ book, className = "" }: { book: CatalogBook; className
           src={url}
           onError={() => setBroken(true)}
           alt={"Cover of " + book.title}
-          loading="lazy"
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : "auto"}
+          decoding="async"
+          width={240}
+          height={360}
         />
       ) : (
         <div className="cover-fallback">
@@ -85,17 +99,18 @@ function priceLabel(book: CatalogBook) {
   const offer = book.offer;
   if (!offer) return "Unavailable";
   if (Number(offer.amountMinor || 0) === 0) return "Free";
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: offer.currency || "USD",
-    }).format(Number(offer.amountMinor || 0) / 100);
-  } catch {
-    return `${offer.currency || "USD"} ${(Number(offer.amountMinor || 0) / 100).toFixed(2)}`;
-  }
+  return formatMinorCurrency(Number(offer.amountMinor || 0), offer.currency || "USD");
 }
 
-export function BookCard({ book, onOpen }: { book: CatalogBook; onOpen?: () => void }) {
+export function BookCard({
+  book,
+  onOpen,
+  priority = false,
+}: {
+  book: CatalogBook;
+  onOpen?: () => void;
+  priority?: boolean;
+}) {
   const { data, reload, signIn } = useAccount();
   const saved = data.library.some(
     (x) =>
@@ -124,7 +139,7 @@ export function BookCard({ book, onOpen }: { book: CatalogBook; onOpen?: () => v
   return (
     <article className="book-card">
       <Link className="cover-link" to={editionPath(book)} onClick={onOpen} preload={false}>
-        <BookArt book={book} />
+        <BookArt book={book} priority={priority} />
         <span className="cover-open">
           Explore book <ArrowUpRight size={17} />
         </span>
@@ -193,13 +208,13 @@ type TaxonomyNode = {
   href: string;
   children: TaxonomyNode[];
 };
-type TaxonomyResponse = {
+export type TaxonomyResponse = {
   taxonomy: string;
   version: string;
   featured: TaxonomyNode[];
   nodes: TaxonomyNode[];
 };
-type StorefrontPage = {
+export type StorefrontPage = {
   path: string;
   pageType: string;
   title?: string;
@@ -391,7 +406,7 @@ function RecommendationRailView({
   );
 }
 
-type CatalogResponse = {
+export type CatalogResponse = {
   results: CatalogBook[];
   count: number;
   next: string | null;
@@ -703,7 +718,13 @@ function TaxonomyBrowse({
   );
 }
 
-export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
+export function StorePage({
+  landingPath = "/",
+  initial,
+}: {
+  landingPath?: string;
+  initial?: StorefrontBootstrap | null;
+}) {
   const storefront = useStorefrontLocale();
   const { data } = useAccount();
   const { params: url, update } = useUrlSearch(landingPath);
@@ -714,6 +735,13 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [visitor, setVisitor] = useState("");
   const [pageViewId, setPageViewId] = useState("");
+  const matchingInitial =
+    initial &&
+    initial.context.rightsCountry === storefront.rightsCountry &&
+    initial.context.locale === storefront.locale &&
+    initial.context.currency === storefront.currency
+      ? initial
+      : undefined;
   const storefrontPage = useQuery<StorefrontPage>({
     queryKey: ["storefront-page", landingPath, storefront.rightsCountry, storefront.locale],
     queryFn: () => api("/storefront/page?path=" + encodeURIComponent(landingPath)),
@@ -721,6 +749,8 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
     gcTime: typeof window === "undefined" ? Infinity : 60 * 60_000,
     refetchOnWindowFocus: false,
     retry: 0,
+    initialData: matchingInitial?.page,
+    initialDataUpdatedAt: matchingInitial?.at,
   });
   const cmsPreset = storefrontPage.data?.query || {};
   const presetValue = (key: string) => cmsPreset[key] ?? routePreset[key];
@@ -796,6 +826,8 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
     gcTime: typeof window === "undefined" ? Infinity : 60 * 60_000,
     refetchOnWindowFocus: false,
     retry: 1,
+    initialData: language === "all" ? matchingInitial?.taxonomy : undefined,
+    initialDataUpdatedAt: matchingInitial?.at,
   });
   useEffect(() => {
     const page = storefrontPage.data;
@@ -877,6 +909,11 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
     gcTime: typeof window === "undefined" ? Infinity : 60 * 60_000,
     refetchOnWindowFocus: false,
     retry: false,
+    initialData:
+      !data.user && matchingInitial?.catalogQuery === params.toString()
+        ? matchingInitial.catalog
+        : undefined,
+    initialDataUpdatedAt: matchingInitial?.at,
   });
   useEffect(() => {
     const queryId = result.data?.search?.queryId;
@@ -1189,103 +1226,6 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
       </div>
       <TaxonomyBrowse taxonomy={taxonomy.data} activePath={taxonomyPath} />
 
-      {home && heroBook && hero && (
-        <div className="discovery-row">
-          <section className="featured-book" data-placement={hero.id} ref={heroImpressionRef}>
-            <div className="feature-copy">
-              <span className="feature-label">{hero.eyebrow || "THE FORE EDIT"}</span>
-              {hero.sponsored && (
-                <span className="sponsored-label">
-                  Sponsored by {hero.sponsorName || "publisher"}
-                </span>
-              )}
-              <h2>{hero.title || heroBook.title}</h2>
-              <p>{authorOf(heroBook)}</p>
-              <p className="feature-description">
-                {hero.body || heroBook.summaries?.[0]?.slice(0, 220)}
-                {!hero.body && (heroBook.summaries?.[0]?.length || 0) > 220 ? "…" : ""}
-              </p>
-              <a
-                className="button gold"
-                href={editionPath(heroBook)}
-                onClick={() => {
-                  if (visitor && pageViewId)
-                    void api("/merchandising/event", "POST", {
-                      type: "click",
-                      placementId: hero.id,
-                      visitorId: visitor,
-                      pageViewId,
-                      productId: heroBook.productId || null,
-                      position: 1,
-                    }).catch(() => {});
-                }}
-              >
-                {hero.ctaLabel || "Open this book"} <ArrowRight size={17} />
-              </a>
-            </div>
-            <a
-              href={editionPath(heroBook)}
-              className="feature-cover"
-              onClick={() => {
-                if (visitor && pageViewId)
-                  void api("/merchandising/event", "POST", {
-                    type: "click",
-                    placementId: hero.id,
-                    visitorId: visitor,
-                    pageViewId,
-                    productId: heroBook.productId || null,
-                    position: 1,
-                  }).catch(() => {});
-              }}
-            >
-              <BookArt book={heroBook} />
-            </a>
-          </section>
-          <section className="reading-callout">
-            <span className="small-label">
-              {current ? "PICK UP WHERE YOU LEFT OFF" : "MAKE ROOM FOR READING"}
-            </span>
-            <BookOpen size={27} strokeWidth={1.3} />
-            <h2>{current ? current.book.title : "A little reading.\nA world of possibility."}</h2>
-            <p>
-              {current
-                ? `${Math.round(current.progress * 100)}% read · ${authorOf(current.book)}`
-                : "Your books, best passages, and new words. All in one place."}
-            </p>
-            <a className="text-link" href={current ? readPath(current.bookId) : "/library"}>
-              {current ? "Continue reading" : "Explore your library"} <ArrowRight size={17} />
-            </a>
-          </section>
-        </div>
-      )}
-
-      {home &&
-        banners.map((placement) => (
-          <MerchBanner
-            key={placement.id}
-            placement={placement}
-            visitor={visitor}
-            pageViewId={pageViewId}
-          />
-        ))}
-      {home &&
-        rails.map((placement) => (
-          <MerchRail
-            key={placement.id}
-            placement={placement}
-            visitor={visitor}
-            pageViewId={pageViewId}
-          />
-        ))}
-      {home &&
-        (recommendations.data?.rails || []).map((rail) => (
-          <RecommendationRailView
-            key={`${rail.key}:${rail.requestId}`}
-            rail={rail}
-            visitor={visitor}
-          />
-        ))}
-
       <div className="catalog-controls">
         <div className="topic-tabs" role="group" aria-label="Featured book categories">
           <a className={!taxonomyPath ? "active" : ""} href="/store">
@@ -1539,6 +1479,7 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
             <BookCard
               key={String(b.productId || b.id)}
               book={b}
+              priority={page === 1 && index < 4}
               onOpen={() => {
                 const queryId = result.data?.search?.queryId;
                 const position = (page - 1) * (result.data?.search?.pageSize || 24) + index + 1;
@@ -1600,6 +1541,104 @@ export function StorePage({ landingPath = "/" }: { landingPath?: string }) {
           </button>
         </div>
       )}
+
+      {/* Optional discovery modules follow the stable first-page catalog. */}
+      {home && heroBook && hero && (
+        <div className="discovery-row">
+          <section className="featured-book" data-placement={hero.id} ref={heroImpressionRef}>
+            <div className="feature-copy">
+              <span className="feature-label">{hero.eyebrow || "THE FORE EDIT"}</span>
+              {hero.sponsored && (
+                <span className="sponsored-label">
+                  Sponsored by {hero.sponsorName || "publisher"}
+                </span>
+              )}
+              <h2>{hero.title || heroBook.title}</h2>
+              <p>{authorOf(heroBook)}</p>
+              <p className="feature-description">
+                {hero.body || heroBook.summaries?.[0]?.slice(0, 220)}
+                {!hero.body && (heroBook.summaries?.[0]?.length || 0) > 220 ? "…" : ""}
+              </p>
+              <a
+                className="button gold"
+                href={editionPath(heroBook)}
+                onClick={() => {
+                  if (visitor && pageViewId)
+                    void api("/merchandising/event", "POST", {
+                      type: "click",
+                      placementId: hero.id,
+                      visitorId: visitor,
+                      pageViewId,
+                      productId: heroBook.productId || null,
+                      position: 1,
+                    }).catch(() => {});
+                }}
+              >
+                {hero.ctaLabel || "Open this book"} <ArrowRight size={17} />
+              </a>
+            </div>
+            <a
+              href={editionPath(heroBook)}
+              className="feature-cover"
+              onClick={() => {
+                if (visitor && pageViewId)
+                  void api("/merchandising/event", "POST", {
+                    type: "click",
+                    placementId: hero.id,
+                    visitorId: visitor,
+                    pageViewId,
+                    productId: heroBook.productId || null,
+                    position: 1,
+                  }).catch(() => {});
+              }}
+            >
+              <BookArt book={heroBook} />
+            </a>
+          </section>
+          <section className="reading-callout">
+            <span className="small-label">
+              {current ? "PICK UP WHERE YOU LEFT OFF" : "MAKE ROOM FOR READING"}
+            </span>
+            <BookOpen size={27} strokeWidth={1.3} />
+            <h2>{current ? current.book.title : "A little reading.\nA world of possibility."}</h2>
+            <p>
+              {current
+                ? `${Math.round(current.progress * 100)}% read · ${authorOf(current.book)}`
+                : "Your books, best passages, and new words. All in one place."}
+            </p>
+            <a className="text-link" href={current ? readPath(current.bookId) : "/library"}>
+              {current ? "Continue reading" : "Explore your library"} <ArrowRight size={17} />
+            </a>
+          </section>
+        </div>
+      )}
+
+      {home &&
+        banners.map((placement) => (
+          <MerchBanner
+            key={placement.id}
+            placement={placement}
+            visitor={visitor}
+            pageViewId={pageViewId}
+          />
+        ))}
+      {home &&
+        rails.map((placement) => (
+          <MerchRail
+            key={placement.id}
+            placement={placement}
+            visitor={visitor}
+            pageViewId={pageViewId}
+          />
+        ))}
+      {home &&
+        (recommendations.data?.rails || []).map((rail) => (
+          <RecommendationRailView
+            key={`${rail.key}:${rail.requestId}`}
+            rail={rail}
+            visitor={visitor}
+          />
+        ))}
 
       <footer className="site-footer">
         <span>

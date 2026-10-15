@@ -1,3 +1,4 @@
+import { useUiText } from "./ui-text";
 import { mergeMarginHighlights } from "./margin-passages";
 import { DiscussionThread } from "./Community";
 import {
@@ -173,6 +174,16 @@ function conservativeCfiProgress(
   return Math.max(0, index - 1) / Math.max(1, book.locations.total);
 }
 export function ReaderPage({ id }: { id: string }) {
+  const ui = useUiText();
+  const uiRef = useRef(ui);
+  uiRef.current = ui;
+  const panelOpener = useRef<HTMLElement | null>(null);
+  const panelTitle = useRef<HTMLHeadingElement | null>(null);
+  function openReaderPanel(next: string) {
+    panelOpener.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setPanel(next);
+  }
   const { t: tr } = useStorefrontLocale();
   const queryClient = useQueryClient();
   const searchString = useRouterState({ select: (state) => state.location.searchStr || "" });
@@ -619,25 +630,25 @@ export function ReaderPage({ id }: { id: string }) {
   const discussionGroupName = activeGroups.find((group) => group.id === discussionGroupId)?.name;
   const highlightGroupName = activeGroups.find((group) => group.id === socialGroupId)?.name;
   const discussionAudienceLabel = discussionDirect
-    ? `@${discussionMember?.username || "selected member"}`
+    ? `@${discussionMember?.username || ui("selected member")}`
     : discussionVisibility === "group"
-      ? discussionGroupName || "a reading group"
+      ? discussionGroupName || ui("a reading group")
       : {
           friends: "friends / mutuals",
-          followers: "your followers",
-          public: "the public",
+          followers: ui("your followers"),
+          public: ui("the public"),
         }[discussionVisibility];
   const highlightAudienceLabel =
     socialVisibility === "private"
-      ? "private (not shared)"
+      ? ui("private (not shared)")
       : socialVisibility === "member"
-        ? `@${socialMember?.username || "selected member"}`
+        ? `@${socialMember?.username || ui("selected member")}`
         : socialVisibility === "group"
-          ? highlightGroupName || "a reading group"
+          ? highlightGroupName || ui("a reading group")
           : {
               friends: "friends / mutuals",
               followers: "followers",
-              public: "the public",
+              public: ui("the public"),
             }[socialVisibility];
   const highlightAudienceKey =
     socialVisibility === "member"
@@ -754,7 +765,7 @@ export function ReaderPage({ id }: { id: string }) {
     const scope = readingScope.current;
     const key = JSON.stringify([ownerId, id, previewMode, p.cfi, p.progress]);
     if (savedPositionKey.current === key) return;
-    setSaveState(previewMode ? "Saving sample position…" : "Saving position…");
+    setSaveState(previewMode ? ui("Saving sample position…") : ui("Saving position…"));
     const snapshot = { ...p };
     savingPosition.current = savingPosition.current
       .catch(() => {})
@@ -767,7 +778,7 @@ export function ReaderPage({ id }: { id: string }) {
           return;
         try {
           if (savedPositionKey.current === key) {
-            if (mounted.current) setSaveState("Position saved");
+            if (mounted.current) setSaveState(ui("Position saved"));
             return;
           }
           if (previewMode) {
@@ -801,7 +812,7 @@ export function ReaderPage({ id }: { id: string }) {
             if (readingScope.current !== scope || privateReaderOwner() !== ownerId) return;
             if (written.queued) {
               savedPositionKey.current = key;
-              if (mounted.current) setSaveState("Position saved on this device — pending sync");
+              if (mounted.current) setSaveState(ui("Position saved on this device — pending sync"));
               return;
             }
             const saved = written.response as { version: number; readingJourneyId?: string | null };
@@ -836,13 +847,13 @@ export function ReaderPage({ id }: { id: string }) {
               metadata: { progressBucket: bucket },
             }).catch(() => {});
           }
-          if (mounted.current) setSaveState("Position saved");
+          if (mounted.current) setSaveState(ui("Position saved"));
         } catch (e) {
           if ((e as any)?.status === 409) {
             positionConflict.current = true;
             if (mounted.current)
-              setSaveState("Position changed on another device — reload to choose");
-          } else if (mounted.current) setSaveState("Position not saved — retry");
+              setSaveState(ui("Position changed on another device — reload to choose"));
+          } else if (mounted.current) setSaveState(ui("Position not saved — retry"));
         }
       });
     await savingPosition.current;
@@ -1005,6 +1016,12 @@ export function ReaderPage({ id }: { id: string }) {
         // can retain the painted selection after focus changes while EPUB.js's
         // delayed window-selection lookup no longer emits a selected event.
         const doc = contents.document as Document;
+        const frame = contents.window.frameElement as HTMLIFrameElement | null;
+        if (frame)
+          frame.title = uiRef.current("Book text: {title}", { title: bookQuery.data?.title || id });
+        if (!doc.documentElement.lang && clean.metadata.language)
+          doc.documentElement.lang = clean.metadata.language;
+
         if (!selectionDocuments.has(doc)) {
           selectionDocuments.add(doc);
           const captureSelection = (immediate = false) => {
@@ -1083,7 +1100,7 @@ export function ReaderPage({ id }: { id: string }) {
             }
           } catch {}
         })();
-        const title = chapterForLocation(loc, chapters, (ePub as any).CFI) || "Reading";
+        const title = chapterForLocation(loc, chapters, (ePub as any).CFI) || ui("Reading");
         chapterRef.current = title;
         setChapter(title);
         const p = created.locations.length()
@@ -1291,6 +1308,10 @@ export function ReaderPage({ id }: { id: string }) {
     };
   }, [id, accountLoading, !!bookQuery.data, retry]);
   useEffect(() => {
+    for (const frame of container.current?.querySelectorAll("iframe") || [])
+      frame.title = ui("Book text: {title}", { title: bookQuery.data?.title || id });
+  }, [ui, bookQuery.data?.title, ready, id]);
+  useEffect(() => {
     if (rendition.current && !formatRef.current.fixedLayout) applySettings(rendition.current);
     try {
       localStorage.setItem(
@@ -1349,6 +1370,10 @@ export function ReaderPage({ id }: { id: string }) {
     };
   }, [data.user?.id, fontSize, lineHeight, font, theme, flow]);
   useEffect(() => {
+    for (const frame of container.current?.querySelectorAll("iframe") || [])
+      frame.title = ui("Book text: {title}", { title: bookQuery.data?.title || id });
+  }, [ui, bookQuery.data?.title, ready, id]);
+  useEffect(() => {
     if (rendition.current && !formatRef.current.fixedLayout) rendition.current.flow(flow);
   }, [flow]);
   useEffect(() => {
@@ -1389,13 +1414,13 @@ export function ReaderPage({ id }: { id: string }) {
         },
       );
       if (!written.queued) await reload();
-      else setSaveState("Note saved on this device — pending sync");
+      else setSaveState(ui("Note saved on this device — pending sync"));
       toast.success(
         written.queued
-          ? "Saved on this device — the note will sync after reconnecting"
+          ? ui("Saved on this device — the note will sync after reconnecting")
           : withNote
-            ? "Highlight and note saved"
-            : "Passage highlighted",
+            ? ui("Highlight and note saved")
+            : ui("Passage highlighted"),
       );
       setSelection(null);
       setNoteOpen(false);
@@ -1441,7 +1466,7 @@ export function ReaderPage({ id }: { id: string }) {
       setSocialCompose(null);
       setSelection(null);
       await socialReader.refetch();
-      toast.success("Margin discussion posted");
+      toast.success(ui("Margin discussion posted"));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -1525,7 +1550,7 @@ export function ReaderPage({ id }: { id: string }) {
       setSelection(null);
       setSocialAnnotationId(null);
       setSocialShareNote(false);
-      toast.success("Highlight shared");
+      toast.success(ui("Highlight shared"));
     } catch (e) {
       if ((e as { status?: number }).status === 409) {
         setSocialAudienceConfirmed(false);
@@ -1595,7 +1620,7 @@ export function ReaderPage({ id }: { id: string }) {
           clientId: client.clientId,
         });
       await reload();
-      toast.success(bookmark ? "Bookmark removed" : "Page bookmarked");
+      toast.success(bookmark ? ui("Bookmark removed") : ui("Page bookmarked"));
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -1613,9 +1638,9 @@ export function ReaderPage({ id }: { id: string }) {
         if (found.length >= 100) break;
       }
       setMatches(found.slice(0, 100));
-      if (!found.length) toast.message("No matches in this book.");
+      if (!found.length) toast.message(ui("No matches in this book."));
     } catch {
-      toast.error("Search could not be completed. Please try again.");
+      toast.error(ui("Search could not be completed. Please try again."));
     } finally {
       setSearching(false);
     }
@@ -1626,7 +1651,7 @@ export function ReaderPage({ id }: { id: string }) {
       setPanel("");
       hideChrome();
     } catch {
-      toast.error("This location could not be opened.");
+      toast.error(ui("This location could not be opened."));
     }
   }
   return (
@@ -1641,7 +1666,7 @@ export function ReaderPage({ id }: { id: string }) {
         <button
           className="reader-controls-toggle icon-button"
           style={{ background: themes[theme].bg, color: themes[theme].fg }}
-          aria-label="Show reader controls"
+          aria-label={ui("Show reader controls")}
           onClick={() => showChrome(false)}
         >
           <Menu size={20} />
@@ -1654,20 +1679,22 @@ export function ReaderPage({ id }: { id: string }) {
         onFocusCapture={() => showChrome(false)}
         onBlurCapture={() => scheduleChromeHide(1800)}
       >
-        <a href={"/book/" + id} className="icon-button" aria-label="Leave reader">
+        <a href={"/book/" + id} className="icon-button" aria-label={ui("Leave reader")}>
           <ArrowLeft size={20} />
         </a>
         <div className="reader-book-title">
-          <strong>{bookQuery.data?.title || "Opening book"}</strong>
+          <strong>{bookQuery.data?.title || ui("Opening book")}</strong>
           <span>
-            {previewMode ? `SAMPLE · ${chapter || "EPUB READER"}` : chapter || "EPUB READER"}
+            {previewMode
+              ? `SAMPLE · ${chapter || ui("EPUB READER")}`
+              : chapter || ui("EPUB READER")}
           </span>
         </div>
         <div className="reader-toolbar">
           {!previewMode && (!!editions.data?.results.length || !!syncEdition.current) && (
             <button
               className="icon-button"
-              aria-label="Switch to audiobook"
+              aria-label={ui("Switch to audiobook")}
               onClick={async () => {
                 const edition =
                   syncEdition.current ||
@@ -1698,53 +1725,53 @@ export function ReaderPage({ id }: { id: string }) {
           )}
           <button
             className="icon-button"
-            title="Table of contents"
-            aria-label="Table of contents"
-            onClick={() => setPanel("contents")}
+            title={ui("Table of contents")}
+            aria-label={ui("Table of contents")}
+            onClick={() => openReaderPanel("contents")}
           >
             <List size={20} />
           </button>
           <button
             className="icon-button"
-            title="Search this book"
-            aria-label="Search this book"
-            onClick={() => setPanel("search")}
+            title={ui("Search this book")}
+            aria-label={ui("Search this book")}
+            onClick={() => openReaderPanel("search")}
           >
             <Search size={19} />
           </button>
           {!previewMode && (
             <button
               className="icon-button"
-              title="Text bookmarks"
-              aria-label="Text bookmarks"
-              onClick={() => setPanel("bookmarks")}
+              title={ui("Text bookmarks")}
+              aria-label={ui("Text bookmarks")}
+              onClick={() => openReaderPanel("bookmarks")}
             >
               <Bookmark size={19} />
             </button>
           )}
           <button
             className="icon-button"
-            title="Book highlights"
-            aria-label="Book highlights"
-            onClick={() => setPanel("highlights")}
+            title={ui("Book highlights")}
+            aria-label={ui("Book highlights")}
+            onClick={() => openReaderPanel("highlights")}
           >
             <Highlighter size={19} />
           </button>
           {!previewMode && (
             <button
               className={`icon-button ${socialReader.data?.preferences?.enabled ? "social-active" : ""}`}
-              title="Social Reading"
-              aria-label="Social Reading"
-              onClick={() => setPanel("social")}
+              title={ui("Social Reading")}
+              aria-label={ui("Social Reading")}
+              onClick={() => openReaderPanel("social")}
             >
               <Users size={19} />
             </button>
           )}
           <button
             className="icon-button"
-            title="Reading settings"
-            aria-label="Reading settings"
-            onClick={() => setPanel("settings")}
+            title={ui("Reading settings")}
+            aria-label={ui("Reading settings")}
+            onClick={() => openReaderPanel("settings")}
           >
             <Settings2 size={20} />
           </button>
@@ -1766,14 +1793,14 @@ export function ReaderPage({ id }: { id: string }) {
         {!ready && !error && (
           <div className="reader-loading">
             <BookOpen size={34} />
-            <h2>Opening a new chapter.</h2>
-            <p>Preparing the book and its original styles…</p>
+            <h2>{ui("Opening a new chapter.")}</h2>
+            <p>{ui("Preparing the book and its original styles…")}</p>
             <Loader2 className="spin" size={20} />
           </div>
         )}
         {(error || bookQuery.error) && (
           <div className="reader-loading">
-            <h2>This book needs a moment.</h2>
+            <h2>{ui("This book needs a moment.")}</h2>
             <p>{error || bookQuery.error?.message}</p>
             <button
               className="button gold"
@@ -1782,25 +1809,33 @@ export function ReaderPage({ id }: { id: string }) {
                 setRetry((n) => n + 1);
               }}
             >
-              Try again
+              {ui("Try again")}
             </button>
             <a className="text-link" href={"/book/" + id}>
-              Back to book details
+              {ui("Back to book details")}
             </a>
           </div>
         )}
         {!!socialReader.data?.preferences?.enabled && !!passageMarkers.length && (
-          <aside className="reader-social-gutter" aria-label="Social reading indicators">
+          <aside className="reader-social-gutter" aria-label={ui("Social reading indicators")}>
             {passageMarkers.map((marker) => (
               <button
                 key={marker.hash}
                 style={{ position: "absolute", top: marker.top, right: 0 }}
                 onClick={() => {
                   setActiveSocialHash(marker.hash);
-                  setPanel("social");
+                  openReaderPanel("social");
                 }}
-                title={`${marker.count} contributions in ${marker.chapter}${marker.passage ? ": " + marker.passage.slice(0, 120) : ""}`}
-                aria-label={`Open ${marker.count} reader contributions in ${marker.chapter}${marker.passage ? ": " + marker.passage : ""}`}
+                title={ui("Open {count} reader contributions in {chapter}: {passage}", {
+                  count: marker.count,
+                  chapter: marker.chapter,
+                  passage: marker.passage,
+                })}
+                aria-label={ui("Open {count} reader contributions in {chapter}: {passage}", {
+                  count: marker.count,
+                  chapter: marker.chapter,
+                  passage: marker.passage,
+                })}
                 aria-controls="reader-social-panel"
                 aria-expanded={panel === "social" && activeSocialHash === marker.hash}
               >
@@ -1829,7 +1864,7 @@ export function ReaderPage({ id }: { id: string }) {
         onFocusCapture={() => showChrome(false)}
         onBlurCapture={() => scheduleChromeHide(1800)}
       >
-        <span>{ready ? chapter : "Preparing book…"}</span>
+        <span>{ready ? chapter : ui("Preparing book…")}</span>
         <div>
           <span>{ready ? percent + (previewMode ? "% of sample" : "% read") : ""}</span>
           {data.user ? (
@@ -1840,11 +1875,13 @@ export function ReaderPage({ id }: { id: string }) {
               }
             >
               {saveState ||
-                (previewMode ? "Your sample place will be saved" : "Your place will be saved")}
+                (previewMode
+                  ? ui("Your sample place will be saved")
+                  : ui("Your place will be saved"))}
             </button>
           ) : (
             <button onClick={signIn} className="text-link">
-              Sign in to save your place
+              {ui("Sign in to save your place")}
             </button>
           )}
         </div>
@@ -1862,14 +1899,14 @@ export function ReaderPage({ id }: { id: string }) {
                   key={c}
                   className={"color-dot " + (color === c ? "selected" : "")}
                   style={{ background: v }}
-                  aria-label={c + " highlight"}
+                  aria-label={ui("{color} highlight", { color: ui(c) })}
                   onClick={() => setColor(c)}
                 />
               ))}
             </div>
             <button onClick={() => saveHighlight()} disabled={saving}>
               <Highlighter size={17} />
-              Highlight
+              {ui("Highlight")}
             </button>
             <button
               onClick={() => {
@@ -1878,7 +1915,7 @@ export function ReaderPage({ id }: { id: string }) {
               }}
             >
               <Pencil size={17} />
-              Note
+              {ui("Note")}
             </button>
             {!previewMode && (
               <button
@@ -1891,25 +1928,25 @@ export function ReaderPage({ id }: { id: string }) {
                   setDiscussionGroupId("");
                   setDiscussionAudienceConfirmed(false);
                 }}
-                title="Start a margin discussion"
+                title={ui("Start a margin discussion")}
               >
-                <MessageCircle size={17} /> Discuss
+                <MessageCircle size={17} /> {ui("Discuss")}
               </button>
             )}
             {!previewMode && (
               <button
                 disabled={socialBusy}
                 onClick={() => void openHighlightSharing()}
-                title="Share this highlight"
+                title={ui("Share this highlight")}
               >
-                <Share2 size={17} /> Share
+                <Share2 size={17} /> {ui("Share")}
               </button>
             )}
             <button onClick={() => setDictionary(selection)}>
               <BookA size={17} />
-              Define
+              {ui("Define")}
             </button>
-            <button aria-label="Dismiss selection" onClick={() => setSelection(null)}>
+            <button aria-label={ui("Dismiss selection")} onClick={() => setSelection(null)}>
               <X size={17} />
             </button>
           </div>
@@ -1919,16 +1956,16 @@ export function ReaderPage({ id }: { id: string }) {
         <div className="annotation-popover">
           <button
             className="icon-button"
-            aria-label="Close saved note"
+            aria-label={ui("Close saved note")}
             onClick={() => setActiveAnnotation(null)}
           >
             <X size={16} />
           </button>
-          <strong>Saved passage</strong>
+          <strong>{ui("Saved passage")}</strong>
           <p>{activeAnnotation.note || activeAnnotation.quote}</p>
           <div className="annotation-social-actions">
             <a className="text-link" href="/highlights">
-              Edit in your notebook <Pencil size={14} />
+              {ui("Edit in your notebook")} <Pencil size={14} />
             </a>
             {!previewMode && (
               <button
@@ -1947,13 +1984,28 @@ export function ReaderPage({ id }: { id: string }) {
         onOpenChange={(v) => {
           if (!v) {
             setPanel("");
-            hideChrome();
+            showChrome(false);
           }
         }}
       >
-        <SheetContent className="fore-reader-sheet" side="right">
+        <SheetContent
+          className="fore-reader-sheet"
+          side="right"
+          closeLabel={ui("Close")}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            panelTitle.current?.focus();
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            showChrome(false);
+            const target = panelOpener.current;
+            if (target?.isConnected) target.focus();
+            else document.querySelector<HTMLButtonElement>(".reader-controls-toggle")?.focus();
+          }}
+        >
           <SheetHeader>
-            <SheetTitle>
+            <SheetTitle ref={panelTitle} tabIndex={-1}>
               {panel === "contents"
                 ? tr("reader.chapters", "Chapters")
                 : panel === "search"
@@ -1963,8 +2015,8 @@ export function ReaderPage({ id }: { id: string }) {
                     : panel === "bookmarks"
                       ? tr("reader.bookmarks", "Your bookmarks")
                       : panel === "social"
-                        ? "Social Reading"
-                        : "Make yourself comfortable"}
+                        ? ui("Social Reading")
+                        : ui("Make yourself comfortable")}
             </SheetTitle>
             <SheetDescription>{bookQuery.data?.title}</SheetDescription>
           </SheetHeader>
@@ -1988,10 +2040,10 @@ export function ReaderPage({ id }: { id: string }) {
                   }}
                 >
                   <input
-                    aria-label="Search text in book"
+                    aria-label={ui("Search text in book")}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search a word or phrase…"
+                    placeholder={ui("Search a word or phrase…")}
                     maxLength={100}
                   />
                   <button className="button gold" disabled={searching || !ready}>
@@ -2027,8 +2079,8 @@ export function ReaderPage({ id }: { id: string }) {
                   {data.bookmarks.some(
                     (b) => matchesReadingBook(b.bookId) && b.cfi === position.current.cfi,
                   )
-                    ? "Remove bookmark here"
-                    : "Bookmark current page"}
+                    ? ui("Remove bookmark here")
+                    : ui("Bookmark current page")}
                 </button>
                 {data.bookmarks.filter((b) => matchesReadingBook(b.bookId)).length ? (
                   data.bookmarks
@@ -2045,8 +2097,9 @@ export function ReaderPage({ id }: { id: string }) {
                     ))
                 ) : (
                   <p className="muted small">
-                    Bookmarks mark a reading location without highlighting text. Add one for any
-                    page you want to return to.
+                    {ui(
+                      "Bookmarks mark a reading location without highlighting text. Add one for any page you want to return to.",
+                    )}
                   </p>
                 )}
               </div>
@@ -2068,17 +2121,20 @@ export function ReaderPage({ id }: { id: string }) {
                         <button
                           className="text-link"
                           disabled={socialBusy}
-                          aria-label={`Share highlight: ${a.quote.slice(0, 70)}`}
+                          aria-label={ui("Share highlight: {passage}", {
+                            passage: a.quote.slice(0, 70),
+                          })}
                           onClick={() => void openHighlightSharing(a)}
                         >
-                          <Share2 size={14} /> Share this saved highlight
+                          <Share2 size={14} /> {ui("Share this saved highlight")}
                         </button>
                       </div>
                     ))
                 ) : (
                   <p className="muted small">
-                    Select a passage in the book, then choose Highlight or Note. Your saved passages
-                    will appear here.
+                    {ui(
+                      "Select a passage in the book, then choose Highlight or Note. Your saved passages will appear here.",
+                    )}
                   </p>
                 )}
                 {bookAnnotationPages.hasNextPage && (
@@ -2086,7 +2142,7 @@ export function ReaderPage({ id }: { id: string }) {
                     type="button"
                     className="button outline"
                     disabled={bookAnnotationPages.isFetchingNextPage}
-                    aria-label="Load older saved passages from this book"
+                    aria-label={ui("Load older saved passages from this book")}
                     onClick={() => void bookAnnotationPages.fetchNextPage()}
                   >
                     {bookAnnotationPages.isFetchingNextPage
@@ -2152,22 +2208,22 @@ export function ReaderPage({ id }: { id: string }) {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="member">One Cove member</SelectItem>
-                        <SelectItem value="friends">Friends / mutuals</SelectItem>
-                        <SelectItem value="following">People I follow</SelectItem>
-                        <SelectItem value="group">Reading group</SelectItem>
-                        <SelectItem value="public">Public readers</SelectItem>
+                        <SelectItem value="member">{ui("One Cove member")}</SelectItem>
+                        <SelectItem value="friends">{ui("Friends / mutuals")}</SelectItem>
+                        <SelectItem value="following">{ui("People I follow")}</SelectItem>
+                        <SelectItem value="group">{ui("Reading group")}</SelectItem>
+                        <SelectItem value="public">{ui("Public readers")}</SelectItem>
                       </SelectContent>
                     </Select>
                     {socialReader.data?.preferences?.audienceMode === "group" && (
                       <>
-                        <label>Reading group</label>
+                        <label>{ui("Reading group")}</label>
                         <Select
                           value={socialReader.data?.preferences?.groupId || ""}
                           onValueChange={(v) => saveSocialPreferences({ groupId: v })}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Choose a group" />
+                            <SelectValue placeholder={ui("Choose a group")} />
                           </SelectTrigger>
                           <SelectContent>
                             {socialAccount.data?.groups
@@ -2214,10 +2270,10 @@ export function ReaderPage({ id }: { id: string }) {
                       </label>
                     </div>
                     <label>
-                      Density{" "}
+                      {ui("Density")}{" "}
                       <span>
                         {Number(socialReader.data?.preferences?.density ?? 35) === 0
-                          ? "No margin indicators"
+                          ? ui("No margin indicators")
                           : Number(socialReader.data?.preferences?.density ?? 35) < 20
                             ? "Quiet"
                             : Number(socialReader.data?.preferences?.density ?? 35) < 67
@@ -2230,24 +2286,23 @@ export function ReaderPage({ id }: { id: string }) {
                       min={0}
                       max={100}
                       step={1}
-                      aria-label="Social density"
+                      aria-label={ui("Social density")}
                       defaultValue={[Number(socialReader.data?.preferences?.density ?? 35)]}
                       onValueCommit={(v) => saveSocialPreferences({ density: v[0] })}
                     />
                     <p className="small muted">
-                      🔒 Spoilers use your furthest saved ebook position or verified audio-to-ebook
-                      percentage mappings. Audio and BioSync editions without a percentage mapping
-                      stay locked. Set density to zero to hide margin indicators. At most three
-                      indicators are shown on a screen.
+                      {ui(
+                        "🔒 Spoilers use your furthest saved ebook position or verified audio-to-ebook percentage mappings. Audio and BioSync editions without a percentage mapping stay locked. Set density to zero to hide margin indicators. At most three indicators are shown on a screen.",
+                      )}
                     </p>
                     {activeSocial && (
                       <section className="margin-conversation-card">
                         <button className="text-link" onClick={() => setActiveSocialHash(null)}>
-                          ← All visible activity
+                          {ui("← All visible activity")}
                         </button>
                         <h3>
-                          {activeSocial.discussionCount || 0} discussions ·{" "}
-                          {activeSocial.highlightCount || 0} highlights
+                          {activeSocial.discussionCount || 0} {ui("discussions ·")}{" "}
+                          {activeSocial.highlightCount || 0} {ui("highlights")}
                         </h3>
                         {activeSocial.cfi && (
                           <button
@@ -2256,10 +2311,10 @@ export function ReaderPage({ id }: { id: string }) {
                               void rendition.current
                                 ?.display(activeSocial.cfi)
                                 .then(() => setPanel(""))
-                                .catch(() => toast.error("This passage could not be opened."));
+                                .catch(() => toast.error(ui("This passage could not be opened.")));
                             }}
                           >
-                            Go to this passage
+                            {ui("Go to this passage")}
                           </button>
                         )}
                         {activeSocial.posts?.map((p: any) => (
@@ -2269,7 +2324,7 @@ export function ReaderPage({ id }: { id: string }) {
                             contextId={id}
                             postId={p.id}
                             progress={position.current.progress || percent / 100}
-                            title="Passage discussion"
+                            title={ui("Passage discussion")}
                             initialPost={p}
                             initialUpdatedAt={socialReaderQuery.dataUpdatedAt}
                             onChanged={() => {
@@ -2279,7 +2334,9 @@ export function ReaderPage({ id }: { id: string }) {
                         ))}
                         {activeSocial.highlights?.map((h: any) => (
                           <article key={h.id}>
-                            <strong>{h.name || "Reader"} highlighted</strong>
+                            <strong>
+                              {h.name || "Reader"} {ui("highlighted")}
+                            </strong>
                             <blockquote>“{h.quote}”</blockquote>
                             {h.note && <p>{h.note}</p>}
                           </article>
@@ -2288,8 +2345,8 @@ export function ReaderPage({ id }: { id: string }) {
                     )}
                     {socialReader.isError && (
                       <p role="alert">
-                        Could not load activity.{" "}
-                        <button onClick={() => socialReader.refetch()}>Retry</button>
+                        {ui("Could not load activity.")}{" "}
+                        <button onClick={() => socialReader.refetch()}>{ui("Retry")}</button>
                       </p>
                     )}
                     {socialReader.hasNextPage && (
@@ -2298,39 +2355,47 @@ export function ReaderPage({ id }: { id: string }) {
                         disabled={socialReader.isFetchingNextPage}
                         onClick={() => socialReader.fetchNextPage()}
                       >
-                        Load older passage activity
+                        {ui("Load older passage activity")}
                       </button>
                     )}
                     {!activeSocial && (
                       <div className="reader-social-summary">
                         <strong>
-                          {socialReader.data?.totalVisible || 0} relevant conversations/highlight
-                          clusters reached so far
+                          {socialReader.data?.totalVisible || 0}{" "}
+                          {ui("relevant conversations/highlight clusters reached so far")}
                         </strong>
                         <p className="small muted">
-                          Markers appear beside passages on the visible page. Browse all loaded
-                          activity here.
+                          {ui(
+                            "Markers appear beside passages on the visible page. Browse all loaded activity here.",
+                          )}
                         </p>
                         {socialReader.data?.indicators?.map((x: any) => (
                           <button
                             key={x.passageHash}
                             onClick={() => setActiveSocialHash(x.passageHash)}
-                            aria-label={`Open ${(x.discussionCount || 0) + (x.highlightCount || 0)} reader contributions in ${x.chapter || "this chapter"}: ${String(
-                              x.posts?.[0]?.passageText || x.highlights?.[0]?.quote || "",
-                            )
-                              .replace(/\s+/g, " ")
-                              .slice(0, 120)}`}
+                            aria-label={ui(
+                              "Open {count} reader contributions in {chapter}: {passage}",
+                              {
+                                count: (x.discussionCount || 0) + (x.highlightCount || 0),
+                                chapter: x.chapter || ui("this chapter"),
+                                passage: String(
+                                  x.posts?.[0]?.passageText || x.highlights?.[0]?.quote || "",
+                                )
+                                  .replace(/\s+/g, " ")
+                                  .slice(0, 120),
+                              },
+                            )}
                           >
                             <span>• {(x.discussionCount || 0) + (x.highlightCount || 0)}</span>
-                            <strong>{x.chapter || "This passage"}</strong>
+                            <strong>{x.chapter || ui("This passage")}</strong>
                             <span className="reader-passage-preview">
                               {String(
                                 x.posts?.[0]?.passageText || x.highlights?.[0]?.quote || "",
                               ).slice(0, 100)}
                             </span>
                             <small>
-                              {x.discussionCount || 0} discussions · {x.highlightCount || 0}{" "}
-                              highlights
+                              {x.discussionCount || 0} {ui("discussions ·")} {x.highlightCount || 0}{" "}
+                              {ui("highlights")}
                             </small>
                           </button>
                         ))}
@@ -2344,25 +2409,27 @@ export function ReaderPage({ id }: { id: string }) {
               <div className="reading-settings">
                 {formatInfo.fixedLayout && (
                   <div className="reader-format-notice" role="status">
-                    <strong>Fixed-layout edition</strong>
+                    <strong>{ui("Fixed-layout edition")}</strong>
                     <p className="small muted">
-                      The publisher controls page geometry and typography for this edition, so text
-                      size, line spacing, typeface, and scrolling overrides are unavailable.
+                      {ui(
+                        "The publisher controls page geometry and typography for this edition, so text size, line spacing, typeface, and scrolling overrides are unavailable.",
+                      )}
                     </p>
                   </div>
                 )}
                 {formatInfo.verticalWriting && (
                   <p className="small muted" role="status">
-                    Vertical writing is preserved from the publisher EPUB. Keyboard page direction
-                    follows the book’s declared reading order.
+                    {ui(
+                      "Vertical writing is preserved from the publisher EPUB. Keyboard page direction follows the book’s declared reading order.",
+                    )}
                   </p>
                 )}
-                <label>Page color</label>
+                <label>{ui("Page color")}</label>
                 <div className="theme-options">
                   {Object.entries(themes).map(([key, t]) => (
                     <button
                       key={key}
-                      aria-label={key + " reading theme"}
+                      aria-label={ui("{theme} reading theme", { theme: ui(key) })}
                       className={theme === key ? "selected" : ""}
                       style={{ background: t.bg, color: t.fg }}
                       onClick={() => setTheme(key as keyof typeof themes)}
@@ -2372,10 +2439,10 @@ export function ReaderPage({ id }: { id: string }) {
                   ))}
                 </div>
                 <label>
-                  Text size <span>{fontSize}px</span>
+                  {ui("Text size")} <span>{fontSize}px</span>
                 </label>
                 <Slider
-                  aria-label="Text size"
+                  aria-label={ui("Text size")}
                   min={14}
                   max={32}
                   step={1}
@@ -2384,10 +2451,10 @@ export function ReaderPage({ id }: { id: string }) {
                   onValueChange={(v) => setFontSize(v[0])}
                 />
                 <label>
-                  Line spacing <span>{lineHeight.toFixed(2)}</span>
+                  {ui("Line spacing")} <span>{lineHeight.toFixed(2)}</span>
                 </label>
                 <Slider
-                  aria-label="Line spacing"
+                  aria-label={ui("Line spacing")}
                   min={1.2}
                   max={2.2}
                   step={0.05}
@@ -2395,31 +2462,34 @@ export function ReaderPage({ id }: { id: string }) {
                   disabled={formatInfo.fixedLayout}
                   onValueChange={(v) => setLineHeight(v[0])}
                 />
-                <label>Typeface</label>
+                <label>{ui("Typeface")}</label>
                 <Select value={font} onValueChange={setFont}>
-                  <SelectTrigger aria-label="Reader typeface" disabled={formatInfo.fixedLayout}>
+                  <SelectTrigger
+                    aria-label={ui("Reader typeface")}
+                    disabled={formatInfo.fixedLayout}
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="publisher">Publisher’s typeface</SelectItem>
-                    <SelectItem value="serif">Classic serif</SelectItem>
-                    <SelectItem value="sans-serif">Clean sans serif</SelectItem>
+                    <SelectItem value="publisher">{ui("Publisher’s typeface")}</SelectItem>
+                    <SelectItem value="serif">{ui("Classic serif")}</SelectItem>
+                    <SelectItem value="sans-serif">{ui("Clean sans serif")}</SelectItem>
                   </SelectContent>
                 </Select>
-                <label>Reading flow</label>
+                <label>{ui("Reading flow")}</label>
                 <Select value={flow} onValueChange={setFlow}>
-                  <SelectTrigger aria-label="Reading flow" disabled={formatInfo.fixedLayout}>
+                  <SelectTrigger aria-label={ui("Reading flow")} disabled={formatInfo.fixedLayout}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="paginated">Turn pages</SelectItem>
-                    <SelectItem value="scrolled-doc">Scroll chapters</SelectItem>
+                    <SelectItem value="paginated">{ui("Turn pages")}</SelectItem>
+                    <SelectItem value="scrolled-doc">{ui("Scroll chapters")}</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="small muted">
-                  Your reading appearance syncs across your signed-in devices with per-setting
-                  conflict protection. Original book styling is kept where compatible with your
-                  choices.
+                  {ui(
+                    "Your reading appearance syncs across your signed-in devices with per-setting conflict protection. Original book styling is kept where compatible with your choices.",
+                  )}
                 </p>
               </div>
             )}
@@ -2433,27 +2503,28 @@ export function ReaderPage({ id }: { id: string }) {
         }}
       >
         <DialogContent className="fore-dialog finish-journey-dialog">
-          <DialogTitle>Finished.</DialogTitle>
+          <DialogTitle>{ui("Finished.")}</DialogTitle>
           <DialogDescription>{bookQuery.data?.title}</DialogDescription>
           <div className="finish-mark">
             <Check size={30} />
             <strong>{percent}%</strong>
           </div>
           <p>
-            Your Reading Journey is ready. Review its audience before sharing your reading/listening
-            mix, sessions, highlight and note counts, and timeline.
+            {ui(
+              "Your Reading Journey is ready. Review its audience before sharing your reading/listening mix, sessions, highlight and note counts, and timeline.",
+            )}
           </p>
           <p>
-            Current audience:{" "}
+            {ui("Current audience:")}{" "}
             <strong>
               {finishedJourneyAudience.data
                 ? finishedJourneyAudience.data.visibility === "private"
-                  ? "Private"
+                  ? ui("Private")
                   : finishedJourneyAudience.data.visibility === "followers"
-                    ? "Followers"
-                    : "Public"
+                    ? ui("Followers")
+                    : ui("Public")
                 : finishedJourneyAudience.isError
-                  ? "Open the journey to review its audience"
+                  ? ui("Open the journey to review its audience")
                   : "Loading…"}
             </strong>
           </p>
@@ -2462,10 +2533,10 @@ export function ReaderPage({ id }: { id: string }) {
               className="button gold"
               href={`/community?journey=${encodeURIComponent(finishedJourney || "")}`}
             >
-              View Reading Journey
+              {ui("View Reading Journey")}
             </a>
             <button className="button outline" onClick={() => setFinishedJourney(null)}>
-              Stay in the book
+              {ui("Stay in the book")}
             </button>
           </div>
         </DialogContent>
@@ -2477,9 +2548,11 @@ export function ReaderPage({ id }: { id: string }) {
         }}
       >
         <DialogContent className="fore-dialog social-compose-dialog">
-          <DialogTitle>Start a margin conversation.</DialogTitle>
+          <DialogTitle>{ui("Start a margin conversation.")}</DialogTitle>
           <DialogDescription>
-            This discussion is attached to the passage and spoiler-gated by reading progress.
+            {ui(
+              "This discussion is attached to the passage and spoiler-gated by reading progress.",
+            )}
           </DialogDescription>
           <blockquote className="editor-quote">{selection?.text}</blockquote>
           <label className="check-row">
@@ -2492,7 +2565,7 @@ export function ReaderPage({ id }: { id: string }) {
                 if (e.target.checked) setDiscussionMember(null);
               }}
             />
-            Share only with one member
+            {ui("Share only with one member")}
           </label>
           {discussionDirect ? (
             <MemberPicker
@@ -2505,7 +2578,7 @@ export function ReaderPage({ id }: { id: string }) {
           ) : (
             <>
               <label>
-                Publish audience
+                {ui("Publish audience")}
                 <Select
                   value={discussionVisibility}
                   onValueChange={(value: "public" | "followers" | "friends" | "group") => {
@@ -2517,16 +2590,16 @@ export function ReaderPage({ id }: { id: string }) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="friends">Friends / mutuals</SelectItem>
-                    <SelectItem value="followers">Followers</SelectItem>
-                    <SelectItem value="group">Reading group</SelectItem>
-                    <SelectItem value="public">Public</SelectItem>
+                    <SelectItem value="friends">{ui("Friends / mutuals")}</SelectItem>
+                    <SelectItem value="followers">{ui("Followers")}</SelectItem>
+                    <SelectItem value="group">{ui("Reading group")}</SelectItem>
+                    <SelectItem value="public">{ui("Public")}</SelectItem>
                   </SelectContent>
                 </Select>
               </label>
               {discussionVisibility === "group" && (
                 <label>
-                  Reading group
+                  {ui("Reading group")}
                   <Select
                     value={discussionGroupId}
                     onValueChange={(value) => {
@@ -2535,7 +2608,7 @@ export function ReaderPage({ id }: { id: string }) {
                     }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Choose a group" />
+                      <SelectValue placeholder={ui("Choose a group")} />
                     </SelectTrigger>
                     <SelectContent>
                       {activeGroups.map((group) => (
@@ -2548,13 +2621,17 @@ export function ReaderPage({ id }: { id: string }) {
                 </label>
               )}
               {discussionVisibility === "group" && activeGroups.length === 0 && (
-                <p className="small muted">Join a reading group before publishing to a group.</p>
+                <p className="small muted">
+                  {ui("Join a reading group before publishing to a group.")}
+                </p>
               )}
             </>
           )}
           <p className="small muted" role="status">
-            Audience: {discussionAudienceLabel}. This publishing choice is separate from the
-            activity you choose to view in Social Reading.
+            {ui("Audience:")} {discussionAudienceLabel}
+            {ui(
+              ". This publishing choice is separate from the activity you choose to view in Social Reading.",
+            )}
           </p>
           <label className="check-row">
             <input
@@ -2562,15 +2639,15 @@ export function ReaderPage({ id }: { id: string }) {
               checked={discussionAudienceConfirmed}
               onChange={(e) => setDiscussionAudienceConfirmed(e.target.checked)}
             />
-            I confirm this discussion will be shared with {discussionAudienceLabel}.
+            {ui("I confirm this discussion will be shared with")} {discussionAudienceLabel}.
           </label>
           <textarea
             className="note-input"
-            aria-label="Margin discussion"
+            aria-label={ui("Margin discussion")}
             value={socialBody}
             onChange={(e) => setSocialBody(e.target.value)}
             maxLength={12000}
-            placeholder="What do you want other readers to notice?"
+            placeholder={ui("What do you want other readers to notice?")}
           />
           <button
             className="button gold"
@@ -2601,31 +2678,31 @@ export function ReaderPage({ id }: { id: string }) {
         }}
       >
         <DialogContent className="fore-dialog social-compose-dialog">
-          <DialogTitle>Share this highlight.</DialogTitle>
-          <a href="/community?tab=sharing">Manage all my shares</a>
+          <DialogTitle>{ui("Share this highlight.")}</DialogTitle>
+          <a href="/community?tab=sharing">{ui("Manage all my shares")}</a>
           {socialAnnotationId && selectedShare.isPending && (
             <p className="small muted" role="status">
-              Checking current audiences…
+              {ui("Checking current audiences…")}
             </p>
           )}
           {selectedShare.data?.shares.length ? (
             <section className="shared-audience-list">
-              <strong>Currently shared with</strong>
+              <strong>{ui("Currently shared with")}</strong>
               {selectedShare.data.shares.map((share) => {
                 const audience =
                   share.visibility === "member"
-                    ? `@${share.recipient?.username || "selected member"}`
+                    ? `@${share.recipient?.username || ui("selected member")}`
                     : share.visibility === "group"
-                      ? share.groupName || "reading group"
+                      ? share.groupName || ui("reading group")
                       : {
                           friends: "friends / mutuals",
                           followers: "followers",
-                          public: "the public",
+                          public: ui("the public"),
                         }[share.visibility];
                 return (
                   <div key={share.id}>
                     <span>
-                      {audience} · {share.shareNote ? "note included" : "highlight only"}
+                      {audience} · {share.shareNote ? ui("note included") : ui("highlight only")}
                     </span>
                     <button
                       className="text-link"
@@ -2639,7 +2716,7 @@ export function ReaderPage({ id }: { id: string }) {
                             { shareId: share.id, expectedVersion: share.version },
                           );
                           await Promise.all([selectedShare.refetch(), socialReader.refetch()]);
-                          toast.success("Audience removed");
+                          toast.success(ui("Audience removed"));
                         } catch (e) {
                           toast.error((e as Error).message);
                         } finally {
@@ -2647,21 +2724,21 @@ export function ReaderPage({ id }: { id: string }) {
                         }
                       }}
                     >
-                      Unshare
+                      {ui("Unshare")}
                     </button>
                   </div>
                 );
               })}
             </section>
           ) : socialAnnotationId && selectedShare.isSuccess ? (
-            <p className="small muted">This highlight has not been shared yet.</p>
+            <p className="small muted">{ui("This highlight has not been shared yet.")}</p>
           ) : null}
           <DialogDescription>
-            Your saved notes remain private unless you explicitly choose to publish them.
+            {ui("Your saved notes remain private unless you explicitly choose to publish them.")}
           </DialogDescription>
           <blockquote className="editor-quote">{selection?.text}</blockquote>
           <label>
-            Audience
+            {ui("Audience")}
             <Select
               value={socialVisibility}
               onValueChange={(value: ReaderHighlightVisibility) => {
@@ -2673,12 +2750,12 @@ export function ReaderPage({ id }: { id: string }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="private">Keep private — do not publish</SelectItem>
-                <SelectItem value="member">One Cove member</SelectItem>
-                <SelectItem value="friends">Friends / mutuals</SelectItem>
-                <SelectItem value="followers">Followers</SelectItem>
-                <SelectItem value="group">Reading group</SelectItem>
-                <SelectItem value="public">Public</SelectItem>
+                <SelectItem value="private">{ui("Keep private — do not publish")}</SelectItem>
+                <SelectItem value="member">{ui("One Cove member")}</SelectItem>
+                <SelectItem value="friends">{ui("Friends / mutuals")}</SelectItem>
+                <SelectItem value="followers">{ui("Followers")}</SelectItem>
+                <SelectItem value="group">{ui("Reading group")}</SelectItem>
+                <SelectItem value="public">{ui("Public")}</SelectItem>
               </SelectContent>
             </Select>
           </label>
@@ -2693,7 +2770,7 @@ export function ReaderPage({ id }: { id: string }) {
           )}
           {socialVisibility === "group" && (
             <label>
-              Reading group
+              {ui("Reading group")}
               <Select
                 value={socialGroupId}
                 onValueChange={(value) => {
@@ -2702,7 +2779,7 @@ export function ReaderPage({ id }: { id: string }) {
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose a reading group" />
+                  <SelectValue placeholder={ui("Choose a reading group")} />
                 </SelectTrigger>
                 <SelectContent>
                   {activeGroups.map((group) => (
@@ -2724,26 +2801,28 @@ export function ReaderPage({ id }: { id: string }) {
                   setSocialAudienceConfirmed(false);
                 }}
               />{" "}
-              Include my private note with this shared highlight
+              {ui("Include my private note with this shared highlight")}
             </label>
           )}
           {socialShareNote && selectedShare.data && (
             <div className="reader-format-notice">
-              <strong>Note copy to publish</strong>
-              <blockquote>{selectedShare.data.note || "No note text"}</blockquote>
+              <strong>{ui("Note copy to publish")}</strong>
+              <blockquote>{selectedShare.data.note || ui("No note text")}</blockquote>
               {socialAudienceConfirmed && !highlightConfirmationCurrent && (
-                <p role="alert">Your private note changed. Review this copy and confirm again.</p>
+                <p role="alert">
+                  {ui("Your private note changed. Review this copy and confirm again.")}
+                </p>
               )}
             </div>
           )}
           {selectedShare.isError && socialAnnotationId && (
             <p role="alert">
-              Could not check current audiences.{" "}
-              <button onClick={() => selectedShare.refetch()}>Retry sharing status</button>
+              {ui("Could not check current audiences.")}{" "}
+              <button onClick={() => selectedShare.refetch()}>{ui("Retry sharing status")}</button>
             </p>
           )}
           <p className="small muted" role="status">
-            Audience: {highlightAudienceLabel}.{" "}
+            {ui("Audience:")} {highlightAudienceLabel}.{" "}
             {socialVisibility === "private"
               ? "Choose a publishable audience to share this highlight."
               : "This audience is independent of your Social Reading viewing preferences."}
@@ -2760,7 +2839,7 @@ export function ReaderPage({ id }: { id: string }) {
                   );
                 }}
               />
-              I confirm this highlight will be shared with {highlightAudienceLabel}
+              {ui("I confirm this highlight will be shared with")} {highlightAudienceLabel}
               {socialShareNote ? ", including my current note" : ""}.
             </label>
           )}
@@ -2781,29 +2860,29 @@ export function ReaderPage({ id }: { id: string }) {
             {socialBusy
               ? "Sharing…"
               : socialVisibility === "private"
-                ? "Choose an audience"
+                ? ui("Choose an audience")
                 : selectedAudienceAlreadyShared
-                  ? "Update this audience"
-                  : "Share with this audience"}
+                  ? ui("Update this audience")
+                  : ui("Share with this audience")}
           </button>
         </DialogContent>
       </Dialog>
       <Dialog open={noteOpen} onOpenChange={setNoteOpen}>
         <DialogContent className="fore-dialog">
-          <DialogTitle>A thought in the margin.</DialogTitle>
-          <DialogDescription>Add a note to this exact passage.</DialogDescription>
+          <DialogTitle>{ui("A thought in the margin.")}</DialogTitle>
+          <DialogDescription>{ui("Add a note to this exact passage.")}</DialogDescription>
           <blockquote className="editor-quote">{selection?.text}</blockquote>
           <textarea
             className="note-input"
-            aria-label="Passage note"
+            aria-label={ui("Passage note")}
             autoFocus
             value={note}
             onChange={(e) => setNote(e.target.value)}
             maxLength={12000}
-            placeholder="What are you thinking?"
+            placeholder={ui("What are you thinking?")}
           />
           <button className="button gold" disabled={saving} onClick={() => saveHighlight(true)}>
-            {saving ? "Saving…" : "Save note & highlight"}
+            {saving ? "Saving…" : ui("Save note & highlight")}
           </button>
         </DialogContent>
       </Dialog>
@@ -2814,7 +2893,7 @@ export function ReaderPage({ id }: { id: string }) {
         }}
       >
         <DialogContent className="fore-dialog dictionary-dialog">
-          <DialogTitle>A word, understood.</DialogTitle>
+          <DialogTitle>{ui("A word, understood.")}</DialogTitle>
           <DialogDescription>{dictionary?.text.slice(0, 120)}</DialogDescription>
           {dictionary && (
             <DictionaryLookup

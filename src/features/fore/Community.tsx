@@ -1,3 +1,4 @@
+import { useUiText } from "./ui-text";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -92,6 +93,7 @@ export function DiscussionThread({
   initialPost?: Post;
   initialUpdatedAt?: number;
 }) {
+  const ui = useUiText();
   const { data, signIn } = useAccount();
   const [body, setBody] = useState("");
   const [kind, setKind] = useState<"discussion" | "question">("discussion");
@@ -161,7 +163,7 @@ export function DiscussionThread({
       setSpoiler(false);
       await q.refetch();
       onChanged?.();
-      toast.success(targetParent ? "Reply posted" : "Posted to the discussion");
+      toast.success(targetParent ? ui("Reply posted") : ui("Posted to the discussion"));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -196,7 +198,7 @@ export function DiscussionThread({
       await q.refetch();
       onChanged?.();
       setRemoving(null);
-      toast.success("Discussion removed");
+      toast.success(ui("Discussion removed"));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -218,7 +220,7 @@ export function DiscussionThread({
       setReporting(null);
       setReportReason("");
       setReportDetails("");
-      toast.success("Report sent to moderation");
+      toast.success(ui("Report sent to moderation"));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -230,7 +232,7 @@ export function DiscussionThread({
       {p.passageText && <blockquote>“{p.passageText}”</blockquote>}
       {p.spoiler ? (
         <details className="spoiler-disclosure">
-          <summary>Spoiler — reveal</summary>
+          <summary>{ui("Spoiler — reveal")}</summary>
           <p>{p.body}</p>
         </details>
       ) : (
@@ -245,7 +247,7 @@ export function DiscussionThread({
     >
       <div className="section-heading">
         <div>
-          <span className="small-label">CONVERSATION</span>
+          <span className="small-label">{ui("CONVERSATION")}</span>
           <h2 id={`${contextType}-${contextId}-${postId || parentId || "root"}-discussion`}>
             {title}
           </h2>
@@ -259,13 +261,13 @@ export function DiscussionThread({
                 className={kind === "discussion" ? "selected" : ""}
                 onClick={() => setKind("discussion")}
               >
-                Discussion
+                {ui("Discussion")}
               </button>
               <button
                 className={kind === "question" ? "selected" : ""}
                 onClick={() => setKind("question")}
               >
-                Question
+                {ui("Question")}
               </button>
             </div>
           )}
@@ -278,7 +280,7 @@ export function DiscussionThread({
                 ? parentId
                   ? "Write a reply…"
                   : "Start a conversation…"
-                : "Sign in to join the conversation"
+                : ui("Sign in to join the conversation")
             }
             maxLength={12000}
           />
@@ -290,13 +292,13 @@ export function DiscussionThread({
                 onChange={(e) => setSpoiler(e.target.checked)}
               />{" "}
               {contextType === "group"
-                ? "Spoiler — hide from members who have not reached my current progress"
-                : "Hide this post behind a spoiler warning"}
+                ? ui("Spoiler — hide from members who have not reached my current progress")
+                : ui("Hide this post behind a spoiler warning")}
             </label>
           )}
           {parentId && (
             <p className="small muted">
-              Your reply uses the original discussion’s audience and spoiler settings.
+              {ui("Your reply uses the original discussion’s audience and spoiler settings.")}
             </p>
           )}
           <button className="button gold" disabled={busy || !body.trim()} onClick={() => publish()}>
@@ -306,13 +308,13 @@ export function DiscussionThread({
       )}
       <div className="social-post-list">
         {q.isLoading ? (
-          <p className="muted">Loading discussion…</p>
+          <p className="muted">{ui("Loading discussion…")}</p>
         ) : posts.length ? (
           posts.map((p) =>
             p.locked ? (
               <article className="social-post locked" key={p.id}>
                 <LockKeyhole size={16} />
-                <p>Discussion unlocks when you reach this part of the book.</p>
+                <p>{ui("Discussion unlocks when you reach this part of the book.")}</p>
               </article>
             ) : (
               <article className="social-post" key={p.id} data-post-id={p.id}>
@@ -324,7 +326,7 @@ export function DiscussionThread({
                     <span>@{p.user?.username || "reader"}</span>
                   </a>
                   <span>
-                    {p.postType === "question" ? "Question" : "Discussion"}
+                    {p.postType === "question" ? ui("Question") : ui("Discussion")}
                     {p.chapter ? ` · ${p.chapter}` : ""}
                     {p.editedAt ? " · edited" : ""}
                   </span>
@@ -332,18 +334,18 @@ export function DiscussionThread({
                 {editing === p.id ? (
                   <div>
                     <label>
-                      Edit published discussion
+                      {ui("Edit published discussion")}
                       <textarea
-                        aria-label="Edit discussion"
+                        aria-label={ui("Edit discussion")}
                         maxLength={12000}
                         value={editBody}
                         onChange={(e) => setEditBody(e.target.value)}
                       />
                     </label>
                     <button disabled={busy || !editBody.trim()} onClick={() => saveEdit(p)}>
-                      Save published edit
+                      {ui("Save published edit")}
                     </button>
-                    <button onClick={() => setEditing(null)}>Cancel</button>
+                    <button onClick={() => setEditing(null)}>{ui("Cancel")}</button>
                   </div>
                 ) : (
                   postBody(p)
@@ -372,10 +374,10 @@ export function DiscussionThread({
                           setEditBody(p.body || "");
                         }}
                       >
-                        Edit
+                        {ui("Edit")}
                       </button>
                       <button disabled={busy} onClick={() => setRemoving(p)}>
-                        Delete
+                        {ui("Delete")}
                       </button>
                     </>
                   ) : (
@@ -388,7 +390,7 @@ export function DiscussionThread({
                         setReporting(p);
                       }}
                     >
-                      Report
+                      {ui("Report")}
                     </button>
                   )}
                   <span>{when(p.createdAt)}</span>
@@ -399,7 +401,7 @@ export function DiscussionThread({
                     contextId={contextId}
                     parentId={p.id}
                     progress={progress}
-                    title="Replies"
+                    title={ui("Replies")}
                     onChanged={() => {
                       void q.refetch();
                       onChanged?.();
@@ -410,16 +412,17 @@ export function DiscussionThread({
             ),
           )
         ) : (
-          <p className="muted">No discussion yet. You can start the first one.</p>
+          <p className="muted">{ui("No discussion yet. You can start the first one.")}</p>
         )}
         {q.isError && (
           <p role="alert">
-            Could not load discussion. <button onClick={() => q.refetch()}>Retry</button>
+            {ui("Could not load discussion.")}{" "}
+            <button onClick={() => q.refetch()}>{ui("Retry")}</button>
           </p>
         )}
         {q.hasNextPage && (
           <button disabled={q.isFetchingNextPage} onClick={() => q.fetchNextPage()}>
-            Load older discussion
+            {ui("Load older discussion")}
           </button>
         )}
       </div>
@@ -430,13 +433,14 @@ export function DiscussionThread({
         }}
       >
         <AlertDialogContent className="fore-dialog">
-          <AlertDialogTitle>Delete this discussion?</AlertDialogTitle>
+          <AlertDialogTitle>{ui("Delete this discussion?")}</AlertDialogTitle>
           <AlertDialogDescription>
-            This removes the published discussion and access to its replies. Your private highlights
-            and notes are unchanged.
+            {ui(
+              "This removes the published discussion and access to its replies. Your private highlights and notes are unchanged.",
+            )}
           </AlertDialogDescription>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Keep discussion</AlertDialogCancel>
+            <AlertDialogCancel disabled={busy}>{ui("Keep discussion")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={busy}
               onClick={(event) => {
@@ -444,7 +448,7 @@ export function DiscussionThread({
                 if (removing) void remove(removing);
               }}
             >
-              {busy ? "Deleting…" : "Delete published discussion"}
+              {busy ? "Deleting…" : ui("Delete published discussion")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -456,30 +460,31 @@ export function DiscussionThread({
         }}
       >
         <DialogContent className="fore-dialog">
-          <DialogTitle>Report this discussion</DialogTitle>
+          <DialogTitle>{ui("Report this discussion")}</DialogTitle>
           <DialogDescription>
-            Choose the reason so moderators can review it. Reporting does not publish your
-            explanation to other readers.
+            {ui(
+              "Choose the reason so moderators can review it. Reporting does not publish your explanation to other readers.",
+            )}
           </DialogDescription>
           <label>
-            Report reason
+            {ui("Report reason")}
             <select
               value={reportReason}
               onChange={(event) => setReportReason(event.target.value)}
               disabled={busy}
             >
-              <option value="">Choose a reason</option>
-              <option value="spam">Spam</option>
-              <option value="scam">Scam</option>
-              <option value="impersonation">Impersonation</option>
-              <option value="harassment">Harassment</option>
-              <option value="misleading">Misleading content</option>
-              <option value="copyright">Copyright</option>
-              <option value="other">Other</option>
+              <option value="">{ui("Choose a reason")}</option>
+              <option value="spam">{ui("Spam")}</option>
+              <option value="scam">{ui("Scam")}</option>
+              <option value="impersonation">{ui("Impersonation")}</option>
+              <option value="harassment">{ui("Harassment")}</option>
+              <option value="misleading">{ui("Misleading content")}</option>
+              <option value="copyright">{ui("Copyright")}</option>
+              <option value="other">{ui("Other")}</option>
             </select>
           </label>
           <label>
-            Report details
+            {ui("Report details")}
             <textarea
               className="note-input"
               value={reportDetails}
@@ -493,7 +498,7 @@ export function DiscussionThread({
             disabled={busy || !reportReason || (reportReason === "other" && !reportDetails.trim())}
             onClick={() => report()}
           >
-            {busy ? "Submitting…" : "Submit report"}
+            {busy ? "Submitting…" : ui("Submit report")}
           </button>
         </DialogContent>
       </Dialog>
@@ -501,6 +506,7 @@ export function DiscussionThread({
   );
 }
 function Feed() {
+  const ui = useUiText();
   const { data } = useAccount();
   const q = useInfiniteQuery({
     queryKey: ["social-feed", data.user?.id],
@@ -529,9 +535,9 @@ function Feed() {
     <section>
       <div className="social-page-heading">
         <div>
-          <span className="small-label">YOUR READING CIRCLE</span>
-          <h1>Activity</h1>
-          <p>Books being finished, loved, discussed, and shared by readers you follow.</p>
+          <span className="small-label">{ui("YOUR READING CIRCLE")}</span>
+          <h1>{ui("Activity")}</h1>
+          <p>{ui("Books being finished, loved, discussed, and shared by readers you follow.")}</p>
         </div>
       </div>
       <div className="social-feed">
@@ -565,13 +571,13 @@ function Feed() {
                   className="text-link"
                   href={`/community?journey=${encodeURIComponent(e.payload.journeyId)}`}
                 >
-                  View Reading Journey <ChevronRight size={14} />
+                  {ui("View Reading Journey")} <ChevronRight size={14} />
                 </a>
               )}
             </article>
           ))
         ) : (
-          <p className="muted">Follow readers to build your activity feed.</p>
+          <p className="muted">{ui("Follow readers to build your activity feed.")}</p>
         )}
         {next && (
           <button
@@ -579,7 +585,7 @@ function Feed() {
             disabled={loadingMore}
             onClick={loadMore}
           >
-            {loadingMore ? "Loading…" : "Load older activity"}
+            {loadingMore ? "Loading…" : ui("Load older activity")}
           </button>
         )}
       </div>
@@ -602,6 +608,7 @@ function eventSentence(e: any) {
 }
 
 function Discover() {
+  const ui = useUiText();
   const { data: account, loading: accountLoading } = useAccount();
   const [interactive, setInteractive] = useState(false);
   useEffect(() => setInteractive(true), []);
@@ -628,29 +635,30 @@ function Discover() {
     <section>
       <div className="social-page-heading">
         <div>
-          <span className="small-label">DISCOVER</span>
-          <h1>Readers, lists & clubs</h1>
+          <span className="small-label">{ui("DISCOVER")}</span>
+          <h1>{ui("Readers, lists & clubs")}</h1>
           <p>
-            Find people whose taste you trust, then read alongside them without turning the book
-            into a feed.
+            {ui(
+              "Find people whose taste you trust, then read alongside them without turning the book into a feed.",
+            )}
           </p>
         </div>
       </div>
-      <h2>Readers</h2>
+      <h2>{ui("Readers")}</h2>
       <label>
-        Find a member
+        {ui("Find a member")}
         <input
           type="search"
           disabled={!interactive || accountLoading}
           maxLength={100}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Name or @username"
+          placeholder={ui("Name or @username")}
         />
       </label>
       {people.isError && (
         <p role="alert">
-          Search failed. <button onClick={() => people.refetch()}>Retry</button>
+          {ui("Search failed.")} <button onClick={() => people.refetch()}>{ui("Retry")}</button>
         </p>
       )}
       <div className="people-grid">
@@ -667,20 +675,22 @@ function Discover() {
               </span>
               <strong>{p.name || p.username}</strong>
               <span>@{p.username}</span>
-              <p>{p.bio || "Reader on Cove"}</p>
-              <small>{Number(p.followers || 0).toLocaleString()} followers</small>
+              <p>{p.bio || ui("Reader on Cove")}</p>
+              <small>
+                {Number(p.followers || 0).toLocaleString()} {ui("followers")}
+              </small>
             </a>
           ))}
       </div>
       {people.hasNextPage && (
         <button disabled={people.isFetchingNextPage} onClick={() => people.fetchNextPage()}>
-          More members
+          {ui("More members")}
         </button>
       )}
       {!people.isLoading && !people.data?.pages.some((page) => page.people.length) && (
-        <p>No members found.</p>
+        <p>{ui("No members found.")}</p>
       )}
-      <h2>Reading lists</h2>
+      <h2>{ui("Reading lists")}</h2>
       <div className="social-card-grid">
         {q.data?.lists?.map((l: any) => (
           <a className="social-list-card" href={`/community?list=${l.id}`} key={l.id}>
@@ -688,12 +698,12 @@ function Discover() {
             <strong>{l.title}</strong>
             <p>{l.description}</p>
             <small>
-              {l.item_count} books · {l.likes} likes
+              {l.item_count} {ui("books ·")} {l.likes} {ui("likes")}
             </small>
           </a>
         ))}
       </div>
-      <h2>Reading groups</h2>
+      <h2>{ui("Reading groups")}</h2>
       <div className="social-card-grid">
         {q.data?.groups?.map((g: any) => (
           <a className="social-list-card" href={`/community?club=${g.id}`} key={g.id}>
@@ -701,7 +711,7 @@ function Discover() {
             <strong>{g.name}</strong>
             <p>{g.description}</p>
             <small>
-              {g.member_count} members · {g.group_type.replaceAll("_", " ")}
+              {g.member_count} {ui("members ·")} {g.group_type.replaceAll("_", " ")}
             </small>
           </a>
         ))}
@@ -711,6 +721,7 @@ function Discover() {
 }
 
 function PublicProfile({ ref }: { ref: string }) {
+  const ui = useUiText();
   const { data, signIn } = useAccount();
   const q = useQuery<any>({
     queryKey: ["social-profile", ref],
@@ -735,7 +746,7 @@ function PublicProfile({ ref }: { ref: string }) {
         muted: !q.data.relationship.muted,
       });
       await q.refetch();
-      toast.success(q.data.relationship.muted ? "Reader unmuted" : "Reader muted");
+      toast.success(q.data.relationship.muted ? ui("Reader unmuted") : ui("Reader muted"));
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -750,7 +761,7 @@ function PublicProfile({ ref }: { ref: string }) {
       return;
     try {
       await api("/social/block", "POST", { userId: q.data.profile.id, blocked: true });
-      toast.success("Reader blocked");
+      toast.success(ui("Reader blocked"));
       location.assign("/community?tab=me");
     } catch (e) {
       toast.error((e as Error).message);
@@ -765,13 +776,13 @@ function PublicProfile({ ref }: { ref: string }) {
         reason: "other",
         details: "Reported from the reader profile interface for moderator review.",
       });
-      toast.success("Profile report sent to moderation");
+      toast.success(ui("Profile report sent to moderation"));
     } catch (e) {
       toast.error((e as Error).message);
     }
   }
-  if (q.isLoading) return <p className="muted">Loading reader…</p>;
-  if (!q.data) return <p className="notice">Reader not found.</p>;
+  if (q.isLoading) return <p className="muted">{ui("Loading reader…")}</p>;
+  if (!q.data) return <p className="notice">{ui("Reader not found.")}</p>;
   const x = q.data,
     followLabel = x.relationship.following
       ? "Following"
@@ -783,19 +794,19 @@ function PublicProfile({ ref }: { ref: string }) {
       <header className="reader-profile-hero">
         <span className="social-avatar xlarge">{String(x.profile.name || "R").slice(0, 1)}</span>
         <div>
-          <span className="small-label">READER PROFILE</span>
+          <span className="small-label">{ui("READER PROFILE")}</span>
           <h1>{x.profile.name}</h1>
           <p>@{x.profile.username}</p>
           <p>{x.profile.bio}</p>
           <div className="profile-stat-row">
             <span>
-              <strong>{x.counts.followers}</strong> followers
+              <strong>{x.counts.followers}</strong> {ui("followers")}
             </span>
             <span>
-              <strong>{x.counts.following}</strong> following
+              <strong>{x.counts.following}</strong> {ui("following")}
             </span>
             <span>
-              <strong>{x.counts.finished}</strong> finished
+              <strong>{x.counts.finished}</strong> {ui("finished")}
             </span>
           </div>
         </div>
@@ -812,17 +823,17 @@ function PublicProfile({ ref }: { ref: string }) {
               {x.relationship.muted ? "Unmute" : "Mute"}
             </button>
             <button className="button outline" onClick={block}>
-              Block
+              {ui("Block")}
             </button>
             <button className="text-link" onClick={report}>
-              Report
+              {ui("Report")}
             </button>
           </div>
         )}
       </header>
       <section>
-        <span className="small-label">THE THREE</span>
-        <h2>Three books that say the most</h2>
+        <span className="small-label">{ui("THE THREE")}</span>
+        <h2>{ui("Three books that say the most")}</h2>
         <div className="three-grid">
           {x.topBooks.map((b: any) => (
             <a href={bookHref(b.book)} key={b.position}>
@@ -835,7 +846,7 @@ function PublicProfile({ ref }: { ref: string }) {
       </section>
       {x.currentlyReading && (
         <section className="currently-reading-card">
-          <span className="small-label">CURRENTLY READING</span>
+          <span className="small-label">{ui("CURRENTLY READING")}</span>
           <a href={bookHref(x.currentlyReading.book)}>
             <strong>{x.currentlyReading.book?.title}</strong>
             <span>{Math.round(x.currentlyReading.progress * 100)}%</span>
@@ -846,27 +857,27 @@ function PublicProfile({ ref }: { ref: string }) {
         </section>
       )}
       <section>
-        <h2>Reading Journeys</h2>
+        <h2>{ui("Reading Journeys")}</h2>
         <div className="journey-mini-grid">
           {x.journeys.map((j: any) => (
             <a href={`/community?journey=${j.id}`} key={j.id}>
               <strong>{j.title_snapshot}</strong>
               <span>
-                {j.elapsed_days} days · {j.session_count} sessions
+                {j.elapsed_days} {ui("days ·")} {j.session_count} {ui("sessions")}
               </span>
             </a>
           ))}
         </div>
       </section>
       <section>
-        <h2>Lists</h2>
+        <h2>{ui("Lists")}</h2>
         <div className="social-card-grid">
           {x.lists.map((l: any) => (
             <a className="social-list-card" href={`/community?list=${l.id}`} key={l.id}>
               <strong>{l.title}</strong>
               <p>{l.description}</p>
               <small>
-                {l.item_count} books · {l.likes} likes
+                {l.item_count} {ui("books ·")} {l.likes} {ui("likes")}
               </small>
             </a>
           ))}
@@ -881,6 +892,7 @@ function PublicProfile({ ref }: { ref: string }) {
   );
 }
 function Journey({ id }: { id: string }) {
+  const ui = useUiText();
   const q = useQuery<any>({
     queryKey: ["journey", id],
     queryFn: () => api(`/social/journeys/${encodeURIComponent(id)}`),
@@ -906,7 +918,7 @@ function Journey({ id }: { id: string }) {
       await navigator.clipboard.writeText(
         `${location.origin}/community?journey=${encodeURIComponent(token)}`,
       );
-      toast.success("Member-only link copied");
+      toast.success(ui("Member-only link copied"));
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -924,7 +936,7 @@ function Journey({ id }: { id: string }) {
       setMember(null);
       setMemberConfirmed(false);
       await grants.refetch();
-      toast.success("Member access granted");
+      toast.success(ui("Member access granted"));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -940,7 +952,7 @@ function Journey({ id }: { id: string }) {
         expectedVersion: version,
       });
       await grants.refetch();
-      toast.success("Member access revoked");
+      toast.success(ui("Member access revoked"));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -972,7 +984,7 @@ function Journey({ id }: { id: string }) {
         expectedVersion: Number(q.data.version || 1),
       });
       await q.refetch();
-      toast.success("Reading Journey updated");
+      toast.success(ui("Reading Journey updated"));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -992,8 +1004,8 @@ function Journey({ id }: { id: string }) {
       await q.refetch();
       toast.success(
         action === "rotate"
-          ? "Anyone-with-link access enabled"
-          : "Anyone-with-link access disabled",
+          ? ui("Anyone-with-link access enabled")
+          : ui("Anyone-with-link access disabled"),
       );
     } catch (e) {
       toast.error((e as Error).message);
@@ -1015,7 +1027,7 @@ function Journey({ id }: { id: string }) {
         });
       else {
         await navigator.clipboard.writeText(url);
-        toast.success("Share link copied");
+        toast.success(ui("Share link copied"));
       }
     } catch {}
   }
@@ -1062,17 +1074,17 @@ function Journey({ id }: { id: string }) {
   if (q.isError)
     return (
       <p role="alert">
-        Reading Journey is unavailable or access was revoked.{" "}
-        <button onClick={() => q.refetch()}>Retry</button>
+        {ui("Reading Journey is unavailable or access was revoked.")}{" "}
+        <button onClick={() => q.refetch()}>{ui("Retry")}</button>
       </p>
     );
-  if (!q.data) return <p className="muted">Loading Reading Journey…</p>;
+  if (!q.data) return <p className="muted">{ui("Loading Reading Journey…")}</p>;
   const j = q.data,
     total = Number(j.read_seconds) + Number(j.listen_seconds);
   return (
     <section className="journey-page">
       <header>
-        <span className="small-label">READING JOURNEY</span>
+        <span className="small-label">{ui("READING JOURNEY")}</span>
         <h1>{j.title_snapshot}</h1>
         <p>{j.author_snapshot}</p>
       </header>
@@ -1083,13 +1095,13 @@ function Journey({ id }: { id: string }) {
               className={format === "square" ? "selected" : ""}
               onClick={() => setFormat("square")}
             >
-              Square
+              {ui("Square")}
             </button>
             <button
               className={format === "story" ? "selected" : ""}
               onClick={() => setFormat("story")}
             >
-              Story
+              {ui("Story")}
             </button>
           </div>
           <img
@@ -1100,38 +1112,39 @@ function Journey({ id }: { id: string }) {
             <button className="button gold" onClick={share}>
               <Share2 size={16} />{" "}
               {j.mine && j.share_token && !j.share_revoked_at
-                ? "Share anyone-with-link URL"
-                : "Share audience URL"}
+                ? ui("Share anyone-with-link URL")
+                : ui("Share audience URL")}
             </button>
             <button className="button outline" onClick={exportPng}>
-              Export PNG
+              {ui("Export PNG")}
             </button>
             <a
               className="button outline"
               href={`/api/fore/social/journeys/${encodeURIComponent(id)}/card.svg?format=${format}`}
               download={`fore-${j.title_snapshot}-${format}.svg`}
             >
-              Export SVG
+              {ui("Export SVG")}
             </a>
           </div>
           {j.mine && (
-            <section className="journey-access" aria-label="Journey access">
-              <h2>Who can see this journey?</h2>
+            <section className="journey-access" aria-label={ui("Journey access")}>
+              <h2>{ui("Who can see this journey?")}</h2>
               <p>
-                Current audience:{" "}
+                {ui("Current audience:")}{" "}
                 <strong>
                   {j.visibility === "private"
-                    ? "Private"
+                    ? ui("Private")
                     : j.visibility === "followers"
-                      ? "Followers"
-                      : "Public"}
+                      ? ui("Followers")
+                      : ui("Public")}
                 </strong>
-                . Audience URLs follow this setting.
+                {ui(". Audience URLs follow this setting.")}
               </p>
-              <h3>Share with a named member</h3>
+              <h3>{ui("Share with a named member")}</h3>
               <p>
-                Member links require that member to sign in. Choose Private in visibility settings
-                for access limited to you and the members you grant.
+                {ui(
+                  "Member links require that member to sign in. Choose Private in visibility settings for access limited to you and the members you grant.",
+                )}
               </p>
               <MemberPicker
                 value={member}
@@ -1147,38 +1160,40 @@ function Journey({ id }: { id: string }) {
                   disabled={!member}
                   onChange={(e) => setMemberConfirmed(e.target.checked)}
                 />
-                Grant access to {member ? `@${member.username}` : "the selected member"}
+                {ui("Grant access to")} {member ? `@${member.username}` : "the selected member"}
               </label>
               <button
                 className="button outline"
                 disabled={busy || !member || !memberConfirmed || grants.isLoading || grants.isError}
                 onClick={grantMember}
               >
-                Grant member access
+                {ui("Grant member access")}
               </button>
               {grants.isError && (
                 <p role="alert">
-                  Could not load member access.{" "}
-                  <button onClick={() => grants.refetch()}>Retry</button>
+                  {ui("Could not load member access.")}{" "}
+                  <button onClick={() => grants.refetch()}>{ui("Retry")}</button>
                 </p>
               )}
               {grants.data?.recipients
                 .filter((g) => !g.revoked_at)
                 .map((g) => (
                   <div key={g.recipient_user_id}>
-                    <span>@{g.member?.username || "member"} · Sign-in required</span>
+                    <span>
+                      @{g.member?.username || "member"} {ui("· Sign-in required")}
+                    </span>
                     <button disabled={busy} onClick={() => copyMemberLink(g.share_token)}>
-                      Copy member link
+                      {ui("Copy member link")}
                     </button>
                     <button
                       disabled={busy}
                       onClick={() => revokeMember(g.recipient_user_id, g.version)}
                     >
-                      Revoke member access
+                      {ui("Revoke member access")}
                     </button>
                   </div>
                 ))}
-              <h3>Anyone with the link</h3>
+              <h3>{ui("Anyone with the link")}</h3>
               <p>
                 {j.share_token && !j.share_revoked_at
                   ? "Enabled: anyone possessing this URL can view this journey. Private messages do not restrict its audience."
@@ -1186,7 +1201,7 @@ function Journey({ id }: { id: string }) {
               </p>
               {j.share_token && !j.share_revoked_at ? (
                 <button disabled={busy} className="button outline" onClick={() => token("revoke")}>
-                  Disable anyone-with-link access
+                  {ui("Disable anyone-with-link access")}
                 </button>
               ) : (
                 <>
@@ -1196,20 +1211,20 @@ function Journey({ id }: { id: string }) {
                       checked={linkConfirmed}
                       onChange={(e) => setLinkConfirmed(e.target.checked)}
                     />
-                    I understand anyone possessing the link can view this journey.
+                    {ui("I understand anyone possessing the link can view this journey.")}
                   </label>
                   <button
                     disabled={busy || !linkConfirmed}
                     className="button outline"
                     onClick={() => token("rotate")}
                   >
-                    Enable anyone-with-link access
+                    {ui("Enable anyone-with-link access")}
                   </button>
                 </>
               )}
             </section>
           )}
-          <div className="journey-timeline" aria-label="Reading progress timeline">
+          <div className="journey-timeline" aria-label={ui("Reading progress timeline")}>
             {j.points?.slice(-40).map((p: any, i: number) => (
               <span
                 key={i}
@@ -1221,43 +1236,43 @@ function Journey({ id }: { id: string }) {
           </div>
         </div>
         <aside className="journey-summary">
-          <h2>Your reading, not a race.</h2>
+          <h2>{ui("Your reading, not a race.")}</h2>
           <div className="journey-stat-grid">
             <span>
-              <strong>{j.elapsed_days}</strong> days
+              <strong>{j.elapsed_days}</strong> {ui("days")}
             </span>
             <span>
-              <strong>{j.session_count}</strong> sessions
+              <strong>{j.session_count}</strong> {ui("sessions")}
             </span>
             <span>
-              <strong>{duration(total)}</strong> active
+              <strong>{duration(total)}</strong> {ui("active")}
             </span>
             <span>
-              <strong>{j.highlights_count}</strong> highlights
+              <strong>{j.highlights_count}</strong> {ui("highlights")}
             </span>
             <span>
-              <strong>{j.notes_count}</strong> notes
+              <strong>{j.notes_count}</strong> {ui("notes")}
             </span>
             <span>
-              <strong>{j.bookmarks_count}</strong> bookmarks
+              <strong>{j.bookmarks_count}</strong> {ui("bookmarks")}
             </span>
           </div>
           {j.mine && draft && (
             <div className="journey-controls">
               <label>
-                Visibility
+                {ui("Visibility")}
                 <select
-                  aria-label="Journey visibility"
+                  aria-label={ui("Journey visibility")}
                   value={draft.visibility}
                   onChange={(e) => setDraft({ ...draft, visibility: e.target.value })}
                 >
-                  <option value="public">Public</option>
-                  <option value="followers">Followers</option>
-                  <option value="private">Private</option>
+                  <option value="public">{ui("Public")}</option>
+                  <option value="followers">{ui("Followers")}</option>
+                  <option value="private">{ui("Private")}</option>
                 </select>
               </label>
               <label>
-                Theme
+                {ui("Theme")}
                 <select
                   value={draft.theme}
                   onChange={(e) => setDraft({ ...draft, theme: e.target.value })}
@@ -1269,7 +1284,7 @@ function Journey({ id }: { id: string }) {
               </label>
               {[
                 ["showRating", "Rating"],
-                ["showTime", "Reading/listening time"],
+                ["showTime", ui("Reading/listening time")],
                 ["showDates", "Dates"],
                 ["showPace", "Sessions/pace"],
                 ["showCover", "Cover"],
@@ -1284,7 +1299,7 @@ function Journey({ id }: { id: string }) {
                 </label>
               ))}
               <label>
-                Favorite quote
+                {ui("Favorite quote")}
                 <textarea
                   value={draft.favoriteQuote}
                   onChange={(e) => setDraft({ ...draft, favoriteQuote: e.target.value })}
@@ -1292,7 +1307,7 @@ function Journey({ id }: { id: string }) {
                 />
               </label>
               <label>
-                Short review
+                {ui("Short review")}
                 <textarea
                   value={draft.shortReview}
                   onChange={(e) => setDraft({ ...draft, shortReview: e.target.value })}
@@ -1300,7 +1315,7 @@ function Journey({ id }: { id: string }) {
                 />
               </label>
               <button className="button gold" disabled={busy} onClick={save}>
-                Save journey settings
+                {ui("Save journey settings")}
               </button>
             </div>
           )}
@@ -1310,6 +1325,7 @@ function Journey({ id }: { id: string }) {
   );
 }
 function ListView({ id }: { id: string }) {
+  const ui = useUiText();
   const { data, signIn } = useAccount();
   const storefront = useStorefrontLocale();
   const [addBook, setAddBook] = useState("");
@@ -1367,7 +1383,7 @@ function ListView({ id }: { id: string }) {
     const chosen = data.library.find((x) => (x.book.productId || x.productId) === addBook);
     if (!chosen) return;
     if (q.data.items.some((i: any) => i.book?.productId === addBook)) {
-      toast.message("That book is already in the list");
+      toast.message(ui("That book is already in the list"));
       return;
     }
     await replaceItems([...q.data.items, { book: chosen.book, note: "" }]);
@@ -1380,7 +1396,7 @@ function ListView({ id }: { id: string }) {
         expectedVersion: Number(q.data.list.version || 1),
       });
       await q.refetch();
-      toast.success("List updated");
+      toast.success(ui("List updated"));
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -1414,7 +1430,7 @@ function ListView({ id }: { id: string }) {
         });
       else {
         await navigator.clipboard.writeText(url);
-        toast.success("List link copied");
+        toast.success(ui("List link copied"));
       }
     } catch {}
   }
@@ -1427,19 +1443,21 @@ function ListView({ id }: { id: string }) {
         reason: "other",
         details: "Reported from the reading-list interface for moderator review.",
       });
-      toast.success("List report sent to moderation");
+      toast.success(ui("List report sent to moderation"));
     } catch (e) {
       toast.error((e as Error).message);
     }
   }
-  if (!q.data) return <p className="muted">Loading list…</p>;
+  if (!q.data) return <p className="muted">{ui("Loading list…")}</p>;
   return (
     <section>
       <header className="social-detail-hero">
-        <span className="small-label">READING LIST</span>
+        <span className="small-label">{ui("READING LIST")}</span>
         <h1>{q.data.list.title}</h1>
         <p>{q.data.list.description}</p>
-        <span>by {q.data.list.name || q.data.list.username}</span>
+        <span>
+          {ui("by")} {q.data.list.name || q.data.list.username}
+        </span>
         <div>
           <button className="button outline" onClick={() => action("like", !q.data.liked)}>
             <Heart size={16} />
@@ -1447,47 +1465,47 @@ function ListView({ id }: { id: string }) {
           </button>
           <button className="button outline" onClick={() => action("save", !q.data.saved)}>
             <BookHeart size={16} />
-            {q.data.saved ? "Saved" : "Save list"}
+            {q.data.saved ? ui("Saved") : ui("Save list")}
           </button>
           <button className="button outline" onClick={wish}>
-            Add all to wishlist
+            {ui("Add all to wishlist")}
           </button>
           <button className="button outline" onClick={shareList}>
-            <Share2 size={16} /> Share
+            <Share2 size={16} /> {ui("Share")}
           </button>
           {!q.data.mine && (
             <button className="text-link" onClick={reportList}>
-              Report
+              {ui("Report")}
             </button>
           )}
         </div>
       </header>
       {q.data.mine && edit && (
         <section className="community-settings-card">
-          <h2>List settings</h2>
+          <h2>{ui("List settings")}</h2>
           <label>
-            Title
+            {ui("Title")}
             <input
               value={edit.title}
               onChange={(e) => setEdit({ ...edit, title: e.target.value })}
             />
           </label>
           <label>
-            Description
+            {ui("Description")}
             <textarea
               value={edit.description}
               onChange={(e) => setEdit({ ...edit, description: e.target.value })}
             />
           </label>
           <label>
-            Visibility
+            {ui("Visibility")}
             <select
               value={edit.visibility}
               onChange={(e) => setEdit({ ...edit, visibility: e.target.value })}
             >
-              <option value="public">Public</option>
-              <option value="followers">Followers</option>
-              <option value="private">Private</option>
+              <option value="public">{ui("Public")}</option>
+              <option value="followers">{ui("Followers")}</option>
+              <option value="private">{ui("Private")}</option>
             </select>
           </label>
           <label className="check-row">
@@ -1496,7 +1514,7 @@ function ListView({ id }: { id: string }) {
               checked={edit.commentsEnabled}
               onChange={(e) => setEdit({ ...edit, commentsEnabled: e.target.checked })}
             />{" "}
-            Allow comments
+            {ui("Allow comments")}
           </label>
           <label className="check-row">
             <input
@@ -1504,14 +1522,14 @@ function ListView({ id }: { id: string }) {
               checked={edit.ranked}
               onChange={(e) => setEdit({ ...edit, ranked: e.target.checked })}
             />{" "}
-            Ranked list
+            {ui("Ranked list")}
           </label>
           <div className="inline-admin">
             <button className="button gold" onClick={saveMeta}>
-              Save list
+              {ui("Save list")}
             </button>
             <button className="button outline" onClick={removeList}>
-              Delete list
+              {ui("Delete list")}
             </button>
           </div>
         </section>
@@ -1519,7 +1537,7 @@ function ListView({ id }: { id: string }) {
       {q.data.mine && (
         <div className="inline-admin">
           <select value={addBook} onChange={(e) => setAddBook(e.target.value)}>
-            <option value="">Add from your library…</option>
+            <option value="">{ui("Add from your library…")}</option>
             {data.library.map((x) => (
               <option key={x.productId} value={x.book.productId || x.productId}>
                 {x.book.title}
@@ -1527,7 +1545,7 @@ function ListView({ id }: { id: string }) {
             ))}
           </select>
           <button className="button outline" disabled={!addBook} onClick={add}>
-            <Plus size={15} /> Add book
+            <Plus size={15} /> {ui("Add book")}
           </button>
         </div>
       )}
@@ -1564,7 +1582,7 @@ function ListView({ id }: { id: string }) {
                     replaceItems(q.data.items.filter((x: any) => x.product_id !== i.product_id))
                   }
                 >
-                  Remove
+                  {ui("Remove")}
                 </button>
               </div>
             )}
@@ -1572,12 +1590,13 @@ function ListView({ id }: { id: string }) {
         ))}
       </ol>
       {q.data.list.comments_enabled ? (
-        <DiscussionThread contextType="list" contextId={id} title="List discussion" />
+        <DiscussionThread contextType="list" contextId={id} title={ui("List discussion")} />
       ) : null}
     </section>
   );
 }
 function ClubView({ id }: { id: string }) {
+  const ui = useUiText();
   const { data, signIn } = useAccount();
   const q = useQuery<any>({
     queryKey: ["social-club", id],
@@ -1623,7 +1642,7 @@ function ClubView({ id }: { id: string }) {
     try {
       await api(`/social/groups/${id}/invite`, "POST", { user: invite });
       setInvite("");
-      toast.success("Invitation sent");
+      toast.success(ui("Invitation sent"));
       await q.refetch();
     } catch (e) {
       toast.error((e as Error).message);
@@ -1650,7 +1669,7 @@ function ClubView({ id }: { id: string }) {
       });
       setPollQuestion("");
       await q.refetch();
-      toast.success("Poll created");
+      toast.success(ui("Poll created"));
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -1662,7 +1681,7 @@ function ClubView({ id }: { id: string }) {
         expectedVersion: Number(q.data.group.version || 1),
       });
       await q.refetch();
-      toast.success("Reading group updated");
+      toast.success(ui("Reading group updated"));
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -1687,12 +1706,12 @@ function ClubView({ id }: { id: string }) {
         reason: "other",
         details: "Reported from the reading-group interface for moderator review.",
       });
-      toast.success("Reading-group report sent to moderation");
+      toast.success(ui("Reading-group report sent to moderation"));
     } catch (e) {
       toast.error((e as Error).message);
     }
   }
-  if (!q.data) return <p className="muted">Loading reading group…</p>;
+  if (!q.data) return <p className="muted">{ui("Loading reading group…")}</p>;
   const g = q.data.group,
     active = q.data.membership?.status === "active",
     moderator = ["owner", "moderator"].includes(q.data.membership?.role),
@@ -1710,9 +1729,11 @@ function ClubView({ id }: { id: string }) {
         <p>{g.description}</p>
         <div className="profile-stat-row">
           <span>
-            <strong>{g.member_count}</strong> members
+            <strong>{g.member_count}</strong> {ui("members")}
           </span>
-          <span>{g.discussion_spoiler_policy} spoiler protection</span>
+          <span>
+            {g.discussion_spoiler_policy} {ui("spoiler protection")}
+          </span>
         </div>
         {!active && (q.data.membership?.status === "invited" || canJoin) && (
           <button
@@ -1721,40 +1742,40 @@ function ClubView({ id }: { id: string }) {
             onClick={join}
           >
             {q.data.membership?.status === "requested"
-              ? "Request pending"
+              ? ui("Request pending")
               : q.data.membership?.status === "invited"
-                ? "Accept invitation"
-                : "Join group"}
+                ? ui("Accept invitation")
+                : ui("Join group")}
           </button>
         )}
         {!active && g.visibility === "private" && q.data.membership?.status !== "invited" && (
-          <p className="muted">This private group is invitation-only.</p>
+          <p className="muted">{ui("This private group is invitation-only.")}</p>
         )}
         {data.user && q.data.membership?.role !== "owner" && (
           <button className="text-link" onClick={reportGroup}>
-            Report group
+            {ui("Report group")}
           </button>
         )}
       </header>
       {moderator && settings && (
         <section className="community-settings-card">
-          <h2>Group settings</h2>
+          <h2>{ui("Group settings")}</h2>
           <label>
-            Name
+            {ui("Name")}
             <input
               value={settings.name}
               onChange={(e) => setSettings({ ...settings, name: e.target.value })}
             />
           </label>
           <label>
-            Description
+            {ui("Description")}
             <textarea
               value={settings.description}
               onChange={(e) => setSettings({ ...settings, description: e.target.value })}
             />
           </label>
           <label>
-            Visibility
+            {ui("Visibility")}
             <select
               value={settings.visibility}
               onChange={(e) =>
@@ -1765,38 +1786,38 @@ function ClubView({ id }: { id: string }) {
                 })
               }
             >
-              <option value="public">Public</option>
-              <option value="unlisted">Unlisted</option>
-              <option value="private">Private</option>
+              <option value="public">{ui("Public")}</option>
+              <option value="unlisted">{ui("Unlisted")}</option>
+              <option value="private">{ui("Private")}</option>
             </select>
           </label>
           <label>
-            Join policy
+            {ui("Join policy")}
             <select
               disabled={settings.visibility === "private"}
               value={settings.visibility === "private" ? "invite" : settings.joinPolicy}
               onChange={(e) => setSettings({ ...settings, joinPolicy: e.target.value })}
             >
-              <option value="open">Open</option>
-              <option value="request">Request approval</option>
-              <option value="invite">Invite only</option>
+              <option value="open">{ui("Open")}</option>
+              <option value="request">{ui("Request approval")}</option>
+              <option value="invite">{ui("Invite only")}</option>
             </select>
           </label>
           <label>
-            Spoiler policy
+            {ui("Spoiler policy")}
             <select
               value={settings.spoilerPolicy}
               onChange={(e) => setSettings({ ...settings, spoilerPolicy: e.target.value })}
             >
-              <option value="progress">Progress-aware</option>
-              <option value="chapter">Chapter-aware</option>
-              <option value="manual">Manual spoiler tags</option>
+              <option value="progress">{ui("Progress-aware")}</option>
+              <option value="chapter">{ui("Chapter-aware")}</option>
+              <option value="manual">{ui("Manual spoiler tags")}</option>
             </select>
           </label>
           {owner && (
             <>
               <label>
-                Owner
+                {ui("Owner")}
                 <select
                   value={settings.ownerUserId}
                   onChange={(e) => setSettings({ ...settings, ownerUserId: e.target.value })}
@@ -1809,24 +1830,24 @@ function ClubView({ id }: { id: string }) {
                 </select>
               </label>
               <label>
-                Status
+                {ui("Status")}
                 <select
                   value={settings.status}
                   onChange={(e) => setSettings({ ...settings, status: e.target.value })}
                 >
-                  <option value="active">Active</option>
-                  <option value="archived">Archived</option>
+                  <option value="active">{ui("Active")}</option>
+                  <option value="archived">{ui("Archived")}</option>
                 </select>
               </label>
             </>
           )}
           <div className="inline-admin">
             <button className="button gold" onClick={saveSettings}>
-              Save settings
+              {ui("Save settings")}
             </button>
             {owner && (
               <button className="button outline" onClick={removeGroup}>
-                Delete group
+                {ui("Delete group")}
               </button>
             )}
           </div>
@@ -1834,11 +1855,12 @@ function ClubView({ id }: { id: string }) {
       )}
       {current && (
         <section className="club-current">
-          <span className="small-label">NOW READING</span>
+          <span className="small-label">{ui("NOW READING")}</span>
           <h2>{current.title_snapshot}</h2>
           <p className="small muted">
-            Group positions combine saved ebook reading with verified audio-to-ebook percentage
-            mappings. Audio editions without a percentage mapping are not counted as text progress.
+            {ui(
+              "Group positions combine saved ebook reading with verified audio-to-ebook percentage mappings. Audio editions without a percentage mapping are not counted as text progress.",
+            )}
           </p>
           <div className="club-progress-buckets">
             {dist.map((b: any) => (
@@ -1851,7 +1873,7 @@ function ClubView({ id }: { id: string }) {
         </section>
       )}
       <section>
-        <h2>Reading schedule</h2>
+        <h2>{ui("Reading schedule")}</h2>
         <div className="social-book-list">
           {q.data.books.map((b: any) => (
             <article key={b.id}>
@@ -1873,16 +1895,16 @@ function ClubView({ id }: { id: string }) {
             <input
               value={book}
               onChange={(e) => setBook(e.target.value)}
-              placeholder="Cove product ID to make current"
+              placeholder={ui("Cove product ID to make current")}
             />
             <button className="button outline" onClick={addBook}>
-              Set current book
+              {ui("Set current book")}
             </button>
           </div>
         )}
       </section>
       <section>
-        <h2>Members</h2>
+        <h2>{ui("Members")}</h2>
         <div className="member-row-list">
           {q.data.members.map((m: any) => (
             <div className="member-management-row" key={m.user_id}>
@@ -1904,11 +1926,11 @@ function ClubView({ id }: { id: string }) {
                         membership(m.role === "moderator" ? "demote" : "promote", m.user_id)
                       }
                     >
-                      {m.role === "moderator" ? "Demote" : "Make moderator"}
+                      {m.role === "moderator" ? "Demote" : ui("Make moderator")}
                     </button>
                   )}
                   <button className="text-link" onClick={() => membership("remove", m.user_id)}>
-                    Remove
+                    {ui("Remove")}
                   </button>
                 </div>
               )}
@@ -1923,13 +1945,13 @@ function ClubView({ id }: { id: string }) {
               placeholder="@username"
             />
             <button className="button outline" onClick={inviteUser}>
-              Invite reader
+              {ui("Invite reader")}
             </button>
           </div>
         )}
         {moderator && q.data.pendingMembers?.length > 0 && (
           <div className="pending-members">
-            <h3>Pending</h3>
+            <h3>{ui("Pending")}</h3>
             {q.data.pendingMembers.map((m: any) => (
               <div key={m.user_id}>
                 <span>
@@ -1938,10 +1960,10 @@ function ClubView({ id }: { id: string }) {
                 {m.status === "requested" && (
                   <>
                     <button className="text-link" onClick={() => membership("approve", m.user_id)}>
-                      Approve
+                      {ui("Approve")}
                     </button>
                     <button className="text-link" onClick={() => membership("remove", m.user_id)}>
-                      Decline
+                      {ui("Decline")}
                     </button>
                   </>
                 )}
@@ -1951,7 +1973,7 @@ function ClubView({ id }: { id: string }) {
         )}
         {active && !owner && (
           <button className="text-link" onClick={() => membership("leave")}>
-            Leave group
+            {ui("Leave group")}
           </button>
         )}
       </section>
@@ -1960,22 +1982,22 @@ function ClubView({ id }: { id: string }) {
           contextType="group"
           contextId={id}
           progress={viewerProgress}
-          title="Club room"
+          title={ui("Club room")}
         />
       )}
       <section>
-        <h2>Polls</h2>
+        <h2>{ui("Polls")}</h2>
         {active && (
           <div className="poll-composer">
             <input
               value={pollQuestion}
               onChange={(e) => setPollQuestion(e.target.value)}
-              placeholder="Ask the club a question…"
+              placeholder={ui("Ask the club a question…")}
             />
             <textarea
               value={pollOptions}
               onChange={(e) => setPollOptions(e.target.value)}
-              aria-label="Poll options, one per line"
+              aria-label={ui("Poll options, one per line")}
             />
             <button
               className="button outline"
@@ -1984,7 +2006,7 @@ function ClubView({ id }: { id: string }) {
               }
               onClick={createPoll}
             >
-              Create poll
+              {ui("Create poll")}
             </button>
           </div>
         )}
@@ -1992,7 +2014,7 @@ function ClubView({ id }: { id: string }) {
           {q.data.polls.map((p: any) => (
             <a href={`/community?club=${id}&poll=${p.id}`} key={p.id}>
               <strong>{p.question}</strong>
-              <span>{p.multiple_choice ? "Choose several" : "Choose one"}</span>
+              <span>{p.multiple_choice ? ui("Choose several") : ui("Choose one")}</span>
             </a>
           ))}
         </div>
@@ -2001,6 +2023,7 @@ function ClubView({ id }: { id: string }) {
   );
 }
 function PollView({ id, clubId }: { id: string; clubId: string }) {
+  const ui = useUiText();
   const { data, signIn } = useAccount();
   const q = useQuery<any>({
     queryKey: ["social-poll", id],
@@ -2010,7 +2033,7 @@ function PollView({ id, clubId }: { id: string; clubId: string }) {
   useEffect(() => {
     if (q.data) setSelected(q.data.myVotes || []);
   }, [q.data?.poll?.id, JSON.stringify(q.data?.myVotes || [])]);
-  if (!q.data) return <p className="muted">Loading poll…</p>;
+  if (!q.data) return <p className="muted">{ui("Loading poll…")}</p>;
   const { poll, options } = q.data,
     closed = !!poll.closes_at && Date.parse(poll.closes_at) <= Date.now(),
     total = options.reduce((n: number, o: any) => n + Number(o.votes || 0), 0);
@@ -2028,7 +2051,7 @@ function PollView({ id, clubId }: { id: string; clubId: string }) {
     try {
       await api(`/social/polls/${encodeURIComponent(id)}/vote`, "POST", { optionIds: selected });
       await q.refetch();
-      toast.success("Vote saved");
+      toast.success(ui("Vote saved"));
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -2036,17 +2059,17 @@ function PollView({ id, clubId }: { id: string; clubId: string }) {
   return (
     <section className="journey-page">
       <header className="social-detail-hero">
-        <span className="small-label">BOOK CLUB POLL</span>
+        <span className="small-label">{ui("BOOK CLUB POLL")}</span>
         <h1>{poll.question}</h1>
         <p>
           {closed
-            ? "Voting is closed."
+            ? ui("Voting is closed.")
             : poll.multiple_choice
-              ? "Choose one or more options."
-              : "Choose one option."}
+              ? ui("Choose one or more options.")
+              : ui("Choose one option.")}
         </p>
         <a className="text-link" href={`/community?club=${encodeURIComponent(clubId)}`}>
-          Back to reading group
+          {ui("Back to reading group")}
         </a>
       </header>
       <div className="poll-detail-options">
@@ -2063,7 +2086,8 @@ function PollView({ id, clubId }: { id: string; clubId: string }) {
               <span>
                 <strong>{o.label}</strong>
                 <small>
-                  {o.votes} vote{o.votes === 1 ? "" : "s"} · {pct}%
+                  {o.votes} {ui("vote")}
+                  {o.votes === 1 ? "" : "s"} · {pct}%
                 </small>
               </span>
               <i aria-hidden="true" style={{ width: `${pct}%` }} />
@@ -2073,11 +2097,12 @@ function PollView({ id, clubId }: { id: string; clubId: string }) {
       </div>
       {!closed && (
         <button className="button gold" onClick={vote} disabled={!selected.length}>
-          Save vote
+          {ui("Save vote")}
         </button>
       )}
       <p className="muted">
-        {total} vote{total === 1 ? "" : "s"} total
+        {total} {ui("vote")}
+        {total === 1 ? "" : "s"} {ui("total")}
         {poll.closes_at ? ` · closes ${when(poll.closes_at)}` : ""}
       </p>
     </section>
@@ -2085,6 +2110,7 @@ function PollView({ id, clubId }: { id: string; clubId: string }) {
 }
 
 function MyCommunity() {
+  const ui = useUiText();
   const { data } = useAccount();
   const q = useQuery<any>({
     queryKey: ["social-me", data.user?.id],
@@ -2120,8 +2146,9 @@ function MyCommunity() {
   if (!data.user)
     return (
       <p className="notice">
-        Sign in to create your reader profile, follow people, share journeys, and join reading
-        groups.
+        {ui(
+          "Sign in to create your reader profile, follow people, share journeys, and join reading groups.",
+        )}
       </p>
     );
   async function saveProfile() {
@@ -2130,7 +2157,7 @@ function MyCommunity() {
         ...profile,
         expectedVersion: Number(q.data.profile.version || 1),
       });
-      toast.success("Reader profile updated");
+      toast.success(ui("Reader profile updated"));
       await q.refetch();
     } catch (e) {
       toast.error((e as Error).message);
@@ -2139,7 +2166,7 @@ function MyCommunity() {
   async function saveThree() {
     try {
       await api("/social/top-books", "POST", { productIds: three.filter(Boolean) });
-      toast.success("The Three updated");
+      toast.success(ui("The Three updated"));
       await q.refetch();
     } catch (e) {
       toast.error((e as Error).message);
@@ -2149,7 +2176,7 @@ function MyCommunity() {
     try {
       await api("/social/follow-requests", "POST", { requesterUserId, action });
       await q.refetch();
-      toast.success(action === "accept" ? "Follower approved" : "Request declined");
+      toast.success(action === "accept" ? ui("Follower approved") : ui("Request declined"));
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -2158,7 +2185,7 @@ function MyCommunity() {
     try {
       await api("/social/block", "POST", { userId, blocked: false });
       await q.refetch();
-      toast.success("Reader unblocked");
+      toast.success(ui("Reader unblocked"));
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -2168,7 +2195,7 @@ function MyCommunity() {
     toast.success(
       r.generated.length
         ? `${r.generated.length} Reading Journey${r.generated.length === 1 ? "" : "s"} created`
-        : "Your finished books already have journeys",
+        : ui("Your finished books already have journeys"),
     );
     await q.refetch();
   }
@@ -2203,7 +2230,7 @@ function MyCommunity() {
     <section>
       <div className="social-page-heading">
         <div>
-          <span className="small-label">YOUR SOCIAL READING</span>
+          <span className="small-label">{ui("YOUR SOCIAL READING")}</span>
           <h1>{q.data?.person?.name || data.user.name}</h1>
           <p>@{q.data?.person?.username || data.user.username}</p>
         </div>
@@ -2211,16 +2238,16 @@ function MyCommunity() {
           className="button outline"
           href={`/community?profile=${encodeURIComponent(q.data?.person?.username || data.user.id)}`}
         >
-          View public profile
+          {ui("View public profile")}
         </a>
       </div>
       <div className="community-settings-grid">
         <section className="community-settings-card">
-          <h2>Profile & privacy</h2>
+          <h2>{ui("Profile & privacy")}</h2>
           {profile && (
             <>
               <label>
-                Bio
+                {ui("Bio")}
                 <textarea
                   value={profile.bio}
                   onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
@@ -2228,75 +2255,75 @@ function MyCommunity() {
                 />
               </label>
               <label>
-                Profile visibility
+                {ui("Profile visibility")}
                 <select
                   value={profile.profileVisibility}
                   onChange={(e) => setProfile({ ...profile, profileVisibility: e.target.value })}
                 >
-                  <option value="public">Public</option>
-                  <option value="followers">Followers</option>
-                  <option value="private">Private</option>
+                  <option value="public">{ui("Public")}</option>
+                  <option value="followers">{ui("Followers")}</option>
+                  <option value="private">{ui("Private")}</option>
                 </select>
               </label>
               <label>
-                Who can follow
+                {ui("Who can follow")}
                 <select
                   value={profile.followPolicy}
                   onChange={(e) => setProfile({ ...profile, followPolicy: e.target.value })}
                 >
-                  <option value="open">Anyone</option>
-                  <option value="request">Approve requests</option>
-                  <option value="closed">No new followers</option>
+                  <option value="open">{ui("Anyone")}</option>
+                  <option value="request">{ui("Approve requests")}</option>
+                  <option value="closed">{ui("No new followers")}</option>
                 </select>
               </label>
               <label>
-                Profile replies
+                {ui("Profile replies")}
                 <select
                   value={profile.repliesPolicy}
                   onChange={(e) => setProfile({ ...profile, repliesPolicy: e.target.value })}
                 >
-                  <option value="everyone">Everyone</option>
-                  <option value="following">People who follow me</option>
-                  <option value="mutuals">Mutuals</option>
-                  <option value="none">Nobody</option>
+                  <option value="everyone">{ui("Everyone")}</option>
+                  <option value="following">{ui("People who follow me")}</option>
+                  <option value="mutuals">{ui("Mutuals")}</option>
+                  <option value="none">{ui("Nobody")}</option>
                 </select>
               </label>
               <label>
-                Activity visibility
+                {ui("Activity visibility")}
                 <select
                   value={profile.activityVisibility}
                   onChange={(e) => setProfile({ ...profile, activityVisibility: e.target.value })}
                 >
-                  <option value="public">Public</option>
-                  <option value="followers">Followers</option>
-                  <option value="private">Private</option>
+                  <option value="public">{ui("Public")}</option>
+                  <option value="followers">{ui("Followers")}</option>
+                  <option value="private">{ui("Private")}</option>
                 </select>
               </label>
               <label>
-                Journey default
+                {ui("Journey default")}
                 <select
                   value={profile.journeyVisibilityDefault}
                   onChange={(e) =>
                     setProfile({ ...profile, journeyVisibilityDefault: e.target.value })
                   }
                 >
-                  <option value="public">Public</option>
-                  <option value="followers">Followers</option>
-                  <option value="private">Private</option>
+                  <option value="public">{ui("Public")}</option>
+                  <option value="followers">{ui("Followers")}</option>
+                  <option value="private">{ui("Private")}</option>
                 </select>
               </label>
               <label>
-                Shared-highlight default
+                {ui("Shared-highlight default")}
                 <select
                   value={profile.highlightVisibilityDefault}
                   onChange={(e) =>
                     setProfile({ ...profile, highlightVisibilityDefault: e.target.value })
                   }
                 >
-                  <option value="public">Public</option>
-                  <option value="followers">Followers</option>
-                  <option value="friends">Friends</option>
-                  <option value="private">Private</option>
+                  <option value="public">{ui("Public")}</option>
+                  <option value="followers">{ui("Followers")}</option>
+                  <option value="friends">{ui("Friends")}</option>
+                  <option value="private">{ui("Private")}</option>
                 </select>
               </label>
               <label className="check-row">
@@ -2307,17 +2334,17 @@ function MyCommunity() {
                     setProfile({ ...profile, showCurrentlyReading: e.target.checked })
                   }
                 />{" "}
-                Show my current book to allowed readers
+                {ui("Show my current book to allowed readers")}
               </label>
               <button className="button gold" onClick={saveProfile}>
-                Save profile
+                {ui("Save profile")}
               </button>
             </>
           )}
         </section>
         {!!q.data?.followRequests?.length && (
           <section className="community-settings-card">
-            <h2>Follow requests</h2>
+            <h2>{ui("Follow requests")}</h2>
             {q.data.followRequests.map((r: any) => (
               <div className="member-management-row" key={r.requester_user_id}>
                 <a
@@ -2331,13 +2358,13 @@ function MyCommunity() {
                     className="text-link"
                     onClick={() => followRequest(r.requester_user_id, "accept")}
                   >
-                    Accept
+                    {ui("Accept")}
                   </button>
                   <button
                     className="text-link"
                     onClick={() => followRequest(r.requester_user_id, "decline")}
                   >
-                    Decline
+                    {ui("Decline")}
                   </button>
                 </div>
               </div>
@@ -2346,10 +2373,11 @@ function MyCommunity() {
         )}
         {!!q.data?.blockedReaders?.length && (
           <section className="community-settings-card">
-            <h2>Blocked readers</h2>
+            <h2>{ui("Blocked readers")}</h2>
             <p className="muted">
-              Blocked readers cannot follow you, view your social activity, or interact with your
-              Community content.
+              {ui(
+                "Blocked readers cannot follow you, view your social activity, or interact with your Community content.",
+              )}
             </p>
             {q.data.blockedReaders.map((r: any) => (
               <div className="member-management-row" key={r.blocked_user_id}>
@@ -2358,15 +2386,17 @@ function MyCommunity() {
                   <small>@{r.username || "reader"}</small>
                 </span>
                 <button className="text-link" onClick={() => unblock(r.blocked_user_id)}>
-                  Unblock
+                  {ui("Unblock")}
                 </button>
               </div>
             ))}
           </section>
         )}
         <section className="community-settings-card">
-          <h2>The Three</h2>
-          <p className="muted">Choose up to three books that say the most about your taste.</p>
+          <h2>{ui("The Three")}</h2>
+          <p className="muted">
+            {ui("Choose up to three books that say the most about your taste.")}
+          </p>
           {three.map((v, i) => (
             <label key={i}>
               {i + 1}
@@ -2374,7 +2404,7 @@ function MyCommunity() {
                 value={v}
                 onChange={(e) => setThree(three.map((x, n) => (n === i ? e.target.value : x)))}
               >
-                <option value="">Choose a book</option>
+                <option value="">{ui("Choose a book")}</option>
                 {options.map((o) => (
                   <option value={o.id} key={o.id}>
                     {o.title}
@@ -2384,14 +2414,16 @@ function MyCommunity() {
             </label>
           ))}
           <button className="button gold" onClick={saveThree}>
-            Save The Three
+            {ui("Save The Three")}
           </button>
         </section>
         <section className="community-settings-card">
-          <h2>Reading Journeys</h2>
-          <p>{q.data?.journeys?.length || 0} finished-book artifacts.</p>
+          <h2>{ui("Reading Journeys")}</h2>
+          <p>
+            {q.data?.journeys?.length || 0} {ui("finished-book artifacts.")}
+          </p>
           <button className="button outline" onClick={generate}>
-            <WandSparkles size={16} /> Generate missing journeys
+            <WandSparkles size={16} /> {ui("Generate missing journeys")}
           </button>
           <div className="journey-mini-grid">
             {q.data?.journeys?.slice(0, 6).map((j: any) => (
@@ -2403,47 +2435,47 @@ function MyCommunity() {
           </div>
         </section>
         <section className="community-settings-card">
-          <h2>Create a list</h2>
+          <h2>{ui("Create a list")}</h2>
           <input
             value={listTitle}
             onChange={(e) => setListTitle(e.target.value)}
-            placeholder="Books that feel like autumn"
+            placeholder={ui("Books that feel like autumn")}
           />
           <label>
-            Visibility
+            {ui("Visibility")}
             <select value={listVisibility} onChange={(e) => setListVisibility(e.target.value)}>
-              <option value="public">Public</option>
-              <option value="followers">Followers</option>
-              <option value="private">Private</option>
+              <option value="public">{ui("Public")}</option>
+              <option value="followers">{ui("Followers")}</option>
+              <option value="private">{ui("Private")}</option>
             </select>
           </label>
           <button className="button outline" disabled={!listTitle.trim()} onClick={createList}>
-            Create reading list
+            {ui("Create reading list")}
           </button>
-          <h3>Your lists</h3>
+          <h3>{ui("Your lists")}</h3>
           {q.data?.lists?.map((l: any) => (
             <a className="text-link" href={`/community?list=${l.id}`} key={l.id}>
-              {l.title} · {l.item_count} books
+              {l.title} · {l.item_count} {ui("books")}
             </a>
           ))}
         </section>
         <section className="community-settings-card">
-          <h2>Create a reading group</h2>
+          <h2>{ui("Create a reading group")}</h2>
           <input
             value={clubName}
             onChange={(e) => setClubName(e.target.value)}
-            placeholder="Saturday sci-fi club"
+            placeholder={ui("Saturday sci-fi club")}
           />
           <label>
-            Group type
+            {ui("Group type")}
             <select value={clubType} onChange={(e) => setClubType(e.target.value)}>
-              <option value="buddy">Buddy read</option>
-              <option value="private_group">Private group</option>
-              <option value="club">Book club</option>
+              <option value="buddy">{ui("Buddy read")}</option>
+              <option value="private_group">{ui("Private group")}</option>
+              <option value="club">{ui("Book club")}</option>
             </select>
           </label>
           <label>
-            Visibility
+            {ui("Visibility")}
             <select
               value={clubVisibility}
               onChange={(e) => {
@@ -2451,27 +2483,27 @@ function MyCommunity() {
                 if (e.target.value === "private") setClubJoin("invite");
               }}
             >
-              <option value="private">Private</option>
-              <option value="unlisted">Unlisted</option>
-              <option value="public">Public</option>
+              <option value="private">{ui("Private")}</option>
+              <option value="unlisted">{ui("Unlisted")}</option>
+              <option value="public">{ui("Public")}</option>
             </select>
           </label>
           <label>
-            Joining
+            {ui("Joining")}
             <select
               value={clubVisibility === "private" ? "invite" : clubJoin}
               disabled={clubVisibility === "private"}
               onChange={(e) => setClubJoin(e.target.value)}
             >
-              <option value="open">Open</option>
-              <option value="request">Request approval</option>
-              <option value="invite">Invite only</option>
+              <option value="open">{ui("Open")}</option>
+              <option value="request">{ui("Request approval")}</option>
+              <option value="invite">{ui("Invite only")}</option>
             </select>
           </label>
           <button className="button outline" disabled={!clubName.trim()} onClick={createClub}>
-            Create reading group
+            {ui("Create reading group")}
           </button>
-          <h3>Your groups</h3>
+          <h3>{ui("Your groups")}</h3>
           {q.data?.groups?.map((g: any) => (
             <a className="text-link" href={`/community?club=${g.id}`} key={g.id}>
               {g.name} · {g.member_status}
@@ -2483,6 +2515,7 @@ function MyCommunity() {
   );
 }
 export function CommunityPage() {
+  const ui = useUiText();
   const { data, signIn } = useAccount();
   const searchString = useRouterState({ select: (state) => state.location.searchStr || "" });
   const params = new URLSearchParams(searchString),
@@ -2501,22 +2534,23 @@ export function CommunityPage() {
     <main className="community-page">
       <header className="community-banner">
         <div>
-          <span className="small-label">FORE COMMUNITY</span>
-          <h1>Read together without leaving the book.</h1>
+          <span className="small-label">{ui("FORE COMMUNITY")}</span>
+          <h1>{ui("Read together without leaving the book.")}</h1>
           <p>
-            Follow readers, share finished-book journeys, compare The Three, and opt into quiet,
-            progress-aware conversations inside the books you are actually reading.
+            {ui(
+              "Follow readers, share finished-book journeys, compare The Three, and opt into quiet, progress-aware conversations inside the books you are actually reading.",
+            )}
           </p>
         </div>
         <Sparkles size={54} />
       </header>
-      <nav className="community-tabs" aria-label="Community sections">
+      <nav className="community-tabs" aria-label={ui("Community sections")}>
         {[
-          ["feed", Activity, "Activity"],
-          ["discover", Users, "Discover"],
-          ["received", BookHeart, "Shared with me"],
-          ["sharing", Share2, "My sharing"],
-          ["me", CircleUserRound, "My profile"],
+          ["feed", Activity, ui("Activity")],
+          ["discover", Users, ui("Discover")],
+          ["received", BookHeart, ui("Shared with me")],
+          ["sharing", Share2, ui("My sharing")],
+          ["me", CircleUserRound, ui("My profile")],
         ].map(([key, Icon, label]: any) => (
           <a
             className={tab === key ? "active" : ""}
@@ -2542,12 +2576,14 @@ export function CommunityPage() {
       ) : (
         <section className="community-signin">
           <Users size={42} />
-          <h2>Your reading circle starts here.</h2>
+          <h2>{ui("Your reading circle starts here.")}</h2>
           <p>
-            Sign in to follow readers, share Reading Journeys, and join spoiler-aware conversations.
+            {ui(
+              "Sign in to follow readers, share Reading Journeys, and join spoiler-aware conversations.",
+            )}
           </p>
           <button className="button gold" onClick={signIn}>
-            Sign in
+            {ui("Sign in")}
           </button>
           <Discover />
         </section>

@@ -38,7 +38,7 @@ const projectNotice = (row: Notice) => ({
  */
 export async function refreshPublicStatus(env: CoveEnv) {
   const at = now();
-  const [market, catalog, sample, audio] = await Promise.all([
+  const [market, catalog, sample, audio, assets] = await Promise.all([
     env.DB.prepare(
       "SELECT 1 ready FROM storefront_markets WHERE market_status='active' LIMIT 1",
     ).first(),
@@ -50,8 +50,30 @@ export async function refreshPublicStatus(env: CoveEnv) {
       "SELECT id FROM gutenberg_source_cache WHERE epub_status='completed' LIMIT 1",
     ).first<{ id: string }>(),
     env.DB.prepare(
-      "SELECT (SELECT count(*) FROM audio_timing) maps,(SELECT count(*) FROM audio_jobs WHERE kind='align' AND status IN ('queued','running')) pending",
-    ).first<{ maps: number; pending: number }>(),
+      `WITH tracks AS (
+        SELECT e.id edition_id,json_extract(t.value,'$.id') track_id,
+          CASE WHEN m.audio_present=1 AND CAST(json_extract(t.value,'$.duration') AS REAL)>0 THEN 1 ELSE 0 END prepared,
+          CASE WHEN a.map_sha256 IS NOT NULL AND m.audio_present=1 AND m.timing_present=1 AND m.timing_sha256=a.map_sha256 AND m.epub_sha256=e.epub_sha256 THEN 1 ELSE 0 END checked
+        FROM audio_editions e,json_each(e.tracks_json) t
+        LEFT JOIN audio_timing a ON a.edition_id=e.id AND a.track_id=json_extract(t.value,'$.id')
+          AND a.audio_sha256=json_extract(t.value,'$.sha256') AND a.epub_sha256=e.epub_sha256
+        LEFT JOIN audio_media_checks m ON m.edition_id=e.id AND m.track_id=json_extract(t.value,'$.id')
+          AND m.audio_sha256=json_extract(t.value,'$.sha256') AND m.checked_at>=strftime('%Y-%m-%dT%H:%M:%fZ','now','-1 day')
+      ), editions AS (SELECT edition_id,count(*) total,sum(prepared) prepared,sum(checked) checked FROM tracks GROUP BY edition_id)
+      SELECT COALESCE(sum(total),0) tracks,COALESCE(sum(prepared),0) prepared,COALESCE(sum(checked),0) maps,
+        count(*) editions,COALESCE(sum(CASE WHEN total=prepared THEN 1 ELSE 0 END),0) complete_recordings,
+        COALESCE(sum(CASE WHEN total=checked THEN 1 ELSE 0 END),0) fully_timed FROM editions`,
+    ).first<{
+      maps: number;
+      tracks: number;
+      prepared: number;
+      editions: number;
+      complete_recordings: number;
+      fully_timed: number;
+    }>(),
+    env.DB.prepare(
+      "SELECT epub_status,count(*) count FROM gutenberg_source_cache GROUP BY epub_status",
+    ).all<{ epub_status: string; count: number }>(),
   ]);
   let storage: Health = "unknown";
   if (sample && env.BUCKET?.head) {
@@ -77,10 +99,17 @@ export async function refreshPublicStatus(env: CoveEnv) {
       {
         id: "downloads",
         label: "Stored ebook downloads",
-        status: storage,
+        status:
+          storage === "operational" &&
+          assets.results.some(
+            (r) =>
+              ["pending", "retry", "failed", "downloading"].includes(r.epub_status) && r.count > 0,
+          )
+            ? "limited"
+            : storage,
         detail:
           storage === "operational"
-            ? "A stored EPUB passed its storage lookup check."
+            ? `${assets.results.find((r) => r.epub_status === "completed")?.count || 0} EPUBs have stored records; ${assets.results.filter((r) => ["pending", "retry", "downloading"].includes(r.epub_status)).reduce((n, r) => n + r.count, 0)} await storage. A sample storage lookup passed; this is not a full-file integrity audit.`
             : "Stored-media availability could not be confirmed.",
       },
       {
@@ -94,8 +123,8 @@ export async function refreshPublicStatus(env: CoveEnv) {
       {
         id: "biosync",
         label: "BioSync timing coverage",
-        status: Number(audio?.pending || 0) > 0 || !audio?.maps ? "limited" : "operational",
-        detail: `${Number(audio?.maps || 0)} verified timing maps are available. ${Number(audio?.pending || 0)} recordings are awaiting verification. Playback does not require a timing map.`,
+        status: "limited",
+        detail: `${audio?.prepared || 0}/${audio?.tracks || 0} tracks passed recent storage checks; ${audio?.complete_recordings || 0}/${audio?.editions || 0} recordings have all tracks prepared. ${audio?.maps || 0} tracks have timing pinned to the current files; ${audio?.fully_timed || 0} recordings have all tracks timed. Whole-book text coverage has not been verified. Playback does not require timing.`,
       },
     ],
   };

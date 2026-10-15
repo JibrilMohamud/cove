@@ -1,3 +1,4 @@
+import { translateUi } from "./ui-catalog";
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 import { formatMinorCurrency } from "./currency";
 import { useQuery } from "@tanstack/react-query";
@@ -53,7 +54,13 @@ async function fetchContext() {
   if (!r.ok) throw new Error("Storefront context unavailable");
   return r.json();
 }
-export function StorefrontLocaleProvider({ children }: { children: ReactNode }) {
+export function StorefrontLocaleProvider({
+  children,
+  initialContext,
+}: {
+  children: ReactNode;
+  initialContext?: Awaited<ReturnType<typeof fetchContext>>;
+}) {
   const { data } = useAccount();
   const context = useQuery({
     queryKey: ["storefront-context", data.user?.id || "guest"],
@@ -63,6 +70,7 @@ export function StorefrontLocaleProvider({ children }: { children: ReactNode }) 
     gcTime: typeof window === "undefined" ? Infinity : 30 * 60_000,
     refetchOnWindowFocus: false,
     retry: false,
+    initialData: !data.user ? initialContext : undefined,
   });
   const raw = context.data;
   useEffect(() => {
@@ -123,7 +131,7 @@ export function StorefrontLocaleControl() {
     >
       <span>{s.t("store.country", "Storefront")}</span>
       <select
-        aria-label="Storefront language"
+        aria-label={translateUi(s.locale, "Storefront language")}
         value={s.locale}
         onChange={(e) => void s.setPreferences({ locale: e.target.value })}
       >

@@ -1,3 +1,4 @@
+import { useUiText } from "./ui-text";
 import { CoveRequestError } from "./api-transport";
 import { useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
@@ -30,6 +31,7 @@ export function MemberPicker({
   value: ShareMember | null;
   onChange: (member: ShareMember | null) => void;
 }) {
+  const ui = useUiText();
   const [username, setUsername] = useState(value?.username || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -52,7 +54,7 @@ export function MemberPicker({
   return (
     <div>
       <label>
-        Member username
+        {ui("Member username")}
         <input
           className="note-input"
           value={username}
@@ -74,11 +76,14 @@ export function MemberPicker({
         onClick={find}
         disabled={busy || !username.trim()}
       >
-        {busy ? "Finding…" : "Find member"}
+        {busy ? ui("Finding…") : ui("Find member")}
       </button>
       {value && (
         <p role="status">
-          Only {value.name} (@{value.username}) will receive this share.
+          {ui("Only {name} (@{username}) will receive this share.", {
+            name: value.name,
+            username: value.username,
+          })}
         </p>
       )}
       {error && <p role="alert">{error}</p>}
@@ -119,6 +124,7 @@ function SharedCard({
   sent: boolean;
   onChanged: () => Promise<unknown>;
 }) {
+  const ui = useUiText();
   const { data: account } = useAccount();
   const [editing, setEditing] = useState(false);
   const [audience, setAudience] = useState(item.audience);
@@ -172,7 +178,7 @@ function SharedCard({
         );
       setEditing(false);
       await onChanged();
-      toast.success(remove ? "Share withdrawn" : "Sharing updated");
+      toast.success(remove ? ui("Share withdrawn") : ui("Sharing updated"));
     } catch (e) {
       if (e instanceof CoveRequestError && e.status === 409) {
         setEditing(false);
@@ -187,23 +193,27 @@ function SharedCard({
   if (item.cfi) location.set("cfi", item.cfi);
   return (
     <article className="margin-conversation-card">
-      <h3>{item.book?.title || "Shared reading"}</h3>
+      <h3>{item.book?.title || ui("Shared reading")}</h3>
       <p className="small muted">
-        {sent ? "Audience" : `From @${item.owner?.username || "reader"}`}:{" "}
+        {sent ? ui("Audience") : `From @${item.owner?.username || "reader"}`}:{" "}
         {item.audience === "member"
           ? sent
-            ? `Only @${item.recipient?.username || "selected member"}`
-            : "Only you"
+            ? `Only @${item.recipient?.username || ui("selected member")}`
+            : ui("Only you")
           : item.group?.name || item.audience}{" "}
-        · {item.kind} · {item.shareNote ? "Note included" : "No private note"}
+        · {item.kind} · {item.shareNote ? ui("Note included") : ui("No private note")}
       </p>
       {sent && item.moderationStatus !== "visible" && (
-        <p role="status">This share is currently {item.moderationStatus}.</p>
+        <p role="status">
+          {ui("This share is currently {audience}.", { audience: ui(item.moderationStatus) })}
+        </p>
       )}
       {item.locked ? (
         <p>
-          This passage is ahead of your reading progress ({Math.round((item.progress || 0) * 100)}
-          %). Continue reading to unlock it.
+          {ui(
+            "This passage is ahead of your reading progress ({percent}%). Continue reading to unlock it.",
+            { percent: Math.round((item.progress || 0) * 100) },
+          )}
         </p>
       ) : (
         <>
@@ -217,42 +227,46 @@ function SharedCard({
           className="button outline"
           href={`/read/${encodeURIComponent(item.readerBookId)}?${location}`}
         >
-          Open in reader
+          {ui("Open in reader")}
         </a>
       ) : (
-        <p role="status">This edition is currently unavailable in the reader.</p>
+        <p role="status">{ui("This edition is currently unavailable in the reader.")}</p>
       )}
       {sent && (
         <>
           <button className="button outline" disabled={busy} onClick={() => mutate(true)}>
-            {busy ? "Updating…" : item.kind === "highlight" ? "Unshare" : "Remove discussion"}
+            {busy
+              ? "Updating…"
+              : item.kind === "highlight"
+                ? ui("Unshare")
+                : ui("Remove discussion")}
           </button>
           {item.kind === "highlight" && (
             <button className="button outline" disabled={busy} onClick={() => setEditing(!editing)}>
-              Edit audience & note
+              {ui("Edit audience & note")}
             </button>
           )}
         </>
       )}
       {editing && (
         <fieldset disabled={busy}>
-          <legend>Sharing permissions</legend>
+          <legend>{ui("Sharing permissions")}</legend>
           <label>
-            Audience
+            {ui("Audience")}
             <select value={audience} onChange={(e) => setAudience(e.target.value)}>
-              <option value="member">One member</option>
-              <option value="friends">Friends / mutuals</option>
-              <option value="followers">Followers</option>
-              <option value="group">Reading group</option>
-              <option value="public">Public</option>
+              <option value="member">{ui("One member")}</option>
+              <option value="friends">{ui("Friends / mutuals")}</option>
+              <option value="followers">{ui("Followers")}</option>
+              <option value="group">{ui("Reading group")}</option>
+              <option value="public">{ui("Public")}</option>
             </select>
           </label>
           {audience === "member" && <MemberPicker value={member} onChange={setMember} />}
           {audience === "group" && (
             <label>
-              Group
+              {ui("Group")}
               <select value={groupId} onChange={(e) => setGroupId(e.target.value)}>
-                <option value="">Choose a joined group</option>
+                <option value="">{ui("Choose a joined group")}</option>
                 {groups.data?.groups
                   .filter((g) => g.member_status === "active" && g.status !== "suspended")
                   .map((g) => (
@@ -269,7 +283,7 @@ function SharedCard({
               checked={shareNote}
               onChange={(e) => setShareNote(e.target.checked)}
             />
-            Include my note
+            {ui("Include my note")}
           </label>
           {shareNote && source.data && (
             <div className="reader-format-notice">
@@ -278,8 +292,10 @@ function SharedCard({
                 member?.id === item.recipient?.id &&
                 groupId === (item.group?.id || "") &&
                 item.shareNote
-                  ? "This audience keeps its published note. Use your note editor to review and republish private edits."
-                  : "This audience will receive this copy of your current private note:"}
+                  ? ui(
+                      "This audience keeps its published note. Use your note editor to review and republish private edits.",
+                    )
+                  : ui("This audience will receive this copy of your current private note:")}
               </p>
               <blockquote>
                 {audience === item.audience &&
@@ -287,14 +303,14 @@ function SharedCard({
                 groupId === (item.group?.id || "") &&
                 item.shareNote
                   ? item.note
-                  : source.data.note || "No note text"}
+                  : source.data.note || ui("No note text")}
               </blockquote>
             </div>
           )}
           {source.isError && (
             <p role="alert">
-              Could not check the private note.{" "}
-              <button onClick={() => source.refetch()}>Retry note status</button>
+              {ui("Could not check the private note.")}{" "}
+              <button onClick={() => source.refetch()}>{ui("Retry note status")}</button>
             </p>
           )}
           <button
@@ -307,10 +323,10 @@ function SharedCard({
             }
             onClick={() => mutate(false)}
           >
-            Save permissions
+            {ui("Save permissions")}
           </button>
           <button className="button outline" onClick={() => setEditing(false)}>
-            Cancel
+            {ui("Cancel")}
           </button>
         </fieldset>
       )}
@@ -319,6 +335,7 @@ function SharedCard({
 }
 
 export function SharingPage({ sent = false }: { sent?: boolean }) {
+  const ui = useUiText();
   const { data, signIn } = useAccount();
   const q = useInfiniteQuery<SharePage>({
     queryKey: ["share-inventory", data.user?.id, sent],
@@ -340,51 +357,55 @@ export function SharingPage({ sent = false }: { sent?: boolean }) {
   if (!data.user)
     return (
       <section className="community-signin">
-        <h2>{sent ? "Manage your sharing" : "Shared with me"}</h2>
-        <p>Sign in to see your private sharing.</p>
+        <h2>{sent ? ui("Manage your sharing") : ui("Shared with me")}</h2>
+        <p>{ui("Sign in to see your private sharing.")}</p>
         <button className="button gold" onClick={signIn}>
-          Sign in
+          {ui("Sign in")}
         </button>
       </section>
     );
   const items = q.data?.pages.flatMap((page) => page.items) || [];
   return (
     <section className="sharing-inventory">
-      <h2>{sent ? "My sharing" : "Shared with me"}</h2>
+      <h2>{sent ? ui("My sharing") : ui("Shared with me")}</h2>
       <p>
         {sent
-          ? "Inspect and withdraw highlights, notes, and margin discussions. Lists and journeys have their own controls in My profile."
-          : "Highlights, notes, and margin discussions shared directly with you or your reading circles. Passages ahead of your progress stay hidden."}
+          ? ui(
+              "Inspect and withdraw highlights, notes, and margin discussions. Lists and journeys have their own controls in My profile.",
+            )
+          : ui(
+              "Highlights, notes, and margin discussions shared directly with you or your reading circles. Passages ahead of your progress stay hidden.",
+            )}
       </p>
       {sent && preferences.data && (
         <label>
-          Who can send you direct shares?
+          {ui("Who can send you direct shares?")}
           <select
             value={preferences.data.policy}
             onChange={async (e) => {
               try {
                 await api("/social/sharing/preferences", "POST", { policy: e.target.value });
                 await preferences.refetch();
-                toast.success("Direct sharing preference saved");
+                toast.success(ui("Direct sharing preference saved"));
               } catch (error) {
                 toast.error((error as Error).message);
               }
             }}
           >
-            <option value="members">All Cove members</option>
-            <option value="following">People I follow</option>
-            <option value="mutuals">Mutual followers</option>
-            <option value="none">Nobody</option>
+            <option value="members">{ui("All Cove members")}</option>
+            <option value="following">{ui("People I follow")}</option>
+            <option value="mutuals">{ui("Mutual followers")}</option>
+            <option value="none">{ui("Nobody")}</option>
           </select>
         </label>
       )}
       {q.isPending ? (
-        <p role="status">Loading shares…</p>
+        <p role="status">{ui("Loading shares…")}</p>
       ) : q.isError ? (
         <div role="alert">
           <p>{q.error.message}</p>
           <button className="button outline" onClick={() => q.refetch()}>
-            Retry
+            {ui("Retry")}
           </button>
         </div>
       ) : (
@@ -399,7 +420,11 @@ export function SharingPage({ sent = false }: { sent?: boolean }) {
               />
             ))
           ) : (
-            <p>{sent ? "You have no active shares." : "Nothing has been shared with you yet."}</p>
+            <p>
+              {sent
+                ? ui("You have no active shares.")
+                : ui("Nothing has been shared with you yet.")}
+            </p>
           )}
           {q.hasNextPage && (
             <button
@@ -407,7 +432,7 @@ export function SharingPage({ sent = false }: { sent?: boolean }) {
               disabled={q.isFetchingNextPage}
               onClick={() => q.fetchNextPage()}
             >
-              {q.isFetchingNextPage ? "Loading…" : "Load more shares"}
+              {q.isFetchingNextPage ? "Loading…" : ui("Load more shares")}
             </button>
           )}
         </>

@@ -1,3 +1,5 @@
+import { verifyAudioStorage } from "./features/fore/audio-coverage.server";
+import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
 import { processAccountDeletionQueue } from "./features/fore/account-management.server";
 import { processNotificationDeliveryQueue } from "./features/fore/notifications.server";
 import { processAuthorSocialFanoutJobs } from "./features/fore/social.server";
@@ -34,6 +36,7 @@ type BackendEnv = CoveEnv &
     FORE_PUBLIC_URL?: string;
     FORE_CATALOG_PAGES_PER_TICK?: string;
     FORE_CATALOG_EPUBS_PER_TICK?: string;
+    FORE_ASSETS_PER_MINUTE?: string;
     FORE_INGESTION_TRIGGER_TOKEN?: string;
     FORE_INGESTION_SIGNING_KEY?: string;
     AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
@@ -176,7 +179,7 @@ async function catalogBatch(request: Request, env: BackendEnv) {
   const configuredPages = Number(env.FORE_CATALOG_PAGES_PER_TICK || 5);
   const configuredEpubs = Number(env.FORE_CATALOG_EPUBS_PER_TICK || 2);
   const maxPages = Math.max(1, Math.min(12, Number(input.maxPages || configuredPages) || 5));
-  const epubLimit = Math.max(1, Math.min(8, Number(input.epubLimit || configuredEpubs) || 2));
+  const epubLimit = Math.max(0, Math.min(64, Number(input.epubLimit ?? configuredEpubs) || 0));
   const maxMillis = Math.max(
     10_000,
     Math.min(240_000, Number(input.maxMillis || 220_000) || 220_000),
@@ -345,7 +348,11 @@ async function scheduledCatalog(env: BackendEnv) {
   const request = new Request("https://cove.internal/__cove/ingestion/catalog", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ maxPages: 5, epubLimit: 2, maxMillis: 220_000 }),
+    body: JSON.stringify({
+      maxPages: env.FORE_CATALOG_PAGES_PER_TICK || 5,
+      epubLimit: 0,
+      maxMillis: 220_000,
+    }),
   });
   const response = await catalogBatch(request, env);
   if (!response.ok) {
@@ -523,6 +530,11 @@ async function runScheduled(cron: string, env: BackendEnv) {
     return;
   }
   try {
+    if (cron === "* * * * *") {
+      await runStoredAssetTick(env);
+      await verifyAudioStorage(env);
+      return;
+    }
     if (cron === "*/5 * * * *") {
       // Customer health evidence must not wait for, or depend on, ingestion.
       await refreshPublicStatus(env).catch((error) =>

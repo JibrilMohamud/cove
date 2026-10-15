@@ -23,10 +23,11 @@ FORE_PUBLIC_URL = "https://REPLACE_WITH_YOUR_VERCEL_DOMAIN"
 FORE_ENVIRONMENT = "production"
 FORE_DEFAULT_TERRITORY = "US"
 FORE_CATALOG_PAGES_PER_TICK = "5"
-FORE_CATALOG_EPUBS_PER_TICK = "2"
+FORE_CATALOG_EPUBS_PER_TICK = "0"
+FORE_ASSETS_PER_MINUTE = "32"
 
 [triggers]
-crons = ["*/5 * * * *", "*/10 * * * *", "2-59/5 * * * *", "17 3 * * *", "41 4 * * *"]
+crons = ["* * * * *", "*/5 * * * *", "*/10 * * * *", "2-59/5 * * * *", "17 3 * * *", "41 4 * * *"]
 
 # Production authentication:
 # - Vercel holds FORE_BACKEND_TOKEN; Cloudflare verifies its SHA-256 fingerprint

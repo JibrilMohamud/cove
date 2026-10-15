@@ -1,3 +1,4 @@
+import { formatMinorCurrency } from "./currency";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -59,13 +60,7 @@ type SeriesDetail = {
     reason: string | null;
   };
 };
-const money = (n: number, c: string) => {
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency: c }).format(n / 100);
-  } catch {
-    return `${c} ${(n / 100).toFixed(2)}`;
-  }
-};
+const money = (n: number, c: string) => formatMinorCurrency(n, c || "USD");
 const label = (m: SeriesMember) =>
   m.label ||
   (m.relationship === "main" && m.readingOrder

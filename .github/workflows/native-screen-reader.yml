@@ -1,0 +1,44 @@
+name: native-screen-reader
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  nvda:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx playwright install chromium
+      - name: Install signed NVDA in isolated portable profile
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'nvda.exe'
+          Invoke-WebRequest 'https://www.nvaccess.org/download/nvda/releases/2026.2/nvda_2026.2.exe' -OutFile $installer
+          $signature = Get-AuthenticodeSignature $installer
+          if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'NV Access') { throw 'Unexpected NVDA installer signature' }
+          $portable = Join-Path $env:RUNNER_TEMP 'nvda-portable'
+          Start-Process $installer -ArgumentList "--create-portable-silent --portable-path=$portable" -Wait
+          $profile = Join-Path $env:RUNNER_TEMP 'cove-nvda-profile'
+          New-Item -ItemType Directory -Force "$profile/scratchpad/globalPlugins" | Out-Null
+          Copy-Item scripts/native-a11y/coveSpeech.py "$profile/scratchpad/globalPlugins/coveSpeech.py"
+          @'
+          [general]
+          showWelcomeDialogAtStartup = False
+          [development]
+          enableScratchpadDir = True
+          '@ | Set-Content "$profile/nvda.ini" -Encoding utf8
+          "COVE_NVDA_EXE=$portable/nvda.exe" >> $env:GITHUB_ENV
+          "COVE_NVDA_CONFIG=$profile" >> $env:GITHUB_ENV
+      - name: Native screen-reader speech and focus audit
+        run: node scripts/native-a11y/audit.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-nvda-audit
+          path: artifacts/native-a11y
+          retention-days: 14

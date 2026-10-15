@@ -169,6 +169,9 @@ export async function proxyPersistenceApi(
   }
 
   const controller = new AbortController();
+  const abortFromCaller = () => controller.abort(request.signal.reason);
+  request.signal.addEventListener("abort", abortFromCaller, { once: true });
+  if (request.signal.aborted) abortFromCaller();
   const timer = setTimeout(() => controller.abort(), requestTimeout(requestUrl.pathname));
   try {
     const init: RequestInit & { duplex?: "half" } = {
@@ -201,6 +204,7 @@ export async function proxyPersistenceApi(
       },
     });
   } finally {
+    request.signal.removeEventListener("abort", abortFromCaller);
     clearTimeout(timer);
   }
 }

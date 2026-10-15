@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formatMinorCurrency } from "./currency";
 import { ApiError } from "./service";
 import type { CatalogDB } from "./catalog-model.server";
 import { accrueSaleRoyaltiesForOrder, createRoyaltyContractVersion } from "./royalty-engine.server";
@@ -578,7 +579,7 @@ export async function settlePayoutBatch(db: CatalogDB, raw: unknown) {
             eventType: "payout_sent",
             dedupeKey: `payout:${item.id}:${m.user_id}`,
             title: "Payout sent",
-            body: `Cove sent your ${String(item.currency)} payout of ${(Number(item.net_minor || 0) / 100).toFixed(2)}.`,
+            body: `Cove sent your payout of ${formatMinorCurrency(Number(item.net_minor || 0), String(item.currency))}.`,
             subjectType: "payout_item",
             subjectId: String(item.id),
             actionUrl: "/publishing",

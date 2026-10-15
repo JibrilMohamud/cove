@@ -66,11 +66,17 @@ try {
   const document = () =>
     new Response("<html>Public shell</html>", { headers: { "content-type": "text/html" } });
   assert.equal(
-    cache(new Request("https://cove.test/"), document()).headers.get("vercel-cdn-cache-control"),
+    cache(new Request("https://cove.test/terms"), document()).headers.get(
+      "vercel-cdn-cache-control",
+    ),
     "public, s-maxage=300",
   );
+  for (const path of ["/", "/?auth=login", "/store"]) {
+    const headers = cache(new Request("https://cove.test" + path), document()).headers;
+    assert.equal(headers.get("cache-control"), "private, no-store");
+    assert.equal(headers.get("vercel-cdn-cache-control"), "no-store");
+  }
   for (const url of [
-    "/?auth=login",
     "/community?journey=secret",
     "/read/prd_public",
     "/profile",
@@ -85,7 +91,7 @@ try {
   for (const header of ["cookie", "authorization", "oai-authenticated-user-id"])
     assert.equal(
       cache(
-        new Request("https://cove.test/", { headers: { [header]: "private" } }),
+        new Request("https://cove.test/terms", { headers: { [header]: "private" } }),
         document(),
       ).headers.get("vercel-cdn-cache-control"),
       null,

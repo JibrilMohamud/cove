@@ -41,6 +41,13 @@ jobs:
         run: npm run test:account-pagination
       - name: Full wired-label coverage in all five supported locales
         run: npm run test:localization-coverage
+      - name: Reading UI localization and content pipeline behavior
+        run: |
+          npm run test:ui-localization
+          npm run test:content-coverage
+          npm run test:storefront-bootstrap
+          npm run test:social-reading
+          npm run test:stripe-webhooks
       - name: Seven-day licensed EPUB signed-receipt regressions
         run: npm run test:licensed-epub
       - name: Notification delivery and opt-out regressions

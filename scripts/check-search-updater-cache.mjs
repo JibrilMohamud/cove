@@ -409,7 +409,10 @@ try {
     (error) => error.retryAfterMs === 3600000,
   );
   assert.equal(retryCalls, 1, "long upstream retry windows must yield to the durable scheduler");
-  // Strict two-download ticks must rotate fairly across three backlogged sources.
+  // Strict two-download ticks must rotate fairly across three enabled backlogged sources.
+  await env.DB.prepare(
+    "UPDATE gutenberg_sources SET enabled=1 WHERE id IN ('pg_us','pg_ca','pg_au')",
+  ).run();
   await env.DB.prepare("UPDATE gutenberg_source_cache SET epub_status='completed'").run();
   for (const [id, source] of [
     [900001, "pg_au"],
@@ -423,10 +426,10 @@ try {
       .run();
   }
   globalThis.fetch = async () => new Response("missing", { status: 404 });
-  const downloadTick = await api.runCatalogIngestion(env, 2);
-  assert.equal(downloadTick.epubs.attempted, 2);
-  const followingTick = await api.runCatalogIngestion(env, 2);
-  assert.ok(followingTick.epubs.attempted <= 2);
+  const downloadTick = await api.runCatalogAssetMaintenance(env, 2);
+  assert.equal(downloadTick.attempted, 2);
+  const followingTick = await api.runCatalogAssetMaintenance(env, 2);
+  assert.ok(followingTick.attempted <= 2);
   assert.equal(
     (
       await env.DB.prepare(

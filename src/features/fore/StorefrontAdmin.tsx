@@ -1195,9 +1195,10 @@ function CommerceOperations({ storefrontToken }: { storefrontToken: string }) {
                 Refund · {r.status} · {formatMinorCurrency(r.amount_minor, r.currency)}
               </strong>
               <small>
-                {r.order_id} · Stripe {(r.stripe_amount_minor / 100).toFixed(2)} · credit{" "}
-                {(r.store_credit_amount_minor / 100).toFixed(2)} · gift{" "}
-                {(r.gift_card_amount_minor / 100).toFixed(2)}
+                {r.order_id} · Stripe{" "}
+                {formatMinorCurrency(Number(r.stripe_amount_minor), r.currency || "USD")} · credit{" "}
+                {formatMinorCurrency(Number(r.store_credit_amount_minor), r.currency || "USD")} ·
+                gift {formatMinorCurrency(Number(r.gift_card_amount_minor), r.currency || "USD")}
               </small>
             </div>
           ))}
@@ -1542,9 +1543,7 @@ function CommerceOperations({ storefrontToken }: { storefrontToken: string }) {
                 {r.status} · {r.period_start} → {r.period_end}
               </small>
             </div>
-            <span>
-              {r.currency} {(Number(r.net_minor || 0) / 100).toFixed(2)} net
-            </span>
+            <span>{formatMinorCurrency(Number(r.net_minor || 0), r.currency)} net</span>
             {r.status === "draft" && (
               <button
                 className="button outline"
@@ -1567,7 +1566,8 @@ function CommerceOperations({ storefrontToken }: { storefrontToken: string }) {
             {data.ledgerImbalances.map((r: any) => (
               <div className="staff-list-row" key={`${r.order_id}:${r.currency}`}>
                 <strong>
-                  {r.order_id} · {r.currency} imbalance {(Number(r.balance_minor) / 100).toFixed(2)}
+                  {r.order_id} · imbalance{" "}
+                  {formatMinorCurrency(Number(r.balance_minor), r.currency)}
                 </strong>
                 <small>
                   {r.entries} postings · last posted {new Date(r.last_posted_at).toLocaleString()}
@@ -1607,7 +1607,8 @@ function CommerceOperations({ storefrontToken }: { storefrontToken: string }) {
                 Dispute · {d.status} · {d.reason}
               </strong>
               <small>
-                {d.order_id || "unmatched"} · {d.currency} {(d.amount_minor / 100).toFixed(2)}
+                {d.order_id || "unmatched"} ·{" "}
+                {formatMinorCurrency(Number(d.amount_minor), d.currency)}
                 {d.evidence_due_at
                   ? ` · evidence due ${new Date(d.evidence_due_at).toLocaleString()}`
                   : ""}

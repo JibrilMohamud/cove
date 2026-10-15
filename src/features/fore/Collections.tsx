@@ -1,3 +1,4 @@
+import { useUiText } from "./ui-text";
 import { CoveRequestError } from "./api-transport";
 import { AddToShelf } from "./Shelves";
 import { OfflineDownloads } from "./Audio";
@@ -213,6 +214,7 @@ function CollectionNextPage({
   );
 }
 export function AccountGuard({ children }: { children: ReactNode }) {
+  const ui = useUiText();
   const { t: tr } = useStorefrontLocale();
   const { data, loading, error, reload, signIn } = useAccount();
   if (loading)
@@ -236,11 +238,12 @@ export function AccountGuard({ children }: { children: ReactNode }) {
     return (
       <div className="empty-state account-empty">
         <Library />
-        <span className="page-eyebrow">A PLACE FOR YOUR READING LIFE</span>
+        <span className="page-eyebrow">{ui("A PLACE FOR YOUR READING LIFE")}</span>
         <h2>{tr("account.welcome", "Make yourself at home.")}</h2>
         <p>
-          Sign in to build your library and keep your favorite passages, notes, and new words
-          together.
+          {ui(
+            "Sign in to build your library and keep your favorite passages, notes, and new words together.",
+          )}
         </p>
         <button className="button gold" onClick={signIn}>
           {tr("account.signIn", "Create an account or log in")} <ArrowUpRight size={17} />
@@ -250,6 +253,7 @@ export function AccountGuard({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 export function LibraryPage() {
+  const ui = useUiText();
   const { t: tr } = useStorefrontLocale();
   const { data, reload } = useAccount();
   const [filter, setFilter] = useState("all"),
@@ -306,17 +310,19 @@ export function LibraryPage() {
   }
   return (
     <>
-      <div className="page-eyebrow">YOUR COLLECTION</div>
+      <div className="page-eyebrow">{ui("YOUR COLLECTION")}</div>
       <div className="page-heading">
         <div>
           <h1>
-            My library<span className="gold-text">.</span>
+            {ui("My library")}
+            <span className="gold-text">.</span>
           </h1>
-          <p>Old favorites. New beginnings. All yours.</p>
+          <p>{ui("Old favorites. New beginnings. All yours.")}</p>
         </div>
         {data.user && (
           <button className="button outline" onClick={() => input.current?.click()} disabled={busy}>
-            {busy ? <Loader2 size={17} className="spin" /> : <Upload size={17} />}Import EPUB
+            {busy ? <Loader2 size={17} className="spin" /> : <Upload size={17} />}
+            {ui("Import EPUB")}
           </button>
         )}
         <input
@@ -331,7 +337,7 @@ export function LibraryPage() {
         <div className="library-stats">
           <div>
             <strong>{pages.items.length}</strong>
-            <span>Books loaded</span>
+            <span>{ui("Books loaded")}</span>
           </div>
           <div>
             <strong>{data.library.filter((x) => x.status === "reading").length}</strong>
@@ -358,8 +364,8 @@ export function LibraryPage() {
           <div className="small-search">
             <Search size={17} />
             <input
-              aria-label="Search your library"
-              placeholder="Search your shelves…"
+              aria-label={ui("Search your library")}
+              placeholder={ui("Search your shelves…")}
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
@@ -405,9 +411,9 @@ export function LibraryPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="want-to-read">Want to read</SelectItem>
-                        <SelectItem value="reading">Reading</SelectItem>
-                        <SelectItem value="finished">Finished</SelectItem>
+                        <SelectItem value="want-to-read">{ui("Want to read")}</SelectItem>
+                        <SelectItem value="reading">{ui("Reading")}</SelectItem>
+                        <SelectItem value="finished">{ui("Finished")}</SelectItem>
                       </SelectContent>
                     </Select>
                     <button
@@ -427,7 +433,7 @@ export function LibraryPage() {
           <div className="empty-state">
             <BookOpen />
             <h2>{q ? "Nothing on this shelf yet." : "Your next chapter starts here."}</h2>
-            <p>Find something in the bookstore or import an EPUB you already own.</p>
+            <p>{ui("Find something in the bookstore or import an EPUB you already own.")}</p>
             <a className="button gold" href="/">
               {tr("library.browse", "Browse the bookstore")} <ArrowUpRight size={17} />
             </a>
@@ -459,20 +465,21 @@ function ConfirmDelete({
   onConfirm: () => Promise<void>;
   description: string;
 }) {
+  const ui = useUiText();
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogContent className="fore-dialog">
-        <AlertDialogTitle>Remove this item?</AlertDialogTitle>
+        <AlertDialogTitle>{ui("Remove this item?")}</AlertDialogTitle>
         <AlertDialogDescription>{description}</AlertDialogDescription>
         <AlertDialogFooter>
-          <AlertDialogCancel>Keep it</AlertDialogCancel>
+          <AlertDialogCancel>{ui("Keep it")}</AlertDialogCancel>
           <AlertDialogAction
             onClick={(e) => {
               e.preventDefault();
               onConfirm().catch((err) => toast.error(err.message));
             }}
           >
-            Remove
+            {ui("Remove")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -489,6 +496,7 @@ function highlightAudienceName(share: HighlightShareAudience) {
   }[share.visibility];
 }
 export function HighlightsPage() {
+  const ui = useUiText();
   const { t: tr } = useStorefrontLocale();
   const { data, reload } = useAccount();
   const [q, setQ] = useState(""),
@@ -569,18 +577,19 @@ export function HighlightsPage() {
   }
   return (
     <>
-      <div className="page-eyebrow">YOUR COMMONPLACE BOOK</div>
+      <div className="page-eyebrow">{ui("YOUR COMMONPLACE BOOK")}</div>
       <div className="page-heading">
         <div>
           <h1>
-            Words worth keeping<span className="gold-text">.</span>
+            {ui("Words worth keeping")}
+            <span className="gold-text">.</span>
           </h1>
-          <p>Return to the lines that made you pause.</p>
+          <p>{ui("Return to the lines that made you pause.")}</p>
         </div>
         {pages.items.length > 0 && (
           <button className="button outline" onClick={exportNotes}>
             <Download size={17} />
-            Export notes
+            {ui("Export notes")}
           </button>
         )}
       </div>
@@ -589,10 +598,10 @@ export function HighlightsPage() {
           <div className="collection-toolbar">
             <TabsList className="fore-tabs">
               <TabsTrigger value="all">
-                All highlights <span>{pages.items.length}</span>
+                {ui("All highlights")} <span>{pages.items.length}</span>
               </TabsTrigger>
               <TabsTrigger value="notes">
-                With notes <span>{pages.items.filter((x) => x.note).length}</span>
+                {ui("With notes")} <span>{pages.items.filter((x) => x.note).length}</span>
               </TabsTrigger>
             </TabsList>
             <div className="small-search">
@@ -600,18 +609,18 @@ export function HighlightsPage() {
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                aria-label="Search highlights and notes"
-                placeholder="Search your passages…"
+                aria-label={ui("Search highlights and notes")}
+                placeholder={ui("Search your passages…")}
               />
             </div>
           </div>
           <div className="notebook-filters">
-            <span className="small muted">Highlight color</span>
+            <span className="small muted">{ui("Highlight color")}</span>
             <button
               className={"color-all " + (color === "all" ? "selected" : "")}
               onClick={() => setColor("all")}
             >
-              All
+              {ui("All")}
             </button>
             {Object.entries(colors).map(([c, v]) => (
               <button
@@ -645,12 +654,12 @@ export function HighlightsPage() {
                   )}
                   <div className="annotation-bottom">
                     <a className="text-link" href={readPath(a.bookId, a.cfi)}>
-                      Return to passage <ArrowUpRight size={14} />
+                      {ui("Return to passage")} <ArrowUpRight size={14} />
                     </a>
                     <div>
                       <button
                         className="icon-button"
-                        aria-label="Edit highlight note"
+                        aria-label={ui("Edit highlight note")}
                         onClick={() => {
                           setEdit(a);
                           setNote(a.note);
@@ -661,7 +670,7 @@ export function HighlightsPage() {
                       </button>
                       <button
                         className="icon-button"
-                        aria-label="Delete highlight"
+                        aria-label={ui("Delete highlight")}
                         onClick={() => setRemove(a.id)}
                       >
                         <Trash2 size={15} />
@@ -669,7 +678,7 @@ export function HighlightsPage() {
                     </div>
                   </div>
                   <span className="annotation-date">
-                    {a.chapter || "Saved passage"} ·{" "}
+                    {a.chapter || ui("Saved passage")} ·{" "}
                     {new Date(a.createdAt).toLocaleDateString(undefined, {
                       month: "short",
                       day: "numeric",
@@ -686,11 +695,12 @@ export function HighlightsPage() {
                 {pages.items.length ? "No matching passages." : "Some lines deserve a second life."}
               </h2>
               <p>
-                While reading, select a passage to highlight it or add a note. You’ll find every
-                saved thought here.
+                {ui(
+                  "While reading, select a passage to highlight it or add a note. You’ll find every saved thought here.",
+                )}
               </p>
               <a href="/library" className="button gold">
-                Open your library <ArrowRight size={17} />
+                {ui("Open your library")} <ArrowRight size={17} />
               </a>
             </div>
           )}
@@ -703,28 +713,33 @@ export function HighlightsPage() {
         }}
       >
         <DialogContent className="fore-dialog">
-          <DialogTitle>Your note</DialogTitle>
+          <DialogTitle>{ui("Your note")}</DialogTitle>
           <DialogDescription>{edit?.bookTitle}</DialogDescription>
           <blockquote className="editor-quote">{edit?.quote}</blockquote>
           {sharing.isPending && (
             <p className="small muted" role="status">
-              Checking current sharing permissions…
+              {ui("Checking current sharing permissions…")}
             </p>
           )}
           {sharing.isError && (
             <div role="alert">
               <p>
-                Current sharing permissions could not be checked. Retry before saving this note.
+                {ui(
+                  "Current sharing permissions could not be checked. Retry before saving this note.",
+                )}
               </p>
               <button className="button outline" onClick={() => sharing.refetch()}>
-                Retry sharing status
+                {ui("Retry sharing status")}
               </button>
             </div>
           )}
           {sharing.data?.shares.length ? (
             <div className="reader-format-notice" role="status">
-              <strong>This highlight remains shared</strong>
-              <p>Active audiences: {sharing.data.shares.map(highlightAudienceName).join(", ")}.</p>
+              <strong>{ui("This highlight remains shared")}</strong>
+              <p>
+                {ui("Active audiences:")}{" "}
+                {sharing.data.shares.map(highlightAudienceName).join(", ")}.
+              </p>
               <p>
                 {sharing.data.shares.some((share) => share.shareNote)
                   ? "For audiences that include your note, Cove keeps a separate published copy. Editing here changes only your private note until you explicitly republish it."
@@ -748,7 +763,7 @@ export function HighlightsPage() {
                     })
                   }
                 >
-                  Review & republish note…
+                  {ui("Review & republish note…")}
                 </button>
               )}
             </div>
@@ -765,12 +780,12 @@ export function HighlightsPage() {
             ))}
           </div>
           <textarea
-            aria-label="Note on this passage"
+            aria-label={ui("Note on this passage")}
             className="note-input"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             maxLength={12000}
-            placeholder="What does this passage bring to mind?"
+            placeholder={ui("What does this passage bring to mind?")}
           />
           <button
             disabled={saving || sharing.isPending || sharing.isFetching}
@@ -824,10 +839,11 @@ export function HighlightsPage() {
         }}
       >
         <AlertDialogContent className="fore-dialog">
-          <AlertDialogTitle>Republish your note?</AlertDialogTitle>
+          <AlertDialogTitle>{ui("Republish your note?")}</AlertDialogTitle>
           <AlertDialogDescription>
-            Your private note is saved. Existing shares still show the previous published copy.
-            Confirm to replace that copy for the selected audiences with your current note.
+            {ui(
+              "Your private note is saved. Existing shares still show the previous published copy. Confirm to replace that copy for the selected audiences with your current note.",
+            )}
           </AlertDialogDescription>
           {republish && (
             <ul>
@@ -855,13 +871,13 @@ export function HighlightsPage() {
           )}
           {republish && (
             <div className="reader-format-notice">
-              <strong>Note copy to publish</strong>
-              <blockquote>{republish.note || "No note text"}</blockquote>
+              <strong>{ui("Note copy to publish")}</strong>
+              <blockquote>{republish.note || ui("No note text")}</blockquote>
             </div>
           )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={republishing}>
-              Keep published copies unchanged
+              {ui("Keep published copies unchanged")}
             </AlertDialogCancel>
             <AlertDialogAction
               disabled={republishing || !republish?.selectedIds.length}
@@ -906,6 +922,7 @@ export function DictionaryLookup({
   context?: string;
   onSaved?: () => void;
 }) {
+  const ui = useUiText();
   const { data, reload, signIn } = useAccount();
   const [word, setWord] = useState(initialWord),
     [result, setResult] = useState<any[]>([]),
@@ -930,14 +947,14 @@ export function DictionaryLookup({
     <div className="dictionary-lookup">
       <form onSubmit={lookup} className="dictionary-form">
         <input
-          aria-label="Word to look up"
+          aria-label={ui("Word to look up")}
           value={word}
           onChange={(e) => setWord(e.target.value)}
-          placeholder="Look up an English word…"
+          placeholder={ui("Look up an English word…")}
           maxLength={80}
         />
         <button className="button gold" disabled={busy || !word.trim()}>
-          {busy ? <Loader2 size={17} className="spin" /> : <Search size={17} />} Look up
+          {busy ? <Loader2 size={17} className="spin" /> : <Search size={17} />} {ui("Look up")}
         </button>
       </form>
       {error && <p className="notice">{error}</p>}
@@ -949,7 +966,7 @@ export function DictionaryLookup({
             {result[0].phonetics?.find((p: any) => p.audio?.startsWith("https://")) && (
               <button
                 className="icon-button"
-                aria-label="Play pronunciation"
+                aria-label={ui("Play pronunciation")}
                 onClick={() => {
                   const audio = result[0].phonetics.find((p: any) =>
                     p.audio?.startsWith("https://"),
@@ -997,7 +1014,7 @@ export function DictionaryLookup({
                       }
                     }}
                   >
-                    <Plus size={14} /> Save this definition
+                    <Plus size={14} /> {ui("Save this definition")}
                   </button>
                 </div>
               ))}
@@ -1009,20 +1026,22 @@ export function DictionaryLookup({
             target="_blank"
             rel="noreferrer"
           >
-            Definitions by Free Dictionary API <ArrowUpRight size={12} />
+            {ui("Definitions by Free Dictionary API")} <ArrowUpRight size={12} />
           </a>
         </div>
       )}
       {!result.length && !error && (
         <p className="small muted lookup-hint">
-          English definitions, pronunciation, and usage. Save a meaning to make it part of your
-          vocabulary.
+          {ui(
+            "English definitions, pronunciation, and usage. Save a meaning to make it part of your vocabulary.",
+          )}
         </p>
       )}
     </div>
   );
 }
 export function DefinitionsPage() {
+  const ui = useUiText();
   const { t: tr } = useStorefrontLocale();
   const { data, reload } = useAccount();
   const [q, setQ] = useState(""),
@@ -1038,13 +1057,14 @@ export function DefinitionsPage() {
   );
   return (
     <>
-      <div className="page-eyebrow">A GROWING VOCABULARY</div>
+      <div className="page-eyebrow">{ui("A GROWING VOCABULARY")}</div>
       <div className="page-heading">
         <div>
           <h1>
-            Your word collection<span className="gold-text">.</span>
+            {ui("Your word collection")}
+            <span className="gold-text">.</span>
           </h1>
-          <p>Meet a new word. Keep it for a lifetime.</p>
+          <p>{ui("Meet a new word. Keep it for a lifetime.")}</p>
         </div>
       </div>
       <section className="dictionary-panel">
@@ -1059,8 +1079,8 @@ export function DefinitionsPage() {
           <div className="small-search">
             <Search size={17} />
             <input
-              aria-label="Search saved words"
-              placeholder="Find a word…"
+              aria-label={ui("Search saved words")}
+              placeholder={ui("Find a word…")}
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
@@ -1093,7 +1113,7 @@ export function DefinitionsPage() {
                   </a>
                 )}
                 <span className="annotation-date">
-                  Saved {new Date(d.createdAt).toLocaleDateString()}
+                  {ui("Saved")} {new Date(d.createdAt).toLocaleDateString()}
                 </span>
               </article>
             ))}
@@ -1102,7 +1122,11 @@ export function DefinitionsPage() {
           <div className="empty-state">
             <BookA />
             <h2>{q ? "No matching words." : "A collection, one word at a time."}</h2>
-            <p>Look up a word above, or select one while reading. Save the definition that fits.</p>
+            <p>
+              {ui(
+                "Look up a word above, or select one while reading. Save the definition that fits.",
+              )}
+            </p>
           </div>
         )}
       </AccountGuard>
@@ -1121,44 +1145,52 @@ export function DefinitionsPage() {
   );
 }
 export function DownloadsPage() {
+  const ui = useUiText();
   const { data } = useAccount();
   const [busy, setBusy] = useState("");
   return (
     <>
-      <div className="page-eyebrow">YOUR LIBRARY, ANYWHERE</div>
+      <div className="page-eyebrow">{ui("YOUR LIBRARY, ANYWHERE")}</div>
       <div className="page-heading">
         <div>
           <h1>
-            Take the stories with you<span className="gold-text">.</span>
+            {ui("Take the stories with you")}
+            <span className="gold-text">.</span>
           </h1>
-          <p>Download an EPUB, or bring your whole reading context along.</p>
+          <p>{ui("Download an EPUB, or bring your whole reading context along.")}</p>
         </div>
       </div>
       <div className="download-explainer download-explainer-three">
         <div>
           <FileDown size={25} />
-          <h2>Download book</h2>
+          <h2>{ui("Download book")}</h2>
           <p>
-            The entitled EPUB only. It never includes your highlights, notes, vocabulary, positions,
-            or reading history.
+            {ui(
+              "The entitled EPUB only. It never includes your highlights, notes, vocabulary, positions, or reading history.",
+            )}
           </p>
         </div>
         <div>
           <Download size={25} />
-          <h2>Export reading data</h2>
+          <h2>{ui("Export reading data")}</h2>
           <p>
-            A private ZIP containing your annotations, saved words, reading position, completion
-            history, and reading sessions. It contains no ebook.
+            {ui(
+              "A private ZIP containing your annotations, saved words, reading position, completion history, and reading sessions. It contains no ebook.",
+            )}
           </p>
         </div>
         <div className="private-backup-option">
           <ShieldCheck size={25} />
-          <h2>Cove backup package</h2>
+          <h2>{ui("Cove backup package")}</h2>
           <p>
-            <strong>Private archive:</strong> combines both the EPUB and your reading data. Review
-            it before sharing or transferring it to another person.
+            <strong>{ui("Private archive:")}</strong>{" "}
+            {ui(
+              "combines both the EPUB and your reading data. Review it before sharing or transferring it to another person.",
+            )}
           </p>
-          <span className="small muted">Cove private backup v2 · ebook + personal data</span>
+          <span className="small muted">
+            {ui("Cove private backup v2 · ebook + personal data")}
+          </span>
         </div>
       </div>
       <OfflineDownloads />
@@ -1180,7 +1212,8 @@ export function DownloadsPage() {
                     if (contentExport && e.book.downloadable === false)
                       return (
                         <span className="export-unavailable" key={kind}>
-                          {kind === "book" ? "Book download" : "Private backup"}: Cove reader only
+                          {kind === "book" ? "Book download" : "Private backup"}
+                          {ui(": Cove reader only")}
                         </span>
                       );
                     return (
@@ -1225,9 +1258,9 @@ export function DownloadsPage() {
                           <Download size={16} />
                         )}{" "}
                         {kind === "book"
-                          ? "Download book"
+                          ? ui("Download book")
                           : kind === "data"
-                            ? "Export reading data"
+                            ? ui("Export reading data")
                             : "Private backup"}
                       </button>
                     );
@@ -1239,10 +1272,10 @@ export function DownloadsPage() {
         ) : (
           <div className="empty-state">
             <Download />
-            <h2>Build a library to take with you.</h2>
-            <p>Add books from the bookstore. Your downloads will be ready here.</p>
+            <h2>{ui("Build a library to take with you.")}</h2>
+            <p>{ui("Add books from the bookstore. Your downloads will be ready here.")}</p>
             <a href="/" className="button gold">
-              Explore books
+              {ui("Explore books")}
             </a>
           </div>
         )}
@@ -1251,6 +1284,7 @@ export function DownloadsPage() {
   );
 }
 export function ProfilePage() {
+  const ui = useUiText();
   const { data, reload } = useAccount();
   const [name, setName] = useState(""),
     [busy, setBusy] = useState(false);
@@ -1287,14 +1321,14 @@ export function ProfilePage() {
   }
   return (
     <>
-      <div className="page-eyebrow">YOUR READING ROOM</div>
+      <div className="page-eyebrow">{ui("YOUR READING ROOM")}</div>
       <div className="page-heading">
         <div>
           <h1>
             {data.user?.registered ? "Your account" : "Make it yours"}
             <span className="gold-text">.</span>
           </h1>
-          <p>A small home for a lifetime of reading.</p>
+          <p>{ui("A small home for a lifetime of reading.")}</p>
         </div>
       </div>
       <AccountGuard>
@@ -1317,7 +1351,7 @@ export function ProfilePage() {
               }
             }}
           >
-            <label htmlFor="profile-name">What should we call you?</label>
+            <label htmlFor="profile-name">{ui("What should we call you?")}</label>
             <input
               id="profile-name"
               value={name}
@@ -1330,7 +1364,7 @@ export function ProfilePage() {
               {busy
                 ? "Saving…"
                 : data.user?.registered
-                  ? "Save profile"
+                  ? ui("Save profile")
                   : "Create my reading profile"}
             </button>
           </form>
@@ -1350,7 +1384,7 @@ export function ProfilePage() {
               }}
             >
               <label>
-                Choose your username
+                {ui("Choose your username")}
                 <input
                   name="username"
                   required
@@ -1358,27 +1392,28 @@ export function ProfilePage() {
                   minLength={3}
                   maxLength={30}
                   autoComplete="username"
-                  placeholder="Your unique reading name"
+                  placeholder={ui("Your unique reading name")}
                 />
               </label>
-              <button className="button outline">Save username</button>
+              <button className="button outline">{ui("Save username")}</button>
             </form>
           )}
           <div className="profile-info">
             <Check size={18} />
             <p>
-              Your email is verified. Your books, notes, and definitions are saved to your Cove
-              account.
+              {ui(
+                "Your email is verified. Your books, notes, and definitions are saved to your Cove account.",
+              )}
             </p>
           </div>
           <section className="recommendation-privacy-panel">
             <div>
-              <span className="small-label">PERSONALIZATION & PRIVACY</span>
-              <h3>Recommendation controls</h3>
+              <span className="small-label">{ui("PERSONALIZATION & PRIVACY")}</span>
+              <h3>{ui("Recommendation controls")}</h3>
               <p className="muted">
-                Cove can use your reading, ratings, wishlist, follows, and recommendation
-                interactions to personalize discovery. Turning this off does not affect your library
-                or reading history.
+                {ui(
+                  "Cove can use your reading, ratings, wishlist, follows, and recommendation interactions to personalize discovery. Turning this off does not affect your library or reading history.",
+                )}
               </p>
             </div>
             {recSettings ? (
@@ -1391,7 +1426,7 @@ export function ProfilePage() {
                       setRecSettings({ ...recSettings, personalizationEnabled: e.target.checked })
                     }
                   />{" "}
-                  Personalized recommendations
+                  {ui("Personalized recommendations")}
                 </label>
                 <label>
                   <input
@@ -1404,7 +1439,7 @@ export function ProfilePage() {
                       })
                     }
                   />{" "}
-                  Learn from my reading activity
+                  {ui("Learn from my reading activity")}
                 </label>
                 <label>
                   <input
@@ -1417,7 +1452,7 @@ export function ProfilePage() {
                       })
                     }
                   />{" "}
-                  Personalize search ranking
+                  {ui("Personalize search ranking")}
                 </label>
                 <div className="recommendation-privacy-actions">
                   <button
@@ -1448,12 +1483,12 @@ export function ProfilePage() {
                       }
                     }}
                   >
-                    Reset learned profile
+                    {ui("Reset learned profile")}
                   </button>
                 </div>
               </div>
             ) : (
-              <p className="muted">Loading recommendation preferences…</p>
+              <p className="muted">{ui("Loading recommendation preferences…")}</p>
             )}
           </section>
           <AccountManagementPanel />
@@ -1467,7 +1502,7 @@ export function ProfilePage() {
             }
           >
             <Download size={16} />
-            Export my reading data
+            {ui("Export my reading data")}
           </button>
           <button
             className="text-link signout"
@@ -1477,7 +1512,7 @@ export function ProfilePage() {
             }}
           >
             <LogOut size={16} />
-            Log out
+            {ui("Log out")}
           </button>
         </div>
       </AccountGuard>

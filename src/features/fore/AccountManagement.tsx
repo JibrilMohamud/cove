@@ -1,3 +1,4 @@
+import { formatMinorCurrency } from "./currency";
 import { useEffect, useMemo, useState } from "react";
 import {
   CreditCard,
@@ -41,9 +42,8 @@ type Security = {
   passkeysExperimental: boolean;
 };
 const money = (minor: number, currency: string) =>
-  new Intl.NumberFormat(undefined, { style: "currency", currency: currency || "USD" }).format(
-    Number(minor || 0) / 100,
-  );
+  formatMinorCurrency(Number(minor || 0), currency || "USD");
+
 function b64urlToBytes(value: string) {
   const b64 = value
     .replace(/-/g, "+")

@@ -1,3 +1,4 @@
+import { useUiText, UiText } from "./ui-text";
 import { useEffect, useState } from "react";
 import { Eye, EyeOff, Mail, ArrowRight, BookOpen } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -51,6 +52,7 @@ export function AuthDialog({
   onChange: (v: AuthMode | null) => void;
   onSuccess: () => Promise<void>;
 }) {
+  const ui = useUiText();
   const [username, setUsername] = useState(""),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
@@ -83,7 +85,7 @@ export function AuthDialog({
     try {
       if (mode === "signup") {
         if (!acceptTerms)
-          throw Error("Please review and agree to the Terms of Service and Privacy Policy.");
+          throw Error(ui("Please review and agree to the Terms of Service and Privacy Policy."));
         await api("/auth/signup", "POST", { username, email, password, acceptTerms: true });
         onChange("verify");
       } else if (mode === "verify") {
@@ -97,10 +99,12 @@ export function AuthDialog({
           const factor = sec?.factors?.totp?.find((f: any) => f.status === "verified");
           if (!factor)
             throw Error(
-              "This account requires MFA, but no verified authenticator factor is available. Use account recovery or contact support.",
+              ui(
+                "This account requires MFA, but no verified authenticator factor is available. Use account recovery or contact support.",
+              ),
             );
-          const otp = prompt("Enter the current code from your authenticator app:");
-          if (!otp) throw Error("MFA verification is required to continue.");
+          const otp = prompt(ui("Enter the current code from your authenticator app:"));
+          if (!otp) throw Error(ui("MFA verification is required to continue."));
           await api("/auth/mfa/verify", "POST", { factorId: factor.id, code: otp });
         }
         await onSuccess();
@@ -120,14 +124,14 @@ export function AuthDialog({
   }
   const title =
     mode === "signup"
-      ? "A reading life of your own."
+      ? ui("A reading life of your own.")
       : mode === "verify"
-        ? "Check your inbox."
+        ? ui("Check your inbox.")
         : mode === "reset"
-          ? "Find your way back."
+          ? ui("Find your way back.")
           : mode === "new-password"
-            ? "Choose a new password."
-            : "Welcome back.";
+            ? ui("Choose a new password.")
+            : ui("Welcome back.");
   return (
     <Dialog open={!!mode} onOpenChange={(v) => !v && onChange(null)}>
       <DialogContent className="fore-dialog auth-dialog">
@@ -137,16 +141,21 @@ export function AuthDialog({
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>
           {mode === "verify"
-            ? `We sent a verification link to ${email || "your email address"}. Open it to verify your account, then sign in. You can also enter the email code below if one is included.`
+            ? ui(
+                "We sent a verification link to {email}. Open it to verify your account, then sign in. You can also enter the email code below if one is included.",
+                { email: email || ui("your email address") },
+              )
             : mode === "signup"
-              ? "Keep your books, notes, and reading progress together. Verify your email to finish creating your account."
+              ? ui(
+                  "Keep your books, notes, and reading progress together. Verify your email to finish creating your account.",
+                )
               : mode === "reset"
-                ? "Enter your verified email address for a password-reset link."
-                : "Your next chapter is waiting."}
+                ? ui("Enter your verified email address for a password-reset link.")
+                : ui("Your next chapter is waiting.")}
         </DialogDescription>
         {!loading && !options.available && (
           <p className="notice" role="status">
-            Account sign-in is being set up. You can still browse and read.
+            {ui("Account sign-in is being set up. You can still browse and read.")}
           </p>
         )}
         {(mode === "signup" || mode === "login") && (
@@ -162,7 +171,7 @@ export function AuthDialog({
               <span className="google-g" aria-hidden="true">
                 G
               </span>{" "}
-              Continue with Google
+              {ui("Continue with Google")}
             </a>
             {mode === "login" &&
               typeof window !== "undefined" &&
@@ -183,7 +192,7 @@ export function AuthDialog({
                       const credential = (await navigator.credentials.get({
                         publicKey: requestOptions(start.options),
                       })) as PublicKeyCredential | null;
-                      if (!credential) throw Error("Passkey sign-in was canceled.");
+                      if (!credential) throw Error(ui("Passkey sign-in was canceled."));
                       await api("/auth/passkey/authentication/verify", "POST", {
                         challengeId: start.challenge_id,
                         credential: credentialJson(credential),
@@ -197,18 +206,20 @@ export function AuthDialog({
                     }
                   }}
                 >
-                  Use a passkey
+                  {ui("Use a passkey")}
                 </button>
               )}
             <div className="auth-divider">
-              <span>or use your {mode === "signup" ? "email" : "password"}</span>
+              <span>
+                {mode === "signup" ? ui("or use your email") : ui("or use your password")}
+              </span>
             </div>
           </>
         )}
         <form className="fore-form auth-form" onSubmit={submit}>
           {(mode === "signup" || mode === "login") && (
             <label>
-              {mode === "signup" ? "Username" : "Username or email"}
+              {mode === "signup" ? ui("Username") : ui("Username or email")}
               <input
                 autoComplete={mode === "signup" ? "username" : "username"}
                 required
@@ -217,13 +228,13 @@ export function AuthDialog({
                 minLength={mode === "signup" ? 3 : 1}
                 maxLength={mode === "signup" ? 30 : 254}
                 pattern={mode === "signup" ? "[a-zA-Z][a-zA-Z0-9_]{2,29}" : undefined}
-                placeholder={mode === "signup" ? "your_reading_name" : "Username or email"}
+                placeholder={mode === "signup" ? "your_reading_name" : ui("Username or email")}
               />
             </label>
           )}
           {(mode === "signup" || mode === "reset" || mode === "verify") && (
             <label>
-              Email address
+              {ui("Email address")}
               <input
                 type="email"
                 autoComplete="email"
@@ -237,7 +248,7 @@ export function AuthDialog({
           )}
           {(mode === "signup" || mode === "login" || mode === "new-password") && (
             <label>
-              Password
+              {ui("Password")}
               <div className="password-input">
                 <input
                   type={visible ? "text" : "password"}
@@ -247,12 +258,14 @@ export function AuthDialog({
                   maxLength={128}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === "login" ? "Your password" : "At least 12 characters"}
+                  placeholder={
+                    mode === "login" ? ui("Your password") : ui("At least 12 characters")
+                  }
                 />
                 <button
                   type="button"
                   className="icon-button"
-                  aria-label={visible ? "Hide password" : "Show password"}
+                  aria-label={visible ? ui("Hide password") : ui("Show password")}
                   aria-pressed={visible}
                   onClick={() => setVisible(!visible)}
                 >
@@ -263,7 +276,7 @@ export function AuthDialog({
           )}
           {mode === "verify" && (
             <label>
-              Verification code
+              {ui("Verification code")}
               <input
                 inputMode="numeric"
                 autoComplete="one-time-code"
@@ -271,7 +284,7 @@ export function AuthDialog({
                 pattern="[0-9]{6,10}"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                placeholder="Code from your email"
+                placeholder={ui("Code from your email")}
               />
             </label>
           )}
@@ -294,15 +307,21 @@ export function AuthDialog({
                 required
               />{" "}
               <span>
-                I agree to Cove's{" "}
-                <a href="/terms" target="_blank" rel="noopener noreferrer">
-                  Terms of Service
-                </a>{" "}
-                and acknowledge its{" "}
-                <a href="/privacy" target="_blank" rel="noopener noreferrer">
-                  Privacy Policy
-                </a>
-                .
+                <UiText
+                  source="I agree to Cove's {terms} and acknowledge its {privacy}."
+                  values={{
+                    terms: (
+                      <a href="/terms" target="_blank" rel="noopener noreferrer">
+                        {ui("Terms of Service")}
+                      </a>
+                    ),
+                    privacy: (
+                      <a href="/privacy" target="_blank" rel="noopener noreferrer">
+                        {ui("Privacy Policy")}
+                      </a>
+                    ),
+                  }}
+                />
               </span>
             </label>
           )}
@@ -311,16 +330,16 @@ export function AuthDialog({
             disabled={busy || !options.available || (mode === "signup" && !acceptTerms)}
           >
             {busy
-              ? "Please wait…"
+              ? ui("Please wait…")
               : mode === "signup"
-                ? "Create account"
+                ? ui("Create account")
                 : mode === "verify"
-                  ? "Verify email"
+                  ? ui("Verify email")
                   : mode === "reset"
-                    ? "Send reset link"
+                    ? ui("Send reset link")
                     : mode === "new-password"
-                      ? "Save new password"
-                      : "Log in"}
+                      ? ui("Save new password")
+                      : ui("Log in")}
             <ArrowRight size={17} />
           </button>
         </form>
@@ -340,35 +359,36 @@ export function AuthDialog({
               }
             }}
           >
-            <Mail size={15} /> Resend verification email
+            <Mail size={15} />
+            {ui("Resend verification email")}
           </button>
         )}
         {mode === "login" && (
           <button className="text-link" onClick={() => onChange("reset")}>
-            Forgot your password?
+            {ui("Forgot your password?")}
           </button>
         )}
         <p className="small muted">
-          We respect your reading privacy.{" "}
+          {ui("We respect your reading privacy.")}{" "}
           <a href="/terms" target="_blank" rel="noopener noreferrer">
-            Terms
+            {ui("Terms")}
           </a>{" "}
           ·{" "}
           <a href="/privacy" target="_blank" rel="noopener noreferrer">
-            Privacy
+            {ui("Privacy")}
           </a>
         </p>
         <p className="small muted">
           {mode === "signup"
-            ? "Already have an account? "
+            ? ui("Already have an account?") + " "
             : mode === "login"
-              ? "New to Cove? "
+              ? ui("New to Cove?") + " "
               : ""}
           <button
             className="text-link"
             onClick={() => onChange(mode === "login" ? "signup" : "login")}
           >
-            {mode === "login" ? "Create account" : "Back to log in"}
+            {mode === "login" ? ui("Create account") : ui("Back to log in")}
           </button>
         </p>
       </DialogContent>
