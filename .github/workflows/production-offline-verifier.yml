@@ -1,0 +1,20 @@
+name: production-offline-verifier
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "19 9 * * *"
+permissions:
+  contents: read
+jobs:
+  verify-production-public-key:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Check production public verifier matches bundled trust anchor
+        env:
+          COVE_PUBLIC_URL: https://cove-puce-theta.vercel.app
+        run: node scripts/check-production-epub-verifier.mjs
