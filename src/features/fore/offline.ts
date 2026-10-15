@@ -1,6 +1,16 @@
 const DB_NAME = "fore-offline-v2";
 const stores = ["downloads", "assets", "outbox"];
 let connection: Promise<IDBDatabase> | null = null;
+/** Persistence only changes eviction policy. A denied or unanswered browser
+ * permission must never prevent committing an offline download.
+ */
+export function requestPersistentStorage() {
+  try {
+    if (typeof navigator !== "undefined") void navigator.storage?.persist?.().catch(() => {});
+  } catch {
+    // Optional API: unavailable in some private contexts and older browsers.
+  }
+}
 function db() {
   if (!connection)
     connection = new Promise((resolve, reject) => {

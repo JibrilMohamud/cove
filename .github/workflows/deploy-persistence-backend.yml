@@ -131,7 +131,8 @@ jobs:
           FORE_AUTH_MODE = "supabase"
           FORE_DEFAULT_TERRITORY = "US"
           FORE_CATALOG_PAGES_PER_TICK = "5"
-          FORE_CATALOG_EPUBS_PER_TICK = "2"
+          FORE_CATALOG_EPUBS_PER_TICK = "0"
+          FORE_ASSETS_PER_MINUTE = "32"
           FORE_AUDIO_COMPUTE_MODE = "paused"
           FORE_AUDIO_MONTHLY_SECONDS = "3600"
           FORE_AUDIO_MIN_INTERVAL_SECONDS = "86400"
@@ -140,7 +141,7 @@ jobs:
           required = ["FORE_INGESTION_SIGNING_KEY"]
 
           [triggers]
-          crons = ["*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]
+          crons = ["* * * * *", "*/5 * * * *", "*/10 * * * *", "23 * * * *", "17 3 * * *", "41 4 * * *"]
           EOF
 
       # Worker secrets are owned by Cloudflare. Wrangler preserves them on deploy.

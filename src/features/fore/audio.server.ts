@@ -1,3 +1,4 @@
+import { storedAudioCoverage } from "./audio-coverage.server";
 import { mirrorUrl } from "./gutenberg-source";
 import { z } from "zod";
 import type { CoveEnv } from "./api.server";
@@ -166,6 +167,7 @@ async function hydrateEdition(env: CoveEnv, e: AudioEdition) {
       e.tracks.findIndex((t) => t.id === a.trackId) - e.tracks.findIndex((t) => t.id === b.trackId),
   );
   if (maps.length) e.alignment = { version: 2, precision: "word", verified: true, cues: [], maps };
+  e.coverage = await storedAudioCoverage(env, e);
   return e;
 }
 async function seedAudio(env: CoveEnv) {

@@ -1,3 +1,4 @@
+import { useUiText } from "./ui-text";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3, Clock, BookOpen, Headphones, Download } from "lucide-react";
@@ -36,7 +37,8 @@ function Breakdown({ rows, empty }: { rows: { name: string; count: number }[]; e
   );
 }
 export function StatsPage() {
-  const { t: tr } = useStorefrontLocale();
+  const ui = useUiText();
+  const { t: tr, locale } = useStorefrontLocale();
   const { data } = useAccount(),
     [days, setDays] = useState("30"),
     [goal, setGoal] = useState(""),
@@ -117,18 +119,18 @@ export function StatsPage() {
         </div>
         {result.error ? (
           <p className="notice">
-            {result.error.message} <button onClick={() => result.refetch()}>Retry</button>
+            {result.error.message} <button onClick={() => result.refetch()}>{ui("Retry")}</button>
           </p>
         ) : !s ? (
-          <p role="status">Gathering your reading history…</p>
+          <p role="status">{ui("Gathering your reading history…")}</p>
         ) : (
           <>
             <div className="stats-cards">
               {[
-                [BookOpen, t.finished, "Books finished"],
-                [Clock, duration(t.readSeconds), "Estimated active reading"],
-                [Headphones, duration(t.listenSeconds), "Measured media playback"],
-                [BarChart3, t.wpm === null ? "—" : t.wpm, "Estimated words / minute"],
+                [BookOpen, t.finished, ui("Books finished")],
+                [Clock, duration(t.readSeconds), ui("Estimated active reading")],
+                [Headphones, duration(t.listenSeconds), ui("Measured media playback")],
+                [BarChart3, t.wpm === null ? "—" : t.wpm, ui("Estimated words / minute")],
               ].map(([Icon, value, label]: any) => (
                 <article key={label}>
                   <Icon size={19} />
@@ -140,11 +142,16 @@ export function StatsPage() {
             <div className="stats-layout">
               <section className="stat-panel">
                 <div className="section-heading">
-                  <h2>Reading rhythm</h2>
-                  <span className="muted small">Daily minutes · {s.range.timeZone}</span>
+                  <h2>{ui("Reading rhythm")}</h2>
+                  <span className="muted small">
+                    {ui("Daily minutes ·")} {s.range.timeZone}
+                  </span>
                 </div>
                 {s.daily.length ? (
-                  <div className="daily-chart" aria-label="Daily reading and listening minutes">
+                  <div
+                    className="daily-chart"
+                    aria-label={ui("Daily reading and listening minutes")}
+                  >
                     {s.daily.map((d: any) => {
                       const max = Math.max(
                         1,
@@ -172,21 +179,24 @@ export function StatsPage() {
                   </div>
                 ) : (
                   <div className="quiet-empty">
-                    Open a book or play a recording to start your history.
+                    {ui("Open a book or play a recording to start your history.")}
                   </div>
                 )}
                 <div className="chart-legend">
-                  <span>● Reading</span>
-                  <span>● Listening</span>
+                  <span>{ui("● Reading")}</span>
+                  <span>{ui("● Listening")}</span>
                 </div>
                 <details className="stats-details">
-                  <summary>View daily values</summary>
+                  <summary>{ui("View daily values")}</summary>
                   <table>
                     <thead>
                       <tr>
-                        <th>Date ({s.range.timeZone})</th>
-                        <th>Reading minutes</th>
-                        <th>Listening minutes</th>
+                        <th>
+                          {ui("Date (")}
+                          {s.range.timeZone})
+                        </th>
+                        <th>{ui("Reading minutes")}</th>
+                        <th>{ui("Listening minutes")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -202,21 +212,27 @@ export function StatsPage() {
                 </details>
               </section>
               <section className="stat-panel goal-panel">
-                <span className="page-eyebrow">{s.goal.year} READING GOAL</span>
+                <span className="page-eyebrow">
+                  {s.goal.year} {ui("READING GOAL")}
+                </span>
                 <h2>
                   {s.goal.finished}
                   <span> / {s.goal.target || "—"}</span>
                 </h2>
                 <p>
                   {s.goal.target
-                    ? `books finished this year · ${Math.round((s.goal.finished / s.goal.target) * 100)}% of your goal`
-                    : "Set a goal that leaves room for enjoyment."}
+                    ? ui("{percent}% of your annual goal", {
+                        percent: new Intl.NumberFormat(locale).format(
+                          Math.round((s.goal.finished / s.goal.target) * 100),
+                        ),
+                      })
+                    : ui("Set a goal that leaves room for enjoyment.")}
                 </p>
                 {s.goal.target && (
                   <progress
                     max={s.goal.target}
                     value={s.goal.finished}
-                    aria-label="Annual reading goal"
+                    aria-label={ui("Annual reading goal")}
                   />
                 )}
                 <form
@@ -225,13 +241,13 @@ export function StatsPage() {
                     try {
                       await api("/goals", "PUT", { year: s.goal.year, books: Number(goal) });
                       await result.refetch();
-                      toast.success("Reading goal saved");
+                      toast.success(ui("Reading goal saved"));
                     } catch (e) {
                       toast.error((e as Error).message);
                     }
                   }}
                 >
-                  <label htmlFor="reading-goal">Books this year</label>
+                  <label htmlFor="reading-goal">{ui("Books this year")}</label>
                   <div className="inline-actions">
                     <input
                       className="fore-input"
@@ -244,17 +260,17 @@ export function StatsPage() {
                       placeholder={String(s.goal.target || 12)}
                       onChange={(e) => setGoal(e.target.value)}
                     />
-                    <button className="button outline">Set goal</button>
+                    <button className="button outline">{ui("Set goal")}</button>
                   </div>
                 </form>
               </section>
             </div>
             <div className="stats-cards compact-stats">
               {[
-                [duration(t.averageSessionSeconds), "Average session"],
-                [t.sessions, "Sessions"],
-                [t.averageBookWords?.toLocaleString() || "—", "Average book words"],
-                [t.averageReadingLevel?.toFixed(1) || "—", "Estimated US grade level"],
+                [duration(t.averageSessionSeconds), ui("Average session")],
+                [t.sessions, ui("Sessions")],
+                [t.averageBookWords?.toLocaleString(locale) || "—", ui("Average book words")],
+                [t.averageReadingLevel?.toFixed(1) || "—", ui("Estimated US grade level")],
               ].map(([value, label]) => (
                 <article key={String(label)}>
                   <strong>{value}</strong>
@@ -263,24 +279,25 @@ export function StatsPage() {
               ))}
             </div>
             <p className="small muted stat-method">
-              Pace estimates use visible text and active reading time; hidden pages and idle time
-              are excluded. Book length covers {t.measuredBooks} completed editions; grade level
-              covers {t.leveledBooks} English editions opened in this reader. Grade level uses an
-              approximate Flesch–Kincaid calculation, not a measure of literary quality.
+              {ui(
+                "Pace estimates use visible text and active reading time; hidden pages and idle time are excluded. Book length covers {measured} completed editions; grade level covers {leveled} English editions opened in this reader. Grade level uses an approximate Flesch\u2013Kincaid calculation, not a measure of literary quality.",
+                { measured: t.measuredBooks, leveled: t.leveledBooks },
+              )}
             </p>
             <Tabs defaultValue="vocabulary">
               <TabsList className="fore-tabs stats-tabs">
-                <TabsTrigger value="vocabulary">Vocabulary</TabsTrigger>
-                <TabsTrigger value="genres">Genres & subjects</TabsTrigger>
-                <TabsTrigger value="sessions">Sessions</TabsTrigger>
-                <TabsTrigger value="books">Finished books</TabsTrigger>
+                <TabsTrigger value="vocabulary">{ui("Vocabulary")}</TabsTrigger>
+                <TabsTrigger value="genres">{ui("Genres & subjects")}</TabsTrigger>
+                <TabsTrigger value="sessions">{ui("Sessions")}</TabsTrigger>
+                <TabsTrigger value="books">{ui("Finished books")}</TabsTrigger>
               </TabsList>
               <TabsContent value="vocabulary">
                 <section className="stat-panel">
-                  <h2>Words you saved</h2>
+                  <h2>{ui("Words you saved")}</h2>
                   <p className="small muted">
-                    Saved dictionary meanings are a record of words you explored; they don’t prove a
-                    word was unfamiliar.
+                    {ui(
+                      "Saved dictionary meanings are a record of words you explored; they don’t prove a word was unfamiliar.",
+                    )}
                   </p>
                   {s.vocabulary.length ? (
                     <div className="vocabulary-stats">
@@ -288,15 +305,15 @@ export function StatsPage() {
                         <div key={w.word}>
                           <strong>{w.word}</strong>
                           <span>
-                            {w.lookups} saved {w.lookups === 1 ? "meaning" : "meanings"} · {w.books}{" "}
-                            {w.books === 1 ? "book" : "books"}
+                            {w.lookups} {ui("saved")} {w.lookups === 1 ? "meaning" : "meanings"} ·{" "}
+                            {w.books} {w.books === 1 ? "book" : "books"}
                           </span>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <p className="quiet-empty">
-                      Select a word while reading and save a definition to begin.
+                      {ui("Select a word while reading and save a definition to begin.")}
                     </p>
                   )}
                 </section>
@@ -304,30 +321,33 @@ export function StatsPage() {
               <TabsContent value="genres">
                 <div className="stats-layout">
                   <section className="stat-panel">
-                    <h2>Genres</h2>
-                    <Breakdown rows={s.genres} empty="Genre data appears as you finish books." />
+                    <h2>{ui("Genres")}</h2>
+                    <Breakdown
+                      rows={s.genres}
+                      empty={ui("Genre data appears as you finish books.")}
+                    />
                   </section>
                   <section className="stat-panel">
-                    <h2>Subjects & subgenres</h2>
+                    <h2>{ui("Subjects & subgenres")}</h2>
                     <p className="small muted">
-                      Based on Gutenberg catalog subjects. A book can appear more than once.
+                      {ui("Based on Gutenberg catalog subjects. A book can appear more than once.")}
                     </p>
-                    <Breakdown rows={s.subgenres} empty="No subject data in this period." />
+                    <Breakdown rows={s.subgenres} empty={ui("No subject data in this period.")} />
                   </section>
                 </div>
               </TabsContent>
               <TabsContent value="sessions">
                 <section className="stat-panel">
-                  <h2>Recent sessions</h2>
+                  <h2>{ui("Recent sessions")}</h2>
                   <div className="table-scroll">
                     <table className="stats-table">
                       <thead>
                         <tr>
-                          <th>Book</th>
-                          <th>Mode</th>
-                          <th>Started (local)</th>
-                          <th>Active time</th>
-                          <th>Words</th>
+                          <th>{ui("Book")}</th>
+                          <th>{ui("Mode")}</th>
+                          <th>{ui("Started (local)")}</th>
+                          <th>{ui("Active time")}</th>
+                          <th>{ui("Words")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -336,35 +356,35 @@ export function StatsPage() {
                             <td>
                               <a href={bookPath(r.bookId)}>{r.title}</a>
                             </td>
-                            <td>{r.mode === "read" ? "Reading" : "Listening"}</td>
-                            <td>{new Date(r.startedAt).toLocaleString()}</td>
+                            <td>{r.mode === "read" ? ui("Reading") : ui("Listening")}</td>
+                            <td>{new Date(r.startedAt).toLocaleString(locale)}</td>
                             <td>{duration(r.seconds)}</td>
-                            <td>{r.mode === "read" ? r.words.toLocaleString() : "—"}</td>
+                            <td>{r.mode === "read" ? r.words.toLocaleString(locale) : "—"}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  {!s.sessions.length && <p className="quiet-empty">No sessions yet.</p>}
+                  {!s.sessions.length && <p className="quiet-empty">{ui("No sessions yet.")}</p>}
                 </section>
               </TabsContent>
               <TabsContent value="books">
                 <section className="stat-panel">
-                  <h2>Books finished in this period</h2>
+                  <h2>{ui("Books finished in this period")}</h2>
                   {s.completed.map((b: any) => (
                     <div className="stat-book" key={b.id}>
                       <a href={productPath(b.book)}>{b.book.title}</a>
                       <span>
-                        {new Date(b.finishedAt).toLocaleDateString()} ·{" "}
+                        {new Date(b.finishedAt).toLocaleDateString(locale)} ·{" "}
                         {b.wordCount
-                          ? b.wordCount.toLocaleString() + " words"
-                          : "Length not measured yet"}
+                          ? b.wordCount.toLocaleString(locale) + " words"
+                          : ui("Length not measured yet")}
                       </span>
                     </div>
                   ))}
                   {!s.completed.length && (
                     <p className="quiet-empty">
-                      Mark a book finished in your library to add it here.
+                      {ui("Mark a book finished in your library to add it here.")}
                     </p>
                   )}
                 </section>

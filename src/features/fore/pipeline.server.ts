@@ -55,6 +55,39 @@ async function queue(env: CoveEnv, key: string, kind: string, payload: any, refr
     )
     .run();
 }
+export async function claimAudioJob(env: CoveEnv, kind?: "discover" | "track" | "align") {
+  const db = env.DB;
+  const at = now(),
+    until = new Date(Date.now() + 10 * 60000).toISOString();
+  await db
+    .prepare(
+      "UPDATE audio_jobs SET status='review',last_error='Repeated worker lease expiry',updated_at=? WHERE status='running' AND lease_until<? AND attempts>=6",
+    )
+    .bind(at, at)
+    .run();
+  const job = await db
+    .prepare(
+      `UPDATE audio_jobs SET status='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=? WHERE id=(SELECT id FROM audio_jobs WHERE (status='queued' AND next_attempt_at<=? OR status='running' AND lease_until<?) AND attempts<6 ${kind ? "AND kind=?" : ""} ORDER BY CASE kind WHEN 'track' THEN 0 WHEN 'discover' THEN 1 ELSE 2 END,
+      CASE WHEN kind IN ('track','align') THEN COALESCE((
+        SELECT COUNT(*) FROM audio_editions e,json_each(e.tracks_json) t
+        WHERE e.id=json_extract(audio_jobs.payload_json,'$.editionId') AND (
+          CASE WHEN audio_jobs.kind='track' THEN json_extract(t.value,'$.sha256') IS NULL
+          ELSE NOT EXISTS(SELECT 1 FROM audio_timing a WHERE a.edition_id=e.id AND a.track_id=json_extract(t.value,'$.id') AND a.audio_sha256=json_extract(t.value,'$.sha256') AND a.epub_sha256=e.epub_sha256) END
+        )),99999999) ELSE 0 END,
+      COALESCE(json_extract(payload_json,'$.editionId'),''),
+      CASE WHEN kind='align' THEN COALESCE(
+        (SELECT CAST(json_extract(t.value,'$.duration') AS REAL)
+         FROM audio_editions e,json_each(e.tracks_json) t
+         WHERE e.id=json_extract(audio_jobs.payload_json,'$.editionId')
+           AND json_extract(t.value,'$.id')=json_extract(audio_jobs.payload_json,'$.trackId')
+         LIMIT 1),99999999) ELSE 0 END,
+      CASE WHEN kind='discover' THEN CASE WHEN json_array_length(json_extract(payload_json,'$.candidates'))=1 THEN 0 WHEN json_array_length(json_extract(payload_json,'$.candidates'))>1 THEN 1 ELSE 2 END ELSE 0 END,updated_at,id LIMIT 1) RETURNING *`,
+    )
+    .bind(crypto.randomUUID(), until, at, at, at, ...(kind ? [kind] : []))
+    .first<any>();
+  return job;
+}
+
 export async function handlePipeline(
   r: Request,
   env: CoveEnv,
@@ -235,27 +268,7 @@ export async function handlePipeline(
     const p = z
       .object({ kind: z.enum(["discover", "track", "align"]).optional() })
       .parse(await readBody(r));
-    const at = now(),
-      until = new Date(Date.now() + 10 * 60000).toISOString();
-    await db
-      .prepare(
-        "UPDATE audio_jobs SET status='review',last_error='Repeated worker lease expiry',updated_at=? WHERE status='running' AND lease_until<? AND attempts>=6",
-      )
-      .bind(at, at)
-      .run();
-    const job = await db
-      .prepare(
-        `UPDATE audio_jobs SET status='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=? WHERE id=(SELECT id FROM audio_jobs WHERE (status='queued' AND next_attempt_at<=? OR status='running' AND lease_until<?) AND attempts<6 ${p.kind ? "AND kind=?" : ""} ORDER BY CASE kind WHEN 'track' THEN 0 WHEN 'discover' THEN 1 ELSE 2 END,
-      CASE WHEN kind='align' THEN COALESCE(
-        (SELECT CAST(json_extract(t.value,'$.duration') AS REAL)
-         FROM audio_editions e,json_each(e.tracks_json) t
-         WHERE e.id=json_extract(audio_jobs.payload_json,'$.editionId')
-           AND json_extract(t.value,'$.id')=json_extract(audio_jobs.payload_json,'$.trackId')
-         LIMIT 1),99999999) ELSE 0 END,
-      CASE WHEN kind='discover' THEN CASE WHEN json_array_length(json_extract(payload_json,'$.candidates'))=1 THEN 0 WHEN json_array_length(json_extract(payload_json,'$.candidates'))>1 THEN 1 ELSE 2 END ELSE 0 END,updated_at,id LIMIT 1) RETURNING *`,
-      )
-      .bind(crypto.randomUUID(), until, at, at, at, ...(p.kind ? [p.kind] : []))
-      .first<any>();
+    const job = await claimAudioJob(env, p.kind);
     return json(
       job ? { ...job, payload: JSON.parse(job.payload_json), payload_json: undefined } : null,
     );

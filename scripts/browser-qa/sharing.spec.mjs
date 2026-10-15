@@ -287,6 +287,16 @@ test("EPUB reader opens and joined members receive group margin discussions", as
     await passageMarker.press("Enter");
     await expect(passageMarker).toHaveAttribute("aria-expanded", "true");
     await expect(bob.locator("#reader-social-panel")).toBeVisible();
+    const socialDialog = bob.getByRole("dialog");
+    await expect(
+      socialDialog.getByRole("heading", { name: "Social Reading", exact: true }),
+    ).toBeFocused();
+    await bob.keyboard.press("Escape");
+    await expect(socialDialog).toHaveCount(0);
+    await expect(passageMarker).toBeFocused();
+    await passageMarker.press("Enter");
+    await expect(bob.locator("#reader-social-panel")).toBeVisible();
+
     await expect(
       bob.locator(".reader-social-panel").getByText(discussion, { exact: true }),
     ).toBeVisible();
@@ -295,6 +305,11 @@ test("EPUB reader opens and joined members receive group margin discussions", as
     const chapterFrame = bob.frameLocator(".reader-stage .epub-container iframe");
     await expect(bob.locator(".reader-stage .epub-container iframe")).toBeVisible();
     await expect(chapterFrame.locator("#passage")).toContainText("Browser QA passage for sharing.");
+    await expect(bob.locator(".reader-stage .epub-container iframe")).toHaveAttribute(
+      "title",
+      /^Book text: /,
+    );
+    await expect(chapterFrame.locator("html")).toHaveAttribute("lang", /.+/);
     const markerBox = await bob.locator(".reader-social-gutter button").first().boundingBox();
     const passageBox = await chapterFrame.locator("#passage").boundingBox();
     expect(Math.abs(markerBox.y - passageBox.y), "Marker is beside its passage").toBeLessThan(40);
@@ -403,6 +418,40 @@ test("native browser storage persists nonextractable offline encryption keys", a
       };
     });
     expect(result).toEqual({ extractable: false, plaintext: "Cove offline QA", deleted: true });
+    // A browser may wait indefinitely for its optional persistence permission.
+    // The actual EPUB bytes and aliases must still commit to native IndexedDB.
+    await page.evaluate(() => {
+      Object.defineProperty(navigator.storage, "persist", {
+        configurable: true,
+        value: () => new Promise(() => {}),
+      });
+    });
+    const saved = await page.evaluate(async () => {
+      const epub = await import("/src/features/fore/epub.ts");
+      const { sha256 } = await import("/src/features/fore/offline.ts");
+      const book = await epub.loadBookMetadata("1342");
+      await epub.saveEpubOffline(book);
+      const bytes = await epub.epubBytes(String(book.id));
+      window.__qaOfflineEpub = { epub, sha256, id: String(book.id) };
+      return { id: String(book.id), sha256: await sha256(bytes) };
+    });
+    await page.context().setOffline(true);
+    try {
+      const reopened = await page.evaluate(async () => {
+        const { epub, sha256, id } = window.__qaOfflineEpub;
+        const metadata = await epub.loadBookMetadata("1342");
+        const canonical = await epub.epubBytes(id);
+        const sourceAlias = await epub.epubBytes("1342");
+        return {
+          id: String(metadata.id),
+          sha256: await sha256(canonical),
+          aliasSha256: await sha256(sourceAlias),
+        };
+      });
+      expect(reopened).toEqual({ id: saved.id, sha256: saved.sha256, aliasSha256: saved.sha256 });
+    } finally {
+      await page.context().setOffline(false);
+    }
   } finally {
     await fixture.close();
   }

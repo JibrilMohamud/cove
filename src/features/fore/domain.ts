@@ -89,6 +89,7 @@ export type AudioEdition = {
   tracks: AudioTrack[];
   alignment: Alignment | null;
   epubSha256: string | null;
+  coverage?: ReturnType<typeof import("./audio-coverage").audioCoverage>;
   commercial?: boolean;
   productId?: string;
   publishingEditionId?: string;

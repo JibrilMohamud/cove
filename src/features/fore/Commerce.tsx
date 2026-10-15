@@ -1,3 +1,4 @@
+import { formatMinorCurrency } from "./currency";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -80,13 +81,7 @@ type PaymentSetup = {
   stripeDueMinor: number;
   currency: string;
 };
-const money = (n: number, currency: string) => {
-  try {
-    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n / 100);
-  } catch {
-    return `${currency} ${(n / 100).toFixed(2)}`;
-  }
-};
+const money = (n: number, currency: string) => formatMinorCurrency(n, currency || "USD");
 
 export function CartPage() {
   const { data, signIn } = useAccount(),

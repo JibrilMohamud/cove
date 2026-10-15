@@ -1,4 +1,5 @@
 import { canUseOfflineFallback } from "./offline-account";
+import { requestPersistentStorage } from "./offline";
 import {
   isPublicEpubBook,
   publicEpubBytes,
@@ -330,13 +331,13 @@ export async function saveEpubOffline(book: CatalogBook) {
   const id = String(book.id);
   if (!isPublicEpubBook(book)) {
     await saveLicensedEpub(book);
-    await navigator.storage?.persist?.();
+    requestPersistentStorage();
     return;
   }
   const bytes = await epubBytes(id, false);
   await inspectEpub(bytes);
-  await navigator.storage?.persist?.();
   await savePublicEpub(book, bytes);
+  requestPersistentStorage();
 }
 export async function loadBookMetadata(id: string): Promise<CatalogBook> {
   try {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { formatMinorCurrency } from "./currency";
 import { ApiError } from "./service";
 import type { CoveEnv } from "./api.server";
 import { canonicalBooksByProductIds, type CatalogDB } from "./catalog-model.server";
@@ -48,7 +49,7 @@ function expectedLivemode(env: CoveEnv) {
     : String(env.STRIPE_LIVEMODE).toLowerCase() !== "false";
 }
 function secretMatchesMode(key: string, live: boolean) {
-  return live ? key.startsWith("sk_live_") : key.startsWith("sk_test_");
+  return live ? /^(sk|rk)_live_/.test(key) : /^(sk|rk)_test_/.test(key);
 }
 function stripeSecret(env: CoveEnv) {
   const key = String(env.STRIPE_SECRET_KEY || "").trim(),
@@ -58,8 +59,8 @@ function stripeSecret(env: CoveEnv) {
       503,
       "Stripe checkout is configured with a placeholder secret key. Set STRIPE_SECRET_KEY on the server before accepting payments.",
     );
-  if (!key.startsWith("sk_"))
-    throw new ApiError(503, "STRIPE_SECRET_KEY is not a Stripe secret key.");
+  if (!/^(sk|rk)_/.test(key))
+    throw new ApiError(503, "STRIPE_SECRET_KEY is not a Stripe secret or restricted API key.");
   if (!secretMatchesMode(key, live))
     throw new ApiError(
       503,
@@ -1569,7 +1570,7 @@ export async function finalizePaidOrder(
       eventType: "purchase_receipt",
       dedupeKey: `purchase-receipt:${orderId}`,
       title: `Receipt ${order.invoice_number}`,
-      body: `Your Cove order is complete. Total ${String(order.currency || "USD")} ${(Number(order.total_minor || 0) / 100).toFixed(2)}.`,
+      body: `Your Cove order is complete. Total ${formatMinorCurrency(Number(order.total_minor || 0), String(order.currency || "USD"))}.`,
       subjectType: "order",
       subjectId: orderId,
       actionUrl: `/orders/${encodeURIComponent(orderId)}`,
@@ -1746,15 +1747,7 @@ function htmlEscape(v: any) {
 }
 export async function invoiceHtml(db: CatalogDB, userId: string, orderId: string) {
   const x: any = await invoiceRecord(db, userId, orderId),
-    money = (n: number) => {
-      try {
-        return new Intl.NumberFormat("en-US", { style: "currency", currency: x.currency }).format(
-          Number(n || 0) / 100,
-        );
-      } catch {
-        return `${x.currency} ${(Number(n || 0) / 100).toFixed(2)}`;
-      }
-    },
+    money = (n: number) => formatMinorCurrency(Number(n || 0), x.currency),
     a = x.billingAddress || {},
     items = (x.items || [])
       .map(
@@ -2208,36 +2201,47 @@ export async function stripeWebhook(env: CoveEnv, request: Request) {
       400,
       `Stripe webhook mode mismatch: expected ${expectedLive ? "live" : "test"} events.`,
     );
-  if (
-    await db
-      .prepare("SELECT 1 ok FROM commerce_webhook_events WHERE provider_event_id=?")
-      .bind(id)
-      .first<any>()
-  )
-    return { received: true, duplicate: true };
   const hash = await sha256(raw),
-    at = now();
-  await db
+    at = now(),
+    token = crypto.randomUUID();
+  const leaseUntil = new Date(Date.now() + 5 * 60_000).toISOString();
+  const claimed = await db
     .prepare(
-      "INSERT INTO commerce_webhook_events(provider_event_id,event_type,livemode,payload_sha256,status,received_at) VALUES(?,?,?,?, 'received',?)",
+      `INSERT INTO commerce_webhook_events(provider_event_id,event_type,livemode,payload_sha256,status,received_at,processing_token,processing_lease_until)
+     VALUES(?,?,?,?,'received',?,?,?) ON CONFLICT(provider_event_id) DO UPDATE SET
+       status='received',error='',processing_token=excluded.processing_token,processing_lease_until=excluded.processing_lease_until
+     WHERE commerce_webhook_events.payload_sha256=excluded.payload_sha256 AND commerce_webhook_events.status<>'processed'
+       AND (commerce_webhook_events.status='failed' OR commerce_webhook_events.processing_lease_until<=?) RETURNING provider_event_id`,
     )
-    .bind(id, event.type, event.livemode ? 1 : 0, hash, at)
-    .run();
+    .bind(id, event.type, event.livemode ? 1 : 0, hash, at, token, leaseUntil, at)
+    .first<{ provider_event_id: string }>();
+  if (!claimed) {
+    const existing = await db
+      .prepare(
+        "SELECT status,payload_sha256 FROM commerce_webhook_events WHERE provider_event_id=?",
+      )
+      .bind(id)
+      .first<{ status: string; payload_sha256: string }>();
+    if (existing?.payload_sha256 !== hash)
+      throw new ApiError(400, "Stripe event ID was reused with a different payload.");
+    if (existing.status === "processed") return { received: true, duplicate: true };
+    throw new ApiError(409, "Stripe event is still being processed. Retry delivery.");
+  }
   try {
     await processStripeEvent(env, event);
     await db
       .prepare(
-        "UPDATE commerce_webhook_events SET status='processed',processed_at=? WHERE provider_event_id=?",
+        "UPDATE commerce_webhook_events SET status='processed',processed_at=?,processing_lease_until='' WHERE provider_event_id=? AND processing_token=?",
       )
-      .bind(now(), id)
+      .bind(now(), id, token)
       .run();
     return { received: true };
   } catch (e) {
     await db
       .prepare(
-        "UPDATE commerce_webhook_events SET status='failed',error=?,processed_at=? WHERE provider_event_id=?",
+        "UPDATE commerce_webhook_events SET status='failed',error=?,processed_at=?,processing_lease_until='' WHERE provider_event_id=? AND processing_token=?",
       )
-      .bind(String((e as Error).message || e).slice(0, 1000), now(), id)
+      .bind(String((e as Error).message || e).slice(0, 1000), now(), id, token)
       .run();
     throw e;
   }
@@ -2259,6 +2263,17 @@ async function processStripeEvent(env: CoveEnv, event: any) {
   if (type === "payment_intent.succeeded") {
     const o = await orderFromPI(db, obj);
     if (o) {
+      if (
+        obj.id !== o.stripe_payment_intent_id ||
+        !Number.isSafeInteger(obj.amount_received) ||
+        obj.amount_received !== Number(o.stripe_due_minor) ||
+        String(obj.currency || "").toUpperCase() !== String(o.currency).toUpperCase()
+      )
+        throw new ApiError(
+          409,
+          "Stripe payment does not match the order's payment, amount and currency.",
+        );
+
       let charge: any = null;
       if (obj.latest_charge) {
         try {
@@ -2380,7 +2395,7 @@ async function processStripeEvent(env: CoveEnv, event: any) {
           eventType: "subscription_billing",
           dedupeKey: `subscription-billing:${obj.id}`,
           title: "Subscription payment received",
-          body: `Your Cove subscription payment of ${String(obj.currency || "usd").toUpperCase()} ${(Number(obj.amount_paid || 0) / 100).toFixed(2)} was received.`,
+          body: `Your Cove subscription payment of ${formatMinorCurrency(Number(obj.amount_paid || 0), String(obj.currency || "USD"))} was received.`,
           subjectType: "stripe_invoice",
           subjectId: String(obj.id),
           actionUrl: "/account",

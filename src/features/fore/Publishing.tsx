@@ -1,3 +1,4 @@
+import { formatMinorCurrency } from "./currency";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -458,14 +459,7 @@ function PayoutCard({ state, reload }: { state: any; reload: () => Promise<void>
 }
 
 function money(minor: number, currency: string) {
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: currency || "USD",
-    }).format(Number(minor || 0) / 100);
-  } catch {
-    return `${currency || "USD"} ${(Number(minor || 0) / 100).toFixed(2)}`;
-  }
+  return formatMinorCurrency(Number(minor || 0), currency || "USD");
 }
 
 function PublisherTrustAndAppeals({ state, reload }: { state: any; reload: () => Promise<void> }) {
@@ -2274,8 +2268,8 @@ function EditionRow({
           {edition.format.toUpperCase()} {edition.edition_label || "edition"}
         </strong>
         <span>
-          {edition.list_currency} {(Number(edition.list_price_minor || 0) / 100).toFixed(2)} ·
-          rights {safeTerritory(edition.territory_scope_json)}
+          {money(Number(edition.list_price_minor || 0), edition.list_currency)} · rights{" "}
+          {safeTerritory(edition.territory_scope_json)}
         </span>
         <Status value={edition.status} />
         {lifecycle && <Status value={lifecycle.state} />}

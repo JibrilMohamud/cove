@@ -1,3 +1,4 @@
+import { translateUi } from "./ui-catalog";
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 import { formatMinorCurrency } from "./currency";
 import { useQuery } from "@tanstack/react-query";
@@ -123,7 +124,7 @@ export function StorefrontLocaleControl() {
     >
       <span>{s.t("store.country", "Storefront")}</span>
       <select
-        aria-label="Storefront language"
+        aria-label={translateUi(s.locale, "Storefront language")}
         value={s.locale}
         onChange={(e) => void s.setPreferences({ locale: e.target.value })}
       >

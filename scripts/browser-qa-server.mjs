@@ -220,6 +220,8 @@ const server = await createServer({
     noDiscovery: true,
     include: [
       "@noble/hashes/sha2.js",
+      "@supabase/supabase-js",
+      "@supabase/ssr",
       "@radix-ui/react-alert-dialog",
       "@radix-ui/react-dialog",
       "@radix-ui/react-progress",

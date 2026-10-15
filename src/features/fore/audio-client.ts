@@ -1,7 +1,7 @@
 import { matchingEpub, loadTiming, timingKey } from "./biosync-client";
 import { api, type CatalogBook } from "./client";
 import type { AudioEdition, AudioTrack } from "./domain";
-import { getRecord, putRecord, removeDownload, sha256 } from "./offline";
+import { getRecord, putRecord, removeDownload, sha256, requestPersistentStorage } from "./offline";
 import { offlineAccountId, canUseOfflineFallback, putOwnedRecord } from "./offline-account";
 import { verifyOfflineAudioLicense, type OfflineAudioLicense } from "./offline-audio-license";
 import {
@@ -109,7 +109,7 @@ export async function saveCommercialAudioOffline(
   const existing = await storedLicensedAudio(edition.id, userId);
   if (existing) await removeDownload(existing.id);
   await putOwnedRecord("assets", { id: keyId, ownerId: userId, key: encryptionKey });
-  await navigator.storage?.persist?.();
+  requestPersistentStorage();
   let bytes = 0;
   const assetIds: string[] = [
     keyId,
@@ -194,7 +194,7 @@ export async function saveAudioOffline(
   progress: (text: string) => void,
 ): Promise<void> {
   if (edition.commercial) return saveCommercialAudioOffline(edition, signal, progress);
-  await navigator.storage?.persist?.();
+  requestPersistentStorage();
   let bytes = 0;
   const assetIds: string[] = [];
   if (edition.alignment?.version === 2) {

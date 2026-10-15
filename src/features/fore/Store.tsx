@@ -1,3 +1,4 @@
+import { formatMinorCurrency } from "./currency";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStorefrontLocale } from "./localization";
 import { useQuery } from "@tanstack/react-query";
@@ -85,14 +86,7 @@ function priceLabel(book: CatalogBook) {
   const offer = book.offer;
   if (!offer) return "Unavailable";
   if (Number(offer.amountMinor || 0) === 0) return "Free";
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: offer.currency || "USD",
-    }).format(Number(offer.amountMinor || 0) / 100);
-  } catch {
-    return `${offer.currency || "USD"} ${(Number(offer.amountMinor || 0) / 100).toFixed(2)}`;
-  }
+  return formatMinorCurrency(Number(offer.amountMinor || 0), offer.currency || "USD");
 }
 
 export function BookCard({ book, onOpen }: { book: CatalogBook; onOpen?: () => void }) {
