@@ -450,6 +450,8 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
         "SELECT id FROM soundtrack_recordings WHERE source_sha1=? AND id!=? AND status IN ('approved','importing','ready') LIMIT 1",
       ).bind(original.source_sha1,original.id).first();
       if (duplicate) throw new ApiError(409,"This exact recording is already approved under another source identity.");
+      const displayTitle = clearText(input.title ?? original.title,250);
+      if (displayTitle.length<3) throw new ApiError(422,"A descriptive recording title is required.");
       const reviewer = clearText(input.reviewer,120);
       const rationale = clearText(input.reviewEvidence,2500);
       const performer = clearText(input.performer,400);
@@ -480,10 +482,10 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
       const key = "soundtracks/evidence/"+original.id+"/"+snapshotSha256+".json";
       await env.BUCKET.put(key,new TextEncoder().encode(snapshot),{sha256:snapshotSha256,httpMetadata:{contentType:"application/json"}});
       return commit(env.DB.prepare(
-        "UPDATE soundtrack_recordings SET status='approved',reviewed_at=?,reviewed_by=?,review_evidence=?,performer=?,composer=?,period=?,instruments_json=?,moods_json=?,energy=?,has_vocals=?,tag_source='reviewed',attribution_text=?,allowed_territories_json=?,source_snapshot_key=?,review_version=?,updated_at=? WHERE id=? AND review_version=?",
-      ).bind(at,principalId+":"+reviewer,rationale,performer,composer,String(input.period),JSON.stringify(inst),JSON.stringify(moods),
+        "UPDATE soundtrack_recordings SET status='approved',reviewed_at=?,reviewed_by=?,review_evidence=?,title=?,performer=?,composer=?,period=?,instruments_json=?,moods_json=?,energy=?,has_vocals=?,tag_source='reviewed',attribution_text=?,allowed_territories_json=?,source_snapshot_key=?,review_version=?,updated_at=? WHERE id=? AND review_version=?",
+      ).bind(at,principalId+":"+reviewer,rationale,displayTitle,performer,composer,String(input.period),JSON.stringify(inst),JSON.stringify(moods),
         energy,vocals?1:0,dossier.attributionText,JSON.stringify([...new Set(territories as string[])]),key,version,at,original.id,original.review_version),
-        {reviewerTicket:reviewer,reviewEvidence:rationale,dossier,composer,performer,territories,
+        {reviewerTicket:reviewer,reviewEvidence:rationale,dossier,title:displayTitle,composer,performer,territories,
           sourceSha1:original.source_sha1,license:original.license_statement,licenseUrl:original.license_url,
           sourcePage:original.source_page_url,revisionId,snapshotSha256,snapshotKey:key},true);
     }

@@ -105,6 +105,13 @@ try {
   await env.DB.prepare("INSERT INTO service_principals(id,name,owner_team,created_at,updated_at) VALUES('test-review','Fixture reviewer','Test',?,?)").bind(at,at).run();
   await env.DB.prepare("INSERT INTO service_principal_scopes(principal_id,scope,granted_at) VALUES('test-review','soundtracks.review',?)").bind(at).run();
   await env.DB.prepare("INSERT INTO service_principal_credentials(id,principal_id,token_prefix,token_sha256,created_at) VALUES('test-cred','test-review','fore_svc_testreview',?,?)").bind(createHash("sha256").update(token).digest("hex"),at).run();
+  const staffIdentity = {id:"fixture_staff",email:"staff@example.invalid",name:"Fixture reviewer",registered:true,aal:"aal2",authProvider:"supabase",authSubject:"fixture_staff"};
+  await env.DB.prepare("INSERT INTO staff_principals(user_id,email,display_name,status,mfa_required,created_at,updated_at) VALUES('fixture_staff','staff@example.invalid','Fixture reviewer','active',1,?,?)").bind(at,at).run();
+  await env.DB.prepare("INSERT INTO staff_principal_roles(user_id,role_id,granted_at) VALUES('fixture_staff','role_soundtrack_reviewer',?)").bind(at).run();
+  const staffRequest = new Request("https://cove.test/api/fore/admin/soundtracks");
+  await assert.rejects(()=>lib.handleSoundtracks(staffRequest,env,"/admin/soundtracks","US",{...staffIdentity,aal:"aal1"}),/MFA/i);
+  assert.equal((await lib.handleSoundtracks(staffRequest,env,"/admin/soundtracks","US",staffIdentity)).status,200,"Dedicated reviewer role works with a verified MFA session");
+  await assert.rejects(()=>lib.handleSoundtracks(staffRequest,env,"/admin/soundtracks","US",{...staffIdentity,id:"unassigned"}),/not provisioned/i);
   const adminPath = "/admin/soundtracks/recordings/cm_101";
   const review = async (action, extra = {}, version) => {
     const row = await env.DB.prepare("SELECT review_version FROM soundtrack_recordings WHERE id='cm_101'").first();
@@ -118,7 +125,7 @@ try {
     grantingParty:"Example pianist",recordingDate:"2020-01-01",territoryBasis:basis.basis,streamingBasis:basis.basis,
     attributionText:"Example pianist — Nocturne (fixture only)",modificationNotice:"Original source file; no modifications.",
     reviewMethod:"ai_assisted",complexProvenance:false,unresolved:[]};
-  const approval = {reviewer:"TEST-101",reviewEvidence:basis.basis,performer:"Example pianist",composer:"Example composer",
+  const approval = {title:"Reviewed Nocturne",reviewer:"TEST-101",reviewEvidence:basis.basis,performer:"Example pianist",composer:"Example composer",
     territories:["US"],compositionRightsConfirmed:true,performanceRightsConfirmed:true,attributionReviewed:true,
     period:"romantic",instruments:["piano"],moods:["reflective"],energy:0.25,hasVocals:false};
   await assert.rejects(()=>review("approve",approval),/dossier/i,"Missing layer evidence blocks approval");
@@ -142,6 +149,7 @@ try {
   assert.equal(approved.status,200);
   const snapshotRow = await env.DB.prepare("SELECT * FROM soundtrack_recordings WHERE id='cm_101'").first();
   assert.ok(snapshotRow.source_snapshot_key);
+  assert.equal(snapshotRow.title,"Reviewed Nocturne","Reviewed public title is separate from the immutable source filename");
   assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_rights_decisions WHERE action='approve'").first()).n,1);
   await assert.rejects(()=>env.DB.prepare("UPDATE soundtrack_rights_decisions SET principal_id='forged'").run(),/append-only/);
   await assert.rejects(()=>env.DB.prepare("DELETE FROM soundtrack_review_events").run(),/append-only/);

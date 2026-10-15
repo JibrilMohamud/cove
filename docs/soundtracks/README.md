@@ -42,7 +42,10 @@ The capture tool only retrieves source metadata and revisions. The audio tool
 only measures a local file; neither grants approval nor uploads music.
 
 Use `/staff/soundtracks` with a verified staff account and `soundtracks.review`
-permission. Service integrations need that exact scope; `audio.ingest` no longer
+permission. The migration creates the purpose-limited `soundtrack_reviewer` role
+but grants it to no account. A named reviewer must be provisioned using their
+verified Cove account and the existing MFA-enforced staff administration flow.
+Service integrations need that exact scope; `audio.ingest` no longer
 grants rights-review access. Do not put service tokens into browser code.
 
 1. Open the original file and exact revision, inspect all rights layers, and

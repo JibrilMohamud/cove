@@ -67,6 +67,7 @@ function ReviewEditor({
     ...blankDossier(),
     ...JSON.parse(row.dossier_json),
   }));
+  const [title, setTitle] = useState(row.title);
   const [composer, setComposer] = useState(row.composer),
     [performer, setPerformer] = useState(row.performer);
   const [period, setPeriod] = useState(row.period),
@@ -239,6 +240,10 @@ function ReviewEditor({
       <fieldset disabled={busy}>
         <legend>Decision</legend>
         <label>
+          Recording title
+          <input value={title} onChange={(e) => setTitle(e.target.value)} />
+        </label>
+        <label>
           Composer
           <input value={composer} onChange={(e) => setComposer(e.target.value)} />
         </label>
@@ -308,6 +313,7 @@ function ReviewEditor({
             void submit("approve", {
               reviewer: ticket,
               reviewEvidence: reason,
+              title,
               composer,
               performer,
               period,

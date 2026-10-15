@@ -38,3 +38,10 @@ CREATE TABLE soundtrack_cleanup_queue (
 
 CREATE UNIQUE INDEX soundtrack_unique_active_file ON soundtrack_recordings(source_sha1)
   WHERE status IN ('approved','importing','ready');
+
+-- A purpose-limited role is available for a named, authenticated reviewer.
+-- No user is silently elevated by this migration; staff provisioning retains MFA checks.
+INSERT INTO staff_roles(id,name,description) VALUES(
+  'role_soundtrack_reviewer','soundtrack_reviewer','Review soundtrack rights dossiers and exact-file audio QA without general publishing or account administration'
+);
+INSERT INTO staff_role_permissions(role_id,permission) VALUES('role_soundtrack_reviewer','soundtracks.review');

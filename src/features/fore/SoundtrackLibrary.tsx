@@ -84,6 +84,7 @@ export function SoundtrackLibraryPage() {
               <p>{r.attribution}</p>
               <p>{r.modifications}</p>
               <p><a href={r.audioUrl} download>Download original recording</a></p>
+              <p><a href="/copyright">Report a recording rights concern</a></p>
               <p>The original recording remains available under its stated license. Cove adds no restrictions to that license.</p>
               <p>License: <a href={r.licenseUrl} target="_blank" rel="noopener noreferrer">{r.license}</a></p>
               <p><a href={r.sourcePage} target="_blank" rel="noopener noreferrer">View original Wikimedia Commons file and evidence</a></p>
