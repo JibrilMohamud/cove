@@ -260,12 +260,14 @@ function publicRecord(r: SoundtrackRow) {
 export async function handleSoundtracks(request: Request,env:CoveEnv,path:string,territory:string): Promise<Response | null> {
   if (!path.startsWith("/soundtracks") && !path.startsWith("/admin/soundtracks")) return null;
   const admin = path.startsWith("/admin/");
-  if (admin) await requireServiceScope(env.DB,request,"audio.ingest");
+  const reviewerPrincipal = admin
+    ? await requireServiceScope(env.DB,request,"audio.ingest")
+    : null;
   const url = new URL(request.url);
   const idMatch = /^\/(?:admin\/)?soundtracks\/recordings\/(cm_[0-9]{1,15})(?:\/audio)?$/.exec(path);
   if (!admin && path === "/soundtracks/recordings" && request.method === "GET") {
     const rows = (await env.DB.prepare(
-      "SELECT * FROM soundtrack_recordings WHERE status='ready' ORDER BY title,id LIMIT 200",
+      "SELECT * FROM soundtrack_recordings WHERE status='ready' ORDER BY title,id LIMIT 300",
     ).all<SoundtrackRow>()).results.filter(r=>territoryAllowed(r,territory));
     return json({ recordings: rows.map(publicRecord),count:rows.length });
   }
@@ -317,7 +319,7 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
       const now = new Date().toISOString();
       await env.DB.prepare(
         "UPDATE soundtrack_recordings SET status='approved',reviewed_at=?,reviewed_by=?,review_evidence=?,performer=?,composer=?,period=?,instruments_json=?,moods_json=?,energy=?,has_vocals=?,tag_source='reviewed',attribution_text=?,allowed_territories_json=?,updated_at=? WHERE id=? AND status IN ('pending_review','import_failed','rejected')",
-      ).bind(now,reviewer,rationale,performer,composer,clearText(input.period??original.period,60),
+      ).bind(now,(reviewerPrincipal?.principalId || "unknown") + ":" + reviewer,rationale,performer,composer,clearText(input.period??original.period,60),
         JSON.stringify(inst),JSON.stringify(moods),energy,vocals?1:0,
         original.title+" — "+performer+" · "+original.license_statement,
         JSON.stringify(territories),now,original.id).run();
