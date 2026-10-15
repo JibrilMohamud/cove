@@ -52,6 +52,7 @@
     "test:currency-minor-units": "node scripts/check-currency-minor-units.mjs",
     "test:large-library": "node scripts/check-large-library-pagination.mjs",
     "test:licensed-epub": "node scripts/check-licensed-epub-receipts.mjs && node scripts/check-licensed-epub-client.mjs",
+    "test:production-offline-verifier": "node scripts/check-production-epub-verifier.mjs",
     "test:sharing-erasure": "node scripts/check-sharing-erasure.mjs",
     "lint:strict": "eslint .",
     "test:browser": "playwright test",
