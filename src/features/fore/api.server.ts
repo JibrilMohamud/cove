@@ -2945,14 +2945,17 @@ async function handleCoveRequest(
     }
     const dbForContext = machineDb;
     const currentIdentity = identity(request);
+    const contextStarted = performance.now();
     const storefront = await resolveStorefrontContext(
       dbForContext,
       request,
       currentIdentity?.id || null,
       env.FORE_DEFAULT_TERRITORY || "US",
     );
+    const contextMs = performance.now() - contextStarted;
     const storefrontTerritory = storefront.rightsCountry;
     if (request.method === "GET" && path === "/storefront/bootstrap") {
+      const bootstrapStarted = performance.now();
       // One context/rights resolution and parallel reads replace four independent
       // cold-load requests. Only public catalog data goes into the SSR document.
       await rateLimitSearchRequest(request, env, currentIdentity?.id || null, "catalog", 180);
@@ -2962,24 +2965,41 @@ async function handleCoveRequest(
         page: "1",
         currency: storefront.currency,
       }).toString();
+      // Timing-only diagnostics reveal which public D1 operation makes an
+      // uncached initial page slow; never include reader or catalog data.
+      const phases: Record<string, number> = {};
+      async function timed<T>(name: string, promise: Promise<T>): Promise<T> {
+        const started = performance.now();
+        try {
+          return await promise;
+        } finally {
+          phases[name] = performance.now() - started;
+        }
+      }
       const [page, taxonomy, firstPage, availableMarkets] = await Promise.all([
-        resolveStorefrontPage(
-          dbForContext,
-          "/",
-          storefrontTerritory,
-          storefront.language,
-          storefront.locale,
+        timed(
+          "page",
+          resolveStorefrontPage(
+            dbForContext,
+            "/",
+            storefrontTerritory,
+            storefront.language,
+            storefront.locale,
+          ),
         ),
-        taxonomyTree(dbForContext, storefrontTerritory, "", storefront.locale),
-        catalog(
-          env,
-          new URL(`/api/fore/catalog?${catalogQuery}`, url.origin),
-          null,
-          storefrontTerritory,
+        timed("taxonomy", taxonomyTree(dbForContext, storefrontTerritory, "", storefront.locale)),
+        timed(
+          "catalog",
+          catalog(
+            env,
+            new URL(`/api/fore/catalog?${catalogQuery}`, url.origin),
+            null,
+            storefrontTerritory,
+          ),
         ),
-        storefrontMarkets(dbForContext),
+        timed("markets", storefrontMarkets(dbForContext)),
       ]);
-      return json({
+      const response = json({
         context: { ...storefront, availableMarkets },
         page,
         taxonomy,
@@ -2987,6 +3007,15 @@ async function handleCoveRequest(
         catalogQuery,
         at: Date.now(),
       });
+      response.headers.set(
+        "Server-Timing",
+        [
+          `cove_context;dur=${contextMs.toFixed(1)}`,
+          ...Object.entries(phases).map(([name, ms]) => `cove_${name};dur=${ms.toFixed(1)}`),
+          `cove_bootstrap;dur=${(performance.now() - bootstrapStarted).toFixed(1)}`,
+        ].join(", "),
+      );
+      return response;
     }
     if (request.method === "GET" && path === "/storefront/context") {
       await recordStorefrontContext(dbForContext, storefront, currentIdentity?.id || null);
