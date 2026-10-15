@@ -8,8 +8,7 @@ const files = fs.readdirSync(root).filter((name) => name.endsWith(".tsx"));
 const keys = new Set();
 for (const file of files) {
   const source = fs.readFileSync(path.join(root, file), "utf8");
-  for (const match of source.matchAll(/\b(?:tr|t)\(\s*["']([^"']+)["']\s*,/g))
-    keys.add(match[1]);
+  for (const match of source.matchAll(/\b(?:tr|t)\(\s*["']([^"']+)["']\s*,/g)) keys.add(match[1]);
 }
 const py = String.raw`
 import sqlite3,glob,json,sys
