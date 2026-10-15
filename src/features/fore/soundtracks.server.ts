@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Module will be normalized when the soundtrack review UI stabilizes. */
 import type { CoveEnv } from "./api.server";
 import { ApiError, json, readBody } from "./service";
 import { requireServiceScope } from "./privileged-access.server";
@@ -116,7 +117,7 @@ function validCandidate(page: CommonsPage) {
     size, sha1, license, performer, attribution };
 }
 export async function discoverSoundtrackCandidates(env: CoveEnv) {
-  const state = await env.DB.prepare("SELECT * FROM soundtrack_ingestion_state WHERE id=1").first<any>();
+  const state = await env.DB.prepare("SELECT * FROM soundtrack_ingestion_state WHERE id=1").first<{ category_index:number; continuation:string; discovered:number; last_discovery_at:string }>();
   if (!state || state.discovered >= MAX_DISCOVERED || state.category_index >= CATEGORIES.length)
     return { skipped: "complete", discovered: Number(state?.discovered || 0) };
   const now = new Date().toISOString();
@@ -125,7 +126,7 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
   const token = crypto.randomUUID();
   const lease = await env.DB.prepare(
     "UPDATE soundtrack_ingestion_state SET lease_token=?,lease_until=? WHERE id=1 AND lease_until<? RETURNING id",
-  ).bind(token, new Date(Date.now()+90_000).toISOString(), now).first<any>();
+  ).bind(token, new Date(Date.now()+90_000).toISOString(), now).first<{ id:number }>();
   if (!lease) return { skipped: "leased" };
   try {
     const category = CATEGORIES[Number(state.category_index)];
@@ -195,7 +196,7 @@ export async function importOneReviewedSoundtrack(env: CoveEnv) {
   const token = crypto.randomUUID();
   const lease = await env.DB.prepare(
     "UPDATE soundtrack_ingestion_state SET lease_token=?,lease_until=? WHERE id=1 AND lease_until<? RETURNING id",
-  ).bind(token,new Date(Date.now()+120_000).toISOString(),now).first<any>();
+  ).bind(token,new Date(Date.now()+120_000).toISOString(),now).first<{ id:number }>();
   if (!lease) return { skipped: "leased" };
   try {
     const track = await env.DB.prepare(
@@ -259,7 +260,7 @@ function publicRecord(r: SoundtrackRow) {
 export async function handleSoundtracks(request: Request,env:CoveEnv,path:string,territory:string): Promise<Response | null> {
   if (!path.startsWith("/soundtracks") && !path.startsWith("/admin/soundtracks")) return null;
   const admin = path.startsWith("/admin/");
-  if (admin) await requireServiceScope(env.DB as any,request,"audio.ingest");
+  if (admin) await requireServiceScope(env.DB,request,"audio.ingest");
   const url = new URL(request.url);
   const idMatch = /^\/(?:admin\/)?soundtracks\/recordings\/(cm_[0-9]{1,15})(?:\/audio)?$/.exec(path);
   if (!admin && path === "/soundtracks/recordings" && request.method === "GET") {
@@ -271,7 +272,7 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
   if (admin && path === "/admin/soundtracks" && request.method === "GET") {
     const counts = (await env.DB.prepare(
       "SELECT status,COUNT(*) count FROM soundtrack_recordings GROUP BY status",
-    ).all<any>()).results;
+    ).all<{ status:string; count:number }>()).results;
     const limit = Math.min(100,Math.max(1,Number(url.searchParams.get("limit")) || 40));
     const rows = (await env.DB.prepare(
       "SELECT * FROM soundtrack_recordings WHERE status=? ORDER BY discovered_at,id LIMIT ?",
