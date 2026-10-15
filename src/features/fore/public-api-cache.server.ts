@@ -203,9 +203,9 @@ export async function cachedPublicApi(
           const results = catalog.results.filter((book: unknown): book is { productId: string } =>
             Boolean(
               book &&
-                typeof book === "object" &&
-                "productId" in book &&
-                typeof book.productId === "string",
+              typeof book === "object" &&
+              "productId" in book &&
+              typeof book.productId === "string",
             ),
           );
           if (results.length !== catalog.results.length)
