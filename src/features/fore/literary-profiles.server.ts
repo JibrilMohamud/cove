@@ -70,6 +70,14 @@ type SourceBundle = {
   truncated?: boolean;
   totalSections?: number;
 };
+// The published inference outputs currently average ~1.2 kB. A bounded
+// 2,400-token response still leaves substantial headroom for long, unusual
+// literary analyses, while a 12k output-work reservation avoids repeatedly
+// charging the 2M-unit daily cap for unneeded maximum-length generation.
+export const LITERARY_GENERATION_LIMITS = {
+  maxOutputTokens: 2400,
+  reservedOutputCharacters: 12000,
+} as const;
 const at = () => new Date().toISOString();
 const hash = async (value: string) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)))]
@@ -410,7 +418,8 @@ async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
   const cached = cacheHead && cacheHead.size < 100000 ? await env.BUCKET.get(cacheKey) : null;
   // A conservative character reservation includes the entire prompt and maximum
   // generated output. This is a work budget, not a currency/token estimate.
-  const units = prompt.system.length + prompt.user.length + 16000;
+  const reservedOutput = LITERARY_GENERATION_LIMITS.reservedOutputCharacters;
+  const units = prompt.system.length + prompt.user.length + reservedOutput;
   const day = at().slice(0, 10),
     budget = Math.max(0, Math.min(100_000_000, await config(env, "daily_units", 2_000_000)));
   const reserved = cached
@@ -428,7 +437,7 @@ async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
           { role: "system", content: prompt.system },
           { role: "user", content: prompt.user },
         ],
-        max_tokens: 3500,
+        max_tokens: LITERARY_GENERATION_LIMITS.maxOutputTokens,
         temperature: 0,
         response_format: { type: "json_schema", json_schema: literaryJsonSchema(bundle.sources) },
       });
@@ -831,7 +840,19 @@ export async function handleLiteraryProfiles(
             .all()
         ).results,
         chapters: await env.DB.prepare(
-          "SELECT COUNT(*) total,SUM(s.profile_json IS NOT NULL) analyzed FROM literary_profile_sections s JOIN literary_profiles p ON p.product_id=s.product_id AND p.fingerprint=s.fingerprint WHERE p.policy_version=?",
+          "SELECT COUNT(*) total,COALESCE(SUM(s.profile_json IS NOT NULL),0) analyzed,COUNT(DISTINCT CASE WHEN s.profile_json IS NOT NULL THEN s.product_id END) booksWithChapterEvidence,COUNT(DISTINCT CASE WHEN s.profile_json IS NOT NULL THEN s.product_id||':'||s.spine_index END) spinesWithChapterEvidence FROM literary_profile_sections s JOIN literary_profiles p ON p.product_id=s.product_id AND p.fingerprint=s.fingerprint WHERE p.policy_version=?",
+        )
+          .bind(PROFILE_POLICY)
+          .first(),
+        chapterCoverage: await env.DB.prepare(
+          `SELECT COALESCE(SUM(CASE WHEN analyzedSections=totalSections THEN 1 ELSE 0 END),0) fullyCoveredPreparedBooks,
+            COALESCE(SUM(CASE WHEN distinctSpines>=2 AND analyzedSpines>=2 THEN 1 ELSE 0 END),0) booksWithMultiSpineEvidence
+            FROM (SELECT s.product_id,COUNT(*) totalSections,
+              SUM(s.profile_json IS NOT NULL) analyzedSections,
+              COUNT(DISTINCT s.spine_index) distinctSpines,
+              COUNT(DISTINCT CASE WHEN s.profile_json IS NOT NULL THEN s.spine_index END) analyzedSpines
+            FROM literary_profile_sections s JOIN literary_profiles p ON p.product_id=s.product_id AND p.fingerprint=s.fingerprint
+            WHERE p.policy_version=? GROUP BY s.product_id)`,
         )
           .bind(PROFILE_POLICY)
           .first(),

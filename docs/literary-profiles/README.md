@@ -122,6 +122,22 @@ changes any recorded copyright evidence, or increases the daily AI allowance.
 The staff status API exposes the configured threshold. Saturation deliberately
 reduces deep profiling throughput for newly encountered books.
 
+Historical successfully published profile responses were approximately 1–1.5 kB
+each, far below the original maximum generation allowance. The inference
+contract now caps the model at 2,400 output tokens while conservatively reserving
+12,000 output characters instead of 16,000 per uncached job. This reduces
+work-budget reservation without increasing the configured 2,000,000 daily units,
+skipping validation, or changing source content; exceptional outputs can still
+fail closed and retry. Future production output-size monitoring must confirm
+the smaller generation cap remains sufficient, especially for non-English books.
+
+The staff status API now distinguishes current-fingerprint chapter evidence
+from provisional or superseded jobs: count of books with analyzed chunks,
+count of spines with evidence, number of books with at least two analyzed
+spines, and books whose entire prepared section set has been analyzed.
+These breadth metrics do not conflate an analyzed book overview with
+completed chapter coverage.
+
 These units are a conservative work limit, not provider tokens, dollars or a billing
 cap. Failed model calls retain reservations. Daily budget exhaustion defers work to
 next UTC midnight without using up failure retries. Five attempts, exponential
