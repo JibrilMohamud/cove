@@ -206,8 +206,8 @@ export function ReaderSoundtrack({
           >
             {modes.map((value) => (
               <option key={value} value={value}>
-                  {value}
-                </option>
+                {value}
+              </option>
             ))}
           </select>
           <label htmlFor="reader-soundtrack-vocals">Vocals</label>
@@ -218,8 +218,8 @@ export function ReaderSoundtrack({
           >
             {vocalsOptions.map((value) => (
               <option key={value} value={value}>
-                  {value}
-                </option>
+                {value}
+              </option>
             ))}
           </select>
           {query.data?.scope && (
@@ -236,8 +236,8 @@ export function ReaderSoundtrack({
         <p role="alert">
           The soundtrack cannot be checked right now.
           <button type="button" onClick={() => void query.refetch()}>
-              Retry
-            </button>
+            Retry
+          </button>
         </p>
       )}
       {query.data?.provisional && expanded && (
