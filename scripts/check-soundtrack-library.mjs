@@ -33,12 +33,15 @@ try {
       },
     }],
   });
+  const embeddedNC = good(106,"EmbeddedNC","CC0");
+  embeddedNC.imageinfo[0].metadata = [{name:"Copyright",value:"Attribution-Noncommercial-Share Alike 3.0 United States: https://creativecommons.org/licenses/by-nc-sa/3.0/us/"}];
   const pages = [
     good(101,"Nocturne", "CC0"),
     good(102,"Allegro","CC BY 4.0","https://creativecommons.org/licenses/by/4.0/"),
     good(103,"Noncommercial","CC BY-NC 4.0","https://creativecommons.org/licenses/by-nc/4.0/"),
     good(104,"NoRights","unknown",""),
     good(105,"Minuet","CC BY-SA 3.0","https://creativecommons.org/licenses/by-sa/3.0"),
+    embeddedNC,
   ];
   let upstreamChanged = false;
   let upstreamUnavailable = false;
@@ -79,6 +82,8 @@ try {
   const initial = await lib.discoverSoundtrackCandidates(env);
   assert.equal(initial.queuedForRightsReview,3,"CC0, CC BY, and original CC BY-SA may be staged; NC/unknown excluded");
   assert.equal(mediaRequests,0,"candidate discovery never downloads media");
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_recordings WHERE id='cm_106'").first()).n,0,
+    "An original containing embedded NC is excluded despite a conflicting Commons CC0 label");
   const publicRequest = new Request("https://cove.test/api/fore/soundtracks/recordings");
   const listing = () => lib.handleSoundtracks(publicRequest,env,"/soundtracks/recordings","US");
   assert.equal((await (await listing()).json()).count,0,"no candidate is public");
@@ -319,6 +324,15 @@ try {
   upstreamChanged = true;
   await assert.rejects(()=>sourceReview("approve",approval),/source or license changed/i);
   upstreamChanged = false;
+  const sourceText = pages[4].revisions[0].slots.main.content;
+  pages[4].revisions[0].slots.main.content = "Original from https://freemusicarchive.org/music/example/unknown-master";
+  await assert.rejects(()=>sourceReview("approve",approval),/FMA\/Musopen-origin/i,
+    "FMA-origin sources require independent confirmation of the master rights");
+  pages[4].revisions[0].slots.main.content = sourceText;
+  pages[4].imageinfo[0].metadata=[{name:"Copyright",value:"CC BY-NC-SA 3.0"}];
+  await assert.rejects(()=>sourceReview("approve",approval),/source or license changed/i,
+    "An embedded NC term must prevent commercial approval");
+  delete pages[4].imageinfo[0].metadata;
   assert.equal((await sourceReview("approve",approval)).status,200,"Straightforward repository PD reliance needs no second principal");
   const sourceDecision = await env.DB.prepare("SELECT evidence_json FROM soundtrack_rights_decisions WHERE recording_id='cm_105' AND action='approve'").first();
   assert.equal(JSON.parse(sourceDecision.evidence_json).dossier.reviewMethod,"source_license");
