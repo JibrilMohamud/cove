@@ -16,6 +16,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import unicodedata
 
 MAX_FILE_BYTES = 25 * 1024 * 1024
 KNOWN_COMPOSERS = (
@@ -173,7 +174,15 @@ def credited_performer(value, composer):
         return None
     if not 3 <= len(credit) <= 140 or '/' in credit or ';' in credit or len(credit.split()) > 9:
         return None
-    if composer.lower() == credit.lower() or composer.lower() in credit.lower() or credit.lower() in composer.lower() or re.search(r'(?i)https?://|www\.', credit):
+    # Composer order/punctuation varies across source templates:
+    # "Bach, Johann-Sebastian" must not become a fictitious modern performer
+    # merely because the canonical composition credit says "Johann Sebastian Bach".
+    def canonical_tokens(person):
+        normalized=unicodedata.normalize('NFKD',person).encode('ascii','ignore').decode().lower()
+        return sorted(re.findall(r'[a-z]+', normalized))
+    if (composer.lower() == credit.lower() or composer.lower() in credit.lower() or
+            credit.lower() in composer.lower() or canonical_tokens(composer)==canonical_tokens(credit) or
+            re.search(r'(?i)https?://|www\.', credit)):
         return None
     if not re.search(r'[A-Za-zÀ-ž]{2,}', credit) or re.fullmatch(r'\w+\d+', credit):
         return None
