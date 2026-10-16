@@ -16,6 +16,7 @@ on:
     paths:
       - ".github/workflows/bootstrap-soundtrack-source-release.yml"
       - "scripts/soundtracks/drain-verified-imports.py"
+      - "scripts/soundtracks/curate-source-license.py"
 
 permissions:
   contents: read
