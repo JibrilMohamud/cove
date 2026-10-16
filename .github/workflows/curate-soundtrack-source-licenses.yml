@@ -35,7 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ secrets.COVE_SOUNDTRACK_REVIEW_TOKEN }}
+      # Never expose the production review credential to code checked out for a PR.
+      COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ github.event_name != 'pull_request' && secrets.COVE_SOUNDTRACK_REVIEW_TOKEN || '' }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
