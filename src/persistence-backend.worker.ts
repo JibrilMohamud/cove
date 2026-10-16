@@ -644,7 +644,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
           }
           if ("skipped" in rights) break;
         } catch (error) {
-          console.warn("Published soundtrack rights audit failed", String(error).slice(0,160));
+          console.warn("Published soundtrack rights audit failed", String(error).slice(0, 160));
           break;
         }
       }
