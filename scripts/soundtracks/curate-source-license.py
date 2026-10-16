@@ -263,7 +263,7 @@ def choose_candidate(r):
     except ValueError:
         return None, 'untrusted media URL'
     instrument_list = json.loads(r.get('instruments_json') or '[]')
-    if VOCAL_CUES.search(title):
+    if VOCAL_CUES.search(title) and not self_recorded:
         return None, 'vocal composition requires a separate lyrics and performance review'
     instrument_list = classify_instruments(r)
     lo = title.lower()
@@ -289,7 +289,7 @@ def prepare_release(r, profile):
         return dict(basis=claim + ' Source-declaration reliance only; independently unverified. Original, unchanged audio will be used.', evidenceUrls=[page, link])
     title = r['title']
     licensor = f" Commons original-master licensor: {profile['sourceLicensor']}." if profile.get('sourceLicensor') else ""
-    source_own_work = (' This individual Commons source identifies uploader Phillipwserna as author, says original work and records every viol part performed by Dr. Phillip W. Serna.'
+    source_own_work = (' This individual Commons source identifies uploader Phillipwserna as author, says original work and states all parts were performed by Dr. Phillip W. Serna.'
                        if profile.get('selfRecordedOriginal') else '')
     credit = f"{title} — performed by {profile['performer']}; composed by {profile['composer']}.{licensor} {r['license_statement']}. {exact}. Unmodified original recording."
     statement = f"Cove accepts the exact recording-level {r['license_statement']} declaration of this Commons file under the owner-approved source reliance policy.{source_own_work} This is not a human or independent legal assessment."
