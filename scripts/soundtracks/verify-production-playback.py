@@ -6,6 +6,8 @@ Exit nonzero for broken published recordings or a missing public API.
 """
 import argparse
 import json
+import datetime as dt
+import math
 import pathlib
 import re
 import sys
@@ -38,7 +40,7 @@ def fetch(url, method="GET", headers=None, opener=OPENER):
                 raise
             time.sleep(min(2**attempt,4))
 
-def run(base=BASE, limit=12, opener=OPENER):
+def run(base=BASE, limit=50, opener=OPENER, audit_slot=None):
     if base != BASE:
         raise ValueError("Monitoring origin must be the pinned Cove production hostname")
     status, _, body = fetch(base+PATH, opener=opener)
@@ -61,8 +63,19 @@ def run(base=BASE, limit=12, opener=OPENER):
             raise ValueError("Untrusted public audio path in recording metadata")
         if not row.get("attribution") or not row.get("licenseUrl"):
             raise ValueError("Published recording is missing mandatory rights attribution")
-    # Choose records spread across the full list, not just the first page.
-    indexes = sorted(set((i*len(rows))//min(len(rows),limit) for i in range(min(len(rows),limit))))
+    # Audit a distinct, deterministic page on each six-hour run. The modular
+    # permutation spreads coverage across the alphabetized catalog, while
+    # consecutive slots cover every entry once per ceil(total / limit) ticks.
+    slotsize = min(len(rows),limit)
+    slot = (int(dt.datetime.now(dt.timezone.utc).timestamp()) // 21600
+            if audit_slot is None else audit_slot)
+    if not isinstance(slot,int) or slot < 0:
+        raise ValueError("Invalid audit slot")
+    stride = max(1, math.ceil(len(rows) / max(1, slotsize)))
+    while math.gcd(stride, max(1,len(rows))) != 1:
+        stride += 1
+    indexes = [((slot*slotsize+i)*stride) % len(rows) for i in range(slotsize)]
+
     failures = []
     for i in indexes:
         row = rows[i]
@@ -77,7 +90,8 @@ def run(base=BASE, limit=12, opener=OPENER):
                 raise ValueError("HTTP range playback response is invalid")
         except (ValueError,urllib.error.URLError,TimeoutError) as error:
             failures.append({"recording":row["id"],"error":type(error).__name__})
-    return {"catalogCount":len(rows),"sampled":len(indexes),"sampleFailed":failures,
+    return {"catalogCount":len(rows),"sampled":len(indexes),"auditSlot":slot,
+            "sampleIds":[rows[i]["id"] for i in indexes],"sampleFailed":failures,
             "targetMin":150,"targetReached":len(rows)>=150,
             "targetMax":300}
 
@@ -85,7 +99,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output",type=pathlib.Path,default=pathlib.Path("soundtrack-playback-receipt.json"))
     parser.add_argument("--strict-target",action="store_true")
-    parser.add_argument("--sample",type=int,default=12)
+    parser.add_argument("--sample",type=int,default=50)
     args=parser.parse_args()
     if not 1<=args.sample<=50:
         parser.error("Sample size must be 1–50")
