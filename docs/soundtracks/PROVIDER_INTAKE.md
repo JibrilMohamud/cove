@@ -27,3 +27,11 @@ Neither license labels alone nor downloaded/staged file counts satisfy the 150�
 Production as inspected October 15/16, 2026: 17 ready and 733 pending; another 133–283 verified, stored and publicly playable records are needed to reach 150–300. Intake metadata, approval votes and staging receipts **do not count**.
 
 The Commons curator is scheduled hourly and remains gated by an active, narrowly scoped GitHub Actions secret COVE_SOUNDTRACK_REVIEW_TOKEN. Its push-trigger smoke run is read-only. The rights-backed source delivery pathway cannot be automatically enabled until site access agreements and an authenticated provider-release integration exist.
+
+## Wikimedia Commons copies of FMA recordings: license conflicts
+
+Wikimedia Commons has a [Classical music from Free Music Archive category](https://commons.wikimedia.org/wiki/Category:Classical_music_from_Free_Music_Archive) with hundreds of file records. Cove may discover *Commons-hosted* files using Commons' API, not FMA site scraping; the original audio is not retrieved unless the individual rights and QA gates pass.
+
+**Important verified conflict:** at least some files imported from FMA display a Commons CC0 label while the audio's embedded copyright metadata names **CC BY-NC-SA**. An example is [Aaron Dunn's Goldberg Variations Aria](https://commons.wikimedia.org/wiki/File:Aaron_Dunn_-_Goldberg_Variations_BWV_988_-_Aria.ogg). This is not an acceptable automatic commercial license. Treat the most restrictive credible rights claim as unresolved; never prefer a CC0 wrapper over NC evidence. A source file whose native metadata contains NC is excluded from automatic discovery/approval; an FMA/Musopen-origin page is held for independently documented commercial master-rights review. Underlying composition, arrangement, performance, and recorded master rights must still be established. Do not use ambiguous copies to hit an arbitrary track-count target.
+
+The provider pipeline continues to accept **genuine**, exact-recording CC0/CC BY/CC BY-SA rights and authorized deliveries, not blanket assurances about entire catalogs. Track-level upstream declarations, attachment metadata, credits and their history should be preserved for audits and takedowns.

@@ -33,12 +33,15 @@ try {
       },
     }],
   });
+  const embeddedNC = good(106,"EmbeddedNC","CC0");
+  embeddedNC.imageinfo[0].metadata = [{name:"Copyright",value:"Attribution-Noncommercial-Share Alike 3.0 United States: https://creativecommons.org/licenses/by-nc-sa/3.0/us/"}];
   const pages = [
     good(101,"Nocturne", "CC0"),
     good(102,"Allegro","CC BY 4.0","https://creativecommons.org/licenses/by/4.0/"),
     good(103,"Noncommercial","CC BY-NC 4.0","https://creativecommons.org/licenses/by-nc/4.0/"),
     good(104,"NoRights","unknown",""),
     good(105,"Minuet","CC BY-SA 3.0","https://creativecommons.org/licenses/by-sa/3.0"),
+    embeddedNC,
   ];
   let upstreamChanged = false;
   let upstreamUnavailable = false;
@@ -79,6 +82,8 @@ try {
   const initial = await lib.discoverSoundtrackCandidates(env);
   assert.equal(initial.queuedForRightsReview,3,"CC0, CC BY, and original CC BY-SA may be staged; NC/unknown excluded");
   assert.equal(mediaRequests,0,"candidate discovery never downloads media");
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_recordings WHERE id='cm_106'").first()).n,0,
+    "An original containing embedded NC is excluded despite a conflicting Commons CC0 label");
   const publicRequest = new Request("https://cove.test/api/fore/soundtracks/recordings");
   const listing = () => lib.handleSoundtracks(publicRequest,env,"/soundtracks/recordings","US");
   assert.equal((await (await listing()).json()).count,0,"no candidate is public");
@@ -110,7 +115,33 @@ try {
     "Audio files of Romantic period classical music",
     "Audio files of renaissance period classical music",
     "Audio files of medieval period classical music",
+    "Classical music from Free Music Archive",
+    "Piano music from Free Music Archive",
+    "Contemporary classical music from Free Music Archive",
+    "Audio files of music by Johann Sebastian Bach",
+    "Audio files of music by Domenico Scarlatti",
+    "Audio files of music by Ludwig van Beethoven",
+    "Audio files of music by Franz Schubert",
+    "Audio files of classical music for violin",
+    "Audio files of music by Antonio Vivaldi",
+    "Audio files of music by Robert Schumann",
+    "Audio files of music by Felix Mendelssohn",
   ];
+  // Commons hosts already-licensed FMA audio; source discovery must never
+  // access FMA directly or assume category membership implies approval.
+  pages.push(good(107,"FMA Independent Original","CC BY 4.0","https://creativecommons.org/licenses/by/4.0/"));
+  const oldCategoryCursors = Object.fromEntries(categories.slice(0,6).map(name=>[name,"DONE"]));
+  await env.DB.prepare("UPDATE soundtrack_ingestion_state SET category_cursors_json=?,category_index=0,last_discovery_at='' WHERE id=1")
+    .bind(JSON.stringify(oldCategoryCursors)).run();
+  const fmaDiscovery = await lib.discoverSoundtrackCandidates(env);
+  assert.equal(fmaDiscovery.source,"Classical music from Free Music Archive");
+  assert.equal(fmaDiscovery.queuedForRightsReview,1,"Only the newly discovered commercially declared master is queued");
+  const fmaRow = await env.DB.prepare("SELECT status,automated_triage_reason,evidence_json FROM soundtrack_recordings WHERE id='cm_107'").first();
+  assert.equal(fmaRow.status,"pending_review");
+  assert.match(fmaRow.automated_triage_reason,/verify FMA master license/);
+  assert.match(fmaRow.evidence_json,/Classical music from Free Music Archive/);
+  assert.equal((await (await listing()).json()).count,0,"FMA-origin Commons tracks are never implicitly published");
+  assert.equal(mediaRequests,0,"FMA source discovery must never scrape or download provider audio");
   const cursors = Object.fromEntries(categories.map(name=>[name,"DONE"]));
   cursors._cycleFinishedAt = new Date(Date.now()-8*86400_000).toISOString();
   await env.DB.prepare("UPDATE soundtrack_ingestion_state SET category_cursors_json=?,category_index=0,last_discovery_at='' WHERE id=1")
@@ -299,6 +330,15 @@ try {
   upstreamChanged = true;
   await assert.rejects(()=>sourceReview("approve",approval),/source or license changed/i);
   upstreamChanged = false;
+  const sourceText = pages[4].revisions[0].slots.main.content;
+  pages[4].revisions[0].slots.main.content = "Original from https://freemusicarchive.org/music/example/unknown-master";
+  await assert.rejects(()=>sourceReview("approve",approval),/FMA\/Musopen-origin/i,
+    "FMA-origin sources require independent confirmation of the master rights");
+  pages[4].revisions[0].slots.main.content = sourceText;
+  pages[4].imageinfo[0].metadata=[{name:"Copyright",value:"CC BY-NC-SA 3.0"}];
+  await assert.rejects(()=>sourceReview("approve",approval),/source or license changed/i,
+    "An embedded NC term must prevent commercial approval");
+  delete pages[4].imageinfo[0].metadata;
   assert.equal((await sourceReview("approve",approval)).status,200,"Straightforward repository PD reliance needs no second principal");
   const sourceDecision = await env.DB.prepare("SELECT evidence_json FROM soundtrack_rights_decisions WHERE recording_id='cm_105' AND action='approve'").first();
   assert.equal(JSON.parse(sourceDecision.evidence_json).dossier.reviewMethod,"source_license");
