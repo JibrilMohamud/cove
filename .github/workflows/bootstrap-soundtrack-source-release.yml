@@ -6,6 +6,10 @@ on:
   workflow_run:
     workflows: [deploy-persistence-backend]
     types: [completed]
+  # GitHub Actions cron is best-effort; this complements the source curator.
+  # All runs share one concurrency group and follow rights/QA/import limits.
+  schedule:
+    - cron: "37 * * * *"
   # Release protected import-client fixes without unnecessarily redeploying the Worker.
   push:
     branches: [main]
@@ -22,7 +26,7 @@ concurrency:
 
 jobs:
   release:
-    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push') }}
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'schedule' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -30,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event_name == 'push' && github.sha || github.event.workflow_run.head_sha }}
+          ref: ${{ github.event_name != 'workflow_run' && github.sha || github.event.workflow_run.head_sha }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -61,7 +65,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/soundtracks/curate-source-license.py \
-            --max-scan 800 --max-tracks 8 --max-triage 60 --max-mib 160 \
+            --max-scan 800 --max-tracks 12 --max-triage 80 --max-mib 160 \
             --max-minutes 20 --apply --approve-source-license \
             --output soundtrack-curation-receipts.json
       - name: Immediately import already-approved originals and verify public playback
@@ -69,7 +73,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/soundtracks/drain-verified-imports.py \
-            --max-imports 8 --max-minutes 12 --output soundtrack-import-receipts.json
+            --max-imports 12 --max-minutes 12 --output soundtrack-import-receipts.json
       - name: Preserve non-secret verified import receipts
         if: always()
         uses: actions/upload-artifact@v4

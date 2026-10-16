@@ -13,7 +13,8 @@ on:
       - ".github/workflows/curate-soundtrack-source-licenses.yml"
       - "scripts/soundtracks/**"
   schedule:
-    # Bootstrap rights-cleared supply hourly; bounded per run and no source-site scraping.
+    # Independently run bounded rights/FFmpeg checks hourly, staggered from the bootstrap.
+    # The bootstrap concurrently verifies real R2 playback; this run never scrapes FMA/Musopen.
     # Scheduled GitHub Actions times are approximate.
     - cron: "19 * * * *"
   workflow_dispatch:
@@ -72,7 +73,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          args=(--max-scan 800 --max-tracks 8 --max-mib 160 --max-minutes 20 --output soundtrack-curation-receipts.json)
+          args=(--max-scan 800 --max-tracks 12 --max-triage 80 --max-mib 160 --max-minutes 20 --output soundtrack-curation-receipts.json)
           if [[ '${{ github.event_name }}' == 'schedule' || '${{ inputs.dry_run }}' == 'false' ]]; then
             args+=(--apply --approve-source-license)
           fi

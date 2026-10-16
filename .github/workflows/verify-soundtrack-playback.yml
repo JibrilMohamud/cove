@@ -7,7 +7,8 @@ on:
       - ".github/workflows/verify-soundtrack-playback.yml"
       - "scripts/soundtracks/verify-production-playback.py"
   schedule:
-    - cron: "43 8 * * *"
+    # Six consecutive six-hour probes cover all 300 published tracks.
+    - cron: "43 2,8,14,20 * * *"
   workflow_dispatch:
 
 permissions:
@@ -32,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          args=(--sample 12 --output soundtrack-playback-receipt.json)
+          args=(--sample 50 --output soundtrack-playback-receipt.json)
           if [[ "${{ github.event_name }}" == "schedule" ]]; then
             args+=(--strict-target)
           fi
