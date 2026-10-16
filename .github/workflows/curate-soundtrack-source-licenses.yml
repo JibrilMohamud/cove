@@ -29,7 +29,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: source-license-soundtrack-curation
+  # A read-only PR/push smoke must never cancel or displace a real scheduled
+  # license-and-R2 apply run. Production writers still share the same lock
+  # with bootstrap and historical-policy reconsideration.
+  group: ${{ (github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run)) && format('source-license-soundtrack-ci-{0}', github.ref) || 'source-license-soundtrack-curation' }}
   cancel-in-progress: false
 
 jobs:
