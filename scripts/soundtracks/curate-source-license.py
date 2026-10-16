@@ -218,6 +218,12 @@ def choose_candidate(r):
             return None, 'unsupported or mismatched CC license'
     if r['license_code']=='PD' and license_link!='https://commons.wikimedia.org/wiki/Commons:Licensing':
         return None, 'unrecognized PD claim link'
+    # License metadata often describes only the public-domain COMPOSITION.
+    # Without inspecting every original-recording permission layer, the
+    # source curator cannot safely infer a US public-domain master.
+    # Staff may still approve after a separate full recorded-rights review.
+    if r['license_code']=='PD':
+        return None, 'public-domain recording requires individual master-rights review'
     title = str(r.get('title', ''))
     serna_spec = SERNA_SELF_RECORDED_ORIGINALS.get(str(r.get('id','')))
     self_recorded = False
