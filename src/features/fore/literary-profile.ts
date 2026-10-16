@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const PROFILE_POLICY = "cove-literary-v2";
+export const PROFILE_POLICY = "cove-literary-v3";
 export const PROFILE_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const unit = z.number().finite().min(0).max(1);
 const evidence = z.array(z.string().min(1).max(180)).max(12);
@@ -131,7 +131,20 @@ export function validateLiteraryProfile(
         : key === "publicationPeriod"
           ? /\b(?:published|publication|edition|released)\b/i
           : /\b(?:set|setting|takes place|during|century|ancient|medieval|victorian|regency|renaissance|BCE?)\b/i;
-    if (!temporal || !scope.test(text)) parsed[key] = emptyLiteraryProfile()[key];
+    const years = [parsed[key].value.startYear, parsed[key].value.endYear].filter(
+      (y): y is number => y !== null,
+    );
+    // A citation with any old year does not license an invented precise chronology.
+    const containsYear = (year: number) =>
+      new RegExp(`(?<![0-9])${Math.abs(year)}(?![0-9])`).test(text) &&
+      (year >= 0 || /\b(?:BC|BCE)\b/i.test(text));
+    const century = /\b([0-9]{1,2})(?:st|nd|rd|th)[ -]century\b/i.exec(text);
+    const centuryBounds =
+      century &&
+      parsed[key].value.startYear === (Number(century[1]) - 1) * 100 &&
+      parsed[key].value.endYear === Number(century[1]) * 100 - 1;
+    if (!temporal || !scope.test(text) || (years.some((y) => !containsYear(y)) && !centuryBounds))
+      parsed[key] = emptyLiteraryProfile()[key];
   }
   return parsed;
 }

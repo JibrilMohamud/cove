@@ -92,6 +92,8 @@ jobs:
         run: npm run test:soundtracks
       - name: Literary profiles, evidence and chapter-matching regressions
         run: npm run test:literary-profiles
+      - name: Exact-master music profiling and queue safety
+        run: npm run test:music-profiles
       - name: Resumable hosted BioSync
         run: npm run test:biosync-chunks
       - name: Account sign-up and privacy requests

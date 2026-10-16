@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { countReadingUnits, estimateReadingTime } from "./reading-time";
 import { resolveProductRights } from "./rights.server";
 import type { CoveEnv } from "./api.server";
 import type { CoveIdentity } from "./auth.server";
@@ -38,6 +39,8 @@ type BookInput = {
   text_allowed: number;
   extra_sources: string;
   bibliography: string;
+  word_count: number | null;
+  page_estimate: number | null;
 };
 type CurrentProfile = {
   product_id: string;
@@ -47,6 +50,8 @@ type CurrentProfile = {
   coverage: string;
   revision: number;
   updated_at: string;
+  reading_time_json: string | null;
+  policy_version: string;
 };
 type Job = {
   id: string;
@@ -68,7 +73,7 @@ const hash = async (value: string) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)))]
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-const inputSql = `SELECT p.id,e.title,e.description,e.language,p.source_name,p.source_external_id,av.object_key,av.sha256,
+const inputSql = `SELECT p.id,e.title,e.description,e.language,e.word_count,e.page_estimate,p.source_name,p.source_external_id,av.object_key,av.sha256,
   json_object('edition publication date',e.publication_date,'original publication date',(SELECT w.original_publication_date FROM works w WHERE w.id=e.work_id),'authors',json(COALESCE((SELECT json_group_array(name) FROM (SELECT c.name FROM edition_contributors ec JOIN contributors c ON c.id=ec.contributor_id WHERE ec.edition_id=e.id AND ec.role='author' ORDER BY ec.position LIMIT 20)),'[]'))) bibliography,
   COALESCE((SELECT json_object('subjects',json(c.subjects_json),'shelves',json(c.bookshelves_json),'authors',json(c.authors_json)) FROM gutenberg_source_cache c WHERE c.id=p.source_external_id),'{}') metadata,
   COALESCE((SELECT json_group_array(json_object('id',s.id,'kind',s.kind,'text',s.text,'locator',s.locator,'hash',s.content_sha256)) FROM literary_profile_sources s WHERE s.product_id=p.id AND s.active=1 ORDER BY s.id),'[]') extra_sources,
@@ -150,20 +155,39 @@ async function enqueueBook(env: LiteraryEnv, book: BookInput) {
   if (current?.fingerprint === fingerprint) return;
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO literary_profiles(product_id,fingerprint,profile_json,status,updated_at) VALUES(?,?,?,'provisional',?) ON CONFLICT(product_id) DO UPDATE SET fingerprint=excluded.fingerprint,profile_json=excluded.profile_json,status='provisional',coverage='metadata',revision=literary_profiles.revision+1,updated_at=excluded.updated_at`,
-    ).bind(book.id, fingerprint, JSON.stringify(emptyLiteraryProfile()), time),
+      `INSERT INTO literary_profiles(product_id,fingerprint,profile_json,status,updated_at,reading_time_json,policy_version) VALUES(?,?,?,'provisional',?,?,?) ON CONFLICT(product_id) DO UPDATE SET fingerprint=excluded.fingerprint,profile_json=excluded.profile_json,status='provisional',coverage='metadata',revision=literary_profiles.revision+1,updated_at=excluded.updated_at,reading_time_json=excluded.reading_time_json,policy_version=excluded.policy_version`,
+    ).bind(
+      book.id,
+      fingerprint,
+      JSON.stringify(emptyLiteraryProfile()),
+      time,
+      JSON.stringify(
+        estimateReadingTime({
+          language: book.language,
+          wordCount: book.word_count,
+          pageEstimate: book.page_estimate,
+        }),
+      ),
+      PROFILE_POLICY,
+    ),
     env.DB.prepare(
       "UPDATE literary_profile_jobs SET status='superseded',updated_at=? WHERE product_id=? AND fingerprint<>? AND status IN ('queued','running')",
     ).bind(time, book.id, fingerprint),
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO literary_profile_jobs(id,product_id,fingerprint,kind,available_at,created_at,updated_at) VALUES(?,?,?,'prepare',?,?,?)",
+    ).bind(
+      await hash([book.id, fingerprint, "prepare", ""].join(":")),
+      book.id,
+      fingerprint,
+      time,
+      time,
+      time,
+    ),
+    // Reverted sources must revive their old pinned jobs atomically with the profile.
+    env.DB.prepare(
+      "UPDATE literary_profile_jobs SET status='queued',attempts=0,available_at=?,lease_until='',updated_at=? WHERE product_id=? AND fingerprint=? AND status IN ('done','failed','superseded')",
+    ).bind(time, time, book.id, fingerprint),
   ]);
-  await addJob(env, book.id, fingerprint, "prepare");
-  // A source may revert to a previously analyzed fingerprint. Its previous jobs
-  // must not leave the newly provisional profile with no runnable work.
-  await env.DB.prepare(
-    "UPDATE literary_profile_jobs SET status='queued',attempts=0,available_at=?,lease_until='',updated_at=? WHERE product_id=? AND fingerprint=? AND status IN ('done','failed','superseded')",
-  )
-    .bind(time, time, book.id, fingerprint)
-    .run();
 }
 /** Keyset sweep is bounded independently of catalog size. No OFFSET or per-visitor AI. */
 export async function seedLiteraryProfiles(env: LiteraryEnv, limit = 50) {
@@ -207,7 +231,11 @@ async function putBundle(env: LiteraryEnv, key: string, bundle: SourceBundle) {
   // This avoids context overflow for long descriptions or non-Latin sources.
   let remaining = 12000;
   const sources = [...bundle.sources]
-    .sort((a, b) => Number(b.kind === "full_text") - Number(a.kind === "full_text"))
+    .sort(
+      (a, b) =>
+        Number(b.kind === "full_text" || b.kind === "excerpt") -
+        Number(a.kind === "full_text" || a.kind === "excerpt"),
+    )
     .flatMap((source) => {
       const limit = Math.min(remaining, source.kind === "full_text" ? 8000 : 4000);
       const text = source.text.slice(0, limit);
@@ -234,6 +262,11 @@ async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
   let coverage = "metadata",
     truncated = false,
     totalSections = 0;
+  let readingTime = estimateReadingTime({
+    language: book.language,
+    wordCount: book.word_count,
+    pageEstimate: book.page_estimate,
+  });
   if (book.text_allowed && book.object_key && env.BUCKET?.head) {
     const head = await env.BUCKET.head(book.object_key);
     if (head && head.size <= 16 * 1024 * 1024) {
@@ -247,6 +280,30 @@ async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
         const extracted = await extractLiterarySections(bytes);
         truncated = extracted.truncated;
         totalSections = extracted.sections.length;
+        const bySpine = new Map<number, string>();
+        for (const section of extracted.sections)
+          bySpine.set(section.spineIndex, (bySpine.get(section.spineIndex) || "") + section.text);
+        const units = [...bySpine.values()].reduce(
+          (n, text) => n + countReadingUnits(text, book.language),
+          0,
+        );
+        if (units)
+          readingTime = estimateReadingTime({
+            language: book.language,
+            textUnits: units,
+            truncated,
+          });
+        // Overview samples the beginning, middle and end; never treats samples as complete text.
+        const samples = [...new Set([0, Math.floor(totalSections / 2), totalSections - 1])]
+          .map((i) => extracted.sections[i])
+          .filter(Boolean);
+        for (const sample of samples)
+          sources.push({
+            id: sample.id,
+            kind: "excerpt",
+            text: sample.text.slice(0, 2200),
+            locator: `${book.object_key}#${sample.href}:${sample.charStart}-${sample.charStart + Math.min(2200, sample.text.length)}`,
+          });
         coverage = totalSections ? "full_text_pending" : "metadata";
         for (const section of extracted.sections) {
           const lease = await env.DB.prepare(
@@ -258,7 +315,7 @@ async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
           const sourceKey = `${prefix}/${section.id}.json`;
           await putBundle(env, sourceKey, {
             sources: [
-              ...sources,
+              ...metadataSources(book),
               {
                 id: section.id,
                 kind: "full_text",
@@ -269,7 +326,7 @@ async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
             coverage: "section",
           });
           await env.DB.prepare(
-            `INSERT OR IGNORE INTO literary_profile_sections(product_id,fingerprint,section_id,spine_index,href,title,chunk_index,char_start,char_end,source_key,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT OR IGNORE INTO literary_profile_sections(product_id,fingerprint,section_id,spine_index,href,title,chunk_index,char_start,char_end,source_key,updated_at,reading_time_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
           )
             .bind(
               job.product_id,
@@ -283,17 +340,29 @@ async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
               section.charEnd,
               sourceKey,
               at(),
+              JSON.stringify(
+                estimateReadingTime({
+                  language: book.language,
+                  textUnits: countReadingUnits(section.text, book.language),
+                }),
+              ),
             )
             .run();
           await addJob(env, job.product_id, job.fingerprint, "analyze", section.id, sourceKey);
         }
       } catch (error) {
+        if (/D1_|lease_lost|network|connection lost/i.test(String(error))) throw error;
         // Invalid/unsupported full text must not prevent a metadata profile.
         coverage = "metadata_text_unavailable";
         console.warn("literary_text_unavailable", job.product_id, String(error).slice(0, 160));
       }
     } else if (head) coverage = "metadata_text_oversized";
   }
+  await env.DB.prepare(
+    "UPDATE literary_profiles SET reading_time_json=? WHERE product_id=? AND fingerprint=?",
+  )
+    .bind(JSON.stringify(readingTime), job.product_id, job.fingerprint)
+    .run();
   const key = `${prefix}/book.json`;
   await putBundle(env, key, { sources, coverage, truncated, totalSections });
   await addJob(env, job.product_id, job.fingerprint, "analyze", "", key);
@@ -305,31 +374,42 @@ async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
   if (!head || head.size > 100000) throw new Error("Invalid literary source bundle");
   const bundle = JSON.parse(await (await env.BUCKET.get(job.source_key)).text()) as SourceBundle;
   const prompt = literaryPrompt(bundle.sources);
+  const cacheKey = `literary/inference/${PROFILE_POLICY}/${await hash(JSON.stringify({ model: PROFILE_MODEL, system: prompt.system, sources: bundle.sources.map(({ id, kind, text }) => ({ id, kind, text })) }))}.json`;
+  const cacheHead = await env.BUCKET.head?.(cacheKey);
+  const cached = cacheHead && cacheHead.size < 100000 ? await env.BUCKET.get(cacheKey) : null;
   // A conservative character reservation includes the entire prompt and maximum
   // generated output. This is a work budget, not a currency/token estimate.
   const units = prompt.system.length + prompt.user.length + 16000;
   const day = at().slice(0, 10),
     budget = Math.max(0, Math.min(100_000_000, await config(env, "daily_units", 2_000_000)));
-  const reserved = await env.DB.prepare(
-    `INSERT INTO literary_profile_budget(day,reserved_units,calls) SELECT ?,?,1 WHERE ?<=? ON CONFLICT(day) DO UPDATE SET reserved_units=reserved_units+excluded.reserved_units,calls=calls+1 WHERE reserved_units+excluded.reserved_units<=? RETURNING calls`,
-  )
-    .bind(day, units, units, budget, budget)
-    .first();
+  const reserved = cached
+    ? true
+    : await env.DB.prepare(
+        `INSERT INTO literary_profile_budget(day,reserved_units,calls) SELECT ?,?,1 WHERE ?<=? ON CONFLICT(day) DO UPDATE SET reserved_units=reserved_units+excluded.reserved_units,calls=calls+1 WHERE reserved_units+excluded.reserved_units<=? RETURNING calls`,
+      )
+        .bind(day, units, units, budget, budget)
+        .first();
   if (!reserved) throw new Error("daily_budget_exhausted");
-  const raw = await env.AI.run(PROFILE_MODEL, {
-    messages: [
-      { role: "system", content: prompt.system },
-      { role: "user", content: prompt.user },
-    ],
-    max_tokens: 3500,
-    temperature: 0,
-    response_format: { type: "json_schema", json_schema: literaryJsonSchema(bundle.sources) },
-  });
+  const raw = cached
+    ? { response: await cached.text() }
+    : await env.AI.run(PROFILE_MODEL, {
+        messages: [
+          { role: "system", content: prompt.system },
+          { role: "user", content: prompt.user },
+        ],
+        max_tokens: 3500,
+        temperature: 0,
+        response_format: { type: "json_schema", json_schema: literaryJsonSchema(bundle.sources) },
+      });
   const response = raw && typeof raw === "object" && "response" in raw ? raw.response : null;
   const profile = validateLiteraryProfile(
     typeof response === "string" ? JSON.parse(response) : response,
     bundle.sources,
   );
+  if (!cached)
+    await env.BUCKET.put(cacheKey, JSON.stringify(profile), {
+      httpMetadata: { contentType: "application/json" },
+    });
   const encoded = JSON.stringify(profile),
     time = at();
   const guard = `EXISTS(SELECT 1 FROM literary_profile_jobs j JOIN literary_profiles p ON p.product_id=j.product_id AND p.fingerprint=j.fingerprint WHERE j.id=? AND j.lease_token=? AND j.status='running' AND j.lease_until>?)`;
@@ -382,7 +462,11 @@ async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
   }
 }
 /** Atomic leases and pinned fingerprints let independent bounded consumers scale safely. */
-export async function processLiteraryJob(env: LiteraryEnv, preferSections = false) {
+export async function processLiteraryJob(
+  env: LiteraryEnv,
+  preferSections = false,
+  lane: "prepare" | "analyze" | "any" = "any",
+) {
   const time = at(),
     token = crypto.randomUUID();
   await env.DB.prepare(
@@ -391,12 +475,14 @@ export async function processLiteraryJob(env: LiteraryEnv, preferSections = fals
     .bind(time, time)
     .run();
   const job = await env.DB.prepare(
-    `UPDATE literary_profile_jobs SET status='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=? WHERE id=(SELECT j.id FROM literary_profile_jobs j JOIN literary_profiles p ON p.product_id=j.product_id AND p.fingerprint=j.fingerprint WHERE ((j.status='queued' AND j.available_at<=?) OR (j.status='running' AND j.lease_until<?)) AND j.attempts<5 ORDER BY CASE WHEN (j.section_id<>'')=? THEN 0 ELSE 1 END,CASE WHEN j.kind='analyze' THEN 0 ELSE 1 END,j.created_at,j.id LIMIT 1) RETURNING *`,
+    `UPDATE literary_profile_jobs SET status='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=? WHERE id=(SELECT j.id FROM literary_profile_jobs j JOIN literary_profiles p ON p.product_id=j.product_id AND p.fingerprint=j.fingerprint WHERE (?='any' OR j.kind=?) AND ((j.status='queued' AND j.available_at<=?) OR (j.status='running' AND j.lease_until<?)) AND j.attempts<5 ORDER BY CASE WHEN (j.section_id<>'')=? THEN 0 ELSE 1 END,CASE WHEN j.kind='analyze' THEN 0 ELSE 1 END,j.created_at,j.id LIMIT 1) RETURNING *`,
   )
     .bind(
       token,
       new Date(Date.now() + 300000).toISOString(),
       time,
+      lane,
+      lane,
       time,
       time,
       preferSections ? 1 : 0,
@@ -444,14 +530,36 @@ export async function processLiteraryJob(env: LiteraryEnv, preferSections = fals
 export async function runLiteraryProfileTick(env: LiteraryEnv) {
   if (!(await config(env, "enabled", 1))) return { skipped: "disabled" };
   const seeded = await seedLiteraryProfiles(env);
-  if (!env.AI) return { seeded, skipped: "missing_ai" };
   const jobs = [];
+  const prepares = Math.max(0, Math.min(4, await config(env, "prepares_per_tick", 2)));
+  for (let n = 0; n < prepares; n++) jobs.push(await processLiteraryJob(env, false, "prepare"));
+  if (!env.AI) return { seeded, jobs, skipped: "missing_ai" };
   const limit = Math.max(0, Math.min(4, await config(env, "jobs_per_tick", 2)));
-  for (let n = 0; n < limit; n++) jobs.push(await processLiteraryJob(env, n % 2 === 1));
+  // Persistent alternation also works when configured to one inference per tick.
+  const turn = await env.DB.prepare(
+    "UPDATE literary_profile_state SET inference_turn=inference_turn+? WHERE id=1 RETURNING inference_turn",
+  )
+    .bind(limit)
+    .first<{ inference_turn: number }>();
+  for (let n = 0; n < limit; n++) {
+    const result = await processLiteraryJob(
+      env,
+      ((turn?.inference_turn || 0) - limit + n) % 2 === 1,
+      "analyze",
+    );
+    jobs.push(result);
+    if ("reason" in result && result.reason?.includes("daily_budget_exhausted")) break;
+  }
   return { seeded, jobs };
 }
 
-function mergeSections(base: LiteraryProfile, profiles: LiteraryProfile[]): LiteraryProfile {
+function mergeSections(
+  base: LiteraryProfile,
+  profiles: LiteraryProfile[],
+  weights: number[] = profiles.map(() => 1),
+): LiteraryProfile {
+  const weight = (p: LiteraryProfile) => weights[profiles.indexOf(p)] || 1;
+  const totalWeight = profiles.reduce((n, p) => n + weight(p), 0);
   if (!profiles.length) return base;
   const merged = structuredClone(base);
   for (const key of [
@@ -465,17 +573,19 @@ function mergeSections(base: LiteraryProfile, profiles: LiteraryProfile[]): Lite
     if (supported.length)
       merged[key] = {
         value: [...new Set(supported.flatMap((p) => p[key].value))].slice(0, 16),
-        confidence:
-          (Math.min(...supported.map((p) => p[key].confidence)) * supported.length) /
-          profiles.length,
+        confidence: supported.reduce((n, p) => n + p[key].confidence * weight(p), 0) / totalWeight,
         evidence: [...new Set(supported.flatMap((p) => p[key].evidence))].slice(0, 12),
       };
   }
   for (const key of ["energy", "tension", "valence"] as const) {
-    const known = profiles.map((p) => p[key]).filter((f) => f.value !== null && f.confidence > 0);
+    const supported = profiles.filter((p) => p[key].value !== null && p[key].confidence > 0);
+    const known = supported.map((p) => p[key]);
+    const measuredWeight = supported.reduce((n, p) => n + weight(p) * p[key].confidence, 0);
     if (known.length)
       merged[key] = {
-        value: known.reduce((s, f) => s + f.value!, 0) / known.length,
+        value:
+          supported.reduce((n, p) => n + p[key].value! * weight(p) * p[key].confidence, 0) /
+          measuredWeight,
         confidence: Math.min(...known.map((f) => f.confidence)),
         evidence: [...new Set(known.flatMap((f) => f.evidence))].slice(0, 12),
       };
@@ -493,8 +603,33 @@ function mergeSections(base: LiteraryProfile, profiles: LiteraryProfile[]): Lite
       merged[key] = first;
   }
   // Section recommendations override the static book recommendation only when supported.
-  const music = profiles.find((p) => p.musicalAffinity.confidence > 0);
-  if (music) merged.musicalAffinity = music.musicalAffinity;
+  const music = profiles.filter((p) => p.musicalAffinity.confidence > 0);
+  if (music.length) {
+    const strongest = [...music].sort(
+      (a, b) => b.musicalAffinity.confidence * weight(b) - a.musicalAffinity.confidence * weight(a),
+    )[0];
+    const collect = (key: "instruments" | "textures" | "preferredPeriods") => {
+      const scores = new Map<string, number>();
+      for (const p of music)
+        for (const tag of p.musicalAffinity.value[key])
+          scores.set(tag, (scores.get(tag) || 0) + weight(p) * p.musicalAffinity.confidence);
+      return [...scores]
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 16)
+        .map((x) => x[0]);
+    };
+    merged.musicalAffinity = {
+      value: {
+        ...strongest.musicalAffinity.value,
+        instruments: collect("instruments"),
+        textures: collect("textures"),
+        preferredPeriods: collect("preferredPeriods"),
+      },
+      confidence:
+        music.reduce((n, p) => n + weight(p) * p.musicalAffinity.confidence, 0) / totalWeight,
+      evidence: [...new Set(music.flatMap((p) => p.musicalAffinity.evidence))].slice(0, 12),
+    };
+  }
   return merged;
 }
 export async function handleLiteraryProfiles(
@@ -515,6 +650,27 @@ export async function handleLiteraryProfiles(
     }
     if (path === "/admin/literary-profiles/status" && request.method === "GET") {
       return json({
+        policy: PROFILE_POLICY,
+        limits: {
+          preparesPerTick: await config(env, "prepares_per_tick", 2),
+          inferencePerTick: await config(env, "jobs_per_tick", 2),
+          dailyUnits: await config(env, "daily_units", 2_000_000),
+        },
+        catalog: await env.DB.prepare(
+          "SELECT COUNT(*) activeTitles FROM products WHERE storefront_status='active' AND format='ebook' AND source_name<>'upload'",
+        ).first(),
+        readingTime: (
+          await env.DB.prepare(
+            "SELECT COALESCE(json_extract(reading_time_json,'$.method'),'pending') method,COUNT(*) count FROM literary_profiles WHERE policy_version=? GROUP BY method",
+          )
+            .bind(PROFILE_POLICY)
+            .all()
+        ).results,
+        chapters: await env.DB.prepare(
+          "SELECT COUNT(*) total,SUM(s.profile_json IS NOT NULL) analyzed FROM literary_profile_sections s JOIN literary_profiles p ON p.product_id=s.product_id AND p.fingerprint=s.fingerprint WHERE p.policy_version=?",
+        )
+          .bind(PROFILE_POLICY)
+          .first(),
         profiles: (
           await env.DB.prepare(
             "SELECT status,COUNT(*) count FROM literary_profiles GROUP BY status",
@@ -665,8 +821,28 @@ export async function handleLiteraryProfiles(
   const current = await env.DB.prepare("SELECT * FROM literary_profiles WHERE product_id=?")
     .bind(product.id)
     .first<CurrentProfile>();
-  if (!current) {
-    const common = { productId: product.id, status: "pending", policy: PROFILE_POLICY };
+  const edition = await env.DB.prepare(inputSql + " WHERE p.id=?")
+    .bind(product.id)
+    .first<BookInput>();
+  const liveFingerprint = edition
+    ? await hash(JSON.stringify({ policy: PROFILE_POLICY, model: PROFILE_MODEL, book: edition }))
+    : null;
+  const fallbackTime = estimateReadingTime({
+    language: edition?.language || "und",
+    wordCount: edition?.word_count,
+    pageEstimate: edition?.page_estimate,
+  });
+  if (
+    !current ||
+    current.policy_version !== PROFILE_POLICY ||
+    current.fingerprint !== liveFingerprint
+  ) {
+    const common = {
+      productId: product.id,
+      status: "pending",
+      policy: PROFILE_POLICY,
+      readingTime: fallbackTime,
+    };
     if (match[2] === "playlist")
       return json({ ...common, matches: [], provisional: true, mode: "atmosphere-first" });
     if (match[2] === "chapters") return json({ ...common, chapters: [], nextCursor: null });
@@ -681,7 +857,7 @@ export async function handleLiteraryProfiles(
   const base = literaryProfileSchema.parse(JSON.parse(current.profile_json));
   const sections = (
     await env.DB.prepare(
-      `SELECT section_id,spine_index,href,title,chunk_index,char_start,char_end,profile_json FROM literary_profile_sections WHERE product_id=? AND fingerprint=? AND section_id>? AND (? IS NULL OR spine_index=?) ORDER BY spine_index,chunk_index LIMIT 257`,
+      `SELECT section_id,spine_index,href,title,chunk_index,char_start,char_end,profile_json,reading_time_json FROM literary_profile_sections WHERE product_id=? AND fingerprint=? AND section_id>? AND (? IS NULL OR spine_index=?) ORDER BY spine_index,chunk_index LIMIT 257`,
     )
       .bind(product.id, current.fingerprint, after, spine, spine === null ? null : Number(spine))
       .all<{
@@ -693,6 +869,7 @@ export async function handleLiteraryProfiles(
         char_start: number;
         char_end: number;
         profile_json: string | null;
+        reading_time_json: string | null;
       }>()
   ).results;
   const counts = await env.DB.prepare(
@@ -703,12 +880,39 @@ export async function handleLiteraryProfiles(
   const chapterProfiles = sections
     .filter((s) => s.profile_json)
     .map((s) => literaryProfileSchema.parse(JSON.parse(s.profile_json!)));
-  const profile = mergeSections(base, chapterProfiles);
+  const profile = mergeSections(
+    base,
+    chapterProfiles,
+    sections.filter((s) => s.profile_json).map((s) => s.char_end - s.char_start),
+  );
   let coverage: { mode?: string; truncated?: boolean; totalSections?: number } = {};
   try {
     coverage = JSON.parse(current.coverage);
   } catch {
     coverage = { mode: current.coverage };
+  }
+  // Partial sections must not impersonate a fully analyzed whole book.
+  const selectedUnits = sections.reduce((n, s) => n + s.char_end - s.char_start, 0);
+  const analyzedUnits = sections
+    .filter((s) => s.profile_json)
+    .reduce((n, s) => n + s.char_end - s.char_start, 0);
+  const scopeCoverage = selectedUnits ? analyzedUnits / selectedUnits : 0;
+  for (const key of [
+    "moods",
+    "themes",
+    "sensoryAtmosphere",
+    "literaryStyle",
+    "energy",
+    "tension",
+    "valence",
+    "musicalAffinity",
+  ] as const) {
+    if (!chapterProfiles.length) break;
+    profile[key].confidence *= scopeCoverage;
+    if (spine === null && coverage.truncated)
+      profile[key].confidence = Math.min(0.45, profile[key].confidence);
+    if (spine === null && base[key].confidence > profile[key].confidence)
+      Object.assign(profile[key], base[key]);
   }
   const completeText =
     !!counts?.total &&
@@ -718,6 +922,7 @@ export async function handleLiteraryProfiles(
   const common = {
     productId: product.id,
     status: counts?.total && !completeText ? "partial" : current.status,
+    readingTime: current.reading_time_json ? JSON.parse(current.reading_time_json) : fallbackTime,
     revision: current.revision,
     fingerprint: current.fingerprint,
     policy: PROFILE_POLICY,
@@ -756,6 +961,8 @@ export async function handleLiteraryProfiles(
       chapters: sections.map((s) => ({
         ...s,
         profile_json: undefined,
+        reading_time_json: undefined,
+        readingTime: s.reading_time_json ? JSON.parse(s.reading_time_json) : null,
         profile: s.profile_json ? JSON.parse(s.profile_json) : null,
       })),
       nextCursor: null,

@@ -110,7 +110,7 @@ export function publicExternal(row:ExternalRecord) {
     energy:row.energy,hasVocals:!!row.has_vocals,attribution:row.attribution_text,
     sourcePage:row.source_page_url,license:row.license_statement,licenseUrl:row.license_url,
     territories:JSON.parse(row.territories_json),modifications:"Original recording: no modifications.",
-    durationSeconds:q.durationSeconds,audioUrl:"/api/fore/soundtracks/recordings/"+row.id+"/audio",
+    durationSeconds:q.durationSeconds,profileUrl:"/api/fore/soundtracks/recordings/"+row.id+"/profile",audioUrl:"/api/fore/soundtracks/recordings/"+row.id+"/audio",
   };
 }
 export async function publicExternalList(env:CoveEnv,territory:string) {

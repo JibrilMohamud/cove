@@ -474,7 +474,7 @@ function publicRecord(r: SoundtrackRow) {
     license:r.license_statement,licenseUrl:r.license_url,territories:JSON.parse(r.allowed_territories_json),
     modifications: JSON.parse(r.dossier_json || "{}").modificationNotice || "Original file; no modifications.",
     durationSeconds: JSON.parse(r.quality_report_json || "{}").durationSeconds,
-    audioUrl:"/api/fore/soundtracks/recordings/"+r.id+"/audio" };
+    profileUrl:"/api/fore/soundtracks/recordings/"+r.id+"/profile",audioUrl:"/api/fore/soundtracks/recordings/"+r.id+"/audio" };
 }
 export async function handleSoundtracks(request: Request,env:CoveEnv,path:string,territory:string, staffIdentity: CoveIdentity | null = null): Promise<Response | null> {
   if (!path.startsWith("/soundtracks") && !path.startsWith("/admin/soundtracks")) return null;
