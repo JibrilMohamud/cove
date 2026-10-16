@@ -418,10 +418,8 @@ async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
   const cached = cacheHead && cacheHead.size < 100000 ? await env.BUCKET.get(cacheKey) : null;
   // A conservative character reservation includes the entire prompt and maximum
   // generated output. This is a work budget, not a currency/token estimate.
-  const units =
-    prompt.system.length +
-    prompt.user.length +
-    LITERARY_GENERATION_LIMITS.reservedOutputCharacters;
+  const reservedOutput = LITERARY_GENERATION_LIMITS.reservedOutputCharacters;
+  const units = prompt.system.length + prompt.user.length + reservedOutput;
   const day = at().slice(0, 10),
     budget = Math.max(0, Math.min(100_000_000, await config(env, "daily_units", 2_000_000)));
   const reserved = cached
