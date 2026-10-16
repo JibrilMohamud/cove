@@ -37,13 +37,23 @@ def download(job,destination):
             digest.update(chunk);out.write(chunk)
     if count!=size or digest.hexdigest()!=job['sourceSha1']:raise ValueError('Source checksum mismatch')
 
-def run(max_tracks,max_minutes,output):
+def api_call(path,body):
     token=os.environ.get('COVE_SOUNDTRACK_REVIEW_TOKEN','')
     if not token:raise ValueError('Scoped soundtrack review credential is required')
-    def call(path,body):
-        if path not in ('claim','complete','fail','status','seed'):raise ValueError('Untrusted admin route')
-        req=urllib.request.Request(ORIGIN+'/api/fore/admin/music-profiles/'+path,data=None if body is None else json.dumps(body,allow_nan=False).encode(),method='GET' if body is None else 'POST',headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','User-Agent':'CoveMusicProfiles/1.0'})
-        with OPENER.open(req,timeout=120) as r:return json.load(r)
+    if path not in ('claim','complete','fail','status','seed'):raise ValueError('Untrusted admin route')
+    req=urllib.request.Request(ORIGIN+'/api/fore/admin/music-profiles/'+path,data=None if body is None else json.dumps(body,allow_nan=False).encode(),method='GET' if body is None else 'POST',headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','User-Agent':'CoveMusicProfiles/1.0'})
+    with OPENER.open(req,timeout=120) as r:return json.load(r)
+
+def queue_pending():
+    status=api_call('status',None)
+    jobs=status.get('jobs')
+    if not isinstance(jobs,list):raise ValueError('Invalid queue status')
+    for row in jobs:
+        if not isinstance(row,dict) or row.get('status') not in ('queued','running','done','failed') or type(row.get('count')) is not int or row['count']<0:raise ValueError('Invalid queue counts')
+    return any(row['status'] in ('queued','running') and row['count']>0 for row in jobs)
+
+def run(max_tracks,max_minutes,output):
+    call=api_call
     for attempt in range(30):
         try:
             call('status',None);break
@@ -80,8 +90,10 @@ def run(max_tracks,max_minutes,output):
     return 1 if any('error' in r for r in receipts) else 0
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--max-tracks',type=int,default=40);p.add_argument('--max-minutes',type=int,default=24);p.add_argument('--output',default='music-profile-receipt.json')
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--max-tracks',type=int,default=40);p.add_argument('--max-minutes',type=int,default=24);p.add_argument('--output',default='music-profile-receipt.json');p.add_argument('--check-queue',action='store_true')
     a=p.parse_args()
+    if a.check_queue:
+        print('true' if queue_pending() else 'false');return 0
     if not 1<=a.max_tracks<=100 or not 1<=a.max_minutes<=30:p.error('Bounded track/time limits required')
     return run(a.max_tracks,a.max_minutes,a.output)
 if __name__=='__main__':raise SystemExit(main())

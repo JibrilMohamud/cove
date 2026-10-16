@@ -32,7 +32,30 @@ concurrency:
   group: ${{ github.event_name == 'pull_request' && format('music-profiles-ci-{0}',github.ref) || 'music-profiles-production' }}
   cancel-in-progress: false
 jobs:
+  queue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      work: ${{ steps.queue.outputs.work }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check scheduled queue without loading audio dependencies
+        id: queue
+        env:
+          COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ github.event_name != 'pull_request' && secrets.COVE_SOUNDTRACK_REVIEW_TOKEN || '' }}
+        run: |
+          pending=true
+          if [[ "$GITHUB_EVENT_NAME" == "schedule" || -n "$COVE_SOUNDTRACK_REVIEW_TOKEN" ]]; then
+            observed=$(python scripts/soundtracks/run-profiles.py --check-queue)
+            echo "Queue has pending work: $observed"
+            if [[ "$GITHUB_EVENT_NAME" == "schedule" ]]; then
+              pending=$observed
+            fi
+          fi
+          echo "work=$pending" >> "$GITHUB_OUTPUT"
   analyze:
+    needs: queue
+    if: needs.queue.outputs.work == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
