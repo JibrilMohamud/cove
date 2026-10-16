@@ -123,6 +123,30 @@ class SoundtrackCurationTests(unittest.TestCase):
         self.assertEqual(receipts[0]['status'],'eligible_dry_run')
         self.assertEqual(len(c.calls),1)
 
+    def test_noneligible_music_is_triaged_not_copyright_rejected(self):
+        row=candidate(title='Unknown experimental vocal recording')
+        class Client:
+            def __init__(self):self.calls=[]
+            def call(self,path,body=None):
+                self.calls.append((path,body))
+                if body is None:
+                    return {'records':[row], 'nextCursor':None} if '?' in path else {'record':row}
+                return {'version':body['version']+1}
+        args=SimpleNamespace(max_scan=10,max_tracks=8,max_triage=1,max_mib=160,
+                             max_minutes=20,apply=True,approve_source_license=True)
+        c=Client()
+        result=curator.run(args,c,lambda _:self.fail('Ambiguous audio must never be downloaded'))
+        self.assertEqual(result[0]['status'],'requires_manual_review')
+        writes=[body for _,body in c.calls if body is not None]
+        self.assertEqual(len(writes),1)
+        self.assertEqual(writes[0]['action'],'triage')
+        self.assertIn('staff rights review',writes[0]['reason'])
+        c=Client()
+        args.apply=False
+        result=curator.run(args,c,lambda _:self.fail('Dry run decoded audio'))
+        self.assertEqual(result[0]['status'],'manual_review_dry_run')
+        self.assertTrue(all(body is None for _,body in c.calls))
+
     def test_bad_qa_never_approves_and_good_qa_uses_exact_version(self):
         class Client:
             def __init__(self):self.posts=[]
