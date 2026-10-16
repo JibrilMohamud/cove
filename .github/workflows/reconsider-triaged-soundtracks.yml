@@ -18,6 +18,9 @@ on:
       # bounded release; PR executions never receive production credentials.
       - "scripts/soundtracks/curate-source-license.py"
       - "scripts/soundtracks/test-curate-source-license.py"
+      # A verified-import client correction should also drain existing
+      # source-reviewed historical originals after protected-main CI.
+      - "scripts/soundtracks/drain-verified-imports.py"
 
 permissions:
   contents: read
