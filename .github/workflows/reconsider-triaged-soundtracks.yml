@@ -7,7 +7,13 @@ on:
     workflows: [deploy-persistence-backend]
     types: [completed]
   schedule:
-    - cron: "11 5 * * 0"
+    # Four guarded reconsideration windows per day while the sound library
+    # grows. Share production-writer concurrency with the other curators.
+    - cron: "11 1,7,13,19 * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/reconsider-triaged-soundtracks.yml"
 
 permissions:
   contents: read
@@ -18,7 +24,7 @@ concurrency:
 
 jobs:
   recover:
-    if: ${{ github.event_name == 'schedule' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push') }}
+    if: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -26,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event_name == 'schedule' && github.sha || github.event.workflow_run.head_sha }}
+          ref: ${{ github.event_name != 'workflow_run' && github.sha || github.event.workflow_run.head_sha }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
