@@ -22,6 +22,7 @@ CC = {
     "CC0": r"https://creativecommons\.org/publicdomain/zero/1\.0/?",
     "CC-BY": r"https://creativecommons\.org/licenses/by/(?:2\.0|2\.5|3\.0|4\.0)/?",
     "CC-BY-SA": r"https://creativecommons\.org/licenses/by-sa/(?:2\.0|2\.5|3\.0|4\.0)/?",
+    "PD": r"https://musopen\.org/faq/?"
 }
 LAYERS = ("composition", "arrangement", "lyrics", "performance", "master")
 
@@ -51,8 +52,11 @@ def validate(r):
         raise ValueError("Invalid recording identifier")
     if re.search(r"(?i)\b(?:unknown|unverified|various artists)\b", r["performer"]):
         raise ValueError("Unverified performer")
-    if r.get("licenseCode") not in CC or not re.fullmatch(CC[r["licenseCode"]], r.get("licenseUrl", "")):
-        raise ValueError("Explicit commercial-use CC0/BY/BY-SA declaration required")
+    code = r.get("licenseCode")
+    if code not in CC or not re.fullmatch(CC[code], r.get("licenseUrl", "")):
+        raise ValueError("Individual commercial CC license or Musopen US public-domain claim required")
+    if code == "PD" and r["provider"] != "musopen":
+        raise ValueError("Musopen-only public-domain reliance; FMA PD needs a source-specific gate")
     rights = r.get("rightsEvidence")
     if not isinstance(rights, dict):
         raise ValueError("Full rights dossier required")
@@ -69,7 +73,8 @@ def validate(r):
     if (not isinstance(grant, dict) or not secure_url(grant.get("evidenceUrl")) or
             len(str(grant.get("grantingParty", "")).strip()) < 3 or
             "commercial" not in str(grant.get("scope", "")).lower() or
-            "download" not in str(grant.get("scope", "")).lower()):
+            "download" not in str(grant.get("scope", "")).lower() or
+            "redistribut" not in str(grant.get("scope", "")).lower()):
         raise ValueError("Separate provider-authorized commercial download grant required")
     if r.get("compositionRightsConfirmed") is not True or r.get("masterRedistributionConfirmed") is not True:
         raise ValueError("Composition and exact-master rights not confirmed")
