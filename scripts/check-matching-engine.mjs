@@ -569,6 +569,7 @@ try {
     examples.push({
       id: i,
       policy: core.MATCHING_POLICY,
+      actor: "synthetic-fixture",
       product_id: product.id,
       book_fingerprint: "fixture",
       spine: "",
@@ -588,7 +589,7 @@ try {
     false,
     "Synthetic tests are never a substitute for independently staffed listening judgments",
   );
-  assert.equal(diagnostic.independentPrincipals, 0);
+  assert.equal(diagnostic.independentPrincipals, 1);
   assert.ok(diagnostic.holdouts.book.gainInterval);
   assert.ok(diagnostic.holdouts.composition.gainInterval);
 
