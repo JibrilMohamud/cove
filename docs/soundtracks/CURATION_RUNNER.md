@@ -89,7 +89,8 @@ This runner does **not** yet establish a 150–300-recording library. It cannot
 identify every Commons performer's separate master/arrangement rights and does
 not perform human auditory/editorial acceptance. Direct Musopen and Free Music
 Archive adapters remain to be implemented; a repository's general reputation
-is not a blanket license for every recording. The current Commons crawler
-has a 750 *lifetime candidate* limit; it must be converted to a bounded
-outstanding-work queue with re-crawling before new material can be continuously
-discovered over the long term.
+is not a blanket license for every recording. The Commons crawler now caps **outstanding** candidate/review work at 750
+rather than stopping permanently after 750 lifetime discoveries. Once all source
+categories have been exhausted it starts a fresh discovery cycle after seven
+days, without reinstating withdrawn items or overwriting existing review decisions.
+This is bounded metadata discovery, not automatic release of all discovered files.
