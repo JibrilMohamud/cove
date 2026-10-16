@@ -4,6 +4,7 @@ on:
     paths:
       [
         "scripts/soundtracks/profile-*",
+        "scripts/check-music-report-file.mjs",
         "scripts/soundtracks/run-profiles.py",
         "scripts/soundtracks/test-profile-audio.py",
         ".github/workflows/profile-music.yml",
@@ -13,6 +14,7 @@ on:
     paths:
       [
         "scripts/soundtracks/profile-*",
+        "scripts/check-music-report-file.mjs",
         "scripts/soundtracks/run-profiles.py",
         "scripts/soundtracks/test-profile-audio.py",
         ".github/workflows/profile-music.yml",
@@ -67,6 +69,16 @@ jobs:
           ffmpeg -nostdin -v error -f lavfi -i 'sine=frequency=440:duration=12:sample_rate=48000' -c:a libvorbis /tmp/clap-fixture.ogg -y
           python scripts/soundtracks/profile-audio.py /tmp/clap-fixture.ogg --semantic-model --output /tmp/clap-fixture-profile.json
           python -c 'import json; r=json.load(open("/tmp/clap-fixture-profile.json")); assert r["semantics"]["model"] == "laion/clap-htsat-unfused" and len(r["semantics"]["windows"]) == 2'
+      - uses: actions/setup-node@v6
+        if: matrix.consumer == 0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Validate actual analyzer output through the backend schema
+        if: matrix.consumer == 0
+        run: |
+          npm ci
+          node scripts/check-music-report-file.mjs /tmp/clap-fixture-profile.json
       - name: Analyze already released original recordings
         if: env.COVE_SOUNDTRACK_REVIEW_TOKEN != ''
         run: python scripts/soundtracks/run-profiles.py --max-tracks 40 --max-minutes 24 --output music-profile-receipt.json

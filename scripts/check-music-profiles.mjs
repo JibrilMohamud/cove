@@ -80,7 +80,7 @@ try {
     durationSeconds: 20,
     decodedFully: true,
     analyzer: "fixture full-signal analyzer",
-    measuredAt: now,
+    measuredAt: now.replace("Z", "+00:00"),
     loudness: { integratedLufs: -22, truePeakDbfs: -1, loudnessRangeLu: 10, rmsDynamicRangeDb: 12 },
     signal: {
       spectralCentroidHz: 400,
@@ -106,7 +106,9 @@ try {
       transitionPoints: [10],
     },
     semantics: null,
-    limitations: ["No semantic model in this fixture."],
+    limitations: [
+      "Lyrics, historical performance authenticity and composition dates cannot be established by this analyzer.",
+    ],
   };
   const identity = {
     recordingId: first.recordingId,

@@ -211,7 +211,8 @@ export async function handleMusicProfiles(
     let report;
     try {
       report = validateMusicReport(body.report);
-    } catch {
+    } catch (error) {
+      console.warn("music_profile_validation_failed", r.id, String(error).slice(0, 500));
       throw new ApiError(422, "Invalid or incomplete audio measurements");
     }
     const qa = JSON.parse(r.quality_report_json);

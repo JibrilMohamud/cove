@@ -52,7 +52,7 @@ export const musicReportSchema = z
     durationSeconds: numeric.positive().max(7200),
     decodedFully: z.literal(true),
     analyzer: z.string().min(1).max(200),
-    measuredAt: z.string().datetime(),
+    measuredAt: z.string().datetime({ offset: true }),
     loudness: z
       .object({
         integratedLufs: numeric.min(-100).max(10),
@@ -99,7 +99,7 @@ export const musicReportSchema = z
       })
       .strict(),
     semantics: musicSemanticSchema.nullable(),
-    limitations: tags,
+    limitations: z.array(z.string().trim().min(1).max(400)).max(20),
   })
   .strict();
 export type MusicReport = z.infer<typeof musicReportSchema>;
