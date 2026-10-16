@@ -129,6 +129,18 @@ try {
         evidence,
       };
       profile.listening.maxEnergy = 1;
+      if (section)
+        profile.musicalAffinity = {
+          value: {
+            instruments: section.text.includes("battle") ? ["strings"] : ["piano"],
+            textures: [],
+            eraMode: "atmosphere",
+            preferredPeriods: [],
+            allowReconstructions: true,
+          },
+          confidence: 0.9,
+          evidence,
+        };
       return { response: JSON.stringify(profile) };
     },
   };
@@ -165,6 +177,22 @@ try {
   );
   assert.equal(result.profile.energy.confidence, 0.9, "Full-text inference confidence is capped");
   assert.equal(result.coverage.mode, "full_text");
+  assert.equal(result.readingTime.method, "epub_text");
+  assert.ok(result.readingTime.wordCount > 1500);
+  assert.deepEqual(result.profile.musicalAffinity.value.instruments, ["strings"]);
+  const whole = await (
+    await lib.handleLiteraryProfiles(
+      new Request("https://cove.test"),
+      env,
+      `/books/${product.id}/literary-profile`,
+      "US",
+    )
+  ).json();
+  assert.equal(
+    whole.profile.musicalAffinity.value.instruments[0],
+    "piano",
+    "Longer quiet text outweighs a short climax in whole-book affinity",
+  );
   assert.equal(result.sections.analyzed, 3);
   const fallback = await (
     await lib.handleLiteraryProfiles(
@@ -203,6 +231,19 @@ try {
     abstained.themes.value,
     ["loyalty"],
     "Grounded dimensions survive a separate unsupported claim",
+  );
+  const falseDate = core.emptyLiteraryProfile();
+  falseDate.writtenPeriod = {
+    value: { label: "invented", startYear: 1800, endYear: 1801 },
+    confidence: 0.9,
+    evidence: ["catalog"],
+  };
+  assert.equal(
+    core.validateLiteraryProfile(falseDate, [
+      { id: "catalog", kind: "metadata", text: "Written in 1776", locator: "catalog" },
+    ]).writtenPeriod.confidence,
+    0,
+    "A valid source ID cannot support an invented precise date",
   );
   const ancient = core.emptyLiteraryProfile();
   ancient.energy = { value: 0.2, confidence: 0.8, evidence: ["text"] };
@@ -272,6 +313,11 @@ try {
   await lib.processLiteraryJob(env);
   await env.DB.prepare(
     "INSERT INTO cove_runtime_config(key,value,updated_at) VALUES('literary_daily_units','0',?) ON CONFLICT(key) DO UPDATE SET value='0'",
+  )
+    .bind(new Date().toISOString())
+    .run();
+  await env.DB.prepare(
+    "INSERT INTO cove_runtime_config(key,value,updated_at) VALUES('literary_jobs_per_tick','0',?)",
   )
     .bind(new Date().toISOString())
     .run();

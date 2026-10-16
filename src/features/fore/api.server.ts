@@ -37,6 +37,7 @@ import {
 import { handlePipeline } from "./pipeline.server";
 import { handleAudio } from "./audio.server";
 import { handleSoundtracks } from "./soundtracks.server";
+import { handleMusicProfiles } from "./music-profiles.server";
 import { handleLiteraryProfiles } from "./literary-profiles.server";
 import { handleVercelPublicRequest } from "./vercel-public.server";
 import {
@@ -3936,6 +3937,7 @@ async function handleCoveRequest(
         );
     }
     const extended =
+      (await handleMusicProfiles(request, env, path, storefrontTerritory, identity(request))) ||
       (await handleLiteraryProfiles(request, env, path, storefrontTerritory, identity(request))) ||
       (await handlePipeline(request, env, path, identity(request)?.id || null)) ||
       (await handleCommercialAudio(

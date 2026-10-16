@@ -50,7 +50,10 @@ export async function extractLiterarySections(bytes: Uint8Array) {
       new URL(item.getAttribute("href")!, "https://epub.invalid/" + opfPath).pathname.slice(1),
     );
     const file = zip.file(href);
-    if (!file) continue;
+    if (!file) {
+      truncated = true;
+      continue;
+    }
     const declared =
       (file as unknown as { _data?: { uncompressedSize?: number } })._data?.uncompressedSize || 0;
     if (declared > 4 * 1024 * 1024) {
@@ -86,7 +89,7 @@ export async function extractLiterarySections(bytes: Uint8Array) {
       )
     )
       continue;
-    if (text.length < 250) continue;
+    if (!text.trim()) continue;
     const title = (
       doc.getElementsByTagNameNS("*", "h1")[0]?.textContent ||
       doc.getElementsByTagNameNS("*", "h2")[0]?.textContent ||
@@ -102,6 +105,7 @@ export async function extractLiterarySections(bytes: Uint8Array) {
         break outer;
       }
       const end = Math.min(text.length, offset + 8000, offset + LITERARY_TEXT_LIMIT - totalChars);
+      if (end < Math.min(text.length, offset + 8000)) truncated = true;
       sections.push({
         id: `s${String(i).padStart(5, "0")}_${String(chunk).padStart(5, "0")}`,
         spineIndex: i,

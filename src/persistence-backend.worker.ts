@@ -1,3 +1,4 @@
+import { seedMusicProfiles } from "./features/fore/music-profiles.server";
 import { verifyAudioStorage } from "./features/fore/audio-coverage.server";
 import { runLiteraryProfileTick } from "./features/fore/literary-profiles.server";
 import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
@@ -543,6 +544,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
         () => runStoredAssetTick(env),
         () => verifyAudioStorage(env),
         () => runLiteraryProfileTick(env),
+        () => seedMusicProfiles(env),
       ]) {
         try {
           await work();

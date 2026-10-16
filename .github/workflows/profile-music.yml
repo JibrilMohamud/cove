@@ -1,0 +1,80 @@
+name: Profile published music masters
+on:
+  pull_request:
+    paths:
+      [
+        "scripts/soundtracks/profile-*",
+        "scripts/soundtracks/run-profiles.py",
+        "scripts/soundtracks/test-profile-audio.py",
+        ".github/workflows/profile-music.yml",
+      ]
+  push:
+    branches: [main]
+    paths:
+      [
+        "scripts/soundtracks/profile-*",
+        "scripts/soundtracks/run-profiles.py",
+        "scripts/soundtracks/test-profile-audio.py",
+        ".github/workflows/profile-music.yml",
+      ]
+  schedule:
+    - cron: "37 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('music-profiles-ci-{0}',github.ref) || 'music-profiles-production' }}
+  cancel-in-progress: false
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        consumer: [0, 1]
+    env:
+      COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ github.event_name != 'pull_request' && secrets.COVE_SOUNDTRACK_REVIEW_TOKEN || '' }}
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      HF_HUB_DISABLE_XET: "1"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/soundtracks/profile-requirements.txt
+      - name: Install signal processing tools
+        run: |
+          python -m pip install numpy==2.2.6 scipy==1.15.3
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Verify exact-master DSP and trust boundaries
+        run: python scripts/soundtracks/test-profile-audio.py -v
+      - uses: actions/cache@v4
+        if: matrix.consumer == 0 || env.COVE_SOUNDTRACK_REVIEW_TOKEN != ''
+        with:
+          path: ~/.cache/huggingface/hub
+          key: clap-8fa0f1c-transformers-4.57.6
+      - name: Install pinned local audio model runtime
+        if: matrix.consumer == 0 || env.COVE_SOUNDTRACK_REVIEW_TOKEN != ''
+        run: |
+          python -m pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -r scripts/soundtracks/profile-requirements.txt
+      - name: Exercise pinned CLAP on real waveform bytes
+        if: matrix.consumer == 0
+        run: |
+          ffmpeg -nostdin -v error -f lavfi -i 'sine=frequency=440:duration=12:sample_rate=48000' -c:a libvorbis /tmp/clap-fixture.ogg -y
+          python scripts/soundtracks/profile-audio.py /tmp/clap-fixture.ogg --semantic-model --output /tmp/clap-fixture-profile.json
+          python -c 'import json; r=json.load(open("/tmp/clap-fixture-profile.json")); assert r["semantics"]["model"] == "laion/clap-htsat-unfused" and len(r["semantics"]["windows"]) == 2'
+      - name: Analyze already released original recordings
+        if: env.COVE_SOUNDTRACK_REVIEW_TOKEN != ''
+        run: python scripts/soundtracks/run-profiles.py --max-tracks 12 --max-minutes 24 --output music-profile-receipt.json
+      - name: Keep non-secret analysis receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: music-profile-receipt-${{ matrix.consumer }}
+          path: music-profile-receipt.json
+          if-no-files-found: ignore
+          retention-days: 30

@@ -1,0 +1,303 @@
+import type { CoveEnv } from "./api.server";
+import type { CoveIdentity } from "./auth.server";
+import { ApiError, json, readBody } from "./service";
+import { requireStaffPermission } from "./moderation.server";
+import { requireServiceScope } from "./privileged-access.server";
+import { MUSIC_POLICY, validateMusicReport } from "./music-profile";
+
+type Recording = {
+  id: string;
+  title: string;
+  performer: string;
+  composer: string;
+  period: string;
+  instruments_json: string;
+  moods_json: string;
+  energy: number | null;
+  has_vocals: number | null;
+  source_sha1: string;
+  source_size: number;
+  storage_key: string;
+  quality_report_json: string;
+  source_page_url: string;
+  allowed_territories_json: string;
+  context_json: string;
+};
+const catalogSql = `SELECT r.*,COALESCE((SELECT json_object('compositionYears',json_array(c.composition_start_year,c.composition_end_year),'recordingYears',json_array(c.recording_start_year,c.recording_end_year),'reconstruction',c.reconstruction,'evokedEras',json(c.evoked_eras_json),'geography',json(c.geography_json),'evidence',json(c.evidence_json)) FROM soundtrack_context c WHERE c.recording_id=r.id),'{}') context_json FROM (
+ SELECT id,title,performer,composer,period,instruments_json,moods_json,energy,has_vocals,source_sha1,source_size,storage_key,quality_report_json,source_page_url,allowed_territories_json FROM soundtrack_recordings WHERE status='ready' AND quality_status='passed' AND source_snapshot_key IS NOT NULL AND storage_key IS NOT NULL
+ UNION ALL SELECT id,title,performer,composer,period,instruments_json,moods_json,energy,has_vocals,source_file_sha1 source_sha1,source_size,storage_key,quality_report_json,source_page_url,territories_json allowed_territories_json FROM soundtrack_external_recordings WHERE status='ready' AND storage_key IS NOT NULL
+) r`;
+const timestamp = () => new Date().toISOString();
+const hash = async (text: string) =>
+  [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+const fingerprint = (r: Recording) => hash(JSON.stringify({ policy: MUSIC_POLICY, recording: r }));
+function provisional(r: Recording) {
+  return {
+    provenance: {
+      composer: r.composer,
+      performer: r.performer,
+      stylePeriod: r.period,
+      sourcePage: r.source_page_url,
+      ...JSON.parse(r.context_json),
+      historicalReliability: "source_declared_not_independently_verified",
+    },
+    catalog: {
+      instruments: JSON.parse(r.instruments_json),
+      moods: JSON.parse(r.moods_json),
+      energy: r.energy,
+      vocals: r.has_vocals === null ? null : !!r.has_vocals,
+    },
+    audioAnalysis: null,
+    limitations: [
+      "Catalog tags are declarations, not measured sound.",
+      "Unknown composition/recording dates remain unknown.",
+    ],
+  };
+}
+export async function seedMusicProfiles(env: CoveEnv, limit = 40) {
+  const now = timestamp(),
+    token = crypto.randomUUID();
+  const state = await env.DB.prepare(
+    "UPDATE music_profile_state SET lease_token=?,lease_until=? WHERE id=1 AND lease_until<? RETURNING cursor",
+  )
+    .bind(token, new Date(Date.now() + 120000).toISOString(), now)
+    .first<{ cursor: string }>();
+  if (!state) return { skipped: "seed_lease" };
+  try {
+    const rows = (
+      await env.DB.prepare(catalogSql + " WHERE r.id>? ORDER BY r.id LIMIT ?")
+        .bind(state.cursor, Math.min(100, Math.max(1, limit)))
+        .all<Recording>()
+    ).results;
+    for (const row of rows) {
+      const pin = await fingerprint(row);
+      const current = await env.DB.prepare(
+        "SELECT fingerprint FROM music_profiles WHERE recording_id=?",
+      )
+        .bind(row.id)
+        .first<{ fingerprint: string }>();
+      if (current?.fingerprint === pin) continue;
+      await env.DB.batch([
+        env.DB.prepare(
+          "INSERT INTO music_profiles(recording_id,fingerprint,policy,status,profile_json,updated_at) VALUES(?,?,?,'provisional',?,?) ON CONFLICT(recording_id) DO UPDATE SET fingerprint=excluded.fingerprint,policy=excluded.policy,status='provisional',profile_json=excluded.profile_json,updated_at=excluded.updated_at",
+        ).bind(row.id, pin, MUSIC_POLICY, JSON.stringify(provisional(row)), now),
+        env.DB.prepare(
+          "INSERT INTO music_profile_jobs(recording_id,fingerprint,status,available_at,updated_at) VALUES(?,?,'queued',?,?) ON CONFLICT(recording_id) DO UPDATE SET fingerprint=excluded.fingerprint,status='queued',attempts=0,available_at=excluded.available_at,lease_token='',lease_until='',last_error='',updated_at=excluded.updated_at",
+        ).bind(row.id, pin, now, now),
+      ]);
+    }
+    await env.DB.prepare("UPDATE music_profile_state SET cursor=? WHERE id=1 AND lease_token=?")
+      .bind(rows.at(-1)?.id || "", token)
+      .run();
+    return { scanned: rows.length };
+  } finally {
+    await env.DB.prepare(
+      "UPDATE music_profile_state SET lease_until='' WHERE id=1 AND lease_token=?",
+    )
+      .bind(token)
+      .run();
+  }
+}
+export async function handleMusicProfiles(
+  request: Request,
+  env: CoveEnv,
+  path: string,
+  territory: string,
+  identity: CoveIdentity | null = null,
+): Promise<Response | null> {
+  const match = /^\/soundtracks\/recordings\/((?:cm_[0-9]{1,15}|ex_[0-9a-f-]{36}))\/profile$/.exec(
+    path,
+  );
+  const admin = path.startsWith("/admin/music-profiles");
+  if (!match && !admin) return null;
+  const find = (id: string) =>
+    env.DB.prepare(catalogSql + " WHERE r.id=?")
+      .bind(id)
+      .first<Recording>();
+  if (match && request.method === "GET") {
+    const r = await find(match[1]);
+    if (
+      !r ||
+      !JSON.parse(r.allowed_territories_json).some((t: string) => t === territory || t === "*")
+    )
+      throw new ApiError(404, "Recording unavailable");
+    const pin = await fingerprint(r);
+    const current = await env.DB.prepare(
+      "SELECT * FROM music_profiles WHERE recording_id=? AND fingerprint=?",
+    )
+      .bind(r.id, pin)
+      .first<{ status: string; profile_json: string; updated_at: string }>();
+    return json({
+      recordingId: r.id,
+      policy: MUSIC_POLICY,
+      fingerprint: pin,
+      status: current?.status || "pending",
+      updatedAt: current?.updated_at || null,
+      profile: current ? JSON.parse(current.profile_json) : provisional(r),
+    });
+  }
+  if (!admin) return null;
+  let actor: string;
+  if (identity) {
+    await requireStaffPermission(env.DB, identity, "soundtracks.review", request);
+    actor = "staff:" + identity.id;
+  } else {
+    const principal = await requireServiceScope(env.DB, request, "soundtracks.review");
+    actor = "service:" + principal.principalId;
+  }
+  if (path === "/admin/music-profiles/status" && request.method === "GET")
+    return json({
+      profiles: (
+        await env.DB.prepare(
+          "SELECT status,COUNT(*) count FROM music_profiles GROUP BY status",
+        ).all()
+      ).results,
+      jobs: (
+        await env.DB.prepare(
+          "SELECT status,COUNT(*) count FROM music_profile_jobs GROUP BY status",
+        ).all()
+      ).results,
+    });
+  if (path === "/admin/music-profiles/seed" && request.method === "POST") {
+    await readBody(request, 1000);
+    return json(await seedMusicProfiles(env));
+  }
+  if (path === "/admin/music-profiles/claim" && request.method === "POST") {
+    await readBody(request, 1000);
+    const now = timestamp(),
+      token = crypto.randomUUID();
+    await env.DB.prepare(
+      "UPDATE music_profile_jobs SET status='failed',last_error='expired_max_attempts' WHERE status='running' AND lease_until<? AND attempts>=5",
+    )
+      .bind(now)
+      .run();
+    const job = await env.DB.prepare(
+      "UPDATE music_profile_jobs SET status='running',attempts=attempts+1,lease_token=?,lease_until=?,updated_at=? WHERE recording_id=(SELECT recording_id FROM music_profile_jobs WHERE ((status='queued' AND available_at<=?) OR (status='running' AND lease_until<?)) AND attempts<5 ORDER BY available_at,recording_id LIMIT 1) RETURNING recording_id,fingerprint",
+    )
+      .bind(token, new Date(Date.now() + 1800000).toISOString(), now, now, now)
+      .first<{ recording_id: string; fingerprint: string }>();
+    if (!job) return json({ skipped: "no_jobs" });
+    const r = await find(job.recording_id);
+    if (!r || (await fingerprint(r)) !== job.fingerprint)
+      throw new ApiError(409, "Recording changed; waiting for sweep");
+    return json({
+      recordingId: r.id,
+      fingerprint: job.fingerprint,
+      leaseToken: token,
+      policy: MUSIC_POLICY,
+      sourceSha1: r.source_sha1,
+      bytes: r.source_size,
+      audioUrl: `/api/fore/soundtracks/recordings/${r.id}/audio`,
+    });
+  }
+  if (path === "/admin/music-profiles/complete" && request.method === "POST") {
+    const body = (await readBody(request, 450000)) as {
+      recordingId: string;
+      fingerprint: string;
+      leaseToken: string;
+      report: unknown;
+    };
+    const r = await find(body.recordingId);
+    if (!r || (await fingerprint(r)) !== body.fingerprint)
+      throw new ApiError(409, "Audio or catalog changed");
+    const job = await env.DB.prepare(
+      "SELECT recording_id FROM music_profile_jobs WHERE recording_id=? AND fingerprint=? AND lease_token=? AND status='running' AND lease_until>?",
+    )
+      .bind(r.id, body.fingerprint, body.leaseToken, timestamp())
+      .first();
+    if (!job) throw new ApiError(409, "Audio analysis lease lost");
+    let report;
+    try {
+      report = validateMusicReport(body.report);
+    } catch {
+      throw new ApiError(422, "Invalid or incomplete audio measurements");
+    }
+    const qa = JSON.parse(r.quality_report_json);
+    if (
+      report.sourceSha1 !== r.source_sha1 ||
+      report.bytes !== r.source_size ||
+      (qa.sha256 && qa.sha256 !== report.sha256) ||
+      Math.abs(report.durationSeconds - qa.durationSeconds) > 0.5
+    )
+      throw new ApiError(409, "Measurements describe another master");
+    if (!env.BUCKET) throw new ApiError(503, "Evidence storage unavailable");
+    const master = await env.BUCKET.head?.(r.storage_key);
+    if (!master || master.size !== report.bytes)
+      throw new ApiError(503, "Verified original master is unavailable");
+    const key = `music/profiles/${MUSIC_POLICY}/${r.id}/${body.fingerprint}/${body.leaseToken}.json`;
+    await env.BUCKET.put(key, JSON.stringify(report), {
+      httpMetadata: { contentType: "application/json" },
+    });
+    const profile = {
+      ...provisional(r),
+      audioAnalysis: report,
+      analysisCoverage: {
+        fullSignal: true,
+        semantic: report.semantics ? "sampled" : "unavailable",
+        semanticFraction: report.semantics
+          ? report.semantics.sampledSeconds / report.durationSeconds
+          : 0,
+      },
+      readingSuitability: {
+        method: "signal_and_model_estimate",
+        confidence: report.semantics ? 0.6 : 0.35,
+        distraction: Math.min(
+          1,
+          0.4 * report.signal.energy +
+            0.3 * report.signal.abruptTransitionRate +
+            0.3 * (report.semantics?.dimensions.vocalPresence ?? 0.5),
+        ),
+        lyrics: null,
+        lyricsStatus: "not_transcribed_or_verified",
+        volumeVariationLu: report.loudness.loudnessRangeLu,
+        abruptTransitionRate: report.signal.abruptTransitionRate,
+      },
+      limitations: report.limitations,
+    };
+    const now = timestamp();
+    const guard =
+      "EXISTS(SELECT 1 FROM music_profile_jobs j WHERE j.recording_id=music_profiles.recording_id AND j.fingerprint=music_profiles.fingerprint AND j.lease_token=? AND j.status='running' AND j.lease_until>?)";
+    await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE music_profiles SET status='analyzed',profile_json=?,updated_at=? WHERE recording_id=? AND fingerprint=? AND ${guard}`,
+      ).bind(JSON.stringify(profile), now, r.id, body.fingerprint, body.leaseToken, now),
+      env.DB.prepare(
+        "INSERT OR IGNORE INTO music_profile_revisions(recording_id,fingerprint,report_key,actor,created_at) SELECT recording_id,fingerprint,?,?,? FROM music_profiles WHERE recording_id=? AND fingerprint=? AND status='analyzed' AND updated_at=?",
+      ).bind(key, actor, now, r.id, body.fingerprint, now),
+      env.DB.prepare(
+        "UPDATE music_profile_jobs SET status='done',lease_until='',updated_at=? WHERE recording_id=? AND fingerprint=? AND lease_token=? AND status='running' AND lease_until>?",
+      ).bind(now, r.id, body.fingerprint, body.leaseToken, now),
+    ]);
+    const committed = await env.DB.prepare(
+      "SELECT recording_id FROM music_profile_jobs WHERE recording_id=? AND fingerprint=? AND lease_token=? AND status='done'",
+    )
+      .bind(r.id, body.fingerprint, body.leaseToken)
+      .first();
+    if (!committed) throw new ApiError(409, "Audio analysis claim changed during publication");
+    return json({ saved: true, recordingId: r.id, fingerprint: body.fingerprint });
+  }
+  if (path === "/admin/music-profiles/fail" && request.method === "POST") {
+    const body = (await readBody(request, 1000)) as {
+      recordingId: string;
+      fingerprint: string;
+      leaseToken: string;
+      error: string;
+    };
+    await env.DB.prepare(
+      "UPDATE music_profile_jobs SET status=CASE WHEN attempts>=5 THEN 'failed' ELSE 'queued' END,last_error=?,available_at=?,lease_until='',updated_at=? WHERE recording_id=? AND fingerprint=? AND lease_token=? AND status='running'",
+    )
+      .bind(
+        String(body.error).slice(0, 200),
+        new Date(Date.now() + 3600000).toISOString(),
+        timestamp(),
+        body.recordingId,
+        body.fingerprint,
+        body.leaseToken,
+      )
+      .run();
+    return json({ saved: true });
+  }
+  throw new ApiError(404, "Music profile route unavailable");
+}
