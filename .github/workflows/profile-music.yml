@@ -5,6 +5,8 @@ on:
       [
         "scripts/soundtracks/profile-*",
         "scripts/check-music-report-file.mjs",
+        "src/features/fore/music-profile.ts",
+        "src/features/fore/music-profiles.server.ts",
         "scripts/soundtracks/run-profiles.py",
         "scripts/soundtracks/test-profile-audio.py",
         ".github/workflows/profile-music.yml",
@@ -15,6 +17,8 @@ on:
       [
         "scripts/soundtracks/profile-*",
         "scripts/check-music-report-file.mjs",
+        "src/features/fore/music-profile.ts",
+        "src/features/fore/music-profiles.server.ts",
         "scripts/soundtracks/run-profiles.py",
         "scripts/soundtracks/test-profile-audio.py",
         ".github/workflows/profile-music.yml",

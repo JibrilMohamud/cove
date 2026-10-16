@@ -356,7 +356,46 @@ try {
     .bind(product.id)
     .first();
   assert.ok(revision.revision >= 3);
-  await lib.processLiteraryJob(env);
+  const stalePrepare = await env.DB.prepare(
+    "SELECT id,fingerprint FROM literary_profile_jobs WHERE product_id=? AND kind='prepare' AND status='queued'",
+  )
+    .bind(product.id)
+    .first();
+  await env.DB.prepare(
+    "UPDATE editions SET description='Changed after sweep, before preparation' WHERE id=(SELECT edition_id FROM products WHERE id=?)",
+  )
+    .bind(product.id)
+    .run();
+  const beforeSourceRefresh = calls;
+  const changed = await lib.processLiteraryJob(env, false, "prepare");
+  assert.match(changed.reason, /source_changed_requeued/);
+  assert.equal(
+    (
+      await env.DB.prepare("SELECT status FROM literary_profile_jobs WHERE id=?")
+        .bind(stalePrepare.id)
+        .first()
+    ).status,
+    "superseded",
+  );
+  const freshPrepare = await env.DB.prepare(
+    "SELECT fingerprint FROM literary_profile_jobs WHERE product_id=? AND kind='prepare' AND status='queued'",
+  )
+    .bind(product.id)
+    .first();
+  assert.ok(freshPrepare);
+  assert.notEqual(freshPrepare.fingerprint, stalePrepare.fingerprint);
+  assert.equal((await lib.processLiteraryJob(env, false, "prepare")).kind, "prepare");
+  assert.equal(calls, beforeSourceRefresh, "Replacing an outdated source uses no inference");
+  await env.DB.prepare(
+    "UPDATE editions SET description='Changed after preparation, before inference' WHERE id=(SELECT edition_id FROM products WHERE id=?)",
+  )
+    .bind(product.id)
+    .run();
+  const changedBeforeInference = await lib.processLiteraryJob(env, false, "analyze");
+  assert.match(changedBeforeInference.reason, /source_changed_requeued/);
+  assert.equal(calls, beforeSourceRefresh, "Outdated inference reserves no model work");
+  assert.equal((await lib.processLiteraryJob(env, false, "prepare")).kind, "prepare");
+
   await env.DB.prepare(
     "INSERT INTO cove_runtime_config(key,value,updated_at) VALUES('literary_daily_units','0',?) ON CONFLICT(key) DO UPDATE SET value='0'",
   )

@@ -248,7 +248,7 @@ async function putBundle(env: LiteraryEnv, key: string, bundle: SourceBundle) {
     httpMetadata: { contentType: "application/json" },
   });
 }
-async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
+async function currentBookForJob(env: LiteraryEnv, job: Job) {
   const book = await env.DB.prepare(inputSql + " WHERE p.id=? AND p.storefront_status='active'")
     .bind(job.product_id)
     .first<BookInput>();
@@ -256,7 +256,16 @@ async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
   const actualFingerprint = await hash(
     JSON.stringify({ policy: PROFILE_POLICY, model: PROFILE_MODEL, book }),
   );
-  if (actualFingerprint !== job.fingerprint) throw new Error("source_changed_waiting_for_sweep");
+  if (actualFingerprint !== job.fingerprint) {
+    // Catalog ingestion can change an edition between its sweep and preparation.
+    // Replace the stale claim now instead of retrying it until the next full sweep.
+    await enqueueBook(env, book);
+    throw new Error("source_changed_requeued");
+  }
+  return book;
+}
+async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
+  const book = await currentBookForJob(env, job);
   const prefix = `literary/v1/${job.product_id}/${job.fingerprint}`;
   const sources = metadataSources(book);
   let coverage = "metadata",
@@ -369,6 +378,7 @@ async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
 }
 
 async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
+  await currentBookForJob(env, job);
   if (!env.AI || !env.BUCKET) throw new Error("Literary inference binding unavailable");
   const head = await env.BUCKET.head?.(job.source_key);
   if (!head || head.size > 100000) throw new Error("Invalid literary source bundle");
