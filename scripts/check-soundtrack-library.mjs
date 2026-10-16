@@ -323,6 +323,7 @@ try {
   pages[4].imageinfo[0].extmetadata.LicenseShortName.value = "Public domain";
   pages[4].imageinfo[0].extmetadata.LicenseUrl.value = "";
   pages[4].imageinfo[0].extmetadata.Copyrighted = {value:"False"};
+  pages[4].revisions[0].slots.main.content = "{{PD-self}} Original master released by creator.";
   const sourceDossier = {...dossier, reviewMethod:"source_license", sourceReliance:{
     sourcePageUrl:sourceRow.source_page_url,sourceSha1:sha1,licenseCode:"PD",licenseUrl:pdUrl,
     declarationBasis:"Accept the recording-specific repository declaration under Cove's source-reliance policy; no independent human review is represented."}};
