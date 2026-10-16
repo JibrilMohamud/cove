@@ -93,6 +93,8 @@ try {
     async run(model, input) {
       calls++;
       assert.equal(model, core.PROFILE_MODEL);
+      assert.equal(input.response_format.type, "json_schema");
+      assert.ok(JSON.parse(input.messages[1].content).sources[0].text.length <= 12000);
       assert.match(input.messages[0].content, /UNTRUSTED DATA/);
       const sources = JSON.parse(input.messages[1].content).sources;
       const section = sources.find((s) => s.kind === "full_text");
@@ -170,6 +172,19 @@ try {
       { id: "catalog", kind: "metadata", text: "book", locator: "catalog" },
     ]).moods.confidence,
     0.35,
+  );
+  const unsupported = core.emptyLiteraryProfile();
+  unsupported.energy = { value: 0.9, confidence: 0.8, evidence: [] };
+  unsupported.themes = { value: ["loyalty"], confidence: 0.8, evidence: ["catalog"] };
+  const abstained = core.validateLiteraryProfile(unsupported, [
+    { id: "catalog", kind: "metadata", text: "Loyalty in a novel", locator: "catalog" },
+  ]);
+  assert.equal(abstained.energy.value, null, "Uncited model claims become unknown");
+  assert.equal(abstained.energy.confidence, 0);
+  assert.deepEqual(
+    abstained.themes.value,
+    ["loyalty"],
+    "Grounded dimensions survive a separate unsupported claim",
   );
   const ancient = core.emptyLiteraryProfile();
   ancient.energy = { value: 0.2, confidence: 0.8, evidence: ["text"] };

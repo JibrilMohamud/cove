@@ -28,7 +28,7 @@ Original-recording license, attribution, QA and territory gates still apply.
 ## Evidence and analysis
 
 1. A keyset sweep fingerprints catalog title, description, language, subjects,
-   authors, supplementary evidence, the current EPUB asset/hash, model and policy.
+   authors and native edition/work publication dates, supplementary evidence, the current EPUB asset/hash, model and policy.
    It creates an explicit provisional profile and durable preparation job.
 2. Preparation snapshots the supplied metadata/description in private R2. Only
    approved public-domain Gutenberg text is automatically opened for analysis.
@@ -39,7 +39,7 @@ Original-recording license, attribution, QA and territory gates still apply.
    with offsets so later dramatic scenes are not dropped by beginning-only sampling.
 4. A schema-constrained Cloudflare model analyzes the book overview and each text
    section. Runtime Zod validation rejects bad types and unknown evidence IDs.
-   Book content is untrusted input, never instructions. Dates require explicit
+   An uncited claim becomes an unknown dimension without discarding other supported dimensions. Book content is untrusted input, never instructions. Dates require explicit
    temporal evidence and cannot be copied from publication into story chronology.
 5. Supported chapter dimensions override the overview for that spine request.
    A completed-section aggregate enriches the whole-book profile. The chapter API
@@ -49,6 +49,8 @@ Original-recording license, attribution, QA and territory gates still apply.
    add a small composition-date overlap bonus. Recording date has zero era weight.
    Unknown vocal content is excluded when instrumental listening is required.
    Unsupported provisional profiles return no invented playlist.
+
+Surrounding metadata/excerpts are bounded to a total 12,000-character inference context per job, retaining each full-text chunk. This limits context overflows without silently dropping the end of a chapter.
 
 The confidence ceilings are metadata 0.35, description/review 0.60, excerpt 0.70,
 and full-text section 0.90. They are policy ceilings, **not calibrated probabilities**.
