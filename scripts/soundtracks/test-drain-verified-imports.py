@@ -53,6 +53,26 @@ class DrainTests(unittest.TestCase):
         r=mod.drain("fore_svc_fixture",attempts=5,opener=o)
         self.assertEqual([x["status"] for x in r["results"]],["import_held","import_held","skipped"])
         self.assertEqual(r["playableVerified"],0)
+    def test_confirmed_lease_contention_is_retried_without_replaying_unknown_writes(self):
+        waits=[]
+        o=Opener([{"skipped":"leased"},{"skipped":"leased"},
+                  {"stored":"cm_123"},{"skipped":"no_approved_recordings"}])
+        r=mod.drain("fore_svc_fixture",attempts=5,opener=o,sleeper=waits.append)
+        self.assertEqual(waits,[5,10])
+        self.assertEqual(r["playableVerified"],1)
+        self.assertEqual([x["status"] for x in r["results"]],
+            ["lease_contended_retry","lease_contended_retry","playable_verified","skipped"])
+        self.assertEqual([c[0] for c in o.calls],["POST","POST","POST","HEAD","GET","POST"])
+
+    def test_lease_contention_remains_bounded_and_transparent(self):
+        o=Opener([{"skipped":"leased"}]*6)
+        waits=[]
+        r=mod.drain("fore_svc_fixture",attempts=8,opener=o,sleeper=waits.append)
+        self.assertEqual(waits,[5,10,15,15])
+        self.assertEqual(len([c for c in o.calls if c[0]=="POST"]),5)
+        self.assertEqual(r["results"][-1]["status"],"lease_deferred")
+        self.assertEqual(r["playableVerified"],0)
+
     def test_mutation_error_does_not_retry(self):
         class Broken:
             attempts=0
