@@ -10,6 +10,7 @@ import { build } from "esbuild";
 export function auditRankerEvidence(evaluations, core, weights) {
   const rows = evaluations.map((r) => core.evaluationExampleSchema.parse(r));
   const details = core.evaluateRanker(rows, weights);
+  const release = core.rankerReleaseEvidence(rows, weights);
   const assessors = new Set(rows.map((r) => r.actor).filter(Boolean));
   const distinctBooks = new Set(details.subsets.bookHoldout.map((r) => r.book_family));
   const distinctWorks = new Set(
@@ -88,12 +89,12 @@ export function auditRankerEvidence(evaluations, core, weights) {
   };
   const conditions = {
     trainedOnHumanJudgments:
-      rows.length > 0 &&
-      assessors.size >= 3 &&
-      [...assessors].every((r) => /^(?:staff|service):/.test(r)),
+      release.conditions.staffAuthoredOnly &&
+      release.conditions.threeStaffAssessors &&
+      release.conditions.reviewerIndependence,
     sufficientTrainPairs: details.trainPairs >= 100,
-    unseenBooks: holdouts.book.pairs >= 20 && holdouts.book.familyCount >= 5,
-    unseenCompositions: holdouts.composition.pairs >= 20 && holdouts.composition.familyCount >= 5,
+    unseenBooks: release.conditions.bookHoldoutCoverage,
+    unseenCompositions: release.conditions.compositionHoldoutCoverage,
     positiveBookGeneralization:
       !!holdouts.book.gainInterval && holdouts.book.gainInterval.lower95 > 0,
     noMaterialCompositionRegression:
@@ -107,6 +108,7 @@ export function auditRankerEvidence(evaluations, core, weights) {
     trainingPairs: details.trainPairs,
     holdouts,
     checks: conditions,
+    releaseEvidence: release.evidence,
     conservativeReviewReady: Object.values(conditions).every(Boolean),
     limitations: [
       "Only actual independent, blinded reader/listener trials establish perceived fit.",
