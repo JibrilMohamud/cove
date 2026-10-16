@@ -74,10 +74,15 @@ class ProductionProbeTest(unittest.TestCase):
         self.assertTrue(probe.commercial_license_matches(dict(base,
             license="CC BY-SA 4.0",licenseUrl="https://creativecommons.org/licenses/by-sa/4.0/")))
         self.assertTrue(probe.commercial_license_matches(dict(base,
+            license="CC-BY-SA 4.0",licenseUrl="https://creativecommons.org/licenses/by-sa/4.0/")))
+        self.assertTrue(probe.commercial_license_matches(dict(base,
+            license="CC-BY 4.0",licenseUrl="https://creativecommons.org/licenses/by/4.0/")))
+        self.assertTrue(probe.commercial_license_matches(dict(base,
             license="CC0 1.0",licenseUrl="https://creativecommons.org/publicdomain/zero/1.0/")))
         for alteration in (
             {"license":"CC BY-NC 4.0","licenseUrl":"https://creativecommons.org/licenses/by-nc/4.0/"},
             {"license":"CC BY 4.0","licenseUrl":"https://creativecommons.org/licenses/by-sa/4.0/"},
+            {"license":"CC BY 3.0","licenseUrl":"https://creativecommons.org/licenses/by/4.0/"},
             {"license":"CC BY-SA 4.0","licenseUrl":"https://creativecommons.org/licenses/by/4.0/"},
             {"licenseUrl":"https://creativecommons.org/licenses/by-nc-sa/4.0/"},
             {"licenseUrl":"http://creativecommons.org/licenses/by/4.0/"},
