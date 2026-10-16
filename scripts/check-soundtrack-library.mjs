@@ -110,6 +110,17 @@ try {
     "Audio files of Romantic period classical music",
     "Audio files of renaissance period classical music",
     "Audio files of medieval period classical music",
+    "Classical music from Free Music Archive",
+    "Piano music from Free Music Archive",
+    "Contemporary classical music from Free Music Archive",
+    "Audio files of music by Johann Sebastian Bach",
+    "Audio files of music by Domenico Scarlatti",
+    "Audio files of music by Ludwig van Beethoven",
+    "Audio files of music by Franz Schubert",
+    "Audio files of classical music for violin",
+    "Audio files of music by Antonio Vivaldi",
+    "Audio files of music by Robert Schumann",
+    "Audio files of music by Felix Mendelssohn",
   ];
   const cursors = Object.fromEntries(categories.map(name=>[name,"DONE"]));
   cursors._cycleFinishedAt = new Date(Date.now()-8*86400_000).toISOString();
