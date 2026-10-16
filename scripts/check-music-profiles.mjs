@@ -274,7 +274,9 @@ try {
   ).results;
   assert.equal(withdrawnClaims.length, 2);
   assert.ok(
-    withdrawnClaims.every((job) => job.status === "failed" && job.last_error === "recording_not_published"),
+    withdrawnClaims.every(
+      (job) => job.status === "failed" && job.last_error === "recording_not_published",
+    ),
     "Revoked audio must never block a valid music-profiling queue",
   );
   // Reading-time values are produced by deterministic backend counts, never an LLM.
