@@ -1,6 +1,11 @@
 name: Curate source-license soundtracks
 
 on:
+  # PR smoke runs are read-only and do not grant untrusted forks secrets.
+  pull_request:
+    paths:
+      - ".github/workflows/curate-soundtrack-source-licenses.yml"
+      - "scripts/soundtracks/**"
   # Safe deployment smoke run (read-only even when the scoped credential exists).
   push:
     branches: [main]
