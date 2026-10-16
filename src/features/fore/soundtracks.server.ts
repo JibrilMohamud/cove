@@ -18,6 +18,21 @@ const CATEGORIES = [
   { name: "Audio files of Romantic period classical music", period: "romantic", instrument: "" },
   { name: "Audio files of renaissance period classical music", period: "renaissance", instrument: "" },
   { name: "Audio files of medieval period classical music", period: "medieval", instrument: "" },
+  // FMA recordings already independently hosted and individually licensed by
+  // Wikimedia Commons. No FMA website request or blanket rights assumption.
+  { name: "Classical music from Free Music Archive", period: "mixed", instrument: "" },
+  { name: "Piano music from Free Music Archive", period: "mixed", instrument: "piano" },
+  { name: "Contemporary classical music from Free Music Archive", period: "contemporary", instrument: "" },
+  // Composer and instrumental categories provide additional source-specific
+  // commercial CC recordings. License/master checks remain per original file.
+  { name: "Audio files of music by Johann Sebastian Bach", period: "baroque", instrument: "" },
+  { name: "Audio files of music by Domenico Scarlatti", period: "baroque", instrument: "" },
+  { name: "Audio files of music by Ludwig van Beethoven", period: "classical", instrument: "" },
+  { name: "Audio files of music by Franz Schubert", period: "romantic", instrument: "" },
+  { name: "Audio files of classical music for violin", period: "mixed", instrument: "violin" },
+  { name: "Audio files of music by Antonio Vivaldi", period: "baroque", instrument: "" },
+  { name: "Audio files of music by Robert Schumann", period: "romantic", instrument: "" },
+  { name: "Audio files of music by Felix Mendelssohn", period: "romantic", instrument: "" },
 ] as const;
 const MAX_PENDING = 750;
 const DISCOVERY_RESCAN_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
