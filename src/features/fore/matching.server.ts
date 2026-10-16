@@ -435,7 +435,10 @@ export async function handleMatchingAdministration(
             artifact.weights,
           );
           if (!evidence.deployable)
-            throw new ApiError(409, "Independent human review or family holdout coverage is insufficient");
+            throw new ApiError(
+              409,
+              "Independent human review or family holdout coverage is insufficient",
+            );
         }
         const statements = [];
         if (parsed.data.activate)
