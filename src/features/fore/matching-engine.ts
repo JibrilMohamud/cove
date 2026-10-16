@@ -848,7 +848,8 @@ export function rankerReleaseEvidence(rows: EvaluationExample[], weights: MatchF
   const usable = rows.filter((row) => row.preferred !== "tie");
   const summary = evaluateRanker(rows, weights);
   const actors = new Map<string, number>();
-  for (const row of usable) actors.set(String(row.actor ?? ""), (actors.get(String(row.actor ?? "")) ?? 0) + 1);
+  for (const row of usable)
+    actors.set(String(row.actor ?? ""), (actors.get(String(row.actor ?? "")) ?? 0) + 1);
   const holdoutActors = (items: EvaluationExample[]) =>
     new Set(items.map((row) => String(row.actor ?? "")));
   const bookActors = holdoutActors(summary.subsets.bookHoldout);
@@ -872,8 +873,7 @@ export function rankerReleaseEvidence(rows: EvaluationExample[], weights: MatchF
       [...musicActors].filter(verifiedStaff).length >= 2,
     distinctBookImprovement:
       summary.bookHoldout.accuracy >= summary.bookHoldout.baselineAccuracy + 0.02,
-    noCompositionRegression:
-      summary.musicHoldout.accuracy >= summary.musicHoldout.baselineAccuracy,
+    noCompositionRegression: summary.musicHoldout.accuracy >= summary.musicHoldout.baselineAccuracy,
   };
   return {
     deployable: Object.values(conditions).every(Boolean),
