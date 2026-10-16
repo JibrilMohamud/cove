@@ -44,6 +44,9 @@ def commercial_license_matches(row):
     """Never claim a playable track is commercially cleared on an unknown/NC link."""
     address = row.get("licenseUrl")
     statement = str(row.get("license") or "")
+    # Even a BY-looking URL is insufficient if the recording itself states NC.
+    if re.search(r"(?i)\b(?:NC|noncommercial|non-commercial)\b", statement):
+        return False
     territories = row.get("territories")
     if not isinstance(address, str) or not isinstance(territories, list) or "US" not in territories:
         return False
