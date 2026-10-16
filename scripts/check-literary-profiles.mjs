@@ -486,7 +486,41 @@ try {
     .bind(product.id, product.id, atBudgetTest, atBudgetTest, atBudgetTest)
     .run();
   const saturated = await lib.runLiteraryProfileTick(env);
-  assert.equal(saturated.seeded.skipped, "prepare_queue_backpressure");
+  assert.equal(saturated.seeded.preparationsDeferred, true);
+  assert.ok(Number(saturated.seeded.scanned) >= 1);
+  await env.DB.prepare(
+    "UPDATE editions SET description='Updated metadata during queue backpressure' WHERE id=(SELECT edition_id FROM products WHERE id=?)",
+  )
+    .bind(product.id)
+    .run();
+  await env.DB.prepare("UPDATE literary_profile_state SET cursor='' WHERE id=1").run();
+  await lib.seedLiteraryProfiles(env, 1, false);
+  const deferred = await env.DB.prepare(
+    "SELECT fingerprint,coverage FROM literary_profiles WHERE product_id=?",
+  )
+    .bind(product.id)
+    .first();
+  assert.equal(deferred.coverage, "metadata_deferred");
+  const beforeRecovery = await env.DB.prepare(
+    "SELECT COUNT(*) count FROM literary_profile_jobs WHERE product_id=? AND fingerprint=? AND kind='prepare'",
+  )
+    .bind(product.id, deferred.fingerprint)
+    .first();
+  assert.equal(beforeRecovery.count, 0, "New edition metadata never creates overload work");
+  await env.DB.prepare("UPDATE literary_profile_state SET cursor='' WHERE id=1").run();
+  await lib.seedLiteraryProfiles(env, 1, true);
+  const recovered = await env.DB.prepare(
+    "SELECT coverage FROM literary_profiles WHERE product_id=?",
+  )
+    .bind(product.id)
+    .first();
+  assert.equal(recovered.coverage, "metadata");
+  const afterRecovery = await env.DB.prepare(
+    "SELECT COUNT(*) count FROM literary_profile_jobs WHERE product_id=? AND fingerprint=? AND kind='prepare' AND status='queued'",
+  )
+    .bind(product.id, deferred.fingerprint)
+    .first();
+  assert.equal(afterRecovery.count, 1, "Deferred EPUB is eventually prepared when capacity returns");
 
   console.log(
     "Literary profiles: full EPUB to chapter inference to public profile passed; chronology, provenance, concurrency, fallback, invalidation and budgets passed.",
