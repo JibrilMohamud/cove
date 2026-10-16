@@ -20,8 +20,8 @@ import urllib.request
 MAX_FILE_BYTES = 25 * 1024 * 1024
 KNOWN_COMPOSERS = (
     (r"^(?:j\.?s\.?\s*)?bach\s+(?!busoni|brahms|liszt|gounod)", "Johann Sebastian Bach", "baroque"),
-    (r"^beethoven\s+", "Ludwig van Beethoven", "classical"),
-    (r"^mozart\s+", "Wolfgang Amadeus Mozart", "classical"),
+    (r"^(?:beethoven|ludwig van beethoven|beethoven, ludwig van)\s*[\s,-]", "Ludwig van Beethoven", "classical"),
+    (r"^(?:mozart|wolfgang amadeus mozart|w\.?\s*a\.?\s*mozart)\s*[\s,-]", "Wolfgang Amadeus Mozart", "classical"),
     (r"^chopin\s+", "Frédéric Chopin", "romantic"),
     (r"^schubert\s+", "Franz Schubert", "romantic"),
     (r"^satie\s+", "Erik Satie", "modern"),
@@ -30,6 +30,21 @@ KNOWN_COMPOSERS = (
     (r"^vivaldi\s+", "Antonio Vivaldi", "baroque"),
     (r"^haydn\s+", "Joseph Haydn", "classical"),
     (r"^pachelbel\s+", "Johann Pachelbel", "baroque"),
+    (r"^(?:robert )?schumann\s*[\s,-]", "Robert Schumann", "romantic"),
+    (r"^(?:johannes )?brahms\s*[\s,-]", "Johannes Brahms", "romantic"),
+    (r"^(?:edvard )?grieg\s*[\s,-]", "Edvard Grieg", "romantic"),
+    (r"^domenico zipoli\s*[\s,-]", "Domenico Zipoli", "baroque"),
+    (r"^johann jakob froberger\s*[\s,-]", "Johann Jakob Froberger", "baroque"),
+    (r"^giovanni battista pescetti\s*[\s,-]", "Giovanni Battista Pescetti", "baroque"),
+    (r"^muzio clementi\s*[\s,-]", "Muzio Clementi", "classical"),
+    (r"^(?:cesar|césar) franck\s*[\s,-]", "César Franck", "romantic"),
+    (r"^(?:modest )?mussorgsky\s*[\s,-]", "Modest Mussorgsky", "romantic"),
+    (r"^louis spohr\s*[\s,-]", "Louis Spohr", "romantic"),
+    (r"^(?:maurice )?ravel\s*[\s,-]", "Maurice Ravel", "modern"),
+    (r"^john dowland\s*[\s,-]", "John Dowland", "renaissance"),
+    (r"^orlando gibbons\s*[\s(-]", "Orlando Gibbons", "renaissance"),
+    (r"^john playford\s*[\s(-]", "John Playford", "baroque"),
+    (r"^marin marais\s*[\s(-]", "Marin Marais", "baroque"),
     (r"^telemann\s+", "Georg Philipp Telemann", "baroque"),
     (r"^scarlatti\s+", "Domenico Scarlatti", "baroque"),
     (r"^couperin\s+", "François Couperin", "baroque"),
@@ -62,12 +77,39 @@ def trusted_media_url(value):
     return urllib.parse.urlunsplit((p.scheme, p.netloc, p.path, '', ''))
 
 def credited_performer(value, composer):
-    credit = re.sub(r'(?i)^\s*(?:played by|performed by|musician\s*:|performer\s*:|pianist\s*:|recorded by)\s*', '', str(value or '')).strip(' ,.;')
-    if (not 3 <= len(credit) <= 140 or AMBIGUOUS_CREDIT.search(credit) or
-        re.search(r'(?i)(?:\bor\b|[/;]|\band\b|\(|\))', credit) or
-        composer.lower() in credit.lower() or len(credit.split()) > 6 or re.fullmatch(r'\w+\d+', credit)):
+    raw = str(value or '').strip()
+    if re.search(r'(?i)\\b(?:unknown|unverified|uploader|see above|copyright|various artists)\\b', raw):
+        return None
+    # Wikimedia's Artist credit sometimes contains an explicit musician role.
+    roles = re.findall(r'(?i)(?:musician|pianist|performer|played by|performed by)\\s*:?\\s*([^;()]+)', raw)
+    credit = roles[-1].strip() if roles else raw
+    credit = re.sub(r'(?i)\\s*\\((?:musician|performer|pianist)\\)\\s*', '', credit)
+    credit = re.sub(r'(?i)^\\s*(?:played by|performed by|musician|performer|pianist|pianists|recorded by)\\s*:?\\s*', '', credit)
+    credit = credit.strip(' ,.;')
+    # A composition credit alone is not an identifiable performer.
+    if re.search(r'(?i)\\b(?:composer|arranger|uploader|record label|orchestra unknown)\\b', credit):
+        return None
+    if not 3 <= len(credit) <= 140 or '/' in credit or ';' in credit or len(credit.split()) > 9:
+        return None
+    if composer.lower() == credit.lower() or credit.lower() in composer.lower():
+        return None
+    if not re.search(r'[A-Za-zÀ-ž]{2,}', credit) or re.fullmatch(r'\\w+\\d+', credit):
         return None
     return credit
+
+INSTRUMENT_CUES = ('piano','harpsichord','organ','violin','cello','flute','oboe',
+                   'clarinet','bassoon','guitar','trumpet','harp','viola','recorder',
+                   'mandolin','saxophone','percussion')
+VOCAL_CUES = re.compile(r'(?i)\\b(?:aria|lied|lieder|song|singer|vocal|choir|choral|soprano|tenor|baritone|hymn|mass|cantata|motet|opera|recitative)\\b')
+
+def classify_instruments(row):
+    original = json.loads(row.get('instruments_json') or '[]')
+    if original == ['piano']:
+        return original
+    source = (str(row.get('title') or '')+' '+str(row.get('performer') or '')).lower()
+    cues = [name for name in INSTRUMENT_CUES if re.search(r'\\b'+name+r'\\b', source)]
+    # Never assign a made-up instrument when the source does not identify one.
+    return cues[:5] if cues else ['unspecified']
 
 def choose_candidate(r):
     if r.get('status') != 'pending_review' or r.get('quality_status') != 'pending':
@@ -107,8 +149,9 @@ def choose_candidate(r):
     except ValueError:
         return None, 'untrusted media URL'
     instrument_list = json.loads(r.get('instruments_json') or '[]')
-    if instrument_list != ['piano']:
-        return None, 'no reliable instrument cue; musical tagging held'
+    if VOCAL_CUES.search(title):
+        return None, 'vocal composition requires a separate lyrics and performance review'
+    instrument_list = classify_instruments(r)
     lo = title.lower()
     if re.search(r'nocturne|adagio|lento|andante|prelude|sinfonien|sonata', lo):
         moods, energy = ['reflective', 'gentle'], 0.3
@@ -116,7 +159,7 @@ def choose_candidate(r):
         moods, energy = ['animated', 'dramatic'], 0.8
     else:
         moods, energy = ['focused', 'contemplative'], 0.4
-    return dict(composer=composer, period=period, performer=performer, instruments=['piano'], moods=moods, energy=energy), ''
+    return dict(composer=composer, period=period, performer=performer, instruments=instrument_list, moods=moods, energy=energy), ''
 
 def prepare_release(r, profile):
     page, link, code, sha = (r[k] for k in ('source_page_url', 'license_url', 'license_code', 'source_sha1'))
@@ -129,7 +172,7 @@ def prepare_release(r, profile):
     dossier = dict(
         composition=layer(f"The source filename identifies {profile['composer']} as composer; the recorded composition is covered only to the extent of the file's exact declared permission."),
         arrangement=layer('No third-party arranger is named in the short source metadata used for automatic selection; unclear derivative titles are excluded.'),
-        lyrics=layer('The track is cataloged as piano instrumental. No lyrics are assumed in this workflow.'),
+        lyrics=layer('The source has no identified vocal indicators in its title. Vocal or lyrical works are excluded from this automated path; rights remain based on the exact source license.'),
         performance=layer(f"The recorded performer credit is {profile['performer']}; Cove relies on the recording-level source declaration for performance permissions."),
         master=layer('The recording-level permission is attached to the exact source file and immutable SHA-1; the master will not be altered.'),
         grantingParty='Wikimedia Commons source declarant (identity not independently verified)',
