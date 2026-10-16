@@ -51,6 +51,7 @@ export type SoundtrackRow = {
   quality_status: string; quality_report_json: string; source_snapshot_key: string | null;
   review_version: number; updated_at: string; reviewed_by: string | null;
   automated_triage_reason: string;
+  rights_checked_at: string; rights_check_error: string;
 };
 const clearText = (value: unknown, max = 300) =>
   String(value || "").replace(/<[^>]*>/g, " ").replace(/&(?:nbsp|amp);/g, " ")
@@ -342,6 +343,98 @@ export async function importOneReviewedSoundtrack(env: CoveEnv) {
     ).bind(token).run();
   }
 }
+
+/**
+ * Revalidate individual Commons recording rights after release. Checking is
+ * independent of import/review leases and never authorizes new recordings.
+ * A transient Commons outage is retried; a confirmed source-license or exact
+ * master change withdraws playback before any asynchronous R2 cleanup.
+ */
+export async function recheckOnePublishedSoundtrack(env: CoveEnv) {
+  const now = new Date().toISOString();
+  const dayAgo = new Date(Date.now()-24*60*60_000).toISOString();
+  const hourAgo = new Date(Date.now()-60*60_000).toISOString();
+  const track = await env.DB.prepare(
+    "UPDATE soundtrack_recordings SET rights_checked_at=?,rights_check_error='checking' WHERE id=(" +
+    "SELECT id FROM soundtrack_recordings WHERE status='ready' AND (" +
+    "rights_checked_at='' OR rights_checked_at<? OR " +
+    "(rights_check_error='upstream_unavailable' AND rights_checked_at<?)) " +
+    "ORDER BY rights_checked_at,id LIMIT 1) AND status='ready' RETURNING *",
+  ).bind(now,dayAgo,hourAgo).first<SoundtrackRow>();
+  if (!track) return { skipped: "nothing_due" };
+  let page: CommonsPage | undefined;
+  try {
+    page = await commonsFile(track.source_title);
+    // A response without the requested page isn't sufficient evidence of a
+    // rights change. Retain service while the upstream metadata is unavailable.
+    if (!page || page.title !== track.source_title) throw new Error("Metadata missing");
+  } catch (error) {
+    await env.DB.prepare(
+      "UPDATE soundtrack_recordings SET rights_check_error='upstream_unavailable' " +
+      "WHERE id=? AND status='ready' AND rights_checked_at=?",
+    ).bind(track.id,now).run();
+    return { held: track.id, reason: "source_unavailable" };
+  }
+  if (evidenceMatches(track,page.imageinfo?.[0])) {
+    await env.DB.prepare(
+      "UPDATE soundtrack_recordings SET rights_check_error='' " +
+      "WHERE id=? AND status='ready' AND rights_checked_at=?",
+    ).bind(track.id,now).run();
+    return { checked: track.id };
+  }
+  // Rights or source identity changed. Immediately remove entitlement in the
+  // same D1 transaction as the immutable event and durable cleanup enqueue.
+  const auditId = crypto.randomUUID();
+  const event = JSON.stringify({
+    reason:"Source-license or exact recording identity changed after publication",
+    originalLicense:track.license_code,
+    originalLicenseUrl:track.license_url,
+    sourceSha1:track.source_sha1,
+    currentSourceSha1:page.imageinfo?.[0]?.sha1 || null,
+    currentLicense:page.imageinfo?.[0] ? licensed(page.imageinfo[0]) : null,
+    sourcePage:track.source_page_url,
+    storedKey:track.storage_key,
+  });
+  const who = "service:scheduled_soundtrack_rights_audit";
+  await env.DB.batch([
+    env.DB.prepare(
+      "UPDATE soundtrack_recordings SET status='revoked',storage_key=NULL," +
+      "stored_at=NULL,storage_sha1=NULL,storage_bytes=NULL,allowed_territories_json='[]'," +
+      "rights_check_error='source_rights_changed',review_version=review_version+1,updated_at=? " +
+      "WHERE id=? AND status='ready' AND rights_checked_at=? AND source_sha1=? AND storage_key=?",
+    ).bind(now,track.id,now,track.source_sha1,track.storage_key),
+    env.DB.prepare(
+      "INSERT INTO soundtrack_review_events(id,recording_id,principal_id,event_type,source_sha1,payload_json,created_at) " +
+      "SELECT ?,id,?,'revoke',source_sha1,?,? FROM soundtrack_recordings " +
+      "WHERE id=? AND status='revoked' AND rights_checked_at=? AND rights_check_error='source_rights_changed'",
+    ).bind(auditId,who,event,now,track.id,now),
+    env.DB.prepare(
+      "INSERT INTO soundtrack_rights_decisions(id,recording_id,principal_id,action,evidence_json,decided_at) " +
+      "SELECT ?,id,?,'revoke',?,? FROM soundtrack_recordings " +
+      "WHERE id=? AND status='revoked' AND rights_checked_at=? AND rights_check_error='source_rights_changed'",
+    ).bind(auditId,who,event,now,track.id,now),
+    env.DB.prepare(
+      "INSERT OR IGNORE INTO soundtrack_cleanup_queue(storage_key,recording_id,created_at) " +
+      "SELECT ?,id,? FROM soundtrack_recordings " +
+      "WHERE id=? AND status='revoked' AND rights_checked_at=? AND rights_check_error='source_rights_changed'",
+    ).bind(track.storage_key,now,track.id,now),
+  ]);
+  const accepted = await env.DB.prepare(
+    "SELECT id FROM soundtrack_review_events WHERE id=?",
+  ).bind(auditId).first();
+  if (!accepted) return { skipped: "concurrent_withdrawal" };
+  if (track.storage_key && env.BUCKET) {
+    try {
+      await env.BUCKET.delete(track.storage_key);
+      await env.DB.prepare("DELETE FROM soundtrack_cleanup_queue WHERE storage_key=?")
+        .bind(track.storage_key).run();
+    } catch (error) {
+      console.warn("Soundtrack revoked; durable R2 cleanup pending",track.id,String(error).slice(0,120));
+    }
+  }
+  return { revoked: track.id, reason: "source_rights_changed" };
+}
+
 function publicRecord(r: SoundtrackRow) {
   return { id:r.id,title:r.title,performer:r.performer,composer:r.composer,
     period:r.period,instruments:JSON.parse(r.instruments_json),moods:JSON.parse(r.moods_json),

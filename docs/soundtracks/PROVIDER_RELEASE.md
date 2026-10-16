@@ -77,3 +77,13 @@ A previous `automated_triage_reason` is **not** a rights verdict. Source-title p
 The `reconsider-triaged-soundtracks.yml` job runs weekly and immediately after a successfully deployed backend update. It uses `--reconsider-triaged --max-triage 0` with the same commercial-only Creative Commons license checks, exact-source SHA, FFmpeg QA, source snapshot and Worker-controlled R2 publishing as the normal curator. Each new approval produces its own immutable review history. Human staff can still inspect the original triage reason; no file is cleared by merely removing a queue marker.
 
 Production playback health independently validates the actual public license URL against the allowed US commercial CC0/CC BY/CC BY-SA or explicit Commons/Musopen public-domain source declaration. It rejects NC, mismatched BY/BY-SA declarations, non-HTTPS license destinations and missing US territory rights **before** any audio is counted as playable. This is a metadata consistency safeguard, not an independent guarantee that a declarant owned the rights.
+
+## Continuous rights integrity for released Commons masters
+
+The production Worker now rechecks **two already-published Wikimedia Commons originals every ten-minute ingestion tick**, roughly 288 validations per day (upstream rate limits or outages may reduce throughput). A prior approval is not a permanent guarantee. The check fetches each individual file's current declared commercial license, license URL, exact SHA-1, byte size, audio type, and immutable source URL.
+
+* **Matched source:** record `rights_checked_at` and retain playback.
+* **Temporary Commons HTTP/network failure:** record `rights_check_error=upstream_unavailable`, keep the prior evidence and playback temporarily, and retry after one hour. No rights claims are inferred from an error response.
+* **Confirmed source-license or master identity conflict:** atomically set `status=revoked`, remove territorial access and public media references, append the independent rights decision and immutable review event, queue the old object for deletion, then attempt immediate R2 cleanup. This is not an automatic *relicense*: human staff must investigate and provide fresh evidence before any re-release.
+
+The source recheck is deliberately limited to the Wikimedia Commons-backed `soundtrack_recordings` table. External FMA/Musopen originals have separate individual staff approvals and require their own monitoring/provenance agreements when supplied. Avoid interpreting this operational safeguard as independent proof that every Commons uploader owns all composition, performance and master rights.

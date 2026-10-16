@@ -41,6 +41,7 @@ try {
     good(105,"Minuet","CC BY-SA 3.0","https://creativecommons.org/licenses/by-sa/3.0"),
   ];
   let upstreamChanged = false;
+  let upstreamUnavailable = false;
   let mediaRequests = 0;
   let mediaStored = 0;
   const originalPut = env.BUCKET.put;
@@ -54,6 +55,7 @@ try {
   globalThis.fetch = async (url, options) => {
     const target = String(url);
     if (target.startsWith("https://commons.wikimedia.org/w/api.php")) {
+      if (upstreamUnavailable) return new Response("temporarily unavailable",{status:503});
       assert.match(options?.headers?.["User-Agent"] || "", /^CoveSoundtracks\//);
       assert.match(options?.headers?.["Api-User-Agent"] || "", /^CoveSoundtracks\//);
       assert.equal(options?.redirect, "manual", "Workers can only use manual redirects");
@@ -300,6 +302,36 @@ try {
   assert.equal((await sourceReview("approve",approval)).status,200,"Straightforward repository PD reliance needs no second principal");
   const sourceDecision = await env.DB.prepare("SELECT evidence_json FROM soundtrack_rights_decisions WHERE recording_id='cm_105' AND action='approve'").first();
   assert.equal(JSON.parse(sourceDecision.evidence_json).dossier.reviewMethod,"source_license");
+  // Post-publication rights rechecks are different from import-time validation:
+  // healthy sources keep serving; network outages retain public access but
+  // record a retry; changed declared master/license immediately revokes access.
+  assert.deepEqual(await lib.importOneReviewedSoundtrack(env),{stored:"cm_105"});
+  assert.equal((await lib.recheckOnePublishedSoundtrack(env)).checked,"cm_105");
+  assert.equal((await env.DB.prepare("SELECT rights_check_error FROM soundtrack_recordings WHERE id='cm_105'").first()).rights_check_error,"");
+  upstreamUnavailable = true;
+  await env.DB.prepare("UPDATE soundtrack_recordings SET rights_checked_at='2000-01-01T00:00:00Z' WHERE id='cm_105'").run();
+  assert.equal((await lib.recheckOnePublishedSoundtrack(env)).reason,"source_unavailable");
+  assert.equal((await env.DB.prepare("SELECT status,rights_check_error FROM soundtrack_recordings WHERE id='cm_105'").first()).status,"ready");
+  assert.equal((await env.DB.prepare("SELECT rights_check_error FROM soundtrack_recordings WHERE id='cm_105'").first()).rights_check_error,"upstream_unavailable");
+  upstreamUnavailable = false;
+  upstreamChanged = true;
+  await env.DB.prepare("UPDATE soundtrack_recordings SET rights_checked_at='2000-01-01T00:00:00Z' WHERE id='cm_105'").run();
+  const oldDelete = env.BUCKET.delete;
+  env.BUCKET.delete = async () => {throw new Error("Fixture R2 cleanup outage")};
+  const withdrawn = await lib.recheckOnePublishedSoundtrack(env);
+  assert.equal(withdrawn.revoked,"cm_105");
+  const withdrawnRow = await env.DB.prepare("SELECT status,storage_key,allowed_territories_json FROM soundtrack_recordings WHERE id='cm_105'").first();
+  assert.equal(withdrawnRow.status,"revoked");
+  assert.equal(withdrawnRow.storage_key,null);
+  assert.equal(withdrawnRow.allowed_territories_json,"[]");
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_cleanup_queue").first()).n,1);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_rights_decisions WHERE recording_id='cm_105' AND action='revoke'").first()).n,1);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_review_events WHERE recording_id='cm_105' AND event_type='revoke'").first()).n,1);
+  assert.equal((await (await listing()).json()).count,0);
+  env.BUCKET.delete = oldDelete;
+  await lib.importOneReviewedSoundtrack(env);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_cleanup_queue").first()).n,0);
+  upstreamChanged = false;
   console.log("Soundtrack discovery, license filters, review gate, source drift, R2 checksum, attribution, territory and streaming passed.");
 } finally {
   globalThis.fetch=originalFetch;

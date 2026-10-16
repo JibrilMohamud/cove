@@ -3,6 +3,7 @@ import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
 import {
   discoverSoundtrackCandidates,
   importOneReviewedSoundtrack,
+  recheckOnePublishedSoundtrack,
 } from "./features/fore/soundtracks.server";
 import { processAccountDeletionQueue } from "./features/fore/account-management.server";
 import { processNotificationDeliveryQueue } from "./features/fore/notifications.server";
@@ -629,6 +630,21 @@ async function runScheduled(cron: string, env: BackendEnv) {
           if ("skipped" in result || "canceled" in result) break;
         } catch (error) {
           console.warn("Soundtrack import failed", String(error).slice(0, 160));
+          break;
+        }
+      }
+      // Auditing two already-published originals per tick rechecks approximately
+      // 288 recordings/day. A verified license/master mismatch removes access
+      // before R2 deletion; temporary Commons failures are retried later.
+      for (let index = 0; index < 2; index++) {
+        try {
+          const rights = await recheckOnePublishedSoundtrack(env);
+          if ("revoked" in rights || "held" in rights) {
+            console.warn("Cove published soundtrack rights audit", JSON.stringify(rights));
+          }
+          if ("skipped" in rights) break;
+        } catch (error) {
+          console.warn("Published soundtrack rights audit failed", String(error).slice(0, 160));
           break;
         }
       }
