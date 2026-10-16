@@ -80,6 +80,11 @@ try {
   await assert.rejects(()=>route(file,"PUT",new TextEncoder().encode("bad")),/original byte count/i);
   const put=await route(file,"PUT",sample);
   assert.equal((await put.json()).status,"staged");
+  await assert.rejects(()=>route(file,"GET"),/Staff MFA required/i,
+    "A service delivery token may not stream unpublished master recordings");
+  const retryPut=await route(file,"PUT",sample);
+  assert.equal((await retryPut.json()).reused,true,
+    "Retrying a previously staged original must never replace its bytes");
   const stagedPreview=await route(file,"GET",null,staff);
   assert.equal(stagedPreview.status,200,"authenticated human staff can listen to private staged master");
   assert.equal(await stagedPreview.text(),sample.toString());
