@@ -40,10 +40,13 @@ test("reader music is opt-in, attributed, and chapter-aware", async ({ page, req
     });
   });
   await page.goto("/read/1342");
+  // The server-rendered reader chrome exists before React attaches click handlers.
+  // Do not click until client hydration completes on mobile WebKit/Firefox.
+  await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
   const launcher = page.locator('button[aria-label="Reading soundtrack"]');
-  await expect(launcher).toBeAttached({ timeout: 90000 });
-  // Chrome may be temporarily hidden by the reader's focus-free mode.
-  // Verify the same accessible labeled button exists, then invoke its handler.
+  await expect(launcher).toBeAttached({ timeout: 45000 });
+  // The reader intentionally auto-hides chrome while reading; it must be
+  // hydrated before a programmatic click can exercise the user handler.
   await launcher.evaluate((button) => button.click());
   const pane = page.getByRole("region", { name: "Reading soundtrack" });
   await expect(pane).toBeVisible();
