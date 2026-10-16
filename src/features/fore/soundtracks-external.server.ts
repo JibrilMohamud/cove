@@ -248,26 +248,46 @@ export async function handleExternalSoundtracks(
         report.bytes!==row.source_size) throw new ApiError(409,"Invalid original audio QA evidence");
     const head=await env.BUCKET?.head?.(row.storage_key);
     if (!head || head.size!==row.source_size) throw new ApiError(503,"Stored original is unavailable");
-    const at=timestamp(), reviewer="staff:"+staff.id;
-    const updated=await env.DB.prepare(
-      "UPDATE soundtrack_external_recordings SET status='ready',reviewed_by=?,reviewed_at=?,updated_at=? WHERE id=? AND status='staged' AND provenance_sha256=? RETURNING id"
-    ).bind(reviewer,at,at,id,row.provenance_sha256).first();
-    if (!updated) throw new ApiError(409,"Review changed; refresh");
-    await event(env,id,reviewer,"approved",{provenanceSha256:row.provenance_sha256,assessment:input.assessment,
-      staffConfirmation:{sourceLicense:true,providerPermission:true,exactMasterListened:true}});
+    const at=timestamp(), reviewer="staff:"+staff.id, eventId=crypto.randomUUID();
+    const payload={provenanceSha256:row.provenance_sha256,assessment:input.assessment,
+      staffConfirmation:{sourceLicense:true,providerPermission:true,exactMasterListened:true}};
+    // Status transition and immutable rights decision are one D1 transaction.
+    await env.DB.batch([
+      env.DB.prepare(
+        "UPDATE soundtrack_external_recordings SET status='ready',reviewed_by=?,reviewed_at=?,updated_at=? WHERE id=? AND status='staged' AND provenance_sha256=?"
+      ).bind(reviewer,at,at,id,row.provenance_sha256),
+      env.DB.prepare(
+        "INSERT INTO soundtrack_external_events(id,recording_id,actor,event_type,payload_json,created_at) SELECT ?,id,?,'approved',?,? FROM soundtrack_external_recordings WHERE id=? AND status='ready' AND reviewed_at=?"
+      ).bind(eventId,reviewer,JSON.stringify(payload),at,id,at),
+    ]);
+    if (!(await env.DB.prepare("SELECT id FROM soundtrack_external_events WHERE id=?").bind(eventId).first()))
+      throw new ApiError(409,"Review changed; refresh");
     return json({id,status:"ready"});
   }
   if ((action==="revoke" || action==="reject") && request.method==="POST") {
     const input=z.object({reason:z.string().trim().min(20).max(4000)}).parse(await readBody(request,6500));
     if (row.status==="revoked" || row.status==="rejected") return json({id,status:row.status});
     const next=action==="revoke"?"revoked":"rejected";
-    // Withdraw public entitlement before attempting object deletion.
-    await env.DB.prepare("UPDATE soundtrack_external_recordings SET status=?,storage_key=NULL,storage_bytes=NULL,updated_at=? WHERE id=?")
-      .bind(next,timestamp(),id).run();
-    await event(env,id,actor,next,{reason:input.reason,previous:row.status});
+    // Withdrawal, audit and durable storage-cleanup work are one transaction.
+    const at=timestamp(), eventId=crypto.randomUUID();
+    const batch=[
+      env.DB.prepare("UPDATE soundtrack_external_recordings SET status=?,storage_key=NULL,storage_bytes=NULL,updated_at=? WHERE id=?")
+        .bind(next,at,id),
+      env.DB.prepare(
+        "INSERT INTO soundtrack_external_events(id,recording_id,actor,event_type,payload_json,created_at) SELECT ?,id,?,?,?,? FROM soundtrack_external_recordings WHERE id=? AND status=?"
+      ).bind(eventId,actor,next,JSON.stringify({reason:input.reason,previous:row.status}),at,id,next),
+    ];
+    if (row.storage_key) batch.push(env.DB.prepare(
+      "INSERT OR IGNORE INTO soundtrack_cleanup_queue(storage_key,recording_id,created_at) VALUES(?,?,?)"
+    ).bind(row.storage_key,id,at));
+    await env.DB.batch(batch);
+    if (!(await env.DB.prepare("SELECT id FROM soundtrack_external_events WHERE id=?").bind(eventId).first()))
+      throw new ApiError(409,"Withdrawal state changed; refresh");
     if (row.storage_key && env.BUCKET) {
-      try { await env.BUCKET.delete(row.storage_key); }
-      catch (error) { console.warn("External soundtrack cleanup pending",id,String(error).slice(0,120)); }
+      try {
+        await env.BUCKET.delete(row.storage_key);
+        await env.DB.prepare("DELETE FROM soundtrack_cleanup_queue WHERE storage_key=?").bind(row.storage_key).run();
+      } catch (error) { console.warn("External soundtrack cleanup queued",id,String(error).slice(0,120)); }
     }
     return json({id,status:next});
   }
