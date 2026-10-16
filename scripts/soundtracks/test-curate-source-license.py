@@ -117,6 +117,40 @@ class SoundtrackCurationTests(unittest.TestCase):
                 self.assertIsNone(profile)
                 self.assertTrue(reason)
 
+    def test_self_published_historical_guitar_exact_master_and_licensor(self):
+        cases=(
+            ("Sor Op 31 No. 1","Fernando Sor"),
+            ("Sor Op 35 No. 17","Fernando Sor"),
+            ("Carulli Op 114 No. 1","Ferdinando Carulli"),
+            ("Carulli Op 114 No. 2","Ferdinando Carulli"),
+        )
+        for title,composer in cases:
+            with self.subTest(title=title):
+                row=candidate(title=title,source_title='File:'+title+'.ogg',
+                              performer='Jujutacular',
+                              license_code='CC-BY-SA',
+                              license_url='https://creativecommons.org/licenses/by-sa/3.0/',
+                              license_statement='CC BY-SA 3.0',
+                              instruments_json='[]')
+                profile,reason=curator.choose_candidate(row)
+                self.assertEqual(reason,'')
+                self.assertEqual(profile['composer'],composer)
+                self.assertEqual(profile['performer'],'Jujutacular')
+                self.assertEqual(profile['period'],'classical')
+                dossier,approval=curator.prepare_release(row,profile)
+                self.assertIn('Jujutacular',dossier['attributionText'])
+                self.assertEqual(approval['territories'],['US'])
+                for change in (
+                    {'performer':'Unknown performer'},
+                    {'performer':composer},
+                    {'source_title':'File:unrelated.ogg'},
+                    {'license_code':'CC-BY-NC','license_url':'https://creativecommons.org/licenses/by-nc/3.0/'},
+                    {'title':title+' remix'},
+                ):
+                    no=dict(row,**change)
+                    result,_=curator.choose_candidate(no)
+                    self.assertIsNone(result)
+
     def test_source_named_performer_is_correlated_before_commercial_reliance(self):
         cases=(
             ("Schubert's Impromptu no. 2 in E-flat major, D.899 - Chiara Bertoglio", "Chiara Bertoglio", "Franz Schubert"),

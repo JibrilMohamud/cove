@@ -88,6 +88,11 @@ KNOWN_COMPOSERS = (
 # credited recording performer. We require the artist metadata to corroborate
 # the title; a composer-only Artist field must not be mistaken for a performer.
 NAMED_PERFORMER_TITLES = (
+    # Four exact self-recorded classical-guitar files: source Artist Jujutacular
+    # licenses the original Commons masters under commercial CC BY-SA. Historical
+    # compositions are distinct from the modern recording's licensed copyright.
+    (r"^sor op (?:31 no\. 1|35 no\. 17)$", "Fernando Sor", "classical", "Jujutacular"),
+    (r"^carulli op 114 no\. [12]$", "Ferdinando Carulli", "classical", "Jujutacular"),
     (r"^schubert's impromptu .+ - chiara bertoglio$", "Franz Schubert", "romantic", "Chiara Bertoglio"),
     (r"^stefano ligoratti - haydn's keyboard sonata .+", "Joseph Haydn", "classical", "Stefano Ligoratti"),
     (r"^ivan ili[cć] - haydn's keyboard sonata .+", "Joseph Haydn", "classical", "Ivan Ilić"),
@@ -203,7 +208,10 @@ def choose_candidate(r):
         if named:
             composer, period, person = named
             credited = credited_performer(r.get('performer'), composer)
-            if credited and credited.casefold() == person.casefold():
+            if (credited and credited.casefold() == person.casefold() and
+                    (person != 'Jujutacular' or
+                     (r['license_code'] == 'CC-BY-SA' and
+                      r.get('source_title') == 'File:'+title+'.ogg'))):
                 match = (composer, period)
     if not match:
         return None, 'composer not in narrow sourced-title mapping'
