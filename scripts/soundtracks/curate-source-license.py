@@ -68,6 +68,17 @@ KNOWN_COMPOSERS = (
     (r"^carl almenräder[\s,-]", "Carl Almenräder", "romantic"),
     (r"^david popper[\s,-]", "David Popper", "romantic"),
     (r"^antonio pasculli[\s,-]", "Antonio Pasculli", "romantic"),
+    # Historical instrumental works with explicit composition attribution. Source
+    # licensing and a distinct performer are still independently required below.
+    (r"^johann jacob froberger[\s,-]", "Johann Jakob Froberger", "baroque"),
+    (r"^jules demersseman[\s,-]", "Jules Demersseman", "romantic"),
+    (r"^(?:heinrich )?scheidemann[\s,-]", "Heinrich Scheidemann", "baroque"),
+    (r"^joachim andersen[\s,-]", "Joachim Andersen", "romantic"),
+    (r"^(?:michel )?blavet[\s,-]", "Michel Blavet", "baroque"),
+    (r"^benedetto marcello[\s,-]", "Benedetto Marcello", "baroque"),
+    (r"^(?:carl maria von )?weber[\s,-]", "Carl Maria von Weber", "romantic"),
+    (r"^paderewski[\s,-]", "Ignacy Jan Paderewski", "romantic"),
+    (r"^scriabin[\s,-]", "Alexander Scriabin", "modern"),
     (r"^telemann\s+", "Georg Philipp Telemann", "baroque"),
     (r"^scarlatti\s+", "Domenico Scarlatti", "baroque"),
     (r"^couperin\s+", "François Couperin", "baroque"),
@@ -81,6 +92,7 @@ NAMED_PERFORMER_TITLES = (
     (r"^stefano ligoratti - haydn's keyboard sonata .+", "Joseph Haydn", "classical", "Stefano Ligoratti"),
     (r"^ivan ili[cć] - haydn's keyboard sonata .+", "Joseph Haydn", "classical", "Ivan Ilić"),
     (r"^marek kozak - haydn's keyboard sonata .+", "Joseph Haydn", "classical", "Marek Kozak"),
+    (r"^studio konkon - handel's keyboard suite in g minor, hwv 432 - iii\. allegro \(piano\)$", "George Frideric Handel", "baroque", "Studio KonKon"),
 )
 COMPLEX = re.compile(r"(?i)\b(?:arr(?:anged|angement)?\.?|transcri(?:bed|ption)|remix|sampled|cover|busoni|brahms|liszt|gounod|adapted|orchestrated)\b")
 AMBIGUOUS_CREDIT = re.compile(r"(?i)\b(?:unknown|unverified|composer|uploader|copyright|collection|archive|anonymous|various artists)\b")

@@ -103,6 +103,41 @@ class SoundtrackCurationTests(unittest.TestCase):
             profile,_=curator.choose_candidate(candidate(title=title,performer=person))
             self.assertIsNone(profile,"Modern-composition or vocal exceptions must stay held")
 
+    def test_more_historical_instrumental_licenses_still_require_named_performers(self):
+        cases=(
+            ("Johann Jacob Froberger - Tombeau", "Joan Benson", "Johann Jakob Froberger"),
+            ("Jules Demersseman - Introduction and Polanaise", "Arthur Grossman", "Jules Demersseman"),
+            ("Scheidemann D minor Preambulum 1", "Random pipings", "Heinrich Scheidemann"),
+            ("Joachim Andersen - Etude 3 for Solo Flute", "Scott Goff (flute)", "Joachim Andersen"),
+            ("Blavet - Sonata No. 1 in G major", "Albert Tipton (flute) and Mary Norris (piano)", "Michel Blavet"),
+            ("Benedetto Marcello - Flute Sonata in F major", "Albert Tipton (flute) and Mary Norris (piano)", "Benedetto Marcello"),
+            ("Weber - Grand Duo Concertant for clarinet and piano - 1. Allegro con fuoco", "William McColl (clarinet) and Joseph Levine (piano)", "Carl Maria von Weber"),
+            ("Paderewski - Minuet in G, Op. 14 no 1", "Ignacy Jan Paderewski, performer: Markus Staab", "Ignacy Jan Paderewski"),
+            ("Scriabin - Feuillet d'album - Tjako van Schie - piano", "Tjako van Schie", "Alexander Scriabin"),
+            ("Studio KonKon - Handel's Keyboard Suite in G minor, HWV 432 - III. Allegro (piano)", "Studio KonKon", "George Frideric Handel"),
+        )
+        for title,artist,composer in cases:
+            with self.subTest(title=title):
+                row=candidate(title=title,performer=artist,
+                    source_title="File:"+title+".ogg",
+                    automated_triage_reason="Not eligible for machine approval; composer not in narrow sourced-title mapping",
+                    instruments_json='[]')
+                profile,reason=curator.choose_candidate(row)
+                self.assertEqual(reason,'')
+                self.assertEqual(profile["composer"],composer)
+                self.assertNotEqual(profile["performer"],composer)
+                for excluded in ("Unknown performer",composer,"composer: "+composer):
+                    held,why=curator.choose_candidate({**row,"performer":excluded})
+                    self.assertIsNone(held,why)
+                for blocked in ("CC-BY-NC","CC-BY-NC-SA"):
+                    held,why=curator.choose_candidate({**row,"license_code":blocked})
+                    self.assertIsNone(held,why)
+        title="Studio KonKon - Handel's Keyboard Suite in G minor, HWV 432 - III. Allegro (piano)"
+        profile,_=curator.choose_candidate(candidate(title=title,performer="Unrelated artist"))
+        self.assertIsNone(profile,"Performer named in track title must match source credit")
+        profile,_=curator.choose_candidate(candidate(title="Weber - Grand Duo Concertant arranged by Ravel",performer="William McColl"))
+        self.assertIsNone(profile,"Arrangements never pass the machine fast lane")
+
     def test_policy_reconsideration_reads_only_explicitly_triaged_queue(self):
         title="Schubert's Impromptu no. 3 in G-flat major, D.899 - Chiara Bertoglio"
         prior=candidate(title=title,performer="Chiara Bertoglio",
