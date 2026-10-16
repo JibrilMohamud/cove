@@ -539,11 +539,44 @@ export async function processLiteraryJob(
     return { failed: job.id, reason: message };
   }
 }
+/** Keep prepared-but-unanalyzed sections bounded without changing inference quotas. */
+export function literaryPreparationCapacity(
+  configured: number,
+  waitingAnalysis: number,
+  maxPendingAnalysis = 512,
+) {
+  if (![configured, waitingAnalysis, maxPendingAnalysis].every(Number.isFinite)) return 0;
+  return Math.max(
+    0,
+    Math.min(
+      4,
+      Math.floor(configured),
+      Math.floor(maxPendingAnalysis) - Math.max(0, Math.floor(waitingAnalysis)),
+    ),
+  );
+}
 export async function runLiteraryProfileTick(env: LiteraryEnv) {
   if (!(await config(env, "enabled", 1))) return { skipped: "disabled" };
   const seeded = await seedLiteraryProfiles(env);
   const jobs = [];
-  const prepares = Math.max(0, Math.min(4, await config(env, "prepares_per_tick", 2)));
+  // Source preparation writes extracted EPUB sections and queues many costly
+  // inference jobs. Respect the backlog instead of endlessly creating more
+  // bundles once inference reaches its independent daily budget.
+  const waitingAnalysis =
+    (
+      await env.DB.prepare(
+        "SELECT COUNT(*) count FROM literary_profile_jobs WHERE kind='analyze' AND status IN ('queued','running')",
+      ).first<{ count: number }>()
+    )?.count ?? 0;
+  const maxPendingAnalysis = Math.max(
+    64,
+    Math.min(4096, await config(env, "max_pending_analysis", 512)),
+  );
+  const prepares = literaryPreparationCapacity(
+    await config(env, "prepares_per_tick", 2),
+    waitingAnalysis,
+    maxPendingAnalysis,
+  );
   for (let n = 0; n < prepares; n++) jobs.push(await processLiteraryJob(env, false, "prepare"));
   if (!env.AI) return { seeded, jobs, skipped: "missing_ai" };
   const limit = Math.max(0, Math.min(4, await config(env, "jobs_per_tick", 2)));
@@ -717,6 +750,7 @@ export async function handleLiteraryProfiles(
         policy: PROFILE_POLICY,
         limits: {
           preparesPerTick: await config(env, "prepares_per_tick", 2),
+          maxPendingAnalysis: await config(env, "max_pending_analysis", 512),
           inferencePerTick: await config(env, "jobs_per_tick", 2),
           dailyUnits: await config(env, "daily_units", 2_000_000),
         },

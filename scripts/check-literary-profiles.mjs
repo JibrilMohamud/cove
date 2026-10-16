@@ -26,6 +26,32 @@ try {
   });
   const core = await import(path.join(root, "literary-profile.mjs"));
   const lib = await import(path.join(root, "literary-profiles.server.mjs"));
+  assert.equal(
+    lib.literaryPreparationCapacity(2, 512, 512),
+    0,
+    "Saturated analysis queue pauses new EPUB extraction",
+  );
+  assert.equal(
+    lib.literaryPreparationCapacity(2, 511, 512),
+    1,
+    "Only available queue capacity is filled",
+  );
+  assert.equal(
+    lib.literaryPreparationCapacity(2, 400, 512),
+    2,
+    "Normal throughput continues under the cap",
+  );
+  assert.equal(
+    lib.literaryPreparationCapacity(2, 1000, 512),
+    0,
+    "Existing overhang does not grow further",
+  );
+  assert.equal(
+    lib.literaryPreparationCapacity(Number.NaN, 1, 512),
+    0,
+    "Invalid controls fail closed",
+  );
+
   const extractor = await import(path.join(root, "literary-extract.server.mjs"));
   const api = await import(path.join(root, "api.server.mjs"));
   const env = localBindings(root);
