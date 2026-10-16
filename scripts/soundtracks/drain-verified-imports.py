@@ -58,14 +58,15 @@ def verify_public_audio(recording_id, opener=OPENER):
         raise ValueError("New recording did not return correct HTTP Range audio")
     return {"id":recording_id,"bytes":length,"httpRange":206}
 
-def drain(token, attempts=8, minutes=12, opener=OPENER, clock=time.monotonic, verify=verify_public_audio):
+def drain(token, attempts=8, minutes=12, opener=OPENER, clock=time.monotonic, verify=verify_public_audio, sleeper=time.sleep):
     if not token.startswith("fore_svc_"):
         raise ValueError("A purpose-scoped soundtrack review credential is required")
     if not 1 <= attempts <= MAX_ATTEMPTS or not 1 <= minutes <= 20:
         raise ValueError("Bounded recording and time budgets are required")
     start = clock()
     results = []
-    for _ in range(attempts):
+    lease_retries = 0
+    for attempt in range(attempts):
         if clock() - start >= minutes*60:
             results.append({"status":"time_budget_exhausted"})
             break
@@ -77,6 +78,7 @@ def drain(token, attempts=8, minutes=12, opener=OPENER, clock=time.monotonic, ve
             if not isinstance(reply, dict):
                 raise ValueError("Malformed Worker import response")
             if isinstance(reply.get("stored"), str):
+                lease_retries = 0
                 recording_id = reply["stored"]
                 # Preserve conservative fail-closed behavior if public
                 # routing has not propagated yet: never count unplayable audio.
@@ -86,7 +88,21 @@ def drain(token, attempts=8, minutes=12, opener=OPENER, clock=time.monotonic, ve
                 except (ValueError,urllib.error.URLError,OSError) as error:
                     results.append({"status":"verification_failed","id":recording_id,"type":type(error).__name__})
             elif isinstance(reply.get("skipped"), str):
-                results.append({"status":"skipped","reason":reply["skipped"][:60]})
+                reason = reply["skipped"][:60]
+                if reason == "leased":
+                    # A fully received 'leased' response proves THIS invocation
+                    # made no mutation. Unlike an ambiguous network failure, it
+                    # can safely be retried while the competing Worker finishes.
+                    wait = min(5 * (2 ** lease_retries), 15)
+                    if (lease_retries < 4 and attempt + 1 < attempts and
+                            clock() - start + wait < minutes * 60):
+                        results.append({"status":"lease_contended_retry","waitSeconds":wait})
+                        lease_retries += 1
+                        sleeper(wait)
+                        continue
+                    results.append({"status":"lease_deferred","reason":"Worker is importing another approved original"})
+                else:
+                    results.append({"status":"skipped","reason":reason})
                 break
             elif isinstance(reply.get("failed"), str) or isinstance(reply.get("invalidated"), str):
                 results.append({"status":"import_held","id":reply.get("failed") or reply.get("invalidated"),
@@ -120,6 +136,8 @@ def main():
           "playableVerified":report["playableVerified"],
           "statuses":{label:sum(x["status"]==label for x in report["results"])
                       for label in set(x["status"] for x in report["results"])}},sort_keys=True))
+    if any(r["status"]=="lease_deferred" for r in report["results"]):
+        print("::warning::R2 import lease contention persisted; approved masters remain queued for the scheduled Worker.")
     if any(r["status"] in ("verification_failed","import_held","request_failed")
            for r in report["results"]):
         return 2
