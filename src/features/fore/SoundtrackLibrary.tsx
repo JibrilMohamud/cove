@@ -93,8 +93,9 @@ export function SoundtrackLibraryPage() {
         ))}
       </div>
       <p className="small muted">
-        The canonical book and chapter playlists are a separate feature in development.
-        Recordings are never assigned to a book without chapter-specific editorial review.
+        Book and chapter soundtrack suggestions are available from the EPUB reader. They are automated,
+        evidence-aware recommendations, not editorially certified pairings. Use the Reading soundtrack
+        control in the reader to opt in.
       </p>
     </section>
   );
