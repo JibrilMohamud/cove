@@ -635,9 +635,7 @@ export function sequencePlaylist(
   // A 40-record global core preserves consistent choices; local checkpoints
   // introduce 40 more candidates that may only suit later scenes.
   const checkpoints =
-    totalArc > 0
-      ? [0, 0.2, 0.4, 0.6, 0.8, 0.98].map((fraction) => at(target * fraction))
-      : [];
+    totalArc > 0 ? [0, 0.2, 0.4, 0.6, 0.8, 0.98].map((fraction) => at(target * fraction)) : [];
   const pool = selectNarrativeCandidates(
     ranked,
     checkpoints,
