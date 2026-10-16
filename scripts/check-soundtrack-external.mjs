@@ -80,6 +80,10 @@ try {
   await assert.rejects(()=>route(file,"PUT",new TextEncoder().encode("bad")),/original byte count/i);
   const put=await route(file,"PUT",sample);
   assert.equal((await put.json()).status,"staged");
+  const stagedPreview=await route(file,"GET",null,staff);
+  assert.equal(stagedPreview.status,200,"authenticated human staff can listen to private staged master");
+  assert.equal(await stagedPreview.text(),sample.toString());
+  assert.equal((await (await listing()).json()).count,0,"staff preview never makes a staged recording public");
   const approval="/admin/soundtracks/external/"+id+"/approve";
   const reviewerInput={provenanceSha256,assessment:"This is a synthetic reviewed fixture validating original audio identity, provider permission, composition and master rights under a US-only grant. An actual human review would be required for production.",
     sourceLicenseChecked:true,providerPermissionChecked:true,exactMasterListened:true};
