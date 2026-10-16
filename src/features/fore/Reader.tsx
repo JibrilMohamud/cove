@@ -8,7 +8,7 @@ import {
   type ShareMember,
 } from "./Sharing";
 import { openBiosync, resolveAudio, resolveText, matchingEpub } from "./biosync-client";
-import { Headphones } from "lucide-react";
+import { Headphones, Music2 } from "lucide-react";
 import { createActivity, measureEpub } from "./reading-activity";
 import { flushReaderMutations, queueReaderMutation } from "./offline-reader-mutations";
 import { offlineAccountId } from "./offline-account";
