@@ -486,8 +486,34 @@ export async function processLiteraryJob(
   )
     .bind(time, time)
     .run();
+  // Compute each current book's section footprint ONCE per claim. The old
+  // created_at-only order spent a day's calls on one long work, leaving
+  // thousands of books with no chapter-level evidence. Favor compact,
+  // multi-spine books and finish them before investing in giant volumes.
+  // Chapter evidence and book overviews still receive distinct turns.
+  const withCoverage =
+    lane === "prepare"
+      ? ""
+      : `WITH section_coverage AS (
+        SELECT s.product_id,s.fingerprint,COUNT(*) total,
+          COUNT(DISTINCT s.spine_index) spines,
+          SUM(s.profile_json IS NOT NULL) analyzed
+        FROM literary_profile_sections s
+        JOIN literary_profiles p ON p.product_id=s.product_id AND p.fingerprint=s.fingerprint
+        GROUP BY s.product_id,s.fingerprint
+      ) `;
+  const coverageJoin =
+    lane === "prepare"
+      ? ""
+      : " LEFT JOIN section_coverage c ON c.product_id=j.product_id AND c.fingerprint=j.fingerprint";
+  const analysisPriority =
+    lane === "prepare"
+      ? ""
+      : `,CASE WHEN j.kind='analyze' AND j.section_id='' AND COALESCE(c.analyzed,0)>0 THEN 0 ELSE 1 END,
+          CASE WHEN j.kind='analyze' AND j.section_id<>'' AND COALESCE(c.spines,0)>=2 THEN 0 ELSE 1 END,
+          CASE WHEN j.kind='analyze' THEN COALESCE(c.total,99999) ELSE 0 END`;
   const job = await env.DB.prepare(
-    `UPDATE literary_profile_jobs SET status='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=? WHERE id=(SELECT j.id FROM literary_profile_jobs j JOIN literary_profiles p ON p.product_id=j.product_id AND p.fingerprint=j.fingerprint WHERE (?='any' OR j.kind=?) AND ((j.status='queued' AND j.available_at<=?) OR (j.status='running' AND j.lease_until<?)) AND j.attempts<5 ORDER BY CASE WHEN (j.section_id<>'')=? THEN 0 ELSE 1 END,CASE WHEN j.kind='analyze' THEN 0 ELSE 1 END,j.created_at,j.id LIMIT 1) RETURNING *`,
+    `${withCoverage}UPDATE literary_profile_jobs SET status='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=? WHERE id=(SELECT j.id FROM literary_profile_jobs j JOIN literary_profiles p ON p.product_id=j.product_id AND p.fingerprint=j.fingerprint${coverageJoin} WHERE (?='any' OR j.kind=?) AND ((j.status='queued' AND j.available_at<=?) OR (j.status='running' AND j.lease_until<?)) AND j.attempts<5 ORDER BY CASE WHEN (j.section_id<>'')=? THEN 0 ELSE 1 END${analysisPriority},j.created_at,j.id LIMIT 1) RETURNING *`,
   )
     .bind(
       token,
@@ -555,9 +581,29 @@ export function literaryPreparationCapacity(
     ),
   );
 }
+/** Three chapter turns for every book-overview turn; never a hidden model call. */
+export function preferLiterarySection(turn: number) {
+  return Number.isSafeInteger(turn) && ((turn % 4) + 4) % 4 !== 0;
+}
 export async function runLiteraryProfileTick(env: LiteraryEnv) {
   if (!(await config(env, "enabled", 1))) return { skipped: "disabled" };
-  const seeded = await seedLiteraryProfiles(env);
+  // A catalog sweep can generate 50 new durable preparation jobs each minute.
+  // Stop enumerating once that backlog is saturated; the already-seeded titles
+  // retain their provisional reading times, rights and durable claims.
+  const queuedPrepares =
+    (
+      await env.DB.prepare(
+        "SELECT COUNT(*) count FROM literary_profile_jobs WHERE kind='prepare' AND status='queued'",
+      ).first<{ count: number }>()
+    )?.count ?? 0;
+  const maxQueuedPrepares = Math.max(
+    128,
+    Math.min(20000, await config(env, "max_queued_prepares", 2048)),
+  );
+  const seeded =
+    queuedPrepares >= maxQueuedPrepares
+      ? { skipped: "prepare_queue_backpressure", queued: queuedPrepares }
+      : await seedLiteraryProfiles(env);
   const jobs = [];
   // Source preparation writes extracted EPUB sections and queues many costly
   // inference jobs. Respect the backlog instead of endlessly creating more
@@ -589,7 +635,7 @@ export async function runLiteraryProfileTick(env: LiteraryEnv) {
   for (let n = 0; n < limit; n++) {
     const result = await processLiteraryJob(
       env,
-      ((turn?.inference_turn || 0) - limit + n) % 2 === 1,
+      preferLiterarySection((turn?.inference_turn || 0) - limit + n),
       "analyze",
     );
     jobs.push(result);
@@ -751,6 +797,7 @@ export async function handleLiteraryProfiles(
         limits: {
           preparesPerTick: await config(env, "prepares_per_tick", 2),
           maxPendingAnalysis: await config(env, "max_pending_analysis", 512),
+          maxQueuedPrepares: await config(env, "max_queued_prepares", 2048),
           inferencePerTick: await config(env, "jobs_per_tick", 2),
           dailyUnits: await config(env, "daily_units", 2_000_000),
         },
