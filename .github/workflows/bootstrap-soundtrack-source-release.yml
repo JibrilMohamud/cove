@@ -62,6 +62,8 @@ jobs:
             exit 1
           fi
       - name: Verify, triage, and release up to eight originals
+        id: curate
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -91,3 +93,9 @@ jobs:
           path: soundtrack-curation-receipts.json
           if-no-files-found: ignore
           retention-days: 30
+      - name: Fail release after independent imports when curation had unresolved errors
+        if: always() && steps.curate.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "::error::Source curation reported failures. Independent approved originals were still imported; see separate receipts."
+          exit 1
