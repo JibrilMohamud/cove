@@ -236,7 +236,7 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
       ).bind(c.id, page.title, c.sourcePage, c.mediaUrl, c.sha1,c.size,c.mime,c.title,
         c.performer,c.license.code,c.license.link,c.license.statement,c.attribution,
         category.period,JSON.stringify(tags.instruments),JSON.stringify(tags.moods),
-        tags.energy,tags.hasVocals,JSON.stringify({ source:"commons_imageinfo",filePage:c.sourcePage,
+        tags.energy,tags.hasVocals,JSON.stringify({ source:"commons_imageinfo",discoveryCategory:category.name,filePage:c.sourcePage,
           claimedLicense:c.license.statement,claimedLicenseUrl:c.license.link,
           rawLicenseUrl:c.info.extmetadata?.LicenseUrl?.value || "",
           sourceSha1:c.sha1,sourceSize:c.size,artist:c.performer,
