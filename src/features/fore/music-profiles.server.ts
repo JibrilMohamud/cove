@@ -173,8 +173,12 @@ export async function handleMusicProfiles(
     )
       .bind(now)
       .run();
+    // Quiet, explicitly instrumental originals already published with a
+    // verified master get first analysis when a batch arrives. This changes
+    // scheduling ONLY; title tags never stand in for measured audio energy,
+    // master fingerprints or commercial-use rights.
     const job = await env.DB.prepare(
-      "UPDATE music_profile_jobs SET status='running',attempts=attempts+1,lease_token=?,lease_until=?,updated_at=? WHERE recording_id=(SELECT recording_id FROM music_profile_jobs WHERE ((status='queued' AND available_at<=?) OR (status='running' AND lease_until<?)) AND attempts<5 ORDER BY available_at,recording_id LIMIT 1) RETURNING recording_id,fingerprint",
+      `UPDATE music_profile_jobs SET status='running',attempts=attempts+1,lease_token=?,lease_until=?,updated_at=? WHERE recording_id=(SELECT j.recording_id FROM music_profile_jobs j WHERE ((j.status='queued' AND j.available_at<=?) OR (j.status='running' AND j.lease_until<?)) AND j.attempts<5 ORDER BY CASE WHEN EXISTS(SELECT 1 FROM soundtrack_recordings r WHERE r.id=j.recording_id AND r.status='ready' AND r.quality_status='passed' AND r.storage_key IS NOT NULL AND r.has_vocals=0 AND (lower(r.title) LIKE '%adagio%' OR lower(r.title) LIKE '%nocturne%' OR lower(r.title) LIKE '%lento%' OR lower(r.title) LIKE '%berceuse%' OR lower(r.title) LIKE '%lullaby%')) THEN 0 ELSE 1 END,j.available_at,j.recording_id LIMIT 1) RETURNING recording_id,fingerprint`,
     )
       .bind(token, new Date(Date.now() + 1800000).toISOString(), now, now, now)
       .first<{ recording_id: string; fingerprint: string }>();
