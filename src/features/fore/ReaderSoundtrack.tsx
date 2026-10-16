@@ -197,7 +197,9 @@ export function ReaderSoundtrack({
       {expanded && (
         <>
           <p className="small muted">
-            {ui("Suggested accompaniment, not narration. Recordings remain unedited and are never started automatically.")}
+            {ui(
+              "Suggested accompaniment, not narration. Recordings remain unedited and are never started automatically.",
+            )}
           </p>
           <label htmlFor="reader-soundtrack-mode">{ui("Listening style")}</label>
           <select
@@ -225,10 +227,16 @@ export function ReaderSoundtrack({
           </select>
           {query.data?.scope && (
             <p className="small muted">
-              {ui("Based on {scope}. Changes to the reading passage take effect at the next track boundary.", {
-                scope: query.data.scope.effective === "chapter" ? ui("this chapter") : ui("the book"),
-              })}
-              {query.data.scope.effective === "book_fallback" ? ui(" (chapter analysis pending)") : ""}
+              {ui(
+                "Based on {scope}. Changes to the reading passage take effect at the next track boundary.",
+                {
+                  scope:
+                    query.data.scope.effective === "chapter" ? ui("this chapter") : ui("the book"),
+                },
+              )}
+              {query.data.scope.effective === "book_fallback"
+                ? ui(" (chapter analysis pending)")
+                : ""}
             </p>
           )}
         </>
@@ -243,7 +251,11 @@ export function ReaderSoundtrack({
         </p>
       )}
       {query.data?.provisional && expanded && (
-        <p role="status">{ui("A reliable soundtrack is not available yet: {reason}.", { reason: query.data.reason || "pending" })}</p>
+        <p role="status">
+          {ui("A reliable soundtrack is not available yet: {reason}.", {
+            reason: query.data.reason || "pending",
+          })}
+        </p>
       )}
       {!current && !query.isPending && expanded && !query.data?.provisional && (
         <p role="status">{ui("No eligible matching recordings are available for this passage.")}</p>
@@ -254,7 +266,8 @@ export function ReaderSoundtrack({
             <strong>{current.recording.title}</strong>
             <span className="small muted">
               {" "}
-              — {current.recording.composer}, {ui("performed by {performer}", { performer: current.recording.performer })}
+              — {current.recording.composer},{" "}
+              {ui("performed by {performer}", { performer: current.recording.performer })}
             </span>
           </p>
           <audio
@@ -321,9 +334,13 @@ export function ReaderSoundtrack({
                   </button>
                 </div>
               )}
-              {!registered && <p className="small muted">{ui("Sign in to save private feedback.")}</p>}
+              {!registered && (
+                <p className="small muted">{ui("Sign in to save private feedback.")}</p>
+              )}
               <p className="small muted">
-                {ui("Musical and reading-time estimates are not guarantees. Rights and regional eligibility are checked again whenever the original recording is played.")}
+                {ui(
+                  "Musical and reading-time estimates are not guarantees. Rights and regional eligibility are checked again whenever the original recording is played.",
+                )}
               </p>
             </>
           )}
