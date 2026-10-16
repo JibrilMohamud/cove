@@ -1,0 +1,103 @@
+{
+  "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+  "input": [
+    {
+      "id": "catalog",
+      "kind": "metadata",
+      "text": "{\"title\":\"Pride and Prejudice\",\"subjects\":[\"Courtship -- Fiction\",\"Domestic fiction\",\"England -- Fiction\",\"Love stories\",\"Sisters -- Fiction\",\"Social classes -- Fiction\",\"Young women -- Fiction\"]}",
+      "locator": "catalog:prd_gutenberg_42671"
+    },
+    {
+      "id": "description",
+      "kind": "description",
+      "text": "\"Pride and Prejudice\" by Jane Austen is a novel published in 1813. It follows Elizabeth Bennet, who must learn to see beyond hasty judgments and superficial appearances. With five daughters and an estate that can only pass to a male heir, the Bennet family faces financial uncertainty. Marriage becomes essential for survival. When wealthy Mr. Darcy arrives in their neighborhood, his pride and Elizabeth's prejudice ignite a conflict that will challenge everything she believes about goodness, character, and love. (This is an automatically generated summary.)",
+      "locator": "catalog:prd_gutenberg_42671:description"
+    }
+  ],
+  "rawProfile": {
+    "writtenPeriod": {
+      "value": {
+        "label": "unknown",
+        "startYear": null,
+        "endYear": null
+      },
+      "confidence": 0,
+      "evidence": []
+    },
+    "publicationPeriod": {
+      "value": {
+        "label": "1813",
+        "startYear": 1813,
+        "endYear": 1813
+      },
+      "confidence": 1,
+      "evidence": ["description"]
+    },
+    "settingPeriod": {
+      "value": {
+        "label": "unknown",
+        "startYear": null,
+        "endYear": null
+      },
+      "confidence": 0,
+      "evidence": []
+    },
+    "geography": {
+      "value": ["england"],
+      "confidence": 1,
+      "evidence": ["catalog", "description"]
+    },
+    "moods": {
+      "value": ["romantic"],
+      "confidence": 1,
+      "evidence": ["description"]
+    },
+    "themes": {
+      "value": ["love", "social classes"],
+      "confidence": 1,
+      "evidence": ["catalog", "description"]
+    },
+    "sensoryAtmosphere": {
+      "value": [],
+      "confidence": 0,
+      "evidence": []
+    },
+    "literaryStyle": {
+      "value": [],
+      "confidence": 0,
+      "evidence": []
+    },
+    "energy": {
+      "value": null,
+      "confidence": 0,
+      "evidence": []
+    },
+    "tension": {
+      "value": null,
+      "confidence": 0,
+      "evidence": []
+    },
+    "valence": {
+      "value": null,
+      "confidence": 0,
+      "evidence": []
+    },
+    "musicalAffinity": {
+      "value": {
+        "instruments": ["piano"],
+        "textures": [],
+        "eraMode": "atmosphere",
+        "preferredPeriods": [],
+        "allowReconstructions": true
+      },
+      "confidence": 1,
+      "evidence": ["description"]
+    },
+    "listening": {
+      "maxEnergy": 0.65,
+      "vocals": "none",
+      "unobtrusive": true
+    }
+  },
+  "note": "Actual Cloudflare inference with constrained JSON schema. Runtime confidence limits and provenance validation apply before publication."
+}

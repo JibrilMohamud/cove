@@ -1,0 +1,809 @@
+import { z } from "zod";
+import { resolveProductRights } from "./rights.server";
+import type { CoveEnv } from "./api.server";
+import type { CoveIdentity } from "./auth.server";
+import { ApiError, json, readBody } from "./service";
+import { requireStaffPermission } from "./moderation.server";
+import { requireServiceScope } from "./privileged-access.server";
+import { handleSoundtracks } from "./soundtracks.server";
+import { resolveProduct } from "./catalog-model.server";
+import { extractLiterarySections } from "./literary-extract.server";
+import {
+  emptyLiteraryProfile,
+  literaryPrompt,
+  literaryJsonSchema,
+  literaryProfileSchema,
+  validateLiteraryProfile,
+  rankLiteraryMusic,
+  PROFILE_POLICY,
+  PROFILE_MODEL,
+  type LiteraryProfile,
+  type ProfileEvidence,
+  type MatchRecording,
+} from "./literary-profile";
+
+export type LiteraryEnv = CoveEnv & {
+  AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
+};
+type BookInput = {
+  id: string;
+  title: string;
+  description: string;
+  language: string;
+  source_name: string;
+  source_external_id: string;
+  object_key: string | null;
+  sha256: string | null;
+  metadata: string;
+  text_allowed: number;
+  extra_sources: string;
+};
+type CurrentProfile = {
+  product_id: string;
+  fingerprint: string;
+  profile_json: string;
+  status: string;
+  coverage: string;
+  revision: number;
+  updated_at: string;
+};
+type Job = {
+  id: string;
+  product_id: string;
+  fingerprint: string;
+  kind: string;
+  section_id: string;
+  source_key: string;
+  attempts: number;
+};
+type SourceBundle = {
+  sources: ProfileEvidence[];
+  coverage: string;
+  truncated?: boolean;
+  totalSections?: number;
+};
+const at = () => new Date().toISOString();
+const hash = async (value: string) =>
+  [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)))]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+const inputSql = `SELECT p.id,e.title,e.description,e.language,p.source_name,p.source_external_id,av.object_key,av.sha256,
+  COALESCE((SELECT json_object('subjects',json(c.subjects_json),'shelves',json(c.bookshelves_json),'authors',json(c.authors_json)) FROM gutenberg_source_cache c WHERE c.id=p.source_external_id),'{}') metadata,
+  COALESCE((SELECT json_group_array(json_object('id',s.id,'kind',s.kind,'text',s.text,'locator',s.locator,'hash',s.content_sha256)) FROM literary_profile_sources s WHERE s.product_id=p.id AND s.active=1 ORDER BY s.id),'[]') extra_sources,
+  CASE WHEN p.source_name='gutenberg' AND e.canonical_public_domain=1 AND EXISTS(SELECT 1 FROM gutenberg_source_cache c WHERE c.id=p.source_external_id AND c.copyright=0 AND c.commercial_use_status='approved') THEN 1 ELSE 0 END text_allowed
+  FROM products p JOIN editions e ON e.id=p.edition_id
+  LEFT JOIN digital_assets da ON da.edition_id=e.id AND da.kind='epub'
+  LEFT JOIN asset_versions av ON av.id=da.current_version_id`;
+async function config(env: CoveEnv, name: string, fallback: number) {
+  const value = await env.DB.prepare("SELECT value FROM cove_runtime_config WHERE key=?")
+    .bind("literary_" + name)
+    .first<{ value: string }>();
+  const number = Number(value?.value ?? fallback);
+  return Number.isFinite(number) ? number : fallback;
+}
+const metadataSources = (book: BookInput): ProfileEvidence[] => [
+  {
+    id: "catalog",
+    kind: "metadata",
+    text: JSON.stringify({
+      title: book.title,
+      language: book.language,
+      metadata: JSON.parse(book.metadata),
+    }).slice(0, 12000),
+    locator: "catalog:" + book.id,
+  },
+  ...JSON.parse(book.extra_sources || "[]").map((s: ProfileEvidence) => ({
+    id: s.id,
+    kind: s.kind,
+    text: s.text,
+    locator: s.locator,
+  })),
+  ...(book.description?.trim()
+    ? [
+        {
+          id: "description",
+          kind: "description" as const,
+          text: book.description.slice(0, 12000),
+          locator: "catalog:" + book.id + ":description",
+        },
+      ]
+    : []),
+];
+async function addJob(
+  env: CoveEnv,
+  product: string,
+  fingerprint: string,
+  kind: "prepare" | "analyze",
+  section = "",
+  sourceKey = "",
+) {
+  const time = at();
+  return env.DB.prepare(
+    `INSERT OR IGNORE INTO literary_profile_jobs(id,product_id,fingerprint,kind,section_id,source_key,available_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)`,
+  )
+    .bind(
+      await hash([product, fingerprint, kind, section].join(":")),
+      product,
+      fingerprint,
+      kind,
+      section,
+      sourceKey,
+      time,
+      time,
+      time,
+    )
+    .run();
+}
+async function enqueueBook(env: LiteraryEnv, book: BookInput) {
+  const time = at();
+  const fingerprint = await hash(
+    JSON.stringify({ policy: PROFILE_POLICY, model: PROFILE_MODEL, book }),
+  );
+  const current = await env.DB.prepare(
+    "SELECT fingerprint FROM literary_profiles WHERE product_id=?",
+  )
+    .bind(book.id)
+    .first<{ fingerprint: string }>();
+  if (current?.fingerprint === fingerprint) return;
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO literary_profiles(product_id,fingerprint,profile_json,status,updated_at) VALUES(?,?,?,'provisional',?) ON CONFLICT(product_id) DO UPDATE SET fingerprint=excluded.fingerprint,profile_json=excluded.profile_json,status='provisional',coverage='metadata',revision=literary_profiles.revision+1,updated_at=excluded.updated_at`,
+    ).bind(book.id, fingerprint, JSON.stringify(emptyLiteraryProfile()), time),
+    env.DB.prepare(
+      "UPDATE literary_profile_jobs SET status='superseded',updated_at=? WHERE product_id=? AND fingerprint<>? AND status IN ('queued','running')",
+    ).bind(time, book.id, fingerprint),
+  ]);
+  await addJob(env, book.id, fingerprint, "prepare");
+  // A source may revert to a previously analyzed fingerprint. Its previous jobs
+  // must not leave the newly provisional profile with no runnable work.
+  await env.DB.prepare(
+    "UPDATE literary_profile_jobs SET status='queued',attempts=0,available_at=?,lease_until='',updated_at=? WHERE product_id=? AND fingerprint=? AND status IN ('done','failed','superseded')",
+  )
+    .bind(time, time, book.id, fingerprint)
+    .run();
+}
+/** Keyset sweep is bounded independently of catalog size. No OFFSET or per-visitor AI. */
+export async function seedLiteraryProfiles(env: LiteraryEnv, limit = 50) {
+  const token = crypto.randomUUID(),
+    time = at();
+  const state = await env.DB.prepare(
+    `UPDATE literary_profile_state SET lease_token=?,lease_until=? WHERE id=1 AND lease_until<? RETURNING cursor`,
+  )
+    .bind(token, new Date(Date.now() + 120000).toISOString(), time)
+    .first<{ cursor: string }>();
+  if (!state) return { seeded: 0, skipped: "seed_lease" };
+  try {
+    const books = (
+      await env.DB.prepare(
+        inputSql +
+          " WHERE p.id>? AND p.storefront_status='active' AND p.format='ebook' AND p.source_name<>'upload' ORDER BY p.id LIMIT ?",
+      )
+        .bind(state.cursor, Math.max(1, Math.min(100, limit)))
+        .all<BookInput>()
+    ).results;
+    for (const book of books) {
+      await enqueueBook(env, book);
+    }
+    await env.DB.prepare(
+      "UPDATE literary_profile_state SET cursor=?,last_run_at=? WHERE id=1 AND lease_token=?",
+    )
+      .bind(books.at(-1)?.id || "", time, token)
+      .run();
+    return { scanned: books.length };
+  } finally {
+    await env.DB.prepare(
+      "UPDATE literary_profile_state SET lease_until='' WHERE id=1 AND lease_token=?",
+    )
+      .bind(token)
+      .run();
+  }
+}
+async function putBundle(env: LiteraryEnv, key: string, bundle: SourceBundle) {
+  if (!env.BUCKET) throw new Error("Profile evidence storage unavailable");
+  const text = JSON.stringify(bundle);
+  await env.BUCKET.put(key, new TextEncoder().encode(text), {
+    sha256: await hash(text),
+    httpMetadata: { contentType: "application/json" },
+  });
+}
+async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
+  const book = await env.DB.prepare(inputSql + " WHERE p.id=? AND p.storefront_status='active'")
+    .bind(job.product_id)
+    .first<BookInput>();
+  if (!book) throw new Error("Inactive or missing product");
+  const actualFingerprint = await hash(
+    JSON.stringify({ policy: PROFILE_POLICY, model: PROFILE_MODEL, book }),
+  );
+  if (actualFingerprint !== job.fingerprint) throw new Error("source_changed_waiting_for_sweep");
+  const prefix = `literary/v1/${job.product_id}/${job.fingerprint}`;
+  const sources = metadataSources(book);
+  let coverage = "metadata",
+    truncated = false,
+    totalSections = 0;
+  if (book.text_allowed && book.object_key && env.BUCKET?.head) {
+    const head = await env.BUCKET.head(book.object_key);
+    if (head && head.size <= 16 * 1024 * 1024) {
+      try {
+        const object = await env.BUCKET.get(book.object_key);
+        const bytes = new Uint8Array(await object.arrayBuffer());
+        const measured = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+        if (book.sha256 && measured !== book.sha256) throw new Error("EPUB content changed");
+        const extracted = await extractLiterarySections(bytes);
+        truncated = extracted.truncated;
+        totalSections = extracted.sections.length;
+        coverage = totalSections ? "full_text_pending" : "metadata";
+        for (const section of extracted.sections) {
+          const lease = await env.DB.prepare(
+            "UPDATE literary_profile_jobs SET lease_until=? WHERE id=? AND lease_token=? AND status='running' AND EXISTS(SELECT 1 FROM literary_profiles p WHERE p.product_id=literary_profile_jobs.product_id AND p.fingerprint=literary_profile_jobs.fingerprint) RETURNING id",
+          )
+            .bind(new Date(Date.now() + 300000).toISOString(), job.id, token)
+            .first();
+          if (!lease) throw new Error("literary_prepare_lease_lost");
+          const sourceKey = `${prefix}/${section.id}.json`;
+          await putBundle(env, sourceKey, {
+            sources: [
+              ...sources,
+              {
+                id: section.id,
+                kind: "full_text",
+                text: section.text,
+                locator: `${book.object_key}#${section.href}:${section.charStart}-${section.charEnd}`,
+              },
+            ],
+            coverage: "section",
+          });
+          await env.DB.prepare(
+            `INSERT OR IGNORE INTO literary_profile_sections(product_id,fingerprint,section_id,spine_index,href,title,chunk_index,char_start,char_end,source_key,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+          )
+            .bind(
+              job.product_id,
+              job.fingerprint,
+              section.id,
+              section.spineIndex,
+              section.href,
+              section.title,
+              section.chunkIndex,
+              section.charStart,
+              section.charEnd,
+              sourceKey,
+              at(),
+            )
+            .run();
+          await addJob(env, job.product_id, job.fingerprint, "analyze", section.id, sourceKey);
+        }
+      } catch (error) {
+        // Invalid/unsupported full text must not prevent a metadata profile.
+        coverage = "metadata_text_unavailable";
+        console.warn("literary_text_unavailable", job.product_id, String(error).slice(0, 160));
+      }
+    } else if (head) coverage = "metadata_text_oversized";
+  }
+  const key = `${prefix}/book.json`;
+  await putBundle(env, key, { sources, coverage, truncated, totalSections });
+  await addJob(env, job.product_id, job.fingerprint, "analyze", "", key);
+}
+
+async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
+  if (!env.AI || !env.BUCKET) throw new Error("Literary inference binding unavailable");
+  const head = await env.BUCKET.head?.(job.source_key);
+  if (!head || head.size > 100000) throw new Error("Invalid literary source bundle");
+  const bundle = JSON.parse(await (await env.BUCKET.get(job.source_key)).text()) as SourceBundle;
+  const prompt = literaryPrompt(bundle.sources);
+  // A conservative character reservation includes the entire prompt and maximum
+  // generated output. This is a work budget, not a currency/token estimate.
+  const units = prompt.system.length + prompt.user.length + 16000;
+  const day = at().slice(0, 10),
+    budget = Math.max(0, Math.min(100_000_000, await config(env, "daily_units", 2_000_000)));
+  const reserved = await env.DB.prepare(
+    `INSERT INTO literary_profile_budget(day,reserved_units,calls) SELECT ?,?,1 WHERE ?<=? ON CONFLICT(day) DO UPDATE SET reserved_units=reserved_units+excluded.reserved_units,calls=calls+1 WHERE reserved_units+excluded.reserved_units<=? RETURNING calls`,
+  )
+    .bind(day, units, units, budget, budget)
+    .first();
+  if (!reserved) throw new Error("daily_budget_exhausted");
+  const raw = await env.AI.run(PROFILE_MODEL, {
+    messages: [
+      { role: "system", content: prompt.system },
+      { role: "user", content: prompt.user },
+    ],
+    max_tokens: 3500,
+    temperature: 0,
+    response_format: { type: "json_schema", json_schema: literaryJsonSchema(bundle.sources) },
+  });
+  const response = raw && typeof raw === "object" && "response" in raw ? raw.response : null;
+  const profile = validateLiteraryProfile(
+    typeof response === "string" ? JSON.parse(response) : response,
+    bundle.sources,
+  );
+  const encoded = JSON.stringify(profile),
+    time = at();
+  const guard = `EXISTS(SELECT 1 FROM literary_profile_jobs j JOIN literary_profiles p ON p.product_id=j.product_id AND p.fingerprint=j.fingerprint WHERE j.id=? AND j.lease_token=? AND j.status='running' AND j.lease_until>?)`;
+  if (job.section_id) {
+    await env.DB.prepare(
+      `UPDATE literary_profile_sections SET profile_json=?,updated_at=? WHERE product_id=? AND fingerprint=? AND section_id=? AND ${guard}`,
+    )
+      .bind(
+        encoded,
+        time,
+        job.product_id,
+        job.fingerprint,
+        job.section_id,
+        job.id,
+        leaseToken,
+        time,
+      )
+      .run();
+  } else {
+    await env.DB.batch([
+      env.DB.prepare(
+        `UPDATE literary_profiles SET profile_json=?,status='analyzed',coverage=?,revision=revision+1,updated_at=? WHERE product_id=? AND fingerprint=? AND ${guard}`,
+      ).bind(
+        encoded,
+        JSON.stringify({
+          mode: bundle.coverage,
+          truncated: !!bundle.truncated,
+          totalSections: bundle.totalSections || 0,
+        }),
+        time,
+        job.product_id,
+        job.fingerprint,
+        job.id,
+        leaseToken,
+        time,
+      ),
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO literary_profile_revisions(product_id,revision,fingerprint,profile_json,model,policy_version,created_at) SELECT product_id,revision,fingerprint,profile_json,?,?,? FROM literary_profiles WHERE product_id=? AND fingerprint=? AND ${guard}`,
+      ).bind(
+        PROFILE_MODEL,
+        PROFILE_POLICY,
+        time,
+        job.product_id,
+        job.fingerprint,
+        job.id,
+        leaseToken,
+        time,
+      ),
+    ]);
+  }
+}
+/** Atomic leases and pinned fingerprints let independent bounded consumers scale safely. */
+export async function processLiteraryJob(env: LiteraryEnv, preferSections = false) {
+  const time = at(),
+    token = crypto.randomUUID();
+  await env.DB.prepare(
+    "UPDATE literary_profile_jobs SET status='failed',last_error='lease_expired_max_attempts',updated_at=? WHERE status='running' AND lease_until<? AND attempts>=5",
+  )
+    .bind(time, time)
+    .run();
+  const job = await env.DB.prepare(
+    `UPDATE literary_profile_jobs SET status='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=? WHERE id=(SELECT j.id FROM literary_profile_jobs j JOIN literary_profiles p ON p.product_id=j.product_id AND p.fingerprint=j.fingerprint WHERE ((j.status='queued' AND j.available_at<=?) OR (j.status='running' AND j.lease_until<?)) AND j.attempts<5 ORDER BY CASE WHEN (j.section_id<>'')=? THEN 0 ELSE 1 END,CASE WHEN j.kind='analyze' THEN 0 ELSE 1 END,j.created_at,j.id LIMIT 1) RETURNING *`,
+  )
+    .bind(
+      token,
+      new Date(Date.now() + 300000).toISOString(),
+      time,
+      time,
+      time,
+      preferSections ? 1 : 0,
+    )
+    .first<Job>();
+  if (!job) return { skipped: "no_jobs" };
+  try {
+    if (job.kind === "prepare") await prepareBook(env, job, token);
+    else await analyze(env, job, token);
+    await env.DB.prepare(
+      "UPDATE literary_profile_jobs SET status='done',lease_until='',updated_at=? WHERE id=? AND lease_token=? AND status='running'",
+    )
+      .bind(at(), job.id, token)
+      .run();
+    return { done: job.id, kind: job.kind, section: job.section_id };
+  } catch (error) {
+    const message = String(error).slice(0, 200);
+    const budget = message.includes("daily_budget_exhausted");
+    const next = budget
+      ? new Date(new Date().setUTCHours(24, 0, 0, 0))
+      : new Date(Date.now() + Math.min(21600000, 60000 * 2 ** job.attempts));
+    await env.DB.prepare(
+      "UPDATE literary_profile_jobs SET status=?,attempts=attempts-?,available_at=?,lease_until='',last_error=?,updated_at=? WHERE id=? AND lease_token=? AND status='running'",
+    )
+      .bind(
+        !budget && job.attempts >= 5 ? "failed" : "queued",
+        budget ? 1 : 0,
+        next.toISOString(),
+        message,
+        at(),
+        job.id,
+        token,
+      )
+      .run();
+    if (!budget && job.attempts >= 5 && !job.section_id) {
+      await env.DB.prepare(
+        "UPDATE literary_profiles SET status='failed',updated_at=? WHERE product_id=? AND fingerprint=?",
+      )
+        .bind(at(), job.product_id, job.fingerprint)
+        .run();
+    }
+    return { failed: job.id, reason: message };
+  }
+}
+export async function runLiteraryProfileTick(env: LiteraryEnv) {
+  if (!(await config(env, "enabled", 1))) return { skipped: "disabled" };
+  const seeded = await seedLiteraryProfiles(env);
+  if (!env.AI) return { seeded, skipped: "missing_ai" };
+  const jobs = [];
+  const limit = Math.max(0, Math.min(4, await config(env, "jobs_per_tick", 2)));
+  for (let n = 0; n < limit; n++) jobs.push(await processLiteraryJob(env, n % 2 === 1));
+  return { seeded, jobs };
+}
+
+function mergeSections(base: LiteraryProfile, profiles: LiteraryProfile[]): LiteraryProfile {
+  if (!profiles.length) return base;
+  const merged = structuredClone(base);
+  for (const key of [
+    "moods",
+    "themes",
+    "sensoryAtmosphere",
+    "literaryStyle",
+    "geography",
+  ] as const) {
+    const supported = profiles.filter((p) => p[key].confidence > 0);
+    if (supported.length)
+      merged[key] = {
+        value: [...new Set(supported.flatMap((p) => p[key].value))].slice(0, 16),
+        confidence:
+          (Math.min(...supported.map((p) => p[key].confidence)) * supported.length) /
+          profiles.length,
+        evidence: [...new Set(supported.flatMap((p) => p[key].evidence))].slice(0, 12),
+      };
+  }
+  for (const key of ["energy", "tension", "valence"] as const) {
+    const known = profiles.map((p) => p[key]).filter((f) => f.value !== null && f.confidence > 0);
+    if (known.length)
+      merged[key] = {
+        value: known.reduce((s, f) => s + f.value!, 0) / known.length,
+        confidence: Math.min(...known.map((f) => f.confidence)),
+        evidence: [...new Set(known.flatMap((f) => f.evidence))].slice(0, 12),
+      };
+  }
+  for (const key of ["settingPeriod", "writtenPeriod", "publicationPeriod"] as const) {
+    const supported = profiles
+      .map((p) => p[key])
+      .filter((f) => f.confidence > 0 && f.evidence.length);
+    const first = supported[0];
+    if (
+      first &&
+      supported.every((f) => JSON.stringify(f.value) === JSON.stringify(first.value)) &&
+      first.confidence > merged[key].confidence
+    )
+      merged[key] = first;
+  }
+  // Section recommendations override the static book recommendation only when supported.
+  const music = profiles.find((p) => p.musicalAffinity.confidence > 0);
+  if (music) merged.musicalAffinity = music.musicalAffinity;
+  return merged;
+}
+export async function handleLiteraryProfiles(
+  request: Request,
+  env: LiteraryEnv,
+  path: string,
+  territory: string,
+  identity: CoveIdentity | null = null,
+): Promise<Response | null> {
+  if (path.startsWith("/admin/literary-profiles")) {
+    let actor: string;
+    if (identity) {
+      await requireStaffPermission(env.DB, identity, "storefront.manage", request);
+      actor = "staff:" + identity.id;
+    } else {
+      const principal = await requireServiceScope(env.DB, request, "literary.profiles.manage");
+      actor = "service:" + principal.principalId;
+    }
+    if (path === "/admin/literary-profiles/status" && request.method === "GET") {
+      return json({
+        profiles: (
+          await env.DB.prepare(
+            "SELECT status,COUNT(*) count FROM literary_profiles GROUP BY status",
+          ).all()
+        ).results,
+        jobs: (
+          await env.DB.prepare(
+            "SELECT status,kind,COUNT(*) count FROM literary_profile_jobs GROUP BY status,kind",
+          ).all()
+        ).results,
+        budget: await env.DB.prepare("SELECT * FROM literary_profile_budget WHERE day=?")
+          .bind(at().slice(0, 10))
+          .first(),
+        sweep: await env.DB.prepare(
+          "SELECT cursor,last_run_at FROM literary_profile_state WHERE id=1",
+        ).first(),
+      });
+    }
+    if (path === "/admin/literary-profiles/music-context" && request.method === "POST") {
+      const year = z.number().int().min(-10000).max(10000).nullable();
+      const input = z
+        .object({
+          recordingId: z.string().max(180),
+          compositionStartYear: year,
+          compositionEndYear: year,
+          recordingStartYear: year,
+          recordingEndYear: year,
+          reconstruction: z.boolean().nullable(),
+          evokedEras: z.array(z.string().min(1).max(80)).max(16),
+          geography: z.array(z.string().min(1).max(80)).max(16),
+          evidenceUrls: z
+            .array(
+              z
+                .string()
+                .url()
+                .max(1000)
+                .refine((v) => new URL(v).protocol === "https:"),
+            )
+            .min(1)
+            .max(8),
+          basis: z.string().min(40).max(2000),
+        })
+        .strict()
+        .parse(await readBody(request, 12000));
+      for (const [start, end] of [
+        [input.compositionStartYear, input.compositionEndYear],
+        [input.recordingStartYear, input.recordingEndYear],
+      ])
+        if (start !== null && end !== null && start > end)
+          throw new ApiError(422, "Invalid music date interval");
+      const exists = await env.DB.prepare(
+        "SELECT id FROM soundtrack_recordings WHERE id=? UNION ALL SELECT id FROM soundtrack_external_recordings WHERE id=?",
+      )
+        .bind(input.recordingId, input.recordingId)
+        .first();
+      if (!exists) throw new ApiError(404, "Recording unavailable");
+      await env.DB.prepare(
+        `INSERT INTO soundtrack_context(recording_id,composition_start_year,composition_end_year,recording_start_year,recording_end_year,reconstruction,evoked_eras_json,geography_json,evidence_json,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(recording_id) DO UPDATE SET composition_start_year=excluded.composition_start_year,composition_end_year=excluded.composition_end_year,recording_start_year=excluded.recording_start_year,recording_end_year=excluded.recording_end_year,reconstruction=excluded.reconstruction,evoked_eras_json=excluded.evoked_eras_json,geography_json=excluded.geography_json,evidence_json=excluded.evidence_json,updated_at=excluded.updated_at`,
+      )
+        .bind(
+          input.recordingId,
+          input.compositionStartYear,
+          input.compositionEndYear,
+          input.recordingStartYear,
+          input.recordingEndYear,
+          input.reconstruction === null ? null : input.reconstruction ? 1 : 0,
+          JSON.stringify(input.evokedEras),
+          JSON.stringify(input.geography),
+          JSON.stringify({ urls: input.evidenceUrls, basis: input.basis, actor }),
+          at(),
+        )
+        .run();
+      return json({ saved: true });
+    }
+    if (path === "/admin/literary-profiles/sources" && request.method === "POST") {
+      const input = z
+        .object({
+          productId: z.string().min(1).max(180),
+          id: z
+            .string()
+            .regex(/^[a-z][a-z0-9_-]{0,79}$/)
+            .refine((id) => !["catalog", "description"].includes(id) && !/^s[0-9]+_/.test(id)),
+          kind: z.enum(["description", "excerpt", "review"]),
+          locator: z
+            .string()
+            .url()
+            .max(1000)
+            .refine((s) => new URL(s).protocol === "https:"),
+          text: z.string().trim().min(20).max(12000),
+          permissionBasis: z.string().trim().min(40).max(1000),
+          active: z.boolean().default(true),
+        })
+        .strict()
+        .parse(await readBody(request, 20000));
+      const count = await env.DB.prepare(
+        "SELECT COUNT(*) n FROM literary_profile_sources WHERE product_id=? AND id<>? AND active=1",
+      )
+        .bind(input.productId, input.id)
+        .first<{ n: number }>();
+      if (input.active && Number(count?.n || 0) >= 3)
+        throw new ApiError(422, "At most three supplementary sources per edition");
+      const owner = await env.DB.prepare(
+        "SELECT product_id FROM literary_profile_sources WHERE id=?",
+      )
+        .bind(input.id)
+        .first<{ product_id: string }>();
+      if (owner && owner.product_id !== input.productId)
+        throw new ApiError(409, "Source ID belongs to another edition");
+      await env.DB.prepare(
+        `INSERT INTO literary_profile_sources(id,product_id,kind,locator,text,content_sha256,permission_basis,supplied_by,active,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET kind=excluded.kind,locator=excluded.locator,text=excluded.text,content_sha256=excluded.content_sha256,permission_basis=excluded.permission_basis,supplied_by=excluded.supplied_by,active=excluded.active,updated_at=excluded.updated_at`,
+      )
+        .bind(
+          input.id,
+          input.productId,
+          input.kind,
+          input.locator,
+          input.text,
+          await hash(input.text),
+          input.permissionBasis,
+          actor,
+          input.active ? 1 : 0,
+          at(),
+        )
+        .run();
+      const changedBook = await env.DB.prepare(inputSql + " WHERE p.id=?")
+        .bind(input.productId)
+        .first<BookInput>();
+      if (changedBook) await enqueueBook(env, changedBook);
+      return json({ saved: true, reanalysis: "queued", priorProfileWithdrawn: true });
+    }
+  }
+  if (path === "/admin/literary-profiles/run" && request.method === "POST") {
+    if (identity) await requireStaffPermission(env.DB, identity, "storefront.manage", request);
+    else await requireServiceScope(env.DB, request, "literary.profiles.manage");
+    await readBody(request, 1000);
+    return json(await runLiteraryProfileTick(env));
+  }
+  const match = /^\/books\/([^/]+)\/literary-profile(?:\/(playlist|chapters))?$/.exec(path);
+  if (!match || request.method !== "GET") return null;
+  const product = await resolveProduct(env.DB, decodeURIComponent(match[1]), identity?.id);
+  if (!product || product.storefront_status !== "active")
+    throw new ApiError(404, "Book unavailable");
+  if (
+    product.source_name !== "upload" &&
+    !(await resolveProductRights(env.DB, product.id, territory, { persist: false })).allowed
+  )
+    throw new ApiError(404, "This edition is unavailable in your storefront");
+  const current = await env.DB.prepare("SELECT * FROM literary_profiles WHERE product_id=?")
+    .bind(product.id)
+    .first<CurrentProfile>();
+  if (!current)
+    return json({
+      productId: product.id,
+      status: "pending",
+      profile: emptyLiteraryProfile(),
+      policy: PROFILE_POLICY,
+    });
+  const url = new URL(request.url);
+  const spine = url.searchParams.get("spine");
+  if (spine !== null && !/^\d{1,5}$/.test(spine))
+    throw new ApiError(400, "Invalid chapter spine index");
+  const after = url.searchParams.get("after") || "";
+  if (after.length > 180) throw new ApiError(400, "Invalid cursor");
+  const base = literaryProfileSchema.parse(JSON.parse(current.profile_json));
+  const sections = (
+    await env.DB.prepare(
+      `SELECT section_id,spine_index,href,title,chunk_index,char_start,char_end,profile_json FROM literary_profile_sections WHERE product_id=? AND fingerprint=? AND section_id>? AND (? IS NULL OR spine_index=?) ORDER BY spine_index,chunk_index LIMIT 257`,
+    )
+      .bind(product.id, current.fingerprint, after, spine, spine === null ? null : Number(spine))
+      .all<{
+        section_id: string;
+        spine_index: number;
+        href: string;
+        title: string;
+        chunk_index: number;
+        char_start: number;
+        char_end: number;
+        profile_json: string | null;
+      }>()
+  ).results;
+  const counts = await env.DB.prepare(
+    "SELECT COUNT(*) total,SUM(profile_json IS NOT NULL) analyzed FROM literary_profile_sections WHERE product_id=? AND fingerprint=?",
+  )
+    .bind(product.id, current.fingerprint)
+    .first<{ total: number; analyzed: number }>();
+  const chapterProfiles = sections
+    .filter((s) => s.profile_json)
+    .map((s) => literaryProfileSchema.parse(JSON.parse(s.profile_json!)));
+  const profile = mergeSections(base, chapterProfiles);
+  let coverage: { mode?: string; truncated?: boolean; totalSections?: number } = {};
+  try {
+    coverage = JSON.parse(current.coverage);
+  } catch {
+    coverage = { mode: current.coverage };
+  }
+  const completeText =
+    !!counts?.total &&
+    counts.total === counts.analyzed &&
+    !coverage.truncated &&
+    coverage.mode === "full_text_pending";
+  const common = {
+    productId: product.id,
+    status: counts?.total && !completeText ? "partial" : current.status,
+    revision: current.revision,
+    fingerprint: current.fingerprint,
+    policy: PROFILE_POLICY,
+    model: PROFILE_MODEL,
+    updatedAt: current.updated_at,
+    coverage: {
+      ...coverage,
+      mode: completeText ? "full_text" : coverage.mode,
+      analyzedSections: counts?.analyzed || 0,
+      totalSections: counts?.total || 0,
+    },
+    sections: counts,
+    chapterFallback: spine !== null && !chapterProfiles.length,
+    evidence: [
+      { id: "catalog", kind: "metadata", locator: "catalog:" + product.id },
+      { id: "description", kind: "description", locator: "catalog:" + product.id + ":description" },
+      ...sections.map((s) => ({
+        id: s.section_id,
+        kind: "full_text",
+        href: s.href,
+        charStart: s.char_start,
+        charEnd: s.char_end,
+      })),
+      ...(
+        await env.DB.prepare(
+          "SELECT id,kind,locator,content_sha256 FROM literary_profile_sources WHERE product_id=? AND active=1",
+        )
+          .bind(product.id)
+          .all()
+      ).results,
+    ],
+  };
+  if (match[2] === "chapters")
+    return json({
+      ...common,
+      chapters: sections.map((s) => ({
+        ...s,
+        profile_json: undefined,
+        profile: s.profile_json ? JSON.parse(s.profile_json) : null,
+      })),
+      nextCursor: null,
+    });
+  if (match[2] === "playlist") {
+    // Reuse live territorial/QA/rights gates. Model output can NEVER authorize music.
+    const response = await handleSoundtracks(
+      new Request(new URL("/api/fore/soundtracks/recordings", request.url)),
+      env,
+      "/soundtracks/recordings",
+      territory,
+    );
+    const catalog = (await response!.json()) as {
+      recordings: (MatchRecording & Record<string, unknown>)[];
+    };
+    const contexts = (
+      await env.DB.prepare("SELECT * FROM soundtrack_context LIMIT 1000").all<{
+        recording_id: string;
+        composition_start_year: number | null;
+        composition_end_year: number | null;
+        reconstruction: number | null;
+        recording_start_year: number | null;
+        recording_end_year: number | null;
+        evoked_eras_json: string;
+      }>()
+    ).results;
+    const candidates = catalog.recordings.map((r) => {
+      const c = contexts.find((c) => c.recording_id === r.id);
+      return {
+        ...r,
+        compositionYears:
+          c?.composition_start_year !== null &&
+          c?.composition_start_year !== undefined &&
+          c.composition_end_year !== null
+            ? ([c.composition_start_year, c.composition_end_year] as [number, number])
+            : null,
+        recordingYears:
+          c?.recording_start_year !== null &&
+          c?.recording_start_year !== undefined &&
+          c.recording_end_year !== null
+            ? ([c.recording_start_year, c.recording_end_year] as [number, number])
+            : null,
+        evokedEras: c ? (JSON.parse(c.evoked_eras_json) as string[]) : [],
+        reconstruction:
+          c?.reconstruction === null || c?.reconstruction === undefined ? null : !!c.reconstruction,
+      };
+    });
+    const ranked =
+      current.status === "provisional" && !chapterProfiles.length
+        ? []
+        : rankLiteraryMusic(profile, candidates)
+            .filter((m) => m.score > 0)
+            .slice(0, 20);
+    return json({
+      ...common,
+      matches: ranked.map((m) => ({
+        ...m,
+        recording: candidates.find((r) => r.id === m.id),
+      })),
+      mode: "atmosphere-first",
+      provisional: current.status === "provisional" || (spine !== null && !chapterProfiles.length),
+    });
+  }
+  return json({ ...common, profile });
+}

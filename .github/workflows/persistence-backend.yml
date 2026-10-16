@@ -90,6 +90,8 @@ jobs:
         run: npm run test:persistence-backend
       - name: Soundtrack library rights and delivery regressions
         run: npm run test:soundtracks
+      - name: Literary profiles, evidence and chapter-matching regressions
+        run: npm run test:literary-profiles
       - name: Resumable hosted BioSync
         run: npm run test:biosync-chunks
       - name: Account sign-up and privacy requests
