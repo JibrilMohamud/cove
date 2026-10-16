@@ -59,6 +59,7 @@ const hash = (value: unknown) => hashText(JSON.stringify(value));
 type EvaluationRow = {
   id: number;
   policy: string;
+  actor: string;
   product_id: string;
   book_fingerprint: string;
   spine: string;
@@ -75,7 +76,7 @@ function presentEvaluation({ a_json, b_json, ...row }: EvaluationRow) {
 async function evaluationBatch(env: CoveEnv, after: number, through = Number.MAX_SAFE_INTEGER) {
   return (
     await env.DB.prepare(
-      "SELECT id,policy,product_id,book_fingerprint,spine,mode,book_family,a_json,b_json,preferred,created_at FROM matching_evaluations WHERE id>? AND id<=? AND policy=? ORDER BY id LIMIT 200",
+      "SELECT id,policy,actor,product_id,book_fingerprint,spine,mode,book_family,a_json,b_json,preferred,created_at FROM matching_evaluations WHERE id>? AND id<=? AND policy=? ORDER BY id LIMIT 200",
     )
       .bind(after, through, MATCHING_POLICY)
       .all<EvaluationRow>()
