@@ -337,7 +337,21 @@ try {
   upstreamChanged = true;
   await assert.rejects(()=>sourceReview("approve",approval),/source or license changed/i);
   upstreamChanged = false;
+  // EU-only historical sound-recording declarations are not US commercial
+  // master permissions, even when Commons calls the file public domain.
+  await assert.rejects(
+    () => sourceReview("approve", {...approval, composer:"Johann Sebastian Bach", performer:"Bach, Johann-Sebastian"}),
+    /individual rights review/i,
+    "Composer metadata must never masquerade as a modern performer",
+  );
   const sourceText = pages[4].revisions[0].slots.main.content;
+  pages[4].revisions[0].slots.main.content = "Bach's work, Pablo Casals on historical CD audio. {{PD-EU-audio}}";
+  await assert.rejects(
+    () => sourceReview("approve",approval),
+    /EU-only phonogram/i,
+    "EU-only audio declarations cannot authorize US publication",
+  );
+  pages[4].revisions[0].slots.main.content = sourceText;
   pages[4].revisions[0].slots.main.content = "Original from https://freemusicarchive.org/music/example/unknown-master";
   await assert.rejects(()=>sourceReview("approve",approval),/FMA\/Musopen-origin/i,
     "FMA-origin sources require independent confirmation of the master rights");
