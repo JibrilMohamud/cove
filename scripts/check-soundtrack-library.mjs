@@ -360,6 +360,9 @@ try {
   await assert.rejects(()=>sourceReview("approve",approval),/FMA\/Musopen-origin/i,
     "FMA-origin sources require independent confirmation of the master rights");
   pages[4].revisions[0].slots.main.content = sourceText;
+  pages[4].revisions[0].slots.main.content = "{{PD-old}} underlying composition; {{CC-BY-SA-3.0}} modern recorded performance";
+  await assert.rejects(() => sourceReview("approve",approval),/recording permission/i);
+  pages[4].revisions[0].slots.main.content = sourceText;
   pages[4].imageinfo[0].metadata=[{name:"Copyright",value:"CC BY-NC-SA 3.0"}];
   await assert.rejects(()=>sourceReview("approve",approval),/source or license changed/i,
     "An embedded NC term must prevent commercial approval");
