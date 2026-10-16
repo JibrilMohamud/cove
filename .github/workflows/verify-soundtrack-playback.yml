@@ -26,6 +26,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - name: Test probe against synthetic HTTP fixtures
+        run: python scripts/soundtracks/test-verify-production-playback.py -q
       - name: Probe real published audio and attribution
         shell: bash
         run: |
