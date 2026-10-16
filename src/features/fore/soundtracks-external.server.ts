@@ -220,7 +220,7 @@ export async function handleExternalSoundtracks(
     const key="soundtracks/external/v1/"+id+"/"+row.source_file_sha256+(row.mime==="audio/mpeg"?".mp3":".ogg");
     await env.BUCKET.put(key,request.body,{sha256:row.source_file_sha256,
       httpMetadata:{contentType:row.mime},customMetadata:{source:row.provider,id}});
-    const head=await env.BUCKET.head(key);
+    const head=await env.BUCKET.head?.(key);
     if (!head || head.size!==row.source_size) {
       await env.BUCKET.delete(key);
       throw new ApiError(409,"Object storage did not confirm exact original size");
