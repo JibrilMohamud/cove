@@ -20,7 +20,7 @@ The POST/PUT endpoints are authenticated, not a customer-upload service. In part
 ## Repeatable delivery workflow
 
 1. Put each original audio file in a private directory, not a Git repository or a public artifact.
-2. Prepare a schemaVersion 1 per-recording manifest as specified in PROVIDER_INTAKE.md. Each grant must explicitly authorize **commercial download and redistribution** of the exact recording. Do not invent permission URLs. All five rights layers and credits must be attributed.
+2. Prepare a schemaVersion 1 per-recording manifest as specified in PROVIDER_INTAKE.md. For FMA commercial CC recordings, supply either a genuine delivery grant or an exact-track acquisitionEvidence object with method manual_download, sourcePageUrl, acquiredAt (UTC ISO timestamp), noAutomatedProviderAccess=true, and originalUnmodified=true. Manual acquisition never permits FMA bulk scraping. Musopen requires a separate genuine authorization for its website delivery, or independently supplied rights-holder originals. All five rights layers and credits must be attributed.
 3. On a machine with FFmpeg installed:
 
        python scripts/soundtracks/external-source-intake.py --manifest /secure/manifest.json --audio-dir /secure/masters --output /secure/review-receipt.json
@@ -44,6 +44,10 @@ The reviewed library contained 17 playable Commons files at the last audited pro
 
 ## Automation
 
-Commons: existing GitHub Actions curator every six hours, bounded 8 tracks/run, depends on a matching service credential. An active database credential alone is insufficient when the GitHub Actions secret's value differs: production audit observed credential_not_found (HTTP 401); rotate the secret securely before relying on cron.
+Commons: existing GitHub Actions curator every hour, bounded 8 tracks/run, depends on a matching service credential. An active database credential alone is insufficient when the GitHub Actions secret's value differs: production audit observed credential_not_found (HTTP 401); rotate the secret securely before relying on cron.
 
 External licensed provider deliveries: run staging **only when a verified delivery and signed license have arrived**. Scheduled polling or scraping FMA/Musopen is intentionally absent. Once an actual provider feed/API agreement exists, implement an adapter using its documented authenticated API and quotas to feed the same staging contract. Apply per-source cool-downs, periodic revalidation and rights takedown controls; never shortcut human approval for ambiguous masters.
+
+## Licensed FMA fast lane
+
+Clear CC0, CC BY and CC BY-SA declarations on the exact recording can remove the need to negotiate individual copyright licenses. The file must still be lawfully acquired manually (or supplied under another authorized channel), checksum-matched, QA-verified and individually approved by an MFA-authenticated staff reviewer. An acquisition attestation is not a guarantee of third-party rights. Mark unknown instrumentation honestly and retain an auditable takedown path. No automatic provider-site scraping is enabled.
