@@ -196,3 +196,8 @@ Existing literary model results stay valid and no inference work is reset. Secti
 durations update during that preparation even if the text/model profile already
 exists. Metadata priors retain their explicitly identified historical policy until
 normal source preparation replaces them.
+
+If ingestion changes a book before preparation or inference, the consumer atomically
+supersedes its stale jobs and queues the current fingerprint immediately. It does not
+spend five retry attempts waiting for the next full catalog sweep.
+Inference checks the current catalog fingerprint before reserving any model budget.
