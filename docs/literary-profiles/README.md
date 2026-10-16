@@ -35,7 +35,7 @@ Original-recording license, attribution, QA and territory gates still apply.
    Licensed titles use metadata or staff-supplied authorized excerpts/reviews;
    purchase access alone does not authorize sending their full text to a model.
 3. Validated cached EPUBs are read in spine order. Scripts, styles, navigation and
-   non-linear resources are excluded. Text is split into 8,000-character sections
+   non-linear resources are excluded. Project Gutenberg start/end markers remove source headers and license appendices from literary analysis while preserving source offsets. Text is split into 8,000-character sections
    with offsets so later dramatic scenes are not dropped by beginning-only sampling.
 4. A schema-constrained Cloudflare model analyzes the book overview and each text
    section. Runtime Zod validation rejects bad types and unknown evidence IDs.
