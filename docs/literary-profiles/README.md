@@ -44,9 +44,9 @@ Original-recording license, attribution, QA and territory gates still apply.
 5. Supported chapter dimensions override the overview for that spine request.
    A completed-section aggregate enriches the whole-book profile. The chapter API
    exposes the emotional arc without outputting plot summaries or source excerpts.
-6. Playlist ranking combines mood (40%), energy (30%), instruments (20%) and musical
-   period preferences (10%), weighted by confidence. Explicit historical mode may
-   add a small composition-date overlap bonus. Recording date has zero era weight.
+6. Playlist matching now uses an evidence-weighted 16-factor ranker,
+   mood/energy and historical composition context, vocal restrictions and
+   continuity-aware recording sequencing. Recording date has zero era weight.
    Unknown vocal content is excluded when instrumental listening is required.
    Unsupported provisional profiles return no invented playlist.
 
@@ -82,8 +82,8 @@ included in catalog sweeps.
 EPUB spine items are the reader's actual addressable sections, not a guarantee that
 an arbitrarily formatted EPUB has one literary chapter per document. Multiple chunks
 within a spine are exposed separately; readers can use offsets for finer transitions.
-Chapter transitions are opt-in API recommendations. This release does not implement
-autoplay or community voting/canonical editorial playlists.
+Chapter transitions are opt-in reader recommendations at natural track
+boundaries, not forced autoplay or community-voted canonical editorial playlists.
 
 ## Limits, operations and million-title growth
 
@@ -94,6 +94,15 @@ Initial production work is deliberately bounded. `cove_runtime_config` accepts:
 | `literary_enabled`       | `1`       | Set to `0` to pause the automatic pipeline                                                |
 | `literary_jobs_per_tick` | `2`       | 0–4 jobs per minute tick                                                                  |
 | `literary_daily_units`   | `2000000` | Maximum reserved prompt + generated-output character work per UTC day; 0 pauses inference |
+| `literary_max_pending_analysis` | `512` | Default high-water mark for outstanding section/book inference jobs, allowing the minute preparation stage to pause when analysis is saturated |
+| `literary_prepares_per_tick` | `2` | Maximum 0–4 bounded EPUB/source preparations per minute, subject to analysis backpressure |
+
+The scheduler counts outstanding queued/running analysis jobs before preparing
+additional EPUBs. At the default high-water mark (512), it stops creating new
+section bundles until inference catches up; it never purges existing work,
+changes any recorded copyright evidence, or increases the daily AI allowance.
+The staff status API exposes the configured threshold. Saturation deliberately
+reduces deep profiling throughput for newly encountered books.
 
 These units are a conservative work limit, not provider tokens, dollars or a billing
 cap. Failed model calls retain reservations. Daily budget exhaustion defers work to
