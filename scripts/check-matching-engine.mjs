@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { build } from "esbuild";
 import { localBindings } from "./local-api.mjs";
 import { trainRanker } from "./matching/train-ranker.mjs";
+import { auditRankerEvidence } from "./matching/audit-human-ranker.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "cove-matching-"));
 try {
@@ -581,6 +582,16 @@ try {
   }
   const artifact = await trainRanker(examples, core, "synthetic_regression_only");
   assert.ok(artifact.weights.energy > artifact.weights.mood);
+  const diagnostic = auditRankerEvidence(examples, core, artifact.weights);
+  assert.equal(
+    diagnostic.conservativeReviewReady,
+    false,
+    "Synthetic tests are never a substitute for independently staffed listening judgments",
+  );
+  assert.equal(diagnostic.independentPrincipals, 0);
+  assert.ok(diagnostic.holdouts.book.gainInterval);
+  assert.ok(diagnostic.holdouts.composition.gainInterval);
+
   await assert.rejects(
     () => trainRanker(examples.slice(0, 20), core, "insufficient"),
     /Insufficient/,
