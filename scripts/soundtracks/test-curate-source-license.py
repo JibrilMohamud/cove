@@ -77,6 +77,46 @@ class SoundtrackCurationTests(unittest.TestCase):
         profile,_=curator.choose_candidate(candidate(title="Robert Schumann - Lieder",performer="Martha Goldstein"))
         self.assertIsNone(profile,"Vocal material must not be automatically treated as lyric-free")
 
+    def test_boccherini_self_released_named_artist_master_still_requires_exact_match(self):
+        title="BOCCHERINI Op30 n°5 G323 Mvt2 Minuetto - Jacques Lochet violin and synthesizer"
+        for owner in ('Quinbrid','uploaded by artist User:Quinbrid','uploaded by artist: User:Quinbrid'):
+            with self.subTest(artist=owner):
+                row=candidate(title=title, source_title='File:'+title+'.ogg',
+                    performer=owner,license_code='CC-BY-SA',
+                    license_url='https://creativecommons.org/licenses/by-sa/4.0/',
+                    license_statement='CC BY-SA 4.0',instruments_json='[]')
+                profile,reason=curator.choose_candidate(row)
+                self.assertEqual(reason,'')
+                self.assertEqual(profile['composer'],'Luigi Boccherini')
+                self.assertEqual(profile['period'],'classical')
+                self.assertEqual(profile['performer'],'Jacques Lochet')
+                self.assertEqual(profile['sourceLicensor'],'Quinbrid')
+                self.assertEqual(profile['instruments'],['violin','synthesizer'])
+                dossier,approval=curator.prepare_release(row,profile)
+                self.assertIn('Quinbrid',dossier['attributionText'])
+                self.assertIn('Jacques Lochet',dossier['attributionText'])
+                self.assertEqual(approval['territories'],['US'])
+        for change in (
+            dict(performer='Luigi Boccherini (1743-1805)'),
+            dict(performer='Unknown uploader'),
+            dict(performer='Some unrelated author'),
+            dict(license_code='CC-BY-NC',
+                 license_url='https://creativecommons.org/licenses/by-nc/4.0/'),
+            dict(license_code='PD',
+                 license_url='https://commons.wikimedia.org/wiki/Commons:Licensing'),
+            dict(source_title='File:an-unrelated-composition.ogg'),
+            dict(title='BOCCHERINI Op30 n°5 - other performer violin and synthesizer'),
+            dict(title='BOCCHERINI Op30 n°5 - Jacques Lochet violin and synthesizer remix'),
+        ):
+            with self.subTest(change=change):
+                row=candidate(title=title,source_title='File:'+title+'.ogg',
+                    performer='Quinbrid',license_code='CC-BY-SA',
+                    license_url='https://creativecommons.org/licenses/by-sa/4.0/')
+                row.update(change)
+                profile,reason=curator.choose_candidate(row)
+                self.assertIsNone(profile)
+                self.assertTrue(reason)
+
     def test_source_named_performer_is_correlated_before_commercial_reliance(self):
         cases=(
             ("Schubert's Impromptu no. 2 in E-flat major, D.899 - Chiara Bertoglio", "Chiara Bertoglio", "Franz Schubert"),
