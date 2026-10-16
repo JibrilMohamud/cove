@@ -1,4 +1,5 @@
 import importlib.util,json,pathlib,subprocess,tempfile,unittest
+from unittest.mock import patch
 import numpy as np
 
 def load(name,file):
@@ -27,6 +28,14 @@ class ProfileTests(unittest.TestCase):
             self.assertEqual(windows[0][0],0)
             self.assertTrue(all(a<b<=duration for a,b in windows))
             self.assertTrue(all(windows[i][1]<=windows[i+1][0]+.001 for i in range(len(windows)-1)))
+    def test_idle_preflight_handles_pending_and_expired_work_without_model_loading(self):
+        # queue_pending imports only standard-library runner dependencies, not CLAP.
+        for jobs,expected in [([],False),([{'status':'done','count':184}],False),([{'status':'queued','count':1}],True),([{'status':'running','count':1}],True),([{'status':'failed','count':2}],False)]:
+            with patch.object(runner,'api_call',return_value={'jobs':jobs}) as call:
+                self.assertEqual(runner.queue_pending(),expected)
+                call.assert_called_once_with('status',None)
+        with patch.object(runner,'api_call',return_value={'jobs':[{'status':'queued','count':'1'}]}):
+            with self.assertRaises(ValueError):runner.queue_pending()
     def test_no_arbitrary_host_or_path(self):
         for value in ['https://evil.test/a','/api/fore/soundtracks/recordings/cm_1/audio?redirect=x','/api/fore/soundtracks/recordings/cm_2/audio']:
             with self.assertRaises(ValueError):runner.audio_path('cm_1',value)

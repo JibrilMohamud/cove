@@ -61,7 +61,11 @@ or a staff reviewer with MFA. The scheduled GitHub Actions `Profile published mu
 masters` workflow uses the existing review secret, runs two independent bounded
 consumers hourly and on relevant main changes, and retains sanitized receipts. Each
 consumer handles at most 40 masters/24 minutes, with a maximum 30-minute claim.
-Weights are cached. The readiness check waits for backend migration/deployment;
+Weights are cached. A lightweight authenticated queue check skips scheduled model
+setup entirely when no queued or running work exists; running claims keep expired-lease
+recovery eligible. Queue-check failures fail closed rather than silently skipping work.
+Pull requests, code pushes and manual diagnostics always retain the full model smoke.
+The readiness check waits for backend migration/deployment;
 PRs never receive production credentials. A credential-free PR smoke runs the real
 pinned model on generated waveform bytes before release.
 
