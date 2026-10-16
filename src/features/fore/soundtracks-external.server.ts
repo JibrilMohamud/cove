@@ -110,6 +110,9 @@ export async function handleExternalSoundtracks(
   const publicAudio = /^\/soundtracks\/recordings\/(ex_[0-9a-f-]{36})\/audio$/.exec(path);
   const staffPreview = isAdmin ? /^\/admin\/soundtracks\/external\/(ex_[0-9a-f-]{36})\/audio$/.exec(path) : null;
   const audio = publicAudio || staffPreview;
+  // Provider service tokens may upload originals but must not preview unreleased ones.
+  if (staffPreview && (!staff || staff.aal !== "aal2"))
+    throw new ApiError(403, "Staff MFA required for private audio preview.");
   if (audio && ["GET","HEAD"].includes(request.method)) {
     const row = await lookup(env,audio[1]);
     if (!row || !row.storage_key || !row.storage_bytes || !env.BUCKET ||
