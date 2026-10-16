@@ -143,6 +143,28 @@ try {
       body:JSON.stringify({action,version:version ?? row.review_version,...extra}),
     }),env,target,"US");
   };
+  // Automation triage must leave a candidate available for human rights
+  // review while freeing its slot in the automated discovery queue.
+  const held = await review("triage",{
+    reason:"Named performer cannot be independently identified; keep for manual licensing review."
+  },undefined,"cm_102");
+  assert.equal(held.status,200);
+  const triaged = await env.DB.prepare("SELECT status,automated_triage_reason FROM soundtrack_recordings WHERE id='cm_102'").first();
+  assert.equal(triaged.status,"pending_review");
+  assert.match(triaged.automated_triage_reason,/manual licensing/);
+  const automaticList = await lib.handleSoundtracks(
+    new Request("https://cove.test/api/fore/admin/soundtracks?status=pending_review&automation=1",{
+      headers:{authorization:"Bearer "+token}
+    }),env,"/admin/soundtracks","US");
+  assert.ok(!(await automaticList.json()).records.some(r=>r.id==="cm_102"));
+  const staffList = await lib.handleSoundtracks(
+    new Request("https://cove.test/api/fore/admin/soundtracks?status=pending_review",{
+      headers:{authorization:"Bearer "+token}
+    }),env,"/admin/soundtracks","US");
+  assert.ok((await staffList.json()).records.some(r=>r.id==="cm_102"));
+  await assert.rejects(()=>review("triage",{reason:"Repeat triage of already triaged source"},undefined,"cm_102"),/untouched/i);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_review_events WHERE recording_id='cm_102' AND event_type='triage'").first()).n,1);
+
   const basis = {basis:"Fixture evidence: original composition from a historical published score with an original creator recording release.", evidenceUrls:["https://commons.wikimedia.org/wiki/File:Fixture.ogg"]};
   const dossier = {composition:basis,arrangement:basis,lyrics:basis,performance:basis,master:basis,
     grantingParty:"Example pianist",recordingDate:"2020-01-01",territoryBasis:basis.basis,streamingBasis:basis.basis,
