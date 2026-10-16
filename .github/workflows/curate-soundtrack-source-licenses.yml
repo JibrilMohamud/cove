@@ -44,7 +44,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: Verify curation safety tests
-        run: python scripts/soundtracks/test-curate-source-license.py -q
+        run: |
+          python scripts/soundtracks/test-curate-source-license.py -q
+          python scripts/soundtracks/test-verify-production-playback.py -q
       - name: Install and verify FFmpeg tools
         run: |
           set -euo pipefail

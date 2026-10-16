@@ -50,6 +50,7 @@ export type SoundtrackRow = {
   storage_bytes: number | null; evidence_json: string; dossier_json: string;
   quality_status: string; quality_report_json: string; source_snapshot_key: string | null;
   review_version: number; updated_at: string; reviewed_by: string | null;
+  automated_triage_reason: string;
 };
 const clearText = (value: unknown, max = 300) =>
   String(value || "").replace(/<[^>]*>/g, " ").replace(/&(?:nbsp|amp);/g, " ")
@@ -169,7 +170,7 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
     // Bound outstanding review work, not cumulative lifetime discoveries. The old
     // 750-total cap permanently stopped the crawler even after releases freed space.
     const queued = Number((await env.DB.prepare(
-      "SELECT COUNT(*) AS n FROM soundtrack_recordings WHERE status IN ('pending_review','approved','importing','import_failed')",
+      "SELECT COUNT(*) AS n FROM soundtrack_recordings WHERE (status='pending_review' AND automated_triage_reason='') OR status IN ('approved','importing','import_failed')",
     ).first<{ n:number }>())?.n || 0);
     if (queued >= MAX_PENDING) {
       await env.DB.prepare(
@@ -386,9 +387,10 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
     ).all<{ status:string; quality_status:string; count:number }>()).results;
     const limit = Math.min(100,Math.max(1,Number(url.searchParams.get("limit")) || 40));
     const after = url.searchParams.get("after") || "";
+    const automated = url.searchParams.get("automation") === "1";
     const rows = (await env.DB.prepare(
-      "SELECT * FROM soundtrack_recordings WHERE status=? AND id>? ORDER BY id LIMIT ?",
-    ).bind(url.searchParams.get("status") || "pending_review",after,limit+1).all<SoundtrackRow>()).results;
+      "SELECT * FROM soundtrack_recordings WHERE status=? AND id>? AND (?=0 OR automated_triage_reason='') ORDER BY id LIMIT ?",
+    ).bind(url.searchParams.get("status") || "pending_review",after,automated?1:0,limit+1).all<SoundtrackRow>()).results;
     return json({ counts,records:rows.slice(0,limit),nextCursor:rows.length>limit?rows[limit-1].id:null });
   }
   if (admin && idMatch && request.method === "GET") {
@@ -403,7 +405,7 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
   if (admin && idMatch && request.method === "POST") {
     const input = await readBody(request,60000) as Record<string,unknown>;
     const action = String(input.action || "");
-    if (!["draft","endorse","quality","approve","reject","revoke","retry"].includes(action))
+    if (!["draft","endorse","quality","approve","reject","revoke","retry","triage"].includes(action))
       throw new ApiError(400,"Invalid review decision.");
     const original = await env.DB.prepare("SELECT * FROM soundtrack_recordings WHERE id=?")
       .bind(idMatch[1]).first<SoundtrackRow>();
@@ -430,6 +432,17 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
       if (!committed) throw new ApiError(409,"A concurrent review won. Refresh before trying again.");
       return json({recordingId:original.id,action,version});
     };
+    if (action === "triage") {
+      // Triage is NOT a copyright judgment. The candidate stays pending and
+      // is still accessible to staff; it simply stops blocking new discovery.
+      const reason = clearText(input.reason,800);
+      if (original.status!=="pending_review" || original.quality_status!=="pending" ||
+          original.dossier_json!=="{}" || original.automated_triage_reason || reason.length<30)
+        throw new ApiError(409,"Only untouched, non-automatable candidates can be triaged.");
+      return commit(env.DB.prepare(
+        "UPDATE soundtrack_recordings SET automated_triage_reason=?,review_version=?,updated_at=? WHERE id=? AND status='pending_review' AND quality_status='pending' AND automated_triage_reason='' AND review_version=?",
+      ).bind(reason,version,at,original.id,original.review_version),{reason,decision:"manual_review_required"});
+    }
     if (action === "quality") {
       if (["ready","importing","revoked"].includes(original.status))
         throw new ApiError(409,"Withdraw or finish the current release before replacing audio QA.");

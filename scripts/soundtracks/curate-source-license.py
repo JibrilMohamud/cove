@@ -242,13 +242,21 @@ class CoveReviewClient:
         req = urllib.request.Request(url, data=data, method='POST' if body is not None else 'GET',
                     headers={'Authorization': 'Bearer '+self.token,'Content-Type':'application/json',
                              'User-Agent':'CoveSoundtracksCuration/1.0'})
-        try:
-            with self.opener.open(req, timeout=45) as response:
-                if response.status != 200:
-                    raise ValueError('Unexpected Cove API response')
-                return json.load(response)
-        except urllib.error.HTTPError as exc:
-            raise RuntimeError(f'Cove review API returned HTTP {exc.code}') from None
+        # Only idempotent reads can be retried. Never replay a write after an
+        # ambiguous 503 response: review versions protect correctness, not
+        # side-effect-free replay of provider/storage operations.
+        attempts = 4 if body is None else 1
+        for attempt in range(attempts):
+            try:
+                with self.opener.open(req, timeout=45) as response:
+                    if response.status != 200:
+                        raise ValueError('Unexpected Cove API response')
+                    return json.load(response)
+            except urllib.error.HTTPError as exc:
+                if body is None and exc.code in (429, 502, 503, 504) and attempt + 1 < attempts:
+                    time.sleep(min(2 ** attempt, 4))
+                    continue
+                raise RuntimeError(f'Cove review API returned HTTP {exc.code}') from None
 
 def run(args, client, measure):
     receipts = []
@@ -257,10 +265,11 @@ def run(args, client, measure):
     cursor = ''
     start = time.monotonic()
     processed = 0
+    triaged = 0
     bytes_total = 0
     while examined < args.max_scan and processed < args.max_tracks and bytes_total < args.max_mib * 1024 * 1024:
         page_size = min(100, args.max_scan-examined)
-        page = client.call('/admin/soundtracks?status=pending_review&limit='+str(page_size)+'&after='+urllib.parse.quote(cursor))
+        page = client.call('/admin/soundtracks?status=pending_review&automation=1&limit='+str(page_size)+'&after='+urllib.parse.quote(cursor))
         records = page.get('records', [])
         if not isinstance(records, list) or not records: break
         for row in records:
@@ -269,7 +278,26 @@ def run(args, client, measure):
             if rid in seen: raise RuntimeError('Pagination loop detected')
             seen.add(rid)
             profile, reason = choose_candidate(row)
-            if not profile: continue
+            if not profile:
+                if reason not in ('previously reviewed or quality checked',
+                                  'pre-existing dossier; preserve review work and holds') and triaged < getattr(args,'max_triage',0):
+                    triaged += 1
+                    if not args.apply:
+                        receipts.append(dict(id=rid,status='manual_review_dry_run',reason=reason))
+                    else:
+                        try:
+                            detail = client.call('/admin/soundtracks/recordings/'+rid)['record']
+                            again, reason2 = choose_candidate(detail)
+                            if not again and reason2 not in ('previously reviewed or quality checked',
+                                     'pre-existing dossier; preserve review work and holds'):
+                                explanation = ('Not eligible for machine approval; original retained for staff rights review. '
+                                               + reason2)
+                                client.call('/admin/soundtracks/recordings/'+rid,
+                                            dict(action='triage',version=detail['review_version'],reason=explanation))
+                                receipts.append(dict(id=rid,status='requires_manual_review',reason=reason2))
+                        except (RuntimeError,ValueError,KeyError,urllib.error.URLError) as error:
+                            receipts.append(dict(id=rid,status='triage_error',kind=type(error).__name__))
+                continue
             if bytes_total + row['source_size'] > args.max_mib * 1024 * 1024:
                 receipts.append(dict(id=rid,status='deferred',reason='byte budget'))
                 continue
@@ -321,13 +349,14 @@ def main():
     p.add_argument('--origin',default='https://cove-puce-theta.vercel.app')
     p.add_argument('--max-scan',type=int,default=800)
     p.add_argument('--max-tracks',type=int,default=8)
+    p.add_argument('--max-triage',type=int,default=60)
     p.add_argument('--max-mib',type=int,default=160)
     p.add_argument('--max-minutes',type=int,default=20)
     p.add_argument('--apply',action='store_true',help='Upload measured QA and dossier to production')
     p.add_argument('--approve-source-license',action='store_true',help='Requires --apply; permit eligible exact-file source reliance approvals')
     p.add_argument('--output',default='soundtrack-curation-receipts.json')
     args=p.parse_args()
-    if not 1<=args.max_scan<=800 or not 1<=args.max_tracks<=12 or not 1<=args.max_mib<=160 or not 1<=args.max_minutes<=25:
+    if not 1<=args.max_scan<=800 or not 1<=args.max_tracks<=12 or not 0<=args.max_triage<=100 or not 1<=args.max_mib<=160 or not 1<=args.max_minutes<=25:
         p.error('Bounded scan, track, byte, and wall-time budgets required')
     if args.approve_source_license and not args.apply:
         p.error('--approve-source-license requires --apply')

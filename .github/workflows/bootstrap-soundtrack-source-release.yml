@@ -1,0 +1,61 @@
+name: Bootstrap verified soundtrack publication
+
+on:
+  # Only use production secrets after the authoritative backend has migrated
+  # and deployed successfully. Also runs after future safe main releases.
+  workflow_run:
+    workflows: [deploy-persistence-backend]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-license-soundtrack-curation
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ secrets.COVE_SOUNDTRACK_REVIEW_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Test fail-closed rights-review boundaries
+        run: python scripts/soundtracks/test-curate-source-license.py -q
+      - name: Verify usable FFmpeg measurement tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v ffprobe
+          command -v ffmpeg
+      - name: Require scope-limited production review credential
+        shell: bash
+        run: |
+          if [[ "${COVE_SOUNDTRACK_REVIEW_TOKEN:-}" != fore_svc_* ]]; then
+            echo "::error::Cove soundtrack-review scope credential is unavailable"
+            exit 1
+          fi
+      - name: Verify, triage, and release up to eight originals
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/soundtracks/curate-source-license.py \
+            --max-scan 800 --max-tracks 8 --max-triage 60 --max-mib 160 \
+            --max-minutes 20 --apply --approve-source-license \
+            --output soundtrack-curation-receipts.json
+      - name: Preserve non-secret individual curation receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soundtrack-bootstrap-curation-receipts
+          path: soundtrack-curation-receipts.json
+          if-no-files-found: ignore
+          retention-days: 30
