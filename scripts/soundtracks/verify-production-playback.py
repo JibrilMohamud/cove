@@ -51,7 +51,10 @@ def commercial_license_matches(row):
         u = urllib.parse.urlsplit(address)
     except ValueError:
         return False
-    if u.scheme != "https" or u.port or u.username or u.password or u.query or u.fragment:
+    try:
+        if u.scheme != "https" or u.port or u.username or u.password or u.query or u.fragment:
+            return False
+    except ValueError:
         return False
     if u.hostname == "creativecommons.org":
         if u.path == "/publicdomain/zero/1.0/":
@@ -60,7 +63,7 @@ def commercial_license_matches(row):
         if not m:
             return False
         family = "BY-SA" if m.group(1) == "by-sa" else "BY"
-        return bool(re.search(r"\bCC\s+"+family+r"\b", statement, re.I))
+        return bool(re.search(r"\bCC\s+"+family+r"(?=\s|$)", statement, re.I))
     if u.hostname == "commons.wikimedia.org" and u.path == "/wiki/Commons:Licensing":
         return bool(re.search("public.domain", statement, re.I))
     if u.hostname == "musopen.org" and u.path == "/faq/":
