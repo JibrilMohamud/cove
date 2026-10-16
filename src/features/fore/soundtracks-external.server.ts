@@ -173,6 +173,15 @@ export async function handleExternalSoundtracks(
     };
     const provenanceText=JSON.stringify(provenance);
     const digest=await hash(provenanceText);
+    const prior = await env.DB.prepare(
+      "SELECT id,status,source_page_url,source_file_sha256,provenance_sha256 FROM soundtrack_external_recordings WHERE source_page_url=? OR source_file_sha256=? LIMIT 1"
+    ).bind(m.sourcePageUrl,m.sha256).first<{id:string;status:string;source_page_url:string;source_file_sha256:string;provenance_sha256:string}>();
+    if (prior) {
+      if (prior.source_page_url!==m.sourcePageUrl || prior.source_file_sha256!==m.sha256 ||
+          prior.provenance_sha256!==digest || !["pending_review","staged"].includes(prior.status))
+        throw new ApiError(409,"Registered master, source page or rights provenance conflicts with this submission.");
+      return json({id:prior.id,status:prior.status,provenanceSha256:digest,reused:true});
+    }
     const id="ex_"+crypto.randomUUID(), at=timestamp();
     try {
       await env.DB.prepare(
