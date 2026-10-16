@@ -189,8 +189,8 @@ export function ReaderSoundtrack({
       {expanded && (
         <>
           <p className="small muted">
-            Suggested accompaniment, not narration. Recordings remain unedited and are never
-            started automatically.
+            Suggested accompaniment, not narration. Recordings remain unedited and are never started
+            automatically.
           </p>
           <label htmlFor="reader-soundtrack-mode">Listening style</label>
           <select
@@ -199,7 +199,9 @@ export function ReaderSoundtrack({
             onChange={(event) => setMode(event.target.value as Mode)}
           >
             {modes.map((value) => (
-              <option key={value} value={value}>{value}</option>
+              <option key={value} value={value}>
+                  {value}
+                </option>
             ))}
           </select>
           <label htmlFor="reader-soundtrack-vocals">Vocals</label>
@@ -209,7 +211,9 @@ export function ReaderSoundtrack({
             onChange={(event) => setVocals(event.target.value as Vocals)}
           >
             {vocalsOptions.map((value) => (
-              <option key={value} value={value}>{value}</option>
+              <option key={value} value={value}>
+                  {value}
+                </option>
             ))}
           </select>
           {query.data?.scope && (
@@ -225,7 +229,9 @@ export function ReaderSoundtrack({
       {query.isError && expanded && (
         <p role="alert">
           The soundtrack cannot be checked right now.
-          <button type="button" onClick={() => void query.refetch()}>Retry</button>
+          <button type="button" onClick={() => void query.refetch()}>
+              Retry
+            </button>
         </p>
       )}
       {query.data?.provisional && expanded && (
@@ -239,7 +245,8 @@ export function ReaderSoundtrack({
           <p style={{ margin: "12px 0 6px" }}>
             <strong>{current.recording.title}</strong>
             <span className="small muted">
-              {" "}— {current.recording.composer}, performed by {current.recording.performer}
+              {" "}
+              — {current.recording.composer}, performed by {current.recording.performer}
             </span>
           </p>
           <audio
@@ -284,7 +291,8 @@ export function ReaderSoundtrack({
                 <p>{current.recording.attribution}</p>
                 <p>Original recording, without modifications.</p>
                 <p>
-                  License: <a href={current.recording.licenseUrl} target="_blank" rel="noreferrer">
+                  License:{" "}
+                  <a href={current.recording.licenseUrl} target="_blank" rel="noreferrer">
                     {current.recording.license}
                   </a>
                 </p>
@@ -294,8 +302,12 @@ export function ReaderSoundtrack({
               </details>
               {registered && (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button type="button" onClick={() => void feedback("good_fit")}>Good fit</button>
-                  <button type="button" onClick={() => void feedback("poor_fit")}>Poor fit</button>
+                  <button type="button" onClick={() => void feedback("good_fit")}>
+                    Good fit
+                  </button>
+                  <button type="button" onClick={() => void feedback("poor_fit")}>
+                    Poor fit
+                  </button>
                   <button type="button" onClick={() => void feedback("too_intense")}>
                     Too intense
                   </button>
@@ -310,7 +322,11 @@ export function ReaderSoundtrack({
           )}
         </>
       )}
-      {updating && <p className="small muted" role="status">New chapter music queued for the next recording.</p>}
+      {updating && (
+        <p className="small muted" role="status">
+          New chapter music queued for the next recording.
+        </p>
+      )}
       {message && <p role="status">{message}</p>}
     </section>
   );
