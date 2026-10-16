@@ -208,7 +208,10 @@ def choose_candidate(r):
         if named:
             composer, period, person = named
             credited = credited_performer(r.get('performer'), composer)
-            if credited and credited.casefold() == person.casefold():
+            if (credited and credited.casefold() == person.casefold() and
+                    (person != 'Jujutacular' or
+                     (r['license_code'] == 'CC-BY-SA' and
+                      r.get('source_title') == 'File:'+title+'.ogg'))):
                 match = (composer, period)
     if not match:
         return None, 'composer not in narrow sourced-title mapping'
