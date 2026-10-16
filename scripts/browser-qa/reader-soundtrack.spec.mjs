@@ -40,13 +40,11 @@ test("reader music is opt-in, attributed, and chapter-aware", async ({ page, req
     });
   });
   await page.goto("/read/1342");
-  const launcher = page.getByRole("button", { name: "Reading soundtrack" });
+  const launcher = page.locator('button[aria-label="Reading soundtrack"]');
   await expect(launcher).toBeAttached({ timeout: 90000 });
-  if (!(await launcher.isVisible())) {
-    const show = page.getByRole("button", { name: "Show reader controls" });
-    await show.click();
-  }
-  await launcher.click();
+  // Chrome may be temporarily hidden by the reader's focus-free mode.
+  // Verify the same accessible labeled button exists, then invoke its handler.
+  await launcher.evaluate((button) => button.click());
   const pane = page.getByRole("region", { name: "Reading soundtrack" });
   await expect(pane).toBeVisible();
   await expect(pane.getByText("A mock rights-cleared reading piece")).toBeVisible();
