@@ -23,7 +23,7 @@ jobs:
   release:
     if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ secrets.COVE_SOUNDTRACK_REVIEW_TOKEN }}
     steps:
@@ -34,7 +34,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: Test fail-closed rights-review boundaries
-        run: python scripts/soundtracks/test-curate-source-license.py -q
+        run: |
+          python scripts/soundtracks/test-curate-source-license.py -q
+          python scripts/soundtracks/test-drain-verified-imports.py -q
       - name: Install and verify FFmpeg measurement tools
         shell: bash
         run: |
@@ -61,6 +63,20 @@ jobs:
             --max-scan 800 --max-tracks 8 --max-triage 60 --max-mib 160 \
             --max-minutes 20 --apply --approve-source-license \
             --output soundtrack-curation-receipts.json
+      - name: Immediately import already-approved originals and verify public playback
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/soundtracks/drain-verified-imports.py \
+            --max-imports 8 --max-minutes 12 --output soundtrack-import-receipts.json
+      - name: Preserve non-secret verified import receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soundtrack-bootstrap-import-receipts
+          path: soundtrack-import-receipts.json
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Preserve non-secret individual curation receipts
         if: always()
         uses: actions/upload-artifact@v4
