@@ -55,6 +55,7 @@ test("reader music is opt-in, attributed, and chapter-aware", async ({ page, req
   await expect(player).toHaveAttribute("preload", "none");
   expect(await player.evaluate((node) => node.paused)).toBe(true);
   expect(await player.getAttribute("autoplay")).toBeNull();
+  await pane.getByText("Recording attribution and license", { exact: true }).click();
   await expect(pane.getByRole("link", { name: "CC BY 4.0" })).toHaveAttribute(
     "href",
     "https://creativecommons.org/licenses/by/4.0/",
