@@ -837,6 +837,58 @@ export function evaluateRanker(rows: EvaluationExample[], weights: MatchFeatures
     subsets,
   };
 }
+/**
+ * Release gate for a human-pairwise ranker. This is in addition to its immutable
+ * dataset hash and deterministic family holdout checks, not a claim of
+ * statistically calibrated user satisfaction. Staff principals are recorded
+ * by the authenticated backend; service-automation labels never count as
+ * independently identified human reviewers.
+ */
+export function rankerReleaseEvidence(rows: EvaluationExample[], weights: MatchFeatures) {
+  const usable = rows.filter((row) => row.preferred !== "tie");
+  const summary = evaluateRanker(rows, weights);
+  const actors = new Map<string, number>();
+  for (const row of usable) actors.set(String(row.actor ?? ""), (actors.get(String(row.actor ?? "")) ?? 0) + 1);
+  const holdoutActors = (items: EvaluationExample[]) =>
+    new Set(items.map((row) => String(row.actor ?? "")));
+  const bookActors = holdoutActors(summary.subsets.bookHoldout);
+  const musicActors = holdoutActors(summary.subsets.musicHoldout);
+  const bookFamilies = new Set(summary.subsets.bookHoldout.map((row) => row.book_family));
+  const workFamilies = new Set(
+    summary.subsets.musicHoldout.flatMap((row) => [row.a.workFamily, row.b.workFamily]),
+  );
+  const verifiedStaff = (actor: string) => /^staff:[^\s:]{2,128}$/.test(actor);
+  const conditions = {
+    staffAuthoredOnly: usable.length > 0 && [...actors.keys()].every(verifiedStaff),
+    threeStaffAssessors: actors.size >= 3,
+    reviewerIndependence: actors.size >= 3 && Math.max(...actors.values()) <= usable.length * 0.6,
+    bookHoldoutCoverage:
+      summary.bookHoldout.pairs >= 20 &&
+      bookFamilies.size >= 5 &&
+      [...bookActors].filter(verifiedStaff).length >= 2,
+    compositionHoldoutCoverage:
+      summary.musicHoldout.pairs >= 20 &&
+      workFamilies.size >= 5 &&
+      [...musicActors].filter(verifiedStaff).length >= 2,
+    distinctBookImprovement:
+      summary.bookHoldout.accuracy >= summary.bookHoldout.baselineAccuracy + 0.02,
+    noCompositionRegression:
+      summary.musicHoldout.accuracy >= summary.musicHoldout.baselineAccuracy,
+  };
+  return {
+    deployable: Object.values(conditions).every(Boolean),
+    conditions,
+    evidence: {
+      judgments: usable.length,
+      staffAssessors: actors.size,
+      bookHoldoutFamilies: bookFamilies.size,
+      compositionHoldoutFamilies: workFamilies.size,
+      bookHoldoutReviewers: bookActors.size,
+      compositionHoldoutReviewers: musicActors.size,
+    },
+  };
+}
+
 export function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return "[" + value.map(canonicalJson).join(",") + "]";
   if (value !== null && typeof value === "object")
