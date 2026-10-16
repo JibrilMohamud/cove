@@ -6,11 +6,12 @@ on:
   workflow_run:
     workflows: [deploy-persistence-backend]
     types: [completed]
-  # Release this workflow's fix without unnecessarily redeploying the Worker.
+  # Release protected import-client fixes without unnecessarily redeploying the Worker.
   push:
     branches: [main]
     paths:
       - ".github/workflows/bootstrap-soundtrack-source-release.yml"
+      - "scripts/soundtracks/drain-verified-imports.py"
 
 permissions:
   contents: read
