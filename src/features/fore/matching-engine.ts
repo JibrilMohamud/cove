@@ -543,6 +543,49 @@ function transition(a: MatchingRecording, b: MatchingRecording) {
       0.15 * Math.abs(x.signal.rhythmicActivity - y.signal.rhythmicActivity),
   );
 }
+/**
+ * Preserve strong local candidates at different points in a reading session.
+ * A global top-N shortlist alone can erase a climactic theme in a mostly calm book.
+ * Eligibility and user-feedback gates have already been applied to `ranked`;
+ * the local scoring callback can further abstain, never restore excluded audio.
+ */
+export function selectNarrativeCandidates<T extends { id: string }>(
+  ranked: T[],
+  checkpoints: LiteraryProfile[],
+  scoreAt: (profile: LiteraryProfile, candidate: T) => number | null,
+  limit = 80,
+): T[] {
+  if (ranked.length <= limit || !checkpoints.length) return ranked.slice(0, limit);
+  const globalCount = Math.min(40, limit);
+  const selected = ranked.slice(0, globalCount);
+  const seen = new Set(selected.map((r) => r.id));
+  const perCheckpoint = Math.max(1, Math.floor((limit - globalCount) / checkpoints.length));
+  for (const profile of checkpoints) {
+    const local = ranked
+      .filter((candidate) => !seen.has(candidate.id))
+      .map((candidate) => ({ candidate, score: scoreAt(profile, candidate) }))
+      .filter(
+        (item): item is { candidate: T; score: number } =>
+          item.score !== null && Number.isFinite(item.score),
+      )
+      .sort((a, b) => b.score - a.score || a.candidate.id.localeCompare(b.candidate.id))
+      .slice(0, perCheckpoint);
+    for (const item of local) {
+      if (selected.length >= limit) break;
+      selected.push(item.candidate);
+      seen.add(item.candidate.id);
+    }
+  }
+  for (const candidate of ranked) {
+    if (selected.length >= limit) break;
+    if (!seen.has(candidate.id)) {
+      selected.push(candidate);
+      seen.add(candidate.id);
+    }
+  }
+  return selected;
+}
+
 export function sequencePlaylist(
   ranked: ScoredRecording[],
   profile: LiteraryProfile,
@@ -561,8 +604,7 @@ export function sequencePlaylist(
       completion: "no_eligible_matches",
       coversEstimatedSession: false,
     };
-  const pool = ranked.slice(0, 80),
-    totalArc = arc.reduce((n, s) => n + s.seconds, 0);
+  const totalArc = arc.reduce((n, s) => n + s.seconds, 0);
   const at = (seconds: number) => {
     let position = (options.progress + seconds / duration.estimatedSeconds) * totalArc;
     for (const section of arc) {
@@ -589,6 +631,18 @@ export function sequencePlaylist(
     cache.set(candidate.id, matched);
     return matched;
   };
+  // Sample the *remaining* narrative, not merely the book's average mood.
+  // A 40-record global core preserves consistent choices; local checkpoints
+  // introduce 40 more candidates that may only suit later scenes.
+  const checkpoints =
+    totalArc > 0
+      ? [0, 0.2, 0.4, 0.6, 0.8, 0.98].map((fraction) => at(target * fraction))
+      : [];
+  const pool = selectNarrativeCandidates(
+    ranked,
+    checkpoints,
+    (passage, candidate) => localMatch(passage, candidate)?.score ?? null,
+  );
   type State = { items: ScoredRecording[]; seconds: number; utility: number; costs: number[] };
   const normalizedUtility = (state: State) =>
     state.utility / Math.max(1, state.seconds) -
