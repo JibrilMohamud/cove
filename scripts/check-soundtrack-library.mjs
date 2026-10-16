@@ -122,6 +122,15 @@ try {
     "Audio files of music by Robert Schumann",
     "Audio files of music by Felix Mendelssohn",
   ];
+  // Commons hosts already-licensed FMA audio; source discovery must never
+  // access FMA directly or assume category membership implies approval.
+  const oldCategoryCursors = Object.fromEntries(categories.slice(0,6).map(name=>[name,"DONE"]));
+  await env.DB.prepare("UPDATE soundtrack_ingestion_state SET category_cursors_json=?,category_index=0,last_discovery_at='' WHERE id=1")
+    .bind(JSON.stringify(oldCategoryCursors)).run();
+  const fmaDiscovery = await lib.discoverSoundtrackCandidates(env);
+  assert.equal(fmaDiscovery.source,"Classical music from Free Music Archive");
+  assert.equal(fmaDiscovery.queuedForRightsReview,0,"Known source files are de-duplicated across Commons categories");
+  assert.equal(mediaRequests,0,"FMA source discovery must never scrape or download provider audio");
   const cursors = Object.fromEntries(categories.map(name=>[name,"DONE"]));
   cursors._cycleFinishedAt = new Date(Date.now()-8*86400_000).toISOString();
   await env.DB.prepare("UPDATE soundtrack_ingestion_state SET category_cursors_json=?,category_index=0,last_discovery_at='' WHERE id=1")
