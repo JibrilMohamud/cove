@@ -26,6 +26,12 @@ try {
   });
   const core = await import(path.join(root, "literary-profile.mjs"));
   const lib = await import(path.join(root, "literary-profiles.server.mjs"));
+  assert.deepEqual(
+    Array.from({ length: 8 }, (_, n) => lib.preferLiterarySection(n)),
+    [false, true, true, true, false, true, true, true],
+    "Chapter turns outnumber overviews three to one within the same daily quota",
+  );
+
   assert.equal(
     lib.literaryPreparationCapacity(2, 512, 512),
     0,
@@ -459,6 +465,68 @@ try {
     .first();
   assert.equal(failedBudgetJob.status, "queued");
   assert.equal(failedBudgetJob.attempts, 0, "Budget deferrals do not exhaust retry allowance");
+  const atBudgetTest = new Date().toISOString();
+  // Ingestion must stop enqueuing another 50 catalog books per minute when
+  // preparation cannot catch up to the bounded literary inference budget.
+  await env.DB.prepare(
+    "INSERT INTO cove_runtime_config(key,value,updated_at) VALUES('literary_max_queued_prepares','128',?)",
+  )
+    .bind(atBudgetTest)
+    .run();
+  await env.DB.prepare(
+    "INSERT INTO cove_runtime_config(key,value,updated_at) VALUES('literary_prepares_per_tick','0',?)",
+  )
+    .bind(atBudgetTest)
+    .run();
+  await env.DB.prepare(
+    `WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM seq WHERE n<130)
+    INSERT INTO literary_profile_jobs(id,product_id,fingerprint,kind,section_id,source_key,status,available_at,created_at,updated_at)
+    SELECT printf('preparation_pressure_%03d',n),?,(SELECT fingerprint FROM literary_profiles WHERE product_id=?),'prepare',printf('saturated_%03d',n),'','queued',?,?,? FROM seq`,
+  )
+    .bind(product.id, product.id, atBudgetTest, atBudgetTest, atBudgetTest)
+    .run();
+  await env.DB.prepare("UPDATE literary_profile_state SET cursor='' WHERE id=1").run();
+  const saturated = await lib.runLiteraryProfileTick(env);
+  assert.equal(saturated.seeded.preparationsDeferred, true);
+  assert.ok(Number(saturated.seeded.scanned) >= 1);
+  await env.DB.prepare(
+    "UPDATE editions SET description='Updated metadata during queue backpressure' WHERE id=(SELECT edition_id FROM products WHERE id=?)",
+  )
+    .bind(product.id)
+    .run();
+  await env.DB.prepare("UPDATE literary_profile_state SET cursor='' WHERE id=1").run();
+  await lib.seedLiteraryProfiles(env, 1, false);
+  const deferred = await env.DB.prepare(
+    "SELECT fingerprint,coverage FROM literary_profiles WHERE product_id=?",
+  )
+    .bind(product.id)
+    .first();
+  assert.equal(deferred.coverage, "metadata_deferred");
+  const beforeRecovery = await env.DB.prepare(
+    "SELECT COUNT(*) count FROM literary_profile_jobs WHERE product_id=? AND fingerprint=? AND kind='prepare'",
+  )
+    .bind(product.id, deferred.fingerprint)
+    .first();
+  assert.equal(beforeRecovery.count, 0, "New edition metadata never creates overload work");
+  await env.DB.prepare("UPDATE literary_profile_state SET cursor='' WHERE id=1").run();
+  await lib.seedLiteraryProfiles(env, 1, true);
+  const recovered = await env.DB.prepare(
+    "SELECT coverage FROM literary_profiles WHERE product_id=?",
+  )
+    .bind(product.id)
+    .first();
+  assert.equal(recovered.coverage, "metadata");
+  const afterRecovery = await env.DB.prepare(
+    "SELECT COUNT(*) count FROM literary_profile_jobs WHERE product_id=? AND fingerprint=? AND kind='prepare' AND status='queued'",
+  )
+    .bind(product.id, deferred.fingerprint)
+    .first();
+  assert.equal(
+    afterRecovery.count,
+    1,
+    "Deferred EPUB is eventually prepared when capacity returns",
+  );
+
   console.log(
     "Literary profiles: full EPUB to chapter inference to public profile passed; chronology, provenance, concurrency, fallback, invalidation and budgets passed.",
   );

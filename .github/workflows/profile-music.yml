@@ -24,7 +24,9 @@ on:
         ".github/workflows/profile-music.yml",
       ]
   schedule:
-    - cron: "37 * * * *"
+    # Cheap queue check every 30 minutes; the expensive pinned model only
+    # starts when a rights-cleared master is pending analysis.
+    - cron: "7,37 * * * *"
   workflow_dispatch:
 permissions:
   contents: read

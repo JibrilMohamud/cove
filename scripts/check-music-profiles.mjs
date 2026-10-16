@@ -51,6 +51,9 @@ try {
       .bind(id, id, sha.repeat(40), now, now, id + ".ogg", sha.repeat(40), now, JSON.stringify(qa))
       .run();
   for (const id of ["cm_1", "cm_2"]) await env.BUCKET.put(id + ".ogg", new Uint8Array(2000));
+  await env.DB.prepare(
+    "UPDATE soundtrack_recordings SET title=CASE WHEN id='cm_2' THEN 'Fixture adagio' ELSE 'Fixture allegro' END,has_vocals=0",
+  ).run();
   const call = async (route, body, authorization = token) =>
     lib.handleMusicProfiles(
       new Request("https://cove.test/api/fore" + route, {
@@ -65,6 +68,11 @@ try {
   await assert.rejects(() => call("/admin/music-profiles/claim", {}, "bad"), /credential/i);
   await lib.seedMusicProfiles(env);
   const first = await (await call("/admin/music-profiles/claim", {})).json();
+  assert.equal(
+    first.recordingId,
+    "cm_2",
+    "Quiet published instrumental recordings are analyzed before unrelated masters",
+  );
   const second = await (await call("/admin/music-profiles/claim", {})).json();
   assert.notEqual(
     first.recordingId,
