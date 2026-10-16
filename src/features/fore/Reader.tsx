@@ -1888,6 +1888,7 @@ export function ReaderPage({ id }: { id: string }) {
           ready={ready}
           expanded={soundtrackOpen}
           onClose={() => setSoundtrackOpen(false)}
+          onOpen={() => setSoundtrackOpen(true)}
           registered={!!data.user?.registered}
         />
       )}
