@@ -1,6 +1,17 @@
 name: Curate source-license soundtracks
 
 on:
+  # PR smoke runs are read-only and do not grant untrusted forks secrets.
+  pull_request:
+    paths:
+      - ".github/workflows/curate-soundtrack-source-licenses.yml"
+      - "scripts/soundtracks/**"
+  # Safe deployment smoke run (read-only even when the scoped credential exists).
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/curate-soundtrack-source-licenses.yml"
+      - "scripts/soundtracks/**"
   schedule:
     # Scheduled GitHub Actions times are approximate.
     - cron: "19 */6 * * *"
@@ -24,7 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ secrets.COVE_SOUNDTRACK_REVIEW_TOKEN }}
+      # Never expose the production review credential to code checked out for a PR.
+      COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ github.event_name != 'pull_request' && secrets.COVE_SOUNDTRACK_REVIEW_TOKEN || '' }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -32,10 +44,22 @@ jobs:
           python-version: "3.12"
       - name: Verify curation safety tests
         run: python scripts/soundtracks/test-curate-source-license.py -q
-      - name: Verify FFmpeg tools
+      - name: Install and verify FFmpeg tools
         run: |
+          set -euo pipefail
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
           command -v ffmpeg
           command -v ffprobe
+          ffmpeg -version | head -n 1
+      - name: Decode synthetic audio and validate FFmpeg measurement output
+        run: |
+          set -euo pipefail
+          ffmpeg -nostdin -hide_banner -loglevel error -f lavfi -i 'sine=frequency=420:duration=6:sample_rate=44100' -c:a libvorbis -q:a 4 /tmp/cove-audio-smoke.ogg -y
+          python scripts/soundtracks/measure-audio.py /tmp/cove-audio-smoke.ogg --output /tmp/cove-audio-smoke.json
+          python -c 'import json; r=json.load(open("/tmp/cove-audio-smoke.json")); assert r["decodedFully"] and r["durationSeconds"] >= 5 and r["truePeakDbfs"] <= 0'
       - name: Skip safely when no scoped credential is configured
         if: env.COVE_SOUNDTRACK_REVIEW_TOKEN == ''
         run: echo 'Scoped soundtrack-review secret missing; production unchanged.'

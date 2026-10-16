@@ -66,6 +66,8 @@ jobs:
         run: python3 -m py_compile scripts/audio_pipeline/*.py
       - name: Source-license curation safety regression tests
         run: python3 scripts/soundtracks/test-curate-source-license.py -v
+      - name: External soundtrack provider rights/QA intake regression tests
+        run: python3 scripts/soundtracks/test-external-source-intake.py -v
       - name: Build
         run: npm run build
       - name: Build persistence backend
