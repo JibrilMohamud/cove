@@ -33,7 +33,7 @@ test("reader music is opt-in, attributed, and chapter-aware", async ({ page, req
                 durationSeconds: 120,
                 fingerprint: "pinned-master",
               },
-              },
+            },
           ],
         },
       },
