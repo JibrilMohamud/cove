@@ -97,7 +97,7 @@ class SoundtrackCurationTests(unittest.TestCase):
             def __init__(self):self.calls=[]
             def call(self,path,body=None):
                 self.calls.append((path,body))
-                self.assertFalse(body)
+                assert body is None, 'Dry run must not call review write endpoints'
                 return dict(records=[candidate()],nextCursor=None)
         c=Client()
         args=SimpleNamespace(max_scan=10,max_tracks=8,max_mib=160,max_minutes=20,apply=False,approve_source_license=False)
