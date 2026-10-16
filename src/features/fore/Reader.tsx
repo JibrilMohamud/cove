@@ -8,7 +8,7 @@ import {
   type ShareMember,
 } from "./Sharing";
 import { openBiosync, resolveAudio, resolveText, matchingEpub } from "./biosync-client";
-import { Headphones } from "lucide-react";
+import { Headphones, Music2 } from "lucide-react";
 import { createActivity, measureEpub } from "./reading-activity";
 import { flushReaderMutations, queueReaderMutation } from "./offline-reader-mutations";
 import { offlineAccountId } from "./offline-account";
@@ -75,6 +75,7 @@ import {
 import { ensureSyncClient, loadSyncedReaderSettings, saveSyncedReaderSetting } from "./sync-client";
 import { epubBytes, prepareEpub } from "./epub";
 import { DictionaryLookup } from "./Collections";
+import { ReaderSoundtrack } from "./ReaderSoundtrack";
 type Selection = { text: string; cfi: string; chapter: string };
 type Toc = {
   id: string;
@@ -351,6 +352,9 @@ export function ReaderPage({ id }: { id: string }) {
     [retry, setRetry] = useState(0),
     [toc, setToc] = useState<Toc[]>([]),
     [chapter, setChapter] = useState(""),
+    [spineIndex, setSpineIndex] = useState<number | null>(null),
+    [chapterProgress, setChapterProgress] = useState(0),
+    [soundtrackOpen, setSoundtrackOpen] = useState(false),
     [percent, setPercent] = useState(0),
     [panel, setPanel] = useState(""),
     [selection, setSelection] = useState<Selection | null>(null),
@@ -1103,6 +1107,14 @@ export function ReaderPage({ id }: { id: string }) {
         const title = chapterForLocation(loc, chapters, (ePub as any).CFI) || ui("Reading");
         chapterRef.current = title;
         setChapter(title);
+        const nextSpine = Number(loc.start.index);
+        setSpineIndex(Number.isInteger(nextSpine) && nextSpine >= 0 ? nextSpine : null);
+        const displayed = loc.start.displayed;
+        setChapterProgress(
+          displayed?.total > 0
+            ? Math.min(0.99, Math.max(0, (Number(displayed.page) - 1) / displayed.total))
+            : 0,
+        );
         const p = created.locations.length()
           ? conservativeCfiProgress(created, loc.start.cfi)
           : Math.min(
@@ -1691,6 +1703,17 @@ export function ReaderPage({ id }: { id: string }) {
           </span>
         </div>
         <div className="reader-toolbar">
+          {!previewMode && (
+            <button
+              className="icon-button"
+              aria-label={ui("Reading soundtrack")}
+              title={ui("Reading soundtrack")}
+              aria-expanded={soundtrackOpen}
+              onClick={() => setSoundtrackOpen((open) => !open)}
+            >
+              <Music2 size={20} />
+            </button>
+          )}
           {!previewMode && (!!editions.data?.results.length || !!syncEdition.current) && (
             <button
               className="icon-button"
@@ -1857,6 +1880,18 @@ export function ReaderPage({ id }: { id: string }) {
           <ChevronRight size={26} />
         </button>
       </div>
+      {!previewMode && (
+        <ReaderSoundtrack
+          bookId={String(bookQuery.data?.productId ?? id)}
+          spine={spineIndex}
+          progress={spineIndex === null ? percent / 100 : chapterProgress}
+          ready={ready}
+          expanded={soundtrackOpen}
+          onClose={() => setSoundtrackOpen(false)}
+          onOpen={() => setSoundtrackOpen(true)}
+          registered={!!data.user?.registered}
+        />
+      )}
       <footer
         className={"reader-bottom reader-chrome" + (chromeVisible ? " is-visible" : "")}
         onPointerEnter={() => showChrome(false)}

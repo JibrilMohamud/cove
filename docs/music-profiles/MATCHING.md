@@ -175,6 +175,58 @@ automated training or promotion on user engagement. A new policy requires new la
 No human-trained model ships by default. Regression training uses explicitly synthetic
 fixtures and is never reported as real matching accuracy.
 
+## Reader playback
+
+The EPUB reader now offers an opt-in Reading soundtrack control. It uses the
+current edition, EPUB spine index and approximate per-spine reading position,
+and updates requests at bounded 10% section-progress intervals. The playback
+element remains mounted while its panel is minimized; natural track boundaries
+apply updated chapter suggestions without editing, crossfading or interrupting
+original recordings. It never starts playback without an explicit reader action.
+Native audio controls, a skip control, metadata/attribution, source/license links,
+focus/atmosphere/immersion modes, vocal constraints and signed-in private
+feedback are exposed. Errors re-check eligibility, and the backend's live audio
+endpoint continues to authorize each master and territory. The UI does not
+claim synchronization to sentence-level plot events or guarantee exact printed
+chapter boundaries (an EPUB spine item can be a frontmatter or subsection).
+
+## Independent assessment and calibration readiness
+
+Actual matching accuracy cannot be established from existing synthetic tests:
+production has not yet collected human editorial pairs. Before a trained
+ranker is considered perceptually release-ready, independently recruit at
+least three reviewers; verify family identities across editions/performances;
+read/listen to blinded book/chapter vs recording pairs; include quiet-focus,
+chapter shifts, diverse languages and genre cohorts; and record disagreements.
+Export the actual evaluation pages and train offline as documented above.
+Then run:
+
+```sh
+node scripts/matching/audit-human-ranker.mjs --input judgments.json --ranker ranker.json --output matching-audit.json
+```
+
+The audit reports unseen-book and unseen-composition pair accuracy versus the
+heuristic, three-reviewer diversity, unique family coverage, and conservative
+exploratory 95% family-grouped bootstrap intervals. `conservativeReviewReady`
+is false unless these checks pass; it does NOT itself prove reader concentration
+or replace a real-world blinded preference trial. Overlapping composition
+families remain a statistical dependence limitation. Trained model activation
+is a separate privileged backend operation, never automatic, with its own
+authoritative dataset checksum and family-holdout checks.
+
+## Quiet-instrumental expansion
+
+The discovery crawler includes source categories for adagio recordings,
+Chopin/nocturnes, harp, guitar, cello and harpsichord in addition to the
+existing composer/instrument classes. Membership is ONLY discovery metadata;
+a title containing `adagio` is not proof of measured low energy. Candidates
+must continue through source-specific composition/master rights verification,
+commercial-permissive license filtering (never NC), archived evidence, audio
+QA, licensed territorial publication, R2 storage, and analyzed original-source
+fingerprints. The focus mode can have much lower coverage than immersion.
+No candidate is counted as a playable recording until its actual object is
+ready and authorization succeeds.
+
 ## Validation
 
 `npm run test:matching` covers current audio over catalog tags, 360-record retrieval,

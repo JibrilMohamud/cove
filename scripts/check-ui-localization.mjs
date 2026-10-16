@@ -24,6 +24,7 @@ const invariant = new Set(["Aa", "px", "@username", "MB ·"]);
 const surfaces = [
   "Stats",
   "Reader",
+  "ReaderSoundtrack",
   "Community",
   "Collections",
   "Audio",

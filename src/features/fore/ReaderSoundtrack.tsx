@@ -1,0 +1,358 @@
+import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Music2, SkipForward, X } from "lucide-react";
+import { api } from "./client";
+import { useUiText } from "./ui-text";
+
+type Recording = {
+  id: string;
+  title: string;
+  composer: string;
+  performer: string;
+  attribution: string;
+  license: string;
+  licenseUrl: string;
+  sourcePage: string;
+  audioUrl: string;
+  durationSeconds: number;
+  fingerprint: string;
+};
+type PlaylistTrack = { id: string; recording: Recording; reasons: string[] };
+type PlaylistReply = {
+  productId?: string;
+  provisional: boolean;
+  reason?: string;
+  scope?: { requested: string; effective: string; duration: string };
+  readingTime?: { estimatedSeconds: number; lowerBoundOnly: boolean };
+  playlist: { tracks: PlaylistTrack[]; completion: string } | null;
+  limitations?: string[];
+};
+type Mode = "focus" | "atmosphere" | "immersion";
+type Vocals = "none" | "limited" | "any";
+const modes: Mode[] = ["focus", "atmosphere", "immersion"];
+const vocalsOptions: Vocals[] = ["none", "limited", "any"];
+
+/** Original, unedited recordings only. Selection never relaxes server-side rights gates. */
+export function ReaderSoundtrack({
+  bookId,
+  spine,
+  progress,
+  ready,
+  expanded,
+  onClose,
+  onOpen,
+  registered,
+}: {
+  bookId: string;
+  spine: number | null;
+  progress: number;
+  ready: boolean;
+  expanded: boolean;
+  onClose: () => void;
+  onOpen: () => void;
+  registered: boolean;
+}) {
+  const ui = useUiText();
+  const [mode, setMode] = useState<Mode>("atmosphere");
+  const [vocals, setVocals] = useState<Vocals>("none");
+  const [tracks, setTracks] = useState<PlaylistTrack[]>([]);
+  const [index, setIndex] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [message, setMessage] = useState("");
+  const [updating, setUpdating] = useState(false);
+  const audio = useRef<HTMLAudioElement>(null);
+  const pending = useRef<PlaylistTrack[] | null>(null);
+  const resumeAfterBoundary = useRef(false);
+  const bucket = Math.min(9, Math.max(0, Math.floor(progress * 10)));
+  const query = useQuery({
+    queryKey: ["reader-soundtrack-v1", bookId, spine, bucket, mode, vocals],
+    queryFn: () => {
+      const params = new URLSearchParams({ mode, vocals, progress: String(bucket / 10) });
+      if (spine !== null) params.set("spine", String(spine));
+      return api<PlaylistReply>(
+        "/books/" + encodeURIComponent(bookId) + "/literary-profile/playlist?" + params,
+      );
+    },
+    enabled: ready && (expanded || playing),
+    retry: false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+  useEffect(() => {
+    const next = query.data?.playlist?.tracks;
+    if (!next || !next.length) {
+      if (query.data && playing) {
+        pending.current = [];
+        setUpdating(true);
+      }
+      return;
+    }
+    if (playing) {
+      pending.current = next;
+      setUpdating(true);
+    } else {
+      pending.current = null;
+      setUpdating(false);
+      setTracks(next);
+      setIndex(0);
+    }
+    // Query identity changes only when chapter, reading bucket or listening mode changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query.data]);
+  useEffect(() => {
+    // A different book must never inherit the prior book's licensed tracks.
+    audio.current?.pause();
+    pending.current = null;
+    setTracks([]);
+    setIndex(0);
+    setPlaying(false);
+    setMessage("");
+  }, [bookId]);
+  const current = tracks[index];
+  const advance = (autoPlay: boolean) => {
+    const next = pending.current;
+    if (next !== null) {
+      pending.current = null;
+      setUpdating(false);
+      setTracks(next);
+      setIndex(0);
+      if (!next.length) {
+        setPlaying(false);
+        setMessage(ui("No eligible recording is available for the new passage."));
+        return;
+      }
+      resumeAfterBoundary.current = autoPlay;
+    } else if (index + 1 < tracks.length) {
+      resumeAfterBoundary.current = autoPlay;
+      setIndex((n) => n + 1);
+    } else {
+      setPlaying(false);
+      setMessage(ui("Playlist finished. Refresh to check for more matching music."));
+    }
+  };
+  useEffect(() => {
+    if (!resumeAfterBoundary.current) return;
+    resumeAfterBoundary.current = false;
+    const player = audio.current;
+    if (player) {
+      player.currentTime = 0;
+      void player.play().catch(() => {
+        setPlaying(false);
+        setMessage(ui("Playback was paused by your browser. Use the audio controls to resume."));
+      });
+    }
+  }, [current?.id, current?.recording.fingerprint]);
+  const feedback = async (reason: "good_fit" | "poor_fit" | "too_intense") => {
+    if (!current || !registered) return;
+    try {
+      await api("/matching/feedback", "POST", {
+        productId: query.data?.productId ?? bookId,
+        spine,
+        mode,
+        recordingId: current.id,
+        reason,
+      });
+      setMessage(ui("Feedback saved privately for your matching preferences."));
+      await query.refetch();
+    } catch {
+      setMessage(ui("Feedback could not be saved. Check your connection and try again."));
+    }
+  };
+  // The player remains mounted when the reading panel is collapsed, so music
+  // continues only after the reader has explicitly started playback.
+  return (
+    <section
+      role="region"
+      aria-label={ui("Reading soundtrack")}
+      className="reader-soundtrack"
+      aria-hidden={!expanded && !playing}
+      style={{
+        display: !expanded && !playing ? "none" : undefined,
+        position: "fixed",
+        zIndex: 80,
+        right: 12,
+        bottom: 74,
+        width: "min(410px, calc(100vw - 24px))",
+        maxHeight: "min(70vh, 620px)",
+        overflowY: "auto",
+        padding: 16,
+        border: "1px solid #9d8d72",
+        borderRadius: 12,
+        background: "#f7f2e8",
+        color: "#27221c",
+        boxShadow: "0 12px 35px #0003",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ fontSize: 18, margin: 0 }}>
+          <Music2 size={18} aria-hidden="true" /> {ui("Reading soundtrack")}
+        </h2>
+        <button
+          type="button"
+          aria-label={ui(expanded ? "Minimize soundtrack" : "Expand soundtrack")}
+          onClick={expanded ? onClose : onOpen}
+        >
+          <X size={18} aria-hidden="true" />
+        </button>
+      </div>
+      {expanded && (
+        <>
+          <p className="small muted">
+            {ui(
+              "Suggested accompaniment, not narration. Recordings remain unedited and are never started automatically.",
+            )}
+          </p>
+          <label htmlFor="reader-soundtrack-mode">{ui("Listening style")}</label>
+          <select
+            id="reader-soundtrack-mode"
+            value={mode}
+            onChange={(event) => setMode(event.target.value as Mode)}
+          >
+            {modes.map((value) => (
+              <option key={value} value={value}>
+                {ui(value)}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="reader-soundtrack-vocals">{ui("Vocals")}</label>
+          <select
+            id="reader-soundtrack-vocals"
+            value={vocals}
+            onChange={(event) => setVocals(event.target.value as Vocals)}
+          >
+            {vocalsOptions.map((value) => (
+              <option key={value} value={value}>
+                {ui(value)}
+              </option>
+            ))}
+          </select>
+          {query.data?.scope && (
+            <p className="small muted">
+              {ui(
+                "Based on {scope}. Changes to the reading passage take effect at the next track boundary.",
+                {
+                  scope:
+                    query.data.scope.effective === "chapter" ? ui("this chapter") : ui("the book"),
+                },
+              )}
+              {query.data.scope.effective === "book_fallback"
+                ? ui(" (chapter analysis pending)")
+                : ""}
+            </p>
+          )}
+        </>
+      )}
+      {query.isPending && expanded && <p role="status">{ui("Checking suitable music…")}</p>}
+      {query.isError && expanded && (
+        <p role="alert">
+          {ui("The soundtrack cannot be checked right now.")}
+          <button type="button" onClick={() => void query.refetch()}>
+            {ui("Retry")}
+          </button>
+        </p>
+      )}
+      {query.data?.provisional && expanded && (
+        <p role="status">
+          {ui("A reliable soundtrack is not available yet: {reason}.", {
+            reason: query.data.reason || "pending",
+          })}
+        </p>
+      )}
+      {!current && !query.isPending && expanded && !query.data?.provisional && (
+        <p role="status">{ui("No eligible matching recordings are available for this passage.")}</p>
+      )}
+      {current && (
+        <>
+          <p style={{ margin: "12px 0 6px" }}>
+            <strong>{current.recording.title}</strong>
+            <span className="small muted">
+              {" "}
+              — {current.recording.composer},{" "}
+              {ui("performed by {performer}", { performer: current.recording.performer })}
+            </span>
+          </p>
+          <audio
+            ref={audio}
+            controls
+            preload="none"
+            src={current.recording.audioUrl}
+            aria-label={ui("Reading soundtrack: {title}", { title: current.recording.title })}
+            onPlay={(event) => {
+              setPlaying(true);
+              setMessage("");
+              document.querySelectorAll<HTMLAudioElement>("audio").forEach((other) => {
+                if (other !== event.currentTarget) other.pause();
+              });
+            }}
+            onPause={() => setPlaying(false)}
+            onEnded={() => advance(true)}
+            onError={() => {
+              setMessage(ui("This recording is unavailable. Rechecking eligible music."));
+              void query.refetch();
+              advance(playing);
+            }}
+            style={{ width: "100%" }}
+          />
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <span className="small muted" aria-label={ui("Playlist position")}>
+              {ui("{current} of {total}", { current: index + 1, total: tracks.length })}
+            </span>
+            <button
+              type="button"
+              aria-label={ui("Skip to next soundtrack recording")}
+              onClick={() => advance(playing)}
+            >
+              <SkipForward size={17} aria-hidden="true" /> {ui("Next")}
+            </button>
+          </div>
+          {expanded && (
+            <>
+              <p className="small muted">{current.reasons.join(" · ")}</p>
+              <details>
+                <summary>{ui("Recording attribution and license")}</summary>
+                <p>{current.recording.attribution}</p>
+                <p>{ui("Original recording, without modifications.")}</p>
+                <p>
+                  {ui("License:")}{" "}
+                  <a href={current.recording.licenseUrl} target="_blank" rel="noreferrer">
+                    {current.recording.license}
+                  </a>
+                </p>
+                <a href={current.recording.sourcePage} target="_blank" rel="noreferrer">
+                  {ui("Recording source and evidence")}
+                </a>
+              </details>
+              {registered && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button type="button" onClick={() => void feedback("good_fit")}>
+                    {ui("Good fit")}
+                  </button>
+                  <button type="button" onClick={() => void feedback("poor_fit")}>
+                    {ui("Poor fit")}
+                  </button>
+                  <button type="button" onClick={() => void feedback("too_intense")}>
+                    {ui("Too intense")}
+                  </button>
+                </div>
+              )}
+              {!registered && (
+                <p className="small muted">{ui("Sign in to save private feedback.")}</p>
+              )}
+              <p className="small muted">
+                {ui(
+                  "Musical and reading-time estimates are not guarantees. Rights and regional eligibility are checked again whenever the original recording is played.",
+                )}
+              </p>
+            </>
+          )}
+        </>
+      )}
+      {updating && (
+        <p className="small muted" role="status">
+          {ui("New chapter music queued for the next recording.")}
+        </p>
+      )}
+      {message && <p role="status">{message}</p>}
+    </section>
+  );
+}
