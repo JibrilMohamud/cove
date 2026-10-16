@@ -18,16 +18,18 @@ class Reply(io.BytesIO):
         self.headers=headers or {}
 
 class Opener:
-    def __init__(self, invalid=False):
+    def __init__(self, invalid=False, count=1):
         self.invalid=invalid
+        self.count=count
         self.calls=[]
     def open(self, req, timeout=0):
         self.calls.append((req.full_url,req.get_method(),req.get_header("Range")))
         if req.full_url==probe.BASE+probe.PATH:
-            file={"id":"cm_123","audioUrl":probe.PATH+"/cm_123/audio",
-                  "attribution":"Example artist (fictional fixture)","licenseUrl":"https://creativecommons.org/licenses/by/4.0/"}
-            if self.invalid: file["audioUrl"]="https://attacker.example/audio"
-            return Reply(json.dumps({"count":1,"recordings":[file]}).encode(),200)
+            files=[{"id":"cm_"+str(i),"audioUrl":probe.PATH+"/cm_"+str(i)+"/audio",
+                    "attribution":"Fixture artist, CC BY 4.0",
+                    "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"} for i in range(self.count)]
+            if self.invalid: files[0]["audioUrl"]="https://attacker.example/audio"
+            return Reply(json.dumps({"count":self.count,"recordings":files}).encode(),200)
         if req.get_method()=="HEAD":
             return Reply(b"",200,{"Content-Length":"12345"})
         if req.get_method()=="GET":
@@ -46,6 +48,22 @@ class ProductionProbeTest(unittest.TestCase):
     def test_rejects_untrusted_cdn_url(self):
         with self.assertRaisesRegex(ValueError,"Untrusted"):
             probe.run(limit=1,opener=Opener(invalid=True))
+    def test_six_audit_slots_cover_every_one_of_300_originals(self):
+        seen=set()
+        for slot in range(6):
+            report=probe.run(limit=50,opener=Opener(count=300),audit_slot=slot)
+            self.assertEqual(report["sampled"],50)
+            self.assertEqual(report["sampleFailed"],[])
+            self.assertTrue(seen.isdisjoint(report["sampleIds"]))
+            seen.update(report["sampleIds"])
+        self.assertEqual(len(seen),300)
+    def test_small_catalog_gets_complete_playback_audit(self):
+        report=probe.run(limit=50,opener=Opener(count=35),audit_slot=4)
+        self.assertEqual(report["sampled"],35)
+        self.assertEqual(len(set(report["sampleIds"])),35)
+    def test_invalid_slot_rejected(self):
+        with self.assertRaises(ValueError):
+            probe.run(limit=20,opener=Opener(count=3),audit_slot=-1)
     def test_monitor_has_pinned_origin(self):
         with self.assertRaises(ValueError):
             probe.run(base="https://evil.example",opener=Opener())
