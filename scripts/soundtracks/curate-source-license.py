@@ -118,6 +118,24 @@ BOCCHERINI_RIGHTSHOLDER_CREDITS = frozenset((
 ))
 
 
+# These TEN exact Commons files explicitly declare the author's own modern
+# recording, all parts performed by Dr. Phillip W. Serna, and CC BY-SA 4.0.
+# Title AND source Artist AND licence must match: never generalize from an
+# uploader account to an arbitrary file. Each original is revalidated later.
+SERNA_SELF_RECORDED_ORIGINALS = {
+    'cm_92931248': ("Antoine de Cousu (1600-1658) - Fantaisie en faveur de la quarte from Harmonie Universelle (1636)", "Antoine de Cousu", "baroque"),
+    'cm_92931250': ("Alfonso Ferrabosco the Elder (1543-1588) - Fantasia 'Di Sei Bassi’ NYp, Drexel 4302, p.255, no.45", "Alfonso Ferrabosco the Elder", "renaissance"),
+    'cm_92931251': ("Étienne Moulinié (1599–1676) – Fantasia à4, VdGS No.2 for 2 Treble Viols, Tenor & Bass Viols (1639)", "Étienne Moulinié", "baroque"),
+    'cm_92931255': ("John Ward (1571-1638) - Fantasia à6, VdGS No.1 for 2 Treble, 2 Tenor & 2 Bass Viols", "John Ward", "renaissance"),
+    'cm_92931257': ("Thomas Lupo (1571-1628) - Fantasia à3 in d, VdGS No.26 for 3 Bass Viols", "Thomas Lupo", "renaissance"),
+    'cm_92931260': ("Thomas Lupo (1571-1628) - Fantasia à3 in G, VdGS No.15 for 3 Tenor Viols", "Thomas Lupo", "renaissance"),
+    'cm_92931264': ("Thomas Tomkins (1572-1656) - A Sad Paven à5 for These Distracted Tymes, MB53 (1649)", "Thomas Tomkins", "renaissance"),
+    'cm_92931268': ("John Dowland (1563-1626) - The King of Denmark Galliard à5, Lachrimae, No.11 for Treble, Tenor & Bass Viols with Great Bass Violone in G", "John Dowland", "renaissance"),
+    'cm_92940044': ("John Dowland (1563-1626) - Mistress Nichols Almand à5, Lachrimae, No.20 for Treble, Tenor & Bass Viols with Great Bass Violone in G", "John Dowland", "renaissance"),
+    'cm_92961091': ("John Dowland (1563-1626) - M. George Whitehead His Almand, Lachrimae, No.21 for Treble, Tenor & Bass Viols with Great Bass Violone in G 1604", "John Dowland", "renaissance"),
+}
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -192,6 +210,17 @@ def choose_candidate(r):
     if r['license_code']=='PD' and license_link!='https://commons.wikimedia.org/wiki/Commons:Licensing':
         return None, 'unrecognized PD claim link'
     title = str(r.get('title', ''))
+    serna_spec = SERNA_SELF_RECORDED_ORIGINALS.get(str(r.get('id','')))
+    self_recorded = False
+    if serna_spec:
+        exact_title, _, _ = serna_spec
+        self_recorded = (title == exact_title and
+            r.get('source_title') == 'File:'+exact_title+'.ogg' and
+            r.get('performer') == 'Phillipwserna' and
+            r.get('license_code') == 'CC-BY-SA' and
+            r.get('license_url') == 'https://creativecommons.org/licenses/by-sa/4.0/')
+        if not self_recorded:
+            return None, 'specific original/creator/license identity no longer matches'
     if not str(r.get('source_title','')).startswith('File:') or COMPLEX.search(title) or '-' in title.split(' ', 1)[0]:
         return None, 'arrangement or derivative provenance requires individual review'
     boccherini = BOCCHERINI_SELF_RELEASE.fullmatch(title) if (
@@ -202,6 +231,8 @@ def choose_candidate(r):
     match = next(((composer, period) for pattern, composer, period in KNOWN_COMPOSERS if re.search(pattern, title, re.I)), None)
     if not match and boccherini:
         match = ("Luigi Boccherini", "classical")
+    if self_recorded:
+        match = (serna_spec[1], serna_spec[2])
     if not match:
         named = next(((composer, period, person) for pattern, composer, period, person in NAMED_PERFORMER_TITLES
                       if re.fullmatch(pattern, title, re.I)), None)
@@ -216,7 +247,8 @@ def choose_candidate(r):
     if not match:
         return None, 'composer not in narrow sourced-title mapping'
     composer, period = match
-    performer = "Jacques Lochet" if boccherini else credited_performer(r.get('performer'), composer)
+    performer = ("Dr. Phillip W. Serna" if self_recorded else
+                 "Jacques Lochet" if boccherini else credited_performer(r.get('performer'), composer))
     if not performer:
         return None, 'ambiguous or missing performer credit'
     if (not re.fullmatch(r'cm_\d{1,15}', str(r.get('id', ''))) or
@@ -243,8 +275,11 @@ def choose_candidate(r):
         moods, energy = ['focused', 'contemplative'], 0.4
     if boccherini:
         instrument_list = ['violin', boccherini.group(1).lower()]
+    if self_recorded:
+        instrument_list = ['viol']
     return dict(composer=composer, period=period, performer=performer,
-                sourceLicensor='Quinbrid' if boccherini else '',
+                sourceLicensor='Phillipwserna' if self_recorded else 'Quinbrid' if boccherini else '',
+                selfRecordedOriginal=self_recorded,
                 instruments=instrument_list, moods=moods, energy=energy), ''
 
 def prepare_release(r, profile):
@@ -254,14 +289,17 @@ def prepare_release(r, profile):
         return dict(basis=claim + ' Source-declaration reliance only; independently unverified. Original, unchanged audio will be used.', evidenceUrls=[page, link])
     title = r['title']
     licensor = f" Commons original-master licensor: {profile['sourceLicensor']}." if profile.get('sourceLicensor') else ""
+    source_own_work = (' This individual Commons source identifies uploader Phillipwserna as author, says original work and records every viol part performed by Dr. Phillip W. Serna.'
+                       if profile.get('selfRecordedOriginal') else '')
     credit = f"{title} — performed by {profile['performer']}; composed by {profile['composer']}.{licensor} {r['license_statement']}. {exact}. Unmodified original recording."
-    statement = f"Cove accepts the exact recording-level {r['license_statement']} declaration of this Commons file under the owner-approved source reliance policy. This is not a human or independent legal assessment."
+    statement = f"Cove accepts the exact recording-level {r['license_statement']} declaration of this Commons file under the owner-approved source reliance policy.{source_own_work} This is not a human or independent legal assessment."
     dossier = dict(
         composition=layer(f"The source filename identifies {profile['composer']} as composer; the recorded composition is covered only to the extent of the file's exact declared permission."),
         arrangement=layer('No third-party arranger is named in the short source metadata used for automatic selection; unclear derivative titles are excluded.'),
         lyrics=layer('The source has no identified vocal indicators in its title. Vocal or lyrical works are excluded from this automated path; rights remain based on the exact source license.'),
         performance=layer(f"The modern performer is {profile['performer']}; "
-                          + (f"the exact source title identifies him while Commons uploader {profile['sourceLicensor']} asserts the source file's CC BY-SA rights. " if profile.get('sourceLicensor') else
+                          + (f"the author-declared Commons original identifies Phillipwserna as the master owner and specifically credits Dr. Phillip W. Serna performing all parts. " if profile.get('selfRecordedOriginal') else
+                           f"the exact source title identifies him while Commons uploader {profile['sourceLicensor']} asserts the source file's CC BY-SA rights. " if profile.get('sourceLicensor') else
                              "Cove relies on the recording-level source declaration for performance permissions. ")),
         master=layer('The recording-level permission is attached to the exact source file and immutable SHA-1; the master will not be altered.'),
         grantingParty='Wikimedia Commons source declarant (identity not independently verified)',
