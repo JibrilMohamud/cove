@@ -247,7 +247,7 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
       if (!c) continue;
       const tags = profile(c.title, category);
       const result = await env.DB.prepare(
-        "INSERT OR IGNORE INTO soundtrack_recordings (id,source_title,source_page_url,source_file_url,source_sha1,source_size,mime,title,performer,license_code,license_url,license_statement,attribution_text,period,instruments_json,moods_json,energy,has_vocals,evidence_json,discovered_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT OR IGNORE INTO soundtrack_recordings (id,source_title,source_page_url,source_file_url,source_sha1,source_size,mime,title,performer,license_code,license_url,license_statement,attribution_text,period,instruments_json,moods_json,energy,has_vocals,evidence_json,automated_triage_reason,discovered_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
       ).bind(c.id, page.title, c.sourcePage, c.mediaUrl, c.sha1,c.size,c.mime,c.title,
         c.performer,c.license.code,c.license.link,c.license.statement,c.attribution,
         category.period,JSON.stringify(tags.instruments),JSON.stringify(tags.moods),
@@ -257,6 +257,7 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
           sourceSha1:c.sha1,sourceSize:c.size,artist:c.performer,
           sourceMime:c.info.mime,sourceUrl:c.info.url,
           capturedAt:now,rightsNote:"UNVERIFIED: composition, arrangement and master recording require individual rights review" }),
+        category.name.includes('Free Music Archive') ? 'Source review required: verify FMA master license against original metadata' : '',
         now,now).run() as { meta?: { changes?: number } };
       added += Number(result?.meta?.changes || 0);
     }
