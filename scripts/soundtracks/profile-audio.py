@@ -80,7 +80,7 @@ class AudioSemantics:
             return unit(.5+2.5*(index[b]-index[a]))
         ensemble=choose('ensembleSize'); scale=choose('scale')
         return dict(model=MODEL,revision=REVISION,method='zero_shot_audio_text_similarity',scoreMeaning='uncalibrated_cosine_similarity',
-            sampledSeconds=sum(end-start for start,end in windows),windows=[dict(start=s,end=e) for s,e in windows],
+            sampledSeconds=round(sum(end-start for start,end in windows),6),windows=[dict(start=s,end=e) for s,e in windows],
             moods=[dict(label=label,similarity=round(index[label],6)) for label in ranked('moods')[:5] if index[label]>=.18],
             nuance=[label for label in ranked('nuance')[:3] if index[label]>=.18],
             dimensions=dict(valence=dimension('valence'),arousal=dimension('arousal'),acousticness=dimension('acousticness'),vocalPresence=dimension('vocalPresence'),
