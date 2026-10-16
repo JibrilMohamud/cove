@@ -54,6 +54,12 @@ jobs:
           command -v ffmpeg
           command -v ffprobe
           ffmpeg -version | head -n 1
+      - name: Decode synthetic audio and validate FFmpeg measurement output
+        run: |
+          set -euo pipefail
+          ffmpeg -nostdin -hide_banner -loglevel error -f lavfi -i 'sine=frequency=420:duration=6:sample_rate=44100' -c:a libvorbis -q:a 4 /tmp/cove-audio-smoke.ogg -y
+          python scripts/soundtracks/measure-audio.py /tmp/cove-audio-smoke.ogg --output /tmp/cove-audio-smoke.json
+          python -c 'import json; r=json.load(open("/tmp/cove-audio-smoke.json")); assert r["decodedFully"] and r["durationSeconds"] >= 5 and r["truePeakDbfs"] <= 0'
       - name: Skip safely when no scoped credential is configured
         if: env.COVE_SOUNDTRACK_REVIEW_TOKEN == ''
         run: echo 'Scoped soundtrack-review secret missing; production unchanged.'
