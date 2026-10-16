@@ -1,6 +1,12 @@
 name: Curate source-license soundtracks
 
 on:
+  # Safe deployment smoke run (read-only even when the scoped credential exists).
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/curate-soundtrack-source-licenses.yml"
+      - "scripts/soundtracks/**"
   schedule:
     # Scheduled GitHub Actions times are approximate.
     - cron: "19 */6 * * *"
