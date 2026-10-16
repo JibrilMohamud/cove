@@ -521,7 +521,11 @@ try {
   )
     .bind(product.id, deferred.fingerprint)
     .first();
-  assert.equal(afterRecovery.count, 1, "Deferred EPUB is eventually prepared when capacity returns");
+  assert.equal(
+    afterRecovery.count,
+    1,
+    "Deferred EPUB is eventually prepared when capacity returns",
+  );
 
   console.log(
     "Literary profiles: full EPUB to chapter inference to public profile passed; chronology, provenance, concurrency, fallback, invalidation and budgets passed.",
