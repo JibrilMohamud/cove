@@ -26,6 +26,8 @@ try {
   });
   const core = await import(path.join(root, "literary-profile.mjs"));
   const lib = await import(path.join(root, "literary-profiles.server.mjs"));
+  assert.equal(lib.LITERARY_GENERATION_LIMITS.maxOutputTokens, 2400);
+  assert.equal(lib.LITERARY_GENERATION_LIMITS.reservedOutputCharacters, 12000);
   assert.deepEqual(
     Array.from({ length: 8 }, (_, n) => lib.preferLiterarySection(n)),
     [false, true, true, true, false, true, true, true],
@@ -144,6 +146,7 @@ try {
       calls++;
       assert.equal(model, core.PROFILE_MODEL);
       assert.equal(input.response_format.type, "json_schema");
+      assert.equal(input.max_tokens, 2400);
       assert.ok(JSON.parse(input.messages[1].content).sources[0].text.length <= 12000);
       assert.match(input.messages[0].content, /UNTRUSTED DATA/);
       const sources = JSON.parse(input.messages[1].content).sources;
