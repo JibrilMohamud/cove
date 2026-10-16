@@ -93,8 +93,6 @@ NAMED_PERFORMER_TITLES = (
     (r"^ivan ili[cć] - haydn's keyboard sonata .+", "Joseph Haydn", "classical", "Ivan Ilić"),
     (r"^marek kozak - haydn's keyboard sonata .+", "Joseph Haydn", "classical", "Marek Kozak"),
     (r"^studio konkon - handel's keyboard suite in g minor, hwv 432 - iii\. allegro \(piano\)$", "George Frideric Handel", "baroque", "Studio KonKon"),
-    (r"^ravel's jeux d'eau, m\. 30 - anna sutyagina$", "Maurice Ravel", "modern", "Anna Sutyagina"),
-    (r"^ravel's prelude \(in a minor\), m\. 65 - cmv$", "Maurice Ravel", "modern", "CMV"),
 )
 COMPLEX = re.compile(r"(?i)\b(?:arr(?:anged|angement)?\.?|transcri(?:bed|ption)|remix|sampled|cover|busoni|brahms|liszt|gounod|adapted|orchestrated)\b")
 AMBIGUOUS_CREDIT = re.compile(r"(?i)\b(?:unknown|unverified|composer|uploader|copyright|collection|archive|anonymous|various artists)\b")
