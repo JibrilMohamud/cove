@@ -96,7 +96,7 @@ Initial production work is deliberately bounded. `cove_runtime_config` accepts:
 | `literary_daily_units`   | `2000000` | Maximum reserved prompt + generated-output character work per UTC day; 0 pauses inference |
 | `literary_max_pending_analysis` | `512` | Default high-water mark for outstanding section/book inference jobs, allowing the minute preparation stage to pause when analysis is saturated |
 | `literary_prepares_per_tick` | `2` | Maximum 0–4 bounded EPUB/source preparations per minute, subject to analysis backpressure |
-| `literary_max_queued_prepares` | `2048` | Pause catalog enumeration when outstanding preparation claims exceed this high-water mark |
+| `literary_max_queued_prepares` | `2048` | Continue metadata enumeration but defer EPUB preparation claims above this queue high-water mark |
 
 The literary inference claimant now prioritizes smaller, multi-spine books
 ahead of very long EPUBs so the fixed daily budget yields complete, useful
@@ -107,10 +107,13 @@ Book overviews for works with analyzed chapters get precedence within
 their lane. This is an explicit editorial throughput trade-off; large
 volumes continue to be processed after the shorter waiting books.
 
-A separate cap prevents the keyset catalog sweep from accumulating an
-unbounded `prepare` queue when inference is saturated. No content or
-pending jobs are deleted and the existing character-work quota remains
-unchanged. Staff status exposes both queue caps and live counts.
+A separate cap keeps the keyset sweep updating all new book metadata,
+estimated reading times and rights even when full-text analysis is saturated.
+Only NEW EPUB preparation claims are deferred with an explicit
+`metadata_deferred` status; the next catalog pass enqueues them once there
+is headroom. Existing preparation jobs and evidence are not deleted.
+The character-work quota remains unchanged. Staff status exposes both
+queue caps and live counts.
 
 The scheduler counts outstanding queued/running analysis jobs before preparing
 additional EPUBs. At the default high-water mark (512), it stops creating new
