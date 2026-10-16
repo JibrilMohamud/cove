@@ -44,6 +44,12 @@ const CATEGORIES = [
   { name: "Audio files of cello music", period: "mixed", instrument: "cello" },
   { name: "Audio files of harpsichord music", period: "mixed", instrument: "harpsichord" },
   { name: "Audio files of guitar music", period: "mixed", instrument: "guitar" },
+  // Verified Commons category paths, not blanket licenses. Their candidate
+  // recordings still pass exactly the same file-specific commercial rights,
+  // performer, quality and R2 checks as every other source.
+  { name: "Audio files of music by Erik Satie", period: "modern", instrument: "piano" },
+  { name: "Audio files of Nocturnes, Op. 9 by Frédéric Chopin", period: "romantic", instrument: "piano" },
+  { name: "Audio files of piano music by Joseph Haydn", period: "classical", instrument: "piano" },
 ] as const;
 const MAX_PENDING = 750;
 const DISCOVERY_RESCAN_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -129,6 +135,19 @@ function embeddedNonCommercial(info: CommonsInfo | undefined) {
 function providerOriginNeedsReview(page: CommonsPage | undefined) {
   const wikitext = String(page?.revisions?.[0]?.slots?.main?.content || "");
   return /(?:free[\s_-]*music[\s_-]*archive|freemusicarchive\.org|musopen\.org)/i.test(wikitext);
+}
+/** Commons' EU-only recording template does not establish commercial US master rights. */
+function euOnlyAudioClaim(page: CommonsPage | undefined) {
+  const source = String(page?.revisions?.[0]?.slots?.main?.content || "");
+  return /(?:PD[-_ ]EU[-_ ]Audio|public.domain.in.the.european.union|domaine.public.dans.l.union.europ)/i.test(source);
+}
+/** Catch source metadata that credits a historical composer as the performer. */
+function sameCreditedPerson(a: string, b: string) {
+  const tokens = (name: string) =>
+    (name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().match(/[a-z]+/g) || [])
+      .sort()
+      .join(" ");
+  return !!a && !!b && !!tokens(a) && tokens(a) === tokens(b);
 }
 function playableMime(info: CommonsInfo) {
   if (info.mime === "application/ogg" || info.mime === "audio/ogg") return "audio/ogg";
@@ -651,7 +670,8 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
           (!Array.isArray(territories) || territories.some(v=>v!=="US")))
         throw new ApiError(422,"Repository-declared public-domain reliance is initially limited to the US; other territories need a separate rights assessment.");
       const inst = input.instruments, moods = input.moods, energy = input.energy, vocals = input.hasVocals;
-      if (!reviewer || rationale.length<80 || !performer || /unverified|unknown/i.test(performer) || !composer ||
+      if (!reviewer || rationale.length<80 || !performer || /unverified|unknown/i.test(performer) ||
+          sameCreditedPerson(performer,composer) || !composer ||
           !validTerritories || input.compositionRightsConfirmed!==true || input.performanceRightsConfirmed!==true ||
           input.attributionReviewed!==true || !Array.isArray(inst) || !Array.isArray(moods) ||
           inst.length<1 || inst.length>20 || moods.length<1 || moods.length>20 ||
@@ -663,6 +683,8 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
       const current = await commonsFile(original.source_title);
       if (dossier.reviewMethod === "source_license" && providerOriginNeedsReview(current))
         throw new ApiError(422,"FMA/Musopen-origin originals need independent commercial-master licensing review; Commons labels alone are insufficient.");
+      if (original.license_code === "PD" && euOnlyAudioClaim(current))
+        throw new ApiError(422,"EU-only phonogram public-domain claims do not establish US recording rights; this original requires a separate territorial master review.");
       if (!evidenceMatches(original,current?.imageinfo?.[0]) || !current?.revisions?.[0]?.revid)
         throw new ApiError(409,"Commons source or license changed since discovery, or no source revision is available.");
       if (!env.BUCKET) throw new ApiError(503,"Evidence storage unavailable.");
