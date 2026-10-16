@@ -387,10 +387,14 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
     ).all<{ status:string; quality_status:string; count:number }>()).results;
     const limit = Math.min(100,Math.max(1,Number(url.searchParams.get("limit")) || 40));
     const after = url.searchParams.get("after") || "";
-    const automated = url.searchParams.get("automation") === "1";
+    // Staff sees all candidates by default. The separate triaged mode allows
+    // controlled re-evaluation after the allowlisted source policy changes,
+    // without silently turning a prior manual-review hold into approval.
+    const mode = url.searchParams.get("automation") === "1" ? "new" :
+      url.searchParams.get("automation") === "triaged" ? "triaged" : "all";
     const rows = (await env.DB.prepare(
-      "SELECT * FROM soundtrack_recordings WHERE status=? AND id>? AND (?=0 OR automated_triage_reason='') ORDER BY id LIMIT ?",
-    ).bind(url.searchParams.get("status") || "pending_review",after,automated?1:0,limit+1).all<SoundtrackRow>()).results;
+      "SELECT * FROM soundtrack_recordings WHERE status=? AND id>? AND (?='all' OR (?='new' AND automated_triage_reason='') OR (?='triaged' AND automated_triage_reason!='')) ORDER BY id LIMIT ?",
+    ).bind(url.searchParams.get("status") || "pending_review",after,mode,mode,mode,limit+1).all<SoundtrackRow>()).results;
     return json({ counts,records:rows.slice(0,limit),nextCursor:rows.length>limit?rows[limit-1].id:null });
   }
   if (admin && idMatch && request.method === "GET") {
