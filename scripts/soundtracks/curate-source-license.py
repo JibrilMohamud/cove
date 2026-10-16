@@ -57,10 +57,30 @@ KNOWN_COMPOSERS = (
     (r"^orlando gibbons\s*[\s(-]", "Orlando Gibbons", "renaissance"),
     (r"^john playford\s*[\s(-]", "John Playford", "baroque"),
     (r"^marin marais\s*[\s(-]", "Marin Marais", "baroque"),
+    (r"^girolamo frescobaldi[\s,-]", "Girolamo Frescobaldi", "baroque"),
+    (r"^wilhelm friedemann bach[\s,-]", "Wilhelm Friedemann Bach", "baroque"),
+    (r"^johann joachim quantz[\s,-]", "Johann Joachim Quantz", "baroque"),
+    (r"^adriano banchieri[\s,-]", "Adriano Banchieri", "renaissance"),
+    (r"^giovanni picchi[\s,-]", "Giovanni Picchi", "renaissance"),
+    (r"^caspar ferdinand fischer[\s,-]", "Johann Caspar Ferdinand Fischer", "baroque"),
+    (r"^antonio de cabezon[\s,-]", "Antonio de Cabezón", "renaissance"),
+    (r"^jean perrichon[\s,-]", "Jean Perrichon", "renaissance"),
+    (r"^carl almenräder[\s,-]", "Carl Almenräder", "romantic"),
+    (r"^david popper[\s,-]", "David Popper", "romantic"),
+    (r"^antonio pasculli[\s,-]", "Antonio Pasculli", "romantic"),
     (r"^telemann\s+", "Georg Philipp Telemann", "baroque"),
     (r"^scarlatti\s+", "Domenico Scarlatti", "baroque"),
     (r"^couperin\s+", "François Couperin", "baroque"),
     (r"^rameau\s+", "Jean-Philippe Rameau", "baroque"),
+)
+# Filenames which state both the historical composer and the separately
+# credited recording performer. We require the artist metadata to corroborate
+# the title; a composer-only Artist field must not be mistaken for a performer.
+NAMED_PERFORMER_TITLES = (
+    (r"^schubert's impromptu .+ - chiara bertoglio$", "Franz Schubert", "romantic", "Chiara Bertoglio"),
+    (r"^stefano ligoratti - haydn's keyboard sonata .+", "Joseph Haydn", "classical", "Stefano Ligoratti"),
+    (r"^ivan ili[cć] - haydn's keyboard sonata .+", "Joseph Haydn", "classical", "Ivan Ilić"),
+    (r"^marek kozak - haydn's keyboard sonata .+", "Joseph Haydn", "classical", "Marek Kozak"),
 )
 COMPLEX = re.compile(r"(?i)\b(?:arr(?:anged|angement)?\.?|transcri(?:bed|ption)|remix|sampled|cover|busoni|brahms|liszt|gounod|adapted|orchestrated)\b")
 AMBIGUOUS_CREDIT = re.compile(r"(?i)\b(?:unknown|unverified|composer|uploader|copyright|collection|archive|anonymous|various artists)\b")
@@ -143,6 +163,14 @@ def choose_candidate(r):
     if not str(r.get('source_title','')).startswith('File:') or COMPLEX.search(title) or '-' in title.split(' ', 1)[0]:
         return None, 'arrangement or derivative provenance requires individual review'
     match = next(((composer, period) for pattern, composer, period in KNOWN_COMPOSERS if re.search(pattern, title, re.I)), None)
+    if not match:
+        named = next(((composer, period, person) for pattern, composer, period, person in NAMED_PERFORMER_TITLES
+                      if re.fullmatch(pattern, title, re.I)), None)
+        if named:
+            composer, period, person = named
+            credited = credited_performer(r.get('performer'), composer)
+            if credited and credited.casefold() == person.casefold():
+                match = (composer, period)
     if not match:
         return None, 'composer not in narrow sourced-title mapping'
     composer, period = match
@@ -269,7 +297,8 @@ def run(args, client, measure):
     bytes_total = 0
     while examined < args.max_scan and processed < args.max_tracks and bytes_total < args.max_mib * 1024 * 1024:
         page_size = min(100, args.max_scan-examined)
-        page = client.call('/admin/soundtracks?status=pending_review&automation=1&limit='+str(page_size)+'&after='+urllib.parse.quote(cursor))
+        mode = 'triaged' if getattr(args,'reconsider_triaged',False) else '1'
+        page = client.call('/admin/soundtracks?status=pending_review&automation='+mode+'&limit='+str(page_size)+'&after='+urllib.parse.quote(cursor))
         records = page.get('records', [])
         if not isinstance(records, list) or not records: break
         for row in records:
@@ -347,6 +376,8 @@ def run(args, client, measure):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--origin',default='https://cove-puce-theta.vercel.app')
+    p.add_argument('--reconsider-triaged',action='store_true',
+                   help='Review only previously triaged candidates after source policy expands; never bypass license/QA gates')
     p.add_argument('--max-scan',type=int,default=800)
     p.add_argument('--max-tracks',type=int,default=8)
     p.add_argument('--max-triage',type=int,default=60)
