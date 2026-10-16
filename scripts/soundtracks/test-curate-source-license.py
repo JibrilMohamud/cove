@@ -77,6 +77,55 @@ class SoundtrackCurationTests(unittest.TestCase):
         profile,_=curator.choose_candidate(candidate(title="Robert Schumann - Lieder",performer="Martha Goldstein"))
         self.assertIsNone(profile,"Vocal material must not be automatically treated as lyric-free")
 
+    def test_source_named_performer_is_correlated_before_commercial_reliance(self):
+        cases=(
+            ("Schubert's Impromptu no. 2 in E-flat major, D.899 - Chiara Bertoglio", "Chiara Bertoglio", "Franz Schubert"),
+            ("Stefano Ligoratti - Haydn's Keyboard Sonata No. 2 (Partita) in B-flat major", "Stefano Ligoratti", "Joseph Haydn"),
+            ("Ivan Ilić - Haydn's Keyboard Sonata No. 32 in B minor", "Ivan Ilić", "Joseph Haydn"),
+            ("Marek Kozak - Haydn's Keyboard Sonata No. 52 in E-flat major", "Marek Kozak", "Joseph Haydn"),
+        )
+        for title,person,composer in cases:
+            with self.subTest(title=title):
+                row=candidate(title=title,performer=person,source_title='File:'+title+'.ogg',
+                              automated_triage_reason='Not eligible for machine approval; composer not in narrow sourced-title mapping')
+                profile,reason=curator.choose_candidate(row)
+                self.assertEqual(reason,'')
+                self.assertEqual(profile['performer'],person)
+                self.assertEqual(profile['composer'],composer)
+                for wrong in ("Unknown performer",composer,"Different musician"):
+                    changed=dict(row,performer=wrong)
+                    prof,reason=curator.choose_candidate(changed)
+                    self.assertIsNone(prof,"The source title and performer metadata must agree")
+        for title,person in (
+            ("Ravel's Jeux d'eau, M. 30 - Anna Sutyagina","Anna Sutyagina"),
+            ("Schubert's Lied in F minor - Chiara Bertoglio","Chiara Bertoglio"),
+        ):
+            profile,_=curator.choose_candidate(candidate(title=title,performer=person))
+            self.assertIsNone(profile,"Modern-composition or vocal exceptions must stay held")
+
+    def test_policy_reconsideration_reads_only_explicitly_triaged_queue(self):
+        title="Schubert's Impromptu no. 3 in G-flat major, D.899 - Chiara Bertoglio"
+        prior=candidate(title=title,performer="Chiara Bertoglio",
+            automated_triage_reason="Not eligible for machine approval; composer not in narrow sourced-title mapping")
+        class Client:
+            def __init__(self):self.paths=[]
+            def call(self,path,body=None):
+                self.paths.append(path)
+                self.assertNoMutation(body)
+                return {"records":[prior],"nextCursor":None}
+            def assertNoMutation(self,body):
+                if body is not None:raise AssertionError("Reconsideration dry run cannot modify rights decisions")
+        c=Client()
+        args=SimpleNamespace(max_scan=25,max_tracks=8,max_triage=0,max_mib=160,max_minutes=20,
+            apply=False,approve_source_license=False,reconsider_triaged=True)
+        receipt=curator.run(args,c,lambda _:self.fail("Dry run cannot fetch audio"))
+        self.assertEqual(receipt[0]["status"],"eligible_dry_run")
+        self.assertIn("automation=triaged",c.paths[0])
+        args.reconsider_triaged=False
+        c=Client()
+        curator.run(args,c,lambda _:self.fail("Dry run cannot fetch audio"))
+        self.assertIn("automation=1",c.paths[0])
+
     def test_media_download_is_pinned_and_checksum_checked(self):
         for value in (
             'http://upload.wikimedia.org/wikipedia/commons/a.ogg',
