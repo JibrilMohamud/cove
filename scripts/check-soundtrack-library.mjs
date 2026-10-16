@@ -133,6 +133,9 @@ try {
     "Audio files of cello music",
     "Audio files of harpsichord music",
     "Audio files of guitar music",
+    "Audio files of music by Erik Satie",
+    "Audio files of Nocturnes, Op. 9 by Frédéric Chopin",
+    "Audio files of piano music by Joseph Haydn",
   ];
   // Commons hosts already-licensed FMA audio; source discovery must never
   // access FMA directly or assume category membership implies approval.
