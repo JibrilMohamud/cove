@@ -16,23 +16,25 @@ test("reader music is opt-in, attributed, and chapter-aware", async ({ page, req
         scope: { requested: "chapter", effective: "chapter", duration: "chapter" },
         playlist: {
           completion: "estimated_session_covered",
-          tracks: [{
-            id: "cm_101",
-            reasons: ["measured intensity fits reading target"],
-            recording: {
+          tracks: [
+            {
               id: "cm_101",
-              title: "A mock rights-cleared reading piece",
-              composer: "Fixture composer",
-              performer: "Fixture performer",
-              attribution: "Fixture performer, fixture source; CC BY 4.0",
-              license: "CC BY 4.0",
-              licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
-              sourcePage: "https://commons.wikimedia.org/wiki/File:Fixture.ogg",
-              audioUrl: "/api/fore/soundtracks/recordings/cm_101/audio",
-              durationSeconds: 120,
-              fingerprint: "pinned-master",
-            },
-          }],
+              reasons: ["measured intensity fits reading target"],
+              recording: {
+                id: "cm_101",
+                title: "A mock rights-cleared reading piece",
+                composer: "Fixture composer",
+                performer: "Fixture performer",
+                attribution: "Fixture performer, fixture source; CC BY 4.0",
+                license: "CC BY 4.0",
+                licenseUrl: "https://creativecommons.org/licenses/by/4.0/",
+                sourcePage: "https://commons.wikimedia.org/wiki/File:Fixture.ogg",
+                audioUrl: "/api/fore/soundtracks/recordings/cm_101/audio",
+                durationSeconds: 120,
+                fingerprint: "pinned-master",
+              },
+              },
+          ],
         },
       },
     });
