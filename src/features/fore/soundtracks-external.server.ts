@@ -213,7 +213,14 @@ export async function handleExternalSoundtracks(
   }
   if (action==="audio" && request.method==="PUT") {
     if (!env.BUCKET) throw new ApiError(503,"Private object storage unavailable");
-    if (!["pending_review","staged"].includes(row.status)) throw new ApiError(409,"The recording is not awaiting release");
+    if (row.status === "staged" && row.storage_key) {
+      // Repeated delivery is idempotent, never a replacement of staff-reviewable audio.
+      const stored = await env.BUCKET.head?.(row.storage_key);
+      if (stored?.size === row.source_size && row.storage_bytes === row.source_size)
+        return json({id,status:"staged",sha256:row.source_file_sha256,reused:true});
+      throw new ApiError(409,"Staged master needs reconciliation before another upload.");
+    }
+    if (row.status !== "pending_review") throw new ApiError(409,"The recording is not awaiting release");
     if (!request.body) throw new ApiError(400,"Original audio stream required");
     const announced=request.headers.get("content-length");
     if (!announced || Number(announced)!==row.source_size)
@@ -232,7 +239,7 @@ export async function handleExternalSoundtracks(
       throw new ApiError(409,"Object storage did not confirm exact original size");
     }
     const updated=await env.DB.prepare(
-      "UPDATE soundtrack_external_recordings SET status='staged',storage_key=?,storage_bytes=?,updated_at=? WHERE id=? AND status IN ('pending_review','staged') RETURNING id"
+      "UPDATE soundtrack_external_recordings SET status='staged',storage_key=?,storage_bytes=?,updated_at=? WHERE id=? AND status='pending_review' RETURNING id"
     ).bind(key,head.size,timestamp(),id).first();
     if (!updated) throw new ApiError(409,"Release state changed during upload");
     await event(env,id,actor,"uploaded",{sha256:row.source_file_sha256,bytes:head.size,key});
