@@ -79,7 +79,7 @@ export function SoundtrackExternalReview() {
   return (
     <section aria-labelledby="external-rights-title">
       <h2 id="external-rights-title">Provider-delivered masters (FMA and Musopen)</h2>
-      <p>Separate delivery agreement and recording rights review required. These files are not
+      <p>Exact-recording commercial-license and lawful-acquisition evidence required; separate contracts are not mandatory for eligible FMA CC masters. These files are not
         harvested from provider websites. Staged audio is staff-only until approved.</p>
       {listing.isPending?<p role="status">Loading provider-delivery queue…</p>:null}
       {listing.isError?<p role="alert">{listing.error.message}</p>:null}
