@@ -23,6 +23,9 @@ Optional query parameters:
 The response includes policy/model identifiers, a reproducible input fingerprint,
 the effective book/chapter scope, scoped reading seconds and uncertainty, retrieval
 coverage, exclusion counts, up to 30 scored matches and a separate ordered playlist.
+The input fingerprint includes actual literary, section-duration and compact audio
+analysis snapshots: ongoing enrichment or a recount invalidates it even if the
+underlying book/audio source bytes have not changed.
 Each match exposes features, reasons and uncalibrated evidence confidence. Each
 playlist entry has original-recording metadata, attribution, license/source/profile
 URLs, start/end seconds and a measured transition cost. Original recordings are not

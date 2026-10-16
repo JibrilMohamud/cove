@@ -185,7 +185,7 @@ export async function buildMatchingPlaylist(
     loadMatchingRecordings(env, territory, effective, options.mode),
     identity?.registered
       ? env.DB.prepare(
-          "SELECT recording_id,music_fingerprint,reason FROM matching_feedback WHERE user_id=? AND product_id=? AND book_fingerprint=? AND spine=? AND mode=?",
+          "SELECT recording_id,music_fingerprint,reason FROM matching_feedback WHERE user_id=? AND product_id=? AND book_fingerprint=? AND spine=? AND mode=? ORDER BY recording_id",
         )
           .bind(identity.id, context.productId, context.fingerprint, spine ?? "", options.mode)
           .all<{ recording_id: string; music_fingerprint: string; reason: PersonalFeedback }>()
@@ -234,12 +234,15 @@ export async function buildMatchingPlaylist(
   const snapshot = await hash({
     policy: MATCHING_POLICY,
     book: context.fingerprint,
+    literaryAnalysis: effective,
+    readingDuration: duration,
+    sections: context.sections.map((s) => [s.section_id, s.profile_json, s.reading_time_json]),
     scope: spine,
     model,
     options,
     preferences,
     feedback: feedbackRows.results,
-    recordings: catalog.recordings.map((r) => [r.id, r.fingerprint]),
+    recordings: catalog.recordings.map((r) => [r.id, r.fingerprint, r.audio]),
   });
   return {
     target: target.description,

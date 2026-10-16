@@ -225,6 +225,43 @@ try {
       (t) => t.recording.attribution && t.recording.licenseUrl && !("audio" in t.recording),
     ),
   );
+  assert.equal(
+    (await server.buildMatchingPlaylist(request(), env, "US", context)).inputFingerprint,
+    result.inputFingerprint,
+    "Identical evidence produces a stable matching fingerprint",
+  );
+  const evolving = structuredClone(context);
+  evolving.sections[0].profile_json = JSON.stringify({
+    ...profile,
+    moods: { ...profile.moods, value: ["warm"] },
+  });
+  assert.notEqual(
+    (await server.buildMatchingPlaylist(request(), env, "US", evolving)).inputFingerprint,
+    result.inputFingerprint,
+    "An evolving chapter analysis changes the matching fingerprint without a source change",
+  );
+  const recount = { ...context, readingTime: { ...duration, estimatedSeconds: 210 } };
+  assert.notEqual(
+    (await server.buildMatchingPlaylist(request(), env, "US", recount)).inputFingerprint,
+    result.inputFingerprint,
+    "Duration recounts invalidate the matching snapshot",
+  );
+  const stored = await env.DB.prepare(
+    "SELECT profile_json FROM music_profiles WHERE recording_id='cm_360'",
+  ).first();
+  const remeasured = JSON.parse(stored.profile_json);
+  remeasured.audioAnalysis.signal.energy = 0.21;
+  await env.DB.prepare("UPDATE music_profiles SET profile_json=? WHERE recording_id='cm_360'")
+    .bind(JSON.stringify(remeasured))
+    .run();
+  assert.notEqual(
+    (await server.buildMatchingPlaylist(request(), env, "US", context)).inputFingerprint,
+    result.inputFingerprint,
+    "Audio analysis changes cannot share a stale matching fingerprint",
+  );
+  await env.DB.prepare("UPDATE music_profiles SET profile_json=? WHERE recording_id='cm_360'")
+    .bind(stored.profile_json)
+    .run();
   const chapter = await server.buildMatchingPlaylist(request("?spine=1&mode=focus"), env, "US", {
     ...context,
     sections: [context.sections[1]],
