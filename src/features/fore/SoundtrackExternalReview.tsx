@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Staff-only release screen will be normalized after rights-flow validation. */
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
@@ -16,6 +17,18 @@ type ExternalDetail = {
   history:{id:string;actor:string;event_type:string;created_at:string}[];
 };
 type ExternalList = {records:ExternalItem[];counts:{provider:string;status:string;n:number}[]};
+
+type EvidenceLayer = "composition" | "arrangement" | "lyrics" | "performance" | "master";
+type EvidenceRecord = { basis?: string; evidenceUrls?: string[] };
+type ExternalProvenance = {
+  grant?: { evidenceUrl?: string; grantingParty?: string; scope?: string };
+  rightsEvidence?: Partial<Record<EvidenceLayer, EvidenceRecord>>;
+};
+type ExternalQuality = {
+  durationSeconds?: number;
+  integratedLufs?: number;
+  truePeakDbfs?: number;
+};
 
 export function SoundtrackExternalReview() {
   const cache=useQueryClient();
@@ -37,11 +50,11 @@ export function SoundtrackExternalReview() {
   });
   const row=detail.data?.record;
   const provenance=(()=>{
-    try {return row?JSON.parse(row.provenance_json) as Record<string,any>:null;}
+    try {return row?JSON.parse(row.provenance_json) as ExternalProvenance:null;}
     catch{return null;}
   })();
   const quality=(()=>{
-    try {return row?JSON.parse(row.quality_report_json) as Record<string,any>:null;}
+    try {return row?JSON.parse(row.quality_report_json) as ExternalQuality:null;}
     catch{return null;}
   })();
   async function decision(action:"approve"|"revoke"|"reject") {
