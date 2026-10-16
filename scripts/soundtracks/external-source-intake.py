@@ -70,12 +70,24 @@ def validate(r):
     if r.get("unresolved") not in (None, []):
         raise ValueError("Unresolved rights questions")
     grant = r.get("providerAccessGrant")
-    if (not isinstance(grant, dict) or not secure_url(grant.get("evidenceUrl")) or
-            len(str(grant.get("grantingParty", "")).strip()) < 3 or
-            "commercial" not in str(grant.get("scope", "")).lower() or
-            "download" not in str(grant.get("scope", "")).lower() or
-            "redistribut" not in str(grant.get("scope", "")).lower()):
-        raise ValueError("Separate provider-authorized commercial download grant required")
+    acquisition = r.get("acquisitionEvidence")
+    if grant is not None:
+        if (not isinstance(grant, dict) or not secure_url(grant.get("evidenceUrl")) or
+                len(str(grant.get("grantingParty", "")).strip()) < 3 or
+                "commercial" not in str(grant.get("scope", "")).lower() or
+                "download" not in str(grant.get("scope", "")).lower() or
+                "redistribut" not in str(grant.get("scope", "")).lower()):
+            raise ValueError("Claimed separate commercial delivery grant is incomplete")
+    if acquisition is not None:
+        if (not isinstance(acquisition, dict) or acquisition.get("method") != "manual_download" or
+                acquisition.get("sourcePageUrl") != page or
+                acquisition.get("noAutomatedProviderAccess") is not True or
+                acquisition.get("originalUnmodified") is not True or
+                not isinstance(acquisition.get("acquiredAt"), str) or
+                not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|\+00:00)", acquisition["acquiredAt"])):
+            raise ValueError("Exact-track manual acquisition evidence is missing or malformed")
+    if grant is None and not (r["provider"] == "fma" and code != "PD" and acquisition is not None):
+        raise ValueError("A source-specific delivery grant or lawful manual FMA acquisition is required")
     if r.get("compositionRightsConfirmed") is not True or r.get("masterRedistributionConfirmed") is not True:
         raise ValueError("Composition and exact-master rights not confirmed")
     if r.get("territories") != ["US"]:
@@ -163,7 +175,8 @@ def evaluate(manifest, audio_dir, limit=MAX_TRACKS, run_qa=True):
                 entry["quality"] = q
             entry.update(status="qa_verified_staged" if run_qa else "rights_evidence_staged",
                          source={k:r[k] for k in ("provider","sourcePageUrl","licenseCode","licenseUrl","sha1","sha256","bytes","file")},
-                         rightsEvidence=r["rightsEvidence"],providerAccessGrant=r["providerAccessGrant"],
+                         rightsEvidence=r["rightsEvidence"],providerAccessGrant=r.get("providerAccessGrant"),
+                         acquisitionEvidence=r.get("acquisitionEvidence"),
                          attributionText=r["attributionText"])
         except (ValueError, OSError, KeyError) as error:
             entry["reason"] = str(error)[:300]

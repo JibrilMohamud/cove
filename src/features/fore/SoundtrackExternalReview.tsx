@@ -22,6 +22,7 @@ type EvidenceLayer = "composition" | "arrangement" | "lyrics" | "performance" | 
 type EvidenceRecord = { basis?: string; evidenceUrls?: string[] };
 type ExternalProvenance = {
   grant?: { evidenceUrl?: string; grantingParty?: string; scope?: string };
+  acquisition?: { method?: string; sourcePageUrl?: string; acquiredAt?: string; noAutomatedProviderAccess?: boolean };
   rightsEvidence?: Partial<Record<EvidenceLayer, EvidenceRecord>>;
 };
 type ExternalQuality = {
@@ -78,7 +79,7 @@ export function SoundtrackExternalReview() {
   return (
     <section aria-labelledby="external-rights-title">
       <h2 id="external-rights-title">Provider-delivered masters (FMA and Musopen)</h2>
-      <p>Separate delivery agreement and recording rights review required. These files are not
+      <p>Exact-recording commercial-license and lawful-acquisition evidence required; separate contracts are not mandatory for eligible FMA CC masters. These files are not
         harvested from provider websites. Staged audio is staff-only until approved.</p>
       {listing.isPending?<p role="status">Loading provider-delivery queue…</p>:null}
       {listing.isError?<p role="alert">{listing.error.message}</p>:null}
@@ -101,9 +102,13 @@ export function SoundtrackExternalReview() {
           LUFS: {quality?.integratedLufs} · true peak: {quality?.truePeakDbfs} dBFS</p>
         <p><a href={row.source_page_url} target="_blank" rel="noopener noreferrer">Original provider recording page</a>{" "}
           <a href={row.license_url} target="_blank" rel="noopener noreferrer">Exact published license</a>{" "}
-          <a href={provenance.grant?.evidenceUrl} target="_blank" rel="noopener noreferrer">Commercial provider / master grant</a></p>
-        <p>Grant by: {provenance.grant?.grantingParty} ·
-          Stated scope: {provenance.grant?.scope}</p>
+          {provenance.grant?.evidenceUrl ? (
+            <a href={provenance.grant.evidenceUrl} target="_blank" rel="noopener noreferrer">Commercial provider / master grant</a>
+          ) : (
+            <span>FMA license-reliance with attested manual acquisition (verify independently)</span>
+          )}</p>
+        {provenance.grant ? <p>Grant by: {provenance.grant.grantingParty} · Stated scope: {provenance.grant.scope}</p> :
+          <p>Manual acquisition asserted: {provenance.acquisition?.acquiredAt || "unknown"} · Source: {provenance.acquisition?.sourcePageUrl || "not supplied"} · No automated provider requests asserted</p>}
         <p>Attribution: {row.attribution_text}</p>
         <details><summary>Five layers of recorded provenance</summary>
           {(["composition","arrangement","lyrics","performance","master"] as const).map(part=>{

@@ -51,13 +51,31 @@ class SoundtrackCurationTests(unittest.TestCase):
             dict(performer='Johann Sebastian Bach'),dict(performer='composer: Bach'),
             dict(performer=''),dict(performer='Unknown performer'),
             dict(source_sha1='not-a-checksum'),dict(source_size=0),
-            dict(instruments_json='[]'),dict(source_file_url='https://evil.test/file.ogg'),
+            dict(source_file_url='https://evil.test/file.ogg'),
             dict(source_page_url='https://evil.test/wiki/File:fake')
         ):
             with self.subTest(override=override):
                 prof,reason=curator.choose_candidate(candidate(**override))
                 self.assertIsNone(prof)
                 self.assertTrue(reason)
+
+    def test_extended_historical_composers_are_source_reliant_not_invented(self):
+        cases=(("Ludwig van Beethoven - Sonata, 1st movement","Randolph Hokanson"),
+               ("Wolfgang Amadeus Mozart - Minuet","Martha Goldstein (musician)"),
+               ("Robert Schumann - Fantasie","Neal and Nancy O'Doan"),
+               ("Domenico Zipoli - Gavotte","Martha Goldstein"))
+        for title,artist in cases:
+            with self.subTest(title=title):
+                profile,reason=curator.choose_candidate(candidate(title=title,performer=artist,instruments_json='[]'))
+                self.assertEqual(reason,'')
+                self.assertEqual(profile['instruments'],['unspecified'])
+                self.assertTrue(profile['performer'])
+        for artist in ("See above","Wolfgang Amadeus Mozart","unknown performer","composer: Beethoven"):
+            with self.subTest(artist=artist):
+                profile,_=curator.choose_candidate(candidate(title="Wolfgang Amadeus Mozart - Minuet",performer=artist))
+                self.assertIsNone(profile)
+        profile,_=curator.choose_candidate(candidate(title="Robert Schumann - Lieder",performer="Martha Goldstein"))
+        self.assertIsNone(profile,"Vocal material must not be automatically treated as lyric-free")
 
     def test_media_download_is_pinned_and_checksum_checked(self):
         for value in (

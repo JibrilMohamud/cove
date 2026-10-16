@@ -118,5 +118,29 @@ try {
     "Scheduled cleanup must retry the deleted recording");
   assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_external_events WHERE recording_id=?").bind(id).first()).n,4);
   await assert.rejects(()=>env.DB.prepare("DELETE FROM soundtrack_external_events").run(),/append-only/);
+  const manuallyAcquired=Buffer.from("Synthetic manually acquired FMA fixture, distinct recording");
+  const secondSha1=createHash("sha1").update(manuallyAcquired).digest("hex");
+  const secondSha256=createHash("sha256").update(manuallyAcquired).digest("hex");
+  const manualManifest={...manifest,
+    sourcePageUrl:"https://freemusicarchive.org/music/Artist/Album/Second_Track/",
+    title:"Fixture Manually Acquired CC Track",sha1:secondSha1,sha256:secondSha256,
+    bytes:manuallyAcquired.length,
+    quality:{...quality,sourceSha1:secondSha1,sha256:secondSha256,bytes:manuallyAcquired.length},
+    acquisitionEvidence:{method:"manual_download",
+      sourcePageUrl:"https://freemusicarchive.org/music/Artist/Album/Second_Track/",
+      acquiredAt:now,noAutomatedProviderAccess:true,originalUnmodified:true},
+  };
+  delete manualManifest.providerAccessGrant;
+  const secondRegister=await route(register,"POST",manualManifest);
+  assert.equal(secondRegister.status,201,"Commercial CC original needs no redundant provider contract");
+  const secondRegistration=await secondRegister.json();
+  const manualAudio="/admin/soundtracks/external/"+secondRegistration.id+"/audio";
+  await route(manualAudio,"PUT",manuallyAcquired);
+  assert.equal((await (await listing()).json()).count,0,"Manual acquisition must not bypass human approval");
+  const manualApproval=await route("/admin/soundtracks/external/"+secondRegistration.id+"/approve","POST",
+    {...reviewerInput,provenanceSha256:secondRegistration.provenanceSha256},staff);
+  assert.equal((await manualApproval.json()).status,"ready");
+  assert.equal((await (await listing()).json()).count,1);
+
   console.log("External provider release tests passed: immutable rights history, QA, R2, playback, staff approval, revocation.");
 } finally { fs.rmSync(root,{recursive:true,force:true}); }

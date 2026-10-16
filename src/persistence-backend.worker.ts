@@ -617,10 +617,21 @@ async function runScheduled(cron: string, env: BackendEnv) {
       await discoverSoundtrackCandidates(env).catch((error) =>
         console.warn("Soundtrack discovery failed", String(error).slice(0, 160)),
       );
-      // Only reviewed recordings may be mirrored to private R2.
-      await importOneReviewedSoundtrack(env).catch((error) =>
-        console.warn("Soundtrack import failed", String(error).slice(0, 160)),
-      );
+      // Bound imports to two verified originals per tick (12/hour). This exceeds
+      // the curator's hourly maximum of eight and prevents an accumulating
+      // approved-but-not-playable backlog without unbounded Worker work.
+      for (let index = 0; index < 2; index++) {
+        try {
+          const result = await importOneReviewedSoundtrack(env);
+          if ("stored" in result || "failed" in result || "invalidated" in result) {
+            console.info("Cove soundtrack R2 import", JSON.stringify(result));
+          }
+          if ("skipped" in result || "canceled" in result) break;
+        } catch (error) {
+          console.warn("Soundtrack import failed", String(error).slice(0, 160));
+          break;
+        }
+      }
       const backlog = await env.DB.prepare(
         "SELECT COUNT(*) count FROM audio_jobs WHERE kind='track' AND status IN ('queued','running')",
       ).first<{ count?: number }>();
