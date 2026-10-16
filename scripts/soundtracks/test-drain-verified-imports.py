@@ -49,7 +49,7 @@ class DrainTests(unittest.TestCase):
         self.assertEqual(result["playableVerified"],0)
         self.assertEqual(result["results"][0]["status"],"verification_failed")
     def test_source_rights_drift_is_visible_hold(self):
-        o=Opener([{"invalidated":"cm_123"},{"failed":"cm_456"},{"skipped":"leased"}])
+        o=Opener([{"invalidated":"cm_123"},{"failed":"cm_456"},{"skipped":"no_approved_recordings"}])
         r=mod.drain("fore_svc_fixture",attempts=5,opener=o)
         self.assertEqual([x["status"] for x in r["results"]],["import_held","import_held","skipped"])
         self.assertEqual(r["playableVerified"],0)
