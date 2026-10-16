@@ -1,12 +1,11 @@
 name: Bootstrap verified soundtrack publication
 
 on:
-  # One bounded immediate apply on its release; usual hourly schedule
-  # continues in curate-soundtrack-source-licenses.yml.
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/bootstrap-soundtrack-source-release.yml"
+  # Only use production secrets after the authoritative backend has migrated
+  # and deployed successfully. Also runs after future safe main releases.
+  workflow_run:
+    workflows: [deploy-persistence-backend]
+    types: [completed]
 
 permissions:
   contents: read
@@ -17,12 +16,15 @@ concurrency:
 
 jobs:
   release:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ secrets.COVE_SOUNDTRACK_REVIEW_TOKEN }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
