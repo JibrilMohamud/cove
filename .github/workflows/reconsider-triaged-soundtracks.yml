@@ -14,6 +14,10 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/reconsider-triaged-soundtracks.yml"
+      # Trusted main changes to the vetted composer/performer rules warrant one
+      # bounded release; PR executions never receive production credentials.
+      - "scripts/soundtracks/curate-source-license.py"
+      - "scripts/soundtracks/test-curate-source-license.py"
 
 permissions:
   contents: read
