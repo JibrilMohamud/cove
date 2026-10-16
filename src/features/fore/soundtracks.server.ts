@@ -18,7 +18,8 @@ const CATEGORIES = [
   { name: "Audio files of renaissance period classical music", period: "renaissance", instrument: "" },
   { name: "Audio files of medieval period classical music", period: "medieval", instrument: "" },
 ] as const;
-const MAX_DISCOVERED = 750;
+const MAX_PENDING = 750;
+const DISCOVERY_RESCAN_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_BYTES = 25 * 1024 * 1024;
 const API = "https://commons.wikimedia.org/w/api.php";
 const AGENT = "CoveSoundtracks/0.2 (https://cove-puce-theta.vercel.app/help; rights-review)";
@@ -153,11 +154,8 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
   const state = await env.DB.prepare("SELECT * FROM soundtrack_ingestion_state WHERE id=1").first<{
     category_index:number; continuation:string; discovered:number; last_discovery_at:string; category_cursors_json:string
   }>();
-  if (!state || state.discovered >= MAX_DISCOVERED)
-    return { skipped: "complete", discovered: Number(state?.discovered || 0) };
+  if (!state) return { skipped: "missing_ingestion_state" };
   const cursors = JSON.parse(state.category_cursors_json || "{}") as Record<string,string>;
-  if (CATEGORIES.every(cat => cursors[cat.name] === "DONE"))
-    return { skipped: "categories_exhausted", discovered: Number(state.discovered) };
   const now = new Date().toISOString();
   if (state.last_discovery_at && Date.now() - Date.parse(state.last_discovery_at) < 8 * 60_000)
     return { skipped: "cadence" };
@@ -167,6 +165,34 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
   ).bind(token, new Date(Date.now()+90_000).toISOString(), now).first<{ id:number }>();
   if (!lease) return { skipped: "leased" };
   try {
+    // Bound outstanding review work, not cumulative lifetime discoveries. The old
+    // 750-total cap permanently stopped the crawler even after releases freed space.
+    const queued = Number((await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM soundtrack_recordings WHERE status IN ('pending_review','approved','importing','import_failed')",
+    ).first<{ n:number }>())?.n || 0);
+    if (queued >= MAX_PENDING) {
+      await env.DB.prepare(
+        "UPDATE soundtrack_ingestion_state SET lease_until='',lease_token='' WHERE id=1 AND lease_token=?",
+      ).bind(token).run();
+      return { skipped: "review_queue_backpressure", queued, capacity: MAX_PENDING };
+    }
+    // Category exhaustion is not permanent: a weekly re-crawl discovers new
+    // uploads but INSERT OR IGNORE preserves prior decisions and withdrawals.
+    if (CATEGORIES.every(cat => cursors[cat.name] === "DONE")) {
+      const exhaustedAt = Date.parse(cursors._cycleFinishedAt || "");
+      if (!Number.isFinite(exhaustedAt)) {
+        cursors._cycleFinishedAt = now;
+      } else if (Date.now() - exhaustedAt >= DISCOVERY_RESCAN_INTERVAL_MS) {
+        for (const category of CATEGORIES) delete cursors[category.name];
+        delete cursors._cycleFinishedAt;
+      }
+      if (cursors._cycleFinishedAt) {
+        await env.DB.prepare(
+          "UPDATE soundtrack_ingestion_state SET category_cursors_json=?,lease_until='',lease_token='' WHERE id=1 AND lease_token=?",
+        ).bind(JSON.stringify(cursors),token).run();
+        return { skipped: "categories_exhausted", retryAfter: new Date(Date.parse(cursors._cycleFinishedAt)+DISCOVERY_RESCAN_INTERVAL_MS).toISOString() };
+      }
+    }
     let categoryIndex = Number(state.category_index) % CATEGORIES.length;
     for (let index = 0; index < CATEGORIES.length; index++) {
       if (cursors[CATEGORIES[categoryIndex].name] !== "DONE") break;
@@ -183,7 +209,7 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
     let added = 0;
     const pages = Object.values(data.query?.pages || {}).sort((a,b) => (a.pageid || 0)-(b.pageid || 0));
     for (const page of pages) {
-      if (Number(state.discovered) + added >= MAX_DISCOVERED) break;
+      if (queued + added >= MAX_PENDING) break;
       const c = validCandidate(page);
       if (!c) continue;
       const tags = profile(c.title, category);
@@ -201,13 +227,13 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
         now,now).run() as { meta?: { changes?: number } };
       added += Number(result?.meta?.changes || 0);
     }
-    const reachedLimit = Number(state.discovered) + added >= MAX_DISCOVERED;
+    const reachedLimit = queued + added >= MAX_PENDING;
     cursors[category.name] = data.continue?.gcmcontinue || "DONE";
     await env.DB.prepare(
       "UPDATE soundtrack_ingestion_state SET category_index=?,category_cursors_json=?,continuation='',discovered=discovered+?,last_discovery_at=?,last_error='',lease_until='',lease_token='' WHERE id=1 AND lease_token=?",
     ).bind((categoryIndex+1)%CATEGORIES.length,JSON.stringify(cursors),added,now,token).run();
     return { scanned: pages.length, queuedForRightsReview: added, total: Number(state.discovered)+added,
-      reachedLimit, source: category.name };
+      reachedLimit, reviewQueue: queued + added, source: category.name };
   } catch (error) {
     await env.DB.prepare(
       "UPDATE soundtrack_ingestion_state SET lease_until='',lease_token='',last_error=?,last_discovery_at=? WHERE id=1 AND lease_token=?",
