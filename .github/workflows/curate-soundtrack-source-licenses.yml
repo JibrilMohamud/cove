@@ -34,7 +34,7 @@ concurrency:
 jobs:
   curate:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       # Never expose the production review credential to code checked out for a PR.
       COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ github.event_name != 'pull_request' && secrets.COVE_SOUNDTRACK_REVIEW_TOKEN || '' }}
@@ -47,6 +47,7 @@ jobs:
         run: |
           python scripts/soundtracks/test-curate-source-license.py -q
           python scripts/soundtracks/test-verify-production-playback.py -q
+          python scripts/soundtracks/test-drain-verified-imports.py -q
       - name: Install and verify FFmpeg tools
         run: |
           set -euo pipefail
@@ -76,6 +77,21 @@ jobs:
             args+=(--apply --approve-source-license)
           fi
           python scripts/soundtracks/curate-source-license.py "${args[@]}"
+      - name: Drain approved R2 originals and verify public byte-range playback
+        if: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)) && env.COVE_SOUNDTRACK_REVIEW_TOKEN != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/soundtracks/drain-verified-imports.py \
+            --max-imports 8 --max-minutes 12 --output soundtrack-import-receipts.json
+      - name: Preserve non-secret playable import receipts
+        if: always() && env.COVE_SOUNDTRACK_REVIEW_TOKEN != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: soundtrack-curation-import-receipts
+          path: soundtrack-import-receipts.json
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Upload non-secret receipts
         if: always() && env.COVE_SOUNDTRACK_REVIEW_TOKEN != ''
         uses: actions/upload-artifact@v4
