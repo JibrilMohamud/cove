@@ -162,6 +162,7 @@ export function ReaderSoundtrack({
   // continues only after the reader has explicitly started playback.
   return (
     <section
+      role="region"
       aria-label={ui("Reading soundtrack")}
       className="reader-soundtrack"
       aria-hidden={!expanded && !playing}
