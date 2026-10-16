@@ -202,6 +202,37 @@ try {
       )
       .run();
   }
+  // A globally low-ranked motif must still reach the planner when it is an
+  // excellent fit at a later narrative checkpoint. All choices remain drawn
+  // from the globally eligible catalog and no candidate repeats.
+  const toyRanked = Array.from({ length: 120 }, (_, i) => ({ id: `r_${i}` }));
+  const later = structuredClone(profile);
+  later.moods.value = ["tense"];
+  const selected = core.selectNarrativeCandidates(
+    toyRanked,
+    [profile, later],
+    (passage, candidate) =>
+      passage === later && candidate.id === "r_119" ? 1 : -Number(candidate.id.slice(2)),
+  );
+  assert.equal(selected.length, 80);
+  assert.equal(new Set(selected.map((r) => r.id)).size, 80);
+  assert.ok(
+    selected.some((r) => r.id === "r_119"),
+    "Later-scene local matches cannot disappear behind the global top-80 cutoff",
+  );
+  assert.deepEqual(selected.slice(0, 40), toyRanked.slice(0, 40));
+  assert.deepEqual(
+    core.selectNarrativeCandidates(toyRanked, [], () => 1),
+    toyRanked.slice(0, 80),
+    "Missing chapter evidence falls back to the existing exhaustive global shortlist",
+  );
+  assert.deepEqual(
+    core.selectNarrativeCandidates(toyRanked, [profile, later], (p, r) =>
+      p === later && r.id === "r_119" ? 1 : -Number(r.id.slice(2)),
+    ),
+    selected,
+    "Arc-aware retrieval is deterministic for fixed book and recording inputs",
+  );
   const eligible = await catalog.loadMatchingRecordings(env, "US", profile, "atmosphere");
   assert.equal(eligible.recordings.length, 360);
   assert.equal(eligible.retrieval.exhaustive, true);

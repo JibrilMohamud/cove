@@ -73,7 +73,12 @@ vocal-free full recording. Unknown or uncited literary dimensions do not become
 facts. Too little literary evidence returns no invented matching playlist.
 
 A deterministic beam search considers at most 80 finalists, 8 partial sequences,
-16 expansions per step and 32 tracks. It rescores local chapter targets and measured
+16 expansions per step and 32 tracks. For longer catalogs, finalist retrieval retains
+40 global leaders, then samples the remaining reading session at six narrative
+checkpoints to recover tracks that are locally strong but weak against the whole-book
+average. A final global fill preserves capacity when evidence is insufficient.
+The selection is deterministic and never bypasses global rights, territory, QA,
+intensity or reader-exclusion checks. It rescores local chapter targets and measured
 signal trajectories across candidate playback, penalizes entry/exit discontinuity,
 repeated composers and inferred repeated work titles, and forbids repeating the same
 SHA-1 under alternate recording IDs. The response reports duration overrun, insufficient
