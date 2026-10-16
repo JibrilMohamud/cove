@@ -6,6 +6,11 @@ on:
   workflow_run:
     workflows: [deploy-persistence-backend]
     types: [completed]
+  # Release this workflow's fix without unnecessarily redeploying the Worker.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/bootstrap-soundtrack-source-release.yml"
 
 permissions:
   contents: read
@@ -16,7 +21,7 @@ concurrency:
 
 jobs:
   release:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push' }}
+    if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -24,18 +29,23 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event_name == 'push' && github.sha || github.event.workflow_run.head_sha }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Test fail-closed rights-review boundaries
         run: python scripts/soundtracks/test-curate-source-license.py -q
-      - name: Verify usable FFmpeg measurement tools
+      - name: Install and verify FFmpeg measurement tools
         shell: bash
         run: |
           set -euo pipefail
+          if ! command -v ffprobe >/dev/null || ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
           command -v ffprobe
           command -v ffmpeg
+          ffmpeg -version | head -n 1
       - name: Require scope-limited production review credential
         shell: bash
         run: |
