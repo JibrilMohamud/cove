@@ -23,3 +23,39 @@ Reinstatement requires an entirely fresh, supported rights determination for the
 ## Ongoing checks
 
 Audit remaining US-ready `PD` recordings individually for recording-age, source legal territory, sound-recording publication history, and performer identity; no automated license label is a substitute for a territory-specific determination. Track verified rights-clearance exceptions and documented staff approval where the original file declaration is ambiguous.
+
+## Recording-level follow-up and automated-policy hardening
+
+The same 2026-10-16 production audit identified six more automatically approved
+`PD` recordings whose true master/performance permissions were either presented
+under a distinct license or not traceable to the person labelled as performer:
+
+- `cm_12402239`: Satie Gnossienne No. 1, recorded by La Pianista. The Commons source provides CC BY-SA 3.0 for **the performance** separately from public-domain composition terms. The stored `PD` classification omitted that distinct licence.
+- `cm_3432550`: Satie Gymnopédie No. 1, credited to Robin Alciatore. The original master was obtained from Musopen; Cove's source-reliance path requires additional original-delivery verification for such recordings.
+- `cm_61547`: Beethoven Symphony 5 performance. Commons lists the EFF Open Audio License for the sound, not a blanket recording-level public-domain release. The backend identified an uploader as performer rather than the named orchestra and conductor.
+- `cm_14976800`, `cm_14976913`, `cm_14976923`: Schumann Kreisleriana tracks whose file pages name pianist Giorgi Latsabidze, but the catalog performer was a separate uploader, Taraplid. The uploader asserts a PD dedication of an own-work recording, but the pianist/recording permission relationship remains unclear. These require an individual review rather than an automatically assumed performer identity.
+
+All six exact records were withdrawn in production with playback rights cleared,
+versioned records, six append-only events, six rights decisions and six durable R2
+cleanup tickets. This is a conservative rights hold and **not** a determination
+that the original rightsholders lack permission. Properly evidenced recordings
+may be re-reviewed and republished with the **correct recording-level** license,
+attribution, and performance rights.
+
+The automated source curator now **never** approves a `PD`-badged audio master
+from aggregated metadata alone. Such candidates remain available to staff. At
+the API layer, an individual source-reliance `PD` approval must match an original
+Commons `PD-self` **sound-recording declaration**; an EU-only phonogram claim
+remains forbidden for US release. More complex provenance requires the
+independent staff-review route. Commercial CC0, CC BY and CC BY-SA originals
+continue through the existing fail-closed source and audio-quality checks.
+
+Sources:
+- https://commons.wikimedia.org/wiki/File:Satie_-_Gnossienne_1.ogg
+- https://commons.wikimedia.org/wiki/File:Erik_Satie_-_gymnopedies_-_la_1_ere._lent_et_douloureux.ogg
+- https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_Symphonie_5_c-moll_-_1._Allegro_con_brio.ogg
+- https://commons.wikimedia.org/wiki/File:Robert_Schumann_Kreisleriana_Op._16_N1_Giorgi_Latsabidze.ogg
+
+The music-profile queue and published-playback index must always exclude withdrawn
+recordings, and an error assessing one candidate cannot prevent independent
+approved originals from progressing to storage.
