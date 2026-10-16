@@ -33,6 +33,17 @@ const CATEGORIES = [
   { name: "Audio files of music by Antonio Vivaldi", period: "baroque", instrument: "" },
   { name: "Audio files of music by Robert Schumann", period: "romantic", instrument: "" },
   { name: "Audio files of music by Felix Mendelssohn", period: "romantic", instrument: "" },
+  // Quiet-reading acquisition lanes. Category membership supplies discovery
+  // only; playback intensity comes from measured audio, never these labels.
+  // Every individual original must still pass composition/master provenance,
+  // commercial license, territory, fingerprint, quality and R2 storage checks.
+  { name: "Audio files of adagio (music)", period: "mixed", instrument: "" },
+  { name: "Audio files of music by Frédéric Chopin", period: "romantic", instrument: "" },
+  { name: "Audio files of nocturnes by Frédéric Chopin", period: "romantic", instrument: "piano" },
+  { name: "Audio files of harp music", period: "mixed", instrument: "harp" },
+  { name: "Audio files of cello music", period: "mixed", instrument: "cello" },
+  { name: "Audio files of harpsichord music", period: "mixed", instrument: "harpsichord" },
+  { name: "Audio files of guitar music", period: "mixed", instrument: "guitar" },
 ] as const;
 const MAX_PENDING = 750;
 const DISCOVERY_RESCAN_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
