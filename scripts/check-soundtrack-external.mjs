@@ -95,10 +95,18 @@ try {
   assert.equal(rangeResponse.status,206);
   assert.equal(await rangeResponse.text(),sample.subarray(2,8).toString());
   await assert.rejects(()=>route(audio,"GET",null,null,"FR"),/unavailable/i);
+  const deleteOriginal=env.BUCKET.delete;
+  env.BUCKET.delete=async()=>{throw Error("Simulated temporary R2 storage outage");};
   const revoke=await route("/admin/soundtracks/external/"+id+"/revoke","POST",
     {reason:"Test fixture checks immediate withdrawal of the public streaming entitlement."});
   assert.equal((await revoke.json()).status,"revoked");
   assert.equal((await (await listing()).json()).count,0);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_cleanup_queue WHERE recording_id=?").bind(id).first()).n,1,
+    "A failed R2 deletion must enqueue durable cleanup even though public playback was immediately removed");
+  env.BUCKET.delete=deleteOriginal;
+  await lib.importOneReviewedSoundtrack(env);
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_cleanup_queue WHERE recording_id=?").bind(id).first()).n,0,
+    "Scheduled cleanup must retry the deleted recording");
   assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_external_events WHERE recording_id=?").bind(id).first()).n,4);
   await assert.rejects(()=>env.DB.prepare("DELETE FROM soundtrack_external_events").run(),/append-only/);
   console.log("External provider release tests passed: immutable rights history, QA, R2, playback, staff approval, revocation.");
