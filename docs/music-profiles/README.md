@@ -59,9 +59,18 @@ The historical-reliability field explicitly identifies source declarations.
 Admin operations require the existing scoped `soundtracks.review` service principal
 or a staff reviewer with MFA. The scheduled GitHub Actions `Profile published music
 masters` workflow uses the existing review secret, runs two independent bounded
-consumers hourly and on relevant main changes, and retains sanitized receipts. Each
+consumers every 30 minutes (only if the authenticated queue check detects work) and
+on relevant main changes, and retains sanitized receipts. Each
 consumer handles at most 40 masters/24 minutes, with a maximum 30-minute claim.
-Weights are cached. A lightweight authenticated queue check skips scheduled model
+Weights are cached. When multiple eligible original masters are waiting, the queue schedules
+already rights-cleared, approved, explicitly instrumental quiet-movement
+titles (adagio, lento, nocturne, berceuse, lullaby) before general
+recordings. This does **not** treat title words as measured quietness, does
+not approve pending rights candidates, and does not relax any master or
+territory validation. Subsequent signal/CLAP analysis alone determines
+whether a track qualifies for strict focus mode.
+
+A lightweight authenticated queue check skips scheduled model
 setup entirely when no queued or running work exists; running claims keep expired-lease
 recovery eligible. Queue-check failures fail closed rather than silently skipping work.
 Pull requests, code pushes and manual diagnostics always retain the full model smoke.
