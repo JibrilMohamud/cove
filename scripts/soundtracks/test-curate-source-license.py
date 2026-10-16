@@ -117,6 +117,43 @@ class SoundtrackCurationTests(unittest.TestCase):
                 self.assertIsNone(profile)
                 self.assertTrue(reason)
 
+    def test_ten_exact_self_recorded_serna_viol_masters_without_blanket_artist_trust(self):
+        self.assertEqual(len(curator.SERNA_SELF_RECORDED_ORIGINALS),10)
+        for recording_id, spec in curator.SERNA_SELF_RECORDED_ORIGINALS.items():
+            with self.subTest(id=recording_id):
+                title,composer,period=spec
+                row=candidate(id=recording_id,title=title,performer='Phillipwserna',
+                    source_title='File:'+title+'.ogg',license_code='CC-BY-SA',
+                    license_url='https://creativecommons.org/licenses/by-sa/4.0/',
+                    license_statement='CC BY-SA 4.0',instruments_json='[]')
+                profile,reason=curator.choose_candidate(row)
+                self.assertEqual(reason,'')
+                self.assertEqual(profile['performer'],'Dr. Phillip W. Serna')
+                self.assertEqual(profile['composer'],composer)
+                self.assertEqual(profile['period'],period)
+                self.assertEqual(profile['instruments'],['viol'])
+                self.assertEqual(profile['sourceLicensor'],'Phillipwserna')
+                self.assertTrue(profile['selfRecordedOriginal'])
+                dossier,approval=curator.prepare_release(row,profile)
+                self.assertIn('Phillipwserna',dossier['attributionText'])
+                self.assertIn('all parts',dossier['sourceReliance']['declarationBasis'])
+                self.assertEqual(approval['territories'],['US'])
+                for change in (
+                    {'performer':'unrelated uploader'},
+                    {'performer':composer},
+                    {'license_code':'CC-BY-NC','license_url':'https://creativecommons.org/licenses/by-nc/4.0/'},
+                    {'license_code':'PD','license_url':'https://commons.wikimedia.org/wiki/Commons:Licensing'},
+                    {'title':title+' - unauthorized remix'},
+                    {'source_title':'File:some_other_recording.ogg'},
+                ):
+                    altered=dict(row,**change)
+                    held,why=curator.choose_candidate(altered)
+                    self.assertIsNone(held,why)
+                unrelated=dict(row,id='cm_919999999')
+                held,_=curator.choose_candidate(unrelated)
+                self.assertFalse(held and held.get('selfRecordedOriginal'),
+                    'The ten-record whitelist must never confer self-recorded status to other tracks')
+
     def test_self_published_historical_guitar_exact_master_and_licensor(self):
         cases=(
             ("Sor Op 31 No. 1","Fernando Sor"),
