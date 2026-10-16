@@ -12,6 +12,15 @@ const evidenceUrl = z.string().url().max(1000).refine(value => {
   return u.protocol === "https:" && !u.username && !u.password && !u.port;
 }, "HTTPS evidence required");
 const layer = z.object({ basis:z.string().trim().min(40).max(4000), evidenceUrls:z.array(evidenceUrl).min(1).max(12) });
+// A record-specific CC license can authorize commercial reuse without a new contract.
+// Site access is a separate gate: FMA manual, non-automated acquisition is attested.
+const manualAcquisition = z.object({
+  method: z.literal("manual_download"),
+  sourcePageUrl: evidenceUrl,
+  acquiredAt: z.string().datetime(),
+  noAutomatedProviderAccess: z.literal(true),
+  originalUnmodified: z.literal(true),
+});
 const providerGrant = z.object({
   grantingParty:z.string().trim().min(3).max(300),
   scope:z.string().trim().min(40).max(1500).refine(x=>/commercial/i.test(x) && /download/i.test(x) && /redistribut/i.test(x),
@@ -31,7 +40,8 @@ const manifestSchema = z.object({
   licenseCode:z.enum(["PD","CC0","CC-BY","CC-BY-SA"]),
   licenseUrl:evidenceUrl,
   licenseStatement:z.string().trim().min(3).max(250),
-  providerAccessGrant:providerGrant,
+  providerAccessGrant:providerGrant.optional(),
+  acquisitionEvidence:manualAcquisition.optional(),
   rightsEvidence:rights,
   compositionRightsConfirmed:z.literal(true),
   masterRedistributionConfirmed:z.literal(true),
@@ -61,6 +71,13 @@ const manifestSchema = z.object({
     new RegExp("^https://creativecommons\\.org/licenses/"+(code === "CC-BY"?"by":"by-sa")+"/(?:2\\.0|2\\.5|3\\.0|4\\.0)/$").test(canonical);
   if (!valid || license.search || license.hash)
     ctx.addIssue({code:"custom",message:"Exact provider-declared commercial license URL required",path:["licenseUrl"]});
+  // Musopen public-domain claims are not a commercial website-acquisition grant.
+  if (!m.providerAccessGrant &&
+      !(m.provider === "fma" && m.licenseCode !== "PD" && m.acquisitionEvidence &&
+        m.acquisitionEvidence.sourcePageUrl === m.sourcePageUrl))
+    ctx.addIssue({code:"custom",message:"A specific delivery grant or a lawful FMA manual-acquisition attestation is required",path:["acquisitionEvidence"]});
+  if (m.acquisitionEvidence && m.acquisitionEvidence.sourcePageUrl !== m.sourcePageUrl)
+    ctx.addIssue({code:"custom",message:"Acquisition evidence must match the exact track page",path:["acquisitionEvidence"]});
   if (m.quality.sourceSha1 !== m.sha1 || m.quality.sha256 !== m.sha256 || m.quality.bytes !== m.bytes ||
       !qualityPasses(m.quality))
     ctx.addIssue({code:"custom",message:"Full audio QA must pass for the exact supplied master",path:["quality"]});
@@ -171,7 +188,7 @@ export async function handleExternalSoundtracks(
     if (duplicate) throw new ApiError(409,"The master is already approved in Commons.");
     const provenance = {
       provider:m.provider,sourcePageUrl:m.sourcePageUrl,licenseCode:m.licenseCode,licenseUrl:m.licenseUrl,
-      grant:m.providerAccessGrant,rightsEvidence:m.rightsEvidence,
+      grant:m.providerAccessGrant || null,acquisition:m.acquisitionEvidence || null,rightsEvidence:m.rightsEvidence,
       confirmed:{composition:m.compositionRightsConfirmed,master:m.masterRedistributionConfirmed},
       unresolved:m.unresolved,
       note:"Source license and access grants remain claims pending named human staff approval; no website scraping.",
