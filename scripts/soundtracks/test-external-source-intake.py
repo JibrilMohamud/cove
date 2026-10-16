@@ -54,6 +54,16 @@ class ProviderIntakeTest(unittest.TestCase):
             with self.subTest(edit=edit):
                 r=item();r.update(edit)
                 with self.assertRaises(ValueError):lib.validate(r)
+    def test_musopen_pd_is_source_specific_not_blanket_approval(self):
+        candidate=item("musopen")
+        candidate["licenseCode"]="PD"
+        candidate["licenseUrl"]="https://musopen.org/faq/"
+        self.assertEqual(lib.validate(candidate)["licenseCode"],"PD")
+        candidate["provider"]="fma"
+        with self.assertRaises(ValueError):lib.validate(candidate)
+        candidate=item("musopen")
+        candidate["providerAccessGrant"]["scope"]="Personal download and noncommercial listening only"
+        with self.assertRaises(ValueError):lib.validate(candidate)
     def test_hash_mismatch_and_clip_prevent_qa_release(self):
         with tempfile.TemporaryDirectory() as td:
             d=pathlib.Path(td);(d/"quiet.mp3").write_bytes(b"wrong data")
