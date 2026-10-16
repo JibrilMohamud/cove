@@ -326,7 +326,7 @@ async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
             coverage: "section",
           });
           await env.DB.prepare(
-            `INSERT OR IGNORE INTO literary_profile_sections(product_id,fingerprint,section_id,spine_index,href,title,chunk_index,char_start,char_end,source_key,updated_at,reading_time_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO literary_profile_sections(product_id,fingerprint,section_id,spine_index,href,title,chunk_index,char_start,char_end,source_key,updated_at,reading_time_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(product_id,fingerprint,section_id) DO UPDATE SET reading_time_json=excluded.reading_time_json`,
           )
             .bind(
               job.product_id,

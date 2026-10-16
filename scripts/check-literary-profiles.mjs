@@ -206,6 +206,36 @@ try {
     "Longer quiet text outweighs a short climax in whole-book affinity",
   );
   assert.equal(result.sections.analyzed, 3);
+  // A counting-policy refresh must preserve valid inference and cost no model calls.
+  for (const table of ["literary_profiles", "literary_profile_sections"])
+    await env.DB.prepare(
+      `UPDATE ${table} SET reading_time_json=json_set(reading_time_json,'$.policy','cove-reading-time-v1') WHERE product_id=?`,
+    )
+      .bind(product.id)
+      .run();
+  await env.DB.prepare(
+    fs.readFileSync("drizzle/0067_reading_time_unicode_refresh.sql", "utf8"),
+  ).run();
+  const beforeRefresh = calls;
+  assert.equal((await lib.processLiteraryJob(env, false, "prepare")).kind, "prepare");
+  assert.equal(calls, beforeRefresh, "Reading recount must not invoke inference");
+  const refreshed = await (
+    await lib.handleLiteraryProfiles(request, env, `/books/${product.id}/literary-profile`, "US")
+  ).json();
+  assert.equal(refreshed.readingTime.policy, "cove-reading-time-v2");
+  assert.equal(refreshed.sections.analyzed, 3);
+  assert.deepEqual(refreshed.profile, result.profile, "Recount preserves chapter inference");
+  const refreshedSections = await env.DB.prepare(
+    "SELECT reading_time_json,profile_json FROM literary_profile_sections WHERE product_id=?",
+  )
+    .bind(product.id)
+    .all();
+  assert.ok(
+    refreshedSections.results.every(
+      (row) =>
+        JSON.parse(row.reading_time_json).policy === "cove-reading-time-v2" && row.profile_json,
+    ),
+  );
   const fallback = await (
     await lib.handleLiteraryProfiles(
       new Request("https://cove.test/?spine=99"),

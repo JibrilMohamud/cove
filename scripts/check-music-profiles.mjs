@@ -251,6 +251,35 @@ try {
   assert.equal(reading.countReadingUnits("Don't split mother-in-law into four words.", "en"), 6);
   assert.equal(reading.countReadingUnits("日本語と English", "ja"), 5);
   assert.equal(
+    reading.countReadingUnits("हिन्दी भाषा", "hi"),
+    2,
+    "Combining vowel marks are part of their words",
+  );
+  assert.equal(
+    reading.countReadingUnits("e\u0301le\u0300ve", "fr"),
+    1,
+    "Decomposed diacritics must not split a word",
+  );
+  assert.ok(
+    reading.countReadingUnits("ภาษาไทยเป็นภาษาที่ไม่มีช่องว่างระหว่างคำ", "th") > 1,
+    "Thai uses dictionary word boundaries",
+  );
+  assert.equal(
+    reading.estimateReadingTime({ language: "en", textUnits: 1889 }).estimatedSeconds,
+    453.36,
+  );
+  const segmenter = Intl.Segmenter;
+  try {
+    Intl.Segmenter = undefined;
+    const fallback = reading.estimateReadingTime({ language: "th", textUnits: 40 });
+    assert.equal(fallback.unit, "unicode_code_points");
+    assert.equal(fallback.wordCount, null);
+    assert.ok(fallback.confidence <= 0.25);
+  } finally {
+    Intl.Segmenter = segmenter;
+  }
+
+  assert.equal(
     reading.estimateReadingTime({ language: "en", textUnits: 1000 }).estimatedMinutes,
     4,
   );

@@ -179,3 +179,20 @@ text already analyzed. A stronger stratified overview survives until the chapter
 aggregate has sufficient coverage. Truncated whole-book aggregates have a 0.45
 confidence ceiling. These are conservative scope/data-quality policies, not
 calibrated probabilities; incomplete coverage remains visible.
+
+## Reading-time policy v2
+
+Combining marks remain inside Unicode words, so Hindi vowels and decomposed Latin
+diacritics do not inflate counts. Thai, Lao, Khmer and Burmese use ICU dictionary
+word boundaries. If that capability is unavailable, actual character code points
+are reported under a distinct unit with a lower confidence, never as measured
+words. Rates remain explicitly stated population assumptions, not personalized
+speed measurements. Backend estimates now also expose millisecond-rounded seconds
+and seconds ranges for playlist planning, avoiding accumulation of whole-minute
+rounding across sections. Partial text still has no upper duration bound.
+
+Migration 0067 requeues only completed preparation for previously measured counts.
+Existing literary model results stay valid and no inference work is reset. Section
+durations update during that preparation even if the text/model profile already
+exists. Metadata priors retain their explicitly identified historical policy until
+normal source preparation replaces them.
