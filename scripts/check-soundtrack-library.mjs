@@ -157,6 +157,12 @@ try {
       headers:{authorization:"Bearer "+token}
     }),env,"/admin/soundtracks","US");
   assert.ok(!(await automaticList.json()).records.some(r=>r.id==="cm_102"));
+  const notEligibleForReconsideration = await lib.handleSoundtracks(
+    new Request("https://cove.test/api/fore/admin/soundtracks?status=pending_review&automation=triaged",{
+      headers:{authorization:"Bearer "+token}
+    }),env,"/admin/soundtracks","US");
+  assert.equal((await notEligibleForReconsideration.json()).records.length,0,
+    "A previously ambiguous credit must remain held for staff review");
   const staffList = await lib.handleSoundtracks(
     new Request("https://cove.test/api/fore/admin/soundtracks?status=pending_review",{
       headers:{authorization:"Bearer "+token}
