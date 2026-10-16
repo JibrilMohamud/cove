@@ -126,6 +126,13 @@ try {
     "Audio files of music by Antonio Vivaldi",
     "Audio files of music by Robert Schumann",
     "Audio files of music by Felix Mendelssohn",
+    "Audio files of adagio (music)",
+    "Audio files of music by Frédéric Chopin",
+    "Audio files of nocturnes by Frédéric Chopin",
+    "Audio files of harp music",
+    "Audio files of cello music",
+    "Audio files of harpsichord music",
+    "Audio files of guitar music",
   ];
   // Commons hosts already-licensed FMA audio; source discovery must never
   // access FMA directly or assume category membership implies approval.
