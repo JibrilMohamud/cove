@@ -13,8 +13,9 @@ on:
       - ".github/workflows/curate-soundtrack-source-licenses.yml"
       - "scripts/soundtracks/**"
   schedule:
+    # Bootstrap rights-cleared supply hourly; bounded per run and no source-site scraping.
     # Scheduled GitHub Actions times are approximate.
-    - cron: "19 */6 * * *"
+    - cron: "19 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
