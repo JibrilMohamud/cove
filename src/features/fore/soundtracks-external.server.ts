@@ -107,11 +107,14 @@ export async function handleExternalSoundtracks(
 ):Promise<Response|null> {
   const isAdmin = path.startsWith("/admin/");
   const base = "/admin/soundtracks/external";
-  const audio = /^\/soundtracks\/recordings\/(ex_[0-9a-f-]{36})\/audio$/.exec(path);
-  if (!isAdmin && audio && ["GET","HEAD"].includes(request.method)) {
+  const publicAudio = /^\/soundtracks\/recordings\/(ex_[0-9a-f-]{36})\/audio$/.exec(path);
+  const staffPreview = isAdmin ? /^\/admin\/soundtracks\/external\/(ex_[0-9a-f-]{36})\/audio$/.exec(path) : null;
+  const audio = publicAudio || staffPreview;
+  if (audio && ["GET","HEAD"].includes(request.method)) {
     const row = await lookup(env,audio[1]);
-    if (!row || row.status!=="ready" || !row.storage_key || !row.storage_bytes ||
-        !playbackAllowed(row,territory) || !env.BUCKET)
+    if (!row || !row.storage_key || !row.storage_bytes || !env.BUCKET ||
+        (staffPreview ? !["staged","ready"].includes(row.status) :
+          (row.status!=="ready" || !playbackAllowed(row,territory))))
       throw new ApiError(404,"External soundtrack is unavailable.");
     const head = await env.BUCKET.head?.(row.storage_key);
     if (!head || head.size !== row.source_size || head.size !== row.storage_bytes)
