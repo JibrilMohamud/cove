@@ -78,36 +78,36 @@ def trusted_media_url(value):
 
 def credited_performer(value, composer):
     raw = str(value or '').strip()
-    if re.search(r'(?i)\\b(?:unknown|unverified|uploader|see above|copyright|various artists)\\b', raw):
+    if re.search(r'(?i)\b(?:unknown|unverified|uploader|see above|copyright|various artists)\b', raw):
         return None
     # Wikimedia's Artist credit sometimes contains an explicit musician role.
-    roles = re.findall(r'(?i)(?:musician|pianist|performer|played by|performed by)\\s*:?\\s*([^;()]+)', raw)
+    roles = re.findall(r'(?i)(?:musician|pianist|performer|played by|performed by)\s*:?\s*([^;()]+)', raw)
     credit = roles[-1].strip() if roles else raw
-    credit = re.sub(r'(?i)\\s*\\((?:musician|performer|pianist)\\)\\s*', '', credit)
-    credit = re.sub(r'(?i)^\\s*(?:played by|performed by|musician|performer|pianist|pianists|recorded by)\\s*:?\\s*', '', credit)
+    credit = re.sub(r'(?i)\s*\((?:musician|performer|pianist)\)\s*', '', credit)
+    credit = re.sub(r'(?i)^\s*(?:played by|performed by|musician|performer|pianist|pianists|recorded by)\s*:?\s*', '', credit)
     credit = credit.strip(' ,.;')
     # A composition credit alone is not an identifiable performer.
-    if re.search(r'(?i)\\b(?:composer|arranger|uploader|record label|orchestra unknown)\\b', credit):
+    if re.search(r'(?i)\b(?:composer|arranger|uploader|record label|orchestra unknown)\b', credit):
         return None
     if not 3 <= len(credit) <= 140 or '/' in credit or ';' in credit or len(credit.split()) > 9:
         return None
     if composer.lower() == credit.lower() or credit.lower() in composer.lower():
         return None
-    if not re.search(r'[A-Za-zÀ-ž]{2,}', credit) or re.fullmatch(r'\\w+\\d+', credit):
+    if not re.search(r'[A-Za-zÀ-ž]{2,}', credit) or re.fullmatch(r'\w+\d+', credit):
         return None
     return credit
 
 INSTRUMENT_CUES = ('piano','harpsichord','organ','violin','cello','flute','oboe',
                    'clarinet','bassoon','guitar','trumpet','harp','viola','recorder',
                    'mandolin','saxophone','percussion')
-VOCAL_CUES = re.compile(r'(?i)\\b(?:aria|lied|lieder|song|singer|vocal|choir|choral|soprano|tenor|baritone|hymn|mass|cantata|motet|opera|recitative)\\b')
+VOCAL_CUES = re.compile(r'(?i)\b(?:aria|lied|lieder|song|singer|vocal|choir|choral|soprano|tenor|baritone|hymn|mass|cantata|motet|opera|recitative)\b')
 
 def classify_instruments(row):
     original = json.loads(row.get('instruments_json') or '[]')
     if original == ['piano']:
         return original
     source = (str(row.get('title') or '')+' '+str(row.get('performer') or '')).lower()
-    cues = [name for name in INSTRUMENT_CUES if re.search(r'\\b'+name+r'\\b', source)]
+    cues = [name for name in INSTRUMENT_CUES if re.search(r'\b'+name+r'\b', source)]
     # Never assign a made-up instrument when the source does not identify one.
     return cues[:5] if cues else ['unspecified']
 
