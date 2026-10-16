@@ -51,3 +51,13 @@ External licensed provider deliveries: run staging **only when a verified delive
 ## Licensed FMA fast lane
 
 Clear CC0, CC BY and CC BY-SA declarations on the exact recording can remove the need to negotiate individual copyright licenses. The file must still be lawfully acquired manually (or supplied under another authorized channel), checksum-matched, QA-verified and individually approved by an MFA-authenticated staff reviewer. An acquisition attestation is not a guarantee of third-party rights. Mark unknown instrumentation honestly and retain an auditable takedown path. No automatic provider-site scraping is enabled.
+
+## Post-deployment release safety and production health
+
+The Commons curator runs hourly and can approve at most eight exact-original, FFmpeg-verified and license-matched recordings per run (160 MiB total). After a successful production Worker deployment, the separate bounded bootstrap workflow can approve another eight, after migrations have completed. The Worker imports up to two verified originals every ten-minute tick.
+
+The curator marks unsuitable automatic candidates with `automated_triage_reason` while leaving `status=pending_review`. This is **not a copyright rejection or a license clearance**. It removes non-automatable records from the automatic discovery backpressure count, but the staff queue remains accessible for ordinary human rights review. A versioned, append-only audit event records each triage; automated release never treats it as approval.
+
+Source-license API reads retry HTTP 429/502/503/504 transient errors with a bounded backoff. Mutation requests are **never retried automatically**, to avoid duplicate submissions after uncertain outcomes. Periodic public playback health checks retrieve the exact approved catalog and verify sampled `HEAD 200` and `GET Range 206` bytes from Cove's streaming endpoints, with attribution and license links. The daily check fails if public playable coverage remains below 150 or any sampled recording is broken. Health artifacts contain no credentials.
+
+Track counts remain distinct: pending candidates; manually triaged candidates; QA-measured originals; approved but pending R2 import; and **playable** (production catalog returned with a real 206 range response). Until production reaches 150, no operator should describe the library as complete or commercially launch-ready. Musopen/FMA website extraction is not enabled; FMA originals must be lawfully acquired with recording-specific commercial CC rights or an authorized delivery, and Musopen originals require authorization before site delivery.
