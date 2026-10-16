@@ -98,6 +98,21 @@ COMPLEX = re.compile(r"(?i)\b(?:arr(?:anged|angement)?\.?|transcri(?:bed|ption)|
 AMBIGUOUS_CREDIT = re.compile(r"(?i)\b(?:unknown|unverified|composer|uploader|copyright|collection|archive|anonymous|various artists)\b")
 ALLOWED_LICENSES = {"CC0", "CC-BY", "CC-BY-SA", "PD"}
 
+# A bounded, record-specific artist/uploader correlation. Historical Boccherini
+# compositions predate US copyright. Selected Commons file pages explicitly name
+# Jacques Lochet as modern performer and User:Quinbrid as artist/rightsholder,
+# and supply a CC BY-SA original-master declaration. This never extrapolates to
+# unrelated tracks by that uploader or source pages lacking these exact claims.
+BOCCHERINI_SELF_RELEASE = re.compile(
+    r"^BOCCHERINI\s+Op[0-9]+\s*(?:n°[0-9]+|n°\s*[0-9]+|No[0-9]+|[0-9n°\s]*)?.*"
+    r"\s+-\s+Jacques Lochet violin and (synthesizer|sampler)$", re.I
+)
+BOCCHERINI_RIGHTSHOLDER_CREDITS = frozenset((
+    'Quinbrid', 'uploaded by artist: User:Quinbrid',
+    'uploaded by artist User:Quinbrid',
+))
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
@@ -174,7 +189,14 @@ def choose_candidate(r):
     title = str(r.get('title', ''))
     if not str(r.get('source_title','')).startswith('File:') or COMPLEX.search(title) or '-' in title.split(' ', 1)[0]:
         return None, 'arrangement or derivative provenance requires individual review'
+    boccherini = BOCCHERINI_SELF_RELEASE.fullmatch(title) if (
+        r['license_code'] == 'CC-BY-SA' and
+        str(r.get('performer', '')).strip() in BOCCHERINI_RIGHTSHOLDER_CREDITS and
+        str(r.get('source_title', '')) == 'File:'+title+'.ogg'
+    ) else None
     match = next(((composer, period) for pattern, composer, period in KNOWN_COMPOSERS if re.search(pattern, title, re.I)), None)
+    if not match and boccherini:
+        match = ("Luigi Boccherini", "classical")
     if not match:
         named = next(((composer, period, person) for pattern, composer, period, person in NAMED_PERFORMER_TITLES
                       if re.fullmatch(pattern, title, re.I)), None)
@@ -186,7 +208,7 @@ def choose_candidate(r):
     if not match:
         return None, 'composer not in narrow sourced-title mapping'
     composer, period = match
-    performer = credited_performer(r.get('performer'), composer)
+    performer = "Jacques Lochet" if boccherini else credited_performer(r.get('performer'), composer)
     if not performer:
         return None, 'ambiguous or missing performer credit'
     if (not re.fullmatch(r'cm_\d{1,15}', str(r.get('id', ''))) or
@@ -211,7 +233,11 @@ def choose_candidate(r):
         moods, energy = ['animated', 'dramatic'], 0.8
     else:
         moods, energy = ['focused', 'contemplative'], 0.4
-    return dict(composer=composer, period=period, performer=performer, instruments=instrument_list, moods=moods, energy=energy), ''
+    if boccherini:
+        instrument_list = ['violin', boccherini.group(1).lower()]
+    return dict(composer=composer, period=period, performer=performer,
+                sourceLicensor='Quinbrid' if boccherini else '',
+                instruments=instrument_list, moods=moods, energy=energy), ''
 
 def prepare_release(r, profile):
     page, link, code, sha = (r[k] for k in ('source_page_url', 'license_url', 'license_code', 'source_sha1'))
@@ -219,13 +245,16 @@ def prepare_release(r, profile):
     def layer(claim):
         return dict(basis=claim + ' Source-declaration reliance only; independently unverified. Original, unchanged audio will be used.', evidenceUrls=[page, link])
     title = r['title']
-    credit = f"{title} — performed by {profile['performer']}; composed by {profile['composer']}. {r['license_statement']}. {exact}. Unmodified original recording."
+    licensor = f" Commons original-master licensor: {profile['sourceLicensor']}." if profile.get('sourceLicensor') else ""
+    credit = f"{title} — performed by {profile['performer']}; composed by {profile['composer']}.{licensor} {r['license_statement']}. {exact}. Unmodified original recording."
     statement = f"Cove accepts the exact recording-level {r['license_statement']} declaration of this Commons file under the owner-approved source reliance policy. This is not a human or independent legal assessment."
     dossier = dict(
         composition=layer(f"The source filename identifies {profile['composer']} as composer; the recorded composition is covered only to the extent of the file's exact declared permission."),
         arrangement=layer('No third-party arranger is named in the short source metadata used for automatic selection; unclear derivative titles are excluded.'),
         lyrics=layer('The source has no identified vocal indicators in its title. Vocal or lyrical works are excluded from this automated path; rights remain based on the exact source license.'),
-        performance=layer(f"The recorded performer credit is {profile['performer']}; Cove relies on the recording-level source declaration for performance permissions."),
+        performance=layer(f"The modern performer is {profile['performer']}; "
+                          + (f"the exact source title identifies him while Commons uploader {profile['sourceLicensor']} asserts the source file's CC BY-SA rights. " if profile.get('sourceLicensor') else
+                             "Cove relies on the recording-level source declaration for performance permissions. ")),
         master=layer('The recording-level permission is attached to the exact source file and immutable SHA-1; the master will not be altered.'),
         grantingParty='Wikimedia Commons source declarant (identity not independently verified)',
         recordingDate='Undated; recording date not established by source metadata',
