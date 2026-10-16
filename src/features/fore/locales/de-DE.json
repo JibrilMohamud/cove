@@ -776,5 +776,6 @@
   "immersion": "Eintauchen",
   "none": "keine",
   "limited": "begrenzt",
-  "any": "beliebig"
+  "any": "beliebig",
+  "{current} of {total}": "{current} von {total}"
 }

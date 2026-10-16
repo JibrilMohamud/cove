@@ -776,5 +776,6 @@
   "immersion": "اندماج",
   "none": "بدون",
   "limited": "محدودة",
-  "any": "أي أصوات"
+  "any": "أي أصوات",
+  "{current} of {total}": "{current} من {total}"
 }

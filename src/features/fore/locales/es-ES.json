@@ -776,5 +776,6 @@
   "immersion": "inmersión",
   "none": "ninguna",
   "limited": "limitadas",
-  "any": "cualquiera"
+  "any": "cualquiera",
+  "{current} of {total}": "{current} de {total}"
 }

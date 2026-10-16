@@ -294,7 +294,7 @@ export function ReaderSoundtrack({
           />
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <span className="small muted" aria-label={ui("Playlist position")}>
-              {index + 1} of {tracks.length}
+              {ui("{current} of {total}", { current: index + 1, total: tracks.length })}
             </span>
             <button
               type="button"
