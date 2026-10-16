@@ -20,6 +20,18 @@ import urllib.request
 MAX_FILE_BYTES = 25 * 1024 * 1024
 KNOWN_COMPOSERS = (
     (r"^(?:j\.?s\.?\s*)?bach\s+(?!busoni|brahms|liszt|gounod)", "Johann Sebastian Bach", "baroque"),
+    (r"^johann sebastian bach[\s,-]", "Johann Sebastian Bach", "baroque"),
+    (r"^(?:frederic|frédéric) chopin[\s,-]", "Frédéric Chopin", "romantic"),
+    (r"^erik satie[\s,-]", "Erik Satie", "modern"),
+    (r"^claude debussy[\s,-]", "Claude Debussy", "modern"),
+    (r"^(?:georg )?muffat[\s,-]", "Georg Muffat", "baroque"),
+    (r"^julius weissenborn[\s,-]", "Julius Weissenborn", "romantic"),
+    (r"^bernhard romberg[\s,-]", "Bernhard Romberg", "classical"),
+    (r"^alessandro poglietti[\s,-]", "Alessandro Poglietti", "baroque"),
+    (r"^moritz moszkowsky[\s,-]", "Moritz Moszkowski", "romantic"),
+    (r"^august klughardt[\s,-]", "August Klughardt", "romantic"),
+    (r"^claude paul taffanel[\s,-]", "Claude Paul Taffanel", "romantic"),
+    (r"^louis-emmanuel jadin[\s,-]", "Louis-Emmanuel Jadin", "classical"),
     (r"^(?:beethoven|ludwig van beethoven|beethoven, ludwig van)\s*[\s,-]", "Ludwig van Beethoven", "classical"),
     (r"^(?:mozart|wolfgang amadeus mozart|w\.?\s*a\.?\s*mozart)\s*[\s,-]", "Wolfgang Amadeus Mozart", "classical"),
     (r"^chopin\s+", "Frédéric Chopin", "romantic"),
