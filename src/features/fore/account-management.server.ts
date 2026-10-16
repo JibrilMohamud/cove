@@ -705,6 +705,20 @@ export async function accountDataExport(db: AccountDB, userId: string) {
       .all<any>(),
   ]);
   return {
+    matching: {
+      preferences: await db
+        .prepare("SELECT preferences_json,updated_at FROM matching_preferences WHERE user_id=?")
+        .bind(userId)
+        .first(),
+      feedback: (
+        await db
+          .prepare(
+            "SELECT product_id,book_fingerprint,spine,mode,recording_id,music_fingerprint,reason,updated_at FROM matching_feedback WHERE user_id=? ORDER BY updated_at",
+          )
+          .bind(userId)
+          .all()
+      ).results,
+    },
     schema: "fore-account-export",
     version: 4,
     exportedAt: now(),
@@ -1050,6 +1064,8 @@ export async function processAccountDeletionQueue(env: CoveEnv, limit = 25) {
           db.prepare("DELETE FROM preview_states WHERE user_id=?").bind(r.user_id),
           db.prepare("DELETE FROM shopping_carts WHERE user_id=?").bind(r.user_id),
           db.prepare("DELETE FROM shelves WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM matching_feedback WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM matching_preferences WHERE user_id=?").bind(r.user_id),
           db.prepare("DELETE FROM recommendation_feedback WHERE user_id=?").bind(r.user_id),
           db.prepare("DELETE FROM recommendation_requests WHERE user_id=?").bind(r.user_id),
           db.prepare("DELETE FROM recommendation_events WHERE user_id=?").bind(r.user_id),

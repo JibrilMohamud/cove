@@ -6,7 +6,11 @@ import type { CoveIdentity } from "./auth.server";
 import { ApiError, json, readBody } from "./service";
 import { requireStaffPermission } from "./moderation.server";
 import { requireServiceScope } from "./privileged-access.server";
-import { handleSoundtracks } from "./soundtracks.server";
+import {
+  buildMatchingPlaylist,
+  handleMatchingAdministration,
+  type MatchingContext,
+} from "./matching.server";
 import { resolveProduct } from "./catalog-model.server";
 import { extractLiterarySections } from "./literary-extract.server";
 import {
@@ -15,12 +19,10 @@ import {
   literaryJsonSchema,
   literaryProfileSchema,
   validateLiteraryProfile,
-  rankLiteraryMusic,
   PROFILE_POLICY,
   PROFILE_MODEL,
   type LiteraryProfile,
   type ProfileEvidence,
-  type MatchRecording,
 } from "./literary-profile";
 
 export type LiteraryEnv = CoveEnv & {
@@ -649,6 +651,58 @@ export async function handleLiteraryProfiles(
   territory: string,
   identity: CoveIdentity | null = null,
 ): Promise<Response | null> {
+  const matching = await handleMatchingAdministration(
+    request,
+    env,
+    path,
+    territory,
+    identity,
+    async (productId, spine) => {
+      const resource = `/books/${encodeURIComponent(productId)}/literary-profile`;
+      const target = new URL("/api/fore" + resource, request.url);
+      if (spine !== null) target.searchParams.set("spine", String(spine));
+      const response = await handleLiteraryProfiles(
+        new Request(target),
+        env,
+        resource,
+        territory,
+        identity,
+      );
+      if (!response) throw new ApiError(404, "Book profile unavailable");
+      const data = (await response.json()) as {
+        productId: string;
+        fingerprint?: string;
+        status: string;
+        profile: LiteraryProfile;
+        readingTime: unknown;
+        chapterFallback?: boolean;
+      };
+      if (!data.fingerprint || data.status === "pending")
+        throw new ApiError(409, "Current literary profile unavailable");
+      const sections = (
+        await env.DB.prepare(
+          "SELECT section_id,profile_json,reading_time_json FROM literary_profile_sections WHERE product_id=? AND fingerprint=? AND (? IS NULL OR spine_index=?) ORDER BY spine_index,chunk_index LIMIT 256",
+        )
+          .bind(data.productId, data.fingerprint, spine, spine)
+          .all<{
+            section_id: string;
+            profile_json: string | null;
+            reading_time_json: string | null;
+          }>()
+      ).results;
+      const book = await env.DB.prepare("SELECT source_name FROM products WHERE id=?")
+        .bind(data.productId)
+        .first<{ source_name: string }>();
+      return {
+        ...data,
+        fingerprint: data.fingerprint,
+        chapterFallback: !!data.chapterFallback,
+        sections,
+        trainingEligible: !!book && book.source_name !== "upload",
+      };
+    },
+  );
+  if (matching) return matching;
   if (path.startsWith("/admin/literary-profiles")) {
     let actor: string;
     if (identity) {
@@ -854,7 +908,24 @@ export async function handleLiteraryProfiles(
       readingTime: fallbackTime,
     };
     if (match[2] === "playlist")
-      return json({ ...common, matches: [], provisional: true, mode: "atmosphere-first" });
+      return json({
+        ...common,
+        ...(await buildMatchingPlaylist(
+          request,
+          env,
+          territory,
+          {
+            productId: product.id,
+            fingerprint: liveFingerprint ?? "",
+            status: "provisional",
+            profile: emptyLiteraryProfile(),
+            readingTime: fallbackTime,
+            chapterFallback: false,
+            sections: [],
+          },
+          identity,
+        )),
+      });
     if (match[2] === "chapters") return json({ ...common, chapters: [], nextCursor: null });
     return json({ ...common, profile: emptyLiteraryProfile() });
   }
@@ -862,7 +933,7 @@ export async function handleLiteraryProfiles(
   const spine = url.searchParams.get("spine");
   if (spine !== null && !/^\d{1,5}$/.test(spine))
     throw new ApiError(400, "Invalid chapter spine index");
-  const after = url.searchParams.get("after") || "";
+  const after = match[2] === "chapters" ? url.searchParams.get("after") || "" : "";
   if (after.length > 180) throw new ApiError(400, "Invalid cursor");
   const base = literaryProfileSchema.parse(JSON.parse(current.profile_json));
   const sections = (
@@ -978,63 +1049,19 @@ export async function handleLiteraryProfiles(
       nextCursor: null,
     });
   if (match[2] === "playlist") {
-    // Reuse live territorial/QA/rights gates. Model output can NEVER authorize music.
-    const response = await handleSoundtracks(
-      new Request(new URL("/api/fore/soundtracks/recordings", request.url)),
-      env,
-      "/soundtracks/recordings",
-      territory,
-    );
-    const catalog = (await response!.json()) as {
-      recordings: (MatchRecording & Record<string, unknown>)[];
+    const context: MatchingContext = {
+      productId: product.id,
+      fingerprint: current.fingerprint,
+      status:
+        current.status === "provisional" && !chapterProfiles.length ? "provisional" : common.status,
+      profile,
+      readingTime: common.readingTime,
+      chapterFallback: common.chapterFallback,
+      sections,
     };
-    const contexts = (
-      await env.DB.prepare("SELECT * FROM soundtrack_context LIMIT 1000").all<{
-        recording_id: string;
-        composition_start_year: number | null;
-        composition_end_year: number | null;
-        reconstruction: number | null;
-        recording_start_year: number | null;
-        recording_end_year: number | null;
-        evoked_eras_json: string;
-      }>()
-    ).results;
-    const candidates = catalog.recordings.map((r) => {
-      const c = contexts.find((c) => c.recording_id === r.id);
-      return {
-        ...r,
-        compositionYears:
-          c?.composition_start_year !== null &&
-          c?.composition_start_year !== undefined &&
-          c.composition_end_year !== null
-            ? ([c.composition_start_year, c.composition_end_year] as [number, number])
-            : null,
-        recordingYears:
-          c?.recording_start_year !== null &&
-          c?.recording_start_year !== undefined &&
-          c.recording_end_year !== null
-            ? ([c.recording_start_year, c.recording_end_year] as [number, number])
-            : null,
-        evokedEras: c ? (JSON.parse(c.evoked_eras_json) as string[]) : [],
-        reconstruction:
-          c?.reconstruction === null || c?.reconstruction === undefined ? null : !!c.reconstruction,
-      };
-    });
-    const ranked =
-      current.status === "provisional" && !chapterProfiles.length
-        ? []
-        : rankLiteraryMusic(profile, candidates)
-            .filter((m) => m.score > 0)
-            .slice(0, 20);
-    return json({
-      ...common,
-      matches: ranked.map((m) => ({
-        ...m,
-        recording: candidates.find((r) => r.id === m.id),
-      })),
-      mode: "atmosphere-first",
-      provisional: current.status === "provisional" || (spine !== null && !chapterProfiles.length),
-    });
+    const matched = await buildMatchingPlaylist(request, env, territory, context, identity);
+    return json({ ...common, ...matched });
   }
+
   return json({ ...common, profile });
 }
