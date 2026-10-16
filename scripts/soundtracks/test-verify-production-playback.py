@@ -27,6 +27,9 @@ class Opener:
         if req.full_url==probe.BASE+probe.PATH:
             files=[{"id":"cm_"+str(i),"audioUrl":probe.PATH+"/cm_"+str(i)+"/audio",
                     "attribution":"Fixture artist, CC BY 4.0",
+                    "sourcePage":"https://commons.wikimedia.org/wiki/File:Fixture.ogg",
+                    "territories":["US"],
+                    "license":"CC BY 4.0",
                     "licenseUrl":"https://creativecommons.org/licenses/by/4.0/"} for i in range(self.count)]
             if self.invalid: files[0]["audioUrl"]="https://attacker.example/audio"
             return Reply(json.dumps({"count":self.count,"recordings":files}).encode(),200)
@@ -64,6 +67,41 @@ class ProductionProbeTest(unittest.TestCase):
     def test_invalid_slot_rejected(self):
         with self.assertRaises(ValueError):
             probe.run(limit=20,opener=Opener(count=3),audit_slot=-1)
+    def test_noncommercial_and_mismatched_sharealike_are_never_counted(self):
+        base={"license":"CC BY 4.0","licenseUrl":"https://creativecommons.org/licenses/by/4.0/",
+              "territories":["US"]}
+        self.assertTrue(probe.commercial_license_matches(base))
+        self.assertTrue(probe.commercial_license_matches(dict(base,
+            license="CC BY-SA 4.0",licenseUrl="https://creativecommons.org/licenses/by-sa/4.0/")))
+        self.assertTrue(probe.commercial_license_matches(dict(base,
+            license="CC-BY-SA 4.0",licenseUrl="https://creativecommons.org/licenses/by-sa/4.0/")))
+        self.assertTrue(probe.commercial_license_matches(dict(base,
+            license="CC-BY 4.0",licenseUrl="https://creativecommons.org/licenses/by/4.0/")))
+        self.assertTrue(probe.commercial_license_matches(dict(base,
+            license="CC0 1.0",licenseUrl="https://creativecommons.org/publicdomain/zero/1.0/")))
+        for alteration in (
+            {"license":"CC BY-NC 4.0","licenseUrl":"https://creativecommons.org/licenses/by-nc/4.0/"},
+            {"license":"CC BY 4.0","licenseUrl":"https://creativecommons.org/licenses/by-sa/4.0/"},
+            {"license":"CC BY 3.0","licenseUrl":"https://creativecommons.org/licenses/by/4.0/"},
+            {"license":"CC BY 4.0 (noncommercial use only)"},
+            {"license":"CC BY 4.0 / NC"},
+            {"license":"CC BY-SA 4.0","licenseUrl":"https://creativecommons.org/licenses/by/4.0/"},
+            {"licenseUrl":"https://creativecommons.org/licenses/by-nc-sa/4.0/"},
+            {"licenseUrl":"http://creativecommons.org/licenses/by/4.0/"},
+            {"licenseUrl":"https://creativecommons.org.evil.org/licenses/by/4.0/"},
+            {"licenseUrl":"https://creativecommons.org/licenses/by/4.0/?tracking=1"},
+            {"territories":["CA"]},
+        ):
+            with self.subTest(alteration=alteration):
+                self.assertFalse(probe.commercial_license_matches(dict(base,**alteration)))
+    def test_public_domain_claim_is_not_arbitrary_license(self):
+        base={"license":"Public domain (Commons claim)",
+              "licenseUrl":"https://commons.wikimedia.org/wiki/Commons:Licensing",
+              "territories":["US"]}
+        self.assertTrue(probe.commercial_license_matches(base))
+        self.assertFalse(probe.commercial_license_matches(dict(base,
+            licenseUrl="https://example.com/license")))
+
     def test_monitor_has_pinned_origin(self):
         with self.assertRaises(ValueError):
             probe.run(base="https://evil.example",opener=Opener())

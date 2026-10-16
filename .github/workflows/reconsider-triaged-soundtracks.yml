@@ -1,0 +1,76 @@
+name: Reconsider previously triaged commercial recordings
+
+on:
+  # A new source-title recognition policy can recover licensed, named-performer
+  # recordings without falsely approving unresolved performance/derivative holds.
+  workflow_run:
+    workflows: [deploy-persistence-backend]
+    types: [completed]
+  schedule:
+    - cron: "11 5 * * 0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-license-soundtrack-curation
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    if: ${{ github.event_name == 'schedule' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.event == 'push') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ secrets.COVE_SOUNDTRACK_REVIEW_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'schedule' && github.sha || github.event.workflow_run.head_sha }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Validate license and reconsideration boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/soundtracks/test-curate-source-license.py -q
+          python scripts/soundtracks/test-drain-verified-imports.py -q
+          if [[ "${COVE_SOUNDTRACK_REVIEW_TOKEN:-}" != fore_svc_* ]]; then
+            echo "::error::Scoped soundtrack review credential unavailable"
+            exit 1
+          fi
+      - name: Install FFmpeg for exact original QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg
+          fi
+          command -v ffmpeg
+          command -v ffprobe
+      - name: Reconsider only former narrow-composer holds
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/soundtracks/curate-source-license.py \
+            --reconsider-triaged --max-triage 0 --max-scan 500 \
+            --max-tracks 8 --max-mib 140 --max-minutes 20 \
+            --apply --approve-source-license --output soundtrack-reconsider-receipts.json
+      - name: Convert and validate verified R2 recordings
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/soundtracks/drain-verified-imports.py \
+            --max-imports 8 --max-minutes 12 --output soundtrack-reconsider-import-receipts.json
+      - name: Preserve non-secret reconsideration results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soundtrack-policy-reconsideration
+          path: |
+            soundtrack-reconsider-receipts.json
+            soundtrack-reconsider-import-receipts.json
+          if-no-files-found: ignore
+          retention-days: 30

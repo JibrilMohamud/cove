@@ -40,6 +40,40 @@ def fetch(url, method="GET", headers=None, opener=OPENER):
                 raise
             time.sleep(min(2**attempt,4))
 
+def commercial_license_matches(row):
+    """Never claim a playable track is commercially cleared on an unknown/NC link."""
+    address = row.get("licenseUrl")
+    statement = str(row.get("license") or "")
+    # Even a BY-looking URL is insufficient if the recording itself states NC.
+    if re.search(r"(?i)\b(?:NC|noncommercial|non-commercial)\b", statement):
+        return False
+    territories = row.get("territories")
+    if not isinstance(address, str) or not isinstance(territories, list) or "US" not in territories:
+        return False
+    try:
+        u = urllib.parse.urlsplit(address)
+    except ValueError:
+        return False
+    try:
+        if u.scheme != "https" or u.port or u.username or u.password or u.query or u.fragment:
+            return False
+    except ValueError:
+        return False
+    if u.hostname == "creativecommons.org":
+        if u.path == "/publicdomain/zero/1.0/":
+            return bool(re.search(r"\bCC0\b", statement, re.I))
+        m = re.fullmatch(r"/licenses/(by|by-sa)/(2\.0|2\.5|3\.0|4\.0)/", u.path)
+        if not m:
+            return False
+        family = "BY-SA" if m.group(1) == "by-sa" else "BY"
+        return bool(re.search(r"\bCC[ -]"+family+r"\s+"+re.escape(m.group(2))+r"(?=\s|$)", statement, re.I))
+    if u.hostname == "commons.wikimedia.org" and u.path == "/wiki/Commons:Licensing":
+        return bool(re.search("public.domain", statement, re.I))
+    if u.hostname == "musopen.org" and u.path == "/faq/":
+        return bool(re.search("public.domain", statement, re.I))
+    return False
+
+
 def run(base=BASE, limit=50, opener=OPENER, audit_slot=None):
     if base != BASE:
         raise ValueError("Monitoring origin must be the pinned Cove production hostname")
@@ -61,8 +95,10 @@ def run(base=BASE, limit=50, opener=OPENER, audit_slot=None):
         if not isinstance(audio, str) or not audio.startswith(PATH+"/") or not audio.endswith("/audio") or \
                 not re.fullmatch(r"[A-Za-z0-9_-]+", audio[len(PATH)+1:-6]):
             raise ValueError("Untrusted public audio path in recording metadata")
-        if not row.get("attribution") or not row.get("licenseUrl"):
-            raise ValueError("Published recording is missing mandatory rights attribution")
+        if not row.get("attribution") or not row.get("sourcePage"):
+            raise ValueError("Published recording is missing mandatory source attribution")
+        if not commercial_license_matches(row):
+            raise ValueError("Published recording is missing a valid commercial US license declaration")
     # Audit a distinct, deterministic page on each six-hour run. The modular
     # permutation spreads coverage across the alphabetized catalog, while
     # consecutive slots cover every entry once per ceil(total / limit) ticks.
