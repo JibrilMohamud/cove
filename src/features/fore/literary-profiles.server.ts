@@ -150,11 +150,24 @@ async function enqueueBook(env: LiteraryEnv, book: BookInput, queuePreparation =
     JSON.stringify({ policy: PROFILE_POLICY, model: PROFILE_MODEL, book }),
   );
   const current = await env.DB.prepare(
-    "SELECT fingerprint FROM literary_profiles WHERE product_id=?",
+    "SELECT fingerprint,coverage FROM literary_profiles WHERE product_id=?",
   )
     .bind(book.id)
-    .first<{ fingerprint: string }>();
-  if (current?.fingerprint === fingerprint) return;
+    .first<{ fingerprint: string; coverage: string }>();
+  if (current?.fingerprint === fingerprint) {
+    if (queuePreparation && current.coverage === "metadata_deferred") {
+      await addJob(env, book.id, fingerprint, "prepare", "", "");
+      await env.DB.batch([
+        env.DB.prepare(
+          "UPDATE literary_profile_jobs SET status='queued',attempts=0,available_at=?,lease_until='',updated_at=? WHERE product_id=? AND fingerprint=? AND kind='prepare' AND status IN ('done','failed','superseded')",
+        ).bind(time, time, book.id, fingerprint),
+        env.DB.prepare(
+          "UPDATE literary_profiles SET coverage='metadata' WHERE product_id=? AND fingerprint=? AND coverage='metadata_deferred'",
+        ).bind(book.id, fingerprint),
+      ]);
+    }
+    return;
+  }
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO literary_profiles(product_id,fingerprint,profile_json,status,coverage,updated_at,reading_time_json,policy_version) VALUES(?,?,?,'provisional',?,?,?,?) ON CONFLICT(product_id) DO UPDATE SET fingerprint=excluded.fingerprint,profile_json=excluded.profile_json,status='provisional',coverage=excluded.coverage,revision=literary_profiles.revision+1,updated_at=excluded.updated_at,reading_time_json=excluded.reading_time_json,policy_version=excluded.policy_version`,
