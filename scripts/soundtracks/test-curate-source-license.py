@@ -60,6 +60,13 @@ class SoundtrackCurationTests(unittest.TestCase):
                 self.assertIsNone(prof)
                 self.assertTrue(reason)
 
+    def test_public_domain_composition_does_not_authorize_recording_master(self):
+        row=candidate(license_code='PD',license_url='https://commons.wikimedia.org/wiki/Commons:Licensing',
+                      license_statement='Public domain (Commons claim)')
+        profile,reason=curator.choose_candidate(row)
+        self.assertIsNone(profile)
+        self.assertIn('master-rights review',reason)
+
     def test_extended_historical_composers_are_source_reliant_not_invented(self):
         cases=(("Ludwig van Beethoven - Sonata, 1st movement","Randolph Hokanson"),
                ("Wolfgang Amadeus Mozart - Minuet","Martha Goldstein (musician)"),

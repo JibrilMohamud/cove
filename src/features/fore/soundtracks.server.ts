@@ -137,6 +137,14 @@ function providerOriginNeedsReview(page: CommonsPage | undefined) {
   return /(?:free[\s_-]*music[\s_-]*archive|freemusicarchive\.org|musopen\.org)/i.test(wikitext);
 }
 /** Commons' EU-only recording template does not establish commercial US master rights. */
+/** Public-domain *composition* flags cannot stand in for master permission.
+ * Source reliance permits only an explicitly self-dedicated recording. Other
+ * PD routes need individualized documented staff review, not automation.
+ */
+function recordingSelfDedicated(page: CommonsPage | undefined) {
+  const source = String(page?.revisions?.[0]?.slots?.main?.content || "");
+  return /\{\{\s*PD-self\s*(?:\||\}\})/i.test(source);
+}
 function euOnlyAudioClaim(page: CommonsPage | undefined) {
   const source = String(page?.revisions?.[0]?.slots?.main?.content || "");
   return /(?:PD[-_ ]EU[-_ ]Audio|public.domain.in.the.european.union|domaine.public.dans.l.union.europ)/i.test(source);
@@ -685,6 +693,9 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
         throw new ApiError(422,"FMA/Musopen-origin originals need independent commercial-master licensing review; Commons labels alone are insufficient.");
       if (original.license_code === "PD" && euOnlyAudioClaim(current))
         throw new ApiError(422,"EU-only phonogram public-domain claims do not establish US recording rights; this original requires a separate territorial master review.");
+      if (original.license_code === "PD" && dossier.reviewMethod === "source_license" &&
+          !recordingSelfDedicated(current))
+        throw new ApiError(422,"A public-domain composition or metadata badge is not recording permission; an explicit original-master release or independent recorded-rights review is required.");
       if (!evidenceMatches(original,current?.imageinfo?.[0]) || !current?.revisions?.[0]?.revid)
         throw new ApiError(409,"Commons source or license changed since discovery, or no source revision is available.");
       if (!env.BUCKET) throw new ApiError(503,"Evidence storage unavailable.");

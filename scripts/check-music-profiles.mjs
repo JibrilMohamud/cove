@@ -255,6 +255,30 @@ try {
     () => call("/admin/music-profiles/complete", { ...changed, report }),
     /lease lost/,
   );
+  // Two active claims become unavailable following the owner revoking
+  // original-master permission. Neither should abort the next batch or
+  // consume repeated leases on audio that no longer may be served.
+  await env.DB.prepare(
+    "UPDATE soundtrack_recordings SET status='revoked',storage_key=NULL WHERE id IN (?,?)",
+  )
+    .bind(changed.recordingId, second.recordingId)
+    .run();
+  const afterRevoke = await (await call("/admin/music-profiles/claim", {})).json();
+  assert.equal(afterRevoke.skipped, "no_jobs");
+  const withdrawnClaims = (
+    await env.DB.prepare(
+      "SELECT status,last_error FROM music_profile_jobs WHERE recording_id IN (?,?) ORDER BY recording_id",
+    )
+      .bind(changed.recordingId, second.recordingId)
+      .all()
+  ).results;
+  assert.equal(withdrawnClaims.length, 2);
+  assert.ok(
+    withdrawnClaims.every(
+      (job) => job.status === "failed" && job.last_error === "recording_not_published",
+    ),
+    "Revoked audio must never block a valid music-profiling queue",
+  );
   // Reading-time values are produced by deterministic backend counts, never an LLM.
   assert.equal(reading.countReadingUnits("Don't split mother-in-law into four words.", "en"), 6);
   assert.equal(reading.countReadingUnits("日本語と English", "ja"), 5);

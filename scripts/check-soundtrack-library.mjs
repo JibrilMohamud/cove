@@ -323,6 +323,7 @@ try {
   pages[4].imageinfo[0].extmetadata.LicenseShortName.value = "Public domain";
   pages[4].imageinfo[0].extmetadata.LicenseUrl.value = "";
   pages[4].imageinfo[0].extmetadata.Copyrighted = {value:"False"};
+  pages[4].revisions[0].slots.main.content = "{{PD-self}} Original master released by creator.";
   const sourceDossier = {...dossier, reviewMethod:"source_license", sourceReliance:{
     sourcePageUrl:sourceRow.source_page_url,sourceSha1:sha1,licenseCode:"PD",licenseUrl:pdUrl,
     declarationBasis:"Accept the recording-specific repository declaration under Cove's source-reliance policy; no independent human review is represented."}};
@@ -358,6 +359,9 @@ try {
   pages[4].revisions[0].slots.main.content = "Original from https://freemusicarchive.org/music/example/unknown-master";
   await assert.rejects(()=>sourceReview("approve",approval),/FMA\/Musopen-origin/i,
     "FMA-origin sources require independent confirmation of the master rights");
+  pages[4].revisions[0].slots.main.content = sourceText;
+  pages[4].revisions[0].slots.main.content = "{{PD-old}} underlying composition; {{CC-BY-SA-3.0}} modern recorded performance";
+  await assert.rejects(() => sourceReview("approve",approval),/recording permission/i);
   pages[4].revisions[0].slots.main.content = sourceText;
   pages[4].imageinfo[0].metadata=[{name:"Copyright",value:"CC BY-NC-SA 3.0"}];
   await assert.rejects(()=>sourceReview("approve",approval),/source or license changed/i,

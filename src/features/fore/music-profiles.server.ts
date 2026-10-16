@@ -173,6 +173,19 @@ export async function handleMusicProfiles(
     )
       .bind(now)
       .run();
+    // Rights withdrawals invalidate outstanding claims immediately. Do not
+    // repeatedly select a revoked master (or obsolete external delivery) and
+    // return HTTP 409 to the entire scheduled audio batch. Keep historical
+    // reports for audit, but never offer revoked audio to any analyzer.
+    const eligibleRecording = `(
+      EXISTS(SELECT 1 FROM soundtrack_recordings r WHERE r.id=music_profile_jobs.recording_id AND r.status='ready' AND r.quality_status='passed' AND r.storage_key IS NOT NULL AND r.source_snapshot_key IS NOT NULL)
+      OR EXISTS(SELECT 1 FROM soundtrack_external_recordings e WHERE e.id=music_profile_jobs.recording_id AND e.status='ready' AND e.storage_key IS NOT NULL)
+    )`;
+    await env.DB.prepare(
+      `UPDATE music_profile_jobs SET status='failed',last_error='recording_not_published',lease_token='',lease_until='',updated_at=? WHERE status IN ('queued','running') AND NOT ${eligibleRecording}`,
+    )
+      .bind(now)
+      .run();
     // Quiet, explicitly instrumental originals already published with a
     // verified master get first analysis when a batch arrives. This changes
     // scheduling ONLY; title tags never stand in for measured audio energy,
@@ -184,8 +197,16 @@ export async function handleMusicProfiles(
       .first<{ recording_id: string; fingerprint: string }>();
     if (!job) return json({ skipped: "no_jobs" });
     const r = await find(job.recording_id);
-    if (!r || (await fingerprint(r)) !== job.fingerprint)
-      throw new ApiError(409, "Recording changed; waiting for sweep");
+    if (!r || (await fingerprint(r)) !== job.fingerprint) {
+      // A simultaneous rights withdrawal or master change must not abort
+      // the rest of this bounded batch or leave a repeatedly leased ghost.
+      await env.DB.prepare(
+        "UPDATE music_profile_jobs SET status='failed',last_error='stale_recording_fingerprint',lease_token='',lease_until='',updated_at=? WHERE recording_id=? AND fingerprint=? AND lease_token=? AND status='running'",
+      )
+        .bind(timestamp(), job.recording_id, job.fingerprint, token)
+        .run();
+      return json({ skipped: "stale_recording" });
+    }
     return json({
       recordingId: r.id,
       fingerprint: job.fingerprint,
