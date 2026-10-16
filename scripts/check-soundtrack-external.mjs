@@ -73,7 +73,8 @@ try {
   assert.equal(registered.status,201);
   const {id,provenanceSha256}=await registered.json();
   assert.match(id,/^ex_[a-f0-9-]{36}$/);
-  await assert.rejects(()=>route(register,"POST",manifest),/already/i);
+  const second=await (await route(register,"POST",manifest)).json();
+  assert.equal(second.id,id,"Same source hash, page and rights grant must safely reuse pending submission");
   assert.equal((await (await listing()).json()).count,0,"registered originals are still private");
   const file="/admin/soundtracks/external/"+id+"/audio";
   await assert.rejects(()=>route(file,"PUT",new TextEncoder().encode("bad")),/original byte count/i);
