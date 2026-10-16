@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import type { SoundtrackDossier } from "./soundtrack-review";
+import { SoundtrackExternalReview } from "./SoundtrackExternalReview";
 
 type ReviewRow = {
   id: string;
@@ -482,6 +483,7 @@ export function SoundtrackReviewPage() {
           refresh={() => cache.invalidateQueries({ queryKey: ["soundtrack-review"] })}
         />
       ) : null}
+      <SoundtrackExternalReview />
     </section>
   );
 }
