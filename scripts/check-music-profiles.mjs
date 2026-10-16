@@ -110,6 +110,70 @@ try {
       "Lyrics, historical performance authenticity and composition dates cannot be established by this analyzer.",
     ],
   };
+  const duration = 231.170748;
+  const windows = Array.from({ length: 8 }, (_, i) => ({
+    start: (i * (duration - 10)) / 7,
+    end: (i * (duration - 10)) / 7 + 10,
+  }));
+  const semanticReport = {
+    ...report,
+    durationSeconds: duration,
+    structure: {
+      ...report.structure,
+      timeline: Array.from({ length: 47 }, (_, i) => ({
+        start: i * 5,
+        end: Math.min(duration, (i + 1) * 5),
+        rmsDbfs: -22,
+        centroidHz: 400,
+        onsets: 2,
+      })),
+      binSeconds: 5,
+    },
+    semantics: {
+      model: core.CLAP_MODEL,
+      revision: core.CLAP_REVISION,
+      method: "zero_shot_audio_text_similarity",
+      scoreMeaning: "uncalibrated_cosine_similarity",
+      sampledSeconds: 80.00000000000003,
+      windows,
+      moods: [],
+      nuance: [],
+      dimensions: {
+        valence: null,
+        arousal: null,
+        acousticness: null,
+        vocalPresence: null,
+        ensembleSize: "unknown",
+        scale: "unknown",
+        texture: [],
+        instruments: [],
+      },
+      confidence: 0.6,
+    },
+  };
+  core.validateMusicReport(semanticReport);
+  assert.throws(
+    () =>
+      core.validateMusicReport({
+        ...semanticReport,
+        semantics: { ...semanticReport.semantics, sampledSeconds: 80.01 },
+      }),
+    /less than or equal/,
+  );
+  assert.throws(
+    () =>
+      core.validateMusicReport({
+        ...semanticReport,
+        semantics: {
+          ...semanticReport.semantics,
+          windows: [
+            { start: 0, end: 10 },
+            { start: 9, end: 19 },
+          ],
+        },
+      }),
+    /sample coverage/,
+  );
   const identity = {
     recordingId: first.recordingId,
     fingerprint: first.fingerprint,

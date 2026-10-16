@@ -66,9 +66,9 @@ jobs:
       - name: Exercise pinned CLAP on real waveform bytes
         if: matrix.consumer == 0
         run: |
-          ffmpeg -nostdin -v error -f lavfi -i 'sine=frequency=440:duration=12:sample_rate=48000' -c:a libvorbis /tmp/clap-fixture.ogg -y
+          ffmpeg -nostdin -v error -f lavfi -i 'sine=frequency=440:duration=231.170748:sample_rate=44100' -c:a libvorbis /tmp/clap-fixture.ogg -y
           python scripts/soundtracks/profile-audio.py /tmp/clap-fixture.ogg --semantic-model --output /tmp/clap-fixture-profile.json
-          python -c 'import json; r=json.load(open("/tmp/clap-fixture-profile.json")); assert r["semantics"]["model"] == "laion/clap-htsat-unfused" and len(r["semantics"]["windows"]) == 2'
+          python -c 'import json; r=json.load(open("/tmp/clap-fixture-profile.json")); assert r["semantics"]["model"] == "laion/clap-htsat-unfused" and len(r["semantics"]["windows"]) == 8'
       - uses: actions/setup-node@v6
         if: matrix.consumer == 0
         with:

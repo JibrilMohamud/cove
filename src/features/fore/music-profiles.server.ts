@@ -238,7 +238,7 @@ export async function handleMusicProfiles(
         fullSignal: true,
         semantic: report.semantics ? "sampled" : "unavailable",
         semanticFraction: report.semantics
-          ? report.semantics.sampledSeconds / report.durationSeconds
+          ? Math.min(1, report.semantics.sampledSeconds / report.durationSeconds)
           : 0,
       },
       readingSuitability: {

@@ -11,7 +11,7 @@ export const musicSemanticSchema = z
     revision: z.literal(CLAP_REVISION),
     method: z.literal("zero_shot_audio_text_similarity"),
     scoreMeaning: z.literal("uncalibrated_cosine_similarity"),
-    sampledSeconds: numeric.positive().max(80),
+    sampledSeconds: numeric.positive().max(80.000001),
     windows: z
       .array(z.object({ start: numeric.min(0), end: numeric.positive() }).strict())
       .min(1)
@@ -124,7 +124,7 @@ export function validateMusicReport(input: unknown) {
       if (
         w.end <= w.start ||
         w.end - w.start > 10.1 ||
-        w.start < previousEnd ||
+        w.start + 0.000001 < previousEnd ||
         w.end > duration + 0.1
       )
         throw new Error("Invalid model sample coverage");

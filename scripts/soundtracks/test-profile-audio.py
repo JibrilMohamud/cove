@@ -20,7 +20,7 @@ class ProfileTests(unittest.TestCase):
             self.assertIsNone(report['signal']['tempoBpm'])
             json.dumps(report,allow_nan=False)
     def test_model_windows_cover_recording_and_stay_bounded(self):
-        for duration in [1,10,11,90,7200]:
+        for duration in [1,10,11,23.6,90,231.170748,7200]:
             windows=analyzer.model_windows(duration)
             self.assertLessEqual(len(windows),8)
             self.assertAlmostEqual(windows[-1][1],duration)
