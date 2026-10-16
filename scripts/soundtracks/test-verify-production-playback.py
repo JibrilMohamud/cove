@@ -83,6 +83,8 @@ class ProductionProbeTest(unittest.TestCase):
             {"license":"CC BY-NC 4.0","licenseUrl":"https://creativecommons.org/licenses/by-nc/4.0/"},
             {"license":"CC BY 4.0","licenseUrl":"https://creativecommons.org/licenses/by-sa/4.0/"},
             {"license":"CC BY 3.0","licenseUrl":"https://creativecommons.org/licenses/by/4.0/"},
+            {"license":"CC BY 4.0 (noncommercial use only)"},
+            {"license":"CC BY 4.0 / NC"},
             {"license":"CC BY-SA 4.0","licenseUrl":"https://creativecommons.org/licenses/by/4.0/"},
             {"licenseUrl":"https://creativecommons.org/licenses/by-nc-sa/4.0/"},
             {"licenseUrl":"http://creativecommons.org/licenses/by/4.0/"},
