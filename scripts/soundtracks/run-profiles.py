@@ -68,6 +68,10 @@ def run(max_tracks,max_minutes,output):
     for _ in range(max_tracks):
         if time.monotonic()-started>max_minutes*60:break
         job=call('claim',{})
+        if job.get('skipped') == 'stale_recording':
+            # A rights withdrawal racing this claim must not prevent other
+            # already-approved masters from receiving genuine audio analysis.
+            continue
         if job.get('skipped'):break
         rid=job['recordingId']
         identity={k:job[k] for k in ('recordingId','fingerprint','leaseToken')}
