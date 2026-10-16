@@ -18,6 +18,7 @@ import {
   listeningTarget,
   canonicalJson,
   evaluateRanker,
+  rankerReleaseEvidence,
   evaluationExampleSchema,
   type ArcSection,
   type MatchOptions,
@@ -425,6 +426,17 @@ export async function handleMatchingAdministration(
           })
         )
           throw new ApiError(409, "Ranker holdout results do not reproduce");
+        // Family accuracy alone does not prove independent listening review.
+        // Enforce real authenticated staff diversity on the authoritative
+        // dataset before allowing the model to replace the baseline.
+        if (parsed.data.activate) {
+          const evidence = rankerReleaseEvidence(
+            examples.map((row) => evaluationExampleSchema.parse(row)),
+            artifact.weights,
+          );
+          if (!evidence.deployable)
+            throw new ApiError(409, "Independent human review or family holdout coverage is insufficient");
+        }
         const statements = [];
         if (parsed.data.activate)
           statements.push(env.DB.prepare("UPDATE matching_rankers SET active=0 WHERE active=1"));
