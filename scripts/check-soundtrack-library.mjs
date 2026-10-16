@@ -94,6 +94,28 @@ try {
   const next = await lib.discoverSoundtrackCandidates(env);
   assert.match(next.source,/Baroque/);
   assert.equal(next.queuedForRightsReview,0,"duplicate Commons files are not re-inserted");
+  // Cumulative discovery over 750 must not block a queue with free space.
+  await env.DB.prepare("UPDATE soundtrack_ingestion_state SET discovered=750,last_discovery_at='' WHERE id=1").run();
+  const pastLifetimeLimit = await lib.discoverSoundtrackCandidates(env);
+  assert.equal(pastLifetimeLimit.queuedForRightsReview,0,"cumulative intake is not a queue cap");
+  assert.ok(!pastLifetimeLimit.skipped,"candidate lifetime count cannot stop intake");
+
+  // A week after category exhaustion, restart discovery without duplicating files.
+  const categories = [
+    "Audio files of classical music for piano",
+    "Audio files of Baroque period classical music",
+    "Audio files of Classical period classical music",
+    "Audio files of Romantic period classical music",
+    "Audio files of renaissance period classical music",
+    "Audio files of medieval period classical music",
+  ];
+  const cursors = Object.fromEntries(categories.map(name=>[name,"DONE"]));
+  cursors._cycleFinishedAt = new Date(Date.now()-8*86400_000).toISOString();
+  await env.DB.prepare("UPDATE soundtrack_ingestion_state SET category_cursors_json=?,category_index=0,last_discovery_at='' WHERE id=1")
+    .bind(JSON.stringify(cursors)).run();
+  const recrawl = await lib.discoverSoundtrackCandidates(env);
+  assert.match(recrawl.source,/piano/,"weekly revisit of exhausted categories");
+  assert.equal(recrawl.queuedForRightsReview,0,"recrawl does not requeue duplicate recordings");
   assert.equal(row.period,"mixed");
   assert.match(row.moods_json,/reflective/);
   assert.equal(row.energy,0.25);

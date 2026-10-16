@@ -1,0 +1,59 @@
+name: Curate source-license soundtracks
+
+on:
+  schedule:
+    # Scheduled GitHub Actions times are approximate.
+    - cron: "19 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Inspect candidates without downloading or changing production
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: source-license-soundtrack-curation
+  cancel-in-progress: false
+
+jobs:
+  curate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ secrets.COVE_SOUNDTRACK_REVIEW_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Verify curation safety tests
+        run: python scripts/soundtracks/test-curate-source-license.py -q
+      - name: Verify FFmpeg tools
+        run: |
+          command -v ffmpeg
+          command -v ffprobe
+      - name: Skip safely when no scoped credential is configured
+        if: env.COVE_SOUNDTRACK_REVIEW_TOKEN == ''
+        run: echo 'Scoped soundtrack-review secret missing; production unchanged.'
+      - name: Curate and measure original files
+        if: env.COVE_SOUNDTRACK_REVIEW_TOKEN != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--max-scan 800 --max-tracks 8 --max-mib 160 --max-minutes 20 --output soundtrack-curation-receipts.json)
+          if [[ '${{ github.event_name }}' == 'schedule' || '${{ inputs.dry_run }}' == 'false' ]]; then
+            args+=(--apply --approve-source-license)
+          fi
+          python scripts/soundtracks/curate-source-license.py "${args[@]}"
+      - name: Upload non-secret receipts
+        if: always() && env.COVE_SOUNDTRACK_REVIEW_TOKEN != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: soundtrack-curation-receipts
+          path: soundtrack-curation-receipts.json
+          if-no-files-found: ignore
+          retention-days: 14

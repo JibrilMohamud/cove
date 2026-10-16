@@ -64,6 +64,8 @@ jobs:
         run: npm run test:biosync-chunks
       - name: Python audio pipeline syntax
         run: python3 -m py_compile scripts/audio_pipeline/*.py
+      - name: Source-license curation safety regression tests
+        run: python3 scripts/soundtracks/test-curate-source-license.py -v
       - name: Build
         run: npm run build
       - name: Build persistence backend
