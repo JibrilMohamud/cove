@@ -9,6 +9,7 @@ import json
 import pathlib
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -25,11 +26,17 @@ OPENER = urllib.request.build_opener(NoRedirect)
 def fetch(url, method="GET", headers=None, opener=OPENER):
     request = urllib.request.Request(url, method=method,
         headers={"User-Agent":"CoveAudioPlaybackProbe/1.0", **(headers or {})})
-    with opener.open(request, timeout=25) as response:
-        status = response.status
-        headers = dict(response.headers)
-        data = response.read(5_000_000 if method == "GET" else 0)
-    return status, headers, data
+    for attempt in range(4):
+        try:
+            with opener.open(request, timeout=25) as response:
+                status = response.status
+                response_headers = dict(response.headers)
+                data = response.read(5_000_000 if method == "GET" else 0)
+            return status, response_headers, data
+        except urllib.error.HTTPError as error:
+            if error.code not in (429,502,503,504) or attempt==3:
+                raise
+            time.sleep(min(2**attempt,4))
 
 def run(base=BASE, limit=12, opener=OPENER):
     if base != BASE:
