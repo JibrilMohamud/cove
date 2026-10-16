@@ -590,6 +590,10 @@ try {
     "Synthetic tests are never a substitute for independently staffed listening judgments",
   );
   assert.equal(diagnostic.independentPrincipals, 1);
+  const releaseGate = core.rankerReleaseEvidence(examples, artifact.weights);
+  assert.equal(releaseGate.deployable, false);
+  assert.equal(releaseGate.conditions.staffAuthoredOnly, false);
+
   assert.ok(diagnostic.holdouts.book.gainInterval);
   assert.ok(diagnostic.holdouts.composition.gainInterval);
 
@@ -657,8 +661,11 @@ try {
         row.created_at,
       )
       .run();
-  await admin("/admin/matching/models", "POST", { artifact, activate: true });
-  assert.equal((await server.activeMatchingRanker(env)).id, artifact.id);
+  await assert.rejects(
+    () => admin("/admin/matching/models", "POST", { artifact, activate: true }),
+    /Independent human review/,
+  );
+  assert.equal(await server.activeMatchingRanker(env), undefined);
   await admin("/admin/matching/models", "DELETE");
   assert.equal(await server.activeMatchingRanker(env), undefined);
   await assert.rejects(

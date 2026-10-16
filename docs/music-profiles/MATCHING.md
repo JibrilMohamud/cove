@@ -205,6 +205,16 @@ Then run:
 node scripts/matching/audit-human-ranker.mjs --input judgments.json --ranker ranker.json --output matching-audit.json
 ```
 
+The privileged production model-activation endpoint also rechecks the
+immutable editorial export against authenticated staff reviewer principals:
+at least three distinct staff reviewers, no reviewer contributing more than
+60% of usable comparisons, at least two staff reviewers on each held-out
+family split, at least five distinct unseen book families and five distinct
+unseen composition families, and the existing family-holdout non-regression
+requirements. Service-automation principals and synthetic fixtures cannot
+activate a model. Authenticated staff identity is not proof of independent
+human cognition, so recruitment/blinding and human review remain required.
+
 The audit reports unseen-book and unseen-composition pair accuracy versus the
 heuristic, three-reviewer diversity, unique family coverage, and conservative
 exploratory 95% family-grouped bootstrap intervals. `conservativeReviewReady`
