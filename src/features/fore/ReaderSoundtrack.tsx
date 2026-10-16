@@ -59,7 +59,6 @@ export function ReaderSoundtrack({
   const audio = useRef<HTMLAudioElement>(null);
   const pending = useRef<PlaylistTrack[] | null>(null);
   const resumeAfterBoundary = useRef(false);
-  const revision = useRef(0);
   const bucket = Math.min(9, Math.max(0, Math.floor(progress * 10)));
   const query = useQuery({
     queryKey: ["reader-soundtrack-v1", bookId, spine, bucket, mode, vocals],
@@ -98,7 +97,6 @@ export function ReaderSoundtrack({
   }, [query.data]);
   useEffect(() => {
     // A different book must never inherit the prior book's licensed tracks.
-    revision.current++;
     audio.current?.pause();
     pending.current = null;
     setTracks([]);
@@ -158,26 +156,13 @@ export function ReaderSoundtrack({
   };
   // The player remains mounted when the reading panel is collapsed, so music
   // continues only after the reader has explicitly started playback.
-  if (!expanded && !playing) return (
-    <audio
-      ref={audio}
-      preload="none"
-      src={current?.recording.audioUrl}
-      onEnded={() => advance(true)}
-      onError={() => {
-        if (current) {
-          setMessage("Recording is unavailable. Rechecking the rights-cleared playlist.");
-          void query.refetch();
-          advance(playing);
-        }
-      }}
-    />
-  );
   return (
     <section
       aria-label="Reading soundtrack"
       className="reader-soundtrack"
+      aria-hidden={!expanded && !playing}
       style={{
+        display: !expanded && !playing ? "none" : undefined,
         position: "fixed",
         zIndex: 80,
         right: 12,
