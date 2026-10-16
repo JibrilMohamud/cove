@@ -39,6 +39,7 @@ export function ReaderSoundtrack({
   ready,
   expanded,
   onClose,
+  onOpen,
   registered,
 }: {
   bookId: string;
@@ -47,6 +48,7 @@ export function ReaderSoundtrack({
   ready: boolean;
   expanded: boolean;
   onClose: () => void;
+  onOpen: () => void;
   registered: boolean;
 }) {
   const [mode, setMode] = useState<Mode>("atmosphere");
@@ -182,7 +184,11 @@ export function ReaderSoundtrack({
         <h2 style={{ fontSize: 18, margin: 0 }}>
           <Music2 size={18} aria-hidden="true" /> Reading soundtrack
         </h2>
-        <button type="button" aria-label="Minimize soundtrack" onClick={onClose}>
+        <button
+          type="button"
+          aria-label={expanded ? "Minimize soundtrack" : "Expand soundtrack"}
+          onClick={expanded ? onClose : onOpen}
+        >
           <X size={18} aria-hidden="true" />
         </button>
       </div>
