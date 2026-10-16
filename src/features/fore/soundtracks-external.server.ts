@@ -74,7 +74,6 @@ export type ExternalRecord = {
  territories_json:string; provenance_json:string; provenance_sha256:string; quality_report_json:string;
  status:string; storage_key:string|null; storage_bytes:number|null; reviewed_by:string|null; reviewed_at:string|null;
 };
-const idPattern = /^ex_[0-9a-f-]{36}$/;
 const timestamp = () => new Date().toISOString();
 const hash = async (text:string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(text))),b=>b.toString(16).padStart(2,"0")).join("");
 function playbackAllowed(row:ExternalRecord, territory:string) {
@@ -114,7 +113,7 @@ export async function handleExternalSoundtracks(
     if (!row || row.status!=="ready" || !row.storage_key || !row.storage_bytes ||
         !playbackAllowed(row,territory) || !env.BUCKET)
       throw new ApiError(404,"External soundtrack is unavailable.");
-    const head = await env.BUCKET.head(row.storage_key);
+    const head = await env.BUCKET.head?.(row.storage_key);
     if (!head || head.size !== row.source_size || head.size !== row.storage_bytes)
       throw new ApiError(503,"The verified master is unavailable.");
     const invalid = () => new Response(null,{status:416,headers:{"Content-Range":"bytes */"+head.size,
@@ -247,7 +246,7 @@ export async function handleExternalSoundtracks(
     const report=soundtrackQualitySchema.parse(JSON.parse(row.quality_report_json));
     if (!qualityPasses(report)||report.sha256!==row.source_file_sha256||report.sourceSha1!==row.source_file_sha1||
         report.bytes!==row.source_size) throw new ApiError(409,"Invalid original audio QA evidence");
-    const head=await env.BUCKET?.head(row.storage_key);
+    const head=await env.BUCKET?.head?.(row.storage_key);
     if (!head || head.size!==row.source_size) throw new ApiError(503,"Stored original is unavailable");
     const at=timestamp(), reviewer="staff:"+staff.id;
     const updated=await env.DB.prepare(
