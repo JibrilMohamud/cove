@@ -481,7 +481,7 @@ try {
   await env.DB.prepare(
     `WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM seq WHERE n<130)
     INSERT INTO literary_profile_jobs(id,product_id,fingerprint,kind,section_id,source_key,status,available_at,created_at,updated_at)
-    SELECT printf('preparation_pressure_%03d',n),?,(SELECT fingerprint FROM literary_profiles WHERE product_id=?),'prepare','','','queued',?,?,? FROM seq`,
+    SELECT printf('preparation_pressure_%03d',n),?,(SELECT fingerprint FROM literary_profiles WHERE product_id=?),'prepare',printf('saturated_%03d',n),'','queued',?,?,? FROM seq`,
   )
     .bind(product.id, product.id, atBudgetTest, atBudgetTest, atBudgetTest)
     .run();
