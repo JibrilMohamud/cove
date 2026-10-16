@@ -44,6 +44,24 @@ class ProviderIntakeTest(unittest.TestCase):
                     self.assertEqual(result["summary"]["staged"],1)
                     self.assertFalse(result["publishable"])
                     self.assertEqual(result["results"][0]["status"],"qa_verified_staged")
+    def test_fma_cc_manual_acquisition_requires_no_separate_contract(self):
+        r=item("fma")
+        del r["providerAccessGrant"]
+        r["acquisitionEvidence"]={
+            "method":"manual_download",
+            "sourcePageUrl":r["sourcePageUrl"],
+            "acquiredAt":"2026-10-16T02:00:00Z",
+            "noAutomatedProviderAccess":True,
+            "originalUnmodified":True,
+        }
+        self.assertEqual(lib.validate(r)["licenseCode"],"CC-BY")
+        wrong=dict(r["acquisitionEvidence"],noAutomatedProviderAccess=False)
+        with self.assertRaises(ValueError):lib.validate(dict(r,acquisitionEvidence=wrong))
+        wrong=dict(r["acquisitionEvidence"],sourcePageUrl="https://freemusicarchive.org/music/Other/")
+        with self.assertRaises(ValueError):lib.validate(dict(r,acquisitionEvidence=wrong))
+        with self.assertRaises(ValueError):lib.validate(dict(r,provider="musopen"))
+        with self.assertRaises(ValueError):lib.validate(dict(r,licenseCode="PD",licenseUrl="https://musopen.org/faq/"))
+
     def test_restricted_source_and_rights_refused(self):
         edits=({"providerAccessGrant":{}},{"licenseCode":"CC-BY-NC"},
                {"sourcePageUrl":"http://localhost/track"},{"masterRedistributionConfirmed":False},
