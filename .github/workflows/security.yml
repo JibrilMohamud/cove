@@ -70,6 +70,8 @@ jobs:
         run: python3 scripts/soundtracks/test-external-source-intake.py -v
       - name: Provider-supplied soundtrack release and revocation tests
         run: node scripts/check-soundtrack-external.mjs
+      - name: Authorized supplier delivery and resume safety tests
+        run: python3 scripts/soundtracks/test-submit-authorized-provider.py -v
       - name: Build
         run: npm run build
       - name: Build persistence backend
