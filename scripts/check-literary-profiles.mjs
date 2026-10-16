@@ -465,24 +465,25 @@ try {
     .first();
   assert.equal(failedBudgetJob.status, "queued");
   assert.equal(failedBudgetJob.attempts, 0, "Budget deferrals do not exhaust retry allowance");
+  const atBudgetTest = new Date().toISOString();
   // Ingestion must stop enqueuing another 50 catalog books per minute when
   // preparation cannot catch up to the bounded literary inference budget.
   await env.DB.prepare(
     "INSERT INTO cove_runtime_config(key,value,updated_at) VALUES('literary_max_queued_prepares','128',?)",
   )
-    .bind(now)
+    .bind(atBudgetTest)
     .run();
   await env.DB.prepare(
     "INSERT INTO cove_runtime_config(key,value,updated_at) VALUES('literary_prepares_per_tick','0',?)",
   )
-    .bind(now)
+    .bind(atBudgetTest)
     .run();
   await env.DB.prepare(
     `WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM seq WHERE n<130)
     INSERT INTO literary_profile_jobs(id,product_id,fingerprint,kind,section_id,source_key,status,available_at,created_at,updated_at)
     SELECT printf('preparation_pressure_%03d',n),?,(SELECT fingerprint FROM literary_profiles WHERE product_id=?),'prepare','','','queued',?,?,? FROM seq`,
   )
-    .bind(product.id, product.id, now, now, now)
+    .bind(product.id, product.id, atBudgetTest, atBudgetTest, atBudgetTest)
     .run();
   const saturated = await lib.runLiteraryProfileTick(env);
   assert.equal(saturated.seeded.skipped, "prepare_queue_backpressure");
