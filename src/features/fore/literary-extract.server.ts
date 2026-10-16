@@ -32,8 +32,10 @@ export async function extractLiterarySections(bytes: Uint8Array) {
   const spine = Array.from(opf.getElementsByTagNameNS("*", "itemref"));
   const sections: LiterarySection[] = [];
   let totalChars = 0,
-    truncated = false;
+    truncated = false,
+    reachedEnd = false;
   outer: for (let i = 0; i < spine.length; i++) {
+    if (reachedEnd) break;
     const ref = spine[i];
     const item = manifest.get(ref.getAttribute("idref"));
     if (
@@ -60,9 +62,30 @@ export async function extractLiterarySections(bytes: Uint8Array) {
       for (const node of Array.from(doc.getElementsByTagNameNS("*", tag)))
         node.parentNode?.removeChild(node);
     }
-    const text = (doc.getElementsByTagNameNS("*", "body")[0]?.textContent || "")
+    let text = (doc.getElementsByTagNameNS("*", "body")[0]?.textContent || "")
       .replace(/\s+/g, " ")
       .trim();
+    // Gutenberg's source header/license are not the book's literary content.
+    // Preserve offsets into the original normalized spine text after stripping.
+    let baseOffset = 0;
+    const start = /\*{3}\s*START OF (?:THE|THIS) PROJECT GUTENBERG EBOOK[\s\S]*?\*{3}/i.exec(text);
+    if (start) {
+      baseOffset = start.index + start[0].length;
+      text = text.slice(baseOffset);
+    }
+    const end = /\*{3}\s*END OF (?:THE|THIS) PROJECT GUTENBERG EBOOK[\s\S]*?\*{3}/i.exec(text);
+    if (end) {
+      reachedEnd = true;
+      text = text.slice(0, end.index);
+    }
+    if (
+      !start &&
+      !end &&
+      Array.from(doc.getElementsByTagName("*")).some(
+        (n) => n.getAttribute("id") === "project-gutenberg-license",
+      )
+    )
+      continue;
     if (text.length < 250) continue;
     const title = (
       doc.getElementsByTagNameNS("*", "h1")[0]?.textContent ||
@@ -85,8 +108,8 @@ export async function extractLiterarySections(bytes: Uint8Array) {
         href,
         title,
         chunkIndex: chunk,
-        charStart: offset,
-        charEnd: end,
+        charStart: baseOffset + offset,
+        charEnd: baseOffset + end,
         text: text.slice(offset, end),
       });
       totalChars += end - offset;

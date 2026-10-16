@@ -37,6 +37,7 @@ type BookInput = {
   metadata: string;
   text_allowed: number;
   extra_sources: string;
+  bibliography: string;
 };
 type CurrentProfile = {
   product_id: string;
@@ -68,6 +69,7 @@ const hash = async (value: string) =>
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 const inputSql = `SELECT p.id,e.title,e.description,e.language,p.source_name,p.source_external_id,av.object_key,av.sha256,
+  json_object('edition publication date',e.publication_date,'original publication date',(SELECT w.original_publication_date FROM works w WHERE w.id=e.work_id),'authors',json(COALESCE((SELECT json_group_array(name) FROM (SELECT c.name FROM edition_contributors ec JOIN contributors c ON c.id=ec.contributor_id WHERE ec.edition_id=e.id AND ec.role='author' ORDER BY ec.position LIMIT 20)),'[]'))) bibliography,
   COALESCE((SELECT json_object('subjects',json(c.subjects_json),'shelves',json(c.bookshelves_json),'authors',json(c.authors_json)) FROM gutenberg_source_cache c WHERE c.id=p.source_external_id),'{}') metadata,
   COALESCE((SELECT json_group_array(json_object('id',s.id,'kind',s.kind,'text',s.text,'locator',s.locator,'hash',s.content_sha256)) FROM literary_profile_sources s WHERE s.product_id=p.id AND s.active=1 ORDER BY s.id),'[]') extra_sources,
   CASE WHEN p.source_name='gutenberg' AND e.canonical_public_domain=1 AND EXISTS(SELECT 1 FROM gutenberg_source_cache c WHERE c.id=p.source_external_id AND c.copyright=0 AND c.commercial_use_status='approved') THEN 1 ELSE 0 END text_allowed
@@ -88,6 +90,7 @@ const metadataSources = (book: BookInput): ProfileEvidence[] => [
     text: JSON.stringify({
       title: book.title,
       language: book.language,
+      bibliography: JSON.parse(book.bibliography),
       metadata: JSON.parse(book.metadata),
     }).slice(0, 12000),
     locator: "catalog:" + book.id,
@@ -200,7 +203,18 @@ export async function seedLiteraryProfiles(env: LiteraryEnv, limit = 50) {
 }
 async function putBundle(env: LiteraryEnv, key: string, bundle: SourceBundle) {
   if (!env.BUCKET) throw new Error("Profile evidence storage unavailable");
-  const text = JSON.stringify(bundle);
+  // Keep full-text chunks intact while bounding surrounding metadata/excerpts.
+  // This avoids context overflow for long descriptions or non-Latin sources.
+  let remaining = 12000;
+  const sources = [...bundle.sources]
+    .sort((a, b) => Number(b.kind === "full_text") - Number(a.kind === "full_text"))
+    .flatMap((source) => {
+      const limit = Math.min(remaining, source.kind === "full_text" ? 8000 : 4000);
+      const text = source.text.slice(0, limit);
+      remaining -= text.length;
+      return text ? [{ ...source, text }] : [];
+    });
+  const text = JSON.stringify({ ...bundle, sources });
   await env.BUCKET.put(key, new TextEncoder().encode(text), {
     sha256: await hash(text),
     httpMetadata: { contentType: "application/json" },
@@ -651,13 +665,13 @@ export async function handleLiteraryProfiles(
   const current = await env.DB.prepare("SELECT * FROM literary_profiles WHERE product_id=?")
     .bind(product.id)
     .first<CurrentProfile>();
-  if (!current)
-    return json({
-      productId: product.id,
-      status: "pending",
-      profile: emptyLiteraryProfile(),
-      policy: PROFILE_POLICY,
-    });
+  if (!current) {
+    const common = { productId: product.id, status: "pending", policy: PROFILE_POLICY };
+    if (match[2] === "playlist")
+      return json({ ...common, matches: [], provisional: true, mode: "atmosphere-first" });
+    if (match[2] === "chapters") return json({ ...common, chapters: [], nextCursor: null });
+    return json({ ...common, profile: emptyLiteraryProfile() });
+  }
   const url = new URL(request.url);
   const spine = url.searchParams.get("spine");
   if (spine !== null && !/^\d{1,5}$/.test(spine))
