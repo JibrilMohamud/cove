@@ -78,7 +78,7 @@ def trusted_media_url(value):
 
 def credited_performer(value, composer):
     raw = str(value or '').strip()
-    if re.search(r'(?i)\b(?:unknown|unverified|uploader|see above|copyright|various artists)\b', raw):
+    if re.search(r'(?i)\b(?:unknown|unverified|uploader|see above|copyright|various artists|anonymous|archive|assumed|metadata|see musopen|attribution|author provided|no machine-readable)\b', raw):
         return None
     # Wikimedia's Artist credit sometimes contains an explicit musician role.
     roles = re.findall(r'(?i)(?:musician|pianist|performer|played by|performed by)\s*:?\s*([^;()]+)', raw)
@@ -91,7 +91,7 @@ def credited_performer(value, composer):
         return None
     if not 3 <= len(credit) <= 140 or '/' in credit or ';' in credit or len(credit.split()) > 9:
         return None
-    if composer.lower() == credit.lower() or credit.lower() in composer.lower():
+    if composer.lower() == credit.lower() or composer.lower() in credit.lower() or credit.lower() in composer.lower() or re.search(r'(?i)https?://|www\.', credit):
         return None
     if not re.search(r'[A-Za-zÀ-ž]{2,}', credit) or re.fullmatch(r'\w+\d+', credit):
         return None
