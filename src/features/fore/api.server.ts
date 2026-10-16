@@ -37,6 +37,7 @@ import {
 import { handlePipeline } from "./pipeline.server";
 import { handleAudio } from "./audio.server";
 import { handleSoundtracks } from "./soundtracks.server";
+import { handleLiteraryProfiles } from "./literary-profiles.server";
 import { handleVercelPublicRequest } from "./vercel-public.server";
 import {
   commercialAudioPublisherSnapshot,
@@ -456,6 +457,7 @@ type Statement = {
   run(): Promise<unknown>;
 };
 export type CoveEnv = {
+  AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   DB: { prepare(sql: string): Statement; batch(s: Statement[]): Promise<unknown> };
   BUCKET?: {
     get(key: string, options?: any): Promise<any>;
@@ -3934,6 +3936,7 @@ async function handleCoveRequest(
         );
     }
     const extended =
+      (await handleLiteraryProfiles(request, env, path, storefrontTerritory, identity(request))) ||
       (await handlePipeline(request, env, path, identity(request)?.id || null)) ||
       (await handleCommercialAudio(
         request,

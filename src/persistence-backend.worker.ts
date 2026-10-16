@@ -1,4 +1,5 @@
 import { verifyAudioStorage } from "./features/fore/audio-coverage.server";
+import { runLiteraryProfileTick } from "./features/fore/literary-profiles.server";
 import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
 import {
   discoverSoundtrackCandidates,
@@ -536,8 +537,19 @@ async function runScheduled(cron: string, env: BackendEnv) {
   }
   try {
     if (cron === "* * * * *") {
-      await runStoredAssetTick(env);
-      await verifyAudioStorage(env);
+      // EPUB preparation shares the Worker's memory with asset ingestion.
+      // Keep these bounded jobs sequential while isolating individual failures.
+      for (const work of [
+        () => runStoredAssetTick(env),
+        () => verifyAudioStorage(env),
+        () => runLiteraryProfileTick(env),
+      ]) {
+        try {
+          await work();
+        } catch (error) {
+          console.warn("Cove minute maintenance failed", String(error).slice(0, 200));
+        }
+      }
       return;
     }
     if (cron === "*/5 * * * *") {
