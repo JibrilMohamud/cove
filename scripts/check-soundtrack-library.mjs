@@ -129,12 +129,18 @@ try {
   ];
   // Commons hosts already-licensed FMA audio; source discovery must never
   // access FMA directly or assume category membership implies approval.
+  pages.push(good(107,"FMA Independent Original","CC BY 4.0","https://creativecommons.org/licenses/by/4.0/"));
   const oldCategoryCursors = Object.fromEntries(categories.slice(0,6).map(name=>[name,"DONE"]));
   await env.DB.prepare("UPDATE soundtrack_ingestion_state SET category_cursors_json=?,category_index=0,last_discovery_at='' WHERE id=1")
     .bind(JSON.stringify(oldCategoryCursors)).run();
   const fmaDiscovery = await lib.discoverSoundtrackCandidates(env);
   assert.equal(fmaDiscovery.source,"Classical music from Free Music Archive");
-  assert.equal(fmaDiscovery.queuedForRightsReview,0,"Known source files are de-duplicated across Commons categories");
+  assert.equal(fmaDiscovery.queuedForRightsReview,1,"Only the newly discovered commercially declared master is queued");
+  const fmaRow = await env.DB.prepare("SELECT status,automated_triage_reason,evidence_json FROM soundtrack_recordings WHERE id='cm_107'").first();
+  assert.equal(fmaRow.status,"pending_review");
+  assert.match(fmaRow.automated_triage_reason,/verify FMA master license/);
+  assert.match(fmaRow.evidence_json,/Classical music from Free Music Archive/);
+  assert.equal((await (await listing()).json()).count,0,"FMA-origin Commons tracks are never implicitly published");
   assert.equal(mediaRequests,0,"FMA source discovery must never scrape or download provider audio");
   const cursors = Object.fromEntries(categories.map(name=>[name,"DONE"]));
   cursors._cycleFinishedAt = new Date(Date.now()-8*86400_000).toISOString();
