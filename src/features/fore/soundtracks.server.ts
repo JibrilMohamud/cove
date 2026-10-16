@@ -46,6 +46,7 @@ type CommonsInfo = {
   url?: string;
   descriptionurl?: string;
   extmetadata?: Record<string, { value?: string }>;
+  metadata?: Array<{ name?: string; value?: unknown }>;
 };
 type CommonsPage = { pageid?: number; title?: string; imageinfo?: CommonsInfo[];
   revisions?: { revid: number; timestamp: string; slots?: { main?: { content?: string } } }[] };
@@ -104,6 +105,20 @@ function licensed(info: CommonsInfo) {
     return { code: "PD", link: "https://commons.wikimedia.org/wiki/Commons:Licensing", statement: "Public domain (Commons claim)" };
   return null;
 }
+// A Commons CC0 template is not permission to override a contradictory
+// NonCommercial grant embedded by the original artist/provider in the audio.
+// These must be resolved by staff; do not auto-publish or silently relabel.
+function embeddedNonCommercial(info: CommonsInfo | undefined) {
+  const tags = Array.isArray(info?.metadata) ? info.metadata : [];
+  return tags.some(tag => {
+    const text = (typeof tag.value === "string" ? tag.value : JSON.stringify(tag.value || "")).slice(0,10000);
+    return /(?:\bnon[\s-]?commercial\b|\bby[-_]?nc(?:[-_/\s.]|\b)|creativecommons\.org\/licenses\/by-nc)/i.test(text);
+  });
+}
+function providerOriginNeedsReview(page: CommonsPage | undefined) {
+  const wikitext = String(page?.revisions?.[0]?.slots?.main?.content || "");
+  return /(?:free[\s_-]*music[\s_-]*archive|freemusicarchive\.org|musopen\.org)/i.test(wikitext);
+}
 function playableMime(info: CommonsInfo) {
   if (info.mime === "application/ogg" || info.mime === "audio/ogg") return "audio/ogg";
   if (info.mime === "audio/mpeg") return "audio/mpeg";
@@ -160,7 +175,7 @@ function validCandidate(page: CommonsPage) {
   const license = info && licensed(info);
   if (!page.pageid || !page.title?.startsWith("File:") || !mime || !license ||
       !Number.isSafeInteger(size) || size <= 0 || size > MAX_BYTES ||
-      !/^[a-f0-9]{40}$/.test(sha1) || !sourceFileUrl(info!)) return null;
+      !/^[a-f0-9]{40}$/.test(sha1) || !sourceFileUrl(info!) || embeddedNonCommercial(info)) return null;
   const title = clearText(page.title.slice(5).replace(/\.(ogg|oga|mp3)$/i, ""), 250);
   const sourcePage = "https://commons.wikimedia.org/wiki/" + encodeURIComponent(page.title.replace(/ /g, "_"));
   const performer = clearText(info!.extmetadata?.Artist?.value, 400);
@@ -220,7 +235,7 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
     const params = new URLSearchParams({
       generator: "categorymembers", gcmtitle: "Category:" + category.name,
       gcmtype: "file", gcmlimit: "50", prop: "imageinfo",
-      iiprop: "url|mime|size|sha1|extmetadata",
+      iiprop: "url|mime|size|sha1|extmetadata|metadata",
     });
     if (cursors[category.name]) params.set("gcmcontinue", cursors[category.name]);
     const data = await commonsRequest(params);
@@ -261,13 +276,13 @@ export async function discoverSoundtrackCandidates(env: CoveEnv) {
 }
 async function commonsFile(title: string) {
   const p = new URLSearchParams({ titles: title, prop: "imageinfo|revisions",
-    rvprop: "ids|timestamp|content", rvslots: "main", iiprop: "url|mime|size|sha1|extmetadata" });
+    rvprop: "ids|timestamp|content", rvslots: "main", iiprop: "url|mime|size|sha1|extmetadata|metadata" });
   const data = await commonsRequest(p);
   return Object.values(data.query?.pages || {})[0] as CommonsPage | undefined;
 }
 function evidenceMatches(r: SoundtrackRow, info: CommonsInfo | undefined) {
   const current = info && licensed(info);
-  return !!info && !!current && current.code === r.license_code &&
+  return !!info && !embeddedNonCommercial(info) && !!current && current.code === r.license_code &&
     current.link === r.license_url && current.statement === r.license_statement &&
     Number(info.size) === r.source_size &&
     String(info.sha1 || "").toLowerCase() === r.source_sha1 &&
@@ -634,6 +649,8 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
           !["medieval","renaissance","baroque","classical","romantic","modern","contemporary"].includes(String(input.period)))
         throw new ApiError(422,"Individual rights review, territories, attribution, and complete musical tags are required.");
       const current = await commonsFile(original.source_title);
+      if (dossier.reviewMethod === "source_license" && providerOriginNeedsReview(current))
+        throw new ApiError(422,"FMA/Musopen-origin originals need independent commercial-master licensing review; Commons labels alone are insufficient.");
       if (!evidenceMatches(original,current?.imageinfo?.[0]) || !current?.revisions?.[0]?.revid)
         throw new ApiError(409,"Commons source or license changed since discovery, or no source revision is available.");
       if (!env.BUCKET) throw new ApiError(503,"Evidence storage unavailable.");
