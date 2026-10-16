@@ -5,6 +5,7 @@ import { requireServiceScope } from "./privileged-access.server";
 import { requireStaffPermission } from "./moderation.server";
 import type { CoveIdentity } from "./auth.server";
 import { soundtrackDossierSchema, soundtrackQualitySchema, qualityPasses } from "./soundtrack-review";
+import { handleExternalSoundtracks, publicExternalList } from "./soundtracks-external.server";
 
 /** Rights-reviewed recording library. This is intentionally independent of audiobooks.
  * Discovery only queues candidates. Only an accountable, evidence-backed review may authorize
@@ -363,6 +364,8 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
       principalId = "service:" + principal.principalId;
     }
   }
+  const providerRoute = await handleExternalSoundtracks(request,env,path,territory,principalId,staffIdentity);
+  if (providerRoute) return providerRoute;
   const url = new URL(request.url);
   if (admin && path === "/admin/soundtracks/import-next" && request.method === "POST") {
     // One bounded import per call; the same exclusive lease as scheduled work.
@@ -373,7 +376,9 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
     const rows = (await env.DB.prepare(
       "SELECT * FROM soundtrack_recordings WHERE status='ready' AND quality_status='passed' AND source_snapshot_key IS NOT NULL ORDER BY title,id LIMIT 300",
     ).all<SoundtrackRow>()).results.filter(r=>territoryAllowed(r,territory));
-    return json({ recordings: rows.map(publicRecord),count:rows.length });
+    const recordings=[...rows.map(publicRecord),...await publicExternalList(env,territory)]
+      .sort((a,b)=>a.title.localeCompare(b.title)||a.id.localeCompare(b.id)).slice(0,300);
+    return json({ recordings,count:recordings.length });
   }
   if (admin && path === "/admin/soundtracks" && request.method === "GET") {
     const counts = (await env.DB.prepare(
