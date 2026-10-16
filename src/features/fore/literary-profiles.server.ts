@@ -144,7 +144,7 @@ async function addJob(
     )
     .run();
 }
-async function enqueueBook(env: LiteraryEnv, book: BookInput) {
+async function enqueueBook(env: LiteraryEnv, book: BookInput, queuePreparation = true) {
   const time = at();
   const fingerprint = await hash(
     JSON.stringify({ policy: PROFILE_POLICY, model: PROFILE_MODEL, book }),
@@ -157,11 +157,12 @@ async function enqueueBook(env: LiteraryEnv, book: BookInput) {
   if (current?.fingerprint === fingerprint) return;
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO literary_profiles(product_id,fingerprint,profile_json,status,updated_at,reading_time_json,policy_version) VALUES(?,?,?,'provisional',?,?,?) ON CONFLICT(product_id) DO UPDATE SET fingerprint=excluded.fingerprint,profile_json=excluded.profile_json,status='provisional',coverage='metadata',revision=literary_profiles.revision+1,updated_at=excluded.updated_at,reading_time_json=excluded.reading_time_json,policy_version=excluded.policy_version`,
+      `INSERT INTO literary_profiles(product_id,fingerprint,profile_json,status,coverage,updated_at,reading_time_json,policy_version) VALUES(?,?,?,'provisional',?,?,?,?) ON CONFLICT(product_id) DO UPDATE SET fingerprint=excluded.fingerprint,profile_json=excluded.profile_json,status='provisional',coverage=excluded.coverage,revision=literary_profiles.revision+1,updated_at=excluded.updated_at,reading_time_json=excluded.reading_time_json,policy_version=excluded.policy_version`,
     ).bind(
       book.id,
       fingerprint,
       JSON.stringify(emptyLiteraryProfile()),
+      queuePreparation ? "metadata" : "metadata_deferred",
       time,
       JSON.stringify(
         estimateReadingTime({
@@ -175,24 +176,29 @@ async function enqueueBook(env: LiteraryEnv, book: BookInput) {
     env.DB.prepare(
       "UPDATE literary_profile_jobs SET status='superseded',updated_at=? WHERE product_id=? AND fingerprint<>? AND status IN ('queued','running')",
     ).bind(time, book.id, fingerprint),
-    env.DB.prepare(
-      "INSERT OR IGNORE INTO literary_profile_jobs(id,product_id,fingerprint,kind,available_at,created_at,updated_at) VALUES(?,?,?,'prepare',?,?,?)",
-    ).bind(
-      await hash([book.id, fingerprint, "prepare", ""].join(":")),
-      book.id,
-      fingerprint,
-      time,
-      time,
-      time,
-    ),
-    // Reverted sources must revive their old pinned jobs atomically with the profile.
-    env.DB.prepare(
-      "UPDATE literary_profile_jobs SET status='queued',attempts=0,available_at=?,lease_until='',updated_at=? WHERE product_id=? AND fingerprint=? AND status IN ('done','failed','superseded')",
-    ).bind(time, time, book.id, fingerprint),
+    ...(queuePreparation
+      ? [
+          env.DB.prepare(
+            "INSERT OR IGNORE INTO literary_profile_jobs(id,product_id,fingerprint,kind,available_at,created_at,updated_at) VALUES(?,?,?,'prepare',?,?,?)",
+          ).bind(
+            await hash([book.id, fingerprint, "prepare", ""].join(":")),
+            book.id,
+            fingerprint,
+            time,
+            time,
+            time,
+          ),
+          // Reverted sources must revive their old pinned jobs only when
+          // preparation capacity exists.
+          env.DB.prepare(
+            "UPDATE literary_profile_jobs SET status='queued',attempts=0,available_at=?,lease_until='',updated_at=? WHERE product_id=? AND fingerprint=? AND status IN ('done','failed','superseded')",
+          ).bind(time, time, book.id, fingerprint),
+        ]
+      : []),
   ]);
 }
 /** Keyset sweep is bounded independently of catalog size. No OFFSET or per-visitor AI. */
-export async function seedLiteraryProfiles(env: LiteraryEnv, limit = 50) {
+export async function seedLiteraryProfiles(env: LiteraryEnv, limit = 50, queuePreparation = true) {
   const token = crypto.randomUUID(),
     time = at();
   const state = await env.DB.prepare(
@@ -211,14 +217,14 @@ export async function seedLiteraryProfiles(env: LiteraryEnv, limit = 50) {
         .all<BookInput>()
     ).results;
     for (const book of books) {
-      await enqueueBook(env, book);
+      await enqueueBook(env, book, queuePreparation);
     }
     await env.DB.prepare(
       "UPDATE literary_profile_state SET cursor=?,last_run_at=? WHERE id=1 AND lease_token=?",
     )
       .bind(books.at(-1)?.id || "", time, token)
       .run();
-    return { scanned: books.length };
+    return { scanned: books.length, preparationsDeferred: !queuePreparation };
   } finally {
     await env.DB.prepare(
       "UPDATE literary_profile_state SET lease_until='' WHERE id=1 AND lease_token=?",
@@ -600,10 +606,10 @@ export async function runLiteraryProfileTick(env: LiteraryEnv) {
     128,
     Math.min(20000, await config(env, "max_queued_prepares", 2048)),
   );
-  const seeded =
-    queuedPrepares >= maxQueuedPrepares
-      ? { skipped: "prepare_queue_backpressure", queued: queuedPrepares }
-      : await seedLiteraryProfiles(env);
+  // Always maintain provisional metadata profiles and estimated reading
+  // times for new editions. Suppress ONLY costly preparation claims while
+  // overloaded, then enqueue deferred books on the next keyset sweep.
+  const seeded = await seedLiteraryProfiles(env, 50, queuedPrepares < maxQueuedPrepares);
   const jobs = [];
   // Source preparation writes extracted EPUB sections and queues many costly
   // inference jobs. Respect the backlog instead of endlessly creating more
