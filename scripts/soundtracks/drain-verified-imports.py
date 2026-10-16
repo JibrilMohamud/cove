@@ -33,8 +33,10 @@ def http(opener, method, path, token=None, headers=None, max_bytes=16384):
     h = {"User-Agent": "CoveSoundtrackR2Drain/1.0", **(headers or {})}
     if token is not None:
         h["Authorization"] = "Bearer " + token
+    if method == "POST":
+        h["Content-Type"] = "application/json"
     req = urllib.request.Request(ORIGIN + path,
-             method=method, data=b"" if method == "POST" else None, headers=h)
+             method=method, data=b"{}" if method == "POST" else None, headers=h)
     # Never automatically replay a side-effecting import call: its response
     # could have been lost after the Worker stored a verified R2 original.
     with opener.open(req, timeout=115) as response:
@@ -94,7 +96,10 @@ def drain(token, attempts=8, minutes=12, opener=OPENER, clock=time.monotonic, ve
             else:
                 raise ValueError("Unexpected Worker import response")
         except (RuntimeError,ValueError,OSError,urllib.error.URLError) as error:
-            results.append({"status":"request_failed","type":type(error).__name__})
+            item={"status":"request_failed","type":type(error).__name__}
+            if isinstance(error,urllib.error.HTTPError):
+                item["httpStatus"]=error.code
+            results.append(item)
             break
     return {"mode":"verified_commons_r2_import","attempts":len(results),
             "playableVerified":sum(r["status"]=="playable_verified" for r in results),

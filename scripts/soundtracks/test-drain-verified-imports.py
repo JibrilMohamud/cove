@@ -22,7 +22,7 @@ class Opener:
         self.imports=list(imports)
         self.calls=[]
     def open(self, req, timeout):
-        self.calls.append((req.get_method(),req.full_url,req.get_header("Range"),req.get_header("Authorization")))
+        self.calls.append((req.get_method(),req.full_url,req.get_header("Range"),req.get_header("Authorization"),req.get_header("Content-type"),req.data))
         if req.get_method()=="POST":
             payload=self.imports.pop(0)
             return Reply(200,json.dumps(payload).encode())
@@ -40,6 +40,8 @@ class DrainTests(unittest.TestCase):
         self.assertEqual(o.calls[2][2],"bytes=0-1")
         self.assertTrue(all(c[1].startswith(mod.ORIGIN+"/api/fore/") for c in o.calls))
         self.assertTrue(o.calls[0][3].startswith("Bearer fore_svc_"))
+        self.assertEqual(o.calls[0][4],"application/json","Cove rejects non-JSON mutations before auth routing")
+        self.assertEqual(o.calls[0][5],b"{}")
         self.assertIsNone(o.calls[1][3],"Never leak admin token to public playback")
     def test_untrusted_worker_identity_is_not_counted(self):
         o=Opener([{"stored":"https://malicious.example/recording"}])
