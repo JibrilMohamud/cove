@@ -485,6 +485,7 @@ try {
   )
     .bind(product.id, product.id, atBudgetTest, atBudgetTest, atBudgetTest)
     .run();
+  await env.DB.prepare("UPDATE literary_profile_state SET cursor='' WHERE id=1").run();
   const saturated = await lib.runLiteraryProfileTick(env);
   assert.equal(saturated.seeded.preparationsDeferred, true);
   assert.ok(Number(saturated.seeded.scanned) >= 1);
