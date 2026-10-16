@@ -206,6 +206,22 @@ try {
     "Longer quiet text outweighs a short climax in whole-book affinity",
   );
   assert.equal(result.sections.analyzed, 3);
+  const matchingResponse = await lib.handleLiteraryProfiles(
+    new Request("https://cove.test/?spine=1&mode=focus"),
+    env,
+    `/books/${product.id}/literary-profile/playlist`,
+    "US",
+  );
+  const matching = await matchingResponse.json();
+  assert.equal(matching.matchingPolicy, "cove-matching-v1");
+  assert.equal(matching.scope.duration, "chapter");
+  assert.ok(matching.readingTime.estimatedSeconds < whole.readingTime.estimatedSeconds);
+  assert.equal(
+    matching.retrieval.liveEligible,
+    0,
+    "An empty licensed audio catalog produces no invented matches",
+  );
+
   // A counting-policy refresh must preserve valid inference and cost no model calls.
   for (const table of ["literary_profiles", "literary_profile_sections"])
     await env.DB.prepare(

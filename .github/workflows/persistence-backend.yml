@@ -23,6 +23,8 @@ on:
       - "scripts/check-journey-privacy-progress.mjs"
       - "scripts/check-social-pagination.mjs"
       - "scripts/check-compute-budget.mjs"
+      - "scripts/check-matching-engine.mjs"
+      - "scripts/matching/**"
       - "scripts/check-store.mjs"
       - "drizzle/*.sql"
       - "vercel.json"
@@ -56,6 +58,8 @@ on:
       - "scripts/check-journey-privacy-progress.mjs"
       - "scripts/check-social-pagination.mjs"
       - "scripts/check-compute-budget.mjs"
+      - "scripts/check-matching-engine.mjs"
+      - "scripts/matching/**"
       - "scripts/check-store.mjs"
       - "drizzle/*.sql"
       - "vercel.json"
@@ -92,6 +96,8 @@ jobs:
         run: npm run test:soundtracks
       - name: Literary profiles, evidence and chapter-matching regressions
         run: npm run test:literary-profiles
+      - name: Chapter-recording matching and playlist sequencing
+        run: npm run test:matching
       - name: Exact-master music profiling and queue safety
         run: npm run test:music-profiles
       - name: Resumable hosted BioSync

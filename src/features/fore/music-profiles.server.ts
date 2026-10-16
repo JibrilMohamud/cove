@@ -302,3 +302,5 @@ export async function handleMusicProfiles(
   }
   throw new ApiError(404, "Music profile route unavailable");
 }
+
+export { catalogSql as musicCatalogSql, fingerprint as musicRecordingFingerprint };
