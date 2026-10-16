@@ -891,6 +891,29 @@ export async function handleLiteraryProfiles(
   } catch {
     coverage = { mode: current.coverage };
   }
+  // Partial sections must not impersonate a fully analyzed whole book.
+  const selectedUnits = sections.reduce((n, s) => n + s.char_end - s.char_start, 0);
+  const analyzedUnits = sections
+    .filter((s) => s.profile_json)
+    .reduce((n, s) => n + s.char_end - s.char_start, 0);
+  const scopeCoverage = selectedUnits ? analyzedUnits / selectedUnits : 0;
+  for (const key of [
+    "moods",
+    "themes",
+    "sensoryAtmosphere",
+    "literaryStyle",
+    "energy",
+    "tension",
+    "valence",
+    "musicalAffinity",
+  ] as const) {
+    if (!chapterProfiles.length) break;
+    profile[key].confidence *= scopeCoverage;
+    if (spine === null && coverage.truncated)
+      profile[key].confidence = Math.min(0.45, profile[key].confidence);
+    if (spine === null && base[key].confidence > profile[key].confidence)
+      Object.assign(profile[key], base[key]);
+  }
   const completeText =
     !!counts?.total &&
     counts.total === counts.analyzed &&

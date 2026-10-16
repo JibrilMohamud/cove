@@ -161,6 +161,18 @@ try {
   );
   await Promise.all([lib.processLiteraryJob(env), lib.processLiteraryJob(env, true)]);
   assert.equal(calls, 2, "Concurrent consumers claim different jobs");
+  const partial = await (
+    await lib.handleLiteraryProfiles(
+      new Request("https://cove.test"),
+      env,
+      `/books/${product.id}/literary-profile`,
+      "US",
+    )
+  ).json();
+  assert.ok(
+    partial.profile.energy.confidence < 0.9,
+    "Partial section analysis must not claim whole-book full-text confidence",
+  );
   await lib.processLiteraryJob(env, true);
   await lib.processLiteraryJob(env, true);
   assert.equal(calls, 4);
@@ -203,6 +215,10 @@ try {
     )
   ).json();
   assert.equal(fallback.chapterFallback, true, "Missing chapters explicitly fall back to the book");
+  assert.ok(
+    fallback.profile.energy.confidence > 0,
+    "Missing chapter preserves supported overview confidence",
+  );
   const invalid = core.emptyLiteraryProfile();
   invalid.moods = { value: ["gentle"], confidence: 0.9, evidence: ["invented"] };
   assert.throws(

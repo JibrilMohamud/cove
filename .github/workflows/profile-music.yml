@@ -69,7 +69,7 @@ jobs:
           python -c 'import json; r=json.load(open("/tmp/clap-fixture-profile.json")); assert r["semantics"]["model"] == "laion/clap-htsat-unfused" and len(r["semantics"]["windows"]) == 2'
       - name: Analyze already released original recordings
         if: env.COVE_SOUNDTRACK_REVIEW_TOKEN != ''
-        run: python scripts/soundtracks/run-profiles.py --max-tracks 12 --max-minutes 24 --output music-profile-receipt.json
+        run: python scripts/soundtracks/run-profiles.py --max-tracks 40 --max-minutes 24 --output music-profile-receipt.json
       - name: Keep non-secret analysis receipt
         if: always()
         uses: actions/upload-artifact@v4

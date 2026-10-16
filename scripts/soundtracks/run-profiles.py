@@ -80,7 +80,7 @@ def run(max_tracks,max_minutes,output):
     return 1 if any('error' in r for r in receipts) else 0
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--max-tracks',type=int,default=12);p.add_argument('--max-minutes',type=int,default=24);p.add_argument('--output',default='music-profile-receipt.json')
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--max-tracks',type=int,default=40);p.add_argument('--max-minutes',type=int,default=24);p.add_argument('--output',default='music-profile-receipt.json')
     a=p.parse_args()
     if not 1<=a.max_tracks<=100 or not 1<=a.max_minutes<=30:p.error('Bounded track/time limits required')
     return run(a.max_tracks,a.max_minutes,a.output)

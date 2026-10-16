@@ -62,7 +62,7 @@ class AudioSemantics:
         for start,end in windows:
             raw=subprocess.check_output(['ffmpeg','-nostdin','-v','error','-ss',str(start),'-i',str(file),'-t',str(end-start),'-map','0:a:0','-ac','1','-ar','48000','-f','f32le','-'],timeout=90)
             pcm=np.frombuffer(raw,dtype='<f4').copy()
-            encoded=self.processor(audios=pcm,sampling_rate=48000,return_tensors='pt',padding=True)
+            encoded=self.processor(audio=pcm,sampling_rate=48000,return_tensors='pt',padding=True)
             with t.inference_mode(): audio=self.model.get_audio_features(**encoded)
             if not isinstance(audio,t.Tensor): audio=audio.pooler_output
             audio=t.nn.functional.normalize(audio,dim=-1)

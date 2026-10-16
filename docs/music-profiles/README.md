@@ -60,7 +60,7 @@ Admin operations require the existing scoped `soundtracks.review` service princi
 or a staff reviewer with MFA. The scheduled GitHub Actions `Profile published music
 masters` workflow uses the existing review secret, runs two independent bounded
 consumers hourly and on relevant main changes, and retains sanitized receipts. Each
-consumer handles at most 12 masters/24 minutes, with a maximum 30-minute claim.
+consumer handles at most 40 masters/24 minutes, with a maximum 30-minute claim.
 Weights are cached. The readiness check waits for backend migration/deployment;
 PRs never receive production credentials. A credential-free PR smoke runs the real
 pinned model on generated waveform bytes before release.

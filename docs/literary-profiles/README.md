@@ -173,3 +173,9 @@ fingerprint and live lease. Profile creation, preparation queue insertion and jo
 revival now commit together, reducing round trips and preventing orphaned profiles.
 Short legitimate text sections are retained; skipped/missing/over-limit text cannot
 be silently labeled complete. No model call occurs in a reader/storefront request.
+
+Whole-book emotional aggregation is also discounted by the fraction of retained
+text already analyzed. A stronger stratified overview survives until the chapter
+aggregate has sufficient coverage. Truncated whole-book aggregates have a 0.45
+confidence ceiling. These are conservative scope/data-quality policies, not
+calibrated probabilities; incomplete coverage remains visible.
