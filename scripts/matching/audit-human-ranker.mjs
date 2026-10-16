@@ -18,7 +18,7 @@ export function auditRankerEvidence(evaluations, core, weights) {
   const answer = (row, ranker) => {
     const diff =
       core.featureScore(row.a.features, ranker) - core.featureScore(row.b.features, ranker);
-    return Math.abs(diff) < 1e-9 ? 0.5 : Number((diff > 0) === (row.preferred === "a"));
+    return Math.abs(diff) < 1e-9 ? 0.5 : Number(diff > 0 === (row.preferred === "a"));
   };
   const groups = (items, key) => {
     const out = new Map();
@@ -81,23 +81,23 @@ export function auditRankerEvidence(evaluations, core, weights) {
       gain: details.musicHoldout.accuracy - details.musicHoldout.baselineAccuracy,
       // Key by both composition families; this is still exploratory because
       // overlapping works across keys can create non-independent judgments.
-      gainInterval: interval(
-        details.subsets.musicHoldout,
-        (r) => [r.a.workFamily, r.b.workFamily].sort().join("|"),
+      gainInterval: interval(details.subsets.musicHoldout, (r) =>
+        [r.a.workFamily, r.b.workFamily].sort().join("|"),
       ),
     },
   };
   const conditions = {
-    trainedOnHumanJudgments: rows.length > 0 && assessors.size >= 3 &&
+    trainedOnHumanJudgments:
+      rows.length > 0 &&
+      assessors.size >= 3 &&
       [...assessors].every((r) => /^(?:staff|service):/.test(r)),
     sufficientTrainPairs: details.trainPairs >= 100,
     unseenBooks: holdouts.book.pairs >= 20 && holdouts.book.familyCount >= 5,
-    unseenCompositions: holdouts.composition.pairs >= 20 &&
-      holdouts.composition.familyCount >= 5,
-    positiveBookGeneralization: !!holdouts.book.gainInterval &&
-      holdouts.book.gainInterval.lower95 > 0,
-    noMaterialCompositionRegression: !!holdouts.composition.gainInterval &&
-      holdouts.composition.gainInterval.lower95 >= -0.02,
+    unseenCompositions: holdouts.composition.pairs >= 20 && holdouts.composition.familyCount >= 5,
+    positiveBookGeneralization:
+      !!holdouts.book.gainInterval && holdouts.book.gainInterval.lower95 > 0,
+    noMaterialCompositionRegression:
+      !!holdouts.composition.gainInterval && holdouts.composition.gainInterval.lower95 >= -0.02,
   };
   return {
     policy: core.MATCHING_POLICY,
@@ -120,14 +120,18 @@ export function auditRankerEvidence(evaluations, core, weights) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = Object.fromEntries(
-    process.argv.slice(2).reduce(
-      (pairs, arg, i, all) =>
-        arg.startsWith("--") ? [...pairs, [arg.slice(2), all[i + 1]]] : pairs,
-      [],
-    ),
+    process.argv
+      .slice(2)
+      .reduce(
+        (pairs, arg, i, all) =>
+          arg.startsWith("--") ? [...pairs, [arg.slice(2), all[i + 1]]] : pairs,
+        [],
+      ),
   );
   if (!args.input || !args.output)
-    throw Error("Usage: node scripts/matching/audit-human-ranker.mjs --input judgments.json --output audit.json [--ranker ranker.json]");
+    throw Error(
+      "Usage: node scripts/matching/audit-human-ranker.mjs --input judgments.json --output audit.json [--ranker ranker.json]",
+    );
   if (fs.statSync(args.input).size > 20 * 1024 * 1024) throw Error("Evaluation export too large");
   const data = JSON.parse(fs.readFileSync(args.input, "utf8"));
   if (data.source !== "independent_human_judgments" || !Array.isArray(data.evaluations))
@@ -138,7 +142,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "cove-matching-audit-"));
   try {
     await build({
-      entryPoints: [fileURLToPath(new URL("../../src/features/fore/matching-engine.ts", import.meta.url))],
+      entryPoints: [
+        fileURLToPath(new URL("../../src/features/fore/matching-engine.ts", import.meta.url)),
+      ],
       bundle: true,
       platform: "node",
       format: "esm",
@@ -156,11 +162,13 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     );
     result.modelId = ranker?.id ?? "transparent_baseline_v1";
     fs.writeFileSync(args.output, JSON.stringify(result, null, 2) + "\n");
-    process.stdout.write(JSON.stringify({
-      modelId: result.modelId,
-      conservativeReviewReady: result.conservativeReviewReady,
-      checks: result.checks,
-    }) + "\n");
+    process.stdout.write(
+      JSON.stringify({
+        modelId: result.modelId,
+        conservativeReviewReady: result.conservativeReviewReady,
+        checks: result.checks,
+      }) + "\n",
+    );
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
   }
