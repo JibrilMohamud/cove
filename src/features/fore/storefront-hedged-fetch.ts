@@ -117,8 +117,12 @@ export async function hedgedStorefrontBootstrap(
       outcome = signal.aborted ? "timeout" : "unavailable";
       return { phase, kind: "unavailable" };
     } finally {
-      if (phase === "primary") primaryCompleted = true;
-      else alternateCompleted = true;
+      // Aborted fetches may settle immediately *after* the hard deadline;
+      // that is not a completed response within the serving budget.
+      if (!expiration.aborted) {
+        if (phase === "primary") primaryCompleted = true;
+        else alternateCompleted = true;
+      }
       options.onPhase?.(phase, outcome, performance.now() - started);
     }
   }
