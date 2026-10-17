@@ -125,6 +125,41 @@ async function supportedLocaleRows(db: StorefrontDB, country: string) {
   ).results;
 }
 
+/** Resolve the same active market and supported locales with one D1 request.
+ * All returned configuration is fresh; this is not a territorial-rights cache.
+ * Keep empty locales distinct from a missing market so fallback behavior stays
+ * identical to the former independent market/locale reads.
+ */
+async function marketWithSupportedLocales(db: StorefrontDB, country: string) {
+  const rows = (
+    await db
+      .prepare(
+        `SELECT m.*,l.locale active_locale,l.language_code active_language_code,
+          l.direction active_direction,ml.priority active_priority
+          FROM storefront_markets m
+          LEFT JOIN storefront_market_locales ml
+            ON ml.country_code=m.country_code AND ml.active=1
+          LEFT JOIN storefront_locales l
+            ON l.locale=ml.locale AND l.status='active'
+          WHERE m.country_code=? AND m.market_status='active'
+          ORDER BY ml.priority,l.locale`,
+      )
+      .bind(country)
+      .all<any>()
+  ).results;
+  return {
+    selectedMarket: rows[0] || null,
+    localeRows: rows
+      .filter((row) => row.active_locale)
+      .map((row) => ({
+        locale: row.active_locale,
+        language_code: row.active_language_code,
+        direction: row.active_direction,
+        priority: row.active_priority,
+      })),
+  };
+}
+
 function chooseSupportedLocale(rows: any[], requested: string[]) {
   if (!rows.length) return null;
   const exact = new Map(rows.map((r) => [String(r.locale).toLowerCase(), r]));
@@ -202,25 +237,16 @@ export async function resolveStorefrontContext(
     effectiveCountry = network.country;
     countrySource = network.source;
   }
-  let [selectedMarket, localeRows] = await Promise.all([
-    market(db, effectiveCountry),
-    supportedLocaleRows(db, effectiveCountry),
-  ]);
+  let { selectedMarket, localeRows } = await marketWithSupportedLocales(db, effectiveCountry);
   if (!selectedMarket) {
     effectiveCountry = network.country;
     countrySource = network.source;
-    [selectedMarket, localeRows] = await Promise.all([
-      market(db, effectiveCountry),
-      supportedLocaleRows(db, effectiveCountry),
-    ]);
+    ({ selectedMarket, localeRows } = await marketWithSupportedLocales(db, effectiveCountry));
   }
   if (!selectedMarket) {
     effectiveCountry = "US";
     countrySource = "default";
-    [selectedMarket, localeRows] = await Promise.all([
-      market(db, "US"),
-      supportedLocaleRows(db, "US"),
-    ]);
+    ({ selectedMarket, localeRows } = await marketWithSupportedLocales(db, "US"));
   }
   if (!selectedMarket) throw new ApiError(503, "No active Cove storefront market is configured.");
 
