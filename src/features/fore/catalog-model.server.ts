@@ -615,6 +615,67 @@ export async function canonicalBooksByProductIds(db: DB, productIds: string[]) {
   return productIds.map((id) => byId.get(id)).filter((book): book is CatalogBook => !!book);
 }
 
+/**
+ * A rights-checked first-page shelf needs covers, prices and bylines—not the
+ * complete detail page's accessibility, editions, identifiers and provenance
+ * aggregation. The caller MUST select current territory-eligible product IDs.
+ * The regular /catalog request hydrates full metadata after first paint.
+ * Never use this projection to authorize reading, purchases, or downloads.
+ */
+export async function canonicalFirstPaintBooksByProductIds(db: DB, productIds: string[]) {
+  if (!productIds.length) return [] as CatalogBook[];
+  if (productIds.length > 100)
+    throw new ApiError(400, "Too many catalog products requested at once.");
+  const rows = await db
+    .prepare(
+      `SELECT p.id product_id,p.public_id product_public_id,p.source_name,p.source_external_id,
+        e.id edition_id,e.public_id edition_public_id,e.work_id,w.public_id work_public_id,
+        e.title,e.subtitle,e.description,e.language,e.original_language,e.isbn13,
+        e.release_status,e.drm_status,e.downloadable,e.publisher_id,e.imprint_id,
+        e.reading_time_minutes,e.word_count,e.page_estimate,e.release_date,
+        pub.name publisher_name,pub.slug publisher_slug,
+        imp.name imprint_name,imp.slug imprint_slug,
+        d.download_count,
+        gc.epub_status epub_storage_status,gc.source_project,gc.source_url source_page_url,
+        gc.source_license_url,
+        cover_version.source_url cover_url,
+        epub_version.source_url epub_source_url,epub_version.object_key epub_object_key,
+        (SELECT json_group_array(json_object('id',c.id,'slug',c.slug,'name',c.name,'role',ec.role,'position',ec.position))
+         FROM edition_contributors ec JOIN contributors c ON c.id=ec.contributor_id
+         WHERE ec.edition_id=e.id ORDER BY ec.position) contributors_json,
+        (SELECT json_group_array(s.name) FROM edition_subjects es JOIN subjects s ON s.id=es.subject_id
+         WHERE es.edition_id=e.id ORDER BY es.position) subjects_json,
+        (SELECT json_group_array(cat.name) FROM edition_categories ec
+         JOIN categories cat ON cat.id=ec.category_id
+         WHERE ec.edition_id=e.id AND cat.scheme='gutenberg-bookshelf') bookshelves_json,
+        (SELECT json_group_array(json_object('id',s.id,'slug',s.slug,'name',s.name,
+         'position',sm.position,'label',sm.label,'relationship',sm.relationship,
+         'readingOrder',COALESCE(sm.reading_order,sm.position)))
+         FROM series_memberships sm JOIN series s ON s.id=sm.series_id WHERE sm.edition_id=e.id) series_json,
+        (SELECT json_object('type',o.offer_type,'currency',o.currency,'amountMinor',o.amount_minor)
+         FROM offers o WHERE o.product_id=p.id AND o.sales_channel='retail' AND o.active=1
+         AND (o.starts_at IS NULL OR o.starts_at<=datetime('now'))
+         AND (o.ends_at IS NULL OR o.ends_at>datetime('now'))
+         ORDER BY o.created_at DESC LIMIT 1) offer_json
+       FROM products p
+       JOIN editions e ON e.id=p.edition_id
+       JOIN works w ON w.id=e.work_id
+       LEFT JOIN publishers pub ON pub.id=e.publisher_id
+       LEFT JOIN imprints imp ON imp.id=e.imprint_id
+       LEFT JOIN catalog_search_documents d ON d.product_id=p.id
+       LEFT JOIN gutenberg_source_cache gc ON gc.id=p.source_external_id AND p.source_name='gutenberg'
+       LEFT JOIN digital_assets cover ON cover.edition_id=e.id AND cover.kind='cover'
+       LEFT JOIN asset_versions cover_version ON cover_version.id=cover.current_version_id
+       LEFT JOIN digital_assets epub ON epub.edition_id=e.id AND epub.kind='epub'
+       LEFT JOIN asset_versions epub_version ON epub_version.id=epub.current_version_id
+       WHERE p.id IN (${productIds.map(() => "?").join(",")})`,
+    )
+    .bind(...productIds)
+    .all<Record<string, unknown>>();
+  const byId = new Map(rows.results.map((row) => [String(row.product_id), canonicalRowBook(row)]));
+  return productIds.map((id) => byId.get(id)).filter((book): book is CatalogBook => !!book);
+}
+
 /** Hydrate an already entitlement-filtered library page without per-book round trips.
  * Personal imports retain their independent ownership check even if a stale
  * or incorrectly assigned entitlement exists. Never use the public bulk reader
