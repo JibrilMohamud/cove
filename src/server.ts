@@ -1,7 +1,10 @@
 import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
-import { withCoveRequestEnvironment, type CoveRequestExecution } from "./lib/cove-request-env.server";
+import {
+  withCoveRequestEnvironment,
+  type CoveRequestExecution,
+} from "./lib/cove-request-env.server";
 import { isolateWorkerCountry } from "./lib/cloudflare-country.server";
 import { resolveNativeWorkerBindings } from "./lib/cloudflare-native-bindings.server";
 import {
@@ -84,7 +87,8 @@ export default {
       // after the response. Never synthesize waitUntil on Vercel or without D1.
       const workerContext = ctx as { waitUntil?: (work: Promise<unknown>) => void } | null;
       const execution: CoveRequestExecution | undefined =
-        foreEnv.DB && typeof foreEnv.DB.prepare === "function" &&
+        foreEnv.DB &&
+        typeof foreEnv.DB.prepare === "function" &&
         typeof workerContext?.waitUntil === "function"
           ? { waitUntil: (work) => workerContext.waitUntil!(work) }
           : undefined;
@@ -134,7 +138,9 @@ export default {
       // A configured persistence gateway handles APIs without loading the entire
       // catalog, publishing, commerce and audio backend into the Vercel process.
       const apiResponse = new URL(request.url).pathname.startsWith("/api/fore/")
-        ? await (await import("./features/fore/api.server")).handleCoveApi(request, foreEnv as any, execution)
+        ? await (
+            await import("./features/fore/api.server")
+          ).handleCoveApi(request, foreEnv as any, execution)
         : null;
       if (apiResponse) {
         return stageNoStore(applySecurityHeaders(request, apiResponse, foreEnv), staging);
@@ -169,8 +175,9 @@ export default {
       const handler = await getServerEntry();
       const entryDurationMs = performance.now() - entryStarted;
       const renderStarted = performance.now();
-      const response = await withCoveRequestEnvironment(runtimeEnv, () =>
-        handler.fetch(routedRequest, runtimeEnv, ctx),
+      const response = await withCoveRequestEnvironment(
+        runtimeEnv,
+        () => handler.fetch(routedRequest, runtimeEnv, ctx),
         execution,
       );
       const renderDurationMs = performance.now() - renderStarted;
