@@ -609,9 +609,13 @@ export function literaryPreparationCapacity(
     ),
   );
 }
-/** Three chapter turns for every book-overview turn; never a hidden model call. */
+/**
+ * Spend three of four scarce inference turns on distinct book overviews while
+ * chapter analysis is backlogged. Sections retain a guaranteed fourth turn;
+ * this does not increase the model quota or discard queued chapter evidence.
+ */
 export function preferLiterarySection(turn: number) {
-  return Number.isSafeInteger(turn) && ((turn % 4) + 4) % 4 !== 0;
+  return Number.isSafeInteger(turn) && ((turn % 4) + 4) % 4 === 3;
 }
 export async function runLiteraryProfileTick(env: LiteraryEnv) {
   if (!(await config(env, "enabled", 1))) return { skipped: "disabled" };
