@@ -77,6 +77,41 @@ try {
     "/api/fore/catalog",
   ]);
 
+  // A genuinely stalled all-in-one endpoint must not need the complete
+  // ten-second budget if the individual live endpoints remain healthy.
+  let stalledAttempts = 0;
+  const recoveryEvents = [];
+  const timed = await requestStorefrontBootstrap(
+    source,
+    async (request) => {
+      if (new URL(request.url).pathname.endsWith("/bootstrap")) {
+        stalledAttempts++;
+        return new Promise((resolve, reject) => {
+          const watchdog = setTimeout(() => reject(new Error("Missing upstream abort")), 1000);
+          request.signal.addEventListener(
+            "abort",
+            () => {
+              clearTimeout(watchdog);
+              reject(request.signal.reason);
+            },
+            { once: true },
+          );
+        });
+      }
+      return fetchApi(request);
+    },
+    {
+      timeoutMs: 400,
+      firstAttemptMs: 20,
+      recover: (request, api) => recoverStorefrontBootstrap(request, api, true),
+      onRecovery: (result) => recoveryEvents.push(result),
+    },
+  );
+  assert.equal(stalledAttempts, 1, "A successful split recovery avoids retrying a stalled bootstrap");
+  assert.equal(JSON.parse(timed).catalog.results[0].productId, "prd_ca_1");
+  assert.equal(recoveryEvents.length, 1);
+  assert.equal(recoveryEvents[0].success, true);
+
   let called = false;
   assert.equal(
     await requestStorefrontBootstrap(
