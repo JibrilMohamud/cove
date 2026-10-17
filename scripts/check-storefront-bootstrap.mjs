@@ -26,6 +26,26 @@ try {
   });
   const { upsertTaxonomyNode, taxonomyTree } = await import(path.join(root, "taxonomy.mjs"));
   const env = localBindings(root);
+  // Guard the cold SSR path itself, not merely its JSON shape: a future
+  // refactor must not silently bring large live taxonomy scans back into
+  // the render-blocking bootstrap.
+  const fastFirstPaintEnv = {
+    ...env,
+    DB: new Proxy(env.DB, {
+      get(target, property) {
+        if (property === "prepare")
+          return (sql) => {
+            assert.ok(
+              !/GROUP\\s+BY\\s+et\\.taxonomy_node_id/i.test(sql),
+              "first-paint bootstrap must defer taxonomy count aggregation",
+            );
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, property);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }),
+  };
   for (const [country, locale] of [
     ["US", "en-US"],
     ["CA", "fr-FR"],
@@ -35,13 +55,28 @@ try {
     const headers = { "cf-ipcountry": country, "accept-language": locale };
     const response = await handleCoveApi(
       new Request("https://cove.test/api/fore/storefront/bootstrap", { headers }),
-      env,
+      fastFirstPaintEnv,
     );
     assert.equal(response.status, 200);
     const bootstrap = await response.json();
     assert.equal(bootstrap.context.rightsCountry, country);
     assert.ok(bootstrap.context.availableMarkets.length);
-    assert.ok(Array.isArray(bootstrap.taxonomy.nodes));
+    assert.equal(
+      "taxonomy" in bootstrap,
+      false,
+      "slow category counts cannot gate the first book shelf",
+    );
+    const categoryResponse = await handleCoveApi(
+      new Request("https://cove.test/api/fore/taxonomy", { headers }),
+      env,
+    );
+    assert.equal(categoryResponse.status, 200);
+    const categories = await categoryResponse.json();
+    assert.equal(categories.territory, country);
+    assert.ok(
+      Array.isArray(categories.nodes),
+      "category browsing still fetches the rights-scoped taxonomy",
+    );
     const catalog = await handleCoveApi(
       new Request("https://cove.test/api/fore/catalog?" + bootstrap.catalogQuery, { headers }),
       env,
@@ -97,7 +132,7 @@ try {
           cookie: "fore-locale=" + locale + "; fore-storefront-country=SA",
         },
       }),
-      env,
+      fastFirstPaintEnv,
     );
     assert.equal(response.status, 200);
     const bootstrap = await response.json();
@@ -167,7 +202,7 @@ try {
     "renamed-category/child",
   );
   console.log(
-    "PASS: combined storefront context/catalog/taxonomy bootstrap, matching first-page projections, currency and US/CA/SA/JP rights isolation.",
+    "PASS: first-paint storefront context/catalog without blocking on taxonomy, deferred rights-scoped categories, currency and US/CA/SA/JP isolation.",
   );
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
