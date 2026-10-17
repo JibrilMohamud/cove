@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   evaluateProbes,
   percentile,
+  probeHomepage,
   productionOrigin,
   safeProbeTelemetry,
   validateHtml,
@@ -126,4 +127,31 @@ test("failure diagnostics retain only aggregate numeric timings and safe cache l
     ),
     { ttfbMs: 250, totalMs: 260, timing: "", vercelCache: "unknown" },
   );
+});
+
+// A successful cold response must be as diagnosable as a failed response,
+// without persisting arbitrary response headers, cookies or visitor context.
+test("successful homepage probes retain only numeric phases and a safe cache label", async () => {
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response('<article class="book-card"></article>', {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "private, no-store",
+        "Server-Timing": "cove_ssr_bootstrap;dur=1342.5, leak;desc=secret, cove_total;dur=1350",
+        "X-Vercel-Cache": "MISS",
+        "Set-Cookie": "session=private",
+      },
+    });
+  try {
+    const result = await probeHomepage("https://cove.example", "en-US,en;q=0.9", 1);
+    assert.equal(result.cards, 1);
+    assert.equal(result.vercelCache, "MISS");
+    assert.equal(result.timing, "cove_ssr_bootstrap;dur=1342.5, cove_total;dur=1350");
+    assert.equal(Object.keys(result).includes("headers"), false);
+    assert.equal(JSON.stringify(result).includes("secret"), false);
+    assert.equal(JSON.stringify(result).includes("session"), false);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
 });
