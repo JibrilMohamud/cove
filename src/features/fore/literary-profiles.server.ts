@@ -15,6 +15,7 @@ import { resolveProduct } from "./catalog-model.server";
 import { extractLiterarySections } from "./literary-extract.server";
 import {
   emptyLiteraryProfile,
+  provisionalLiteraryProfile,
   literaryPrompt,
   literaryJsonSchema,
   literaryProfileSchema,
@@ -158,11 +159,26 @@ async function enqueueBook(env: LiteraryEnv, book: BookInput, queuePreparation =
     JSON.stringify({ policy: PROFILE_POLICY, model: PROFILE_MODEL, book }),
   );
   const current = await env.DB.prepare(
-    "SELECT fingerprint,coverage FROM literary_profiles WHERE product_id=?",
+    "SELECT fingerprint,coverage,status,profile_json FROM literary_profiles WHERE product_id=?",
   )
     .bind(book.id)
-    .first<{ fingerprint: string; coverage: string }>();
+    .first<{ fingerprint: string; coverage: string; status: string; profile_json: string }>();
   if (current?.fingerprint === fingerprint) {
+    // Backfill old empty placeholders during the ordinary bounded keyset sweep.
+    // Never overwrite an analyzed result, a nonempty provisional result, or a
+    // changed content fingerprint. No AI call or reader data is involved.
+    if (
+      current.status === "provisional" &&
+      current.profile_json === JSON.stringify(emptyLiteraryProfile())
+    ) {
+      const enriched = JSON.stringify(provisionalLiteraryProfile(metadataSources(book)));
+      if (enriched !== current.profile_json)
+        await env.DB.prepare(
+          "UPDATE literary_profiles SET profile_json=?,revision=revision+1,updated_at=? WHERE product_id=? AND fingerprint=? AND status='provisional' AND profile_json=?",
+        )
+          .bind(enriched, time, book.id, fingerprint, current.profile_json)
+          .run();
+    }
     if (queuePreparation && current.coverage === "metadata_deferred") {
       await addJob(env, book.id, fingerprint, "prepare", "", "");
       await env.DB.batch([
@@ -182,7 +198,7 @@ async function enqueueBook(env: LiteraryEnv, book: BookInput, queuePreparation =
     ).bind(
       book.id,
       fingerprint,
-      JSON.stringify(emptyLiteraryProfile()),
+      JSON.stringify(provisionalLiteraryProfile(metadataSources(book))),
       queuePreparation ? "metadata" : "metadata_deferred",
       time,
       JSON.stringify(
@@ -609,9 +625,13 @@ export function literaryPreparationCapacity(
     ),
   );
 }
-/** Three chapter turns for every book-overview turn; never a hidden model call. */
+/**
+ * Spend three of four scarce inference turns on distinct book overviews while
+ * chapter analysis is backlogged. Sections retain a guaranteed fourth turn;
+ * this does not increase the model quota or discard queued chapter evidence.
+ */
 export function preferLiterarySection(turn: number) {
-  return Number.isSafeInteger(turn) && ((turn % 4) + 4) % 4 !== 0;
+  return Number.isSafeInteger(turn) && ((turn % 4) + 4) % 4 === 3;
 }
 export async function runLiteraryProfileTick(env: LiteraryEnv) {
   if (!(await config(env, "enabled", 1))) return { skipped: "disabled" };

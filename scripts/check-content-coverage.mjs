@@ -33,6 +33,13 @@ try {
   assert.equal(policy.hasEpubDownloadWindow(Date.now() + 1000), false);
   assert.equal(policy.hasEpubDownloadWindow(Date.now() + 20_000), true);
   assert.equal(policy.hasEpubDownloadWindow(Infinity), true);
+  assert.deepEqual(
+    policy.mixEpubFrontier([1, 2, 3, 4, 5, 6], ["retry-1", "retry-2"], 8),
+    [1, 2, 3, "retry-1", 4, 5, 6, "retry-2"],
+    "Fresh uploads progress while timeouts retain retry capacity",
+  );
+  assert.deepEqual(policy.mixEpubFrontier([], ["retry-1", "retry-2"], 3), ["retry-1", "retry-2"]);
+  assert.deepEqual(policy.mixEpubFrontier([1, 2, 3], [], 2), [1, 2]);
   assert.equal(
     policy.planEpubRetry("The operation was aborted due to timeout", 8, 0).terminal,
     false,

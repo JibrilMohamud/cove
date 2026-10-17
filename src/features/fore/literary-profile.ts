@@ -84,6 +84,72 @@ export function emptyLiteraryProfile(): LiteraryProfile {
   };
 }
 
+/**
+ * Cheap, explicitly provisional coverage for the entire catalog. Never infer
+ * setting, plot, pacing, moods or instrumental fit from title/author alone.
+ * Only declared subject headings, form headings and edition dates are usable.
+ * Every populated field cites the catalog record and retains low confidence.
+ */
+export function provisionalLiteraryProfile(sources: ProfileEvidence[]): LiteraryProfile {
+  const profile = emptyLiteraryProfile();
+  const catalog = sources.find((source) => source.id === "catalog" && source.kind === "metadata");
+  if (!catalog) return profile;
+  let record: {
+    metadata?: { subjects?: unknown; shelves?: unknown };
+    bibliography?: { "edition publication date"?: unknown };
+  };
+  try {
+    record = JSON.parse(catalog.text);
+  } catch {
+    return profile;
+  }
+  if (!record || typeof record !== "object") return profile;
+  const headings = [record.metadata?.subjects, record.metadata?.shelves]
+    .flatMap((value) => (Array.isArray(value) ? value : []))
+    .filter((value): value is string => typeof value === "string")
+    .slice(0, 160);
+  const matched = (patterns: readonly (readonly [RegExp, string])[]) =>
+    patterns
+      .filter(([pattern]) => headings.some((heading) => pattern.test(heading)))
+      .map(([, label]) => label);
+  const themes = matched([
+    [/\bfriendship\b/i, "friendship"],
+    [/\bfamily life\b|\bfamilies\b/i, "family"],
+    [/\bmarriage\b/i, "marriage"],
+    [/\blove stories\b/i, "romance"],
+    [/\bdetective and mystery stories\b/i, "mystery"],
+    [/\bghost stories\b|\bsupernatural fiction\b/i, "supernatural"],
+    [/\bscience fiction\b/i, "science fiction"],
+    [/\bfantasy fiction\b|\bfantasy stories\b/i, "fantasy"],
+    [/\badventure stories\b/i, "adventure"],
+    [/\bwar stories\b/i, "war"],
+  ]);
+  const styles = matched([
+    [/\bpoetry\b|\bpoems\b/i, "poetry"],
+    [/\bdrama\b|\bplays\b/i, "drama"],
+    [/\bshort stories\b/i, "short stories"],
+    [/\bessays\b/i, "essays"],
+    [/\bletters\b|\bcorrespondence\b/i, "epistolary"],
+    [/\bfairy tales\b/i, "fairy tale"],
+  ]);
+  if (themes.length) profile.themes = { value: themes, confidence: 0.25, evidence: ["catalog"] };
+  if (styles.length)
+    profile.literaryStyle = { value: styles, confidence: 0.3, evidence: ["catalog"] };
+  const publication = record.bibliography?.["edition publication date"];
+  const year =
+    typeof publication === "string"
+      ? /^(1[5-9]\d{2}|20\d{2})(?:-\d{2}(?:-\d{2})?)?$/.exec(publication)?.[1]
+      : null;
+  if (year) {
+    profile.publicationPeriod = {
+      value: { label: year, startYear: Number(year), endYear: Number(year) },
+      confidence: 0.3,
+      evidence: ["catalog"],
+    };
+  }
+  return validateLiteraryProfile(profile, sources);
+}
+
 /** Enforce provenance and cap confidence for partial evidence, independent of model obedience. */
 export function validateLiteraryProfile(
   input: unknown,

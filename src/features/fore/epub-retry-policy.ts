@@ -25,3 +25,26 @@ export function planEpubRetry(message: string, attempts: number, nowMs = Date.no
         ).toISOString(),
   };
 }
+
+/** Allocate three fresh asset attempts for every due retry, where possible.
+ * Fetch each indexed frontier independently so an old retry backlog cannot
+ * starve first-time storage (or vice versa). Per-item rights/claim checks stay
+ * in the downloader, not in this fair scheduler.
+ */
+export function mixEpubFrontier<T>(
+  pending: readonly T[],
+  retries: readonly T[],
+  limit: number,
+): T[] {
+  const count = Number.isFinite(limit) ? Math.max(0, Math.min(64, Math.floor(limit))) : 0;
+  const result: T[] = [];
+  let fresh = 0;
+  let retry = 0;
+  while (result.length < count && (fresh < pending.length || retry < retries.length)) {
+    for (let n = 0; n < 3 && fresh < pending.length && result.length < count; n++) {
+      result.push(pending[fresh++]);
+    }
+    if (retry < retries.length && result.length < count) result.push(retries[retry++]);
+  }
+  return result;
+}

@@ -28,10 +28,48 @@ try {
   const lib = await import(path.join(root, "literary-profiles.server.mjs"));
   assert.equal(lib.LITERARY_GENERATION_LIMITS.maxOutputTokens, 2400);
   assert.equal(lib.LITERARY_GENERATION_LIMITS.reservedOutputCharacters, 12000);
+  const catalogEvidence = [
+    {
+      id: "catalog",
+      kind: "metadata",
+      locator: "catalog:test",
+      text: JSON.stringify({
+        title: "Unrelated title",
+        metadata: {
+          subjects: ["Friendship -- Fiction", "Ghost stories", "Poetry"],
+          shelves: ["General reading"],
+        },
+        bibliography: { "edition publication date": "1903-04-05" },
+      }),
+    },
+  ];
+  const provisional = core.provisionalLiteraryProfile(catalogEvidence);
+  assert.deepEqual(provisional.themes.value, ["friendship", "supernatural"]);
+  assert.deepEqual(provisional.themes.evidence, ["catalog"]);
+  assert.equal(provisional.themes.confidence, 0.25);
+  assert.deepEqual(provisional.literaryStyle.value, ["poetry"]);
+  assert.equal(provisional.publicationPeriod.value.startYear, 1903);
+  assert.ok(provisional.publicationPeriod.confidence <= 0.35);
+  assert.equal(provisional.settingPeriod.confidence, 0);
+  assert.equal(provisional.energy.value, null, "Do not fabricate a soundtrack intensity");
+  const metadataUnsupported = core.provisionalLiteraryProfile([
+    {
+      id: "catalog",
+      kind: "metadata",
+      locator: "catalog:unknown",
+      text: JSON.stringify({
+        title: "Ghost Stories",
+        metadata: { subjects: [], shelves: [] },
+        bibliography: {},
+      }),
+    },
+  ]);
+  assert.deepEqual(metadataUnsupported.themes.value, [], "Titles alone cannot assert book themes");
+  assert.equal(metadataUnsupported.moods.confidence, 0);
   assert.deepEqual(
     Array.from({ length: 8 }, (_, n) => lib.preferLiterarySection(n)),
-    [false, true, true, true, false, true, true, true],
-    "Chapter turns outnumber overviews three to one within the same daily quota",
+    [false, false, false, true, false, false, false, true],
+    "Book overviews get three of four turns; chapters retain guaranteed coverage",
   );
 
   assert.equal(
