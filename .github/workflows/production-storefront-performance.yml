@@ -9,12 +9,21 @@ on:
       - "src/features/fore/storefront-loader.ts"
       - "src/features/fore/storefront-bootstrap-fetch.ts"
       - "src/features/fore/api.server.ts"
+      - "src/features/fore/public-api-cache.server.ts"
+      - "src/routes/index.tsx"
+      - "src/server.ts"
   push:
     branches: [main]
     paths:
       - "scripts/check-production-storefront-performance*.mjs"
       - "scripts/wait-vercel-production*.mjs"
       - ".github/workflows/production-storefront-performance.yml"
+      - "src/features/fore/storefront-loader.ts"
+      - "src/features/fore/storefront-bootstrap-fetch.ts"
+      - "src/features/fore/api.server.ts"
+      - "src/features/fore/public-api-cache.server.ts"
+      - "src/routes/index.tsx"
+      - "src/server.ts"
   workflow_dispatch:
   schedule:
     - cron: "27 */6 * * *"
