@@ -23,6 +23,8 @@ jobs:
           const origin = process.env.COVE_PUBLIC_URL;
           const requests = [
             { path: "/", language: "en-US,en;q=0.9" },
+            { path: "/", language: "fr-FR,fr;q=0.9" },
+            { path: "/", language: "en-US,en;q=0.9" },
             { path: "/api/fore/storefront/context", language: "en-US,en;q=0.9" },
             { path: "/api/fore/storefront/page?path=%2F", language: "en-US,en;q=0.9" },
             { path: "/api/fore/catalog?search=&sort=popular&page=1&currency=USD", language: "en-US,en;q=0.9" },
