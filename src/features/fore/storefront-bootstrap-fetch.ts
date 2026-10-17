@@ -19,6 +19,7 @@ export async function requestStorefrontBootstrap(
     timeoutMs?: number;
     firstAttemptMs?: number;
     onFailure?: (failure: BootstrapFailure) => void;
+    recover?: (source: Request, fetchApi: (request: Request) => Promise<Response>) => Promise<string | null>;
   } = {},
 ): Promise<string | null> {
   const totalBudget = Math.max(1, Math.min(12_000, options.timeoutMs ?? 10_000));
@@ -39,8 +40,8 @@ export async function requestStorefrontBootstrap(
       const response = await fetchApi(forwarded);
       if (!response.ok) {
         options.onFailure?.({ attempt, kind: "http", status: response.status });
-        if (![429, 502, 503, 504].includes(response.status)) return null;
-        continue;
+        if (![502, 503, 504].includes(response.status)) return null;
+        await response.body?.cancel();
       }
       const value: StorefrontBootstrap = await response.json();
       if (
@@ -63,6 +64,20 @@ export async function requestStorefrontBootstrap(
           : "network";
       options.onFailure?.({ attempt, kind });
       if (source.signal.aborted) return null;
+    }
+    if (attempt === 1 && options.recover && !source.signal.aborted) {
+      const remaining = Math.floor(deadline - performance.now());
+      if (remaining <= 0) return null;
+      const signal = AbortSignal.any([source.signal, AbortSignal.timeout(remaining)]);
+      const recoveryRequest = new Request(source.url, {
+        headers: source.headers,
+        signal,
+      });
+      try {
+        return await options.recover(recoveryRequest, fetchApi);
+      } catch {
+        return null;
+      }
     }
   }
   return null;
