@@ -79,6 +79,7 @@ jobs:
                   const data = JSON.parse(body);
                   result.catalogBooks = data.results?.length ?? null;
                   result.catalogCount = data.count ?? null;
+                  result.productIdStringCount = (data.results || []).filter((book) => typeof book.productId === "string").length;
                 } catch {
                   result.invalidJson = true;
                 }
@@ -89,6 +90,7 @@ jobs:
                   result.rightsCountry = data.rightsCountry || null;
                   result.locale = data.locale || null;
                   result.currency = data.currency || null;
+                  result.availableMarketsArray = Array.isArray(data.availableMarkets);
                 } catch {
                   result.invalidJson = true;
                 }
