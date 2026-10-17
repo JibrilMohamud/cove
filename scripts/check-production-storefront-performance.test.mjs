@@ -5,6 +5,7 @@ import {
   evaluateProbes,
   percentile,
   productionOrigin,
+  safeProbeTelemetry,
   validateHtml,
   visibleServerBookCount,
 } from "./check-production-storefront-performance.mjs";
@@ -73,4 +74,30 @@ test("a degraded cold storefront warns and sustained bad TTFB fails", () => {
       "fail",
     );
   }
+});
+
+test("failure diagnostics retain only aggregate numeric timings and safe cache labels", () => {
+  const telemetry = safeProbeTelemetry(
+    new Headers({
+      "Server-Timing":
+        "cove_entry;dur=12.3, cove_render;dur=1712, exotic;desc=cookie.secret, cove_total;dur=1743.2",
+      "X-Vercel-Cache": "MISS",
+    }),
+    1900,
+    1920,
+  );
+  assert.deepEqual(telemetry, {
+    ttfbMs: 1900,
+    totalMs: 1920,
+    timing: "cove_entry;dur=12.3, cove_render;dur=1712, cove_total;dur=1743.2",
+    vercelCache: "MISS",
+  });
+  assert.deepEqual(
+    safeProbeTelemetry(
+      new Headers({ "Server-Timing": "cove_foo;dur=11;desc=token", "X-Vercel-Cache": "secrets" }),
+      250,
+      260,
+    ),
+    { ttfbMs: 250, totalMs: 260, timing: "", vercelCache: "unknown" },
+  );
 });
