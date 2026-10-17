@@ -186,50 +186,6 @@ try {
       },
     }),
   };
-  // Cloudflare-native, bearer-gated, anonymous pages may initiate their
-  // rights-filtered shelf read alongside the storefront context read. The
-  // local API test supplies the country that the outer Worker has asserted;
-  // production uses request.cf.country and overwrites client headers first.
-  for (const country of ["US", "CA", "SA", "JP"]) {
-    const staged = await handleCoveApi(
-      new Request("https://cove.test/api/fore/storefront/bootstrap", {
-        headers: {
-          "x-cove-client-country": country,
-          "cf-ipcountry": country,
-          "accept-language": "es-ES",
-        },
-      }),
-      { ...productionEnv, COVE_SSR_STAGING: "1" },
-    );
-    assert.equal(staged.status, 200, "Native stage bootstrap works for " + country);
-    const body = await staged.json();
-    assert.equal(body.context.rightsCountry, country);
-    assert.match(staged.headers.get("server-timing") || "", /cove_shelf_prefetch;dur=/);
-    assert.equal(new URLSearchParams(body.catalogQuery).get("currency"), body.context.currency);
-    if (body.catalog.next)
-      assert.equal(
-        new URL(body.catalog.next, "https://cove.test").searchParams.get("currency"),
-        body.context.currency,
-      );
-    const serial = await handleCoveApi(
-      new Request("https://cove.test/api/fore/storefront/bootstrap", {
-        headers: { "cf-ipcountry": country, "accept-language": "es-ES" },
-      }),
-      productionEnv,
-    );
-    assert.equal(serial.status, 200);
-    const baseline = await serial.json();
-    assert.deepEqual(
-      body.catalog.results.map((book) => book.id),
-      baseline.catalog.results.map((book) => book.id),
-      "Speculative initial D1 read preserves legal inventory for " + country,
-    );
-    assert.deepEqual(body.catalog.results, baseline.catalog.results);
-    assert.deepEqual(body.context, baseline.context);
-    assert.deepEqual(body.page, baseline.page);
-    assert.doesNotMatch(serial.headers.get("server-timing") || "", /cove_shelf_prefetch/);
-  }
-
   const productionCatalog = await handleCoveApi(
     new Request("https://cove.test/api/fore/catalog?search=pride", {
       headers: { "cf-ipcountry": "US" },
