@@ -6,12 +6,13 @@ compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
-# Staging-only, rights-neutral Worker placement experiment. The Worker
-# continues to use the original immutable request.cf.country for legal
-# territory; no country/locale preference can authorize new editions.
-# Cloudflare may require sustained traffic (~15 minutes) to settle placement.
+# D1 currently reports its authoritative primary at ORD (Chicago). Explicit
+# Midwest placement avoids Smart Placement needing traffic to learn the D1
+# location on each staging deployment. A Cloudflare location hint is not a
+# database cache: every legal territory/rights query is still live against D1.
+# Immutable request.cf.country remains the sole legal network-country source.
 [placement]
-mode = "smart"
+region = "aws:us-east-2"
 
 [assets]
 directory = "./.output/public"
