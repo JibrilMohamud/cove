@@ -11,8 +11,7 @@ export function storefrontRecoveryTransport(
   requireRemoteBackend: boolean,
 ): (request: Request) => Promise<Response> {
   if (!requireRemoteBackend) return direct;
-  return (request) =>
-    sameOrigin(new Request(request, { redirect: "manual", cache: "no-store" }));
+  return (request) => sameOrigin(new Request(request, { redirect: "manual", cache: "no-store" }));
 }
 
 /** Reconstruct only from the normal live rights-scoped API endpoints.
