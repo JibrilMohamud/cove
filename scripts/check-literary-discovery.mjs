@@ -141,6 +141,35 @@ try {
       }),
     /account/,
   );
+  await db
+    .prepare("UPDATE recommendation_requests SET created_at=? WHERE id=?")
+    .bind(new Date(Date.now() - 60000).toISOString(), rail.requestId)
+    .run();
+  await server.recordRecommendationEvent(db, user, {
+    type: "loved",
+    productId: rail.items[0].productId,
+    requestId: rail.requestId,
+    eventId: crypto.randomUUID(),
+  });
+  const dataset = await server.discoveryTrainingDataset(db);
+  assert.equal(
+    dataset.rows.length,
+    1,
+    "visible explicit account-attributed label exports with serving features",
+  );
+  assert.equal(dataset.rows[0].features.length, 6);
+  assert.equal(dataset.rows[0].label, 1);
+  assert.notEqual(dataset.rows[0].readerKey, user, "exports rotate reader pseudonyms");
+  await assert.rejects(
+    () =>
+      server.recordRecommendationEvent(db, "another-reader", {
+        type: "loved",
+        productId: rail.items[0].productId,
+        requestId: rail.requestId,
+        eventId: crypto.randomUUID(),
+      }),
+    /account/,
+  );
   const eventId = crypto.randomUUID();
   await server.recordRecommendationEvent(db, user, { type: "loved", productId: match, eventId });
   assert.equal(
@@ -187,6 +216,11 @@ try {
     eventId: crypto.randomUUID(),
   });
   assert.equal(disabled.learned, false);
+  assert.equal(
+    (await server.discoveryTrainingDataset(db)).rows.length,
+    0,
+    "training export excludes opted-out readers",
+  );
   discovery = await server.literaryDiscovery(
     env,
     { userId: user, visitorId: visitor, territory: "US" },
