@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   affectedServices,
@@ -95,4 +96,16 @@ test("missing or shallow git history fails open rather than skipping an unbuilt 
     null,
   );
   assert.equal(shouldBuildService("audio", "preview", changedSinceLastSuccess({})), true);
+});
+
+test("diagnostics/docs previews are disabled without disabling production or service builds", () => {
+  const cfg = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
+  assert.deepEqual(cfg.git.deploymentEnabled, {
+    "diagnostics/**": false,
+    "docs/**": false,
+  });
+  assert.equal(cfg.services.app.ignoreCommand, "node scripts/vercel-ignore-build.mjs app");
+  assert.equal(cfg.services.audio_pipeline.ignoreCommand, "node vercel-ignore-build.mjs audio");
+  assert.equal(cfg.services.app.framework, "tanstack-start");
+  assert.equal(cfg.services.audio_pipeline.framework, "fastapi");
 });
