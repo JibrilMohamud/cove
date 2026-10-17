@@ -1540,14 +1540,19 @@ export async function firstPaintStorefrontShelf(
     .all<{ product_id: string }>();
   const hasMore = rows.results.length > input.limit;
   const ids = rows.results.slice(0, input.limit).map((row) => String(row.product_id));
-  // Both reads depend only on validated, current rights-eligible IDs.
-  // Parallel D1 hydration avoids an extra serialized cold read without
-  // caching either channel eligibility or legal territorial authority.
-  const [canonicalBooks, allowedChannels] = await Promise.all([
-    canonicalFirstPaintBooksByProductIds(env.DB, ids),
-    loadChannelEligibility(env.DB, ids, input.territory),
-  ]);
-  const books = applyChannelEligibility(canonicalBooks, allowedChannels);
+  // The first-paint BookCard displays titles, covers, retail offers and
+  // genres, but NEVER the subscription/library access flags. Computing those
+  // flags materializes the full legal channel view on every anonymous
+  // homepage request, despite the normal catalog immediately hydrating them.
+  // Keep the live *retail* rights filter in candidateParts unchanged and
+  // represent secondary eligibility as UNKNOWN, not false/authorized.
+  // Purchase, subscription, library and EPUB handlers independently enforce
+  // current rights at action time; no preview data grants access.
+  const books = await canonicalFirstPaintBooksByProductIds(env.DB, ids);
+  for (const book of books) {
+    delete book.subscriptionEligible;
+    delete book.libraryEligible;
+  }
   return {
     results: books,
     // Partial count is intentionally identified as a preview, never the full
