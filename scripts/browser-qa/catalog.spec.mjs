@@ -121,9 +121,10 @@ test("initial bookstore renders books without JavaScript and reuses its server d
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
     await expect.poll(() => calls.length).toBeGreaterThan(0);
-    expect(calls.every((requestUrl) => new URL(requestUrl).pathname === "/api/fore/taxonomy")).toBe(
-      true,
+    const onlyDeferredTaxonomy = calls.every(
+      (requestUrl) => new URL(requestUrl).pathname === "/api/fore/taxonomy",
     );
+    expect(onlyDeferredTaxonomy).toBe(true);
   } finally {
     await context.close();
   }
