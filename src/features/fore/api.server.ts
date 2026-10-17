@@ -2662,6 +2662,10 @@ export async function rateLimitSearchRequest(
 async function rateLimitFirstPaint(request: Request, env: CoveEnv, userId: string | null) {
   const ip = clientIp(request);
   const actor = userId ? `user:${userId}` : ip ? `ip:${ip}` : null;
+  // A missing caller identity must not silently disable abuse prevention on
+  // protected native SSR. Reject and surface the binding regression instead.
+  if (!actor && env.COVE_SSR_STAGING === "1")
+    throw new ApiError(503, "Unable to verify anonymous request for rate limiting.");
   if (actor) await enforceFirstPaintRateLimit(env, `search:catalog:${actor}`, 180);
 }
 
