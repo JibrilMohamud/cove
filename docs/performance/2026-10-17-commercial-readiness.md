@@ -207,3 +207,16 @@ recognized a requested point one hour earlier. This verifies available provider
 checkpoints, not an executed production restore, retention guarantee or measured
 production RPO/RTO. The account currently has no Vectorize indexes; no semantic
 index or new infrastructure was provisioned by this release.
+
+## Diagnostic writes outside response latency
+
+The deployed phase timings then identified a guest account response with
+1,712 ms spent entirely in diagnostic logging. The Worker now passes its
+existing execution context into the API. Request logs and storefront-context
+diagnostics retain their lifetime with `waitUntil` and no longer block the
+response. Runtimes without a lifetime mechanism continue to await the writes.
+Authentication, rights checks, reading progress, notifications and all product
+mutations remain awaited. A held-write regression proves that Worker responses
+finish before diagnostics, the retained work later persists, and the fallback
+runtime still waits. Queued-log timing is labelled as queued rather than
+reported as zero database execution time.

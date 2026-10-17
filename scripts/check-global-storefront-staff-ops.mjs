@@ -248,3 +248,4 @@ console.log(
 );
 await import("./check-alert-recovery.mjs");
 await import("./check-isolated-recovery.mjs");
+await import("./check-diagnostic-response-latency.mjs");
