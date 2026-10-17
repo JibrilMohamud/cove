@@ -72,11 +72,13 @@ export function evaluateProbes(results, failures) {
   const missingLanguage = requestedLanguages.some(
     (language) => !results.some((result) => result.language === language),
   );
+  const invalidResponse = failures.some((failure) =>
+    /no server-rendered book cards|non-HTML content type|exceeded the safety limit|not marked no-store/.test(
+      failure.error,
+    ),
+  );
   const hardFailure =
-    results.length < 4 ||
-    missingLanguage ||
-    failures.some((failure) => failure.error.includes("no server-rendered book cards")) ||
-    (p75 !== null && p75 > 6_000);
+    results.length < 4 || missingLanguage || invalidResponse || (p75 !== null && p75 > 6_000);
   return {
     p75,
     p95,
