@@ -42,6 +42,7 @@ test("saved EPUB survives closing the app and cold offline navigation without pr
     await context.setOffline(true);
     page = await context.newPage();
     await page.goto("/read/1342");
+    await expect(page.locator("#cove-offline-root")).toHaveCount(1);
     const frame = page.locator("iframe").first();
     await expect(frame).toBeAttached({ timeout: 45000 });
     await expect.poll(async () => frame.contentFrame().locator("body").innerText()).toContain("QA");
@@ -49,6 +50,7 @@ test("saved EPUB survives closing the app and cold offline navigation without pr
     await page.close();
     page = await context.newPage();
     await page.goto("/");
+    await expect(page.locator("#cove-offline-root")).toHaveCount(1);
     await expect(page.getByRole("heading", { name: /Take the stories with you/ })).toBeVisible();
     await context.setOffline(false);
     await page.goto("/");
