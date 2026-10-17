@@ -112,8 +112,9 @@ async function preference(db: StorefrontDB, userId: string | null) {
     .first<any>();
 }
 
-async function supportedLocale(db: StorefrontDB, country: string, requested: string[]) {
-  const rows = (
+async function supportedLocaleRows(db: StorefrontDB, country: string) {
+  // Independent of the market lookup: issue both D1 queries concurrently.
+  return (
     await db
       .prepare(
         `SELECT l.*,ml.priority FROM storefront_market_locales ml JOIN storefront_locales l ON l.locale=ml.locale
@@ -122,6 +123,9 @@ async function supportedLocale(db: StorefrontDB, country: string, requested: str
       .bind(country)
       .all<any>()
   ).results;
+}
+
+function chooseSupportedLocale(rows: any[], requested: string[]) {
   if (!rows.length) return null;
   const exact = new Map(rows.map((r) => [String(r.locale).toLowerCase(), r]));
   for (const raw of requested) {
@@ -198,16 +202,25 @@ export async function resolveStorefrontContext(
     effectiveCountry = network.country;
     countrySource = network.source;
   }
-  let selectedMarket = await market(db, effectiveCountry);
+  let [selectedMarket, localeRows] = await Promise.all([
+    market(db, effectiveCountry),
+    supportedLocaleRows(db, effectiveCountry),
+  ]);
   if (!selectedMarket) {
     effectiveCountry = network.country;
     countrySource = network.source;
-    selectedMarket = await market(db, effectiveCountry);
+    [selectedMarket, localeRows] = await Promise.all([
+      market(db, effectiveCountry),
+      supportedLocaleRows(db, effectiveCountry),
+    ]);
   }
   if (!selectedMarket) {
     effectiveCountry = "US";
     countrySource = "default";
-    selectedMarket = await market(db, "US");
+    [selectedMarket, localeRows] = await Promise.all([
+      market(db, "US"),
+      supportedLocaleRows(db, "US"),
+    ]);
   }
   if (!selectedMarket) throw new ApiError(503, "No active Cove storefront market is configured.");
 
@@ -216,7 +229,7 @@ export async function resolveStorefrontContext(
   if (prefLocale) requestedLocales.push(prefLocale);
   requestedLocales.push(...parseAcceptLanguage(request.headers.get("accept-language") || ""));
   requestedLocales.push(String(selectedMarket.default_locale));
-  const loc = await supportedLocale(db, effectiveCountry, requestedLocales);
+  const loc = chooseSupportedLocale(localeRows, requestedLocales);
   if (!loc) throw new ApiError(503, "This storefront has no active locale configured.");
 
   const requestedCurrency = String(
