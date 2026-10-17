@@ -31,12 +31,12 @@ jobs:
             { path: "/", language: "de-DE,de;q=0.9" },
             { path: "/api/fore/storefront/bootstrap", language: "de-DE,de;q=0.9" },
             { path: "/", language: "de-DE,de;q=0.9" },
-            { path: "/", language: "en-US,en-NZ,en;q=0.8" },
-            { path: "/api/fore/storefront/bootstrap", language: "en-US,en-NZ,en;q=0.8" },
-            { path: "/", language: "en-US,en-NZ,en;q=0.8" },
-            { path: "/", language: "fr-FR,fr-BE,fr;q=0.8" },
-            { path: "/api/fore/storefront/bootstrap", language: "fr-FR,fr-BE,fr;q=0.8" },
-            { path: "/", language: "fr-FR,fr-BE,fr;q=0.8" },
+            { path: "/", language: "en-US,en-IE,en;q=0.8" },
+            { path: "/api/fore/storefront/bootstrap", language: "en-US,en-IE,en;q=0.8" },
+            { path: "/", language: "en-US,en-IE,en;q=0.8" },
+            { path: "/", language: "fr-FR,fr-CH,fr;q=0.8" },
+            { path: "/api/fore/storefront/bootstrap", language: "fr-FR,fr-CH,fr;q=0.8" },
+            { path: "/", language: "fr-FR,fr-CH,fr;q=0.8" },
           ];
           for (const { path, language } of requests) {
             const start = performance.now();
