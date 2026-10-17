@@ -38,3 +38,7 @@ jobs:
         run: npm run build
       - name: Verify private Worker build and static assets
         run: node scripts/check-cloudflare-ssr-pilot.mjs
+      - name: Validate Worker bundling locally (dry run, no deploy)
+        env:
+          CLOUDFLARE_SEND_METRICS: "false"
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.frontend.pilot.toml
