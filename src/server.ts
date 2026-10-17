@@ -3,6 +3,7 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { withCoveRequestEnvironment } from "./lib/cove-request-env.server";
 import { isolateWorkerCountry } from "./lib/cloudflare-country.server";
+import { resolveNativeWorkerBindings } from "./lib/cloudflare-native-bindings.server";
 import {
   isStagingStaticAsset,
   rejectUnauthenticatedStagingRequest,
@@ -58,8 +59,9 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     const requestStarted = performance.now();
     try {
-      const runtimeEnv =
+      const suppliedEnv =
         env && typeof env === "object" ? env : typeof process !== "undefined" ? process.env : {};
+      const runtimeEnv = await resolveNativeWorkerBindings(request, suppliedEnv);
       const foreEnv = runtimeEnv as {
         DB?: any;
         BUCKET?: any;
