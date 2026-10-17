@@ -19,7 +19,11 @@ export async function requestStorefrontBootstrap(
     timeoutMs?: number;
     firstAttemptMs?: number;
     onFailure?: (failure: BootstrapFailure) => void;
-    recover?: (source: Request, fetchApi: (request: Request) => Promise<Response>) => Promise<string | null>;
+    recover?: (
+      source: Request,
+      fetchApi: (request: Request) => Promise<Response>,
+    ) => Promise<string | null>;
+    onRecovery?: (result: { success: boolean; durationMs: number }) => void;
   } = {},
 ): Promise<string | null> {
   const totalBudget = Math.max(1, Math.min(12_000, options.timeoutMs ?? 10_000));
@@ -42,20 +46,21 @@ export async function requestStorefrontBootstrap(
         options.onFailure?.({ attempt, kind: "http", status: response.status });
         if (![502, 503, 504].includes(response.status)) return null;
         await response.body?.cancel();
+      } else {
+        const value: StorefrontBootstrap = await response.json();
+        if (
+          !value ||
+          !value.context?.rightsCountry ||
+          !value.context.locale ||
+          !value.context.currency ||
+          !Array.isArray(value.catalog?.results) ||
+          !Number.isFinite(value.at)
+        ) {
+          options.onFailure?.({ attempt, kind: "invalid-contract" });
+          return null;
+        }
+        return JSON.stringify(value);
       }
-      const value: StorefrontBootstrap = await response.json();
-      if (
-        !value ||
-        !value.context?.rightsCountry ||
-        !value.context.locale ||
-        !value.context.currency ||
-        !Array.isArray(value.catalog?.results) ||
-        !Number.isFinite(value.at)
-      ) {
-        options.onFailure?.({ attempt, kind: "invalid-contract" });
-        return null;
-      }
-      return JSON.stringify(value);
     } catch (error) {
       const kind: RetryKind = source.signal.aborted
         ? "caller-cancelled"
@@ -73,10 +78,13 @@ export async function requestStorefrontBootstrap(
         headers: source.headers,
         signal,
       });
+      const recoveryStarted = performance.now();
       try {
-        return await options.recover(recoveryRequest, fetchApi);
+        const value = await options.recover(recoveryRequest, fetchApi);
+        options.onRecovery?.({ success: value !== null, durationMs: performance.now() - recoveryStarted });
+        if (value !== null) return value;
       } catch {
-        return null;
+        options.onRecovery?.({ success: false, durationMs: performance.now() - recoveryStarted });
       }
     }
   }
