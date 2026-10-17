@@ -12,7 +12,8 @@
           "format": "url",
           "env": "COVE_AUDIO_PIPELINE_URL"
         }
-      ]
+      ],
+      "ignoreCommand": "node scripts/vercel-ignore-build.mjs app"
     },
     "audio_pipeline": {
       "root": "scripts",
@@ -24,7 +25,8 @@
         "audio_pipeline/subscriber.py": {
           "maxDuration": 300
         }
-      }
+      },
+      "ignoreCommand": "node vercel-ignore-build.mjs audio"
     }
   },
   "rewrites": [
