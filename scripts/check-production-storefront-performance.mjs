@@ -82,11 +82,12 @@ export async function probeHomepage(origin, language, sample) {
     const summary = safeProbeTelemetry(response.headers, ttfbMs, totalMs);
     throw new Error(`${String(error)}; diagnostic=${JSON.stringify(summary)}`);
   }
+  // Retain only allowlisted numeric phases even for successful HTML: most
+  // slow cold starts still return books, so failure-only telemetry is biased.
   return {
     language,
     sample,
-    ttfbMs,
-    totalMs,
+    ...safeProbeTelemetry(response.headers, ttfbMs, totalMs),
     cards,
     bytes: Buffer.byteLength(html),
   };
@@ -155,10 +156,10 @@ async function main() {
     "This measures synthetic runner time to first response byte, not field LCP/INP/CLS.",
     "The request does not forge a storefront rights territory or read customer data.",
     "",
-    "| Language request | Sample | TTFB | Total HTML | SSR books |",
-    "| --- | ---: | ---: | ---: | ---: |",
+    "| Language request | Sample | TTFB | Total HTML | SSR books | Vercel cache | Safe server phases |",
+    "| --- | ---: | ---: | ---: | ---: | --- | --- |",
     ...results.map(
-      (r) => `| ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.totalMs} ms | ${r.cards} |`,
+      (r) => `| ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.totalMs} ms | ${r.cards} | ${r.vercelCache} | ${r.timing || "none"} |`,
     ),
     "",
     `Result: **${assessment.status}** — TTFB p75 ${assessment.p75 ?? "n/a"} ms, p95 ${assessment.p95 ?? "n/a"} ms; ${failures.length} errors.`,
