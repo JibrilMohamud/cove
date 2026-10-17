@@ -170,19 +170,26 @@ try {
     }),
     null,
   );
-  assert.deepEqual(coldDeadline, [{
-    countryAsserted: true,
-    primaryCompleted: false,
-    alternateStarted: true,
-    alternateCompleted: false,
-  }]);
+  assert.deepEqual(coldDeadline, [
+    {
+      countryAsserted: true,
+      primaryCompleted: false,
+      alternateStarted: true,
+      alternateCompleted: false,
+    },
+  ]);
   const unknownDeadline = [];
   assert.equal(
-    await hedgedStorefrontBootstrap(new Request(source, { headers: withoutCountry }), never, never, {
-      hedgeAfterMs: 5,
-      timeoutMs: 30,
-      onDeadline: (state) => unknownDeadline.push(state),
-    }),
+    await hedgedStorefrontBootstrap(
+      new Request(source, { headers: withoutCountry }),
+      never,
+      never,
+      {
+        hedgeAfterMs: 5,
+        timeoutMs: 30,
+        onDeadline: (state) => unknownDeadline.push(state),
+      },
+    ),
     null,
   );
   assert.equal(unknownDeadline.length, 1);
