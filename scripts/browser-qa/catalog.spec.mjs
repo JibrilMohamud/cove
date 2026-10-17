@@ -121,7 +121,12 @@ test("initial bookstore serves books without JavaScript and refreshes full catal
     await page.goto("/");
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
-    await expect.poll(() => calls.length).toBeGreaterThan(0);
+    await expect
+      .poll(
+        () =>
+          calls.filter((requestUrl) => new URL(requestUrl).pathname === "/api/fore/catalog").length,
+      )
+      .toBeGreaterThanOrEqual(1);
     const paths = calls.map((requestUrl) => new URL(requestUrl).pathname);
     const catalogFetches = paths.filter((path) => path === "/api/fore/catalog").length;
     // Safari may repeat an explicitly aborted transport request while the

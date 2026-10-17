@@ -51,13 +51,28 @@ async function waitForUnauthenticatedDenial(pathname) {
 async function assertProtected() {
   await waitForUnauthenticatedDenial("/");
   await waitForUnauthenticatedDenial("/assets/not-real.js");
-  const deniedMutation = await fetch(origin + "/", {
-    method: "POST",
-    headers: headers(),
-    redirect: "manual",
-    signal: AbortSignal.timeout(12_000),
-  });
-  assert.equal(deniedMutation.status, 405, "Staging must remain read-only.");
+  // The unauthenticated 401 proves the gate is closed but says nothing
+  // about which generation of an ephemeral secret an edge instance holds.
+  // A freshly rotated token must be accepted BEFORE benchmarking begins.
+  // 405 is the only successful read-only proof. Neither 401 nor 503 passes.
+  let mutationStatus = 0;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const deniedMutation = await fetch(origin + "/", {
+      method: "POST",
+      headers: headers(),
+      redirect: "manual",
+      signal: AbortSignal.timeout(12_000),
+    });
+    mutationStatus = deniedMutation.status;
+    if (mutationStatus === 405) break;
+    if (mutationStatus !== 401 && mutationStatus !== 503) break;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  assert.equal(
+    mutationStatus,
+    405,
+    "Staging must accept the newly rotated secret and reject writes",
+  );
 }
 
 async function assertLocalDatabaseReady() {
