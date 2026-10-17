@@ -1,5 +1,19 @@
 import type { StorefrontBootstrap } from "./storefront-bootstrap";
 
+/**
+ * Route recovery through a separate same-origin API function only when the
+ * direct Worker gateway is configured. This changes network isolation, NOT
+ * authority: the caller still requires live backend provenance and territory.
+ */
+export function storefrontRecoveryTransport(
+  direct: (request: Request) => Promise<Response>,
+  sameOrigin: (request: Request) => Promise<Response>,
+  requireRemoteBackend: boolean,
+): (request: Request) => Promise<Response> {
+  if (!requireRemoteBackend) return direct;
+  return (request) => sameOrigin(new Request(request, { redirect: "manual", cache: "no-store" }));
+}
+
 /** Reconstruct only from the normal live rights-scoped API endpoints.
  * No cached foreign territory, US seed catalogue, or stale product IDs.
  * Each request inherits the same visitor headers and one shared deadline.
@@ -8,8 +22,14 @@ export async function recoverStorefrontBootstrap(
   source: Request,
   fetchApi: (request: Request) => Promise<Response>,
   requireRemoteBackend = false,
+  verifyOriginalTerritory = false,
 ): Promise<string | null> {
   if (source.signal.aborted) return null;
+  // A secondary Vercel invocation may geo-locate the SERVER rather than the
+  // original visitor. Only use that independent path when the incoming request
+  // has an original platform-country assertion, and verify it again below.
+  const sourceCountry = source.headers.get("x-vercel-ip-country")?.trim().toUpperCase() || "";
+  if (verifyOriginalTerritory && !/^[A-Z]{2}$/.test(sourceCountry)) return null;
   const origin = new URL(source.url).origin;
   async function read<T>(path: string): Promise<T> {
     const url = new URL(path, origin);
@@ -33,6 +53,7 @@ export async function recoverStorefrontBootstrap(
       !/^[a-z]{2,3}(?:-[a-zA-Z0-9]+)*$/.test(context?.locale || "") ||
       !/^[A-Z]{3}$/.test(context?.currency || "") ||
       !Array.isArray(context?.availableMarkets) ||
+      (verifyOriginalTerritory && context.rightsCountry !== sourceCountry) ||
       !page ||
       typeof page !== "object" ||
       !page.query ||
