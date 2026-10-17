@@ -124,9 +124,10 @@ test("initial bookstore serves books without JavaScript and refreshes full catal
     await expect.poll(() => calls.length).toBeGreaterThan(0);
     const paths = calls.map((requestUrl) => new URL(requestUrl).pathname);
     expect(paths.filter((path) => path === "/api/fore/catalog")).toHaveLength(1);
-    expect(
-      paths.every((path) => ["/api/fore/catalog", "/api/fore/taxonomy"].includes(path)),
-    ).toBe(true);
+    const onlyDeferredRequests = paths.every((path) =>
+      ["/api/fore/catalog", "/api/fore/taxonomy"].includes(path),
+    );
+    expect(onlyDeferredRequests).toBe(true);
     // The fresh server-rendered shelf remains readable even when the full
     // count/facet refresh cannot reach the backend.
     await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
