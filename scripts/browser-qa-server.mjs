@@ -31,6 +31,7 @@ const env = { ...localBindings(scratch), FORE_AUTH_MODE: "browser-qa-managed" };
 const users = new Map();
 let ready = false,
   api;
+let refuseOriginRequests = false;
 const send = (res, value, status = 200) => {
   res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" });
   res.end(JSON.stringify(value));
@@ -165,6 +166,13 @@ const fixturePlugin = {
   configureServer(server) {
     server.middlewares.use(async (req, res, next) => {
       const url = new URL(req.url || "/", "http://127.0.0.1:4173");
+      // Firefox's Playwright offline flag does not reach service-worker fetches.
+      // Refuse real origin traffic too; never replace it with a fake offline page.
+      if (url.pathname === "/__qa/network" && req.method === "POST") {
+        refuseOriginRequests = url.searchParams.get("offline") === "1";
+        return send(res, { refusing: refuseOriginRequests });
+      }
+      if (refuseOriginRequests) return req.socket.destroy();
       if (url.pathname === "/__qa/health") return send(res, { ready }, ready ? 200 : 503);
       if (url.pathname === "/__qa/catalog")
         return send(res, {

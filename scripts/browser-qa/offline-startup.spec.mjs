@@ -39,6 +39,7 @@ test("saved EPUB survives closing the app and cold offline navigation without pr
     });
     expect(documents).toEqual(["/offline.html"]);
     await page.close();
+    expect((await request.post("/__qa/network?offline=1")).ok()).toBe(true);
     await context.setOffline(true);
     page = await context.newPage();
     await page.goto("/read/1342");
@@ -52,11 +53,13 @@ test("saved EPUB survives closing the app and cold offline navigation without pr
     await page.goto("/");
     await expect(page.locator("#cove-offline-root")).toHaveCount(1);
     await expect(page.getByRole("heading", { name: /Take the stories with you/ })).toBeVisible();
+    expect((await request.post("/__qa/network?offline=0")).ok()).toBe(true);
     await context.setOffline(false);
     await page.goto("/");
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
   } finally {
+    await request.post("/__qa/network?offline=0");
     await context.close();
   }
 });
