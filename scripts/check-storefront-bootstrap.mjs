@@ -29,6 +29,7 @@ try {
   // Guard the cold SSR path itself, not merely its JSON shape: a future
   // refactor must not silently bring large live taxonomy scans back into
   // the render-blocking bootstrap.
+  let joinedMarketLocaleReads = 0;
   const fastFirstPaintEnv = {
     ...env,
     DB: new Proxy(env.DB, {
@@ -39,6 +40,12 @@ try {
               !/GROUP\\s+BY\\s+et\\.taxonomy_node_id/i.test(sql),
               "first-paint bootstrap must defer taxonomy count aggregation",
             );
+            assert.ok(
+              !/SELECT l\\.\\*,ml\\.priority FROM storefront_market_locales/i.test(sql),
+              "first paint must not perform separate supported-locale round trips",
+            );
+            if (/FROM storefront_markets m\\s+LEFT JOIN storefront_market_locales ml/i.test(sql))
+              joinedMarketLocaleReads += 1;
             return target.prepare(sql);
           };
         const value = Reflect.get(target, property);
@@ -61,6 +68,18 @@ try {
     const bootstrap = await response.json();
     assert.equal(bootstrap.context.rightsCountry, country);
     assert.ok(bootstrap.context.availableMarkets.length);
+    const legacySupported = await env.DB.prepare(
+      `SELECT l.locale,l.language_code,l.direction,ml.priority
+       FROM storefront_market_locales ml JOIN storefront_locales l ON l.locale=ml.locale
+       WHERE ml.country_code=? AND ml.active=1 AND l.status='active'
+       ORDER BY ml.priority,l.locale`,
+    )
+      .bind(country)
+      .all();
+    assert.ok(
+      legacySupported.results.some((row) => row.locale === bootstrap.context.locale),
+      "Combined market/locale query must preserve supported locale for " + country,
+    );
     assert.equal(
       "taxonomy" in bootstrap,
       false,
@@ -121,6 +140,7 @@ try {
       "bootstrap includes no private reading records",
     );
   }
+  assert.ok(joinedMarketLocaleReads >= 4, "One live joined market/locale read per bootstrap");
   // Guard against accidentally using unknown channel eligibility in the
   // server-rendered BookCard. Any future visible channel badge must receive
   // a fresh authoritative answer, not a default-false preview.
