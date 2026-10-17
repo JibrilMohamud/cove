@@ -22,6 +22,10 @@ jobs:
           node --input-type=module <<'NODE'
           const origin = process.env.COVE_PUBLIC_URL;
           const requests = [
+            { path: "/api/fore/storefront/bootstrap", language: "en-US,en;q=0.9" },
+            { path: "/", language: "en-US,en;q=0.9" },
+            { path: "/api/fore/storefront/bootstrap", language: "fr-FR,fr;q=0.9" },
+            { path: "/", language: "fr-FR,fr;q=0.9" },
             { path: "/", language: "en-US,en;q=0.9" },
             { path: "/api/fore/storefront/bootstrap", language: "en-US,en;q=0.9" },
             { path: "/", language: "en-US,en;q=0.9" },
