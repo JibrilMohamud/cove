@@ -26,7 +26,10 @@ test("SSR must include actual book cards, a 200 response, and HTML content type"
   assert.equal(validateHtml(200, "text/html; charset=utf-8", html), 2);
   assert.throws(() => validateHtml(503, "text/html", html), /503/);
   assert.throws(() => validateHtml(200, "application/json", html), /non-HTML/);
-  assert.throws(() => validateHtml(200, "text/html", "<main>Finding books</main>"), /no server-rendered/);
+  assert.throws(
+    () => validateHtml(200, "text/html", "<main>Finding books</main>"),
+    /no server-rendered/,
+  );
 });
 
 test("latency percentiles are deterministic and do not mutate inputs", () => {
@@ -46,11 +49,17 @@ test("a degraded cold storefront warns and sustained bad TTFB fails", () => {
   ]);
   assert.equal(evaluateProbes(samples, []).status, "pass");
   assert.equal(
-    evaluateProbes(samples.map((s) => ({ ...s, ttfbMs: 3500 })), []).status,
+    evaluateProbes(
+      samples.map((s) => ({ ...s, ttfbMs: 3500 })),
+      [],
+    ).status,
     "warn",
   );
   assert.equal(
-    evaluateProbes(samples.map((s) => ({ ...s, ttfbMs: 8000 })), []).status,
+    evaluateProbes(
+      samples.map((s) => ({ ...s, ttfbMs: 8000 })),
+      [],
+    ).status,
     "fail",
   );
   assert.equal(evaluateProbes(samples.slice(0, 4), []).status, "fail");
