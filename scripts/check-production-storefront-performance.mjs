@@ -99,18 +99,25 @@ export function evaluateProbes(results, failures) {
   const missingLanguage = requestedLanguages.some(
     (language) => !results.some((result) => result.language === language),
   );
-  const invalidResponse = failures.some((failure) =>
-    /no server-rendered book cards|non-HTML content type|exceeded the safety limit|not marked no-store/.test(
-      failure.error,
-    ),
-  );
+  // Never let fast successes mask a timed-out, denied or malformed response.
+  // This also prevents a biased latency percentile (calculated on successes)
+  // from certifying a partially failing cold start.
+  const expectedSamples = requestedLanguages.length * 4;
   const hardFailure =
-    results.length < 4 || missingLanguage || invalidResponse || (p75 !== null && p75 > 6_000);
+    failures.length > 0 ||
+    results.length !== expectedSamples ||
+    missingLanguage ||
+    (p75 !== null && p75 > 6_000) ||
+    (p95 !== null && p95 > 6_000);
   return {
     p75,
     p95,
     failures: failures.length,
-    status: hardFailure ? "fail" : p75 !== null && p75 > 2_500 ? "warn" : "pass",
+    status: hardFailure
+      ? "fail"
+      : (p75 !== null && p75 > 2_500) || (p95 !== null && p95 > 3_500)
+        ? "warn"
+        : "pass",
   };
 }
 
@@ -121,7 +128,7 @@ async function main() {
   const results = [];
   const failures = [];
   for (const language of requestedLanguages) {
-    for (let sample = 1; sample <= 2; sample += 1) {
+    for (let sample = 1; sample <= 4; sample += 1) {
       try {
         results.push(await probeHomepage(origin, language, sample));
       } catch (error) {
