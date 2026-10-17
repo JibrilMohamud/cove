@@ -36,10 +36,18 @@ try {
   ];
   for (const path of allowed) assert.equal(isPublicSeoDocumentPath(path), true, path);
   for (const path of [
-    "/", "/store", "/account", "/books/1", "/api/fore/catalog",
-    "/sitemaps/books/0.xml", "/sitemaps/books/100000.xml",
-    "/sitemaps/secrets.xml", "/sitemaps/private/user.xml", "/robots.txt/extra",
-  ]) assert.equal(isPublicSeoDocumentPath(path), false, path);
+    "/",
+    "/store",
+    "/account",
+    "/books/1",
+    "/api/fore/catalog",
+    "/sitemaps/books/0.xml",
+    "/sitemaps/books/100000.xml",
+    "/sitemaps/secrets.xml",
+    "/sitemaps/private/user.xml",
+    "/robots.txt/extra",
+  ])
+    assert.equal(isPublicSeoDocumentPath(path), false, path);
 
   let calls = 0;
   let nextStatus = 200;
@@ -80,18 +88,23 @@ try {
     new Request("https://cove.example/"),
     new Request("https://cove.example/account"),
     new Request("https://cove.example/api/fore/internal/ingestion/catalog"),
-  ]) assert.equal(await proxyPersistenceApi(request, env), null);
+  ])
+    assert.equal(await proxyPersistenceApi(request, env), null);
   assert.equal(calls, 3, "Noncrawler routes never enter the public SEO gateway");
 
   for (const request of [
     new Request("https://cove.example/sitemap.xml?page=1"),
     new Request("https://cove.example/robots.txt", { method: "POST" }),
-  ]) assert.equal((await proxyPersistenceApi(request, env)).status, 404);
+  ])
+    assert.equal((await proxyPersistenceApi(request, env)).status, 404);
   assert.equal(calls, 3, "Mutations and cache-busting query strings never hit D1");
 
-  result = await proxyPersistenceApi(new Request("https://cove.example/sitemap.xml", {
-    headers: { Cookie: "session=private" },
-  }), env);
+  result = await proxyPersistenceApi(
+    new Request("https://cove.example/sitemap.xml", {
+      headers: { Cookie: "session=private" },
+    }),
+    env,
+  );
   assert.equal(result.headers.has("Vercel-CDN-Cache-Control"), false);
   nextStatus = 503;
   result = await proxyPersistenceApi(new Request("https://cove.example/sitemap.xml"), env);
