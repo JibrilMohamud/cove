@@ -16,8 +16,7 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
     const env: Record<string, string | undefined> =
       typeof process === "undefined" ? {} : process.env;
     const remoteRequired =
-      Boolean(env.FORE_BACKEND_URL && env.FORE_BACKEND_TOKEN) ||
-      env.VERCEL_ENV === "production";
+      Boolean(env.FORE_BACKEND_URL && env.FORE_BACKEND_TOKEN) || env.VERCEL_ENV === "production";
     const fetchApi = async (forwarded: Request): Promise<Response> => {
       const response = await proxyPersistenceApi(forwarded, env);
       if (response) return response;
