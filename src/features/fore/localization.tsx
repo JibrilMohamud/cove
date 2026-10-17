@@ -25,6 +25,7 @@ type ContextValue = {
   paymentMethods: any[];
   markets: Market[];
   messages: Record<string, string>;
+  uiMessages: Record<string, string>;
   t: (key: string, fallback?: string) => string;
   formatMoney: (minor: number, currency?: string) => string;
   setPreferences: (x: { country?: string; locale?: string; currency?: string }) => Promise<void>;
@@ -42,6 +43,7 @@ const defaults: ContextValue = {
   paymentMethods: [],
   markets: [],
   messages: {},
+  uiMessages: {},
   t: (_k, f) => f || _k,
   formatMoney: (m) => formatMinorCurrency(m, "USD", "en-US"),
   setPreferences: async () => {},
@@ -95,6 +97,7 @@ export function StorefrontLocaleProvider({
       paymentMethods: Array.isArray(x.paymentMethods) ? x.paymentMethods : [],
       markets: Array.isArray(x.availableMarkets) ? x.availableMarkets : [],
       messages,
+      uiMessages: x.uiMessages || {},
       t: (key, fallback) => String(messages[key] || fallback || key),
       formatMoney: (minor, c = currency) => formatMinorCurrency(minor, c, locale),
       setPreferences: async (pref) => {
@@ -131,7 +134,7 @@ export function StorefrontLocaleControl() {
     >
       <span>{s.t("store.country", "Storefront")}</span>
       <select
-        aria-label={translateUi(s.locale, "Storefront language")}
+        aria-label={translateUi(s.uiMessages, "Storefront language")}
         value={s.locale}
         onChange={(e) => void s.setPreferences({ locale: e.target.value })}
       >

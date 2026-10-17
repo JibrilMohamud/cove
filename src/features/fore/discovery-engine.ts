@@ -17,7 +17,7 @@ const tags = z
       .trim()
       .min(1)
       .max(80)
-      .transform((s) => s.toLowerCase()),
+      .transform((s) => canonicalDiscoveryTag(s)),
   )
   .max(20);
 export const tasteControlsSchema = z
@@ -41,11 +41,38 @@ const genreAliases: Record<string, string> = {
   humor: "humor & satire",
   science: "science & nature",
 };
+// Explicit vocabulary equivalences only. These are not semantic inference or
+// evidence that a book has an unrecorded theme. Saved machine tags stay stable.
+const localizedTags: Record<string, string> = {
+  misterio: "mystery",
+  mystère: "mystery",
+  krimi: "mystery",
+  غموض: "mystery",
+  amistad: "friendship",
+  amitié: "friendship",
+  freundschaft: "friendship",
+  صداقة: "friendship",
+  guerra: "war",
+  guerre: "war",
+  krieg: "war",
+  حرب: "war",
+  reflexivo: "reflective",
+  réfléchi: "reflective",
+  nachdenklich: "reflective",
+  تأملي: "reflective",
+  ingenioso: "witty",
+  spirituel: "witty",
+  geistreich: "witty",
+  طريف: "witty",
+};
+export function canonicalDiscoveryTag(tag: string) {
+  const normalized = tag.normalize("NFKC").trim().toLowerCase();
+  return localizedTags[normalized] || normalized;
+}
 export function featureMatchesTag(feature: LiteraryFeature, tag: string) {
-  return (
-    feature.feature === tag ||
-    (feature.dimension === "genres" && feature.feature === genreAliases[tag])
-  );
+  const wanted = canonicalDiscoveryTag(tag);
+  const actual = canonicalDiscoveryTag(feature.feature);
+  return actual === wanted || (feature.dimension === "genres" && actual === genreAliases[wanted]);
 }
 export type LiteraryFeature = { dimension: string; feature: string; confidence: number };
 export type TasteEvidence = { long: number; recent: number; observations: number };
@@ -105,7 +132,7 @@ export type DiscoveryIntent = {
 export function parseDiscoveryIntent(text: string): DiscoveryIntent {
   const clauses = text
     .toLowerCase()
-    .split(/[,;.]+/)
+    .split(/[,;.،؛]+/)
     .map((s) => s.trim())
     .filter(Boolean);
   const likes: string[] = [],
@@ -113,18 +140,30 @@ export function parseDiscoveryIntent(text: string): DiscoveryIntent {
     unresolved: string[] = [];
   let maxMinutes: number | null = null;
   for (const clause of clauses) {
-    const time = /^(?:under|less than) (\d{1,4}) (hours?|minutes?)$/.exec(clause);
+    const time =
+      /^(?:under|less than|menos de|moins de|unter|weniger als|أقل من) (\d{1,4}) (hours?|minutes?|horas?|minutos?|heures?|stunden?|minuten?|ساعة|ساعات|دقيقة|دقائق)$/.exec(
+        clause,
+      );
     if (time) {
       maxMinutes = Math.max(
         5,
-        Math.min(10000, Number(time[1]) * (time[2].startsWith("hour") ? 60 : 1)),
+        Math.min(
+          10000,
+          Number(time[1]) * (/^(?:hour|hora|heure|stunde|ساعة|ساعات)/.test(time[2]) ? 60 : 1),
+        ),
       );
       continue;
     }
-    const avoid = /^(?:less |no |avoid |without )(.+)$/.exec(clause);
-    const more = /^(?:more |with |about )?([\p{L}\p{N} -]{1,80})$/u.exec(clause);
-    if (avoid) avoids.push(avoid[1]);
-    else if (more) likes.push(more[1]);
+    const avoid =
+      /^(?:less |no |avoid |without |menos |sin |evitar |moins de |sans |éviter |weniger |ohne |vermeide |بدون |تجنب |أقل )(.+)$/.exec(
+        clause,
+      );
+    const more =
+      /^(?:more |with |about |más |con |sobre |plus de |avec |sur |mehr |mit |über |المزيد من |مع |عن )?([\p{L}\p{N} -]{1,80})$/u.exec(
+        clause,
+      );
+    if (avoid) avoids.push(canonicalDiscoveryTag(avoid[1]));
+    else if (more) likes.push(canonicalDiscoveryTag(more[1]));
     else unresolved.push(clause);
   }
   return { likes: likes.slice(0, 20), avoids: avoids.slice(0, 20), maxMinutes, unresolved };

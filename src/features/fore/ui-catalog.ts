@@ -1,22 +1,11 @@
-import en from "./locales/en-US.json";
-import es from "./locales/es-ES.json";
-import fr from "./locales/fr-FR.json";
-import de from "./locales/de-DE.json";
-import ar from "./locales/ar-SA.json";
-
-export const uiCatalogs: Record<string, Record<string, string>> = {
-  "en-US": en,
-  "es-ES": es,
-  "fr-FR": fr,
-  "de-DE": de,
-  "ar-SA": ar,
-};
+// Catalogs are selected on the server and travel with the locale context.
+// Keeping this formatter independent prevents every language entering startup JS.
 export function translateUi(
-  locale: string,
+  catalog: Record<string, string> | undefined,
   source: string,
   values: Record<string, string | number> = {},
 ) {
-  const message = uiCatalogs[locale]?.[source] ?? source;
+  const message = catalog?.[source] ?? (source === "Primary" ? "Primary navigation" : source);
   // Substitutions are React text, never HTML. Callers pass complete sentences so
   // translators can reorder values rather than assembling English fragments.
   return message.replace(/\{(\w+)\}/g, (token, key: string) =>

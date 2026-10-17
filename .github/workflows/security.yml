@@ -41,6 +41,8 @@ jobs:
         run: npm run test:currency-minor-units
       - name: Large-library pagination and account-isolation regressions
         run: npm run test:large-library
+      - name: Alert recovery and isolated physical restore drill
+        run: npm run test:global-ops
       - name: Offline reading, account restoration and reader-safe notifications
         run: npm run test:reader-recovery
       - name: Paginated private account data and cross-user isolation

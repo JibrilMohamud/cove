@@ -72,3 +72,42 @@ Vercel team observability access currently returns 403. No paid monitoring,
 new infrastructure, changed billing, or production restore is authorized by
 this work log. Public measurements and existing test infrastructure can
 continue independently of that access limitation.
+
+## Follow-up release: startup, context and recovery
+
+The selected language catalog now travels with the existing server locale
+context. All 801 phrases are checked against their original five catalogs,
+including interpolation and fallback. English sends only its non-identity
+translation (32 JSON bytes); other locales send their own catalog. In the
+initial follow-up production build the shared sheet chunk fell from 417,930
+raw / 135,376 gzip bytes to approximately 167,730 / 55,050 bytes. These are
+build measurements, not deployed transfer or field performance improvements.
+
+Audiobook and soundtrack query identity includes reader and rights context.
+Soundtrack requests cancel when obsolete, changing readers/books clears prior
+tracks, and an unchanged recording at a chapter boundary explicitly restarts
+the ended player. Browser transport is mocked in this regression; it does not
+establish the perceptual quality of a soundtrack.
+
+Discovery controls and messages now have five-language labels. A deliberately
+small vocabulary of common translated theme tags and time-limit operators
+maps to canonical indexed evidence. End-to-end retrieval verifies a translated
+friendship request and war exclusion against seeded profiles. This is an
+improved exact-tag baseline, not semantic embeddings or arbitrary LLM intent.
+
+Operational delivery now reclaims abandoned alert leases, bounds each transport
+to ten seconds and each serving batch to twenty seconds, supplies a stable
+idempotency key, and fences late completions by lease/attempt. Controlled
+receiver tests exercise success, retries, backoff, exhaustion, malformed
+payloads and overlapping workers. No production recipient was contacted.
+Backup registration retries preserve the actual stored artifact identity.
+
+An executed physical SQLite backup/restore drill used a completely isolated
+synthetic database, checked integrity and foreign keys, then exercised the
+actual application API: 5,000 private notes recovered across 50 bounded pages,
+no duplicates, and another reader saw only their own note. On the local run
+at 07:51 UTC, page p95 was 10 ms and restore plus application probes rounded
+up to one second. Expired queue work was reclaimed and the stale worker was
+rejected. These local measurements exclude production networking, D1 capacity,
+provider recovery, backup retention, production rollback and real-data RPO/RTO.
+The alert and restore drills are now required in security CI.

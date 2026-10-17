@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Music2, SkipForward, X } from "lucide-react";
-import { api } from "./client";
+import { api, useAccount } from "./client";
+import { useStorefrontLocale } from "./localization";
 import { useUiText } from "./ui-text";
 
 type Recording = {
@@ -53,6 +54,9 @@ export function ReaderSoundtrack({
   registered: boolean;
 }) {
   const ui = useUiText();
+  const { data } = useAccount();
+  const { rightsCountry, locale } = useStorefrontLocale();
+  const owner = data.user?.id || "guest";
   const [mode, setMode] = useState<Mode>("atmosphere");
   const [vocals, setVocals] = useState<Vocals>("none");
   const [tracks, setTracks] = useState<PlaylistTrack[]>([]);
@@ -65,12 +69,25 @@ export function ReaderSoundtrack({
   const resumeAfterBoundary = useRef(false);
   const bucket = Math.min(9, Math.max(0, Math.floor(progress * 10)));
   const query = useQuery({
-    queryKey: ["reader-soundtrack-v1", bookId, spine, bucket, mode, vocals],
-    queryFn: () => {
+    queryKey: [
+      "reader-soundtrack-v1",
+      bookId,
+      spine,
+      bucket,
+      mode,
+      vocals,
+      rightsCountry,
+      locale,
+      owner,
+    ],
+    queryFn: ({ signal }) => {
       const params = new URLSearchParams({ mode, vocals, progress: String(bucket / 10) });
       if (spine !== null) params.set("spine", String(spine));
       return api<PlaylistReply>(
         "/books/" + encodeURIComponent(bookId) + "/literary-profile/playlist?" + params,
+        "GET",
+        undefined,
+        { signal },
       );
     },
     enabled: ready && (expanded || playing),
@@ -78,6 +95,17 @@ export function ReaderSoundtrack({
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
+  useEffect(() => {
+    // Books, readers and legal contexts must never inherit another playlist.
+    audio.current?.pause();
+    pending.current = null;
+    setTracks([]);
+    setIndex(0);
+    setPlaying(false);
+    resumeAfterBoundary.current = false;
+    setUpdating(false);
+    setMessage("");
+  }, [bookId, owner, rightsCountry]);
   useEffect(() => {
     const next = query.data?.playlist?.tracks;
     if (!next || !next.length) {
@@ -99,15 +127,6 @@ export function ReaderSoundtrack({
     // Query identity changes only when chapter, reading bucket or listening mode changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query.data]);
-  useEffect(() => {
-    // A different book must never inherit the prior book's licensed tracks.
-    audio.current?.pause();
-    pending.current = null;
-    setTracks([]);
-    setIndex(0);
-    setPlaying(false);
-    setMessage("");
-  }, [bookId]);
   const current = tracks[index];
   const advance = (autoPlay: boolean) => {
     const next = pending.current;
@@ -121,7 +140,23 @@ export function ReaderSoundtrack({
         setMessage(ui("No eligible recording is available for the new passage."));
         return;
       }
-      resumeAfterBoundary.current = autoPlay;
+      if (
+        next[0].id === current?.id &&
+        next[0].recording.fingerprint === current?.recording.fingerprint
+      ) {
+        // A shared recording at adjacent chapter boundaries has no React source
+        // change, so the source-change effect cannot restart an ended element.
+        resumeAfterBoundary.current = false;
+        if (autoPlay && audio.current) {
+          audio.current.currentTime = 0;
+          void audio.current.play().catch(() => {
+            setPlaying(false);
+            setMessage(
+              ui("Playback was paused by your browser. Use the audio controls to resume."),
+            );
+          });
+        }
+      } else resumeAfterBoundary.current = autoPlay;
     } else if (index + 1 < tracks.length) {
       resumeAfterBoundary.current = autoPlay;
       setIndex((n) => n + 1);
