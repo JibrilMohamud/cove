@@ -61,7 +61,11 @@ try {
     const bootstrap = await response.json();
     assert.equal(bootstrap.context.rightsCountry, country);
     assert.ok(bootstrap.context.availableMarkets.length);
-    assert.equal("taxonomy" in bootstrap, false, "slow category counts cannot gate the first book shelf");
+    assert.equal(
+      "taxonomy" in bootstrap,
+      false,
+      "slow category counts cannot gate the first book shelf",
+    );
     const categoryResponse = await handleCoveApi(
       new Request("https://cove.test/api/fore/taxonomy", { headers }),
       env,
@@ -69,7 +73,10 @@ try {
     assert.equal(categoryResponse.status, 200);
     const categories = await categoryResponse.json();
     assert.equal(categories.territory, country);
-    assert.ok(Array.isArray(categories.nodes), "category browsing still fetches the rights-scoped taxonomy");
+    assert.ok(
+      Array.isArray(categories.nodes),
+      "category browsing still fetches the rights-scoped taxonomy",
+    );
     const catalog = await handleCoveApi(
       new Request("https://cove.test/api/fore/catalog?" + bootstrap.catalogQuery, { headers }),
       env,
