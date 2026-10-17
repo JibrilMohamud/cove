@@ -527,7 +527,6 @@ export type CoveEnv = {
   FORE_ALERT_WEBHOOK_URL?: string;
   FORE_ALERT_WEBHOOK_TOKEN?: string;
   FORE_ENVIRONMENT?: string;
-  COVE_SSR_STAGING?: string;
   FORE_CSP_REPORT_URI?: string;
   FORE_SECURITY_CONTACT_EMAIL?: string;
   FORE_SECURITY_POLICY_URL?: string;
@@ -3011,31 +3010,6 @@ async function handleCoveRequest(
     }
     const dbForContext = machineDb;
     const currentIdentity = identity(request);
-    const bootstrapRequest = request.method === "GET" && path === "/storefront/bootstrap";
-    // Only the gated native-Worker staging handler, which first overwrites the
-    // incoming country header from immutable request.cf metadata, may prefetch
-    // an anonymous territorial shelf while storefront settings are resolved.
-    // No customer/account territory or currency preference may grant legal access.
-    const stageCountry = request.headers.get("x-cove-client-country") || "";
-    const canPreload =
-      bootstrapRequest &&
-      env.COVE_SSR_STAGING === "1" &&
-      env.FORE_ENVIRONMENT === "production" &&
-      !currentIdentity &&
-      /^[A-Z]{2}$/.test(stageCountry) &&
-      !["XX", "ZZ", "T1"].includes(stageCountry);
-    const prefetchStarted = performance.now();
-    // Capture BOTH outcomes now: a rapid rejection cannot become unhandled
-    // while the independent context D1 reads are still outstanding.
-    const earlyShelf = canPreload
-      ? (async () => {
-          await rateLimitSearchRequest(request, env, null, "catalog", 180);
-          return firstPaintStorefrontShelf(env, "USD", stageCountry);
-        })().then(
-          (value) => ({ ok: true as const, value }),
-          (error: unknown) => ({ ok: false as const, error }),
-        )
-      : null;
     const contextStarted = performance.now();
     const storefront = await resolveStorefrontContext(
       dbForContext,
@@ -3046,19 +3020,24 @@ async function handleCoveRequest(
     const contextMs = performance.now() - contextStarted;
     timings.context = contextMs;
     const storefrontTerritory = storefront.rightsCountry;
-    if (bootstrapRequest) {
+    if (request.method === "GET" && path === "/storefront/bootstrap") {
       const bootstrapStarted = performance.now();
-      // Local fixtures still require explicit development seeding. This path
-      // does not execute production seeding writes or static rights snapshots.
+      // Production ingestion runs independently. Local fixtures still require
+      // the same development-only catalog seeding as /catalog before a shelf read.
       if (env.FORE_ENVIRONMENT !== "production") await seedCatalog(env);
-      if (!earlyShelf)
-        await rateLimitSearchRequest(request, env, currentIdentity?.id || null, "catalog", 180);
+      // First-paint bootstrap resolves only the book shelf, landing metadata and
+      // market context. Category counts are expensive and can load through the
+      // existing rights-filtered /taxonomy query after the shelf has rendered.
+      // Only public catalog data goes into the SSR document.
+      await rateLimitSearchRequest(request, env, currentIdentity?.id || null, "catalog", 180);
       const catalogQuery = new URLSearchParams({
         search: "",
         sort: "popular",
         page: "1",
         currency: storefront.currency,
       }).toString();
+      // Timing-only diagnostics reveal which public D1 operation makes an
+      // uncached initial page slow; never include reader or catalog data.
       const phases: Record<string, number> = {};
       async function timed<T>(name: string, promise: Promise<T>): Promise<T> {
         const started = performance.now();
@@ -3068,25 +3047,6 @@ async function handleCoveRequest(
           phases[name] = performance.now() - started;
         }
       }
-      const catalogPromise =
-        earlyShelf && storefrontTerritory === stageCountry && !currentIdentity
-          ? earlyShelf.then((result) => {
-              if (!result.ok) throw result.error;
-              phases.shelf_prefetch = performance.now() - prefetchStarted;
-              // The first-paint query sorts by popularity, not by currency.
-              // The preview's only currency-dependent field is its pagination
-              // link. Use the *resolved* market currency, not a guess.
-              const original = result.value;
-              const next = original.next
-                ? (() => {
-                    const url = new URL(original.next, request.url);
-                    url.searchParams.set("currency", storefront.currency);
-                    return url.pathname + url.search;
-                  })()
-                : null;
-              return { ...original, next };
-            })
-          : firstPaintStorefrontShelf(env, storefront.currency, storefrontTerritory);
       const [page, firstPage, availableMarkets] = await Promise.all([
         timed(
           "page",
@@ -3098,7 +3058,7 @@ async function handleCoveRequest(
             storefront.locale,
           ),
         ),
-        timed("catalog", catalogPromise),
+        timed("catalog", firstPaintStorefrontShelf(env, storefront.currency, storefrontTerritory)),
         timed("markets", storefrontMarkets(dbForContext)),
       ]);
       const response = json({
