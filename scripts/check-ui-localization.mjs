@@ -91,3 +91,4 @@ for (const file of surfaces) {
 console.log(
   `PASS: ${keys.length} UI phrases in five locales, placeholder parity, no raw JSX labels in ${surfaces.length} reading/social/auth/recovery surfaces, stable machine attributes.`,
 );
+await import("./check-ui-catalog-wire.mjs");

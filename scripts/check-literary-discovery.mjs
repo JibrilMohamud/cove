@@ -85,6 +85,28 @@ try {
     "US",
   );
   assert.ok(retrieved.includes(match));
+  const translated = await server.literaryDiscovery(
+    env,
+    { userId: null, visitorId: crypto.randomUUID(), territory: "US" },
+    { query: "amistad, sin guerra" },
+  );
+  assert.deepEqual(translated.intent.likes, ["friendship"]);
+  assert.deepEqual(translated.intent.avoids, ["war"]);
+  assert.ok(
+    translated.rails.some((rail) => rail.books.some((book) => book.productId === match)),
+    "translated cold-start preference retrieves grounded indexed evidence",
+  );
+  for (const phrase of ["amitié, sans guerre", "Freundschaft, ohne Krieg", "صداقة، بدون حرب"]) {
+    assert.deepEqual(core.parseDiscoveryIntent(phrase).likes, ["friendship"]);
+    assert.deepEqual(core.parseDiscoveryIntent(phrase).avoids, ["war"]);
+  }
+  for (const phrase of [
+    "menos de 3 horas",
+    "moins de 3 heures",
+    "unter 3 Stunden",
+    "أقل من 3 ساعات",
+  ])
+    assert.equal(core.parseDiscoveryIntent(phrase).maxMinutes, 180);
   await profile(other, ["friendship"], 2, 0);
   assert.equal(
     (await intelligence.loadLiteraryFeatures(db, [other])).size,

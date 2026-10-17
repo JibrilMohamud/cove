@@ -11,6 +11,12 @@ import { renderToStaticMarkup as render } from "react-dom/server";
 // only so their contents can be inspected without a browser; this does not test AT.
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "cove-auth-locale-"));
 const previousLocale = globalThis.__coveTestLocale;
+const catalogs = Object.fromEntries(
+  ["en-US", "es-ES", "fr-FR", "de-DE", "ar-SA"].map((locale) => [
+    locale,
+    JSON.parse(fs.readFileSync(`src/features/fore/locales/${locale}.json`, "utf8")),
+  ]),
+);
 try {
   fs.symlinkSync(path.resolve("node_modules"), path.join(scratch, "node_modules"), "dir");
   await build({
@@ -51,7 +57,7 @@ try {
                 ? `import {createElement as h} from 'react'; export const Dialog=({open,children})=>open?h('section',null,children):null; export const DialogContent=({children,...props})=>h('div',props,children); export const DialogTitle=({children})=>h('h2',null,children); export const DialogDescription=({children})=>h('p',null,children);`
                 : name === "client"
                   ? `export const api=()=>{throw Error('Unexpected API call during render')};`
-                  : `export const useStorefrontLocale=()=>({locale:globalThis.__coveTestLocale});`,
+                  : `const catalogs=${JSON.stringify(catalogs)}; export const useStorefrontLocale=()=>({locale:globalThis.__coveTestLocale,uiMessages:catalogs[globalThis.__coveTestLocale]});`,
             loader: "js",
           }));
         },
@@ -66,7 +72,7 @@ try {
   const escaped = (text) => render(h(Fragment, null, text));
   for (const locale of ["en-US", "es-ES", "fr-FR", "de-DE", "ar-SA"]) {
     globalThis.__coveTestLocale = locale;
-    const text = (source, values) => translateUi(locale, source, values);
+    const text = (source, values) => translateUi(catalogs[locale], source, values);
     for (const [mode, title, field] of [
       ["login", "Welcome back.", "Username or email"],
       ["signup", "A reading life of your own.", "Username"],

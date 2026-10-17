@@ -1,13 +1,13 @@
 import { createElement, Fragment, useCallback, type ReactNode } from "react";
 import { useStorefrontLocale } from "./localization";
 import { translateUi } from "./ui-catalog";
-export { translateUi, uiCatalogs } from "./ui-catalog";
+export { translateUi } from "./ui-catalog";
 export function useUiText() {
-  const { locale } = useStorefrontLocale();
+  const { uiMessages } = useStorefrontLocale();
   return useCallback(
     (source: string, values?: Record<string, string | number>) =>
-      translateUi(locale, source, values),
-    [locale],
+      translateUi(uiMessages, source, values),
+    [uiMessages],
   );
 }
 

@@ -1,4 +1,5 @@
 import { tasteControlsSchema, type TasteControls } from "./discovery-engine";
+import { useUiText } from "./ui-text";
 import { formatMinorCurrency } from "./currency";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStorefrontLocale } from "./localization";
@@ -285,6 +286,7 @@ type RecommendationResponse = {
 };
 
 function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
+  const ui = useUiText();
   const { data } = useAccount();
   const [query, setQuery] = useState("");
   const dirty = useRef(false);
@@ -334,10 +336,11 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
     });
   return (
     <section className="recommendation-rail" aria-labelledby="literary-discovery-title">
-      <h2 id="literary-discovery-title">What would you love to read next?</h2>
+      <h2 id="literary-discovery-title">{ui("What would you love to read next?")}</h2>
       <p>
-        Explore by theme, mood, style or setting. Try “mystery, reflective, under 4 hours”. Results
-        use available book evidence.
+        {ui(
+          "Explore by theme, mood, style or setting. Try “mystery, reflective, under 4 hours”. Results use available book evidence.",
+        )}
       </p>
       <form
         onSubmit={async (e) => {
@@ -361,7 +364,7 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
         className="grid gap-3 max-w-3xl my-5"
       >
         <label>
-          For this search
+          {ui("For this search")}
           <input
             className="block border rounded p-2 w-full"
             value={query}
@@ -370,12 +373,12 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
               dirty.current = true;
               setQuery(e.target.value);
             }}
-            placeholder="mystery, reflective, less violence"
+            placeholder={ui("mystery, reflective, less violence")}
           />
         </label>
         <div className="grid gap-3 sm:grid-cols-2">
           <label>
-            More of (comma-separated)
+            {ui("More of (comma-separated)")}
             <input
               className="block border rounded p-2 w-full"
               value={likes}
@@ -384,11 +387,11 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
                 dirty.current = true;
                 setLikes(e.target.value);
               }}
-              placeholder="friendship, witty"
+              placeholder={ui("friendship, witty")}
             />
           </label>
           <label>
-            Avoid known themes or styles
+            {ui("Avoid known themes or styles")}
             <input
               className="block border rounded p-2 w-full"
               value={dislikes}
@@ -397,11 +400,11 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
                 dirty.current = true;
                 setDislikes(e.target.value);
               }}
-              placeholder="war, melancholic"
+              placeholder={ui("war, melancholic")}
             />
           </label>
           <label>
-            Maximum reading time in minutes
+            {ui("Maximum reading time in minutes")}
             <input
               className="block border rounded p-2 w-full"
               type="number"
@@ -412,17 +415,20 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
                 dirty.current = true;
                 setMinutes(e.target.value);
               }}
-              placeholder="Any length"
+              placeholder={ui("Any length")}
             />
           </label>
           <label>
-            Discovery adventure: {Math.round(adventure * 100)}%
+            {ui("Discovery adventure: {percent}%", { percent: Math.round(adventure * 100) })}
             <input
               className="block w-full"
               type="range"
               min={0}
               max={1}
               step={0.1}
+              aria-valuetext={ui("Discovery adventure: {percent}%", {
+                percent: Math.round(adventure * 100),
+              })}
               value={adventure}
               onChange={(e) => {
                 dirty.current = true;
@@ -432,12 +438,13 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
           </label>
         </div>
         <p className="text-sm">
-          Avoid filters exclude books tagged with those terms; books with incomplete profiles may
-          have unrecorded content. Time limits require a supported estimate.
+          {ui(
+            "Avoid filters exclude books tagged with those terms; books with incomplete profiles may have unrecorded content. Time limits require a supported estimate.",
+          )}
         </p>
         <div className="flex gap-4 flex-wrap">
           <button className="border rounded px-4 py-2" disabled={busy || !visitor} type="submit">
-            {busy ? "Finding books…" : "Discover books"}
+            {busy ? ui("Finding books…") : ui("Discover books")}
           </button>
           {data.user && (
             <button
@@ -454,7 +461,7 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
                 }
               }}
             >
-              Save taste preferences
+              {ui("Save taste preferences")}
             </button>
           )}
           <button
@@ -471,17 +478,18 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
               setMessage("Form cleared. Save to replace your saved preferences.");
             }}
           >
-            Clear preferences
+            {ui("Clear preferences")}
           </button>
         </div>
       </form>
       <p role="status" aria-live="polite">
-        {message || response?.emptyReason || ""}
+        {ui(message || response?.emptyReason || "")}
       </p>
       {!!response?.intent.unresolved.length && (
         <p>
-          Could not interpret: {response.intent.unresolved.join(", ")}. Try individual themes or
-          “under 4 hours”.
+          {ui("Could not interpret: {terms}. Try individual themes or “under 4 hours”.", {
+            terms: response.intent.unresolved.join(", "),
+          })}
         </p>
       )}
       {response?.rails.map((rail) => (

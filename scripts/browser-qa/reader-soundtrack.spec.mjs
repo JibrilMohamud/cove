@@ -60,9 +60,26 @@ test("reader music is opt-in, attributed, and chapter-aware", async ({ page, req
     "href",
     "https://creativecommons.org/licenses/by/4.0/",
   );
+  // Mock only media transport: prove that a shared recording at the next
+  // chapter/style boundary restarts even when its source identity is unchanged.
+  await player.evaluate((node) => {
+    node.__qaPlayCalls = 0;
+    node.play = async () => {
+      node.__qaPlayCalls++;
+      node.dispatchEvent(new Event("play"));
+    };
+    node.dispatchEvent(new Event("play"));
+  });
   await pane.getByLabel("Listening style").selectOption("focus");
   await expect.poll(() => requested.some((q) => q.mode === "focus")).toBeTruthy();
+  await expect(pane.getByText("New chapter music queued for the next recording.")).toBeVisible();
+  await player.evaluate((node) => node.dispatchEvent(new Event("ended")));
+  await expect.poll(() => player.evaluate((node) => node.__qaPlayCalls)).toBe(1);
   await pane.getByRole("button", { name: "Minimize soundtrack" }).click();
+  await expect(pane.getByRole("button", { name: "Expand soundtrack" })).toBeVisible();
+  await expect(pane.getByLabel("Listening style")).toHaveCount(0);
+  // Playing music retains its compact controls. A paused, collapsed player hides.
+  await player.evaluate((node) => node.dispatchEvent(new Event("pause")));
   await expect(pane).toBeHidden();
   expect(await page.locator(".reader-soundtrack audio").count()).toBe(1);
 });

@@ -49,7 +49,8 @@ export const narrationLabel = (e: AudioEdition) =>
       ? "Computer narration"
       : "Narration unclassified";
 export function AudiobooksPage() {
-  const { formatMoney } = useStorefrontLocale();
+  const { formatMoney, rightsCountry, locale } = useStorefrontLocale();
+  const { data } = useAccount();
   const ui = useUiText();
   const [search, setSearch] = useState(""),
     [q, setQ] = useState(""),
@@ -64,11 +65,23 @@ export function AudiobooksPage() {
     return () => clearTimeout(t);
   }, [search]);
   const r = useQuery<{ results: AudioEdition[]; count: number; pages: number }>({
-    queryKey: ["audio-catalog", q, kind, page, sort],
-    queryFn: () =>
+    queryKey: [
+      "audio-catalog",
+      q,
+      kind,
+      page,
+      sort,
+      rightsCountry,
+      locale,
+      data.user?.id || "guest",
+    ],
+    queryFn: ({ signal }) =>
       api(
         "/audiobooks?" +
           new URLSearchParams({ search: q, narration: kind, page: String(page), sort }),
+        "GET",
+        undefined,
+        { signal },
       ),
   });
   return (

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ApiError, now } from "./service";
+import { selectedUiCatalog } from "./ui-catalog.server";
 
 export type StorefrontDB = {
   prepare(sql: string): {
@@ -32,6 +33,7 @@ export type StorefrontContext = {
     priority: number;
   }[];
   messages: Record<string, string>;
+  uiMessages: Record<string, string>;
   requestedCountry?: string | null;
 };
 
@@ -275,6 +277,7 @@ export async function resolveStorefrontContext(
       priority: Number(m.priority || 100),
     })),
     messages,
+    uiMessages: selectedUiCatalog(String(loc.locale)),
     requestedCountry:
       requestedCountry && requestedCountry !== effectiveCountry ? requestedCountry : null,
   };

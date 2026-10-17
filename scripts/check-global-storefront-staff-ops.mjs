@@ -246,3 +246,5 @@ for (const token of ["RTL", "service-principal", "staff", "rights", "currency", 
 console.log(
   `Global storefront / staff identity / production operations checks passed across ${migrations.length} migrations.`,
 );
+await import("./check-alert-recovery.mjs");
+await import("./check-isolated-recovery.mjs");

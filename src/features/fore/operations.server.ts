@@ -1046,9 +1046,9 @@ export async function registerBackupArtifact(db: OpsDB, raw: unknown) {
     backupId = id("backup");
   if (x.status === "verified" && !Object.keys(x.verification).length)
     throw new ApiError(400, "A verified backup requires provider verification evidence.");
-  await db
+  const saved = await db
     .prepare(
-      `INSERT INTO ops_backup_artifacts(id,service_key,provider,provider_backup_id,snapshot_at,size_bytes,checksum_sha256,status,verification_json,verified_at,recorded_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(provider,provider_backup_id) DO UPDATE SET snapshot_at=excluded.snapshot_at,size_bytes=excluded.size_bytes,checksum_sha256=excluded.checksum_sha256,status=excluded.status,verification_json=excluded.verification_json,verified_at=excluded.verified_at,recorded_at=excluded.recorded_at`,
+      `INSERT INTO ops_backup_artifacts(id,service_key,provider,provider_backup_id,snapshot_at,size_bytes,checksum_sha256,status,verification_json,verified_at,recorded_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(provider,provider_backup_id) DO UPDATE SET snapshot_at=excluded.snapshot_at,size_bytes=excluded.size_bytes,checksum_sha256=excluded.checksum_sha256,status=excluded.status,verification_json=excluded.verification_json,verified_at=excluded.verified_at,recorded_at=excluded.recorded_at RETURNING id`,
     )
     .bind(
       backupId,
@@ -1063,8 +1063,8 @@ export async function registerBackupArtifact(db: OpsDB, raw: unknown) {
       x.status === "verified" ? now() : null,
       now(),
     )
-    .run();
-  return { id: backupId, saved: true };
+    .first<{ id: string }>();
+  return { id: saved!.id, saved: true };
 }
 
 export async function recordRestoreDrill(db: OpsDB, userId: string, raw: unknown) {
@@ -1428,6 +1428,15 @@ export async function deliverOperationalAlerts(
 ) {
   if (!webhookUrl) return { configured: false, processed: 0, sent: 0, retried: 0, dead: 0 };
   const target = safeOutboundHttpsUrl(webhookUrl, "Operational alert webhook");
+  const at = now();
+  // A worker can disappear after claiming a delivery. Reclaim only after a
+  // minute (well beyond the ten-second transport deadline), respecting budget.
+  await db
+    .prepare(
+      "UPDATE ops_alert_deliveries SET status=CASE WHEN attempts>=max_attempts THEN 'dead' ELSE 'retry' END,available_at=?,leased_at=NULL,last_error='Alert delivery lease expired',updated_at=? WHERE status='leased' AND (leased_at IS NULL OR leased_at<=?)",
+    )
+    .bind(at, at, new Date(Date.now() - 60_000).toISOString())
+    .run();
   const rows = (
     await db
       .prepare(
@@ -1438,16 +1447,23 @@ export async function deliverOperationalAlerts(
   ).results;
   let sent = 0,
     retried = 0,
-    dead = 0;
+    dead = 0,
+    processed = 0;
+  const deadline = Date.now() + 20_000;
   for (const row of rows) {
+    if (Date.now() >= deadline) break;
+    const leaseAt = now();
     const leased = await db
       .prepare(
         "UPDATE ops_alert_deliveries SET status='leased',leased_at=?,attempts=attempts+1,updated_at=? WHERE id=? AND status IN ('pending','retry') RETURNING attempts,max_attempts",
       )
-      .bind(now(), now(), row.id)
+      .bind(leaseAt, leaseAt, row.id)
       .first<any>();
     if (!leased) continue;
-    const payload = JSON.stringify({
+    processed++;
+    let digest: string | null = null;
+    try {
+      const payload = JSON.stringify({
         source: "fore",
         eventType: row.event_type,
         target: row.notification_target,
@@ -1462,53 +1478,54 @@ export async function deliverOperationalAlerts(
           resolvedAt: row.resolved_at,
           metadata: JSON.parse(String(row.metadata_json || "{}")),
         },
-      }),
+      });
       digest = await sha256(payload);
-    try {
       const r = await fetch(target.toString(), {
         method: "POST",
         redirect: "error",
+        signal: AbortSignal.timeout(Math.max(1, Math.min(10_000, deadline - Date.now()))),
         headers: {
           "content-type": "application/json",
           "user-agent": "Cove-Operations/1.0",
+          "idempotency-key": `cove-alert:${row.id}`,
           ...(webhookToken ? { authorization: `Bearer ${webhookToken}` } : {}),
         },
         body: payload,
       });
       if (!r.ok) throw new Error(`Alert endpoint returned ${r.status}.`);
-      await db
+      const saved = await db
         .prepare(
-          "UPDATE ops_alert_deliveries SET status='sent',sent_at=?,response_status=?,last_error='',payload_sha256=?,updated_at=? WHERE id=?",
+          "UPDATE ops_alert_deliveries SET status='sent',sent_at=?,response_status=?,last_error='',payload_sha256=?,updated_at=? WHERE id=? AND status='leased' AND attempts=? AND leased_at=?",
         )
-        .bind(now(), r.status, digest, now(), row.id)
+        .bind(now(), r.status, digest, now(), row.id, leased.attempts, leaseAt)
         .run();
-      sent++;
+      if (Number(saved.meta?.changes ?? saved.changes)) sent++;
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e),
+      const message = redactDiagnostic(e instanceof Error ? e.message : String(e)).slice(0, 1000),
         attempts = Number(leased.attempts || 1),
         max = Number(leased.max_attempts || 8);
       if (attempts >= max) {
-        await db
+        const saved = await db
           .prepare(
-            "UPDATE ops_alert_deliveries SET status='dead',last_error=?,payload_sha256=?,updated_at=? WHERE id=?",
+            "UPDATE ops_alert_deliveries SET status='dead',last_error=?,payload_sha256=?,updated_at=? WHERE id=? AND status='leased' AND attempts=? AND leased_at=?",
           )
-          .bind(message, digest, now(), row.id)
+          .bind(message, digest, now(), row.id, leased.attempts, leaseAt)
           .run();
-        dead++;
+        if (Number(saved.meta?.changes ?? saved.changes)) dead++;
       } else {
         const delay = Math.min(3600, 30 * Math.pow(2, Math.max(0, attempts - 1))),
           available = new Date(Date.now() + delay * 1000).toISOString();
-        await db
+        const saved = await db
           .prepare(
-            "UPDATE ops_alert_deliveries SET status='retry',available_at=?,last_error=?,payload_sha256=?,updated_at=? WHERE id=?",
+            "UPDATE ops_alert_deliveries SET status='retry',available_at=?,last_error=?,payload_sha256=?,updated_at=? WHERE id=? AND status='leased' AND attempts=? AND leased_at=?",
           )
-          .bind(available, message, digest, now(), row.id)
+          .bind(available, message, digest, now(), row.id, leased.attempts, leaseAt)
           .run();
-        retried++;
+        if (Number(saved.meta?.changes ?? saved.changes)) retried++;
       }
     }
   }
-  return { configured: true, processed: rows.length, sent, retried, dead };
+  return { configured: true, processed, sent, retried, dead };
 }
 
 export async function recordCapacityTest(db: OpsDB, userId: string, raw: unknown) {

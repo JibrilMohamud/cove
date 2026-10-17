@@ -22,6 +22,7 @@ for (const locale of locales) {
         json: {
           ...data,
           locale,
+          uiMessages: messages,
           language: locale.slice(0, 2),
           direction: locale === "ar-SA" ? "rtl" : "ltr",
         },
