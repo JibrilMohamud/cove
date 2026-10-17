@@ -140,7 +140,6 @@ try {
   assert.ok(unassertedSuccess, "An ordinary first request may complete without a country header");
   assert.equal(alternateCalls, 0);
 
-
   const cancelled = new AbortController();
   cancelled.abort();
   assert.equal(
@@ -149,7 +148,9 @@ try {
       async () => {
         throw new Error("No network on aborted page");
       },
-      async () => { throw new Error("No network on aborted page"); },
+      async () => {
+        throw new Error("No network on aborted page");
+      },
     ),
     null,
   );
