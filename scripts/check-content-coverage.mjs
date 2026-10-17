@@ -57,6 +57,26 @@ try {
   const { audioCoverage } = await import(path.join(root, "audio-coverage.mjs"));
   const env = localBindings(root);
   await api.handleCoveApi(new Request("https://cove.test/api/fore/catalog"), env);
+  // Fail the release if a future migration forces a large transient sort on
+  // the per-minute US queue; the backend uses these exact bound predicates.
+  for (const status of ["pending", "retry"]) {
+    const plan = await env.DB.prepare(
+      `EXPLAIN QUERY PLAN SELECT id,title FROM gutenberg_source_cache
+       WHERE source_id=? AND epub_status=? AND ingest_status<>'quarantined'
+         AND epub_next_attempt_at<=?
+       ORDER BY epub_next_attempt_at,updated_at,id LIMIT ?`,
+    )
+      .bind("pg_us", status, new Date().toISOString(), 32)
+      .all();
+    assert.ok(
+      plan.results.some((row) => String(row.detail).includes("gutenberg_asset_frontier_v2")),
+      status + ": ready EPUB queue must use the composite per-source frontier",
+    );
+    assert.ok(
+      !plan.results.some((row) => String(row.detail).includes("USE TEMP B-TREE")),
+      status + ": ready EPUB queue must avoid a backlog-sized temp sort",
+    );
+  }
   await env.DB.prepare("UPDATE gutenberg_sources SET enabled=0 WHERE id<>'pg_us'").run();
   const seed = JSON.parse(fs.readFileSync("src/features/fore/catalog-seed.json", "utf8"))
     .results[0];
