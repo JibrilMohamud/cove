@@ -52,7 +52,9 @@ export function safeProbeTelemetry(headers, ttfbMs, totalMs) {
     .map((part) => part.trim())
     .filter((part) => /^cove_[a-z_]+;dur=[0-9]+(?:\.[0-9]+)?$/.test(part))
     .join(", ")
-    .slice(0, 200);
+    // Backend phase breakdown plus frontend phases can exceed 200 characters.
+    // Retain only sanitized numeric names, with an explicit 400-byte cap.
+    .slice(0, 400);
   const cache = (headers.get("x-vercel-cache") || "").toUpperCase();
   return {
     ttfbMs,
