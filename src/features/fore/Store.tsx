@@ -287,6 +287,8 @@ type RecommendationResponse = {
 function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
   const { data } = useAccount();
   const [query, setQuery] = useState("");
+  const dirty = useRef(false);
+  const tasteOwner = useRef(data.user?.id);
   const [likes, setLikes] = useState("");
   const [dislikes, setDislikes] = useState("");
   const [minutes, setMinutes] = useState("");
@@ -304,6 +306,11 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
     enabled: !!data.user,
   });
   useEffect(() => {
+    if (tasteOwner.current !== data.user?.id) {
+      dirty.current = false;
+      tasteOwner.current = data.user?.id;
+    }
+    if (dirty.current) return;
     const controls = saved.data;
     setLikes(controls?.likes.join(", ") || "");
     setDislikes(controls?.dislikes.join(", ") || "");
@@ -359,7 +366,10 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
             className="block border rounded p-2 w-full"
             value={query}
             maxLength={500}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              dirty.current = true;
+              setQuery(e.target.value);
+            }}
             placeholder="mystery, reflective, less violence"
           />
         </label>
@@ -370,7 +380,10 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
               className="block border rounded p-2 w-full"
               value={likes}
               maxLength={1000}
-              onChange={(e) => setLikes(e.target.value)}
+              onChange={(e) => {
+                dirty.current = true;
+                setLikes(e.target.value);
+              }}
               placeholder="friendship, witty"
             />
           </label>
@@ -380,7 +393,10 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
               className="block border rounded p-2 w-full"
               value={dislikes}
               maxLength={1000}
-              onChange={(e) => setDislikes(e.target.value)}
+              onChange={(e) => {
+                dirty.current = true;
+                setDislikes(e.target.value);
+              }}
               placeholder="war, melancholic"
             />
           </label>
@@ -392,7 +408,10 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
               min={5}
               max={10000}
               value={minutes}
-              onChange={(e) => setMinutes(e.target.value)}
+              onChange={(e) => {
+                dirty.current = true;
+                setMinutes(e.target.value);
+              }}
               placeholder="Any length"
             />
           </label>
@@ -405,7 +424,10 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
               max={1}
               step={0.1}
               value={adventure}
-              onChange={(e) => setAdventure(Number(e.target.value))}
+              onChange={(e) => {
+                dirty.current = true;
+                setAdventure(Number(e.target.value));
+              }}
             />
           </label>
         </div>
@@ -439,6 +461,7 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
             className="border rounded px-4 py-2"
             type="button"
             onClick={() => {
+              dirty.current = true;
               setLikes("");
               setDislikes("");
               setMinutes("");

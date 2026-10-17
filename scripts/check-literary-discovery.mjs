@@ -193,6 +193,12 @@ try {
     {},
   );
   assert.equal(discovery.rails[0]?.personalized, false, "opt out ignores saved and inferred taste");
+  await db
+    .prepare(
+      "INSERT INTO reading_states(user_id,product_id,external_book_id,status,progress,updated_at) VALUES(?,?,?,'finished',1,?)",
+    )
+    .bind(user, favorite, "1342", "2025-01-01T00:00:00.000Z")
+    .run();
   await server.resetRecommendationProfile(db, user, { scope: "all" });
   assert.equal((await intelligence.loadTasteControls(db, user)).likes.length, 0);
   assert.equal((await intelligence.buildLiteraryTaste(db, user)).size, 0);

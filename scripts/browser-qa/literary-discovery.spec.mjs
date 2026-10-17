@@ -7,12 +7,14 @@ test("literary discovery submits session intent, reports evidence gaps and has l
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
+  await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
   const section = page.getByRole("region", { name: "What would you love to read next?" });
   await expect(section).toBeVisible();
   await section.getByLabel("For this search").fill("unseen-evidence-tag, under 2 hours");
   await section.getByLabel("More of (comma-separated)").fill("friendship");
   await section.getByLabel("Avoid known themes or styles").fill("war");
   await section.getByLabel("Maximum reading time in minutes").fill("120");
+  await expect(section.getByLabel("Avoid known themes or styles")).toHaveValue("war");
   const requestPromise = page.waitForRequest(
     (r) => r.url().includes("/recommendations/discover") && r.method() === "POST",
   );

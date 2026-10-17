@@ -607,7 +607,9 @@ async function collaborativeScores(
       `SELECT b.product_id,COUNT(DISTINCT b.user_id) score FROM reading_states a JOIN reading_states b ON b.user_id=a.user_id AND b.product_id<>a.product_id
     LEFT JOIN recommendation_privacy rp ON rp.user_id=a.user_id
     JOIN products p ON p.id=b.product_id
-    WHERE a.product_id IN (${ph}) AND a.in_library=1 AND b.in_library=1 AND p.storefront_status='active' AND COALESCE(rp.activity_personalization_enabled,1)=1${exclude}
+    LEFT JOIN reviews ra ON ra.user_id=a.user_id AND ra.book_id=a.external_book_id
+    LEFT JOIN reviews rb ON rb.user_id=b.user_id AND rb.book_id=b.external_book_id
+    WHERE a.product_id IN (${ph}) AND a.in_library=1 AND b.in_library=1 AND (a.status='finished' OR a.progress>=0.5) AND (b.status='finished' OR b.progress>=0.5) AND (ra.rating_steps IS NULL OR ra.rating_steps>=8) AND (rb.rating_steps IS NULL OR rb.rating_steps>=8) AND p.storefront_status='active' AND COALESCE(rp.activity_personalization_enabled,1)=1${exclude}
     GROUP BY b.product_id HAVING score>=1 ORDER BY score DESC LIMIT ?`,
     )
     .bind(...bindings)
@@ -621,7 +623,7 @@ async function seedProducts(db: CatalogDB, userId: string | null) {
   if (!userId) return [] as string[];
   const r = await db
     .prepare(
-      `SELECT product_id FROM reading_states WHERE user_id=? AND (status IN ('reading','finished') OR progress>0.1) ORDER BY CASE status WHEN 'reading' THEN 0 ELSE 1 END,updated_at DESC LIMIT 20`,
+      `SELECT product_id FROM reading_states WHERE user_id=? AND updated_at>COALESCE((SELECT reset_at FROM recommendation_learning_boundaries WHERE user_id=reading_states.user_id),'') AND (status IN ('reading','finished') OR progress>0.1) ORDER BY CASE status WHEN 'reading' THEN 0 ELSE 1 END,updated_at DESC LIMIT 20`,
     )
     .bind(userId)
     .all<any>();
@@ -1033,8 +1035,17 @@ async function candidatePool(
       recency * 0.65;
     if (enabled("trending") || enabled("quality"))
       mergeCandidate(map, id, quality, "quality", "popular", "Popular with Cove readers");
-    if (enabled("affinity") && affinity > 0.05)
-      mergeCandidate(map, id, affinity, "affinity", "taste", "Matches your reading tastes");
+    if (enabled("affinity") && Math.abs(affinity) > 0.05)
+      mergeCandidate(
+        map,
+        id,
+        affinity,
+        "affinity",
+        "taste",
+        affinity > 0
+          ? "Matches your reading tastes"
+          : "Lower compatibility with your reading tastes",
+      );
     if (anchor && enabled("content")) {
       const sim = contentSimilarity(anchor, m);
       if (sim > 0) mergeCandidate(map, id, sim, "content", "similar", `Similar to ${anchor.title}`);
@@ -1057,7 +1068,7 @@ async function candidatePool(
         coRead,
         "collaborative-item",
         "also-enjoyed",
-        "Readers of this book also enjoyed this",
+        "Readers of this book also read this",
       );
     const co = collab.get(id) || 0;
     if (co > 0)
@@ -1067,7 +1078,7 @@ async function candidatePool(
         Math.log1p(co) * 5,
         "collaborative",
         "also-enjoyed",
-        "Readers with similar libraries also enjoyed this",
+        "Readers with overlapping reading histories also read this",
       );
   }
   const extCandidates = normalizedExternalScores(externalCandidate.scores);
@@ -1465,7 +1476,7 @@ async function recentAnchor(db: CatalogDB, userId: string | null) {
   if (!userId) return null;
   const r = await db
     .prepare(
-      "SELECT product_id FROM reading_states WHERE user_id=? AND (progress>0.05 OR status IN ('reading','finished')) ORDER BY updated_at DESC LIMIT 1",
+      "SELECT product_id FROM reading_states WHERE user_id=? AND updated_at>COALESCE((SELECT reset_at FROM recommendation_learning_boundaries WHERE user_id=reading_states.user_id),'') AND (progress>0.05 OR status IN ('reading','finished')) ORDER BY updated_at DESC LIMIT 1",
     )
     .bind(userId)
     .first<any>();
@@ -1475,7 +1486,7 @@ async function ratedAnchor(db: CatalogDB, userId: string | null) {
   if (!userId) return null;
   const r = await db
     .prepare(
-      `SELECT rs.product_id FROM reviews v JOIN reading_states rs ON rs.user_id=v.user_id AND rs.external_book_id=v.book_id WHERE v.user_id=? AND v.rating_steps>=8 ORDER BY v.updated_at DESC LIMIT 1`,
+      `SELECT rs.product_id FROM reviews v JOIN reading_states rs ON rs.user_id=v.user_id AND rs.external_book_id=v.book_id WHERE v.user_id=? AND v.updated_at>COALESCE((SELECT reset_at FROM recommendation_learning_boundaries WHERE user_id=v.user_id),'') AND v.rating_steps>=8 ORDER BY v.updated_at DESC LIMIT 1`,
     )
     .bind(userId)
     .first<any>();
