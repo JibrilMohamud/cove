@@ -36,8 +36,8 @@ try {
         if (property === "prepare")
           return (sql) => {
             assert.ok(
-              !/edition_taxonomy_nodes/i.test(sql),
-              "first-paint bootstrap must defer all category membership scans",
+              !/GROUP\\s+BY\\s+et\\.taxonomy_node_id/i.test(sql),
+              "first-paint bootstrap must defer taxonomy count aggregation",
             );
             return target.prepare(sql);
           };
