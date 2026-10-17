@@ -167,7 +167,10 @@ async function enqueueBook(env: LiteraryEnv, book: BookInput, queuePreparation =
     // Backfill old empty placeholders during the ordinary bounded keyset sweep.
     // Never overwrite an analyzed result, a nonempty provisional result, or a
     // changed content fingerprint. No AI call or reader data is involved.
-    if (current.status === "provisional" && current.profile_json === JSON.stringify(emptyLiteraryProfile())) {
+    if (
+      current.status === "provisional" &&
+      current.profile_json === JSON.stringify(emptyLiteraryProfile())
+    ) {
       const enriched = JSON.stringify(provisionalLiteraryProfile(metadataSources(book)));
       if (enriched !== current.profile_json)
         await env.DB.prepare(
