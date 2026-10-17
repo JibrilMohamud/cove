@@ -18,24 +18,30 @@ try {
     withCoveRequestEnvironment,
     currentCoveRequestEnvironment,
     currentCoveRequestExecutionContext,
-  } = await import(
-    path.join(root, "context.mjs")
-  );
+  } = await import(path.join(root, "context.mjs"));
   assert.equal(currentCoveRequestEnvironment(), undefined);
   assert.equal(currentCoveRequestExecutionContext(), undefined);
   const firstEnv = { DB: { tenant: "A" }, BUCKET: { name: "first" } };
   const secondEnv = { DB: { tenant: "B" }, BUCKET: { name: "second" } };
   const scheduled = [];
-  const firstExecution = { waitUntil(work) { scheduled.push(work); } };
+  const firstExecution = {
+    waitUntil(work) {
+      scheduled.push(work);
+    },
+  };
   const [first, second] = await Promise.all([
-    withCoveRequestEnvironment(firstEnv, async () => {
-      await new Promise((resolve) => setTimeout(resolve, 8));
-      assert.equal(currentCoveRequestEnvironment(), firstEnv);
-      assert.equal(currentCoveRequestExecutionContext(), firstExecution);
-      currentCoveRequestExecutionContext().waitUntil(Promise.resolve("logged"));
-      await Promise.resolve();
-      return currentCoveRequestEnvironment().DB.tenant;
-    }, firstExecution),
+    withCoveRequestEnvironment(
+      firstEnv,
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, 8));
+        assert.equal(currentCoveRequestEnvironment(), firstEnv);
+        assert.equal(currentCoveRequestExecutionContext(), firstExecution);
+        currentCoveRequestExecutionContext().waitUntil(Promise.resolve("logged"));
+        await Promise.resolve();
+        return currentCoveRequestEnvironment().DB.tenant;
+      },
+      firstExecution,
+    ),
     withCoveRequestEnvironment(secondEnv, async () => {
       assert.equal(currentCoveRequestEnvironment(), secondEnv);
       assert.equal(currentCoveRequestExecutionContext(), undefined);
