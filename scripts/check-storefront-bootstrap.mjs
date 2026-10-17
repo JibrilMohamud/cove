@@ -37,14 +37,14 @@ try {
         if (property === "prepare")
           return (sql) => {
             assert.ok(
-              !/GROUP\\s+BY\\s+et\\.taxonomy_node_id/i.test(sql),
+              !/GROUP\s+BY\s+et\.taxonomy_node_id/i.test(sql),
               "first-paint bootstrap must defer taxonomy count aggregation",
             );
             assert.ok(
-              !/SELECT l\\.\\*,ml\\.priority FROM storefront_market_locales/i.test(sql),
+              !/SELECT l\.\*,ml\.priority FROM storefront_market_locales/i.test(sql),
               "first paint must not perform separate supported-locale round trips",
             );
-            if (/FROM storefront_markets m\\s+LEFT JOIN storefront_market_locales ml/i.test(sql))
+            if (/FROM storefront_markets m\s+LEFT JOIN storefront_market_locales ml/i.test(sql))
               joinedMarketLocaleReads += 1;
             return target.prepare(sql);
           };
