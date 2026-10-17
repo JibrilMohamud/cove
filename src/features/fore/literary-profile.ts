@@ -138,7 +138,7 @@ export function provisionalLiteraryProfile(sources: ProfileEvidence[]): Literary
   const publication = record.bibliography?.["edition publication date"];
   const year =
     typeof publication === "string"
-      ? /^(1[5-9]\\d{2}|20\\d{2})(?:-\\d{2}(?:-\\d{2})?)?$/.exec(publication)?.[1]
+      ? /^(1[5-9]\d{2}|20\d{2})(?:-\d{2}(?:-\d{2})?)?$/.exec(publication)?.[1]
       : null;
   if (year) {
     profile.publicationPeriod = {
