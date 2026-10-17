@@ -15,13 +15,17 @@ try {
     logLevel: "silent",
   });
   const { hedgedStorefrontBootstrap, sanitizedStorefrontBackendTiming } = await import(
-    path.join(dir, "hedged.mjs")
+    path.join(dir, "hedged.mjs"),
   );
   assert.deepEqual(
     sanitizedStorefrontBackendTiming(
-      "cove_context;dur=103.1, cove_catalog;dur=200, user;desc=private, cove_rogue;dur=42, cove_bootstrap;dur=360"
+      "cove_context;dur=103.1, cove_catalog;dur=200, user;desc=private, cove_rogue;dur=42, cove_bootstrap;dur=360",
     ),
-    ["cove_backend_context;dur=103.1", "cove_backend_catalog;dur=200", "cove_backend_bootstrap;dur=360"]
+    [
+      "cove_backend_context;dur=103.1",
+      "cove_backend_catalog;dur=200",
+      "cove_backend_bootstrap;dur=360",
+    ],
   );
   assert.deepEqual(sanitizedStorefrontBackendTiming("cove_catalog;dur=0;desc=secret"), []);
   const source = new Request("https://cove.test/api/fore/storefront/bootstrap", {
