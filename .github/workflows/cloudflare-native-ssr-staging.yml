@@ -9,6 +9,8 @@ on:
       - "scripts/check-cloudflare-native-bindings.mjs"
       - "src/lib/cove-request-env.server.ts"
       - "src/lib/cloudflare-country.server.ts"
+      - "src/features/fore/api.server.ts"
+      - "scripts/check-storefront-bootstrap.mjs"
       - "src/features/fore/storefront-loader.ts"
       - "src/features/fore/storefront-hedged-fetch.ts"
       - "vite.config.ts"
@@ -25,6 +27,8 @@ on:
       - "scripts/check-cloudflare-native-bindings.mjs"
       - "src/lib/cove-request-env.server.ts"
       - "src/lib/cloudflare-country.server.ts"
+      - "src/features/fore/api.server.ts"
+      - "scripts/check-storefront-bootstrap.mjs"
       - "src/features/fore/storefront-loader.ts"
       - "src/features/fore/storefront-hedged-fetch.ts"
       - "vite.config.ts"
@@ -61,6 +65,7 @@ jobs:
         run: |
           node scripts/check-cloudflare-ssr-stage-gate.mjs
           node scripts/check-cloudflare-native-bindings.mjs
+          node scripts/check-storefront-bootstrap.mjs
           node scripts/check-cove-request-context.mjs
           node scripts/check-storefront-hedged.mjs
       - name: Build Cloudflare-native frontend
