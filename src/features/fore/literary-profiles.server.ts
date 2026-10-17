@@ -359,7 +359,21 @@ async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
             locator: `${book.object_key}#${sample.href}:${sample.charStart}-${sample.charStart + Math.min(2200, sample.text.length)}`,
           });
         coverage = totalSections ? "full_text_pending" : "metadata";
-        for (const section of extracted.sections) {
+        // Prepare section evidence for every chapter, but enqueue no more
+        // than three representative analyses immediately. The remaining
+        // source-keyed sections are admitted gradually by the deferred queue.
+        const immediateSections = new Set(
+          representativeLiterarySectionIndices(extracted.sections.length),
+        );
+        const alreadyQueued =
+          (
+            await env.DB.prepare(
+              "SELECT COUNT(*) count FROM literary_profile_jobs WHERE kind='analyze' AND section_id<>'' AND status IN ('queued','running')",
+            ).first<{ count: number }>()
+          )?.count ?? 0;
+        const sectionSlots = Math.max(0, 2048 - Number(alreadyQueued));
+        let sectionsEnqueued = 0;
+        for (const [index, section] of extracted.sections.entries()) {
           const lease = await env.DB.prepare(
             "UPDATE literary_profile_jobs SET lease_until=? WHERE id=? AND lease_token=? AND status='running' AND EXISTS(SELECT 1 FROM literary_profiles p WHERE p.product_id=literary_profile_jobs.product_id AND p.fingerprint=literary_profile_jobs.fingerprint) RETURNING id",
           )
@@ -402,7 +416,10 @@ async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
               ),
             )
             .run();
-          await addJob(env, job.product_id, job.fingerprint, "analyze", section.id, sourceKey);
+          if (immediateSections.has(index) && sectionsEnqueued < sectionSlots) {
+            await addJob(env, job.product_id, job.fingerprint, "analyze", section.id, sourceKey);
+            sectionsEnqueued++;
+          }
         }
       } catch (error) {
         if (/D1_|lease_lost|network|connection lost/i.test(String(error))) throw error;
@@ -609,6 +626,73 @@ export async function processLiteraryJob(
     return { failed: job.id, reason: message };
   }
 }
+/** Representative early, middle and late sections; every section is stored. */
+export function representativeLiterarySectionIndices(length: number): number[] {
+  if (!Number.isSafeInteger(length) || length <= 0) return [];
+  return [...new Set([0, Math.floor(length / 2), length - 1])];
+}
+
+/**
+ * Avoid starving new book overviews behind thousands of chapter analyses.
+ * Reserving four analysis slots per preparation allows an overview and up to
+ * three representative chapters, while retaining a separate global ceiling.
+ */
+export function literaryOverviewPreparationCapacity(
+  configured: number,
+  pendingOverviews: number,
+  totalPending: number,
+  maxPendingOverviews = 512,
+  maxTotalPending = 4096,
+) {
+  if (
+    ![configured, pendingOverviews, totalPending, maxPendingOverviews, maxTotalPending].every(
+      Number.isFinite,
+    )
+  )
+    return 0;
+  return Math.min(
+    literaryPreparationCapacity(configured, pendingOverviews, maxPendingOverviews),
+    Math.max(0, Math.floor((maxTotalPending - totalPending) / 4)),
+  );
+}
+
+/**
+ * Section evidence is already stored in R2; schedule previously deferred
+ * chapter analyses only when the independent section queue has headroom.
+ * A claimed job still checks current product fingerprint and live rights.
+ */
+async function enqueueDeferredLiterarySections(env: LiteraryEnv, limit: number) {
+  if (limit <= 0) return 0;
+  const sections = await env.DB.prepare(
+    `SELECT s.product_id,s.fingerprint,s.section_id,s.source_key
+     FROM literary_profile_sections s
+     JOIN literary_profiles p ON p.product_id=s.product_id AND p.fingerprint=s.fingerprint
+     LEFT JOIN literary_profile_jobs j ON j.product_id=s.product_id AND j.fingerprint=s.fingerprint
+       AND j.kind='analyze' AND j.section_id=s.section_id
+     WHERE s.profile_json IS NULL AND j.id IS NULL
+       AND p.status IN ('provisional','analyzed')
+     ORDER BY s.updated_at,s.product_id,s.spine_index,s.chunk_index LIMIT ?`,
+  )
+    .bind(Math.min(4, limit))
+    .all<{
+      product_id: string;
+      fingerprint: string;
+      section_id: string;
+      source_key: string;
+    }>();
+  for (const section of sections.results) {
+    await addJob(
+      env,
+      section.product_id,
+      section.fingerprint,
+      "analyze",
+      section.section_id,
+      section.source_key,
+    );
+  }
+  return sections.results.length;
+}
+
 /** Keep prepared-but-unanalyzed sections bounded without changing inference quotas. */
 export function literaryPreparationCapacity(
   configured: number,
@@ -656,22 +740,33 @@ export async function runLiteraryProfileTick(env: LiteraryEnv) {
   // Source preparation writes extracted EPUB sections and queues many costly
   // inference jobs. Respect the backlog instead of endlessly creating more
   // bundles once inference reaches its independent daily budget.
-  const waitingAnalysis =
-    (
-      await env.DB.prepare(
-        "SELECT COUNT(*) count FROM literary_profile_jobs WHERE kind='analyze' AND status IN ('queued','running')",
-      ).first<{ count: number }>()
-    )?.count ?? 0;
-  const maxPendingAnalysis = Math.max(
+  const analysisCounts = await env.DB.prepare(
+    `SELECT COUNT(*) total,
+      SUM(CASE WHEN section_id='' THEN 1 ELSE 0 END) overviews,
+      SUM(CASE WHEN section_id<>'' THEN 1 ELSE 0 END) sections
+     FROM literary_profile_jobs WHERE kind='analyze' AND status IN ('queued','running')`,
+  ).first<{ total: number; overviews: number; sections: number }>();
+  const maxPendingOverviews = Math.max(
     64,
-    Math.min(4096, await config(env, "max_pending_analysis", 512)),
+    Math.min(4096, await config(env, "max_pending_overviews", 512)),
   );
-  const prepares = literaryPreparationCapacity(
+  const maxTotalPending = Math.max(
+    1024,
+    Math.min(16384, await config(env, "max_total_pending_analysis", 4096)),
+  );
+  const prepares = literaryOverviewPreparationCapacity(
     await config(env, "prepares_per_tick", 2),
-    waitingAnalysis,
-    maxPendingAnalysis,
+    Number(analysisCounts?.overviews || 0),
+    Number(analysisCounts?.total || 0),
+    maxPendingOverviews,
+    maxTotalPending,
   );
   for (let n = 0; n < prepares; n++) jobs.push(await processLiteraryJob(env, false, "prepare"));
+  // The section lane remains independently capped; filling deferred chapters
+  // must never block creation of distinct literary book overviews.
+  const sectionsPending = Number(analysisCounts?.sections || 0) + prepares * 3;
+  const sectionHeadroom = Math.max(0, 2048 - sectionsPending);
+  const deferredSections = await enqueueDeferredLiterarySections(env, Math.min(2, sectionHeadroom));
   if (!env.AI) return { seeded, jobs, skipped: "missing_ai" };
   const limit = Math.max(0, Math.min(4, await config(env, "jobs_per_tick", 2)));
   // Persistent alternation also works when configured to one inference per tick.
@@ -689,7 +784,7 @@ export async function runLiteraryProfileTick(env: LiteraryEnv) {
     jobs.push(result);
     if ("reason" in result && result.reason?.includes("daily_budget_exhausted")) break;
   }
-  return { seeded, jobs };
+  return { seeded, jobs, deferredSections };
 }
 
 function mergeSections(
