@@ -1,6 +1,7 @@
 import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
+import { withCoveRequestEnvironment } from "./lib/cove-request-env.server";
 import { renderErrorPage } from "./lib/error-page";
 import { cachePublicDocument } from "./lib/public-document-cache";
 import { applySecurityHeaders, securityTxt } from "./lib/security-headers";
@@ -109,7 +110,9 @@ export default {
       const handler = await getServerEntry();
       const entryDurationMs = performance.now() - entryStarted;
       const renderStarted = performance.now();
-      const response = await handler.fetch(routedRequest, runtimeEnv, ctx);
+      const response = await withCoveRequestEnvironment(runtimeEnv, () =>
+        handler.fetch(routedRequest, runtimeEnv, ctx),
+      );
       const renderDurationMs = performance.now() - renderStarted;
       const secured = applySecurityHeaders(
         request,
