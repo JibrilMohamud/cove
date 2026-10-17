@@ -908,7 +908,9 @@ export default {
     }
 
     const logical = logicalRequest(request, env);
-    const response = await cachedPublicApi(logical, request, env, ctx, handleCoveApi);
+    const response = await cachedPublicApi(logical, request, env, ctx, (request, bindings) =>
+      handleCoveApi(request, bindings, ctx),
+    );
     if (!response) return json({ error: "Not found." }, 404);
 
     return response;

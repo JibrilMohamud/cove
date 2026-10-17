@@ -2732,7 +2732,12 @@ async function reportExternalError(env: CoveEnv, request: Request, error: unknow
   } catch {}
 }
 
-export async function handleCoveApi(request: Request, env: CoveEnv): Promise<Response | null> {
+type ApiExecutionContext = { waitUntil?: (work: Promise<unknown>) => void };
+export async function handleCoveApi(
+  request: Request,
+  env: CoveEnv,
+  execution?: ApiExecutionContext,
+): Promise<Response | null> {
   if (!new URL(request.url).pathname.startsWith("/api/fore/")) return null;
   const started = performance.now(),
     timings: Record<string, number> = {};
@@ -2743,7 +2748,7 @@ export async function handleCoveApi(request: Request, env: CoveEnv): Promise<Res
   headers.set("x-fore-span-id", trace.spanId);
   const tracedRequest = new Request(request, { headers });
   const auth = await createAuth(tracedRequest, env);
-  const raw = await handleCoveRequest(tracedRequest, env, auth, timings);
+  const raw = await handleCoveRequest(tracedRequest, env, auth, timings, execution);
   if (!raw) return null;
   const decorated = auth.decorate(raw) || raw,
     responseHeaders = new Headers(decorated.headers);
@@ -2755,11 +2760,18 @@ export async function handleCoveApi(request: Request, env: CoveEnv): Promise<Res
     headers: responseHeaders,
   });
   const logStarted = performance.now();
-  if (env.DB)
-    await recordHttpRequest(env.DB as any, trace, tracedRequest, response, {
+  if (env.DB) {
+    const work = recordHttpRequest(env.DB as any, trace, tracedRequest, response, {
       actorKind: identity(tracedRequest) ? "user" : "anonymous",
     });
-  timings.log = performance.now() - logStarted;
+    if (execution?.waitUntil) {
+      execution.waitUntil(work);
+      timings.log_queued = performance.now() - logStarted;
+    } else {
+      await work;
+      timings.log = performance.now() - logStarted;
+    }
+  }
   timings.api = performance.now() - started;
   // Numeric request-local timings only. Exclude URLs, identity, locale and SQL.
   response.headers.append(
@@ -2775,6 +2787,7 @@ async function handleCoveRequest(
   env: CoveEnv,
   auth: Awaited<ReturnType<typeof createAuth>>,
   timings: Record<string, number>,
+  execution?: ApiExecutionContext,
 ): Promise<Response | null> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/fore/")) return null;
@@ -3070,7 +3083,13 @@ async function handleCoveRequest(
       return response;
     }
     if (request.method === "GET" && path === "/storefront/context") {
-      await recordStorefrontContext(dbForContext, storefront, currentIdentity?.id || null);
+      const contextLog = recordStorefrontContext(
+        dbForContext,
+        storefront,
+        currentIdentity?.id || null,
+      );
+      if (execution?.waitUntil) execution.waitUntil(contextLog);
+      else await contextLog;
       return json({ ...storefront, availableMarkets: await storefrontMarkets(dbForContext) });
     }
     if (request.method === "POST" && path === "/storefront/context") {
