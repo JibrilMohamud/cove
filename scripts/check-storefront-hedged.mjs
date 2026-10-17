@@ -15,7 +15,7 @@ try {
     logLevel: "silent",
   });
   const { hedgedStorefrontBootstrap, sanitizedStorefrontBackendTiming } = await import(
-    path.join(dir, "hedged.mjs"),
+    path.join(dir, "hedged.mjs")
   );
   assert.deepEqual(
     sanitizedStorefrontBackendTiming(
