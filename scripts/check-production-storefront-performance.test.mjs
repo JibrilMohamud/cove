@@ -145,7 +145,10 @@ test("production probe interleaves locales without losing or repeating samples",
   const order = probeSequence();
   assert.equal(order.length, 20);
   assert.equal(new Set(order.map((row) => `${row.language}|${row.sample}`)).size, 20);
-  assert.deepEqual(order.map((row) => row.sequence), Array.from({ length: 20 }, (_, i) => i + 1));
+  assert.deepEqual(
+    order.map((row) => row.sequence),
+    Array.from({ length: 20 }, (_, i) => i + 1),
+  );
   assert.deepEqual(
     [1, 2, 3, 4].map((sample) => order.find((row) => row.sample === sample)?.language),
     [requestedLanguages[0], requestedLanguages[2], requestedLanguages[4], requestedLanguages[1]],
