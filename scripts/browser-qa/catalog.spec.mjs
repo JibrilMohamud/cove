@@ -113,13 +113,17 @@ test("initial bookstore renders books without JavaScript and reuses its server d
       )
         calls.push(request.url());
     });
-    // All necessary first-page data must be present even if these follow-up
-    // requests cannot succeed. Account/personalized discovery use their real API.
+    // The book shelf must survive failed follow-up requests. Taxonomy is
+    // intentionally fetched after hydration; catalog, context and page are not.
     await page.route("**/api/fore/catalog?**", (route) => route.abort());
+    await page.route("**/api/fore/taxonomy", (route) => route.abort());
     await page.goto("/");
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
-    expect(calls).toEqual([]);
+    await expect.poll(() => calls.length).toBeGreaterThan(0);
+    expect(calls.every((requestUrl) => new URL(requestUrl).pathname === "/api/fore/taxonomy")).toBe(
+      true,
+    );
   } finally {
     await context.close();
   }
