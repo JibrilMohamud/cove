@@ -13,6 +13,22 @@ export const requestedLanguages = [
 ];
 export const strictTtfbTargetMs = 800;
 
+/** Deterministic round-robin order prevents the first cold locale from
+ * always being English. No network or private visitor fields are used. */
+export function probeSequence(languages = requestedLanguages, rounds = 4) {
+  const sequence = [];
+  for (let sample = 1; sample <= rounds; sample += 1) {
+    const offset = ((sample - 1) * 2) % languages.length;
+    for (let step = 0; step < languages.length; step += 1)
+      sequence.push({
+        language: languages[(offset + step) % languages.length],
+        sample,
+        sequence: sequence.length + 1,
+      });
+  }
+  return sequence;
+}
+
 export function productionOrigin(value) {
   const url = new URL(value);
   assert.equal(url.protocol, "https:", "The production probe requires HTTPS.");
@@ -107,17 +123,19 @@ export function evaluateProbes(results, failures) {
   const ttfb = results.map((result) => result.ttfbMs);
   const p75 = percentile(ttfb, 0.75);
   const p95 = percentile(ttfb, 0.95);
-  const missingLanguage = requestedLanguages.some(
-    (language) => !results.some((result) => result.language === language),
-  );
-  // Never let fast successes mask a timed-out, denied or malformed response.
-  // This also prevents a biased latency percentile (calculated on successes)
-  // from certifying a partially failing cold start.
+  // Require every exact locale/sample pair once; duplicates or omitted
+  // requests cannot make a biased or incomplete probe pass.
   const expectedSamples = requestedLanguages.length * 4;
+  const unique = new Set(results.map((result) => `${result.language}|${result.sample}`));
+  const completeMatrix =
+    results.length === expectedSamples &&
+    unique.size === expectedSamples &&
+    requestedLanguages.every((language) =>
+      [1, 2, 3, 4].every((sample) => unique.has(`${language}|${sample}`)),
+    );
   const hardFailure =
     failures.length > 0 ||
-    results.length !== expectedSamples ||
-    missingLanguage ||
+    !completeMatrix ||
     results.some((result) => result.ttfbMs >= strictTtfbTargetMs);
   return {
     p75,
@@ -135,13 +153,11 @@ async function main() {
   );
   const results = [];
   const failures = [];
-  for (const language of requestedLanguages) {
-    for (let sample = 1; sample <= 4; sample += 1) {
-      try {
-        results.push(await probeHomepage(origin, language, sample));
-      } catch (error) {
-        failures.push({ language, sample, error: String(error) });
-      }
+  for (const { language, sample, sequence } of probeSequence()) {
+    try {
+      results.push({ ...(await probeHomepage(origin, language, sample)), sequence });
+    } catch (error) {
+      failures.push({ language, sample, sequence, error: String(error) });
     }
   }
   const assessment = evaluateProbes(results, failures);
@@ -163,15 +179,15 @@ async function main() {
     "This measures synthetic runner time to first response byte, not field LCP/INP/CLS.",
     "The request does not forge a storefront rights territory or read customer data.",
     "",
-    "| Language request | Sample | TTFB | Total HTML | SSR books | Vercel cache | Safe server phases |",
-    "| --- | ---: | ---: | ---: | ---: | --- | --- |",
+    "| Order | Language request | Sample | TTFB | Total HTML | SSR books | Vercel cache | Safe server phases |",
+    "| ---: | --- | ---: | ---: | ---: | ---: | --- | --- |",
     ...results.map(
       (r) =>
-        `| ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.totalMs} ms | ${r.cards} | ${r.vercelCache} | ${r.timing || "none"} |`,
+        `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.totalMs} ms | ${r.cards} | ${r.vercelCache} | ${r.timing || "none"} |`,
     ),
     "",
     `Result: **${assessment.status}** — strict <${assessment.targetMs} ms per response, ${assessment.slowSamples} slow samples; TTFB p75 ${assessment.p75 ?? "n/a"} ms, p95 ${assessment.p95 ?? "n/a"} ms; ${failures.length} errors.`,
-    ...failures.map((f) => `- ${f.language}, sample ${f.sample}: ${f.error}`),
+    ...failures.map((f) => `- order ${f.sequence}, ${f.language}, sample ${f.sample}: ${f.error}`),
   ];
   if (process.env.GITHUB_STEP_SUMMARY)
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
