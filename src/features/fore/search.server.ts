@@ -1,5 +1,9 @@
 import type { CatalogBook } from "./client";
-import { canonicalBooksByProductIds, type CatalogDB } from "./catalog-model.server";
+import {
+  canonicalBooksByProductIds,
+  canonicalFirstPaintBooksByProductIds,
+  type CatalogDB,
+} from "./catalog-model.server";
 import { ApiError } from "./service";
 import { normalizeTerritoryCode } from "./rights.server";
 import { personalizeSearchBooks, personalizedSearchEnabled } from "./recommendations.server";
@@ -1540,7 +1544,7 @@ export async function firstPaintStorefrontShelf(
   // Parallel D1 hydration avoids an extra serialized cold read without
   // caching either channel eligibility or legal territorial authority.
   const [canonicalBooks, allowedChannels] = await Promise.all([
-    canonicalBooksByProductIds(env.DB, ids),
+    canonicalFirstPaintBooksByProductIds(env.DB, ids),
     loadChannelEligibility(env.DB, ids, input.territory),
   ]);
   const books = applyChannelEligibility(canonicalBooks, allowedChannels);
