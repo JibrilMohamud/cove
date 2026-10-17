@@ -1,7 +1,9 @@
 # Cove Cloudflare-native SSR: staging and commercial release gates
 
-Status: **staging candidate only**. Do not represent this as a production
-cutover or an achieved 800 ms TTFB objective.
+Status: **the strict 800 ms synthetic gate has passed on three independent
+authenticated staging deployments; production cutover is still blocked**.
+Do not equate a single-runner, protected-workers.dev success with a sustained
+global customer-facing SLO.
 
 ## Why the architecture changes
 
@@ -48,6 +50,48 @@ if any of the following occur:
 
 The staging benchmark is synthetic and from a single runner geography; it
 does not replace field Web Vitals or legal QA in multiple countries.
+
+### October 17, 2026 validated staging evidence
+
+Following PR #128's combined active-market and supported-locale D1 read,
+three independent protected staging deployments each completed the full
+20-request interleaved five-language matrix with 24 SSR book cards per request.
+Every run also required working native D1 binding, the immutable Cloudflare
+country assertion, anti-spoof legal availability, an authenticated read-only
+gate, and no-store/noindex HTML.
+
+| Staging run | Under 800 ms | p75 TTFB | p95 TTFB | Slowest TTFB |
+| --- | --- | --- | --- | --- |
+| Initial deployment | 20/20 | 378 ms | 461 ms | 593 ms |
+| Independent repeat | 20/20 | 318 ms | 541 ms | 710 ms |
+| Independent repeat | 20/20 | 538 ms | 680 ms | 711 ms |
+| **Combined** | **60/60** | — | — | **711 ms** |
+
+Proof: [GitHub Actions main-push staging workflow](https://github.com/JibrilMohamud/cove/actions/runs/39075953701).
+The three separate deployment attempts appear under that run's job history.
+This is not yet a multi-geography, multiday load-test result. The workflow
+also runs a **daily** authenticated stage-only rights/performance gate; failures
+remain visible in GitHub Actions. No scheduled job routes public traffic.
+
+### Remaining customer-facing blocker
+
+The existing Vercel homepage remains the actual public product. Its fresh
+October 17 20-request recheck restored SSR books on 20/20 requests after a
+transient failed canary, but **two cold responses still exceeded 800 ms**
+(1,589 ms and 1,421 ms). That is not an accepted production TTFB SLO.
+
+The connected Vercel project has only its `cove-puce-theta.vercel.app`
+hostname; the connected Vercel account has no registered owned domain, and
+the connected Cloudflare account has no managed DNS zone/Worker custom domain.
+Domain acquisition or connection remains an explicit owner prerequisite.
+A staging workers.dev URL and a Vercel-owned vercel.app hostname cannot be
+substituted for an owned, verified Cloudflare production route.
+
+Production currency/localization coverage is separate from interface-language
+support: current search documents use USD while several configured regional
+markets require other default currencies. Do not bypass local price/offer
+validation, infer permissions from UI locale, or expose unauthorized editions
+just to populate their shelves.
 
 ## Preconditions for commercial rollout
 
