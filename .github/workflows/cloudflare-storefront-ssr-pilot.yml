@@ -1,0 +1,40 @@
+name: cloudflare-storefront-ssr-pilot
+
+on:
+  pull_request:
+    paths:
+      - "src/server.ts"
+      - "src/lib/cove-request-env.server.ts"
+      - "src/features/fore/storefront-loader.ts"
+      - "vite.config.ts"
+      - "wrangler.frontend.pilot.toml"
+      - "scripts/check-cloudflare-ssr-pilot.mjs"
+      - "scripts/check-cove-request-context.mjs"
+      - ".github/workflows/cloudflare-storefront-ssr-pilot.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+      VERCEL: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Concurrent Cloudflare rights-context isolation
+        run: node scripts/check-cove-request-context.mjs
+      - name: Compile Cloudflare-native TanStack SSR (no deployment)
+        run: npm run build
+      - name: Verify private Worker build and static assets
+        run: node scripts/check-cloudflare-ssr-pilot.mjs
