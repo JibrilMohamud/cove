@@ -5,6 +5,9 @@ on:
     paths:
       - "scripts/check-production-storefront-performance*.mjs"
       - ".github/workflows/production-storefront-performance.yml"
+      - "src/features/fore/storefront-loader.ts"
+      - "src/features/fore/storefront-bootstrap-fetch.ts"
+      - "src/features/fore/api.server.ts"
   push:
     branches: [main]
     paths:
