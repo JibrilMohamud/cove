@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const DISCOVERY_VERSION = "cove-discovery-v1";
 export const discoveryDimensions = [
+  "genres",
   "themes",
   "moods",
   "literaryStyle",
@@ -32,6 +33,20 @@ export const tasteControlsSchema = z
   })
   .strict();
 export type TasteControls = z.infer<typeof tasteControlsSchema>;
+const genreAliases: Record<string, string> = {
+  mystery: "mystery & thriller",
+  thriller: "mystery & thriller",
+  fiction: "fiction & literature",
+  biography: "biography & memoir",
+  humor: "humor & satire",
+  science: "science & nature",
+};
+export function featureMatchesTag(feature: LiteraryFeature, tag: string) {
+  return (
+    feature.feature === tag ||
+    (feature.dimension === "genres" && feature.feature === genreAliases[tag])
+  );
+}
 export type LiteraryFeature = { dimension: string; feature: string; confidence: number };
 export type TasteEvidence = { long: number; recent: number; observations: number };
 export type ReaderTaste = Map<string, TasteEvidence>;
@@ -49,8 +64,8 @@ export function literaryCompatibility(
   const matches: string[] = [];
   for (const f of features) {
     const t = taste.get(literaryKey(f));
-    const explicit = controls.likes.includes(f.feature) ? 2 : 0;
-    const negative = controls.dislikes.includes(f.feature) ? -4 : 0;
+    const explicit = controls.likes.some((t) => featureMatchesTag(f, t)) ? 2 : 0;
+    const negative = controls.dislikes.some((t) => featureMatchesTag(f, t)) ? -4 : 0;
     const confidence = Math.max(0, Math.min(1, f.confidence));
     const learned = t
       ? (0.65 * Math.tanh(t.long / 6) + 0.35 * Math.tanh(t.recent / 4)) *

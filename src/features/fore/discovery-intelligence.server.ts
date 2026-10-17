@@ -2,6 +2,7 @@ import type { CatalogDB } from "./catalog-model.server";
 import {
   tasteControlsSchema,
   literaryKey,
+  featureMatchesTag,
   satisfactionEvidence,
   type LiteraryFeature,
   type ReaderTaste,
@@ -41,6 +42,25 @@ export async function loadLiteraryFeatures(db: CatalogDB, ids: string[]) {
       result.set(row.product_id, [...(result.get(row.product_id) || []), row]);
   }
   return result;
+}
+/** Catalog genres are metadata evidence, never substitutes for inferred themes or style. */
+export async function loadDiscoveryFeatures(db: CatalogDB, ids: string[]) {
+  const features = await loadLiteraryFeatures(db, ids);
+  for (let offset = 0; offset < ids.length; offset += 80) {
+    const chunk = ids.slice(offset, offset + 80);
+    const rows = await db
+      .prepare(
+        `SELECT p.id product_id,lower(n.name) feature,MIN(0.5,e.confidence) confidence FROM products p JOIN edition_taxonomy_nodes e ON e.edition_id=p.edition_id JOIN storefront_taxonomy_nodes n ON n.id=e.taxonomy_node_id WHERE p.id IN (${chunk.map(() => "?").join(",")}) AND n.visible=1 AND e.confidence>=0.25`,
+      )
+      .bind(...chunk)
+      .all<{ product_id: string; feature: string; confidence: number }>();
+    for (const row of rows.results)
+      features.set(row.product_id, [
+        ...(features.get(row.product_id) || []),
+        { dimension: "genres", feature: row.feature, confidence: row.confidence },
+      ]);
+  }
+  return features;
 }
 export async function buildLiteraryTaste(
   db: CatalogDB,
@@ -87,7 +107,7 @@ export async function buildLiteraryTaste(
   }
   const bookFeatures =
     features ||
-    (await loadLiteraryFeatures(db, [...new Set(rows.results.map((x) => x.product_id))]));
+    (await loadDiscoveryFeatures(db, [...new Set(rows.results.map((x) => x.product_id))]));
   const books = new Map<string, { long: number; recent: number; explicit: boolean }>();
   // Latest explicit satisfaction wins over earlier behavior, including an earlier rating.
   for (const row of rows.results) {
@@ -133,8 +153,34 @@ export async function retrieveLiteraryCandidates(
 ) {
   const ids = new Set<string>();
   // Each lookup uses the inverted index, rather than scanning catalog JSON at serve time.
-  const dimensions = [...new Set(terms.map((t) => t.dimension))].slice(0, 5);
+  const dimensions = [...new Set(terms.map((t) => t.dimension))].slice(0, 6);
   for (const dimension of dimensions) {
+    if (dimension === "genres") {
+      const tags = terms
+        .filter((t) => t.dimension === "genres")
+        .map((t) => t.feature)
+        .slice(0, 20);
+      const taxonomy = await db
+        .prepare("SELECT id,lower(name) name FROM storefront_taxonomy_nodes WHERE visible=1")
+        .all<{ id: string; name: string }>();
+      const nodes = taxonomy.results
+        .filter((n) =>
+          tags.some((t) =>
+            featureMatchesTag({ dimension: "genres", feature: n.name, confidence: 1 }, t),
+          ),
+        )
+        .slice(0, 20);
+      if (nodes.length) {
+        const rows = await db
+          .prepare(
+            `SELECT DISTINCT p.id FROM edition_taxonomy_nodes e JOIN products p ON p.edition_id=e.edition_id WHERE e.taxonomy_node_id IN (${nodes.map(() => "?").join(",")}) AND e.confidence>=0.25 AND p.storefront_status='active' AND EXISTS(SELECT 1 FROM retail_product_availability a WHERE a.product_id=p.id AND a.territory_code=upper(?)) ORDER BY p.id LIMIT 60`,
+          )
+          .bind(...nodes.map((n) => n.id), territory)
+          .all<{ id: string }>();
+        rows.results.forEach((r) => ids.add(r.id));
+      }
+      continue;
+    }
     const features = [
       ...new Set(terms.filter((t) => t.dimension === dimension).map((t) => t.feature)),
     ].slice(0, 20);

@@ -57,6 +57,23 @@ try {
       )
       .run();
   }
+  const metadata = (await intelligence.loadDiscoveryFeatures(db, [favorite])).get(favorite) || [];
+  const genre = metadata.find((f) => f.dimension === "genres");
+  assert.ok(genre, "cold-start genre comes from explicit catalog taxonomy");
+  const genreCandidates = await intelligence.retrieveLiteraryCandidates(db, [genre], "US");
+  assert.ok(
+    genreCandidates.includes(favorite),
+    "metadata retrieval reaches catalog before full-text enrichment",
+  );
+  const cold = await server.literaryDiscovery(
+    env,
+    { userId: null, visitorId: crypto.randomUUID(), territory: "US" },
+    { query: genre.feature },
+  );
+  assert.ok(
+    cold.rails.length > 0,
+    "cold-start intent uses real genre evidence without invented full-text facts",
+  );
   await profile(favorite, ["friendship", "mystery"]);
   await profile(match, ["friendship"]);
   await profile(other, ["war"]);

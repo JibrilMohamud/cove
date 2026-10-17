@@ -3,6 +3,7 @@ import {
   DISCOVERY_VERSION,
   discoveryDimensions,
   literaryCompatibility,
+  featureMatchesTag,
   satisfactionEvidence,
   parseDiscoveryIntent,
   tasteControlsSchema,
@@ -11,7 +12,7 @@ import {
 } from "./discovery-engine";
 import {
   buildLiteraryTaste,
-  loadLiteraryFeatures,
+  loadDiscoveryFeatures,
   loadTasteControls,
   literaryDiscoveryStatus,
   retrieveLiteraryCandidates,
@@ -914,7 +915,7 @@ async function candidatePool(
     privacy.activityPersonalizationEnabled ? personalizationUserId : null,
   );
   const anchorFeatures = anchorId
-    ? (await loadLiteraryFeatures(db, [anchorId])).get(anchorId) || []
+    ? (await loadDiscoveryFeatures(db, [anchorId])).get(anchorId) || []
     : [];
   const learnedTerms = [...taste.entries()]
     .filter(([, v]) => v.long > 0)
@@ -970,7 +971,7 @@ async function candidatePool(
   });
   for (const id of externalCandidate.scores.keys())
     if (!ids.includes(id) && ids.length < MAX_CANDIDATES) ids.push(id);
-  const literaryFeatures = await loadLiteraryFeatures(db, ids);
+  const literaryFeatures = await loadDiscoveryFeatures(db, ids);
   const metas = await productMeta(db, ids),
     anchor = anchorId ? metas.get(anchorId) : undefined,
     owned = await ownedSet(db, personalizationUserId),
@@ -998,7 +999,7 @@ async function candidatePool(
       )
     )
       continue;
-    if (lf.some((f) => controls.dislikes.includes(f.feature))) continue;
+    if (lf.some((f) => controls.dislikes.some((t) => featureMatchesTag(f, t)))) continue;
     const literary = literaryCompatibility(lf, taste, controls);
     if (literary.score !== 0)
       mergeCandidate(
@@ -1149,7 +1150,7 @@ async function candidatePool(
           (controls.maxMinutes === null ||
             (m.readingMinutesMax !== null && m.readingMinutesMax <= controls.maxMinutes)) &&
           !(literaryFeatures.get(c.productId) || []).some((f) =>
-            controls.dislikes.includes(f.feature),
+            controls.dislikes.some((t) => featureMatchesTag(f, t)),
           ) &&
           (!controls.languages.length || m.languages.some((l) => controls.languages.includes(l)))
         );
@@ -2875,7 +2876,7 @@ export async function literaryDiscovery(
   // Require verified exact intent matches; never quietly replace an empty result with popularity.
   if (controls.likes.length)
     candidates = candidates.filter((c) =>
-      (c.literaryFeatures || []).some((f) => controls.likes.includes(f.feature)),
+      (c.literaryFeatures || []).some((f) => controls.likes.some((t) => featureMatchesTag(f, t))),
     );
   const rail = await makeRail(env, {
     ...opts,
