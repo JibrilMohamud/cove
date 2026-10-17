@@ -122,6 +122,7 @@ try {
         }
         let status = null,
           failure = null,
+          contentReadyMs = null,
           interactionNextPaintMs = null;
         try {
           const response =
@@ -140,6 +141,7 @@ try {
               .contentFrame()
               .locator("body")
               .waitFor({ timeout: 45000 });
+          contentReadyMs = await page.evaluate(() => performance.now());
           if (
             await page
               .getByRole("heading", { name: "This page didn't load", exact: true })
@@ -223,6 +225,7 @@ try {
           failure,
           ...metrics,
           interactionNextPaintMs,
+          contentReadyMs,
           mainThread: Object.fromEntries(
             ["ScriptDuration", "LayoutDuration", "RecalcStyleDuration", "TaskDuration"].map(
               (key) => [key + "Ms", Math.round(1000 * afterCpu[key])],

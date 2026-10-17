@@ -1,4 +1,6 @@
 import { formatMinorCurrency } from "./currency";
+import { useStorefrontLocale } from "./localization";
+import { useUiText } from "./ui-text";
 import { Reviews } from "./Reviews";
 import { AddToShelf } from "./Shelves";
 import { BookAudio } from "./Audio";
@@ -397,9 +399,13 @@ function BookFormatSupport({ book }: { book: CatalogBook }) {
 }
 
 export function BookPage({ id }: { id: string }) {
+  const { data, reload, signIn } = useAccount();
+  const { rightsCountry, locale, currency } = useStorefrontLocale();
+  const ui = useUiText();
   const detail = useQuery<ProductDetail>({
-    queryKey: ["product-detail", id],
-    queryFn: () => api(`/books/${encodeURIComponent(id)}/detail`),
+    queryKey: ["product-detail", id, data.user?.id || "guest", rightsCountry, locale, currency],
+    queryFn: ({ signal }) =>
+      api(`/books/${encodeURIComponent(id)}/detail`, "GET", undefined, { signal }),
   });
   const b = detail.data?.book;
   const [recVisitor, setRecVisitor] = useState("");
@@ -451,7 +457,6 @@ export function BookPage({ id }: { id: string }) {
         sourceSurface: "book-detail",
       }).catch(() => {});
   }, [recVisitor, b?.productId, promotionCampaignId]);
-  const { data, reload, signIn } = useAccount();
   const recommendationAccount = useQuery<{ privacy: any; following: string[]; wishlist: string[] }>(
     {
       queryKey: ["recommendation-account", data.user?.id],
@@ -471,9 +476,23 @@ export function BookPage({ id }: { id: string }) {
     [busy, setBusy] = useState("");
   if (detail.isLoading)
     return (
-      <div className="empty-state">
-        <Loader2 className="spin" />
-        <p>Opening the book…</p>
+      <div className="book-detail-loading" aria-busy="true">
+        <p role="status" className="sr-only">
+          {ui("Opening book")}
+        </p>
+        <div className="back-link" aria-hidden="true">
+          &nbsp;
+        </div>
+        <div className="book-detail" aria-hidden="true">
+          <div className="detail-art">
+            <div className="book-art" />
+          </div>
+          <div className="book-loading-lines">
+            <i />
+            <i />
+            <i />
+          </div>
+        </div>
       </div>
     );
   if (!detail.data || !b)
@@ -604,7 +623,7 @@ export function BookPage({ id }: { id: string }) {
       </Link>
       <div className="book-detail commercial-product-detail">
         <div className="detail-art">
-          <BookArt book={b} />
+          <BookArt book={b} priority />
           <div className="detail-source">
             {b.uploaded
               ? "YOUR PERSONAL EPUB"

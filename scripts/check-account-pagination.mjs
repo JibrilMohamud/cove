@@ -18,6 +18,30 @@ try {
   });
   const { handleCoveApi } = await import(path.join(dir, "api.mjs"));
   const env = localBindings(dir);
+  const independent = {
+    ...env,
+    DB: new Proxy(env.DB, {
+      get(target, key) {
+        if (key === "prepare")
+          return (sql) => {
+            assert.ok(
+              !/storefront_markets|storefront_locales|ui_translation_messages|storefront_payment_methods/.test(
+                sql,
+              ),
+              "account bootstrap must not depend on storefront configuration",
+            );
+            return target.prepare(sql);
+          };
+        return Reflect.get(target, key);
+      },
+    }),
+  };
+  const guestBootstrap = await handleCoveApi(
+    new Request("https://fore.test/api/fore/account"),
+    independent,
+  );
+  assert.equal(guestBootstrap.status, 200);
+  assert.equal((await guestBootstrap.json()).user, null);
   async function call(who, route) {
     const response = await handleCoveApi(
       new Request("https://fore.test/api/fore" + route, {
@@ -26,7 +50,7 @@ try {
           "oai-authenticated-user-email": who + "@example.test",
         },
       }),
-      env,
+      route === "/account" ? independent : env,
     );
     const data = await response.json();
     assert.equal(response.status, 200, JSON.stringify(data));

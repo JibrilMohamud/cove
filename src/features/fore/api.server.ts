@@ -2880,6 +2880,10 @@ async function handleCoveRequest(
     const authResponse = await auth.handle(path);
     if (authResponse) return authResponse;
     await auth.identify();
+    // Account bootstrap already enforces its own identity and entitlement
+    // boundaries. It never consumes merchandising, locale or payment settings;
+    // do not serialize those D1 lookups ahead of every reader's account state.
+    if (request.method === "GET" && path === "/account") return json(await account(env, request));
     const machineDb = database(env);
     if (path.startsWith("/machine/v1/")) {
       if (request.method !== "POST") throw new ApiError(405, "Machine endpoints require POST.");
@@ -4447,7 +4451,6 @@ async function handleCoveRequest(
         nextOffset: offset + limit,
       });
     }
-    if (request.method === "GET" && path === "/account") return json(await account(env, request));
     if (request.method === "GET" && path === "/publishing/policies")
       return json(await publicPublishingPolicies(database(env)));
     if (request.method === "GET" && path === "/rights/contact")

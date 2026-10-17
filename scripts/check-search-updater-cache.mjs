@@ -237,6 +237,55 @@ try {
   ])
     assert.equal(cache.publicCacheEligible(new Request(logical, { headers })), false);
   assert.equal(cache.publicCacheEligible(request("/account")), false);
+  for (const [country, locale] of [
+    ["US", "en-US"],
+    ["ES", "es-ES"],
+    ["FR", "fr-FR"],
+    ["DE", "de-DE"],
+    ["SA", "ar-SA"],
+  ]) {
+    const contextRequest = new Request("https://fore.test/api/fore/storefront/context", {
+      headers: { "x-cove-client-country": country, "accept-language": locale },
+    });
+    const contextBackend = new Request(
+      "https://backend.example.workers.dev/api/fore/storefront/context",
+      { headers: contextRequest.headers },
+    );
+    const miss = await cache.cachedPublicApi(contextRequest, contextBackend, env, ctx, handler);
+    assert.equal(miss.headers.get("x-cove-backend-cache"), "MISS");
+    const before = await miss.json();
+    assert.equal(before.rightsCountry, country);
+    assert.equal(before.locale, locale);
+    assert.ok(before.uiMessages);
+    await Promise.all(pending.splice(0));
+    const callsBefore = handlerCalls;
+    const hit = await cache.cachedPublicApi(contextRequest, contextBackend, env, ctx, handler);
+    assert.equal(hit.headers.get("x-cove-backend-cache"), "HIT");
+    assert.deepEqual(await hit.json(), before);
+    assert.equal(
+      handlerCalls,
+      callsBefore,
+      "warm public UI context avoids repeated configuration lookups",
+    );
+    const privateRequest = new Request(contextRequest, {
+      headers: { ...Object.fromEntries(contextRequest.headers), cookie: "session=private" },
+    });
+    const bypass = await cache.cachedPublicApi(privateRequest, contextBackend, env, ctx, handler);
+    assert.equal(bypass.headers.get("x-cove-backend-cache"), "BYPASS");
+    assert.equal(handlerCalls, callsBefore + 1);
+  }
+  assert.equal(cache.publicCacheTtl("/api/fore/storefront/context"), 30);
+  for (const headers of [
+    { cookie: "session=private" },
+    { authorization: "Bearer fixture" },
+    { "oai-authenticated-user-id": "private-reader" },
+  ])
+    assert.equal(
+      cache.publicCacheEligible(
+        new Request("https://cove.test/api/fore/storefront/context", { headers }),
+      ),
+      false,
+    );
   assert.equal(
     cache.publicCacheEligible(
       new Request(logical, { headers: { cookie: "fore-locale=en-US; fore-currency=USD" } }),

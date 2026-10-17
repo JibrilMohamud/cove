@@ -1,0 +1,3422 @@
+{
+  "instrumentationVersion": 2,
+  "at": "2026-10-17T07:53:26.125Z",
+  "origin": "https://cove-puce-theta.vercel.app",
+  "boundary": "Synthetic Chromium observations, not real-user p75 or field INP. Fresh contexts have empty browser storage, not guaranteed cold server caches. Mobile uses 4x CPU slowdown and 150ms/1.6Mbps network emulation; worker traffic may not inherit page-CDP throttling. Resource timing excludes opaque cross-origin and worker bytes. Interaction next-paint includes automation overhead. Private routes here measure guest shells only.",
+  "targets": {
+    "fieldLcpP75Ms": 2500,
+    "fieldInpP75Ms": 200,
+    "fieldClsP75": 0.1
+  },
+  "profiles": [
+    {
+      "profile": "desktop",
+      "labLcpP75Ms": 2656,
+      "failures": 0
+    },
+    {
+      "profile": "mobile-4g",
+      "labLcpP75Ms": 2568,
+      "failures": 0
+    }
+  ],
+  "results": [
+    {
+      "profile": "desktop",
+      "route": "/",
+      "phase": "fresh-context",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 86.30000000000291,
+      "fcpMs": 1324,
+      "lcpMs": 1632,
+      "lcpElement": {
+        "tag": "IMG",
+        "className": ""
+      },
+      "cls": 0.022061555989583332,
+      "shifts": [
+        {
+          "value": 0.022061555989583332,
+          "time": 2841,
+          "sources": [
+            {
+              "tag": "DIV",
+              "className": "book-grid",
+              "previous": {
+                "x": 282,
+                "y": 605.359375,
+                "width": 1112,
+                "height": 394.640625,
+                "top": 605.359375,
+                "right": 1394,
+                "bottom": 1000,
+                "left": 282
+              },
+              "current": {
+                "x": 282,
+                "y": 672.859375,
+                "width": 1112,
+                "height": 327.140625,
+                "top": 672.859375,
+                "right": 1394,
+                "bottom": 1000,
+                "left": 282
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "catalog-controls",
+              "previous": {
+                "x": 282,
+                "y": 392.359375,
+                "width": 1117,
+                "height": 100,
+                "top": 392.359375,
+                "right": 1399,
+                "bottom": 492.359375,
+                "left": 282
+              },
+              "current": {
+                "x": 282,
+                "y": 459.859375,
+                "width": 1117,
+                "height": 100,
+                "top": 459.859375,
+                "right": 1399,
+                "bottom": 559.859375,
+                "left": 282
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "search-facets",
+              "previous": {
+                "x": 277,
+                "y": 496.359375,
+                "width": 1117,
+                "height": 91,
+                "top": 496.359375,
+                "right": 1394,
+                "bottom": 587.359375,
+                "left": 277
+              },
+              "current": {
+                "x": 277,
+                "y": 563.859375,
+                "width": 1117,
+                "height": 91,
+                "top": 563.859375,
+                "right": 1394,
+                "bottom": 654.859375,
+                "left": 277
+              }
+            },
+            {
+              "tag": "svg",
+              "className": "[object SVGAnimatedString]",
+              "previous": {
+                "x": 419.328125,
+                "y": 977.21875,
+                "width": 19,
+                "height": 19,
+                "top": 977.21875,
+                "right": 438.328125,
+                "bottom": 996.21875,
+                "left": 419.328125
+              },
+              "current": {
+                "x": 0,
+                "y": 0,
+                "width": 0,
+                "height": 0,
+                "top": 0,
+                "right": 0,
+                "bottom": 0,
+                "left": 0
+              }
+            },
+            {
+              "tag": "svg",
+              "className": "[object SVGAnimatedString]",
+              "previous": {
+                "x": 608.65625,
+                "y": 977.21875,
+                "width": 19,
+                "height": 19,
+                "top": 977.21875,
+                "right": 627.65625,
+                "bottom": 996.21875,
+                "left": 608.65625
+              },
+              "current": {
+                "x": 0,
+                "y": 0,
+                "width": 0,
+                "height": 0,
+                "top": 0,
+                "right": 0,
+                "bottom": 0,
+                "left": 0
+              }
+            }
+          ]
+        }
+      ],
+      "apiTimings": [
+        {
+          "path": "/api/fore/account",
+          "startMs": 1425.8999999999942,
+          "durationMs": 268.1999999999971,
+          "responseStartMs": 1693.5999999999913
+        },
+        {
+          "path": "/api/fore/taxonomy",
+          "startMs": 1457.5999999999913,
+          "durationMs": 1368.9000000000087,
+          "responseStartMs": 2820.899999999994
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": 32,
+      "observedResourceBytes": 414651,
+      "observedJsBytes": 337792,
+      "readerReadyMs": null,
+      "visibleBookCards": 24,
+      "interactionNextPaintMs": 85,
+      "mainThread": {
+        "ScriptDurationMs": 148,
+        "LayoutDurationMs": 21,
+        "RecalcStyleDurationMs": 31,
+        "TaskDurationMs": 317
+      },
+      "observedMs": 3676,
+      "pageErrors": [],
+      "requests": 44,
+      "apiRequests": 5,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/",
+        "/api/fore/account",
+        "/api/fore/auth/options",
+        "/api/fore/merchandising",
+        "/api/fore/recommendations/home",
+        "/api/fore/taxonomy",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/routes-BiQRgrXd.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/cache/epub/1/pg1.cover.medium.jpg",
+        "/cache/epub/10/pg10.cover.medium.jpg",
+        "/cache/epub/100/pg100.cover.medium.jpg",
+        "/cache/epub/1000/pg1000.cover.medium.jpg",
+        "/cache/epub/10000/pg10000.cover.medium.jpg",
+        "/cache/epub/10001/pg10001.cover.medium.jpg",
+        "/cache/epub/10002/pg10002.cover.medium.jpg",
+        "/cache/epub/10003/pg10003.cover.medium.jpg",
+        "/cache/epub/10004/pg10004.cover.medium.jpg",
+        "/cache/epub/10005/pg10005.cover.medium.jpg",
+        "/cache/epub/10006/pg10006.cover.medium.jpg",
+        "/cache/epub/10007/pg10007.cover.medium.jpg",
+        "/cache/epub/10008/pg10008.cover.medium.jpg",
+        "/cache/epub/10009/pg10009.cover.medium.jpg",
+        "/cache/epub/1001/pg1001.cover.medium.jpg",
+        "/cache/epub/10011/pg10011.cover.medium.jpg",
+        "/cache/epub/10012/pg10012.cover.medium.jpg",
+        "/cache/epub/10013/pg10013.cover.medium.jpg",
+        "/cache/epub/10014/pg10014.cover.medium.jpg",
+        "/cache/epub/10015/pg10015.cover.medium.jpg",
+        "/cache/epub/10016/pg10016.cover.medium.jpg",
+        "/cache/epub/10017/pg10017.cover.medium.jpg",
+        "/cache/epub/10018/pg10018.cover.medium.jpg",
+        "/cache/epub/10019/pg10019.cover.medium.jpg"
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/",
+      "phase": "repeat",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 24.39999999999418,
+      "fcpMs": 2632,
+      "lcpMs": 2656,
+      "lcpElement": {
+        "tag": "IMG",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/account",
+          "startMs": 2679.199999999997,
+          "durationMs": 1866.8999999999942,
+          "responseStartMs": 4542.199999999997
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": 24,
+      "observedResourceBytes": 29536,
+      "observedJsBytes": 337792,
+      "readerReadyMs": null,
+      "visibleBookCards": 24,
+      "interactionNextPaintMs": 71,
+      "mainThread": {
+        "ScriptDurationMs": 77,
+        "LayoutDurationMs": 4,
+        "RecalcStyleDurationMs": 26,
+        "TaskDurationMs": 177
+      },
+      "observedMs": 4848,
+      "pageErrors": [],
+      "requests": 44,
+      "apiRequests": 5,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/",
+        "/api/fore/account",
+        "/api/fore/auth/options",
+        "/api/fore/merchandising",
+        "/api/fore/recommendations/home",
+        "/api/fore/taxonomy",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/routes-BiQRgrXd.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/cache/epub/1/pg1.cover.medium.jpg",
+        "/cache/epub/10/pg10.cover.medium.jpg",
+        "/cache/epub/100/pg100.cover.medium.jpg",
+        "/cache/epub/1000/pg1000.cover.medium.jpg",
+        "/cache/epub/10000/pg10000.cover.medium.jpg",
+        "/cache/epub/10001/pg10001.cover.medium.jpg",
+        "/cache/epub/10002/pg10002.cover.medium.jpg",
+        "/cache/epub/10003/pg10003.cover.medium.jpg",
+        "/cache/epub/10004/pg10004.cover.medium.jpg",
+        "/cache/epub/10005/pg10005.cover.medium.jpg",
+        "/cache/epub/10006/pg10006.cover.medium.jpg",
+        "/cache/epub/10007/pg10007.cover.medium.jpg",
+        "/cache/epub/10008/pg10008.cover.medium.jpg",
+        "/cache/epub/10009/pg10009.cover.medium.jpg",
+        "/cache/epub/1001/pg1001.cover.medium.jpg",
+        "/cache/epub/10011/pg10011.cover.medium.jpg",
+        "/cache/epub/10012/pg10012.cover.medium.jpg",
+        "/cache/epub/10013/pg10013.cover.medium.jpg",
+        "/cache/epub/10014/pg10014.cover.medium.jpg",
+        "/cache/epub/10015/pg10015.cover.medium.jpg",
+        "/cache/epub/10016/pg10016.cover.medium.jpg",
+        "/cache/epub/10017/pg10017.cover.medium.jpg",
+        "/cache/epub/10018/pg10018.cover.medium.jpg",
+        "/cache/epub/10019/pg10019.cover.medium.jpg"
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/search?q=mystery",
+      "phase": "fresh-context",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 79.70000000001164,
+      "fcpMs": 272,
+      "lcpMs": 7804,
+      "lcpElement": {
+        "tag": "IMG",
+        "className": ""
+      },
+      "cls": 0.022224974922839504,
+      "shifts": [
+        {
+          "value": 0.022224974922839504,
+          "time": 5022.300000000003,
+          "sources": [
+            {
+              "tag": "DIV",
+              "className": "book-grid",
+              "previous": {
+                "x": 282,
+                "y": 605.359375,
+                "width": 1112,
+                "height": 394.640625,
+                "top": 605.359375,
+                "right": 1394,
+                "bottom": 1000,
+                "left": 282
+              },
+              "current": {
+                "x": 282,
+                "y": 672.859375,
+                "width": 1112,
+                "height": 327.140625,
+                "top": 672.859375,
+                "right": 1394,
+                "bottom": 1000,
+                "left": 282
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "catalog-controls",
+              "previous": {
+                "x": 282,
+                "y": 392.359375,
+                "width": 1117,
+                "height": 100,
+                "top": 392.359375,
+                "right": 1399,
+                "bottom": 492.359375,
+                "left": 282
+              },
+              "current": {
+                "x": 282,
+                "y": 459.859375,
+                "width": 1117,
+                "height": 100,
+                "top": 459.859375,
+                "right": 1399,
+                "bottom": 559.859375,
+                "left": 282
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "search-facets",
+              "previous": {
+                "x": 277,
+                "y": 496.359375,
+                "width": 1117,
+                "height": 91,
+                "top": 496.359375,
+                "right": 1394,
+                "bottom": 587.359375,
+                "left": 277
+              },
+              "current": {
+                "x": 277,
+                "y": 563.859375,
+                "width": 1117,
+                "height": 91,
+                "top": 563.859375,
+                "right": 1394,
+                "bottom": 654.859375,
+                "left": 277
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "animate-pulse bg-primary/10 aspect-[2/3] w-full rounded-sm",
+              "previous": {
+                "x": 849.984375,
+                "y": 604.859375,
+                "width": 165.34375,
+                "height": 248.015625,
+                "top": 604.859375,
+                "right": 1015.328125,
+                "bottom": 852.875,
+                "left": 849.984375
+              },
+              "current": {
+                "x": 849.984375,
+                "y": 672.859375,
+                "width": 165.34375,
+                "height": 248.015625,
+                "top": 672.859375,
+                "right": 1015.328125,
+                "bottom": 920.875,
+                "left": 849.984375
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "animate-pulse bg-primary/10 aspect-[2/3] w-full rounded-sm",
+              "previous": {
+                "x": 471.328125,
+                "y": 604.859375,
+                "width": 165.328125,
+                "height": 247.984375,
+                "top": 604.859375,
+                "right": 636.65625,
+                "bottom": 852.84375,
+                "left": 471.328125
+              },
+              "current": {
+                "x": 471.328125,
+                "y": 672.859375,
+                "width": 165.328125,
+                "height": 247.984375,
+                "top": 672.859375,
+                "right": 636.65625,
+                "bottom": 920.84375,
+                "left": 471.328125
+              }
+            }
+          ]
+        }
+      ],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 349.3000000000029,
+          "durationMs": 4637.100000000006,
+          "responseStartMs": 4985.900000000009
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 349.8000000000029,
+          "durationMs": 4104.400000000009,
+          "responseStartMs": 4453.300000000003
+        },
+        {
+          "path": "/api/fore/storefront/page",
+          "startMs": 361.1000000000058,
+          "durationMs": 4626.899999999994,
+          "responseStartMs": 4987.700000000012
+        },
+        {
+          "path": "/api/fore/taxonomy",
+          "startMs": 361.6000000000058,
+          "durationMs": 4643.600000000006,
+          "responseStartMs": 5004.600000000006
+        },
+        {
+          "path": "/api/fore/catalog",
+          "startMs": 362,
+          "durationMs": 7234.5,
+          "responseStartMs": 7586
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 409537,
+      "observedJsBytes": 337738,
+      "readerReadyMs": null,
+      "visibleBookCards": 24,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 111,
+        "LayoutDurationMs": 12,
+        "RecalcStyleDurationMs": 19,
+        "TaskDurationMs": 246
+      },
+      "observedMs": 9694,
+      "pageErrors": [],
+      "requests": 45,
+      "apiRequests": 6,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/catalog",
+        "/api/fore/events",
+        "/api/fore/storefront/context",
+        "/api/fore/storefront/page",
+        "/api/fore/taxonomy",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/search-DM84EdX5.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/cache/epub/10339/pg10339.cover.medium.jpg",
+        "/cache/epub/16168/pg16168.cover.medium.jpg",
+        "/cache/epub/1651/pg1651.cover.medium.jpg",
+        "/cache/epub/1678/pg1678.cover.medium.jpg",
+        "/cache/epub/1685/pg1685.cover.medium.jpg",
+        "/cache/epub/1872/pg1872.cover.medium.jpg",
+        "/cache/epub/22790/pg22790.cover.medium.jpg",
+        "/cache/epub/23489/pg23489.cover.medium.jpg",
+        "/cache/epub/42455/pg42455.cover.medium.jpg",
+        "/cache/epub/46153/pg46153.cover.medium.jpg",
+        "/cache/epub/46581/pg46581.cover.medium.jpg",
+        "/cache/epub/5164/pg5164.cover.medium.jpg",
+        "/cache/epub/564/pg564.cover.medium.jpg",
+        "/cache/epub/58628/pg58628.cover.medium.jpg",
+        "/cache/epub/59191/pg59191.cover.medium.jpg",
+        "/cache/epub/69106/pg69106.cover.medium.jpg",
+        "/cache/epub/72824/pg72824.cover.medium.jpg",
+        "/cache/epub/73102/pg73102.cover.medium.jpg",
+        "/cache/epub/75012/pg75012.cover.medium.jpg",
+        "/cache/epub/75288/pg75288.cover.medium.jpg",
+        "/cache/epub/77873/pg77873.cover.medium.jpg",
+        "/cache/epub/78704/pg78704.cover.medium.jpg",
+        "/cache/epub/7964/pg7964.cover.medium.jpg",
+        "/cache/epub/9795/pg9795.cover.medium.jpg",
+        "/search"
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/search?q=mystery",
+      "phase": "repeat",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 24.60000000000582,
+      "fcpMs": 112,
+      "lcpMs": 4312,
+      "lcpElement": {
+        "tag": "IMG",
+        "className": ""
+      },
+      "cls": 0.022224974922839504,
+      "shifts": [
+        {
+          "value": 0.022224974922839504,
+          "time": 2696.699999999997,
+          "sources": [
+            {
+              "tag": "DIV",
+              "className": "book-grid",
+              "previous": {
+                "x": 282,
+                "y": 605.359375,
+                "width": 1112,
+                "height": 394.640625,
+                "top": 605.359375,
+                "right": 1394,
+                "bottom": 1000,
+                "left": 282
+              },
+              "current": {
+                "x": 282,
+                "y": 672.859375,
+                "width": 1112,
+                "height": 327.140625,
+                "top": 672.859375,
+                "right": 1394,
+                "bottom": 1000,
+                "left": 282
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "catalog-controls",
+              "previous": {
+                "x": 282,
+                "y": 392.359375,
+                "width": 1117,
+                "height": 100,
+                "top": 392.359375,
+                "right": 1399,
+                "bottom": 492.359375,
+                "left": 282
+              },
+              "current": {
+                "x": 282,
+                "y": 459.859375,
+                "width": 1117,
+                "height": 100,
+                "top": 459.859375,
+                "right": 1399,
+                "bottom": 559.859375,
+                "left": 282
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "search-facets",
+              "previous": {
+                "x": 277,
+                "y": 496.359375,
+                "width": 1117,
+                "height": 91,
+                "top": 496.359375,
+                "right": 1394,
+                "bottom": 587.359375,
+                "left": 277
+              },
+              "current": {
+                "x": 277,
+                "y": 563.859375,
+                "width": 1117,
+                "height": 91,
+                "top": 563.859375,
+                "right": 1394,
+                "bottom": 654.859375,
+                "left": 277
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "animate-pulse bg-primary/10 aspect-[2/3] w-full rounded-sm",
+              "previous": {
+                "x": 849.984375,
+                "y": 604.859375,
+                "width": 165.34375,
+                "height": 248.015625,
+                "top": 604.859375,
+                "right": 1015.328125,
+                "bottom": 852.875,
+                "left": 849.984375
+              },
+              "current": {
+                "x": 849.984375,
+                "y": 672.859375,
+                "width": 165.34375,
+                "height": 248.015625,
+                "top": 672.859375,
+                "right": 1015.328125,
+                "bottom": 920.875,
+                "left": 849.984375
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "animate-pulse bg-primary/10 aspect-[2/3] w-full rounded-sm",
+              "previous": {
+                "x": 471.328125,
+                "y": 604.859375,
+                "width": 165.328125,
+                "height": 247.984375,
+                "top": 604.859375,
+                "right": 636.65625,
+                "bottom": 852.84375,
+                "left": 471.328125
+              },
+              "current": {
+                "x": 471.328125,
+                "y": 672.859375,
+                "width": 165.328125,
+                "height": 247.984375,
+                "top": 672.859375,
+                "right": 636.65625,
+                "bottom": 920.84375,
+                "left": 471.328125
+              }
+            }
+          ]
+        }
+      ],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 134.3000000000029,
+          "durationMs": 2552.5,
+          "responseStartMs": 2686.100000000006
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 134.6999999999971,
+          "durationMs": 1964.800000000003,
+          "responseStartMs": 2098.9000000000087
+        },
+        {
+          "path": "/api/fore/storefront/page",
+          "startMs": 139.8000000000029,
+          "durationMs": 2028.300000000003,
+          "responseStartMs": 2167.600000000006
+        },
+        {
+          "path": "/api/fore/taxonomy",
+          "startMs": 140.10000000000582,
+          "durationMs": 2529.899999999994,
+          "responseStartMs": 2669.100000000006
+        },
+        {
+          "path": "/api/fore/catalog",
+          "startMs": 140.3000000000029,
+          "durationMs": 4126.600000000006,
+          "responseStartMs": 4241.300000000003
+        },
+        {
+          "path": "/api/fore/events",
+          "startMs": 4280.300000000003,
+          "durationMs": 1196.5,
+          "responseStartMs": 5476.300000000003
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 28435,
+      "observedJsBytes": 337738,
+      "readerReadyMs": null,
+      "visibleBookCards": 24,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 65,
+        "LayoutDurationMs": 4,
+        "RecalcStyleDurationMs": 14,
+        "TaskDurationMs": 143
+      },
+      "observedMs": 6459,
+      "pageErrors": [],
+      "requests": 45,
+      "apiRequests": 6,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/catalog",
+        "/api/fore/events",
+        "/api/fore/storefront/context",
+        "/api/fore/storefront/page",
+        "/api/fore/taxonomy",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/search-DM84EdX5.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/cache/epub/10339/pg10339.cover.medium.jpg",
+        "/cache/epub/16168/pg16168.cover.medium.jpg",
+        "/cache/epub/1651/pg1651.cover.medium.jpg",
+        "/cache/epub/1678/pg1678.cover.medium.jpg",
+        "/cache/epub/1685/pg1685.cover.medium.jpg",
+        "/cache/epub/1872/pg1872.cover.medium.jpg",
+        "/cache/epub/22790/pg22790.cover.medium.jpg",
+        "/cache/epub/23489/pg23489.cover.medium.jpg",
+        "/cache/epub/42455/pg42455.cover.medium.jpg",
+        "/cache/epub/46153/pg46153.cover.medium.jpg",
+        "/cache/epub/46581/pg46581.cover.medium.jpg",
+        "/cache/epub/5164/pg5164.cover.medium.jpg",
+        "/cache/epub/564/pg564.cover.medium.jpg",
+        "/cache/epub/58628/pg58628.cover.medium.jpg",
+        "/cache/epub/59191/pg59191.cover.medium.jpg",
+        "/cache/epub/69106/pg69106.cover.medium.jpg",
+        "/cache/epub/72824/pg72824.cover.medium.jpg",
+        "/cache/epub/73102/pg73102.cover.medium.jpg",
+        "/cache/epub/75012/pg75012.cover.medium.jpg",
+        "/cache/epub/75288/pg75288.cover.medium.jpg",
+        "/cache/epub/77873/pg77873.cover.medium.jpg",
+        "/cache/epub/78704/pg78704.cover.medium.jpg",
+        "/cache/epub/7964/pg7964.cover.medium.jpg",
+        "/cache/epub/9795/pg9795.cover.medium.jpg",
+        "/search"
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/book/1342",
+      "phase": "fresh-context",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 70.80000000000291,
+      "fcpMs": 2624,
+      "lcpMs": 2624,
+      "lcpElement": {
+        "tag": "P",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 2855.800000000003,
+          "durationMs": 381.6999999999971,
+          "responseStartMs": 3237
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 2856.399999999994,
+          "durationMs": 308.8000000000029,
+          "responseStartMs": 3164.699999999997
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 487071,
+      "observedJsBytes": 429189,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 56,
+        "LayoutDurationMs": 5,
+        "RecalcStyleDurationMs": 8,
+        "TaskDurationMs": 116
+      },
+      "observedMs": 4903,
+      "pageErrors": [],
+      "requests": 35,
+      "apiRequests": 3,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/books/1342/detail",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/Book-vFKgeCNt.js",
+        "/assets/Shelves-DZbHyfsx.js",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/arrow-left-8usZFkro.js",
+        "/assets/book._id-Btmz7xP1.js",
+        "/assets/credit-card-BHxuYiq5.js",
+        "/assets/file-down-6mQ02JTi.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/jszip.min-DhiFe-R7.js",
+        "/assets/key-round-C0RKgiIV.js",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/pencil-DkxH-qqZ.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/service-worker-BVe9GNM4.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/shield-check-C0jDp-TJ.js",
+        "/assets/smartphone-9WA9NtEX.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/trash-2-Bx6HSOWP.js",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/user-plus-fp_JoILA.js",
+        "/assets/wallet-cards-DPKD_UxF.js",
+        "/book/1342"
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/book/1342",
+      "phase": "repeat",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 23.60000000000582,
+      "fcpMs": 4116,
+      "lcpMs": 4116,
+      "lcpElement": {
+        "tag": "P",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 4127.800000000003,
+          "durationMs": 1962.7999999999884,
+          "responseStartMs": 6090.099999999991
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 4128.099999999991,
+          "durationMs": 1275.8000000000175,
+          "responseStartMs": 5403.199999999997
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 7737,
+      "observedJsBytes": 429189,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 16,
+        "LayoutDurationMs": 1,
+        "RecalcStyleDurationMs": 5,
+        "TaskDurationMs": 63
+      },
+      "observedMs": 6151,
+      "pageErrors": [],
+      "requests": 41,
+      "apiRequests": 8,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/audiobooks",
+        "/api/fore/books/1342/detail",
+        "/api/fore/books/1342/reviews",
+        "/api/fore/events",
+        "/api/fore/recommendations/book",
+        "/api/fore/recommendations/event",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/Book-vFKgeCNt.js",
+        "/assets/Shelves-DZbHyfsx.js",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/arrow-left-8usZFkro.js",
+        "/assets/book._id-Btmz7xP1.js",
+        "/assets/credit-card-BHxuYiq5.js",
+        "/assets/file-down-6mQ02JTi.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/jszip.min-DhiFe-R7.js",
+        "/assets/key-round-C0RKgiIV.js",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/pencil-DkxH-qqZ.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/service-worker-BVe9GNM4.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/shield-check-C0jDp-TJ.js",
+        "/assets/smartphone-9WA9NtEX.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/trash-2-Bx6HSOWP.js",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/user-plus-fp_JoILA.js",
+        "/assets/wallet-cards-DPKD_UxF.js",
+        "/book/1342",
+        "/covers/1342.jpg"
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/library",
+      "phase": "fresh-context",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 61.10000000000582,
+      "fcpMs": 256,
+      "lcpMs": 1440,
+      "lcpElement": {
+        "tag": "P",
+        "className": ""
+      },
+      "cls": 0.01331142234519676,
+      "shifts": [
+        {
+          "value": 0.01331142234519676,
+          "time": 1422.1000000000058,
+          "sources": [
+            {
+              "tag": "FOOTER",
+              "className": "cove-site-footer",
+              "previous": {
+                "x": 236,
+                "y": 472.359375,
+                "width": 1204,
+                "height": 70.1875,
+                "top": 472.359375,
+                "right": 1440,
+                "bottom": 542.546875,
+                "left": 236
+              },
+              "current": {
+                "x": 236,
+                "y": 634.953125,
+                "width": 1204,
+                "height": 70.1875,
+                "top": 634.953125,
+                "right": 1440,
+                "bottom": 705.140625,
+                "left": 236
+              }
+            }
+          ]
+        }
+      ],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 328.30000000001746,
+          "durationMs": 1731,
+          "responseStartMs": 2058.8000000000175
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 328.80000000001746,
+          "durationMs": 1071.6999999999825,
+          "responseStartMs": 1399.3999999999942
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 471571,
+      "observedJsBytes": 415543,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 53,
+        "LayoutDurationMs": 6,
+        "RecalcStyleDurationMs": 8,
+        "TaskDurationMs": 111
+      },
+      "observedMs": 2349,
+      "pageErrors": [],
+      "requests": 31,
+      "apiRequests": 2,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/Shelves-DZbHyfsx.js",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/credit-card-BHxuYiq5.js",
+        "/assets/file-down-6mQ02JTi.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/jszip.min-DhiFe-R7.js",
+        "/assets/key-round-C0RKgiIV.js",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/library-BnC0jYRa.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/pencil-DkxH-qqZ.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/service-worker-BVe9GNM4.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/shield-check-C0jDp-TJ.js",
+        "/assets/smartphone-9WA9NtEX.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/trash-2-Bx6HSOWP.js",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/wallet-cards-DPKD_UxF.js",
+        "/library"
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/library",
+      "phase": "repeat",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 20.60000000000582,
+      "fcpMs": 84,
+      "lcpMs": 440,
+      "lcpElement": {
+        "tag": "P",
+        "className": ""
+      },
+      "cls": 0.01331142234519676,
+      "shifts": [
+        {
+          "value": 0.01331142234519676,
+          "time": 422,
+          "sources": [
+            {
+              "tag": "FOOTER",
+              "className": "cove-site-footer",
+              "previous": {
+                "x": 236,
+                "y": 472.359375,
+                "width": 1204,
+                "height": 70.1875,
+                "top": 472.359375,
+                "right": 1440,
+                "bottom": 542.546875,
+                "left": 236
+              },
+              "current": {
+                "x": 236,
+                "y": 634.953125,
+                "width": 1204,
+                "height": 70.1875,
+                "top": 634.953125,
+                "right": 1440,
+                "bottom": 705.140625,
+                "left": 236
+              }
+            }
+          ]
+        }
+      ],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 107.80000000001746,
+          "durationMs": 425.5,
+          "responseStartMs": 532.6000000000058
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 108.10000000000582,
+          "durationMs": 307.80000000001746,
+          "responseStartMs": 415.4000000000233
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 7847,
+      "observedJsBytes": 415543,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 17,
+        "LayoutDurationMs": 2,
+        "RecalcStyleDurationMs": 5,
+        "TaskDurationMs": 61
+      },
+      "observedMs": 2121,
+      "pageErrors": [],
+      "requests": 31,
+      "apiRequests": 2,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/Shelves-DZbHyfsx.js",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/credit-card-BHxuYiq5.js",
+        "/assets/file-down-6mQ02JTi.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/jszip.min-DhiFe-R7.js",
+        "/assets/key-round-C0RKgiIV.js",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/library-BnC0jYRa.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/pencil-DkxH-qqZ.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/service-worker-BVe9GNM4.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/shield-check-C0jDp-TJ.js",
+        "/assets/smartphone-9WA9NtEX.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/trash-2-Bx6HSOWP.js",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/wallet-cards-DPKD_UxF.js",
+        "/library"
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/community",
+      "phase": "fresh-context",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 67.89999999999418,
+      "fcpMs": 328,
+      "lcpMs": 328,
+      "lcpElement": {
+        "tag": "H1",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 431,
+          "durationMs": 1881.1000000000058,
+          "responseStartMs": 2311.600000000006
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 431.5,
+          "durationMs": 1200.7999999999884,
+          "responseStartMs": 1631.7999999999884
+        },
+        {
+          "path": "/api/fore/social/discover",
+          "startMs": 437.69999999998254,
+          "durationMs": 1197.6000000000058,
+          "responseStartMs": 1635.1000000000058
+        },
+        {
+          "path": "/api/fore/social/discover",
+          "startMs": 438,
+          "durationMs": 1960.1999999999825,
+          "responseStartMs": 2397.600000000006
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 369812,
+      "observedJsBytes": 315786,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 50,
+        "LayoutDurationMs": 6,
+        "RecalcStyleDurationMs": 8,
+        "TaskDurationMs": 107
+      },
+      "observedMs": 2530,
+      "pageErrors": [],
+      "requests": 21,
+      "apiRequests": 4,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/social/discover",
+        "/api/fore/storefront/context",
+        "/assets/Community-BMEy_Hf0.js",
+        "/assets/activity-B20B9slc.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/community-CZTO7wCD.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/lock-keyhole-CURTARdk.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/sparkles-BSETgCf3.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/user-plus-fp_JoILA.js",
+        "/community"
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/community",
+      "phase": "repeat",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 22.199999999982538,
+      "fcpMs": 96,
+      "lcpMs": 96,
+      "lcpElement": {
+        "tag": "H1",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 114.60000000000582,
+          "durationMs": 1001.1999999999825,
+          "responseStartMs": 1115.2999999999884
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 115,
+          "durationMs": 927.1000000000058,
+          "responseStartMs": 1041.5
+        },
+        {
+          "path": "/api/fore/social/discover",
+          "startMs": 120.5,
+          "durationMs": 930.6999999999825,
+          "responseStartMs": 1050.8999999999942
+        },
+        {
+          "path": "/api/fore/social/discover",
+          "startMs": 120.69999999998254,
+          "durationMs": 1059.2000000000116,
+          "responseStartMs": 1179.3999999999942
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 9494,
+      "observedJsBytes": 315786,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 20,
+        "LayoutDurationMs": 2,
+        "RecalcStyleDurationMs": 6,
+        "TaskDurationMs": 68
+      },
+      "observedMs": 2130,
+      "pageErrors": [],
+      "requests": 21,
+      "apiRequests": 4,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/social/discover",
+        "/api/fore/storefront/context",
+        "/assets/Community-BMEy_Hf0.js",
+        "/assets/activity-B20B9slc.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/community-CZTO7wCD.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/lock-keyhole-CURTARdk.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/sparkles-BSETgCf3.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/user-plus-fp_JoILA.js",
+        "/community"
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/audiobooks",
+      "phase": "fresh-context",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 70.5,
+      "fcpMs": 188,
+      "lcpMs": 188,
+      "lcpElement": {
+        "tag": "H1",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 284.79999999998836,
+          "durationMs": 656.6000000000058,
+          "responseStartMs": 940.6999999999825
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 285.3999999999942,
+          "durationMs": 588.8999999999942,
+          "responseStartMs": 873.7999999999884
+        },
+        {
+          "path": "/api/fore/audiobooks",
+          "startMs": 293.3999999999942,
+          "durationMs": 1034.8999999999942,
+          "responseStartMs": 1300.1999999999825
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 412519,
+      "observedJsBytes": 329872,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 56,
+        "LayoutDurationMs": 9,
+        "RecalcStyleDurationMs": 9,
+        "TaskDurationMs": 121
+      },
+      "observedMs": 2374,
+      "pageErrors": [],
+      "requests": 17,
+      "apiRequests": 3,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/audiobooks",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/audiobooks-CLEAFXyh.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/audiobooks"
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/audiobooks",
+      "phase": "repeat",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 23.39999999999418,
+      "fcpMs": 60,
+      "lcpMs": 60,
+      "lcpElement": {
+        "tag": "H1",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 82.10000000000582,
+          "durationMs": 362.1000000000058,
+          "responseStartMs": 443.6000000000058
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 82.39999999999418,
+          "durationMs": 292.5,
+          "responseStartMs": 374.29999999998836
+        },
+        {
+          "path": "/api/fore/audiobooks",
+          "startMs": 85.89999999999418,
+          "durationMs": 713.1000000000058,
+          "responseStartMs": 775.6000000000058
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 38940,
+      "observedJsBytes": 329872,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 22,
+        "LayoutDurationMs": 3,
+        "RecalcStyleDurationMs": 7,
+        "TaskDurationMs": 73
+      },
+      "observedMs": 2109,
+      "pageErrors": [],
+      "requests": 17,
+      "apiRequests": 3,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/audiobooks",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/audiobooks-CLEAFXyh.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/audiobooks"
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/read/1342",
+      "phase": "fresh-context",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 61.19999999998254,
+      "fcpMs": 260,
+      "lcpMs": 260,
+      "lcpElement": {
+        "tag": "H2",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 341.29999999998836,
+          "durationMs": 373.20000000001164,
+          "responseStartMs": 714
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 341.79999999998836,
+          "durationMs": 260.6000000000058,
+          "responseStartMs": 601.7999999999884
+        },
+        {
+          "path": "/api/fore/books/1342",
+          "startMs": 350.69999999998254,
+          "durationMs": 517.5,
+          "responseStartMs": 867.6999999999825
+        },
+        {
+          "path": "/api/fore/audiobooks",
+          "startMs": 351.0999999999767,
+          "durationMs": 550.6000000000058,
+          "responseStartMs": 901.2999999999884
+        },
+        {
+          "path": "/api/fore/books/1342/epub",
+          "startMs": 874.7999999999884,
+          "durationMs": 1381.7000000000116,
+          "responseStartMs": 2175.0999999999767
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 1191675,
+      "observedJsBytes": 568172,
+      "readerReadyMs": 2433.2999999999884,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 143,
+        "LayoutDurationMs": 6,
+        "RecalcStyleDurationMs": 8,
+        "TaskDurationMs": 335
+      },
+      "observedMs": 4673,
+      "pageErrors": [],
+      "requests": 42,
+      "apiRequests": 5,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/audiobooks",
+        "/api/fore/books/1342",
+        "/api/fore/books/1342/epub",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/Community-BMEy_Hf0.js",
+        "/assets/Shelves-DZbHyfsx.js",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/activity-B20B9slc.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/arrow-left-8usZFkro.js",
+        "/assets/credit-card-BHxuYiq5.js",
+        "/assets/file-down-6mQ02JTi.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/jszip.min-DhiFe-R7.js",
+        "/assets/key-round-C0RKgiIV.js",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/lock-keyhole-CURTARdk.js",
+        "/assets/music-2-DRQQGW0T.js",
+        "/assets/pencil-DkxH-qqZ.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/read._id-DiIJ15TP.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/service-worker-BVe9GNM4.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/shield-check-C0jDp-TJ.js",
+        "/assets/smartphone-9WA9NtEX.js",
+        "/assets/sparkles-BSETgCf3.js",
+        "/assets/src-CmgIrcov.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/trash-2-Bx6HSOWP.js",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/user-plus-fp_JoILA.js",
+        "/assets/wallet-cards-DPKD_UxF.js",
+        "/read/1342"
+      ]
+    },
+    {
+      "profile": "desktop",
+      "route": "/read/1342",
+      "phase": "repeat",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 20.60000000000582,
+      "fcpMs": 92,
+      "lcpMs": 92,
+      "lcpElement": {
+        "tag": "H2",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 117.39999999999418,
+          "durationMs": 345.6000000000058,
+          "responseStartMs": 462.3999999999942
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 117.79999999998836,
+          "durationMs": 273.80000000001746,
+          "responseStartMs": 391.1000000000058
+        },
+        {
+          "path": "/api/fore/books/1342",
+          "startMs": 122.5,
+          "durationMs": 673.6000000000058,
+          "responseStartMs": 795.6000000000058
+        },
+        {
+          "path": "/api/fore/audiobooks",
+          "startMs": 122.69999999998254,
+          "durationMs": 790.2000000000116,
+          "responseStartMs": 912.3999999999942
+        },
+        {
+          "path": "/api/fore/books/1342/epub",
+          "startMs": 806.1999999999825,
+          "durationMs": 1609.7000000000116,
+          "responseStartMs": 2305.6999999999825
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 573015,
+      "observedJsBytes": 568172,
+      "readerReadyMs": 2574.600000000006,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 84,
+        "LayoutDurationMs": 2,
+        "RecalcStyleDurationMs": 7,
+        "TaskDurationMs": 262
+      },
+      "observedMs": 4940,
+      "pageErrors": [],
+      "requests": 42,
+      "apiRequests": 5,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/audiobooks",
+        "/api/fore/books/1342",
+        "/api/fore/books/1342/epub",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/Community-BMEy_Hf0.js",
+        "/assets/Shelves-DZbHyfsx.js",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/activity-B20B9slc.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/arrow-left-8usZFkro.js",
+        "/assets/credit-card-BHxuYiq5.js",
+        "/assets/file-down-6mQ02JTi.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/jszip.min-DhiFe-R7.js",
+        "/assets/key-round-C0RKgiIV.js",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/lock-keyhole-CURTARdk.js",
+        "/assets/music-2-DRQQGW0T.js",
+        "/assets/pencil-DkxH-qqZ.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/read._id-DiIJ15TP.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/service-worker-BVe9GNM4.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/shield-check-C0jDp-TJ.js",
+        "/assets/smartphone-9WA9NtEX.js",
+        "/assets/sparkles-BSETgCf3.js",
+        "/assets/src-CmgIrcov.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/trash-2-Bx6HSOWP.js",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/user-plus-fp_JoILA.js",
+        "/assets/wallet-cards-DPKD_UxF.js",
+        "/read/1342"
+      ]
+    },
+    {
+      "profile": "mobile-4g",
+      "route": "/",
+      "phase": "fresh-context",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 71,
+      "fcpMs": 2568,
+      "lcpMs": 2568,
+      "lcpElement": {
+        "tag": "H1",
+        "className": ""
+      },
+      "cls": 0.04051327883255527,
+      "shifts": [
+        {
+          "value": 0.0002102491510151679,
+          "time": 4514.100000000006,
+          "sources": [
+            {
+              "tag": "DIV",
+              "className": "filter-selects",
+              "previous": {
+                "x": 75,
+                "y": 461.6875,
+                "width": 307,
+                "height": 46,
+                "top": 461.6875,
+                "right": 382,
+                "bottom": 507.6875,
+                "left": 75
+              },
+              "current": {
+                "x": 71.9375,
+                "y": 461.6875,
+                "width": 310.0625,
+                "height": 46,
+                "top": 461.6875,
+                "right": 382,
+                "bottom": 507.6875,
+                "left": 71.9375
+              }
+            }
+          ]
+        },
+        {
+          "value": 0.04051327883255527,
+          "time": 5662.8000000000175,
+          "sources": [
+            {
+              "tag": "DIV",
+              "className": "catalog-controls",
+              "previous": {
+                "x": 16,
+                "y": 389.109375,
+                "width": 366,
+                "height": 131.171875,
+                "top": 389.109375,
+                "right": 382,
+                "bottom": 520.28125,
+                "left": 16
+              },
+              "current": {
+                "x": 16,
+                "y": 456.609375,
+                "width": 366,
+                "height": 131.171875,
+                "top": 456.609375,
+                "right": 382,
+                "bottom": 587.78125,
+                "left": 16
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "search-facets",
+              "previous": {
+                "x": 11,
+                "y": 535.28125,
+                "width": 371,
+                "height": 191.71875,
+                "top": 535.28125,
+                "right": 382,
+                "bottom": 727,
+                "left": 11
+              },
+              "current": {
+                "x": 11,
+                "y": 602.78125,
+                "width": 371,
+                "height": 124.21875,
+                "top": 602.78125,
+                "right": 382,
+                "bottom": 727,
+                "left": 11
+              }
+            },
+            {
+              "tag": "svg",
+              "className": "[object SVGAnimatedString]",
+              "previous": {
+                "x": 207.328125,
+                "y": 684.28125,
+                "width": 16,
+                "height": 16,
+                "top": 684.28125,
+                "right": 223.328125,
+                "bottom": 700.28125,
+                "left": 207.328125
+              },
+              "current": {
+                "x": 0,
+                "y": 0,
+                "width": 0,
+                "height": 0,
+                "top": 0,
+                "right": 0,
+                "bottom": 0,
+                "left": 0
+              }
+            }
+          ]
+        }
+      ],
+      "apiTimings": [
+        {
+          "path": "/api/fore/account",
+          "startMs": 4278.3000000000175,
+          "durationMs": 290.8999999999942,
+          "responseStartMs": 4564.5
+        },
+        {
+          "path": "/api/fore/taxonomy",
+          "startMs": 4423.400000000023,
+          "durationMs": 1173.0999999999767,
+          "responseStartMs": 5578
+        }
+      ],
+      "longTaskCount": 4,
+      "longTaskTotalMs": 314,
+      "eventTimingMaxMs": 96,
+      "observedResourceBytes": 414610,
+      "observedJsBytes": 337792,
+      "readerReadyMs": null,
+      "visibleBookCards": 24,
+      "interactionNextPaintMs": 163,
+      "mainThread": {
+        "ScriptDurationMs": 550,
+        "LayoutDurationMs": 43,
+        "RecalcStyleDurationMs": 119,
+        "TaskDurationMs": 1143
+      },
+      "observedMs": 6861,
+      "pageErrors": [],
+      "requests": 25,
+      "apiRequests": 4,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/",
+        "/api/fore/account",
+        "/api/fore/merchandising",
+        "/api/fore/recommendations/home",
+        "/api/fore/taxonomy",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/routes-BiQRgrXd.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/cache/epub/1/pg1.cover.medium.jpg",
+        "/cache/epub/10/pg10.cover.medium.jpg",
+        "/cache/epub/100/pg100.cover.medium.jpg",
+        "/cache/epub/1000/pg1000.cover.medium.jpg",
+        "/cache/epub/10000/pg10000.cover.medium.jpg",
+        "/cache/epub/10001/pg10001.cover.medium.jpg"
+      ]
+    },
+    {
+      "profile": "mobile-4g",
+      "route": "/",
+      "phase": "repeat",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 26.89999999999418,
+      "fcpMs": 2412,
+      "lcpMs": 2412,
+      "lcpElement": {
+        "tag": "H1",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [],
+      "longTaskCount": 2,
+      "longTaskTotalMs": 114,
+      "eventTimingMaxMs": 72,
+      "observedResourceBytes": 28725,
+      "observedJsBytes": 337792,
+      "readerReadyMs": null,
+      "visibleBookCards": 24,
+      "interactionNextPaintMs": 146,
+      "mainThread": {
+        "ScriptDurationMs": 243,
+        "LayoutDurationMs": 15,
+        "RecalcStyleDurationMs": 100,
+        "TaskDurationMs": 640
+      },
+      "observedMs": 4942,
+      "pageErrors": [],
+      "requests": 25,
+      "apiRequests": 4,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/",
+        "/api/fore/account",
+        "/api/fore/merchandising",
+        "/api/fore/recommendations/home",
+        "/api/fore/taxonomy",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/routes-BiQRgrXd.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/cache/epub/1/pg1.cover.medium.jpg",
+        "/cache/epub/10/pg10.cover.medium.jpg",
+        "/cache/epub/100/pg100.cover.medium.jpg",
+        "/cache/epub/1000/pg1000.cover.medium.jpg",
+        "/cache/epub/10000/pg10000.cover.medium.jpg",
+        "/cache/epub/10001/pg10001.cover.medium.jpg"
+      ]
+    },
+    {
+      "profile": "mobile-4g",
+      "route": "/search?q=mystery",
+      "phase": "fresh-context",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 63,
+      "fcpMs": 1136,
+      "lcpMs": 1136,
+      "lcpElement": {
+        "tag": "H1",
+        "className": ""
+      },
+      "cls": 0.06272791093424947,
+      "shifts": [
+        {
+          "value": 0.0005605271432767282,
+          "time": 2873.600000000006,
+          "sources": [
+            {
+              "tag": "DIV",
+              "className": "filter-selects",
+              "previous": {
+                "x": 75,
+                "y": 399.453125,
+                "width": 307,
+                "height": 46,
+                "top": 399.453125,
+                "right": 382,
+                "bottom": 445.453125,
+                "left": 75
+              },
+              "current": {
+                "x": 67.015625,
+                "y": 399.453125,
+                "width": 317.09375,
+                "height": 46,
+                "top": 399.453125,
+                "right": 384.109375,
+                "bottom": 445.453125,
+                "left": 67.015625
+              }
+            }
+          ]
+        },
+        {
+          "value": 0.04598738752070614,
+          "time": 6697.899999999994,
+          "sources": [
+            {
+              "tag": "DIV",
+              "className": "search-facets",
+              "previous": {
+                "x": 11,
+                "y": 454.453125,
+                "width": 371,
+                "height": 272.546875,
+                "top": 454.453125,
+                "right": 382,
+                "bottom": 727,
+                "left": 11
+              },
+              "current": {
+                "x": 11,
+                "y": 521.953125,
+                "width": 371,
+                "height": 205.046875,
+                "top": 521.953125,
+                "right": 382,
+                "bottom": 727,
+                "left": 11
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "catalog-controls",
+              "previous": {
+                "x": 16,
+                "y": 345.453125,
+                "width": 368.109375,
+                "height": 100,
+                "top": 345.453125,
+                "right": 384.109375,
+                "bottom": 445.453125,
+                "left": 16
+              },
+              "current": {
+                "x": 16,
+                "y": 412.953125,
+                "width": 368.109375,
+                "height": 100,
+                "top": 412.953125,
+                "right": 384.109375,
+                "bottom": 512.953125,
+                "left": 16
+              }
+            }
+          ]
+        },
+        {
+          "value": 0.016740523413543328,
+          "time": 7103.700000000012,
+          "sources": [
+            {
+              "tag": "DIV",
+              "className": "search-facets",
+              "previous": {
+                "x": 11,
+                "y": 521.953125,
+                "width": 371,
+                "height": 205.046875,
+                "top": 521.953125,
+                "right": 382,
+                "bottom": 727,
+                "left": 11
+              },
+              "current": {
+                "x": 11,
+                "y": 559.125,
+                "width": 371,
+                "height": 167.875,
+                "top": 559.125,
+                "right": 382,
+                "bottom": 727,
+                "left": 11
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "filter-selects",
+              "previous": {
+                "x": 67.015625,
+                "y": 466.953125,
+                "width": 317.09375,
+                "height": 46,
+                "top": 466.953125,
+                "right": 384.109375,
+                "bottom": 512.953125,
+                "left": 67.015625
+              },
+              "current": {
+                "x": 64.90625,
+                "y": 485.53125,
+                "width": 317.09375,
+                "height": 46,
+                "top": 485.53125,
+                "right": 382,
+                "bottom": 531.53125,
+                "left": 64.90625
+              }
+            }
+          ]
+        }
+      ],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 2732,
+          "durationMs": 3326.100000000006,
+          "responseStartMs": 6048.3000000000175
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 2736.7000000000116,
+          "durationMs": 3156.399999999994,
+          "responseStartMs": 5890.399999999994
+        },
+        {
+          "path": "/api/fore/storefront/page",
+          "startMs": 2798.600000000006,
+          "durationMs": 3229.2000000000116,
+          "responseStartMs": 6020.3000000000175
+        },
+        {
+          "path": "/api/fore/taxonomy",
+          "startMs": 2801,
+          "durationMs": 3834.2000000000116,
+          "responseStartMs": 6617.5
+        },
+        {
+          "path": "/api/fore/catalog",
+          "startMs": 2803.2000000000116,
+          "durationMs": 4214.600000000006,
+          "responseStartMs": 6940.899999999994
+        }
+      ],
+      "longTaskCount": 5,
+      "longTaskTotalMs": 333,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 409577,
+      "observedJsBytes": 337738,
+      "readerReadyMs": null,
+      "visibleBookCards": 24,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 575,
+        "LayoutDurationMs": 37,
+        "RecalcStyleDurationMs": 81,
+        "TaskDurationMs": 1085
+      },
+      "observedMs": 9323,
+      "pageErrors": [],
+      "requests": 27,
+      "apiRequests": 6,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/catalog",
+        "/api/fore/events",
+        "/api/fore/storefront/context",
+        "/api/fore/storefront/page",
+        "/api/fore/taxonomy",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/search-DM84EdX5.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/cache/epub/1651/pg1651.cover.medium.jpg",
+        "/cache/epub/1678/pg1678.cover.medium.jpg",
+        "/cache/epub/42455/pg42455.cover.medium.jpg",
+        "/cache/epub/46581/pg46581.cover.medium.jpg",
+        "/cache/epub/5164/pg5164.cover.medium.jpg",
+        "/cache/epub/564/pg564.cover.medium.jpg",
+        "/search"
+      ]
+    },
+    {
+      "profile": "mobile-4g",
+      "route": "/search?q=mystery",
+      "phase": "repeat",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 25.39999999999418,
+      "fcpMs": 236,
+      "lcpMs": 236,
+      "lcpElement": {
+        "tag": "H1",
+        "className": ""
+      },
+      "cls": 0.06272791093424947,
+      "shifts": [
+        {
+          "value": 0.04598738752070614,
+          "time": 3431.399999999994,
+          "sources": [
+            {
+              "tag": "DIV",
+              "className": "search-facets",
+              "previous": {
+                "x": 11,
+                "y": 454.453125,
+                "width": 371,
+                "height": 272.546875,
+                "top": 454.453125,
+                "right": 382,
+                "bottom": 727,
+                "left": 11
+              },
+              "current": {
+                "x": 11,
+                "y": 521.953125,
+                "width": 371,
+                "height": 205.046875,
+                "top": 521.953125,
+                "right": 382,
+                "bottom": 727,
+                "left": 11
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "catalog-controls",
+              "previous": {
+                "x": 16,
+                "y": 345.453125,
+                "width": 368.109375,
+                "height": 100,
+                "top": 345.453125,
+                "right": 384.109375,
+                "bottom": 445.453125,
+                "left": 16
+              },
+              "current": {
+                "x": 16,
+                "y": 412.953125,
+                "width": 368.109375,
+                "height": 100,
+                "top": 412.953125,
+                "right": 384.109375,
+                "bottom": 512.953125,
+                "left": 16
+              }
+            }
+          ]
+        },
+        {
+          "value": 0.016740523413543328,
+          "time": 3819.899999999994,
+          "sources": [
+            {
+              "tag": "DIV",
+              "className": "search-facets",
+              "previous": {
+                "x": 11,
+                "y": 521.953125,
+                "width": 371,
+                "height": 205.046875,
+                "top": 521.953125,
+                "right": 382,
+                "bottom": 727,
+                "left": 11
+              },
+              "current": {
+                "x": 11,
+                "y": 559.125,
+                "width": 371,
+                "height": 167.875,
+                "top": 559.125,
+                "right": 382,
+                "bottom": 727,
+                "left": 11
+              }
+            },
+            {
+              "tag": "DIV",
+              "className": "filter-selects",
+              "previous": {
+                "x": 67.015625,
+                "y": 466.953125,
+                "width": 317.09375,
+                "height": 46,
+                "top": 466.953125,
+                "right": 384.109375,
+                "bottom": 512.953125,
+                "left": 67.015625
+              },
+              "current": {
+                "x": 64.90625,
+                "y": 485.53125,
+                "width": 317.09375,
+                "height": 46,
+                "top": 485.53125,
+                "right": 382,
+                "bottom": 531.53125,
+                "left": 64.90625
+              }
+            }
+          ]
+        }
+      ],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 388,
+          "durationMs": 2405.399999999994,
+          "responseStartMs": 2774.5999999999767
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 390.79999999998836,
+          "durationMs": 1127.3999999999942,
+          "responseStartMs": 1515.5
+        },
+        {
+          "path": "/api/fore/storefront/page",
+          "startMs": 429.5,
+          "durationMs": 2326.2999999999884,
+          "responseStartMs": 2752.0999999999767
+        },
+        {
+          "path": "/api/fore/taxonomy",
+          "startMs": 431.5999999999767,
+          "durationMs": 2961.8000000000175,
+          "responseStartMs": 3374.5999999999767
+        },
+        {
+          "path": "/api/fore/catalog",
+          "startMs": 433.5999999999767,
+          "durationMs": 3304.600000000006,
+          "responseStartMs": 3659.1999999999825
+        },
+        {
+          "path": "/api/fore/events",
+          "startMs": 3793.2999999999884,
+          "durationMs": 597.7000000000116,
+          "responseStartMs": 4383.1999999999825
+        }
+      ],
+      "longTaskCount": 2,
+      "longTaskTotalMs": 109,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 28314,
+      "observedJsBytes": 337738,
+      "readerReadyMs": null,
+      "visibleBookCards": 24,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 300,
+        "LayoutDurationMs": 15,
+        "RecalcStyleDurationMs": 59,
+        "TaskDurationMs": 633
+      },
+      "observedMs": 5861,
+      "pageErrors": [],
+      "requests": 27,
+      "apiRequests": 6,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/catalog",
+        "/api/fore/events",
+        "/api/fore/storefront/context",
+        "/api/fore/storefront/page",
+        "/api/fore/taxonomy",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/search-DM84EdX5.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/cache/epub/1651/pg1651.cover.medium.jpg",
+        "/cache/epub/1678/pg1678.cover.medium.jpg",
+        "/cache/epub/42455/pg42455.cover.medium.jpg",
+        "/cache/epub/46581/pg46581.cover.medium.jpg",
+        "/cache/epub/5164/pg5164.cover.medium.jpg",
+        "/cache/epub/564/pg564.cover.medium.jpg",
+        "/search"
+      ]
+    },
+    {
+      "profile": "mobile-4g",
+      "route": "/book/1342",
+      "phase": "fresh-context",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 76.59999999997672,
+      "fcpMs": 2660,
+      "lcpMs": 6768,
+      "lcpElement": {
+        "tag": "IMG",
+        "className": ""
+      },
+      "cls": 0.22145804676753783,
+      "shifts": [
+        {
+          "value": 0.22145804676753783,
+          "time": 6444.6999999999825,
+          "sources": [
+            {
+              "tag": "FOOTER",
+              "className": "cove-site-footer",
+              "previous": {
+                "x": 0,
+                "y": 318.5,
+                "width": 393,
+                "height": 161.75,
+                "top": 318.5,
+                "right": 393,
+                "bottom": 480.25,
+                "left": 0
+              },
+              "current": {
+                "x": 0,
+                "y": 0,
+                "width": 0,
+                "height": 0,
+                "top": 0,
+                "right": 0,
+                "bottom": 0,
+                "left": 0
+              }
+            }
+          ]
+        }
+      ],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 4905.5,
+          "durationMs": 373.8999999999942,
+          "responseStartMs": 5263.099999999977
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 4908.799999999988,
+          "durationMs": 287.29999999998836,
+          "responseStartMs": 5191.5
+        },
+        {
+          "path": "/api/fore/books/1342/detail",
+          "startMs": 4944.099999999977,
+          "durationMs": 1437,
+          "responseStartMs": 6365
+        },
+        {
+          "path": "/api/fore/books/1342/reviews",
+          "startMs": 6409.5,
+          "durationMs": 383.8999999999942,
+          "responseStartMs": 6787.6999999999825
+        },
+        {
+          "path": "/api/fore/recommendations/event",
+          "startMs": 6415.099999999977,
+          "durationMs": 469.1000000000058,
+          "responseStartMs": 6881.599999999977
+        },
+        {
+          "path": "/api/fore/events",
+          "startMs": 6417,
+          "durationMs": 534.5,
+          "responseStartMs": 6943.6999999999825
+        }
+      ],
+      "longTaskCount": 2,
+      "longTaskTotalMs": 148,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 521994,
+      "observedJsBytes": 429189,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 385,
+        "LayoutDurationMs": 36,
+        "RecalcStyleDurationMs": 40,
+        "TaskDurationMs": 725
+      },
+      "observedMs": 7017,
+      "pageErrors": [],
+      "requests": 41,
+      "apiRequests": 8,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/audiobooks",
+        "/api/fore/books/1342/detail",
+        "/api/fore/books/1342/reviews",
+        "/api/fore/events",
+        "/api/fore/recommendations/book",
+        "/api/fore/recommendations/event",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/Book-vFKgeCNt.js",
+        "/assets/Shelves-DZbHyfsx.js",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/arrow-left-8usZFkro.js",
+        "/assets/book._id-Btmz7xP1.js",
+        "/assets/credit-card-BHxuYiq5.js",
+        "/assets/file-down-6mQ02JTi.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/jszip.min-DhiFe-R7.js",
+        "/assets/key-round-C0RKgiIV.js",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/pencil-DkxH-qqZ.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/service-worker-BVe9GNM4.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/shield-check-C0jDp-TJ.js",
+        "/assets/smartphone-9WA9NtEX.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/trash-2-Bx6HSOWP.js",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/user-plus-fp_JoILA.js",
+        "/assets/wallet-cards-DPKD_UxF.js",
+        "/book/1342",
+        "/covers/1342.jpg"
+      ]
+    },
+    {
+      "profile": "mobile-4g",
+      "route": "/book/1342",
+      "phase": "repeat",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 28,
+      "fcpMs": 4808,
+      "lcpMs": 4808,
+      "lcpElement": {
+        "tag": "P",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 4943.299999999988,
+          "durationMs": 1455.7000000000116,
+          "responseStartMs": 6388.799999999988
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 4944.899999999994,
+          "durationMs": 1349.1000000000058,
+          "responseStartMs": 6291.899999999994
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 7595,
+      "observedJsBytes": 429189,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 87,
+        "LayoutDurationMs": 3,
+        "RecalcStyleDurationMs": 20,
+        "TaskDurationMs": 295
+      },
+      "observedMs": 7002,
+      "pageErrors": [],
+      "requests": 35,
+      "apiRequests": 3,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/books/1342/detail",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/Book-vFKgeCNt.js",
+        "/assets/Shelves-DZbHyfsx.js",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/arrow-left-8usZFkro.js",
+        "/assets/book._id-Btmz7xP1.js",
+        "/assets/credit-card-BHxuYiq5.js",
+        "/assets/file-down-6mQ02JTi.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/jszip.min-DhiFe-R7.js",
+        "/assets/key-round-C0RKgiIV.js",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/pencil-DkxH-qqZ.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/service-worker-BVe9GNM4.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/shield-check-C0jDp-TJ.js",
+        "/assets/smartphone-9WA9NtEX.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/trash-2-Bx6HSOWP.js",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/user-plus-fp_JoILA.js",
+        "/assets/wallet-cards-DPKD_UxF.js",
+        "/book/1342"
+      ]
+    },
+    {
+      "profile": "mobile-4g",
+      "route": "/library",
+      "phase": "fresh-context",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 89.10000000000582,
+      "fcpMs": 1120,
+      "lcpMs": 4104,
+      "lcpElement": {
+        "tag": "P",
+        "className": ""
+      },
+      "cls": 0.09814610456569081,
+      "shifts": [
+        {
+          "value": 0.09814610456569081,
+          "time": 4081,
+          "sources": [
+            {
+              "tag": "FOOTER",
+              "className": "cove-site-footer",
+              "previous": {
+                "x": 0,
+                "y": 423.953125,
+                "width": 393,
+                "height": 161.75,
+                "top": 423.953125,
+                "right": 393,
+                "bottom": 585.703125,
+                "left": 0
+              },
+              "current": {
+                "x": 0,
+                "y": 610.546875,
+                "width": 393,
+                "height": 116.453125,
+                "top": 610.546875,
+                "right": 393,
+                "bottom": 727,
+                "left": 0
+              }
+            }
+          ]
+        }
+      ],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 3230.399999999994,
+          "durationMs": 1447.6000000000058,
+          "responseStartMs": 4668.200000000012
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 3233.7999999999884,
+          "durationMs": 821.2000000000116,
+          "responseStartMs": 4048.2000000000116
+        }
+      ],
+      "longTaskCount": 1,
+      "longTaskTotalMs": 88,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 471574,
+      "observedJsBytes": 415543,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 289,
+        "LayoutDurationMs": 16,
+        "RecalcStyleDurationMs": 31,
+        "TaskDurationMs": 556
+      },
+      "observedMs": 5486,
+      "pageErrors": [],
+      "requests": 31,
+      "apiRequests": 2,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/Shelves-DZbHyfsx.js",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/credit-card-BHxuYiq5.js",
+        "/assets/file-down-6mQ02JTi.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/jszip.min-DhiFe-R7.js",
+        "/assets/key-round-C0RKgiIV.js",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/library-BnC0jYRa.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/pencil-DkxH-qqZ.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/service-worker-BVe9GNM4.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/shield-check-C0jDp-TJ.js",
+        "/assets/smartphone-9WA9NtEX.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/trash-2-Bx6HSOWP.js",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/wallet-cards-DPKD_UxF.js",
+        "/library"
+      ]
+    },
+    {
+      "profile": "mobile-4g",
+      "route": "/library",
+      "phase": "repeat",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 31.300000000017462,
+      "fcpMs": 212,
+      "lcpMs": 700,
+      "lcpElement": {
+        "tag": "P",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 372.1000000000058,
+          "durationMs": 407.80000000001746,
+          "responseStartMs": 763.2000000000116
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 373.9000000000233,
+          "durationMs": 286.19999999998254,
+          "responseStartMs": 655.5
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 7850,
+      "observedJsBytes": 415543,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 86,
+        "LayoutDurationMs": 4,
+        "RecalcStyleDurationMs": 19,
+        "TaskDurationMs": 282
+      },
+      "observedMs": 2419,
+      "pageErrors": [],
+      "requests": 31,
+      "apiRequests": 2,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/Shelves-DZbHyfsx.js",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/credit-card-BHxuYiq5.js",
+        "/assets/file-down-6mQ02JTi.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/jszip.min-DhiFe-R7.js",
+        "/assets/key-round-C0RKgiIV.js",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/library-BnC0jYRa.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/pencil-DkxH-qqZ.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/service-worker-BVe9GNM4.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/shield-check-C0jDp-TJ.js",
+        "/assets/smartphone-9WA9NtEX.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/trash-2-Bx6HSOWP.js",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/wallet-cards-DPKD_UxF.js",
+        "/library"
+      ]
+    },
+    {
+      "profile": "mobile-4g",
+      "route": "/community",
+      "phase": "fresh-context",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 73.60000000000582,
+      "fcpMs": 1096,
+      "lcpMs": 1096,
+      "lcpElement": {
+        "tag": "P",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 2606.1999999999825,
+          "durationMs": 430.1000000000058,
+          "responseStartMs": 3026.7999999999884
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 2609.100000000006,
+          "durationMs": 292.5,
+          "responseStartMs": 2895.6999999999825
+        },
+        {
+          "path": "/api/fore/social/discover",
+          "startMs": 2641.600000000006,
+          "durationMs": 372.0999999999767,
+          "responseStartMs": 3005.6999999999825
+        },
+        {
+          "path": "/api/fore/social/discover",
+          "startMs": 2643.7999999999884,
+          "durationMs": 407.8999999999942,
+          "responseStartMs": 3049.899999999994
+        }
+      ],
+      "longTaskCount": 1,
+      "longTaskTotalMs": 82,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 369824,
+      "observedJsBytes": 315786,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 241,
+        "LayoutDurationMs": 17,
+        "RecalcStyleDurationMs": 30,
+        "TaskDurationMs": 491
+      },
+      "observedMs": 4950,
+      "pageErrors": [],
+      "requests": 21,
+      "apiRequests": 4,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/social/discover",
+        "/api/fore/storefront/context",
+        "/assets/Community-BMEy_Hf0.js",
+        "/assets/activity-B20B9slc.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/community-CZTO7wCD.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/lock-keyhole-CURTARdk.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/sparkles-BSETgCf3.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/user-plus-fp_JoILA.js",
+        "/community"
+      ]
+    },
+    {
+      "profile": "mobile-4g",
+      "route": "/community",
+      "phase": "repeat",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 27.699999999982538,
+      "fcpMs": 220,
+      "lcpMs": 220,
+      "lcpElement": {
+        "tag": "P",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 337.5999999999767,
+          "durationMs": 402.70000000001164,
+          "responseStartMs": 728.5
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 339.5,
+          "durationMs": 259.0999999999767,
+          "responseStartMs": 593.8999999999942
+        },
+        {
+          "path": "/api/fore/social/discover",
+          "startMs": 354.5,
+          "durationMs": 318.8999999999942,
+          "responseStartMs": 669.7999999999884
+        },
+        {
+          "path": "/api/fore/social/discover",
+          "startMs": 356.29999999998836,
+          "durationMs": 407.29999999998836,
+          "responseStartMs": 761.8999999999942
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 9498,
+      "observedJsBytes": 315786,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 77,
+        "LayoutDurationMs": 8,
+        "RecalcStyleDurationMs": 19,
+        "TaskDurationMs": 251
+      },
+      "observedMs": 2389,
+      "pageErrors": [],
+      "requests": 21,
+      "apiRequests": 4,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/social/discover",
+        "/api/fore/storefront/context",
+        "/assets/Community-BMEy_Hf0.js",
+        "/assets/activity-B20B9slc.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/community-CZTO7wCD.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/lock-keyhole-CURTARdk.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/sparkles-BSETgCf3.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/user-plus-fp_JoILA.js",
+        "/community"
+      ]
+    },
+    {
+      "profile": "mobile-4g",
+      "route": "/audiobooks",
+      "phase": "fresh-context",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 63.69999999998254,
+      "fcpMs": 1076,
+      "lcpMs": 1076,
+      "lcpElement": {
+        "tag": "H1",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 2626.0999999999767,
+          "durationMs": 379.80000000001746,
+          "responseStartMs": 2993.0999999999767
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 2628.899999999994,
+          "durationMs": 309.6000000000058,
+          "responseStartMs": 2929.7999999999884
+        },
+        {
+          "path": "/api/fore/audiobooks",
+          "startMs": 2663.899999999994,
+          "durationMs": 1316.1999999999825,
+          "responseStartMs": 3823.5
+        }
+      ],
+      "longTaskCount": 1,
+      "longTaskTotalMs": 75,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 412426,
+      "observedJsBytes": 329872,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 244,
+        "LayoutDurationMs": 25,
+        "RecalcStyleDurationMs": 32,
+        "TaskDurationMs": 503
+      },
+      "observedMs": 4939,
+      "pageErrors": [],
+      "requests": 17,
+      "apiRequests": 3,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/audiobooks",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/audiobooks-CLEAFXyh.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/audiobooks"
+      ]
+    },
+    {
+      "profile": "mobile-4g",
+      "route": "/audiobooks",
+      "phase": "repeat",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 23.79999999998836,
+      "fcpMs": 248,
+      "lcpMs": 248,
+      "lcpElement": {
+        "tag": "H1",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 337.5999999999767,
+          "durationMs": 382.5,
+          "responseStartMs": 704.2999999999884
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 339.3999999999942,
+          "durationMs": 306.1000000000058,
+          "responseStartMs": 642.8999999999942
+        },
+        {
+          "path": "/api/fore/audiobooks",
+          "startMs": 355.5999999999767,
+          "durationMs": 912.1000000000058,
+          "responseStartMs": 1114.5
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 38949,
+      "observedJsBytes": 329872,
+      "readerReadyMs": null,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 89,
+        "LayoutDurationMs": 14,
+        "RecalcStyleDurationMs": 23,
+        "TaskDurationMs": 288
+      },
+      "observedMs": 2393,
+      "pageErrors": [],
+      "requests": 17,
+      "apiRequests": 3,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/audiobooks",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/audiobooks-CLEAFXyh.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/audiobooks"
+      ]
+    },
+    {
+      "profile": "mobile-4g",
+      "route": "/read/1342",
+      "phase": "fresh-context",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 75.70000000001164,
+      "fcpMs": 1672,
+      "lcpMs": 1672,
+      "lcpElement": {
+        "tag": "H2",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 3448.600000000006,
+          "durationMs": 382.6000000000058,
+          "responseStartMs": 3816.2999999999884
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 3451.600000000006,
+          "durationMs": 319.5,
+          "responseStartMs": 3762.2999999999884
+        },
+        {
+          "path": "/api/fore/books/1342",
+          "startMs": 3494.7000000000116,
+          "durationMs": 673.7999999999884,
+          "responseStartMs": 4164.600000000006
+        },
+        {
+          "path": "/api/fore/audiobooks",
+          "startMs": 3497.2999999999884,
+          "durationMs": 542.7000000000116,
+          "responseStartMs": 4020.399999999994
+        },
+        {
+          "path": "/api/fore/books/1342/epub",
+          "startMs": 4233.299999999988,
+          "durationMs": 4104.8000000000175,
+          "responseStartMs": 5529.700000000012
+        }
+      ],
+      "longTaskCount": 2,
+      "longTaskTotalMs": 133,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 1191569,
+      "observedJsBytes": 568172,
+      "readerReadyMs": 8973.700000000012,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 675,
+        "LayoutDurationMs": 23,
+        "RecalcStyleDurationMs": 37,
+        "TaskDurationMs": 1697
+      },
+      "observedMs": 11429,
+      "pageErrors": [],
+      "requests": 42,
+      "apiRequests": 5,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/audiobooks",
+        "/api/fore/books/1342",
+        "/api/fore/books/1342/epub",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/Community-BMEy_Hf0.js",
+        "/assets/Shelves-DZbHyfsx.js",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/activity-B20B9slc.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/arrow-left-8usZFkro.js",
+        "/assets/credit-card-BHxuYiq5.js",
+        "/assets/file-down-6mQ02JTi.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/jszip.min-DhiFe-R7.js",
+        "/assets/key-round-C0RKgiIV.js",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/lock-keyhole-CURTARdk.js",
+        "/assets/music-2-DRQQGW0T.js",
+        "/assets/pencil-DkxH-qqZ.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/read._id-DiIJ15TP.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/service-worker-BVe9GNM4.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/shield-check-C0jDp-TJ.js",
+        "/assets/smartphone-9WA9NtEX.js",
+        "/assets/sparkles-BSETgCf3.js",
+        "/assets/src-CmgIrcov.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/trash-2-Bx6HSOWP.js",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/user-plus-fp_JoILA.js",
+        "/assets/wallet-cards-DPKD_UxF.js",
+        "/read/1342"
+      ]
+    },
+    {
+      "profile": "mobile-4g",
+      "route": "/read/1342",
+      "phase": "repeat",
+      "status": 200,
+      "failure": null,
+      "ttfbMs": 27.300000000017462,
+      "fcpMs": 220,
+      "lcpMs": 220,
+      "lcpElement": {
+        "tag": "H2",
+        "className": ""
+      },
+      "cls": 0,
+      "shifts": [],
+      "apiTimings": [
+        {
+          "path": "/api/fore/storefront/context",
+          "startMs": 362,
+          "durationMs": 468.5,
+          "responseStartMs": 816.6000000000058
+        },
+        {
+          "path": "/api/fore/account",
+          "startMs": 363.70000000001164,
+          "durationMs": 339,
+          "responseStartMs": 700
+        },
+        {
+          "path": "/api/fore/books/1342",
+          "startMs": 385.70000000001164,
+          "durationMs": 781.7999999999884,
+          "responseStartMs": 1163.9000000000233
+        },
+        {
+          "path": "/api/fore/audiobooks",
+          "startMs": 387.80000000001746,
+          "durationMs": 667.3999999999942,
+          "responseStartMs": 1034.2000000000116
+        },
+        {
+          "path": "/api/fore/books/1342/epub",
+          "startMs": 1216.8000000000175,
+          "durationMs": 4203.1999999999825,
+          "responseStartMs": 2609.4000000000233
+        }
+      ],
+      "longTaskCount": 0,
+      "longTaskTotalMs": 0,
+      "eventTimingMaxMs": null,
+      "observedResourceBytes": 572792,
+      "observedJsBytes": 568172,
+      "readerReadyMs": 5942.900000000023,
+      "visibleBookCards": 0,
+      "interactionNextPaintMs": null,
+      "mainThread": {
+        "ScriptDurationMs": 352,
+        "LayoutDurationMs": 10,
+        "RecalcStyleDurationMs": 36,
+        "TaskDurationMs": 1226
+      },
+      "observedMs": 8327,
+      "pageErrors": [],
+      "requests": 42,
+      "apiRequests": 5,
+      "offlineAssetRequests": 0,
+      "requestPaths": [
+        "/api/fore/account",
+        "/api/fore/audiobooks",
+        "/api/fore/books/1342",
+        "/api/fore/books/1342/epub",
+        "/api/fore/storefront/context",
+        "/assets/Audio-ClZTpCNc.js",
+        "/assets/Community-BMEy_Hf0.js",
+        "/assets/Shelves-DZbHyfsx.js",
+        "/assets/Store-D0lms3e-.js",
+        "/assets/activity-B20B9slc.js",
+        "/assets/alert-dialog-tl-WsUNK.js",
+        "/assets/arrow-left-8usZFkro.js",
+        "/assets/credit-card-BHxuYiq5.js",
+        "/assets/file-down-6mQ02JTi.js",
+        "/assets/index-BR_gO2jH.js",
+        "/assets/index-CVMsvfBs.css",
+        "/assets/jszip.min-DhiFe-R7.js",
+        "/assets/key-round-C0RKgiIV.js",
+        "/assets/lazyRouteComponent-DhJUDDH_.js",
+        "/assets/loader-circle-D3pi9pXI.js",
+        "/assets/lock-keyhole-CURTARdk.js",
+        "/assets/music-2-DRQQGW0T.js",
+        "/assets/pencil-DkxH-qqZ.js",
+        "/assets/plus-DxED00EO.js",
+        "/assets/read._id-DiIJ15TP.js",
+        "/assets/rolldown-runtime-aKtaBQYM.js",
+        "/assets/rotate-ccw-Byi63AbN.js",
+        "/assets/search-Dlz5w5wv.js",
+        "/assets/select-DasrB4fs.js",
+        "/assets/seo-loader-CFcbAY07.js",
+        "/assets/service-worker-BVe9GNM4.js",
+        "/assets/sheet-CYA-aWLt.js",
+        "/assets/shield-check-C0jDp-TJ.js",
+        "/assets/smartphone-9WA9NtEX.js",
+        "/assets/sparkles-BSETgCf3.js",
+        "/assets/src-CmgIrcov.js",
+        "/assets/styles-Ce7Hxykk.css",
+        "/assets/trash-2-Bx6HSOWP.js",
+        "/assets/useMatch-D5hbDAP3.js",
+        "/assets/user-plus-fp_JoILA.js",
+        "/assets/wallet-cards-DPKD_UxF.js",
+        "/read/1342"
+      ]
+    }
+  ]
+}

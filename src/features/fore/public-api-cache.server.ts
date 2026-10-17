@@ -16,6 +16,9 @@ export function publicCacheTtl(path: string) {
   if (path === "/api/fore/storefront/bootstrap") return 300;
   if (path === "/api/fore/taxonomy") return 1800;
   if (path === "/api/fore/storefront/page") return 900;
+  // UI context only: authenticated requests bypass shared caching, and every
+  // commerce/rights endpoint independently resolves current legal authority.
+  if (path === "/api/fore/storefront/context") return 30;
   if (path === "/api/fore/search/suggest") return 60;
   if (path === "/api/fore/audiobooks" || /^\/api\/fore\/audio\/[^/]+$/.test(path)) return 300;
   if (/^\/api\/fore\/books\/[^/]+(?:\/detail)?$/.test(path)) return 60;
