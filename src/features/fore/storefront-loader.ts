@@ -2,7 +2,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requestStorefrontBootstrap } from "./storefront-bootstrap-fetch";
-import { recoverStorefrontBootstrap } from "./storefront-bootstrap-recovery";
+import {
+  recoverStorefrontBootstrap,
+  storefrontRecoveryTransport,
+} from "./storefront-bootstrap-recovery";
 
 export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
   .inputValidator((value: string) => z.string().max(2000).parse(value))
@@ -41,9 +44,7 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       recover: (request, api) =>
         recoverStorefrontBootstrap(
           request,
-          remoteRequired
-            ? (forwarded) => fetch(new Request(forwarded, { redirect: "manual", cache: "no-store" }))
-            : api,
+          storefrontRecoveryTransport(api, fetch, remoteRequired),
           remoteRequired,
           remoteRequired,
         ),
