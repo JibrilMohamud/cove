@@ -45,10 +45,14 @@ try {
   assert.deepEqual(called, [key]);
   assert.deepEqual(recorded, [key], "Allowed native SSR must not write to D1");
   await assert.rejects(
-    enforceFirstPaintRateLimit({
-      ...edge,
-      COVE_STOREFRONT_READ_LIMITER: { limit: async () => ({ success: false }) },
-    }, key, 180),
+    enforceFirstPaintRateLimit(
+      {
+        ...edge,
+        COVE_STOREFRONT_READ_LIMITER: { limit: async () => ({ success: false }) },
+      },
+      key,
+      180,
+    ),
     (error) => error.status === 429,
   );
   await assert.rejects(
@@ -56,10 +60,18 @@ try {
     (error) => error.status === 503,
   );
   await assert.rejects(
-    enforceFirstPaintRateLimit({
-      ...edge,
-      COVE_STOREFRONT_READ_LIMITER: { limit: async () => { throw Error("offline"); } },
-    }, key, 180),
+    enforceFirstPaintRateLimit(
+      {
+        ...edge,
+        COVE_STOREFRONT_READ_LIMITER: {
+          limit: async () => {
+            throw Error("offline");
+          },
+        },
+      },
+      key,
+      180,
+    ),
     (error) => error.status === 503,
   );
   assert.deepEqual(recorded, [key], "Stage deny/error must never silently bypass limiter");
