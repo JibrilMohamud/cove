@@ -22,17 +22,35 @@ function headers(extra = {}) {
   return { Authorization: "Bearer " + token, ...extra };
 }
 
+async function waitForUnauthenticatedDenial(pathname) {
+  // A newly written Worker secret is deployed to the global edge asynchronously.
+  // A missing-secret 503 is fail-closed, but not ready for benchmark sampling.
+  // Never mistake a cached 200 or an unprotected asset for readiness.
+  let lastStatus = 0;
+  let lastType = "";
+  let lastBody = "";
+  for (let attempt = 0; attempt < 15; attempt += 1) {
+    const response = await fetch(origin + pathname, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(12_000),
+    });
+    lastStatus = response.status;
+    lastType = response.headers.get("content-type") || "";
+    if (lastStatus === 401) return;
+    if (lastStatus !== 503) break;
+    // This endpoint is unauthenticated: body is either our fail-closed
+    // message or Cloudflare's generic Worker error page.
+    lastBody = (await response.text()).slice(0, 120).replace(/\\s+/g, " ");
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error(
+    `Stage protection not ready: path=${pathname}, status=${lastStatus}, type=${lastType}, body=${JSON.stringify(lastBody)}`,
+  );
+}
+
 async function assertProtected() {
-  const denied = await fetch(origin + "/", {
-    redirect: "manual",
-    signal: AbortSignal.timeout(12_000),
-  });
-  assert.equal(denied.status, 401, "Unauthenticated homepage must not load.");
-  const deniedAsset = await fetch(origin + "/assets/not-real.js", {
-    redirect: "manual",
-    signal: AbortSignal.timeout(12_000),
-  });
-  assert.equal(deniedAsset.status, 401, "Static assets must not bypass authentication.");
+  await waitForUnauthenticatedDenial("/");
+  await waitForUnauthenticatedDenial("/assets/not-real.js");
   const deniedMutation = await fetch(origin + "/", {
     method: "POST",
     headers: headers(),
