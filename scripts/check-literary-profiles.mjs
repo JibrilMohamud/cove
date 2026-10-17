@@ -123,6 +123,26 @@ try {
   const extractor = await import(path.join(root, "literary-extract.server.mjs"));
   const api = await import(path.join(root, "api.server.mjs"));
   const env = localBindings(root);
+  const deferredPlan = await env.DB.prepare(
+    `EXPLAIN QUERY PLAN SELECT s.product_id,s.fingerprint,s.section_id,s.source_key
+     FROM literary_profile_sections s
+     JOIN literary_profiles p ON p.product_id=s.product_id AND p.fingerprint=s.fingerprint
+     LEFT JOIN literary_profile_jobs j ON j.product_id=s.product_id AND j.fingerprint=s.fingerprint
+       AND j.kind='analyze' AND j.section_id=s.section_id
+     WHERE s.profile_json IS NULL AND j.id IS NULL
+       AND p.status IN ('provisional','analyzed')
+     ORDER BY s.updated_at,s.product_id,s.spine_index,s.chunk_index LIMIT 2`,
+  ).all();
+  assert.ok(
+    deferredPlan.results.some((row) =>
+      String(row.detail).includes("literary_deferred_section_frontier"),
+    ),
+    "Deferred chapter claims use the indexed oldest-evidence frontier",
+  );
+  assert.ok(
+    !deferredPlan.results.some((row) => String(row.detail).includes("USE TEMP B-TREE")),
+    "Bounded deferred chapter admission avoids an unbounded sorting pass",
+  );
   await api.handleCoveApi(new Request("https://cove.test/api/fore/catalog"), env);
   // Focus the queue on one seeded public-domain edition with real EPUB structure.
   const product = await env.DB.prepare(
