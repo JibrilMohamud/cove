@@ -54,10 +54,14 @@ test("a degraded cold storefront warns and sustained bad TTFB fails", () => {
     "fail",
   );
   assert.equal(evaluateProbes(samples.slice(0, 4), []).status, "fail");
-  assert.equal(
-    evaluateProbes(samples, [
-      { language: languages[0], sample: 1, error: "Homepage had no server-rendered book cards." },
-    ]).status,
-    "fail",
-  );
+  for (const error of [
+    "Homepage had no server-rendered book cards.",
+    "Homepage returned a non-HTML content type.",
+    "Personalized storefront HTML was not marked no-store.",
+  ]) {
+    assert.equal(
+      evaluateProbes(samples, [{ language: languages[0], sample: 1, error }]).status,
+      "fail",
+    );
+  }
 });
