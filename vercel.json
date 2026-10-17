@@ -36,5 +36,11 @@
         "service": "app"
       }
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "diagnostics/**": false,
+      "docs/**": false
+    }
+  }
 }

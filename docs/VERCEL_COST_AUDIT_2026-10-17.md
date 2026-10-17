@@ -77,6 +77,17 @@ The guard is intentionally conservative. Because each service is independent,
 audio-only preview edits need not rebuild the app and app-only preview edits
 need not rebuild Python. Cross-service and unknown edits still build both.
 
+### Diagnostic branch previews
+
+Vercel Git integration no longer starts automatic deployments for
+`diagnostics/**` and `docs/**` branches, which contain GitHub-run
+read-only production measurements or documentation edits and do not need a
+public application preview. Feature, fix, cost-audit and `main` branches
+retain their normal deployment and review behavior. This saves the build
+startup entirely rather than merely ignoring its individual build step.
+The deployment exception is narrower than turning off preview deployments
+for all code changes.
+
 ## Validation and performance objectives
 
 - CI: strict formatting, TypeScript, security audit, build, audio tests,
