@@ -22,12 +22,12 @@ jobs:
           node --input-type=module <<'NODE'
           const origin = process.env.COVE_PUBLIC_URL;
           const requests = [
-            { path: "/api/fore/storefront/bootstrap", language: "en-US,en-CA,en;q=0.8" },
-            { path: "/api/fore/storefront/bootstrap", language: "en-US,en-CA,en;q=0.8" },
-            { path: "/api/fore/storefront/bootstrap", language: "fr-FR,fr-CA,fr;q=0.8" },
-            { path: "/api/fore/storefront/bootstrap", language: "fr-FR,fr-CA,fr;q=0.8" },
-            { path: "/", language: "en-US,en-CA,en;q=0.8" },
-            { path: "/", language: "fr-FR,fr-CA,fr;q=0.8" },
+            { path: "/", language: "en-US,en-NZ,en;q=0.8" },
+            { path: "/api/fore/storefront/bootstrap", language: "en-US,en-NZ,en;q=0.8" },
+            { path: "/", language: "en-US,en-NZ,en;q=0.8" },
+            { path: "/", language: "fr-FR,fr-BE,fr;q=0.8" },
+            { path: "/api/fore/storefront/bootstrap", language: "fr-FR,fr-BE,fr;q=0.8" },
+            { path: "/", language: "fr-FR,fr-BE,fr;q=0.8" },
           ];
           for (const { path, language } of requests) {
             const start = performance.now();
