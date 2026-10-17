@@ -83,6 +83,7 @@ test("initial bookstore renders books without JavaScript and reuses its server d
   const html = await response.text();
   expect(html).toContain('class="book-card"');
   expect(response.headers()["cache-control"]).toContain("no-store");
+  expect(response.headers()["server-timing"]).toContain("cove_ssr_bootstrap;dur=");
   const noScript = await browser.newContext({
     javaScriptEnabled: false,
     baseURL: "http://127.0.0.1:4173",
