@@ -136,7 +136,8 @@ export function CoveProvider({
     }
   }, [queryClient]);
   useEffect(() => {
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+    // Offline saves and push opt-in prepare the worker explicitly. A first
+    // bookstore visit must not download the complete offline reader bundle.
     reload();
   }, [reload]);
   useEffect(() => {

@@ -128,73 +128,93 @@ export function AudiobooksPage() {
         </Select>
       </div>
       <p className="small muted">
-        {r.data?.count || 0}{" "}
+        {r.data?.count ?? "—"}{" "}
         {ui("audiobook editions · Commercial titles and verified public-domain recordings")}
       </p>
-      {r.error ? (
-        <p className="notice">
-          {r.error.message} <button onClick={() => r.refetch()}>{ui("Retry")}</button>
-        </p>
-      ) : r.isLoading ? (
-        <p>{ui("Finding recordings…")}</p>
-      ) : r.data?.results.length ? (
-        <div className="audio-grid">
-          {r.data.results.map((e) => (
-            <a href={"/listen/" + e.id} className="audio-card" key={e.id}>
-              <div className="audio-cover">
-                <Headphones size={36} />
-                <span>{e.title}</span>
-              </div>
-              <div>
-                <span className={"voice-badge " + e.narration}>{ui(narrationLabel(e))}</span>
-                <h2>{e.title}</h2>
-                <p>{e.authors.map((a) => a.name).join(", ")}</p>
-                <span className="small muted">
-                  {e.narrator || ui("Narrator not listed")} ·{" "}
-                  {e.tracks.length ? `${e.tracks.length} tracks` : ui("Tracks load when opened")}
-                  {e.commercial && e.audioPublisher ? ` · ${e.audioPublisher}` : ""}
-                </span>
-                {e.commercial && (
-                  <span className="small muted">
-                    {e.hasAccess
-                      ? ui("In your library")
-                      : e.offer
-                        ? formatMoney(e.offer.amountMinor, e.offer.currency)
-                        : ui("Commercial edition")}
-                  </span>
-                )}
-                {e.alignment && (
-                  <span className="biosync-badge">
-                    <Link2 size={13} />
-                    {ui("BioSync · {checked} of {total} tracks checked", {
-                      checked: e.coverage?.checkedTracks || 0,
-                      total: e.tracks.length,
-                    })}
-                  </span>
-                )}
-              </div>
-            </a>
-          ))}
-        </div>
-      ) : (
-        <div className="empty-state">
-          <Headphones />
-          <h2>{ui("No recordings match yet.")}</h2>
-          <p>
-            {ui(
-              "Try another voice or search. Availability follows your storefront and each edition’s rights.",
-            )}
+      <div className="audio-results" aria-busy={r.isLoading}>
+        {r.error ? (
+          <p className="notice">
+            {r.error.message} <button onClick={() => r.refetch()}>{ui("Retry")}</button>
           </p>
-          <a
-            href="https://www.gutenberg.org/browse/categories/2"
-            target="_blank"
-            rel="noreferrer"
-            className="text-link"
-          >
-            {ui("Explore Gutenberg’s computer-audio catalog")}
-          </a>
-        </div>
-      )}
+        ) : r.isLoading ? (
+          <>
+            <p role="status" className="sr-only">
+              {ui("Finding recordings…")}
+            </p>
+            <div className="audio-grid audio-loading" aria-hidden="true">
+              {Array.from({ length: 6 }, (_, index) => (
+                <div className="audio-card" key={index}>
+                  <div className="audio-cover">
+                    <Headphones size={36} />
+                  </div>
+                  <div className="audio-loading-lines">
+                    <i />
+                    <i />
+                    <i />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : r.data?.results.length ? (
+          <div className="audio-grid">
+            {r.data.results.map((e) => (
+              <a href={"/listen/" + e.id} className="audio-card" key={e.id}>
+                <div className="audio-cover">
+                  <Headphones size={36} />
+                  <span>{e.title}</span>
+                </div>
+                <div>
+                  <span className={"voice-badge " + e.narration}>{ui(narrationLabel(e))}</span>
+                  <h2>{e.title}</h2>
+                  <p>{e.authors.map((a) => a.name).join(", ")}</p>
+                  <span className="small muted">
+                    {e.narrator || ui("Narrator not listed")} ·{" "}
+                    {e.tracks.length ? `${e.tracks.length} tracks` : ui("Tracks load when opened")}
+                    {e.commercial && e.audioPublisher ? ` · ${e.audioPublisher}` : ""}
+                  </span>
+                  {e.commercial && (
+                    <span className="small muted">
+                      {e.hasAccess
+                        ? ui("In your library")
+                        : e.offer
+                          ? formatMoney(e.offer.amountMinor, e.offer.currency)
+                          : ui("Commercial edition")}
+                    </span>
+                  )}
+                  {e.alignment && (
+                    <span className="biosync-badge">
+                      <Link2 size={13} />
+                      {ui("BioSync · {checked} of {total} tracks checked", {
+                        checked: e.coverage?.checkedTracks || 0,
+                        total: e.tracks.length,
+                      })}
+                    </span>
+                  )}
+                </div>
+              </a>
+            ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <Headphones />
+            <h2>{ui("No recordings match yet.")}</h2>
+            <p>
+              {ui(
+                "Try another voice or search. Availability follows your storefront and each edition’s rights.",
+              )}
+            </p>
+            <a
+              href="https://www.gutenberg.org/browse/categories/2"
+              target="_blank"
+              rel="noreferrer"
+              className="text-link"
+            >
+              {ui("Explore Gutenberg’s computer-audio catalog")}
+            </a>
+          </div>
+        )}
+      </div>
       {(r.data?.pages || 0) > 1 && (
         <div className="pagination">
           <button

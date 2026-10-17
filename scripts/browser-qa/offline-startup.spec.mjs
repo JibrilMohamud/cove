@@ -22,6 +22,9 @@ test("saved EPUB survives closing the app and cold offline navigation without pr
     await page.goto("/read/1342");
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await expect(page.locator("iframe").first()).toBeAttached({ timeout: 45000 });
+    expect(
+      await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length),
+    ).toBe(0);
     await page.evaluate(async () => {
       const epub = await import("/src/features/fore/epub.ts");
       await epub.saveEpubOffline(await epub.loadBookMetadata("1342"));
