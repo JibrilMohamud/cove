@@ -22,25 +22,18 @@ jobs:
           node --input-type=module <<'NODE'
           const origin = process.env.COVE_PUBLIC_URL;
           const requests = [
+            { path: "/", language: "en-US,en;q=0.9" },
+            { path: "/api/fore/storefront/context", language: "en-US,en;q=0.9" },
+            { path: "/api/fore/storefront/page?path=%2F", language: "en-US,en;q=0.9" },
+            { path: "/api/fore/catalog?search=&sort=popular&page=1&currency=USD", language: "en-US,en;q=0.9" },
             { path: "/api/fore/storefront/bootstrap", language: "en-US,en;q=0.9" },
             { path: "/", language: "en-US,en;q=0.9" },
+            { path: "/", language: "fr-FR,fr;q=0.9" },
+            { path: "/api/fore/storefront/context", language: "fr-FR,fr;q=0.9" },
+            { path: "/api/fore/storefront/page?path=%2F", language: "fr-FR,fr;q=0.9" },
+            { path: "/api/fore/catalog?search=&sort=popular&page=1&currency=USD", language: "fr-FR,fr;q=0.9" },
             { path: "/api/fore/storefront/bootstrap", language: "fr-FR,fr;q=0.9" },
             { path: "/", language: "fr-FR,fr;q=0.9" },
-            { path: "/", language: "en-US,en;q=0.9" },
-            { path: "/api/fore/storefront/bootstrap", language: "en-US,en;q=0.9" },
-            { path: "/", language: "en-US,en;q=0.9" },
-            { path: "/", language: "fr-FR,fr;q=0.9" },
-            { path: "/api/fore/storefront/bootstrap", language: "fr-FR,fr;q=0.9" },
-            { path: "/", language: "fr-FR,fr;q=0.9" },
-            { path: "/", language: "de-DE,de;q=0.9" },
-            { path: "/api/fore/storefront/bootstrap", language: "de-DE,de;q=0.9" },
-            { path: "/", language: "de-DE,de;q=0.9" },
-            { path: "/", language: "en-US,en-IE,en;q=0.8" },
-            { path: "/api/fore/storefront/bootstrap", language: "en-US,en-IE,en;q=0.8" },
-            { path: "/", language: "en-US,en-IE,en;q=0.8" },
-            { path: "/", language: "fr-FR,fr-CH,fr;q=0.8" },
-            { path: "/api/fore/storefront/bootstrap", language: "fr-FR,fr-CH,fr;q=0.8" },
-            { path: "/", language: "fr-FR,fr-CH,fr;q=0.8" },
           ];
           for (const { path, language } of requests) {
             const start = performance.now();
@@ -76,6 +69,34 @@ jobs:
                   result.taxonomyIncluded = "taxonomy" in data;
                   result.locale = data.context?.locale ?? null;
                   result.rightsCountry = data.context?.rightsCountry ?? null;
+                } catch {
+                  result.invalidJson = true;
+                }
+              }
+              if (path.includes("/catalog?") && response.ok) {
+                try {
+                  const data = JSON.parse(body);
+                  result.catalogBooks = data.results?.length ?? null;
+                  result.catalogCount = data.count ?? null;
+                } catch {
+                  result.invalidJson = true;
+                }
+              }
+              if (path.includes("/storefront/context") && response.ok) {
+                try {
+                  const data = JSON.parse(body);
+                  result.rightsCountry = data.rightsCountry || null;
+                  result.locale = data.locale || null;
+                  result.currency = data.currency || null;
+                } catch {
+                  result.invalidJson = true;
+                }
+              }
+              if (path.includes("/storefront/page") && response.ok) {
+                try {
+                  const data = JSON.parse(body);
+                  result.pageType = data.pageType || null;
+                  result.queryKeys = Object.keys(data.query || {}).sort();
                 } catch {
                   result.invalidJson = true;
                 }
