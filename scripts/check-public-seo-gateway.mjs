@@ -152,6 +152,25 @@ try {
   assert.equal(valid.status, 200);
   assert.equal(selectScans, 1);
 
+  // A production Cloudflare outage must NOT cause Vercel to import its
+  // enormous seed-backed API module or substitute unverified regional titles.
+  nextStatus = 503;
+  nextHeaders = {};
+  const catalogRequest = new Request("https://cove.example/api/fore/catalog");
+  const blocked = await proxyPersistenceApi(catalogRequest, {
+    ...env,
+    FORE_ENVIRONMENT: "production",
+  });
+  assert.equal(blocked.status, 503);
+  assert.match(blocked.headers.get("cache-control"), /no-store/);
+  assert.equal(blocked.headers.get("Vercel-CDN-Cache-Control"), null);
+  assert.equal((await blocked.json()).error.includes("temporarily unavailable"), true);
+  assert.equal(
+    await proxyPersistenceApi(catalogRequest, { ...env, FORE_ENVIRONMENT: "development" }),
+    null,
+    "Local development may still use its seed for offline testing",
+  );
+
   console.log("Public crawler-document proxy and privacy/cache safety checks passed.");
 } finally {
   globalThis.fetch = originalFetch;
