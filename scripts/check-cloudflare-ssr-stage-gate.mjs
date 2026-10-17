@@ -58,6 +58,7 @@ try {
   const wrangler = fs.readFileSync("wrangler.frontend.staging.toml", "utf8");
   assert.match(wrangler, /^workers_dev\s*=\s*true$/m);
   assert.match(wrangler, /^run_worker_first\s*=\s*true$/m);
+  assert.match(wrangler, /\[placement\]\s*\nmode\s*=\s*"smart"/);
   assert.match(wrangler, /^COVE_SSR_STAGING\s*=\s*"1"$/m);
   assert.doesNotMatch(wrangler, /COVE_SSR_STAGING_GATE_KEY\s*=/);
   assert.doesNotMatch(wrangler, /^routes?\s*=/m);

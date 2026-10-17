@@ -6,6 +6,13 @@ compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
+# Staging-only, rights-neutral Worker placement experiment. The Worker
+# continues to use the original immutable request.cf.country for legal
+# territory; no country/locale preference can authorize new editions.
+# Cloudflare may require sustained traffic (~15 minutes) to settle placement.
+[placement]
+mode = "smart"
+
 [assets]
 directory = "./.output/public"
 binding = "ASSETS"
