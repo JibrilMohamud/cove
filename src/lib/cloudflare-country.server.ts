@@ -13,6 +13,9 @@ export function isolateWorkerCountry(request: Request): Request | null {
   const country = trustedWorkerCountry(request);
   if (!country) return null;
   const headers = new Headers(request.headers);
+  // Native Workers never honor HTTP-forged x-cove-client-ip for rate limits.
+  // Cloudflare preserves its network-provided cf-connecting-ip header.
+  headers.delete("x-cove-client-ip");
   headers.delete("x-cove-client-country");
   headers.delete("cf-ipcountry");
   headers.delete("x-vercel-ip-country");

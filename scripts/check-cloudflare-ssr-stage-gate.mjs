@@ -54,10 +54,14 @@ try {
   assert.equal(isStagingStaticAsset("/_build/client.js"), true);
   assert.equal(isStagingStaticAsset("/api/fore/catalog"), false);
   assert.equal(isStagingStaticAsset("/"), false);
+  const countrySource = fs.readFileSync("src/lib/cloudflare-country.server.ts", "utf8");
+  assert.match(countrySource, /headers\.delete\("x-cove-client-ip"\)/);
   assert.equal(stageNoStore(new Response("ok"), false).headers.get("x-robots-tag"), null);
   const wrangler = fs.readFileSync("wrangler.frontend.staging.toml", "utf8");
   assert.match(wrangler, /^workers_dev\s*=\s*true$/m);
   assert.match(wrangler, /^run_worker_first\s*=\s*true$/m);
+  assert.match(wrangler, /\[\[ratelimits\]\][\s\S]*?name = "COVE_STOREFRONT_READ_LIMITER"/);
+  assert.match(wrangler, /\[ratelimits\.simple\]\s*\nlimit = 180\s*\nperiod = 60/);
   assert.match(wrangler, /\[placement\]\s*\nmode\s*=\s*"smart"/);
   assert.match(wrangler, /^COVE_SSR_STAGING\s*=\s*"1"$/m);
   assert.doesNotMatch(wrangler, /COVE_SSR_STAGING_GATE_KEY\s*=/);

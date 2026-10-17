@@ -26,6 +26,7 @@ import {
   workDetail,
 } from "./discovery.server";
 import { ApiError, rateLimit } from "./service";
+import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
 import { restoreReadingBackup } from "./reading-restore.server";
 import { issueOfflineEpubLicense, offlineEpubVerificationKey } from "./offline-epub.server";
 import { handleCommunity, migrateLegacy } from "./community.server";
@@ -465,6 +466,10 @@ type Statement = {
 export type CoveEnv = {
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   DB: { prepare(sql: string): Statement; batch(s: Statement[]): Promise<unknown> };
+  COVE_STOREFRONT_READ_LIMITER?: {
+    limit(input: { key: string }): Promise<{ success: boolean }>;
+  };
+  COVE_SSR_STAGING?: string;
   BUCKET?: {
     get(key: string, options?: any): Promise<any>;
     head?(key: string): Promise<any>;
@@ -2651,6 +2656,19 @@ export async function rateLimitSearchRequest(
   if (actor) await rateLimit(env, `search:${bucket}:${actor}`, limit);
 }
 
+/** First-paint native reads avoid the global D1 write lock. User actions,
+ * purchases and all other catalog APIs retain durable D1 abuse controls.
+ */
+async function rateLimitFirstPaint(request: Request, env: CoveEnv, userId: string | null) {
+  const ip = clientIp(request);
+  const actor = userId ? `user:${userId}` : ip ? `ip:${ip}` : null;
+  // A missing caller identity must not silently disable abuse prevention on
+  // protected native SSR. Reject and surface the binding regression instead.
+  if (!actor && env.COVE_SSR_STAGING === "1")
+    throw new ApiError(503, "Unable to verify anonymous request for rate limiting.");
+  if (actor) await enforceFirstPaintRateLimit(env, `search:catalog:${actor}`, 180);
+}
+
 export async function runRecommendationMaintenance(env: CoveEnv) {
   const db = database(env);
   const [recommendations, wishlistAlerts] = await Promise.all([
@@ -3029,7 +3047,7 @@ async function handleCoveRequest(
       // market context. Category counts are expensive and can load through the
       // existing rights-filtered /taxonomy query after the shelf has rendered.
       // Only public catalog data goes into the SSR document.
-      await rateLimitSearchRequest(request, env, currentIdentity?.id || null, "catalog", 180);
+      await rateLimitFirstPaint(request, env, currentIdentity?.id || null);
       const catalogQuery = new URLSearchParams({
         search: "",
         sort: "popular",
