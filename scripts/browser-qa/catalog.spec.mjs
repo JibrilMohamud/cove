@@ -124,9 +124,7 @@ test("initial bookstore serves books without JavaScript and refreshes full catal
     await expect
       .poll(
         () =>
-          calls.filter(
-            (requestUrl) => new URL(requestUrl).pathname === "/api/fore/catalog",
-          ).length,
+          calls.filter((requestUrl) => new URL(requestUrl).pathname === "/api/fore/catalog").length,
       )
       .toBeGreaterThanOrEqual(1);
     const paths = calls.map((requestUrl) => new URL(requestUrl).pathname);
