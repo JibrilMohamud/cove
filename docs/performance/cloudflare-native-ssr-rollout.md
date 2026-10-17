@@ -73,6 +73,34 @@ This is not yet a multi-geography, multiday load-test result. The workflow
 also runs a **daily** authenticated stage-only rights/performance gate; failures
 remain visible in GitHub Actions. No scheduled job routes public traffic.
 
+### October 17 native cold-deployment regression and placement experiment
+
+PR #131 removed the anonymous first-paint D1 rate-limit write and
+verified an authenticated staging **20/20** below 800 ms (p95 384 ms,
+max 476 ms) with 24 real, live-rights-cleared SSR book cards each.
+However, a separate deployment of the *same commit* immediately produced
+**10/20 misses**, with slowest 3,612 ms; all books still appeared.
+The first ten calls incurred elevated, inconsistent `cove_backend_context`
+and `cove_backend_catalog` durations, while the final ten settled
+to 250–475 ms. Evidence:
+[repeat benchmark](https://github.com/JibrilMohamud/cove/actions/runs/39080119397).
+This disproves any claim of a sustained cold 20/20 SLO after PR #131 alone.
+
+Read-only D1 metadata reports the current primary in Cloudflare colo
+**ORD / ENAM** (Chicago) as of this check. Cloudflare's explicitly
+supported `placement.region` mode can place a Worker near a fixed cloud
+region before it has collected Smart Placement traffic. The staging-only
+trial therefore uses `region = "aws:us-east-2"` instead of `mode = "smart"`;
+it **must pass independent cold-deployment matrices** before claiming
+a reliable improvement. This is a geography/runtime-placement experiment,
+not an authorization, rights cache, or production route change.
+
+The latest October 17 Vercel public check failed with **17/20** complete
+under-800-ms+SSR-books samples: two slow populated responses at 3,282
+and 6,777 ms, plus one 8.4-second empty bootstrap timeout.
+[Public run](https://github.com/JibrilMohamud/cove/actions/runs/39080119384).
+The public route remains unchanged and fails the SLO.
+
 ### Remaining customer-facing blocker
 
 The existing Vercel homepage remains the actual public product. Its fresh
