@@ -79,12 +79,14 @@ try {
       "x-cove-client-country": "US",
       "cf-ipcountry": "US",
       "x-vercel-ip-country": "US",
+      "x-cove-client-ip": "203.0.113.55",
     },
   });
   Object.defineProperty(attacker, "cf", { value: { country: "CA" } });
   assert.equal(trustedWorkerCountry(attacker), "CA");
   const verified = isolateWorkerCountry(attacker);
   assert.equal(verified.headers.get("x-cove-client-country"), "CA");
+  assert.equal(verified.headers.get("x-cove-client-ip"), null, "Spoofed IP is removed");
   assert.equal(verified.headers.get("cf-ipcountry"), null);
   assert.equal(verified.headers.get("x-vercel-ip-country"), null);
   assert.equal(isolateWorkerCountry(new Request(attacker)), null);
