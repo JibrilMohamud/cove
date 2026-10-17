@@ -1,3 +1,4 @@
+import { saveTasteControls, loadTasteControls } from "./discovery-intelligence.server";
 import { validateStoredEpub } from "./stored-epub.server";
 import { createAuth, resolvedIdentity } from "./auth.server";
 import { handleLegalContact } from "./legal.server";
@@ -140,6 +141,8 @@ import {
   upsertPlacement,
 } from "./merchandising.server";
 import {
+  literaryDiscovery,
+  discoveryTrainingDataset,
   bookRecommendations,
   followAuthor,
   homeRecommendations,
@@ -4039,6 +4042,19 @@ async function handleCoveRequest(
         await recordMerchEvent(database(env), await body(request), identity(request)?.id || null),
       );
     }
+    if (request.method === "POST" && path === "/recommendations/discover") {
+      const recUserId = identity(request)?.id || null;
+      await rateLimitSearchRequest(request, env, recUserId, "recommend-discover", 60);
+      const raw = await body(request);
+      const visitorId = z.string().uuid().parse(url.searchParams.get("visitor"));
+      return json(
+        await literaryDiscovery(
+          env,
+          { userId: recUserId, visitorId, territory: storefrontTerritory },
+          raw,
+        ),
+      );
+    }
     if (request.method === "GET" && path === "/recommendations/home") {
       const recUserId = identity(request)?.id || null;
       await rateLimitSearchRequest(request, env, recUserId, "recommend-home", 180);
@@ -4076,6 +4092,10 @@ async function handleCoveRequest(
       const recUserId = identity(request)?.id || null;
       await rateLimitSearchRequest(request, env, recUserId, "recommend-event", 480);
       return json(await recordRecommendationEvent(database(env), recUserId, await body(request)));
+    }
+    if (request.method === "GET" && path === "/admin/recommendations/discovery-dataset") {
+      await requireStorefrontAdmin(request, env, "recommendations.manage");
+      return json(await discoveryTrainingDataset(database(env)));
     }
     if (request.method === "GET" && path === "/admin/recommendations/status") {
       await requireStorefrontAdmin(request, env, "recommendations.read");
@@ -5263,6 +5283,10 @@ async function handleCoveRequest(
     if (request.method === "POST" && path === "/preview/state") {
       return json(await savePreviewState(db, user.id, await body(request)));
     }
+    if (request.method === "GET" && path === "/recommendations/taste")
+      return json(await loadTasteControls(db, user.id));
+    if (request.method === "POST" && path === "/recommendations/taste")
+      return json(await saveTasteControls(db, user.id, await body(request)));
     if (request.method === "GET" && path === "/recommendations/account") {
       return json(await recommendationAccountState(db, user.id));
     }

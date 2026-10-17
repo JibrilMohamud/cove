@@ -125,7 +125,7 @@ assert.match(source, /p\.source_name<>'upload'/);
 const search = fs.readFileSync("src/features/fore/search.server.ts", "utf8");
 assert.match(search, /personalizeSearchBooks/);
 assert.match(search, /windowLimit/);
-assert.match(search, /slice\(start,start\+input\.limit\)/);
+assert.match(search, /slice\(start,\s*start\s*\+\s*input\.limit\)/);
 const merch = fs.readFileSync("src/features/fore/merchandising.server.ts", "utf8");
 assert.match(merch, /recommendationPlacementBooks/);
 const store = fs.readFileSync("src/features/fore/Store.tsx", "utf8");

@@ -1,3 +1,22 @@
+import { discoveryRankerSchema, rankFeatures, satisfactionPrediction } from "./discovery-ranker";
+import {
+  DISCOVERY_VERSION,
+  discoveryDimensions,
+  literaryCompatibility,
+  featureMatchesTag,
+  satisfactionEvidence,
+  parseDiscoveryIntent,
+  tasteControlsSchema,
+  type LiteraryFeature,
+  type TasteControls,
+} from "./discovery-engine";
+import {
+  buildLiteraryTaste,
+  loadDiscoveryFeatures,
+  loadTasteControls,
+  literaryDiscoveryStatus,
+  retrieveLiteraryCandidates,
+} from "./discovery-intelligence.server";
 import { z } from "zod";
 import type { CatalogBook } from "./client";
 import { canonicalBooksByProductIds, type CatalogDB } from "./catalog-model.server";
@@ -21,6 +40,7 @@ type ItemMeta = {
   productId: string;
   externalBookId: string;
   editionId: string;
+  workId: string;
   title: string;
   format: string;
   authorIds: string[];
@@ -39,6 +59,7 @@ type ItemMeta = {
   trend: number;
   rating: number;
   reviewCount: number;
+  readingMinutesMax: number | null;
 };
 type Candidate = {
   productId: string;
@@ -49,6 +70,8 @@ type Candidate = {
   reasonText: string;
   reasonScore?: number;
   meta?: ItemMeta;
+  literaryFeatures?: LiteraryFeature[];
+  rankFeatures?: number[];
 };
 type FeatureRow = { feature_type: string; feature_key: string; score: number };
 export type RecommendationRail = {
@@ -67,6 +90,10 @@ const DEFAULT_MODEL_VERSION = "1";
 const FEATURE_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_CANDIDATES = 500;
 const allowedEvents = new Set([
+  "loved",
+  "not_for_me",
+  "abandon",
+  "recommend",
   "book_view",
   "sample_start",
   "read_start",
@@ -81,20 +108,6 @@ const allowedEvents = new Set([
   "recommendation_click",
   "search_click",
 ]);
-const eventWeights: Record<string, number> = {
-  book_view: 0.2,
-  sample_start: 0.8,
-  read_start: 2,
-  read_progress: 0.35,
-  library_add: 3,
-  completion: 7,
-  rating: 2.5,
-  wishlist_add: 3,
-  wishlist_remove: -1.5,
-  purchase: 8,
-  recommendation_click: 0.7,
-  search_click: 0.4,
-};
 
 function parseArray(value: unknown): string[] {
   try {
@@ -237,11 +250,21 @@ export async function setRecommendationPrivacy(db: CatalogDB, userId: string, ra
 
 export async function resetRecommendationProfile(db: CatalogDB, userId: string, raw: unknown) {
   const scope = z.object({ scope: z.enum(["learned", "all"]).default("learned") }).parse(raw).scope;
+  await db
+    .prepare(
+      "INSERT INTO recommendation_learning_boundaries(user_id,reset_at) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET reset_at=excluded.reset_at",
+    )
+    .bind(userId, now())
+    .run();
   await db.prepare("DELETE FROM recommendation_events WHERE user_id=?").bind(userId).run();
   await db.prepare("DELETE FROM recommendation_user_features WHERE user_id=?").bind(userId).run();
   await db.prepare("DELETE FROM recommendation_feedback WHERE user_id=?").bind(userId).run();
   await db.prepare("DELETE FROM recommendation_requests WHERE user_id=?").bind(userId).run();
   if (scope === "all") {
+    await db
+      .prepare("DELETE FROM recommendation_taste_controls WHERE user_id=?")
+      .bind(userId)
+      .run();
     await db.prepare("DELETE FROM author_follows WHERE user_id=?").bind(userId).run();
     await db.prepare("DELETE FROM wishlist_items WHERE user_id=?").bind(userId).run();
   }
@@ -270,15 +293,23 @@ async function queueRecommendationJob(db: CatalogDB, jobType: string, entityId?:
 
 async function productMeta(db: CatalogDB, productIds: string[]): Promise<Map<string, ItemMeta>> {
   if (!productIds.length) return new Map();
-  const ids = uniq(productIds).slice(0, MAX_CANDIDATES),
+  if (productIds.length > 80) {
+    const combined = new Map<string, ItemMeta>();
+    for (let offset = 0; offset < productIds.length; offset += 80)
+      for (const [id, meta] of await productMeta(db, productIds.slice(offset, offset + 80)))
+        combined.set(id, meta);
+    return combined;
+  }
+  const ids = uniq(productIds),
     placeholders = ids.map(() => "?").join(",");
   const rows = await db
     .prepare(
-      `SELECT p.id product_id,p.source_external_id,p.format,e.id edition_id,e.release_date,
+      `SELECT p.id product_id,p.source_external_id,p.format,e.id edition_id,e.work_id,e.release_date,
     COALESCE(pub.id,'') publisher_id,COALESCE(pub.name,'') publisher_name,
     COALESCE(d.title,e.title) title,COALESCE(d.price_minor,0) price_minor,COALESCE(d.currency,'USD') currency,
     COALESCE(m.popularity_score,d.download_count,0) popularity_score,COALESCE(m.trend_score,d.sales_velocity,0) trend_score,
     COALESCE(m.average_rating,d.average_rating,0) average_rating,COALESCE(m.rating_count,d.review_count,0) review_count,
+    CASE WHEN json_extract(lp.reading_time_json,'$.method') IN ('epub_text','publisher_word_count','publisher_page_estimate') THEN json_extract(lp.reading_time_json,'$.rangeMinutes[1]') END reading_minutes_max,
     (SELECT json_group_array(ec.contributor_id) FROM edition_contributors ec WHERE ec.edition_id=e.id AND ec.role='author') author_ids,
     (SELECT json_group_array(c.name) FROM edition_contributors ec JOIN contributors c ON c.id=ec.contributor_id WHERE ec.edition_id=e.id AND ec.role='author') author_names,
     (SELECT json_group_array(sm.series_id) FROM series_memberships sm WHERE sm.edition_id=e.id) series_ids,
@@ -286,7 +317,7 @@ async function productMeta(db: CatalogDB, productIds: string[]): Promise<Map<str
     (SELECT json_group_object(sm.series_id,COALESCE(sm.position,0)) FROM series_memberships sm WHERE sm.edition_id=e.id) series_positions,
     (SELECT json_group_array(n.path) FROM edition_taxonomy_nodes et JOIN storefront_taxonomy_nodes n ON n.id=et.taxonomy_node_id WHERE et.edition_id=e.id AND n.visible=1) taxonomy_paths,
     (SELECT json_group_array(el.language_code) FROM edition_languages el WHERE el.edition_id=e.id AND el.kind='content') languages
-    FROM products p JOIN editions e ON e.id=p.edition_id LEFT JOIN publishers pub ON pub.id=e.publisher_id LEFT JOIN catalog_search_documents d ON d.product_id=p.id LEFT JOIN recommendation_item_metrics m ON m.product_id=p.id
+    FROM products p JOIN editions e ON e.id=p.edition_id LEFT JOIN publishers pub ON pub.id=e.publisher_id LEFT JOIN catalog_search_documents d ON d.product_id=p.id LEFT JOIN recommendation_item_metrics m ON m.product_id=p.id LEFT JOIN literary_profiles lp ON lp.product_id=p.id
     WHERE p.id IN (${placeholders})`,
     )
     .bind(...ids)
@@ -297,6 +328,7 @@ async function productMeta(db: CatalogDB, productIds: string[]): Promise<Map<str
       productId: String(r.product_id),
       externalBookId: String(r.source_external_id),
       editionId: String(r.edition_id),
+      workId: String(r.work_id),
       title: String(r.title || ""),
       format: String(r.format || "ebook"),
       authorIds: parseArray(r.author_ids),
@@ -315,6 +347,7 @@ async function productMeta(db: CatalogDB, productIds: string[]): Promise<Map<str
       trend: Number(r.trend_score || 0),
       rating: Number(r.average_rating || 0),
       reviewCount: Number(r.review_count || 0),
+      readingMinutesMax: r.reading_minutes_max == null ? null : Number(r.reading_minutes_max),
     });
   }
   return map;
@@ -380,13 +413,13 @@ export async function rebuildUserFeatures(db: CatalogDB, userId: string) {
       `SELECT rs.product_id,rs.status,rs.progress,rs.updated_at,r.rating_steps,
     EXISTS(SELECT 1 FROM completion_events c WHERE c.user_id=rs.user_id AND c.product_id=rs.product_id) completed
     FROM reading_states rs LEFT JOIN reviews r ON r.user_id=rs.user_id AND r.book_id=rs.external_book_id
-    WHERE rs.user_id=? ORDER BY rs.updated_at DESC LIMIT 400`,
+    WHERE rs.user_id=? AND rs.updated_at>COALESCE((SELECT reset_at FROM recommendation_learning_boundaries WHERE user_id=rs.user_id),'') ORDER BY rs.updated_at DESC LIMIT 400`,
     )
     .bind(userId)
     .all<any>();
   const events = await db
     .prepare(
-      "SELECT product_id,event_type,value,occurred_at FROM recommendation_events WHERE user_id=? AND occurred_at>=datetime('now','-365 days') ORDER BY occurred_at DESC LIMIT 1500",
+      "SELECT product_id,event_type,value,occurred_at FROM recommendation_events WHERE user_id=? AND occurred_at>=datetime('now','-365 days') AND occurred_at>COALESCE((SELECT reset_at FROM recommendation_learning_boundaries WHERE user_id=recommendation_events.user_id),'') ORDER BY occurred_at DESC LIMIT 1500",
     )
     .bind(userId)
     .all<any>();
@@ -416,15 +449,34 @@ export async function rebuildUserFeatures(db: CatalogDB, userId: string) {
     if (s.status === "reading") base += 2.2;
     if (s.status === "finished" || s.completed) base += 5.5;
     base += Math.max(0, Math.min(1, Number(s.progress || 0))) * 1.5;
-    if (s.rating_steps != null) base += (Number(s.rating_steps) - 6) * 1.15;
+    if (s.rating_steps != null) base = satisfactionEvidence("rating", Number(s.rating_steps) / 2);
     applyMetaFeatures(features, m, base * decay(String(s.updated_at), 120), String(s.updated_at));
   }
+  const behavioral = new Map<string, { value: number; date: string; explicit: boolean }>();
   for (const e of events.results) {
-    const m = meta.get(String(e.product_id));
-    if (!m) continue;
-    let base = eventWeights[String(e.event_type)] || 0;
-    if (e.event_type === "rating" && e.value != null) base += (Number(e.value) - 3) * 1.4;
-    applyMetaFeatures(features, m, base * decay(String(e.occurred_at), 45), String(e.occurred_at));
+    const id = String(e.product_id),
+      old = behavioral.get(id) || { value: 0, date: String(e.occurred_at), explicit: false };
+    if (old.explicit) continue;
+    const explicit = ["rating", "loved", "not_for_me", "recommend", "abandon"].includes(
+      String(e.event_type),
+    );
+    const weight = satisfactionEvidence(
+      String(e.event_type),
+      e.value == null ? null : Number(e.value),
+    );
+    if (explicit) {
+      old.value = 0;
+      old.explicit = true;
+    }
+    old.value = Math.max(
+      -8,
+      Math.min(explicit ? 8 : 3, old.value + weight * decay(String(e.occurred_at), 45)),
+    );
+    behavioral.set(id, old);
+  }
+  for (const [id, evidence] of behavioral) {
+    const m = meta.get(id);
+    if (m) applyMetaFeatures(features, m, evidence.value, evidence.date);
   }
   // Explicit negative feedback must teach the profile, not merely suppress one SKU.
   for (const f of feedback.results) {
@@ -433,7 +485,8 @@ export async function rebuildUserFeatures(db: CatalogDB, userId: string) {
       date = String(f.updated_at || now());
     if (type === "product") {
       const m = meta.get(id);
-      if (m) applyMetaFeatures(features, m, -4.5 * decay(date, 180), date);
+      // Product rejection hides this book; do not infer a dislike of every shared attribute.
+      if (m) addFeature(features, "product", id, -4.5 * decay(date, 180), date);
     } else if (type === "author") addFeature(features, "author", id, -7 * decay(date, 240), date);
     else if (type === "series") addFeature(features, "series", id, -8 * decay(date, 240), date);
   }
@@ -555,7 +608,9 @@ async function collaborativeScores(
       `SELECT b.product_id,COUNT(DISTINCT b.user_id) score FROM reading_states a JOIN reading_states b ON b.user_id=a.user_id AND b.product_id<>a.product_id
     LEFT JOIN recommendation_privacy rp ON rp.user_id=a.user_id
     JOIN products p ON p.id=b.product_id
-    WHERE a.product_id IN (${ph}) AND a.in_library=1 AND b.in_library=1 AND p.storefront_status='active' AND COALESCE(rp.activity_personalization_enabled,1)=1${exclude}
+    LEFT JOIN reviews ra ON ra.user_id=a.user_id AND ra.book_id=a.external_book_id
+    LEFT JOIN reviews rb ON rb.user_id=b.user_id AND rb.book_id=b.external_book_id
+    WHERE a.product_id IN (${ph}) AND a.in_library=1 AND b.in_library=1 AND (a.status='finished' OR a.progress>=0.5) AND (b.status='finished' OR b.progress>=0.5) AND (ra.rating_steps IS NULL OR ra.rating_steps>=8) AND (rb.rating_steps IS NULL OR rb.rating_steps>=8) AND p.storefront_status='active' AND COALESCE(rp.activity_personalization_enabled,1)=1${exclude}
     GROUP BY b.product_id HAVING score>=1 ORDER BY score DESC LIMIT ?`,
     )
     .bind(...bindings)
@@ -569,7 +624,7 @@ async function seedProducts(db: CatalogDB, userId: string | null) {
   if (!userId) return [] as string[];
   const r = await db
     .prepare(
-      `SELECT product_id FROM reading_states WHERE user_id=? AND (status IN ('reading','finished') OR progress>0.1) ORDER BY CASE status WHEN 'reading' THEN 0 ELSE 1 END,updated_at DESC LIMIT 20`,
+      `SELECT product_id FROM reading_states WHERE user_id=? AND updated_at>COALESCE((SELECT reset_at FROM recommendation_learning_boundaries WHERE user_id=reading_states.user_id),'') AND (status IN ('reading','finished') OR progress>0.1) ORDER BY CASE status WHEN 'reading' THEN 0 ELSE 1 END,updated_at DESC LIMIT 20`,
     )
     .bind(userId)
     .all<any>();
@@ -773,7 +828,18 @@ function diversitySelect(
         for (const s of m.seriesIds) penalty += (seriesCount.get(s) || 0) * 2.4;
         for (const r of rootTaxonomy(m.taxonomyPaths)) penalty += (rootCount.get(r) || 0) * 0.45;
         const jitter = (hash32(`${seed}:${c.productId}`) % 1000) / 100000;
-        const value = c.score - penalty * diversity + jitter;
+        const overlap = Math.max(
+          0,
+          ...chosen.map((p) => {
+            const a = new Set((p.literaryFeatures || []).map((f) => `${f.dimension}:${f.feature}`));
+            const b = c.literaryFeatures || [];
+            return b.length
+              ? b.filter((f) => a.has(`${f.dimension}:${f.feature}`)).length /
+                  Math.max(a.size, b.length)
+              : 0;
+          }),
+        );
+        const value = c.score - (penalty + overlap * 2) * diversity + jitter;
         if (value > best) {
           best = value;
           bestIndex = i;
@@ -781,6 +847,7 @@ function diversitySelect(
       }
     const [pick] = remaining.splice(bestIndex, 1);
     if (!pick?.meta) continue;
+    if (chosen.some((c) => c.meta?.workId === pick.meta?.workId)) continue;
     chosen.push(pick);
     for (const a of pick.meta.authorIds) authorCount.set(a, (authorCount.get(a) || 0) + 1);
     for (const s of pick.meta.seriesIds) seriesCount.set(s, (seriesCount.get(s) || 0) + 1);
@@ -826,6 +893,7 @@ async function candidatePool(
     mode: string;
     includeOwned?: boolean;
     model?: ModelRuntime;
+    intent?: TasteControls;
   },
 ) {
   const started = Date.now(),
@@ -836,17 +904,46 @@ async function candidatePool(
   const generators = modelStringArray(model, "candidateGenerators"),
     enabled = (name: string) => !generators.length || generators.includes(name);
   const anchorId = opts.anchorProductId || null,
-    seeds = await seedProducts(db, personalizationUserId),
+    seeds = await seedProducts(
+      db,
+      privacy.activityPersonalizationEnabled ? personalizationUserId : null,
+    ),
     features = await userFeatures(db, personalizationUserId);
-  const ids = await activeCandidateIds(
+  const controls = opts.intent || (await loadTasteControls(db, personalizationUserId));
+  const taste = await buildLiteraryTaste(
+    db,
+    privacy.activityPersonalizationEnabled ? personalizationUserId : null,
+  );
+  const anchorFeatures = anchorId
+    ? (await loadDiscoveryFeatures(db, [anchorId])).get(anchorId) || []
+    : [];
+  const learnedTerms = [...taste.entries()]
+    .filter(([, v]) => v.long > 0)
+    .sort((a, b) => b[1].long - a[1].long)
+    .slice(0, 6)
+    .map(([key]) => {
+      const [dimension, ...parts] = key.split(":");
+      return { dimension, feature: parts.join(":"), confidence: 1 };
+    });
+  const explicitTerms = controls.likes.flatMap((feature) =>
+    discoveryDimensions.map((dimension) => ({ feature, dimension, confidence: 1 })),
+  );
+  const literaryIds = await retrieveLiteraryCandidates(
+    db,
+    [...explicitTerms, ...anchorFeatures, ...learnedTerms],
+    opts.territory,
+  );
+  const fallbackIds = await activeCandidateIds(
     db,
     opts.territory,
     Math.min(MAX_CANDIDATES, Math.max(100, Number(model.config.maxCandidates || 450))),
   );
-  if (anchorId && !ids.includes(anchorId)) ids.push(anchorId);
-  const collab = enabled("collaborative")
-    ? await collaborativeScores(db, personalizationUserId, anchorId ? [anchorId] : seeds)
-    : new Map<string, number>();
+  const ids = [...new Set([...literaryIds, ...fallbackIds])].slice(0, 450);
+  if (anchorId && !ids.includes(anchorId)) ids.unshift(anchorId);
+  const collab =
+    enabled("collaborative") && (!opts.userId || privacy.activityPersonalizationEnabled)
+      ? await collaborativeScores(db, personalizationUserId, anchorId ? [anchorId] : seeds)
+      : new Map<string, number>();
   for (const id of collab.keys()) if (!ids.includes(id)) ids.push(id);
   const neighborScores = new Map<string, number>(),
     coReadNeighborScores = new Map<string, number>();
@@ -874,6 +971,7 @@ async function candidatePool(
   });
   for (const id of externalCandidate.scores.keys())
     if (!ids.includes(id) && ids.length < MAX_CANDIDATES) ids.push(id);
+  const literaryFeatures = await loadDiscoveryFeatures(db, ids);
   const metas = await productMeta(db, ids),
     anchor = anchorId ? metas.get(anchorId) : undefined,
     owned = await ownedSet(db, personalizationUserId),
@@ -888,7 +986,48 @@ async function candidatePool(
     )
       continue;
     if (!opts.includeOwned && owned.has(id)) continue;
-    const affinity = features.length ? affinityScore(m, features) : 0;
+    const lf = literaryFeatures.get(id) || [];
+    if (
+      controls.maxMinutes !== null &&
+      (m.readingMinutesMax === null || m.readingMinutesMax > controls.maxMinutes)
+    )
+      continue;
+    if (
+      controls.languages.length &&
+      !m.languages.some((l) =>
+        controls.languages.some((wanted) => l.toLowerCase() === wanted.toLowerCase()),
+      )
+    )
+      continue;
+    if (lf.some((f) => controls.dislikes.some((t) => featureMatchesTag(f, t)))) continue;
+    const literary = literaryCompatibility(lf, taste, controls);
+    if (literary.score !== 0)
+      mergeCandidate(
+        map,
+        id,
+        literary.score,
+        "literary-taste",
+        "literary-taste",
+        literary.matches.length
+          ? `Matches your interest in ${literary.matches.join(", ")}`
+          : "Literary taste compatibility",
+      );
+    const shared = lf.filter((f) =>
+      anchorFeatures.some((a) => a.dimension === f.dimension && a.feature === f.feature),
+    );
+    if (shared.length)
+      mergeCandidate(
+        map,
+        id,
+        Math.min(
+          12,
+          shared.reduce((v, f) => v + f.confidence * 2, 0),
+        ),
+        "literary-neighbor",
+        "literary-similar",
+        `Shares ${[...new Set(shared.map((f) => f.feature))].slice(0, 3).join(", ")} with this book`,
+      );
+    const affinity = features.length ? Math.max(-6, Math.min(6, affinityScore(m, features))) : 0;
     const recency = m.releaseDate ? decay(m.releaseDate, 180) : 0;
     const quality =
       Math.log1p(Math.max(0, m.popularity)) * 0.09 +
@@ -897,8 +1036,17 @@ async function candidatePool(
       recency * 0.65;
     if (enabled("trending") || enabled("quality"))
       mergeCandidate(map, id, quality, "quality", "popular", "Popular with Cove readers");
-    if (enabled("affinity") && affinity > 0.05)
-      mergeCandidate(map, id, affinity, "affinity", "taste", "Matches your reading tastes");
+    if (enabled("affinity") && Math.abs(affinity) > 0.05)
+      mergeCandidate(
+        map,
+        id,
+        affinity,
+        "affinity",
+        "taste",
+        affinity > 0
+          ? "Matches your reading tastes"
+          : "Lower compatibility with your reading tastes",
+      );
     if (anchor && enabled("content")) {
       const sim = contentSimilarity(anchor, m);
       if (sim > 0) mergeCandidate(map, id, sim, "content", "similar", `Similar to ${anchor.title}`);
@@ -921,7 +1069,7 @@ async function candidatePool(
         coRead,
         "collaborative-item",
         "also-enjoyed",
-        "Readers of this book also enjoyed this",
+        "Readers of this book also read this",
       );
     const co = collab.get(id) || 0;
     if (co > 0)
@@ -931,7 +1079,7 @@ async function candidatePool(
         Math.log1p(co) * 5,
         "collaborative",
         "also-enjoyed",
-        "Readers with similar libraries also enjoyed this",
+        "Readers with overlapping reading histories also read this",
       );
   }
   const extCandidates = normalizedExternalScores(externalCandidate.scores);
@@ -960,7 +1108,20 @@ async function candidatePool(
         );
       }
     }
-  for (const c of map.values()) c.meta = metas.get(c.productId);
+  const learnedRanker = discoveryRankerSchema.safeParse(model.config.discoveryRanker);
+  for (const c of map.values()) {
+    const lf = literaryFeatures.get(c.productId) || [];
+    const evidence = literaryCompatibility(lf, taste, controls);
+    c.rankFeatures = rankFeatures(c.sourceScores || new Map(), evidence.confidence);
+    if (learnedRanker.success) {
+      const predicted = satisfactionPrediction(learnedRanker.data, c.rankFeatures);
+      c.score = predicted * 20;
+      c.sources.add("satisfaction-ranker");
+      c.sourceScores = new Map([["satisfaction-ranker", c.score]]);
+    }
+    c.meta = metas.get(c.productId);
+    c.literaryFeatures = literaryFeatures.get(c.productId);
+  }
   const scorerMode =
     external.status === "external"
       ? "external-rank"
@@ -977,10 +1138,27 @@ async function candidatePool(
   for (const c of map.values())
     for (const source of c.sources) candidateCounts[source] = (candidateCounts[source] || 0) + 1;
   return {
-    candidates: [...map.values()].sort((a, b) => b.score - a.score),
+    candidates: [...map.values()]
+      .filter((c) => {
+        const m = metas.get(c.productId);
+        return (
+          !!m &&
+          !hidden.products.has(c.productId) &&
+          !m.authorIds.some((id) => hidden.authors.has(id)) &&
+          !m.seriesIds.some((id) => hidden.series.has(id)) &&
+          (opts.includeOwned || !owned.has(c.productId)) &&
+          (controls.maxMinutes === null ||
+            (m.readingMinutesMax !== null && m.readingMinutesMax <= controls.maxMinutes)) &&
+          !(literaryFeatures.get(c.productId) || []).some((f) =>
+            controls.dislikes.some((t) => featureMatchesTag(f, t)),
+          ) &&
+          (!controls.languages.length || m.languages.some((l) => controls.languages.includes(l)))
+        );
+      })
+      .sort((a, b) => b.score - a.score),
     metas,
     features,
-    personalized: features.length > 0,
+    personalized: features.length > 0 || taste.size > 0 || controls.likes.length > 0,
     model,
     telemetry: {
       candidateCount: map.size,
@@ -1116,7 +1294,7 @@ async function requestRecord(
     const c = candidates[i];
     await db
       .prepare(
-        "INSERT INTO recommendation_impressions(request_id,product_id,position,score,reason_code,reason_text,candidate_sources_json) VALUES(?,?,?,?,?,?,?)",
+        "INSERT INTO recommendation_impressions(request_id,product_id,position,score,reason_code,reason_text,candidate_sources_json,feature_snapshot_json) VALUES(?,?,?,?,?,?,?,?)",
       )
       .bind(
         id,
@@ -1126,6 +1304,7 @@ async function requestRecord(
         c.reasonCode,
         c.reasonText,
         JSON.stringify([...c.sources]),
+        JSON.stringify(c.rankFeatures || []),
       )
       .run();
   }
@@ -1139,7 +1318,19 @@ async function eligibleRecommendationIds(
   userId: string | null,
 ) {
   if (!ids.length) return new Set<string>();
-  const unique = uniq(ids).slice(0, MAX_CANDIDATES),
+  if (ids.length > 80) {
+    const combined = new Set<string>();
+    for (let offset = 0; offset < ids.length; offset += 80)
+      for (const id of await eligibleRecommendationIds(
+        db,
+        ids.slice(offset, offset + 80),
+        territory,
+        userId,
+      ))
+        combined.add(id);
+    return combined;
+  }
+  const unique = uniq(ids),
     ph = unique.map(() => "?").join(",");
   const rows = await db
     .prepare(
@@ -1159,6 +1350,15 @@ async function eligibleRecommendationIds(
     )
       allowed.delete(id);
   }
+  const series = await db
+    .prepare(
+      `SELECT sm.edition_id FROM series_memberships sm JOIN products p ON p.edition_id=sm.edition_id WHERE p.id IN (${ph}) AND sm.position>1 AND EXISTS(SELECT 1 FROM series_memberships previous WHERE previous.series_id=sm.series_id AND previous.position<sm.position AND NOT EXISTS(SELECT 1 FROM reading_states rs JOIN products rp ON rp.id=rs.product_id WHERE rs.user_id=? AND rp.edition_id=previous.edition_id AND rs.status='finished'))`,
+    )
+    .bind(...unique, userId || "")
+    .all<{ edition_id: string }>();
+  const blockedEditions = new Set(series.results.map((r) => r.edition_id));
+  for (const id of allowed)
+    if (blockedEditions.has(metas.get(id)?.editionId || "")) allowed.delete(id);
   return allowed;
 }
 
@@ -1186,6 +1386,7 @@ async function makeRail(
     };
     excludeProductIds?: Set<string>;
     excludeOwned?: boolean;
+    explorationRate?: number;
   },
 ): Promise<RecommendationRail | null> {
   const model = opts.model || (await activeModel(env.DB)),
@@ -1218,6 +1419,7 @@ async function makeRail(
   };
   const controls = {
     ...modelControls,
+    ...(opts.explorationRate === undefined ? {} : { explorationRate: opts.explorationRate }),
     ...(experiment?.config || {}),
     sourceWeights: {
       ...(modelControls.sourceWeights || {}),
@@ -1241,7 +1443,7 @@ async function makeRail(
       anchorProductId: opts.anchorProductId,
       territory: opts.territory,
       personalized: opts.personalized,
-      context: { rail: opts.key },
+      context: { rail: opts.key, discoveryVersion: DISCOVERY_VERSION },
       experiment,
       model,
       telemetry: opts.telemetry,
@@ -1275,7 +1477,7 @@ async function recentAnchor(db: CatalogDB, userId: string | null) {
   if (!userId) return null;
   const r = await db
     .prepare(
-      "SELECT product_id FROM reading_states WHERE user_id=? AND (progress>0.05 OR status IN ('reading','finished')) ORDER BY updated_at DESC LIMIT 1",
+      "SELECT product_id FROM reading_states WHERE user_id=? AND updated_at>COALESCE((SELECT reset_at FROM recommendation_learning_boundaries WHERE user_id=reading_states.user_id),'') AND (progress>0.05 OR status IN ('reading','finished')) ORDER BY updated_at DESC LIMIT 1",
     )
     .bind(userId)
     .first<any>();
@@ -1285,7 +1487,7 @@ async function ratedAnchor(db: CatalogDB, userId: string | null) {
   if (!userId) return null;
   const r = await db
     .prepare(
-      `SELECT rs.product_id FROM reviews v JOIN reading_states rs ON rs.user_id=v.user_id AND rs.external_book_id=v.book_id WHERE v.user_id=? AND v.rating_steps>=8 ORDER BY v.updated_at DESC LIMIT 1`,
+      `SELECT rs.product_id FROM reviews v JOIN reading_states rs ON rs.user_id=v.user_id AND rs.external_book_id=v.book_id WHERE v.user_id=? AND v.updated_at>COALESCE((SELECT reset_at FROM recommendation_learning_boundaries WHERE user_id=v.user_id),'') AND v.rating_steps>=8 ORDER BY v.updated_at DESC LIMIT 1`,
     )
     .bind(userId)
     .first<any>();
@@ -1823,6 +2025,8 @@ function recommendationEventKey(userId: string | null, x: z.infer<typeof interac
     return `view:${identity}:${x.productId}:${x.type}:${x.surface}:${minute}`;
   if (["library_add", "completion", "wishlist_add", "wishlist_remove", "purchase"].includes(x.type))
     return `state:${identity}:${x.productId}:${x.type}:${day}`;
+  if (["loved", "not_for_me", "abandon", "recommend"].includes(x.type))
+    return `satisfaction:${identity}:${x.productId}:${x.type}:${day}`;
   if (x.type === "rating")
     return `rating:${identity}:${x.productId}:${String(x.value ?? "")}:${day}`;
   return null;
@@ -1833,17 +2037,19 @@ export async function recordRecommendationEvent(
   raw: unknown,
 ) {
   const x = interactionInput.parse(raw);
+  if (x.type === "rating" && (x.value == null || x.value < 1 || x.value > 5))
+    throw new ApiError(400, "Ratings must be between 1 and 5.");
   if (!allowedEvents.has(x.type)) throw new ApiError(400, "Unsupported recommendation event.");
   const product = await db
     .prepare("SELECT id FROM products WHERE id=? AND storefront_status='active'")
     .bind(x.productId)
     .first<any>();
   if (!product) throw new ApiError(400, "Unknown storefront product.");
-  if (x.type === "recommendation_impression" || x.type === "recommendation_click") {
+  if (x.requestId || x.type === "recommendation_impression" || x.type === "recommendation_click") {
     if (!x.requestId) throw new ApiError(400, "Recommendation attribution requires a request ID.");
     const imp = await db
       .prepare(
-        `SELECT i.*,r.user_id,r.visitor_id,r.created_at FROM recommendation_impressions i JOIN recommendation_requests r ON r.id=i.request_id WHERE i.request_id=? AND i.product_id=? AND r.created_at>=datetime('now','-24 hours')`,
+        `SELECT i.*,r.user_id,r.visitor_id,r.created_at FROM recommendation_impressions i JOIN recommendation_requests r ON r.id=i.request_id WHERE i.request_id=? AND i.product_id=? AND r.created_at>=datetime('now','-30 days')`,
       )
       .bind(x.requestId, x.productId)
       .first<any>();
@@ -1854,12 +2060,13 @@ export async function recordRecommendationEvent(
       throw new ApiError(403, "Recommendation attribution does not match this visitor.");
     if (x.type === "recommendation_click" && !imp.impressed_at)
       throw new ApiError(409, "A recommendation click requires a preceding visible impression.");
-    await db
-      .prepare(
-        `UPDATE recommendation_impressions SET ${x.type === "recommendation_impression" ? "impressed_at=COALESCE(impressed_at,?)" : "clicked_at=COALESCE(clicked_at,?)"} WHERE request_id=? AND product_id=?`,
-      )
-      .bind(now(), x.requestId, x.productId)
-      .run();
+    if (x.type === "recommendation_impression" || x.type === "recommendation_click")
+      await db
+        .prepare(
+          `UPDATE recommendation_impressions SET ${x.type === "recommendation_impression" ? "impressed_at=COALESCE(impressed_at,?)" : "clicked_at=COALESCE(clicked_at,?)"} WHERE request_id=? AND product_id=?`,
+        )
+        .bind(now(), x.requestId, x.productId)
+        .run();
   }
   const privacy = await recommendationPrivacy(db, userId),
     learnedUser = userId && privacy.activityPersonalizationEnabled ? userId : null,
@@ -2411,6 +2618,7 @@ export async function recommendationStatus(db: CatalogDB) {
   ]);
   const model = await activeModel(db);
   return {
+    discovery: await literaryDiscoveryStatus(db),
     activeModel: model,
     models: models.results,
     events24h: Number(events?.count || 0),
@@ -2436,6 +2644,7 @@ export async function upsertRecommendationModel(db: CatalogDB, raw: unknown) {
       diversityStrength: z.number().min(0).max(3).optional(),
       sourceWeights: z.record(z.string(), z.number().min(0).max(5)).optional(),
       maxCandidates: z.number().int().min(50).max(MAX_CANDIDATES).optional(),
+      discoveryRanker: discoveryRankerSchema.optional(),
     })
     .passthrough();
   const x = z
@@ -2620,4 +2829,133 @@ export async function recommendationPlacementBooks(
       controls,
     ).map((x) => x.productId),
   );
+}
+
+/** Session intent uses the same candidates, eligibility, attribution, experiments and UI rails. */
+export async function literaryDiscovery(
+  env: RecommendationEnv,
+  opts: { userId: string | null; visitorId: string; territory: string },
+  raw: unknown,
+) {
+  const input = z
+    .object({
+      query: z.string().trim().max(500).default(""),
+      limit: z.number().int().min(4).max(20).default(12),
+      controls: tasteControlsSchema.optional(),
+    })
+    .strict()
+    .parse(raw);
+  const privacy = await recommendationPrivacy(env.DB, opts.userId);
+  const saved = await loadTasteControls(
+    env.DB,
+    privacy.personalizationEnabled ? opts.userId : null,
+  );
+  const intent = parseDiscoveryIntent(input.query);
+  const baseControls = input.controls || saved;
+  const controls = tasteControlsSchema.parse({
+    ...baseControls,
+    likes: [...new Set([...baseControls.likes, ...intent.likes])].slice(0, 20),
+    dislikes: [...new Set([...baseControls.dislikes, ...intent.avoids])].slice(0, 20),
+    maxMinutes: intent.maxMinutes ?? baseControls.maxMinutes,
+  });
+  const pool = await candidatePool(env, { ...opts, mode: "discovery", intent: controls });
+  let candidates = pool.candidates;
+  if (controls.maxMinutes !== null) {
+    const allowed = new Set<string>();
+    for (let i = 0; i < candidates.length; i += 80) {
+      const ids = candidates.slice(i, i + 80).map((c) => c.productId);
+      const rows = await env.DB.prepare(
+        `SELECT product_id FROM literary_profiles WHERE product_id IN (${ids.map(() => "?").join(",")}) AND json_extract(reading_time_json,'$.method') IN ('epub_text','publisher_word_count','publisher_page_estimate') AND json_extract(reading_time_json,'$.rangeMinutes[1]')<=?`,
+      )
+        .bind(...ids, controls.maxMinutes)
+        .all<{ product_id: string }>();
+      rows.results.forEach((r) => allowed.add(r.product_id));
+    }
+    candidates = candidates.filter((c) => allowed.has(c.productId));
+  }
+  // Require verified exact intent matches; never quietly replace an empty result with popularity.
+  if (controls.likes.length)
+    candidates = candidates.filter((c) =>
+      (c.literaryFeatures || []).some((f) => controls.likes.some((t) => featureMatchesTag(f, t))),
+    );
+  const rail = await makeRail(env, {
+    ...opts,
+    key: "literary-discovery",
+    title: "Find your next great read",
+    surface: "discovery",
+    candidates,
+    limit: input.limit,
+    personalized: pool.personalized,
+    model: pool.model,
+    telemetry: pool.telemetry,
+    excludeOwned: true,
+    explorationRate: controls.adventurousness * 0.3,
+  });
+  return {
+    rails: rail ? [rail] : [],
+    intent,
+    controls,
+    version: DISCOVERY_VERSION,
+    evidence: "Evidence-weighted baseline scores; enjoyment probabilities are not yet calibrated.",
+    emptyReason: rail
+      ? null
+      : "No eligible books with enough evidence match these preferences. Try fewer constraints.",
+  };
+}
+
+export async function discoveryTrainingDataset(db: CatalogDB, limit = 5000) {
+  const rows = await db
+    .prepare(
+      `SELECT r.id request_id,r.user_id,i.product_id,r.created_at served_at,i.feature_snapshot_json,e.event_type,e.value,e.occurred_at observed_at FROM recommendation_requests r JOIN recommendation_impressions i ON i.request_id=r.id JOIN recommendation_events e ON e.recommendation_request_id=r.id AND e.product_id=i.product_id AND e.user_id=r.user_id LEFT JOIN recommendation_privacy p ON p.user_id=r.user_id WHERE r.user_id IS NOT NULL AND i.impressed_at IS NOT NULL AND COALESCE(p.activity_personalization_enabled,1)=1 AND COALESCE(p.personalization_enabled,1)=1 AND e.occurred_at>r.created_at AND e.event_type IN ('rating','loved','not_for_me','recommend') AND json_array_length(i.feature_snapshot_json)=6 ORDER BY r.created_at DESC,e.occurred_at DESC LIMIT ?`,
+    )
+    .bind(Math.min(10000, Math.max(1, limit)))
+    .all<{
+      request_id: string;
+      user_id: string;
+      product_id: string;
+      served_at: string;
+      feature_snapshot_json: string;
+      event_type: string;
+      value: number | null;
+      observed_at: string;
+    }>();
+  const salt = crypto.randomUUID();
+  const readerKeys = new Map<string, string>();
+  const result = [];
+  for (const row of rows.results) {
+    if (!readerKeys.has(row.user_id)) {
+      const hash = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(`${salt}:${row.user_id}`),
+      );
+      readerKeys.set(
+        row.user_id,
+        Array.from(new Uint8Array(hash))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join(""),
+      );
+    }
+    const label =
+      row.event_type === "not_for_me" || (row.event_type === "rating" && Number(row.value) <= 2)
+        ? 0
+        : row.event_type === "rating" && Number(row.value) < 4
+          ? null
+          : 1;
+    if (label !== null)
+      result.push({
+        requestId: row.request_id,
+        readerKey: readerKeys.get(row.user_id),
+        productId: row.product_id,
+        features: JSON.parse(row.feature_snapshot_json),
+        servedAt: row.served_at,
+        observedAt: row.observed_at,
+        label,
+      });
+  }
+  return {
+    schema: "cove-discovery-dataset-v1",
+    rows: result,
+    notes:
+      "Explicit, visible, account-attributed outcomes only. Missing outcomes are unlabelled. Pseudonyms rotate per export; exports are sensitive and must be deleted when no longer needed.",
+  };
 }
