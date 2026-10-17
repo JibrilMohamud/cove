@@ -87,6 +87,27 @@ try {
   );
   assert.equal(denied, null);
   assert.equal(alternateCalls, 0, "Explicit 403 must never fall back to a different edition");
+  alternateCalls = 0;
+  const denialWithBadCleanup = await hedgedStorefrontBootstrap(
+    source,
+    async () =>
+      new Response(
+        new ReadableStream({
+          cancel() {
+            throw new Error("Stream cleanup unavailable");
+          },
+        }),
+        { status: 403 },
+      ),
+    async () => {
+      alternateCalls++;
+      return verified();
+    },
+    { hedgeAfterMs: 10, timeoutMs: 100 },
+  );
+  assert.equal(denialWithBadCleanup, null);
+  assert.equal(alternateCalls, 0, "A failed stream cancellation cannot override live 403");
+
 
   for (const response of [
     () => Response.json(payload),
