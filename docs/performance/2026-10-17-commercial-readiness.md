@@ -182,3 +182,28 @@ alongside API resource waterfalls. No SQL, identities, country, locale, URL
 query, credentials or book content enter the timing values. This provides a
 way to distinguish slow backend work from proxy/network time while Vercel
 team observability access remains unavailable.
+
+## Production catalog membership query
+
+Read-only D1 profiling found that the DISTINCT retail-rights view becomes a
+catalog-wide coroutine inside a correlated EXISTS. A 25-book popular shelf
+read 421,425 rows and took 477.6 ms of SQL time. Removing the DISTINCT boundary
+for membership checks, while retaining every live legal predicate, returned
+the same ordered 25 products with 225 rows read in 7.1 ms. The full count still
+requires a catalog scan: 43,754 matching products took 754.9 ms before and
+721.5 ms with the candidate rewrite. Those measured SQL times exclude network
+and rendering and are not whole-page performance claims.
+
+Migration 0074 exposes a flattenable live membership view and preserves the
+existing DISTINCT retail view as its wrapper. Search uses membership only in
+EXISTS; all other consumers retain the original public view contract. Popular
+shelves use the stable catalog index as the outer loop. No rights rule is
+relaxed, and duplicate grants cannot multiply results inside EXISTS. Tests
+compare membership against both the original retail contract and the separate
+generic channel authority as grants, denials and DRM change.
+
+At 08:10 UTC the provider returned a current D1 Time Travel bookmark and
+recognized a requested point one hour earlier. This verifies available provider
+checkpoints, not an executed production restore, retention guarantee or measured
+production RPO/RTO. The account currently has no Vectorize indexes; no semantic
+index or new infrastructure was provisioned by this release.

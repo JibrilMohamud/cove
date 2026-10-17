@@ -9,6 +9,12 @@ on:
         "src/features/fore/App.tsx",
         "src/features/fore/Audio.tsx",
         "src/features/fore/service-worker.ts",
+        "src/features/fore/Book.tsx",
+        "src/features/fore/search.server.ts",
+        "src/features/fore/api.server.ts",
+        "src/features/fore/catalog-model.server.ts",
+        "src/features/fore/fore.css",
+        "drizzle/*.sql",
       ]
   pull_request:
     paths: ["scripts/performance/**", ".github/workflows/fullsite-performance.yml"]

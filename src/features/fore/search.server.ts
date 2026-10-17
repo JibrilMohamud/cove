@@ -344,7 +344,7 @@ function buildSqlFilters(input: SearchInput) {
   }
   if (input.territory) {
     where.push(
-      `EXISTS(SELECT 1 FROM retail_product_availability rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))`,
+      `EXISTS(SELECT 1 FROM retail_product_availability_rows rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))`,
     );
     binds.push(input.territory);
   }
@@ -544,7 +544,9 @@ function candidateParts(input: SearchInput, expression: string) {
   }
   return {
     prefix: "",
-    from: `catalog_search_documents d JOIN products p ON p.id=d.product_id JOIN editions e ON e.id=p.edition_id LEFT JOIN publishers pub ON pub.id=e.publisher_id`,
+    from: ["popular", "bestselling"].includes(input.sort)
+      ? `catalog_search_documents d INDEXED BY idx_search_popular_stable CROSS JOIN products p ON p.id=d.product_id CROSS JOIN editions e ON e.id=p.edition_id LEFT JOIN publishers pub ON pub.id=e.publisher_id`
+      : `catalog_search_documents d JOIN products p ON p.id=d.product_id JOIN editions e ON e.id=p.edition_id LEFT JOIN publishers pub ON pub.id=e.publisher_id`,
     where: filters.where,
     binds: filters.binds,
     rank: "0 exact_rank,0 text_rank",

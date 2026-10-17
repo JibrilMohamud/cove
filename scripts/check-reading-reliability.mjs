@@ -100,6 +100,18 @@ try {
     )
     .all();
   assert.equal(reverse.results.length, 0);
+  const membershipPlan = await db
+    .prepare(
+      "EXPLAIN QUERY PLAN SELECT p.id FROM products p WHERE p.id=? AND EXISTS(SELECT 1 FROM retail_product_availability_rows rpa WHERE rpa.product_id=p.id AND rpa.territory_code='US')",
+    )
+    .bind("prd_gutenberg_1342")
+    .all();
+  assert.ok(
+    !membershipPlan.results.some((row) =>
+      /CO-ROUTINE retail_product_availability_rows/.test(row.detail),
+    ),
+    "correlated retail membership must flatten rather than build a catalog-wide rights coroutine",
+  );
   const plan = await db
     .prepare(
       "EXPLAIN QUERY PLAN SELECT 1 FROM retail_product_availability WHERE product_id=? AND territory_code='US'",
