@@ -4,11 +4,13 @@ import { vercelCommitStatus, waitForVercelProduction } from "./wait-vercel-produ
 
 const sha = "f".repeat(40);
 const repository = "JibrilMohamud/cove";
-const statusResponse = (state) =>
-  Response.json({ statuses: [{ context: "Vercel", state }] });
+const statusResponse = (state) => Response.json({ statuses: [{ context: "Vercel", state }] });
 
 test("production readiness only accepts exact Vercel success", () => {
-  assert.equal(vercelCommitStatus({ statuses: [{ context: "Vercel", state: "success" }] }), "success");
+  assert.equal(
+    vercelCommitStatus({ statuses: [{ context: "Vercel", state: "success" }] }),
+    "success",
+  );
   assert.equal(vercelCommitStatus({ statuses: [{ context: "CI", state: "success" }] }), "pending");
   assert.equal(vercelCommitStatus({ statuses: [] }), "pending");
   assert.equal(vercelCommitStatus({ statuses: [{ context: "Vercel", state: "error" }] }), "error");
