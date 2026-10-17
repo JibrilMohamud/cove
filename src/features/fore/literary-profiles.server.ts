@@ -365,11 +365,12 @@ async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
         const immediateSections = new Set(
           representativeLiterarySectionIndices(extracted.sections.length),
         );
-        const alreadyQueued = (
-          await env.DB.prepare(
-            "SELECT COUNT(*) count FROM literary_profile_jobs WHERE kind='analyze' AND section_id<>'' AND status IN ('queued','running')",
-          ).first<{ count: number }>()
-        )?.count ?? 0;
+        const alreadyQueued =
+          (
+            await env.DB.prepare(
+              "SELECT COUNT(*) count FROM literary_profile_jobs WHERE kind='analyze' AND section_id<>'' AND status IN ('queued','running')",
+            ).first<{ count: number }>()
+          )?.count ?? 0;
         const sectionSlots = Math.max(0, 2048 - Number(alreadyQueued));
         let sectionsEnqueued = 0;
         for (const [index, section] of extracted.sections.entries()) {
@@ -643,7 +644,11 @@ export function literaryOverviewPreparationCapacity(
   maxPendingOverviews = 512,
   maxTotalPending = 4096,
 ) {
-  if (![configured, pendingOverviews, totalPending, maxPendingOverviews, maxTotalPending].every(Number.isFinite))
+  if (
+    ![configured, pendingOverviews, totalPending, maxPendingOverviews, maxTotalPending].every(
+      Number.isFinite,
+    )
+  )
     return 0;
   return Math.min(
     literaryPreparationCapacity(configured, pendingOverviews, maxPendingOverviews),
@@ -667,14 +672,23 @@ async function enqueueDeferredLiterarySections(env: LiteraryEnv, limit: number) 
      WHERE s.profile_json IS NULL AND j.id IS NULL
        AND p.status IN ('provisional','analyzed')
      ORDER BY s.updated_at,s.product_id,s.spine_index,s.chunk_index LIMIT ?`,
-  ).bind(Math.min(4,limit)).all<{
-    product_id: string;
-    fingerprint: string;
-    section_id: string;
-    source_key: string;
-  }>();
+  )
+    .bind(Math.min(4, limit))
+    .all<{
+      product_id: string;
+      fingerprint: string;
+      section_id: string;
+      source_key: string;
+    }>();
   for (const section of sections.results) {
-    await addJob(env,section.product_id,section.fingerprint,"analyze",section.section_id,section.source_key);
+    await addJob(
+      env,
+      section.product_id,
+      section.fingerprint,
+      "analyze",
+      section.section_id,
+      section.source_key,
+    );
   }
   return sections.results.length;
 }
