@@ -18,7 +18,7 @@ future usage.
 | Fast Origin Transfer | 2.742 GB | $0.1645 |
 | Fluid Active CPU | 0.726 CPU-hours | $0.0929 |
 | Fluid Provisioned Memory | 6.795 GB-hours | $0.0720 |
-| Other Cove charges | — | approximately $0.0436 |
+| Other Cove charges | — | approximately $0.0426 |
 | **Cove usage charges** | | **$6.4096** |
 
 The **$20 Pro subscription** is a separate unassigned, fixed team-level
