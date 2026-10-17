@@ -27,7 +27,7 @@ export async function ensureOfflineReaderReady() {
     for (const key of keys.filter((k) => k.startsWith("cove-shell-")))
       if (await (await caches.open(key)).match("/offline.html")) return;
     throw Error(
-      "The book is saved, but the offline reader is not ready. Stay online and try saving again.",
+      "The offline reader is not ready. Stay online and try saving again.",
     );
   };
   try {
