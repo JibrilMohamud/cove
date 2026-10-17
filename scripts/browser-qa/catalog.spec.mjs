@@ -74,7 +74,7 @@ test("filtered catalog navigation reuses cache and suppresses obsolete updater w
   }
 });
 
-test("initial bookstore renders books without JavaScript and reuses its server data", async ({
+test("initial bookstore serves books without JavaScript and refreshes full catalog safely", async ({
   browser,
   request,
 }, testInfo) => {
@@ -114,18 +114,23 @@ test("initial bookstore renders books without JavaScript and reuses its server d
       )
         calls.push(request.url());
     });
-    // The book shelf must survive failed follow-up requests. Taxonomy is
-    // intentionally fetched after hydration; catalog, context and page are not.
+    // The shelf must survive failed follow-up requests. Exact catalog totals
+    // and taxonomy deliberately load after hydration; context/page must not.
     await page.route("**/api/fore/catalog?**", (route) => route.abort());
     await page.route("**/api/fore/taxonomy", (route) => route.abort());
     await page.goto("/");
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
     await expect.poll(() => calls.length).toBeGreaterThan(0);
-    const onlyDeferredTaxonomy = calls.every(
-      (requestUrl) => new URL(requestUrl).pathname === "/api/fore/taxonomy",
+    const paths = calls.map((requestUrl) => new URL(requestUrl).pathname);
+    expect(paths.filter((path) => path === "/api/fore/catalog")).toHaveLength(1);
+    const onlyDeferredRequests = paths.every((path) =>
+      ["/api/fore/catalog", "/api/fore/taxonomy"].includes(path),
     );
-    expect(onlyDeferredTaxonomy).toBe(true);
+    expect(onlyDeferredRequests).toBe(true);
+    // The fresh server-rendered shelf remains readable even when the full
+    // count/facet refresh cannot reach the backend.
+    await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
   } finally {
     await context.close();
   }

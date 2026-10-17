@@ -6,7 +6,9 @@ import {
   percentile,
   probeHomepage,
   productionOrigin,
+  requestedLanguages,
   safeProbeTelemetry,
+  strictTtfbTargetMs,
   validateHtml,
   visibleServerBookCount,
 } from "./check-production-storefront-performance.mjs";
@@ -43,64 +45,38 @@ test("latency percentiles are deterministic and do not mutate inputs", () => {
   assert.equal(percentile([], 0.75), null);
 });
 
-test("a degraded cold storefront warns and sustained bad TTFB fails", () => {
-  const languages = ["en-US,en;q=0.9", "fr-FR,fr;q=0.9", "de-DE,de;q=0.9"];
-  const samples = languages.flatMap((language) =>
-    [1100, 1400, 1200, 1300].map((ttfbMs) => ({ language, ttfbMs })),
+test("all supported locales must satisfy strict 800 ms on every sample", () => {
+  assert.equal(strictTtfbTargetMs, 800);
+  assert.equal(requestedLanguages.length, 5);
+  const samples = requestedLanguages.flatMap((language) =>
+    [250, 375, 550, 799].map((ttfbMs) => ({ language, ttfbMs })),
   );
-  assert.equal(evaluateProbes(samples, []).status, "pass");
-  assert.equal(
-    evaluateProbes(
-      samples.map((s) => ({ ...s, ttfbMs: 3500 })),
+  const good = evaluateProbes(samples, []);
+  assert.equal(good.status, "pass");
+  assert.equal(good.slowSamples, 0);
+  for (const threshold of [800, 801, 4000, 7000]) {
+    const bad = evaluateProbes(
+      samples.map((s, i) => (i === 0 ? { ...s, ttfbMs: threshold } : s)),
       [],
-    ).status,
-    "warn",
-  );
+    );
+    assert.equal(bad.status, "fail", "one slow sample in any language fails");
+    assert.equal(bad.slowSamples, 1);
+  }
+  for (const index of [0, 4, 8, 12, 16]) {
+    assert.equal(
+      evaluateProbes(
+        samples.filter((_, i) => i !== index),
+        [],
+      ).status,
+      "fail",
+      "every requested language and sample must be present",
+    );
+  }
   assert.equal(
-    evaluateProbes(
-      samples.map((s) => ({ ...s, ttfbMs: 8000 })),
-      [],
-    ).status,
+    evaluateProbes(samples, [{ language: requestedLanguages[0], sample: 1, error: "503" }]).status,
     "fail",
   );
   assert.equal(evaluateProbes(samples.slice(0, 4), []).status, "fail");
-  assert.equal(
-    evaluateProbes(
-      samples.map((s, i) => ({ ...s, ttfbMs: i === 0 ? 7000 : s.ttfbMs })),
-      [],
-    ).status,
-    "fail",
-    "One severe cold response exceeds the p95 reliability budget",
-  );
-  assert.equal(
-    evaluateProbes(
-      samples.map((s, i) => ({ ...s, ttfbMs: i === 0 ? 4000 : s.ttfbMs })),
-      [],
-    ).status,
-    "warn",
-    "One slow but valid response should warn rather than silently pass",
-  );
-  for (const error of [
-    "Error: Request timed out after 15 seconds",
-    "Error: Unexpected HTTP status: 503",
-    "AbortError: this operation was aborted",
-  ]) {
-    assert.equal(
-      evaluateProbes(samples.slice(1), [{ language: languages[0], sample: 1, error }]).status,
-      "fail",
-      "Any failed sample invalidates the synthetic availability result",
-    );
-  }
-  for (const error of [
-    "Homepage had no server-rendered book cards.",
-    "Homepage returned a non-HTML content type.",
-    "Personalized storefront HTML was not marked no-store.",
-  ]) {
-    assert.equal(
-      evaluateProbes(samples, [{ language: languages[0], sample: 1, error }]).status,
-      "fail",
-    );
-  }
 });
 
 test("failure diagnostics retain only aggregate numeric timings and safe cache labels", () => {

@@ -82,6 +82,9 @@ try {
       env,
     );
     const expected = await catalog.json();
+    assert.equal(bootstrap.catalog.preview, true, "first paint defers global counts/facets");
+    assert.equal(bootstrap.catalog.facets, undefined);
+    assert.equal(bootstrap.catalog.count, bootstrap.catalog.results.length);
     assert.deepEqual(
       bootstrap.catalog.results.map((b) => b.id),
       expected.results.map((b) => b.id),

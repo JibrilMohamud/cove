@@ -650,6 +650,8 @@ export type CatalogResponse = {
   count: number;
   next: string | null;
   cached?: boolean;
+  /** First-paint books are current; the full result count/facets load after hydration. */
+  preview?: boolean;
   warning?: string;
   ingestion?: { status: string; cachedBooks: number; totalCatalogCount: number };
   facets?: {
@@ -1152,7 +1154,7 @@ export function StorePage({
       !data.user && matchingInitial?.catalogQuery === params.toString()
         ? matchingInitial.catalog
         : undefined,
-    initialDataUpdatedAt: matchingInitial?.at,
+    initialDataUpdatedAt: matchingInitial?.catalog.preview ? 0 : matchingInitial?.at,
   });
   useEffect(() => {
     const queryId = result.data?.search?.queryId;
@@ -1484,7 +1486,9 @@ export function StorePage({
           <span className="catalog-count">
             {result.isFetching
               ? "Finding books…"
-              : `${result.data?.count?.toLocaleString() || 0} books`}
+              : result.data?.preview
+                ? "Books available to read"
+                : `${result.data?.count?.toLocaleString() || 0} books`}
             {result.data?.ingestion?.status === "running" && <small> · Catalog updating</small>}
           </span>
           <div className="filter-selects">
@@ -1695,7 +1699,7 @@ export function StorePage({
         (!books.length || !result.data.warning.includes("catalog updater is retrying")) && (
           <p className="notice">{result.data.warning}</p>
         )}
-      {result.error ? (
+      {result.error && !books.length ? (
         <div className="empty-state">
           <h2>The catalog needs a moment.</h2>
           <p>{result.error.message}</p>

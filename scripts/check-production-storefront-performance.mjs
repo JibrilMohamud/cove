@@ -3,7 +3,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 
-const requestedLanguages = ["en-US,en;q=0.9", "fr-FR,fr;q=0.9", "de-DE,de;q=0.9"];
+// All five supported UI locales are covered by the same strict TTFB gate.
+export const requestedLanguages = [
+  "en-US,en;q=0.9",
+  "es-ES,es;q=0.9",
+  "fr-FR,fr;q=0.9",
+  "de-DE,de;q=0.9",
+  "ar-SA,ar;q=0.9",
+];
+export const strictTtfbTargetMs = 800;
 
 export function productionOrigin(value) {
   const url = new URL(value);
@@ -108,17 +116,14 @@ export function evaluateProbes(results, failures) {
     failures.length > 0 ||
     results.length !== expectedSamples ||
     missingLanguage ||
-    (p75 !== null && p75 > 6_000) ||
-    (p95 !== null && p95 > 6_000);
+    results.some((result) => result.ttfbMs >= strictTtfbTargetMs);
   return {
     p75,
     p95,
+    targetMs: strictTtfbTargetMs,
+    slowSamples: results.filter((result) => result.ttfbMs >= strictTtfbTargetMs).length,
     failures: failures.length,
-    status: hardFailure
-      ? "fail"
-      : (p75 !== null && p75 > 2_500) || (p95 !== null && p95 > 3_500)
-        ? "warn"
-        : "pass",
+    status: hardFailure ? "fail" : "pass",
   };
 }
 
@@ -163,14 +168,12 @@ async function main() {
         `| ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.totalMs} ms | ${r.cards} | ${r.vercelCache} | ${r.timing || "none"} |`,
     ),
     "",
-    `Result: **${assessment.status}** — TTFB p75 ${assessment.p75 ?? "n/a"} ms, p95 ${assessment.p95 ?? "n/a"} ms; ${failures.length} errors.`,
+    `Result: **${assessment.status}** — strict <${assessment.targetMs} ms per response, ${assessment.slowSamples} slow samples; TTFB p75 ${assessment.p75 ?? "n/a"} ms, p95 ${assessment.p95 ?? "n/a"} ms; ${failures.length} errors.`,
     ...failures.map((f) => `- ${f.language}, sample ${f.sample}: ${f.error}`),
   ];
   if (process.env.GITHUB_STEP_SUMMARY)
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join("\n") + "\n");
   console.log(lines.join("\n"));
-  if (assessment.status === "warn")
-    console.warn("Cove public homepage is above its 2.5-second synthetic warning budget.");
   if (assessment.status === "fail") process.exitCode = 1;
 }
 

@@ -1499,6 +1499,58 @@ async function logQuery(
   return id;
 }
 
+/**
+ * First-paint live-rights shelf: an indexed seek for 25 candidates, not a
+ * catalog-wide COUNT plus seven disjunctive facets. Hydration separately
+ * obtains precise totals and filters from the ordinary catalog endpoint.
+ */
+export async function firstPaintStorefrontShelf(
+  env: SearchEnv,
+  currency: string,
+  territory: string,
+) {
+  const started = performance.now();
+  const url = new URL("https://internal.invalid/api/fore/catalog");
+  url.search = new URLSearchParams({
+    search: "",
+    sort: "popular",
+    page: "1",
+    currency,
+  }).toString();
+  const input = { ...parseSearchInput(url), territory: normalizeTerritoryCode(territory) };
+  const part = candidateParts(input, "");
+  const rows = await env.DB.prepare(
+    `SELECT d.product_id FROM ${part.from} WHERE ${part.where.join(" AND ")}
+      ORDER BY ${d1Sort(input, false)},d.product_id ASC LIMIT ?`,
+  )
+    .bind(...part.binds, input.limit + 1)
+    .all<{ product_id: string }>();
+  const hasMore = rows.results.length > input.limit;
+  const ids = rows.results.slice(0, input.limit).map((row) => String(row.product_id));
+  const books = await contextualizeChannelEligibility(
+    env.DB,
+    await canonicalBooksByProductIds(env.DB, ids),
+    input.territory,
+  );
+  return {
+    results: books,
+    // Partial count is intentionally identified as a preview, never the full
+    // catalog total. The normal search replaces it on browser hydration.
+    count: books.length,
+    next: hasMore
+      ? "/api/fore/catalog?" +
+        new URLSearchParams({ ...Object.fromEntries(url.searchParams), page: "2" })
+      : null,
+    preview: true as const,
+    search: {
+      queryId: null,
+      backend: "d1-fts5" as const,
+      processingTimeMs: Math.round(performance.now() - started),
+      pageSize: input.limit,
+    },
+  };
+}
+
 export async function searchCatalog(
   env: SearchEnv,
   input: SearchInput,
