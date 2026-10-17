@@ -52,7 +52,7 @@ try {
   assert.ok(provisional.publicationPeriod.confidence <= 0.35);
   assert.equal(provisional.settingPeriod.confidence, 0);
   assert.equal(provisional.energy.value, null, "Do not fabricate a soundtrack intensity");
-  const unsupported = core.provisionalLiteraryProfile([
+  const metadataUnsupported = core.provisionalLiteraryProfile([
     {
       id: "catalog",
       kind: "metadata",
@@ -64,8 +64,8 @@ try {
       }),
     },
   ]);
-  assert.deepEqual(unsupported.themes.value, [], "Titles alone cannot assert book themes");
-  assert.equal(unsupported.moods.confidence, 0);
+  assert.deepEqual(metadataUnsupported.themes.value, [], "Titles alone cannot assert book themes");
+  assert.equal(metadataUnsupported.moods.confidence, 0);
   assert.deepEqual(
     Array.from({ length: 8 }, (_, n) => lib.preferLiterarySection(n)),
     [false, false, false, true, false, false, false, true],
