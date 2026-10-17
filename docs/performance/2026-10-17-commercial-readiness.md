@@ -111,3 +111,41 @@ up to one second. Expired queue work was reclaimed and the stale worker was
 rejected. These local measurements exclude production networking, D1 capacity,
 provider recovery, backup retention, production rollback and real-data RPO/RTO.
 The alert and restore drills are now required in security CI.
+
+## First deployed comparison
+
+Commit 4b283c3f53997cd2a0dc6d08cf772494ec9b1b68 was measured after its
+deployment succeeded, in Actions run 39015091262 (artifact 12094572248).
+The 07:53 UTC browser observations and preceding route observations are
+committed alongside the baseline. All 28 browser and 90 HTTP observations
+succeeded. These are sequential runs with substantial backend/cache variance,
+not a randomized experiment or proof of causal LCP improvement.
+
+| Observation                                         |    Before | First deployed fixes |
+| --------------------------------------------------- | --------: | -------------------: |
+| Fresh-context offline asset requests, every journey |         4 |                    0 |
+| Mobile audiobook CLS, both observations             |     0.270 |                    0 |
+| Desktop fresh search LCP                            | 11,160 ms |             7,804 ms |
+| Desktop fresh homepage LCP                          |  1,452 ms |             1,632 ms |
+| Mobile fresh homepage LCP                           |  2,544 ms |             2,568 ms |
+| Mobile fresh book LCP                               |  3,100 ms |             6,768 ms |
+| Mobile fresh book CLS                               |         0 |                0.221 |
+
+The book-page regression was traced to its footer moving from the small
+loading area to below the viewport when details arrived. The next fix reserves
+a complete loading region and prioritizes the main cover. Slower responses
+remain visible in the report: desktop search's context/account/page/taxonomy
+calls overlap at roughly 4–5 seconds, with catalog finishing after 7 seconds.
+
+Account bootstrap now follows identity resolution directly, without unrelated
+storefront locale/payment queries. Its existing ownership and entitlement
+filters remain in the account implementation. Tests reject any attempted
+storefront configuration lookup for guest and authenticated account bootstrap.
+Guest UI context is cached for 30 seconds under the existing country/language/
+preference partition, with authenticated/session requests bypassed. Commerce
+and rights endpoints still resolve live legal state independently. Five-market
+tests exercise actual misses, hits, selected language payloads and bypasses.
+
+Book-detail query identity now includes reader, country, locale and currency;
+obsolete requests cancel. The lab additionally records content readiness so
+a fast header paint cannot be mistaken for fast result availability.
