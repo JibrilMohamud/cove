@@ -103,6 +103,14 @@ try {
       assert.deepEqual(first.subjects, full.subjects);
       assert.deepEqual(first.formats, full.formats);
       assert.deepEqual(first.readingAvailability, full.readingAvailability);
+      // Live retail rights already filtered the entire SSR book list. The
+      // anonymous BookCard never displays secondary subscription/library
+      // badges, so preview access flags must remain unknown until the full
+      // channel-verified catalog response arrives after hydration.
+      assert.equal("subscriptionEligible" in first, false);
+      assert.equal("libraryEligible" in first, false);
+      assert.equal(typeof full.subscriptionEligible, "boolean");
+      assert.equal(typeof full.libraryEligible, "boolean");
     }
     assert.equal(
       new URLSearchParams(bootstrap.catalogQuery).get("currency"),
@@ -113,6 +121,13 @@ try {
       "bootstrap includes no private reading records",
     );
   }
+  // Guard against accidentally using unknown channel eligibility in the
+  // server-rendered BookCard. Any future visible channel badge must receive
+  // a fresh authoritative answer, not a default-false preview.
+  const storeSource = fs.readFileSync("src/features/fore/Store.tsx", "utf8");
+  const firstCard = storeSource.slice(0, storeSource.indexOf("type FacetValue"));
+  assert.doesNotMatch(firstCard, /subscriptionEligible|libraryEligible/);
+
   // Materializing eligible books once must preserve the former live category
   // counts across territories and content-language filters.
   const flatten = (nodes) => nodes.flatMap((node) => [node, ...flatten(node.children)]);
