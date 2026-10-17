@@ -21,7 +21,7 @@ try {
   const { requestStorefrontBootstrap } = await import(
     path.join(root, "storefront-bootstrap-fetch.mjs")
   );
-  const { recoverStorefrontBootstrap } = await import(
+  const { recoverStorefrontBootstrap, storefrontRecoveryTransport } = await import(
     path.join(root, "storefront-bootstrap-recovery.mjs")
   );
   const source = new Request("https://cove.test/api/fore/storefront/bootstrap", {
@@ -115,6 +115,57 @@ try {
   assert.equal(JSON.parse(timed).catalog.results[0].productId, "prd_ca_1");
   assert.equal(recoveryEvents.length, 1);
   assert.equal(recoveryEvents[0].success, true);
+
+  let directCalls = 0;
+  let independentCalls = 0;
+  const independent = storefrontRecoveryTransport(
+    async () => {
+      directCalls++;
+      throw new Error("Stalled direct gateway must not run during recovery");
+    },
+    async (request) => {
+      independentCalls++;
+      assert.equal(request.cache, "no-store");
+      assert.equal(request.redirect, "manual");
+      assert.equal(request.headers.get("x-vercel-ip-country"), "CA");
+      return fetchApi(request);
+    },
+    true,
+  );
+  const splitValue = await recoverStorefrontBootstrap(source, independent, true, true);
+  assert.equal(JSON.parse(splitValue).context.rightsCountry, "CA");
+  assert.equal(directCalls, 0);
+  assert.equal(independentCalls, 3, "Context, page and catalog use the independent proxy");
+  assert.equal(
+    await recoverStorefrontBootstrap(
+      source,
+      async (request) => {
+        if (request.url.includes("/context"))
+          return trusted({ ...context, rightsCountry: "US" });
+        if (request.url.includes("/page")) return trusted(page);
+        return trusted(catalog);
+      },
+      true,
+      true,
+    ),
+    null,
+    "A server-country response must not replace the reader's territorial rights",
+  );
+  const absentCountryHeaders = new Headers(source.headers);
+  absentCountryHeaders.delete("x-vercel-ip-country");
+  const noTrustedCountry = new Request(source, { headers: absentCountryHeaders });
+  assert.equal(
+    await recoverStorefrontBootstrap(
+      noTrustedCountry,
+      async () => {
+        throw new Error("An ungrounded region must not call a remote storefront");
+      },
+      true,
+      true,
+    ),
+    null,
+    "No original trusted country means no cross-region proxy recovery",
+  );
 
   let called = false;
   assert.equal(
