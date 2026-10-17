@@ -209,12 +209,26 @@ assert.throws(
   "orphan rightsholders must be rejected",
 );
 
-const available = (product, territory) =>
-  !!db
+const available = (product, territory) => {
+  const result = !!db
     .prepare(
       "select 1 ok from retail_product_availability where product_id=? and territory_code=? limit 1",
     )
     .get(product, territory);
+  const raw = !!db
+    .prepare(
+      "SELECT 1 FROM retail_product_availability_rows WHERE product_id=? AND territory_code=? LIMIT 1",
+    )
+    .get(product, territory);
+  const generic = !!db
+    .prepare(
+      "SELECT 1 FROM product_channel_availability WHERE product_id=? AND territory_code=? AND sales_channel='retail' LIMIT 1",
+    )
+    .get(product, territory);
+  assert.equal(raw, result, "raw membership preserves the DISTINCT retail contract");
+  assert.equal(raw, generic, "raw retail membership preserves full channel-rights authority");
+  return result;
+};
 assert.equal(available("ebook", "US"), true, "US ebook retail right should be available");
 assert.equal(available("ebook", "CA"), true, "Canada ebook retail right should be available");
 assert.equal(
