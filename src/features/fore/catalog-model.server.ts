@@ -614,3 +614,25 @@ export async function canonicalBooksByProductIds(db: DB, productIds: string[]) {
   );
   return productIds.map((id) => byId.get(id)).filter((book): book is CatalogBook => !!book);
 }
+
+/** Hydrate an already entitlement-filtered library page without per-book round trips.
+ * Personal imports retain their independent ownership check even if a stale
+ * or incorrectly assigned entitlement exists. Never use the public bulk reader
+ * for private library pages.
+ */
+export async function canonicalLibraryBooks(db: DB, productIds: string[], userId: string) {
+  if (!userId) throw new ApiError(401, "Sign in to view your library.");
+  if (productIds.length > 100) throw new ApiError(400, "Too many library products requested.");
+  const byId = new Map<string, CatalogBook>();
+  for (let offset = 0; offset < productIds.length; offset += 80) {
+    const chunk = productIds.slice(offset, offset + 80);
+    const rows = await db
+      .prepare(
+        `${canonicalSelect} WHERE p.id IN (${chunk.map(() => "?").join(",")}) AND (p.source_name<>'upload' OR EXISTS(SELECT 1 FROM personal_imports pi WHERE pi.product_id=p.id AND pi.user_id=?))`,
+      )
+      .bind(...chunk, userId)
+      .all<Record<string, unknown>>();
+    for (const row of rows.results) byId.set(String(row.product_id), canonicalRowBook(row));
+  }
+  return byId;
+}
