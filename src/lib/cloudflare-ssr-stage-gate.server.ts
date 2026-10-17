@@ -56,8 +56,6 @@ export function stageNoStore(response: Response, stage: boolean): Response {
 export function isStagingStaticAsset(pathname: string): boolean {
   return (
     /^\/(?:_build|assets|icons|fonts|images)\//.test(pathname) ||
-    /^\/(?:favicon\.ico|manifest\.webmanifest|robots\.txt|site\.webmanifest)$/.test(
-      pathname,
-    )
+    /^\/(?:favicon\.ico|manifest\.webmanifest|robots\.txt|site\.webmanifest)$/.test(pathname)
   );
 }
