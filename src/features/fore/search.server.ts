@@ -1499,7 +1499,6 @@ async function logQuery(
   return id;
 }
 
-
 /**
  * First-paint live-rights shelf: an indexed seek for 25 candidates, not a
  * catalog-wide COUNT plus seven disjunctive facets. Hydration separately
