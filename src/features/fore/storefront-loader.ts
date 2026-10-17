@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
+import { currentCoveRequestEnvironment } from "@/lib/cove-request-env.server";
 import { hedgedStorefrontBootstrap } from "./storefront-hedged-fetch";
 
 export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
@@ -17,7 +18,20 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       typeof process === "undefined" ? {} : process.env;
     const remoteRequired =
       Boolean(env.FORE_BACKEND_URL && env.FORE_BACKEND_TOKEN) || env.VERCEL_ENV === "production";
+    const localEnvironment = currentCoveRequestEnvironment();
+    const localDatabase = localEnvironment?.DB as { prepare?: unknown } | undefined;
+    const localRightsAuthority = typeof localDatabase?.prepare === "function";
     const primary = async (forwarded: Request): Promise<Response> => {
+      if (localRightsAuthority) {
+        // Cloudflare SSR and the live rights database share one Worker invocation.
+        // Avoid cold external egress entirely; never serve a static territory snapshot.
+        const { handleCoveApi } = await import("./api.server");
+        const response = await handleCoveApi(
+          forwarded,
+          localEnvironment as Parameters<typeof handleCoveApi>[1],
+        );
+        return response ?? new Response(null, { status: 503 });
+      }
       const response = await proxyPersistenceApi(forwarded, env);
       if (response) return response;
       // Never use an unverified seed when Vercel-to-D1 is unreachable.
@@ -50,6 +64,7 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       },
     });
     const timing = [`cove_ssr_bootstrap;dur=${(performance.now() - started).toFixed(1)}`];
+    if (localRightsAuthority) timing.push("cove_ssr_local_rights;dur=0");
     if (phase.primaryFailureMs !== null)
       timing.push(`cove_ssr_primary_failure;dur=${phase.primaryFailureMs.toFixed(1)}`);
     if (phase.alternateMs !== null) {

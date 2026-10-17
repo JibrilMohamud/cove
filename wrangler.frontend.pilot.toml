@@ -1,0 +1,26 @@
+# Experiment only: no production route and no workers.dev URL.
+# This configuration is build-validated but NEVER auto-deployed by CI.
+# The existing Vercel storefront and persistence backend remain unchanged.
+name = "cove-storefront-ssr-pilot"
+main = ".output/server/index.mjs"
+compatibility_date = "2026-10-17"
+workers_dev = false
+
+[assets]
+directory = "./.output/public"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cove-production"
+database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"
+migrations_dir = "drizzle"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "cove-production-media"
+
+[vars]
+FORE_PUBLIC_URL = "https://cove-puce-theta.vercel.app"
+FORE_ENVIRONMENT = "production"
+FORE_DEFAULT_TERRITORY = "US"
