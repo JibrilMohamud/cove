@@ -1,0 +1,47 @@
+name: production-storefront-performance
+
+on:
+  pull_request:
+    paths:
+      - "scripts/check-production-storefront-performance*.mjs"
+      - ".github/workflows/production-storefront-performance.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/check-production-storefront-performance*.mjs"
+      - ".github/workflows/production-storefront-performance.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "27 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-production-storefront-performance
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Validate probe calculations and SSR assertions
+        run: node --test scripts/check-production-storefront-performance.test.mjs
+      - name: Measure public production homepage
+        if: github.event_name != 'pull_request'
+        env:
+          COVE_PUBLIC_URL: https://cove-puce-theta.vercel.app
+        run: node scripts/check-production-storefront-performance.mjs
+      - name: Preserve aggregate measurements
+        if: github.event_name != 'pull_request' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-storefront-performance
+          path: artifacts/production-storefront-performance.json
+          retention-days: 14
+          if-no-files-found: warn
