@@ -108,7 +108,6 @@ try {
   assert.equal(denialWithBadCleanup, null);
   assert.equal(alternateCalls, 0, "A failed stream cancellation cannot override live 403");
 
-
   for (const response of [
     () => Response.json(payload),
     () =>
