@@ -37,6 +37,25 @@ export function validateHtml(status, contentType, html) {
   return cards;
 }
 
+/** Only allow numeric server timing and known CDN cache labels into diagnostics. */
+export function safeProbeTelemetry(headers, ttfbMs, totalMs) {
+  const timing = (headers.get("server-timing") || "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => /^cove_[a-z_]+;dur=[0-9]+(?:\\.[0-9]+)?$/.test(part))
+    .join(", ")
+    .slice(0, 200);
+  const cache = (headers.get("x-vercel-cache") || "").toUpperCase();
+  return {
+    ttfbMs,
+    totalMs,
+    timing,
+    vercelCache: ["HIT", "MISS", "BYPASS", "STALE", "PRERENDER"].includes(cache)
+      ? cache
+      : "unknown",
+  };
+}
+
 export async function probeHomepage(origin, language, sample) {
   const started = performance.now();
   const response = await fetch(origin + "/", {
@@ -52,9 +71,17 @@ export async function probeHomepage(origin, language, sample) {
   if (response.status !== 200) throw new Error("Unexpected HTTP status: " + response.status);
   const html = await response.text();
   const totalMs = Math.round(performance.now() - started);
-  const cards = validateHtml(response.status, response.headers.get("content-type") || "", html);
-  if (!/\bno-store\b/i.test(response.headers.get("cache-control") || ""))
-    throw new Error("Personalized storefront HTML was not marked no-store.");
+  let cards;
+  try {
+    cards = validateHtml(response.status, response.headers.get("content-type") || "", html);
+    if (!/\\bno-store\\b/i.test(response.headers.get("cache-control") || ""))
+      throw new Error("Personalized storefront HTML was not marked no-store.");
+  } catch (error) {
+    // Never retain HTML, cookies or user headers. Preserve aggregate timing
+    // so a failed server-rendered shelf remains diagnosable.
+    const summary = safeProbeTelemetry(response.headers, ttfbMs, totalMs);
+    throw new Error(`${String(error)}; diagnostic=${JSON.stringify(summary)}`);
+  }
   return {
     language,
     sample,
