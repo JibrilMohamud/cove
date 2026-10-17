@@ -30,15 +30,22 @@ export async function hedgedStorefrontBootstrap(
   if (source.signal.aborted) return null;
   const timeoutMs = Math.max(1, Math.min(12_000, options.timeoutMs ?? 8_000));
   const hedgeAfterMs = Math.max(1, Math.min(timeoutMs, options.hedgeAfterMs ?? 1_650));
-  const expiration = AbortSignal.timeout(timeoutMs);
+  // AbortSignal.timeout uses an unref'ed Node timer; it may never fire if
+  // all outbound requests are stalled promises without active I/O handles.
+  // A referenced timer is essential: cold SSR must have a real hard deadline.
+  const deadlineController = new AbortController();
+  const expiration = deadlineController.signal;
+  const deadlineTimer = setTimeout(() => deadlineController.abort(), timeoutMs);
   const primaryCtrl = new AbortController();
   const alternateCtrl = new AbortController();
   const sourceCountry = source.headers.get("x-vercel-ip-country")?.trim().toUpperCase() || "";
   const validCountry = /^[A-Z]{2}$/.test(sourceCountry);
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let onCallerAbort: () => void = () => {};
   const timeout = new Promise<"expired">((resolve) => {
     expiration.addEventListener("abort", () => resolve("expired"), { once: true });
-    source.signal.addEventListener("abort", () => resolve("expired"), { once: true });
+    onCallerAbort = () => resolve("expired");
+    source.signal.addEventListener("abort", onCallerAbort, { once: true });
   });
 
   async function tryRequest(
@@ -142,6 +149,8 @@ export async function hedgedStorefrontBootstrap(
     return last !== "expired" && last.kind === "ok" ? last.value : null;
   } finally {
     if (timer) clearTimeout(timer);
+    clearTimeout(deadlineTimer);
+    source.signal.removeEventListener("abort", onCallerAbort);
     primaryCtrl.abort();
     alternateCtrl.abort();
   }
