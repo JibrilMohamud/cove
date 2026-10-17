@@ -120,6 +120,22 @@ try {
     null,
   );
   assert.equal(alternateCalls, 0, "Unknown visitor country must not cross proxy boundary");
+  alternateCalls = 0;
+  const unassertedSuccess = await hedgedStorefrontBootstrap(
+    new Request(source, { headers: withoutCountry }),
+    async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      return verified();
+    },
+    async () => {
+      alternateCalls++;
+      return verified();
+    },
+    { hedgeAfterMs: 5, timeoutMs: 100 },
+  );
+  assert.ok(unassertedSuccess, "An ordinary first request may complete without a country header");
+  assert.equal(alternateCalls, 0);
+
 
   const cancelled = new AbortController();
   cancelled.abort();
