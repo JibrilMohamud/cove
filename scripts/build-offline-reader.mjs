@@ -38,6 +38,7 @@ if (
   throw Error("Offline build contains assets the service worker cannot install");
 const version = createHash("sha256")
   .update(await readFile(path.join(output, "offline.html")))
+  .update(await readFile("public/sw.js"))
   .update(assets.join("\n"))
   .digest("hex")
   .slice(0, 20);

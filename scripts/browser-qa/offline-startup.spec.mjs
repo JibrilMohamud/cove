@@ -12,6 +12,12 @@ test("saved EPUB survives closing the app and cold offline navigation without pr
     serviceWorkers: "allow",
   });
   let page = await context.newPage();
+  context.on("page", (opened) => {
+    opened.on("pageerror", (error) => console.error("Offline page error:", error.message));
+    opened.on("console", (message) => {
+      if (message.type() === "error") console.error("Offline console:", message.text());
+    });
+  });
   try {
     await page.goto("/read/1342");
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);

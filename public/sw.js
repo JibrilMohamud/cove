@@ -63,7 +63,8 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       (async () => {
         try {
-          return await fetch(request);
+          if (self.navigator?.onLine === false) throw Error("offline");
+          return await fetch(request, { cache: "no-store" });
         } catch {
           return (
             (await (await caches.open(CACHE)).match("/offline.html")) ||
