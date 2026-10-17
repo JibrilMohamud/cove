@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && node scripts/stage-sites.mjs",
+    "build": "vite build && node scripts/build-offline-reader.mjs && node scripts/stage-sites.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "node scripts/check-lint-baseline.mjs",
@@ -68,7 +68,8 @@
     "test:literary-profiles": "node scripts/check-literary-profiles.mjs",
     "test:music-profiles": "node scripts/check-music-profiles.mjs",
     "test:matching": "node scripts/check-matching-engine.mjs",
-    "test:literary-discovery": "node scripts/check-literary-discovery.mjs"
+    "test:literary-discovery": "node scripts/check-literary-discovery.mjs",
+    "test:reading-reliability": "node scripts/check-reading-reliability.mjs && node scripts/check-offline-shell.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

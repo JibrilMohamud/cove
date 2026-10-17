@@ -122,7 +122,7 @@ function cleanToc(items: Toc[]) {
   const chapters = flat.filter((item) => /^Chapter\s/i.test(item.label));
   return chapters.length ? chapters : flat;
 }
-async function resolveTocCFIs(book: any, items: Toc[]) {
+async function resolveTocCFIs(book: any, items: Toc[], stopped: () => boolean = () => false) {
   const grouped = new Map<any, Toc[]>();
   for (const item of items) {
     const [href] = item.href.split("#");
@@ -134,6 +134,7 @@ async function resolveTocCFIs(book: any, items: Toc[]) {
     grouped.set(section, list);
   }
   for (const [section, list] of grouped) {
+    if (stopped()) return items;
     try {
       await section.load(book.load.bind(book));
       for (const item of list) {
@@ -862,9 +863,14 @@ export function ReaderPage({ id }: { id: string }) {
       });
     await savingPosition.current;
   }
+  // A known reader must restore their account position before autosaving. Guests
+  // can open public text immediately, even when optional account lookup stalls.
+  const waitForAccount =
+    accountLoading && (bookQuery.data?.sourceName !== "gutenberg" || !!offlineAccountId());
   useEffect(() => {
-    if (accountLoading || !container.current || !bookQuery.data) return;
+    if (waitForAccount || !container.current || !bookQuery.data) return;
     let canceled = false;
+    const downloadController = new AbortController();
     mounted.current = true;
     setReady(false);
     setError("");
@@ -932,7 +938,7 @@ export function ReaderPage({ id }: { id: string }) {
     }
     (async () => {
       const params = new URLSearchParams(location.search);
-      if (!previewMode) {
+      if (!previewMode && params.has("audioEdition")) {
         sync.current = await openBiosync(id, accountRef.current.user?.id || null);
         const preferred = params.get("audioEdition") || sync.current.current?.edition_id;
         if (preferred) {
@@ -949,11 +955,17 @@ export function ReaderPage({ id }: { id: string }) {
           } catch {}
         }
       }
+      if (!previewMode && !params.has("audioEdition"))
+        sync.current = await openBiosync(
+          id,
+          accountRef.current.user?.id || offlineOwner() || null,
+          { localOnly: true },
+        );
       const [{ default: ePub }, bytes] = await Promise.all([
         import("epubjs"),
         !previewMode && syncEdition.current
           ? matchingEpub(syncEdition.current)
-          : epubBytes(id, previewMode),
+          : epubBytes(id, previewMode, downloadController.signal),
       ]);
       if (canceled) return;
       epubHash.current = await sha256(bytes);
@@ -998,9 +1010,7 @@ export function ReaderPage({ id }: { id: string }) {
       }
       const nav = await created.loaded.navigation;
       const chapters = cleanToc(nav.toc);
-      try {
-        await resolveTocCFIs(created, chapters);
-      } catch {}
+      // TOC CFI resolution is lazy on chapter selection; do not parse every chapter before first text.
       if (canceled) return;
       setToc(chapters);
       const r = created.renderTo(container.current!, {
@@ -1214,6 +1224,25 @@ export function ReaderPage({ id }: { id: string }) {
       await ensurePageFrame(cfi || undefined);
       if (canceled) return;
       setReady(true);
+      performance.mark("cove-reader-ready");
+      // Reading is usable before optional chapter fragment mapping and sync discovery.
+      void resolveTocCFIs(created, chapters, () => canceled)
+        .then(() => {
+          if (!canceled) setToc([...chapters]);
+        })
+        .catch(() => {});
+      if (!previewMode && !params.has("audioEdition") && navigator.onLine !== false)
+        void (async () => {
+          const optionalSync = await openBiosync(id, accountRef.current.user?.id || null);
+          const preferred = optionalSync.current?.edition_id;
+          if (preferred) {
+            const edition = await loadEdition(preferred);
+            if (!canceled && edition.bookId === id && edition.epubSha256 === epubHash.current) {
+              sync.current = optionalSync;
+              syncEdition.current = edition;
+            }
+          }
+        })().catch(() => {});
       for (const a of annotationRef.current.filter((a) => matchesReadingBook(a.bookId)))
         try {
           r.annotations.highlight(a.cfi, { id: a.id }, undefined, "fore-highlight", {
@@ -1303,6 +1332,7 @@ export function ReaderPage({ id }: { id: string }) {
     document.addEventListener("visibilitychange", visibility);
     return () => {
       canceled = true;
+      downloadController.abort();
       mounted.current = false;
       activity.current?.stop();
       activity.current = null;
@@ -1318,7 +1348,7 @@ export function ReaderPage({ id }: { id: string }) {
       rendition.current = null;
       created?.destroy();
     };
-  }, [id, accountLoading, !!bookQuery.data, retry]);
+  }, [id, waitForAccount, !!bookQuery.data, retry]);
   useEffect(() => {
     for (const frame of container.current?.querySelectorAll("iframe") || [])
       frame.title = ui("Book text: {title}", { title: bookQuery.data?.title || id });

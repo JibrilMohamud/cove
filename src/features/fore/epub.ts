@@ -1,3 +1,4 @@
+import { ensureOfflineReaderReady } from "./offline-shell";
 import { canUseOfflineFallback } from "./offline-account";
 import { requestPersistentStorage } from "./offline";
 import {
@@ -151,7 +152,7 @@ export async function prepareEpub(bytes: ArrayBuffer) {
     metadata: info,
   };
 }
-export async function epubBytes(bookId: string, preview = false) {
+export async function epubBytes(bookId: string, preview = false, signal?: AbortSignal) {
   // Canonical IDs are never assumed public: a registered Gutenberg manifest authorizes shared lookup.
   if (!preview) {
     const cached = await publicEpubBytes(bookId).catch(() => null);
@@ -161,12 +162,42 @@ export async function epubBytes(bookId: string, preview = false) {
   }
   const r = await fetch(
     `/api/fore/books/${encodeURIComponent(bookId)}/${preview ? "preview/epub" : "epub"}`,
+    {
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(30000)])
+        : AbortSignal.timeout(30000),
+    },
   );
   if (!r.ok) {
     const d = await r.json().catch(() => null);
     throw Error(d?.error || "This EPUB could not be downloaded.");
   }
-  return r.arrayBuffer();
+  const limit = 25 * 1024 * 1024;
+  if (Number(r.headers.get("content-length") || 0) > limit) {
+    await r.body?.cancel();
+    throw Error("This EPUB exceeds the reading download limit.");
+  }
+  const reader = r.body?.getReader();
+  if (!reader) throw Error("The EPUB download was empty.");
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      throw Error("This EPUB exceeds the reading download limit.");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes.buffer;
 }
 async function downloadableEpubBytes(bookId: string) {
   const r = await fetch(`/api/fore/books/${encodeURIComponent(bookId)}/download/epub`, {
@@ -329,6 +360,7 @@ export async function downloadCoveBackup(book: CatalogBook) {
 export async function saveEpubOffline(book: CatalogBook) {
   if (book.uploaded) throw Error("Personal imports already live in your private Cove library.");
   const id = String(book.id);
+  await ensureOfflineReaderReady();
   if (!isPublicEpubBook(book)) {
     await saveLicensedEpub(book);
     requestPersistentStorage();

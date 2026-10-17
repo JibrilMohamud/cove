@@ -1,0 +1,82 @@
+[
+  {
+    "path": "/",
+    "phase": "first",
+    "status": 200,
+    "ttfbMs": 10152,
+    "totalMs": 10210,
+    "bytes": 31070,
+    "cache": null,
+    "serverTiming": "cove_entry;dur=47.7, cove_render;dur=5181.7, cove_total;dur=5231.4"
+  },
+  {
+    "path": "/",
+    "phase": "repeat",
+    "status": 200,
+    "ttfbMs": 7875,
+    "totalMs": 7892,
+    "bytes": 31070,
+    "cache": null,
+    "serverTiming": "cove_entry;dur=67.1, cove_render;dur=5245.5, cove_total;dur=5315.7"
+  },
+  {
+    "path": "/api/fore/storefront/bootstrap",
+    "phase": "first",
+    "status": 200,
+    "ttfbMs": 16789,
+    "totalMs": 16852,
+    "bytes": 107478,
+    "cache": null,
+    "serverTiming": "cove_context;dur=140.0, cove_page;dur=40.0, cove_markets;dur=4715.0, cove_taxonomy;dur=7301.0, cove_catalog;dur=10582.0, cove_bootstrap;dur=10640.0"
+  },
+  {
+    "path": "/api/fore/storefront/bootstrap",
+    "phase": "repeat",
+    "status": 200,
+    "ttfbMs": 3632,
+    "totalMs": 3695,
+    "bytes": 107475,
+    "cache": null,
+    "serverTiming": null
+  },
+  {
+    "path": "/api/fore/catalog?limit=12",
+    "phase": "first",
+    "status": 200,
+    "ttfbMs": 19365,
+    "totalMs": 19423,
+    "bytes": 33975,
+    "cache": null,
+    "serverTiming": null
+  },
+  {
+    "path": "/api/fore/catalog?limit=12",
+    "phase": "repeat",
+    "status": 200,
+    "ttfbMs": 4513,
+    "totalMs": 4573,
+    "bytes": 33972,
+    "cache": null,
+    "serverTiming": null
+  },
+  {
+    "path": "/api/fore/catalog?search=Frankenstein&limit=12",
+    "phase": "first",
+    "status": 200,
+    "ttfbMs": 20519,
+    "totalMs": 20521,
+    "bytes": 31947,
+    "cache": null,
+    "serverTiming": null
+  },
+  {
+    "path": "/api/fore/catalog?search=Frankenstein&limit=12",
+    "phase": "repeat",
+    "status": 200,
+    "ttfbMs": 3425,
+    "totalMs": 3484,
+    "bytes": 31943,
+    "cache": null,
+    "serverTiming": null
+  }
+]

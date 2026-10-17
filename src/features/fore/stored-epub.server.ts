@@ -70,6 +70,9 @@ export async function validateStoredEpub(bytes: Uint8Array) {
       !zip.file(decodeURIComponent(target.pathname.slice(1)))
     )
       throw new Error("EPUB spine references a missing or remote chapter.");
+    const chapterPath = decodeURIComponent(target.pathname.slice(1));
+    const chapter = await xml(chapterPath, 60 * 1024 * 1024);
+    parse(chapter);
   }
   if (zip.file("META-INF/encryption.xml"))
     throw new Error("Encrypted EPUBs require publisher handling.");

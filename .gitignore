@@ -43,3 +43,5 @@ __pycache__/
 *.pyc
 
 artifacts/browser-qa/
+
+.offline-dist/

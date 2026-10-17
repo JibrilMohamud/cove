@@ -410,6 +410,7 @@ SELECT p.id product_id,p.public_id product_public_id,p.source_name,p.source_exte
   w.original_publication_date,w.min_age,w.max_age,w.content_warnings,
   pub.name publisher_name,pub.slug publisher_slug,imp.name imprint_name,imp.slug imprint_slug,
   d.download_count,d.first_ingested_at,
+  (SELECT epub_status FROM gutenberg_source_cache gc WHERE p.source_name='gutenberg' AND gc.id=p.source_external_id LIMIT 1) epub_storage_status,
   (SELECT source_project FROM gutenberg_source_cache gc WHERE p.source_name='gutenberg' AND gc.id=p.source_external_id LIMIT 1) source_project,
   (SELECT source_url FROM gutenberg_source_cache gc WHERE p.source_name='gutenberg' AND gc.id=p.source_external_id LIMIT 1) source_page_url,
   (SELECT source_license_url FROM gutenberg_source_cache gc WHERE p.source_name='gutenberg' AND gc.id=p.source_external_id LIMIT 1) source_license_url,
@@ -461,7 +462,17 @@ export function canonicalRowBook(row: any): CatalogBook {
     .filter((x) => !x.role || x.role === "author")
     .map((x) => ({ id: x.id, slug: x.slug, name: x.name }));
   const formats: Record<string, string> = {};
-  if (row.epub_source_url || row.epub_object_key)
+  const readingState =
+    !row.epub_object_key && ["failed", "unavailable"].includes(row.epub_storage_status)
+      ? "unavailable"
+      : row.epub_object_key
+        ? "stored"
+        : row.epub_source_url &&
+            row.source_name === "gutenberg" &&
+            !/^(pgca|pgau|pgeu)_/.test(row.source_external_id || "")
+          ? "on-demand"
+          : "processing";
+  if (readingState !== "unavailable" && (row.epub_source_url || row.epub_object_key))
     formats["application/epub+zip"] =
       `/api/fore/books/${encodeURIComponent(row.product_public_id || row.source_external_id)}/epub`;
   if (row.cover_url)
@@ -495,6 +506,7 @@ export function canonicalRowBook(row: any): CatalogBook {
       ? parseArray<string>(row.languages_json)
       : [row.language || "en"],
     formats,
+    readingAvailability: { state: readingState },
     download_count: Number(row.download_count) || 0,
     copyright: row.source_name === "gutenberg" ? false : undefined,
     uploaded: row.source_name === "upload",

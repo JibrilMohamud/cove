@@ -100,6 +100,8 @@ jobs:
         run: npm run test:soundtracks
       - name: Literary profiles, evidence and chapter-matching regressions
         run: npm run test:literary-profiles
+      - name: Core reading delivery and live rights reliability
+        run: npm run test:reading-reliability
       - name: Literary discovery, satisfaction and privacy regressions
         run: npm run test:literary-discovery
       - name: Chapter-recording matching and playlist sequencing

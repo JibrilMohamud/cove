@@ -2184,12 +2184,26 @@ async function sourceEpubBytes(env: CoveEnv, product: any, asset: any, externalI
   const key =
     asset.object_key || (product.source_name === "gutenberg" ? `epubs/${externalId}.epub` : "");
   const cached = key && env.BUCKET ? await env.BUCKET.get(key) : null;
-  if (cached)
-    return {
-      bytes: new Uint8Array(await cached.arrayBuffer()),
-      key,
-      mimeType: asset.mime_type || "application/epub+zip",
-    };
+  if (cached) {
+    try {
+      const bytes = new Uint8Array(await bounded(new Response(cached.body), 25 * 1024 * 1024));
+      await validateStoredEpub(bytes);
+      if (asset.sha256 && (await sha256Hex(bytes)) !== asset.sha256)
+        throw Error("Stored EPUB integrity mismatch.");
+      return { bytes, key, mimeType: asset.mime_type || "application/epub+zip" };
+    } catch {
+      // Only public US source files can be repaired here. Never substitute a
+      // different publisher/import/regional edition or bypass its rights gate.
+      if (product.source_name !== "gutenberg" || /^(?:pgca|pgau|pgeu)_/.test(externalId))
+        throw new ApiError(503, "This stored EPUB failed validation. Please contact support.");
+      await database(env)
+        .prepare(
+          "UPDATE gutenberg_source_cache SET epub_status='retry',epub_next_attempt_at='',epub_last_error='Stored EPUB failed validation; repair required.' WHERE id=? AND ingest_status<>'quarantined'",
+        )
+        .bind(externalId)
+        .run();
+    }
+  }
   if (product.source_name === "upload")
     throw new ApiError(404, "This imported file is unavailable.");
   // Customer requests never fetch publisher-controlled URLs. Commercial assets must be ingested into
@@ -2206,12 +2220,26 @@ async function sourceEpubBytes(env: CoveEnv, product: any, asset: any, externalI
   const response = await fetchGutenbergEpub(asset.source_url, env, "pg_us");
   if (!response.ok) throw new ApiError(502, "The EPUB could not be downloaded. Please try again.");
   const bytes = await bounded(response, 25 * 1024 * 1024);
-  if (bytes[0] !== 0x50 || bytes[1] !== 0x4b)
-    throw new ApiError(502, "The source did not return an EPUB.");
+  try {
+    await validateStoredEpub(bytes);
+  } catch {
+    throw new ApiError(502, "The source EPUB could not be validated. Please try another edition.");
+  }
+  const contentHash = await sha256Hex(bytes);
   if (key && env.BUCKET)
     await env.BUCKET.put(key, bytes, {
       httpMetadata: { contentType: "application/epub+zip", cacheControl: "31536000" },
     });
+  await database(env).batch([
+    database(env)
+      .prepare(
+        "UPDATE gutenberg_source_cache SET epub_status='completed',epub_cached_at=?,epub_last_error='',epub_next_attempt_at='',content_hash=?,canonicalization_version='pgus-upstream-v1' WHERE id=? AND source_id='pg_us' AND ingest_status<>'quarantined'",
+      )
+      .bind(now(), contentHash, externalId),
+    database(env)
+      .prepare("UPDATE asset_versions SET object_key=?,sha256=? WHERE id=?")
+      .bind(key, contentHash, asset.asset_version_id),
+  ]);
   return { bytes, key, mimeType: asset.mime_type || "application/epub+zip" };
 }
 async function activeEntitlement(
