@@ -1,7 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { currentCoveRequestEnvironment } from "@/lib/cove-request-env.server";
+import {
+  currentCoveRequestEnvironment,
+  currentCoveRequestExecutionContext,
+} from "@/lib/cove-request-env.server";
 import { hedgedStorefrontBootstrap } from "./storefront-hedged-fetch";
 
 export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
@@ -29,6 +32,9 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
         const response = await handleCoveApi(
           forwarded,
           localEnvironment as Parameters<typeof handleCoveApi>[1],
+          // Cloudflare can finish bounded request telemetry after the HTML
+          // becomes available. Live book rights and D1 reads remain awaited.
+          currentCoveRequestExecutionContext(),
         );
         return response ?? new Response(null, { status: 503 });
       }
