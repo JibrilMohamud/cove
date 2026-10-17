@@ -214,7 +214,10 @@ export async function proxyPersistenceApi(
     const response = await fetch(target, init);
     if ([502, 503, 504].includes(response.status) && safePublicFallback(request)) {
       if (productionFallbackDenied(env)) {
-        console.warn("Persistent backend unavailable; production catalog fails closed", response.status);
+        console.warn(
+          "Persistent backend unavailable; production catalog fails closed",
+          response.status,
+        );
         await response.body?.cancel();
         return unavailablePersistenceResponse();
       }
