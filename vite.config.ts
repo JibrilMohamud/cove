@@ -9,6 +9,7 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { foreApiDevPlugin } from "./scripts/local-api.mjs";
 
 const isVercelBuild = Boolean(process.env.VERCEL && process.env.VERCEL !== "0");
+const isCloudflarePilotBuild = process.env.COVE_CLOUDFLARE_SSR_PILOT === "1";
 
 export default defineConfig({
   plugins: [foreApiDevPlugin()],
@@ -20,7 +21,11 @@ export default defineConfig({
       allowedHosts: ["terminal.local"],
     },
   },
-  nitro: isVercelBuild ? { preset: "vercel" } : true,
+  nitro: isVercelBuild
+    ? { preset: "vercel" }
+    : isCloudflarePilotBuild
+      ? { preset: "cloudflare-module" }
+      : true,
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
