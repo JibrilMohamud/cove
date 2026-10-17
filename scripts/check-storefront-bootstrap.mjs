@@ -90,6 +90,20 @@ try {
       expected.results.map((b) => b.id),
       country + ": SSR uses the ordinary rights-filtered catalog",
     );
+    // Lean first-paint projection must preserve every field the book cards
+    // display. Detail-only metadata remains deferred to the full catalog.
+    for (let i = 0; i < bootstrap.catalog.results.length; i++) {
+      const first = bootstrap.catalog.results[i];
+      const full = expected.results[i];
+      assert.equal(first.title, full.title);
+      assert.deepEqual(first.authors, full.authors);
+      assert.deepEqual(first.offer, full.offer);
+      assert.deepEqual(first.series, full.series);
+      assert.deepEqual(first.bookshelves, full.bookshelves);
+      assert.deepEqual(first.subjects, full.subjects);
+      assert.deepEqual(first.formats, full.formats);
+      assert.deepEqual(first.readingAvailability, full.readingAvailability);
+    }
     assert.equal(
       new URLSearchParams(bootstrap.catalogQuery).get("currency"),
       bootstrap.context.currency,
