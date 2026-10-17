@@ -87,7 +87,8 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       if (!deadline.expired.countryAsserted) timing.push("cove_ssr_country_unasserted;dur=0");
       if (!deadline.expired.primaryCompleted) timing.push("cove_ssr_primary_pending;dur=0");
       if (!deadline.expired.alternateStarted) timing.push("cove_ssr_alternate_not_started;dur=0");
-      else if (!deadline.expired.alternateCompleted) timing.push("cove_ssr_alternate_pending;dur=0");
+      else if (!deadline.expired.alternateCompleted)
+        timing.push("cove_ssr_alternate_pending;dur=0");
     }
     if (result === null) timing.push("cove_ssr_empty;dur=0");
     setResponseHeader("Server-Timing", timing.join(", "));
