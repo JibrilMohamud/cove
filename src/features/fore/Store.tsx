@@ -1699,7 +1699,7 @@ export function StorePage({
         (!books.length || !result.data.warning.includes("catalog updater is retrying")) && (
           <p className="notice">{result.data.warning}</p>
         )}
-      {result.error ? (
+      {result.error && !books.length ? (
         <div className="empty-state">
           <h2>The catalog needs a moment.</h2>
           <p>{result.error.message}</p>
