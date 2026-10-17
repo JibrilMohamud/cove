@@ -199,19 +199,25 @@ export default {
       return stageNoStore(secured, staging);
     } catch (error) {
       console.error(error);
-      return stageNoStore(applySecurityHeaders(
-        request,
-        new Response(renderErrorPage(), {
-          status: 500,
-          headers: { "content-type": "text/html; charset=utf-8" },
-        }),
-        (env && typeof env === "object"
-          ? env
-          : typeof process !== "undefined"
-            ? process.env
-            : {}) as any,
-      ),
-      !!(env && typeof env === "object" && (env as {COVE_SSR_STAGING?: string}).COVE_SSR_STAGING === "1"));
+      return stageNoStore(
+        applySecurityHeaders(
+          request,
+          new Response(renderErrorPage(), {
+            status: 500,
+            headers: { "content-type": "text/html; charset=utf-8" },
+          }),
+          (env && typeof env === "object"
+            ? env
+            : typeof process !== "undefined"
+              ? process.env
+              : {}) as any,
+        ),
+        !!(
+          env &&
+          typeof env === "object" &&
+          (env as { COVE_SSR_STAGING?: string }).COVE_SSR_STAGING === "1"
+        ),
+      );
     }
   },
 };
