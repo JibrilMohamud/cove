@@ -13,6 +13,7 @@ on:
     branches: [main]
     paths:
       - "scripts/check-production-storefront-performance*.mjs"
+      - "scripts/wait-vercel-production*.mjs"
       - ".github/workflows/production-storefront-performance.yml"
   workflow_dispatch:
   schedule:
@@ -42,7 +43,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/wait-vercel-production.mjs
-
       - name: Measure public production homepage
         if: github.event_name != 'pull_request'
         env:
