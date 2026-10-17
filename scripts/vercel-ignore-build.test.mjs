@@ -86,7 +86,10 @@ test("missing shallow Git history fails open, never suppresses production releas
     }),
     { ignore: false, reason: "missing_git_history" },
   );
-  assert.equal(changedFilesForCurrentCommit(() => ""), null);
+  assert.equal(
+    changedFilesForCurrentCommit(() => ""),
+    null,
+  );
   assert.deepEqual(
     vercelBuildDecision(production, () => "README.md\0.github/workflows/security.yml\0"),
     { ignore: true, reason: "docs_and_ci_only" },
@@ -96,12 +99,9 @@ test("missing shallow Git history fails open, never suppresses production releas
     { ignore: false, reason: "runtime_or_unknown_changes" },
   );
   assert.equal(
-    vercelBuildDecision(
-      { VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "cost/preview" },
-      () => {
-        throw new Error("Preview should not need git");
-      },
-    ).ignore,
+    vercelBuildDecision({ VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "cost/preview" }, () => {
+      throw new Error("Preview should not need git");
+    }).ignore,
     false,
   );
 });
