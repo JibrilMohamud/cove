@@ -25,7 +25,11 @@ try {
     calls += 1;
     return worker;
   };
-  const unsupported = await resolveNativeWorkerBindings(plain, { FORE_ENVIRONMENT: "production" }, getter);
+  const unsupported = await resolveNativeWorkerBindings(
+    plain,
+    { FORE_ENVIRONMENT: "production" },
+    getter,
+  );
   assert.equal(unsupported.DB, undefined);
   assert.equal(calls, 0, "Untrusted headers never authorize binding access");
 
@@ -40,17 +44,10 @@ try {
   assert.equal(resolved.BUCKET, worker.BUCKET);
   assert.equal(resolved.COVE_SSR_STAGING_GATE_KEY, "native-only");
   assert.equal(calls, 1);
-  assert.equal(
-    (await resolveNativeWorkerBindings(trusted, { DB: d1 }, getter)).DB,
-    d1,
-  );
+  assert.equal((await resolveNativeWorkerBindings(trusted, { DB: d1 }, getter)).DB, d1);
   assert.equal(calls, 1, "Already bound Workers must not reload environment");
 
-  const stage = await resolveNativeWorkerBindings(
-    plain,
-    { COVE_SSR_STAGING: "1" },
-    getter,
-  );
+  const stage = await resolveNativeWorkerBindings(plain, { COVE_SSR_STAGING: "1" }, getter);
   assert.equal(stage.DB, d1);
   assert.equal(calls, 2, "Staging may recover its own Worker bindings");
 
