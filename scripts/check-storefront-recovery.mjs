@@ -33,7 +33,13 @@ try {
       assert.equal(attempt.headers.get("x-vercel-ip-country"), "CA");
       if (attempts === 1) {
         return await new Promise((resolve, reject) => {
-          const onAbort = () => reject(attempt.signal.reason);
+          // AbortSignal.timeout uses an unref'ed timer in Node. Keep a referenced
+          // watchdog so this integration test cannot exit with unsettled await.
+          const watchdog = setTimeout(() => reject(new Error("Abort never fired")), 1000);
+          const onAbort = () => {
+            clearTimeout(watchdog);
+            reject(attempt.signal.reason);
+          };
           attempt.signal.addEventListener("abort", onAbort, { once: true });
           if (attempt.signal.aborted) onAbort();
         });
