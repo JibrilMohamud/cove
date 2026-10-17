@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
+import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requestStorefrontBootstrap } from "./storefront-bootstrap-fetch";
 import { recoverStorefrontBootstrap } from "./storefront-bootstrap-recovery";
@@ -25,11 +25,17 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       if (remoteRequired) return new Response(null, { status: 503 });
       return fetch(forwarded);
     };
-    return requestStorefrontBootstrap(source, fetchApi, {
+    const started = performance.now();
+    let splitMs: number | null = null;
+    let splitSucceeded = false;
+    let firstFailureMs: number | null = null;
+    const result = await requestStorefrontBootstrap(source, fetchApi, {
       firstAttemptMs: 3_500,
       timeoutMs: 10_000,
       recover: (request, api) => recoverStorefrontBootstrap(request, api, remoteRequired),
       onRecovery: ({ success, durationMs }) => {
+        splitMs = durationMs;
+        splitSucceeded = success;
         console.info("storefront_ssr_split_recovery", {
           success,
           durationMs: Math.round(durationMs),
@@ -37,7 +43,22 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       },
       onFailure: ({ attempt, kind, status }) => {
         // Failure classifications only: do not log IP, locale, cookies or book data.
+        if (attempt === 1 && firstFailureMs === null) {
+          firstFailureMs = performance.now() - started;
+        }
         console.warn("storefront_ssr_bootstrap_retry", { attempt, kind, status });
       },
     });
+    // These duration-only metrics survive when Vercel runtime logs are unavailable.
+    // No location, IP, book, identity, cookie or authorizable data is included.
+    const timing = [`cove_ssr_bootstrap;dur=${(performance.now() - started).toFixed(1)}`];
+    if (firstFailureMs !== null)
+      timing.push(`cove_ssr_primary_failure;dur=${firstFailureMs.toFixed(1)}`);
+    if (splitMs !== null) {
+      timing.push(`cove_ssr_split;dur=${splitMs.toFixed(1)}`);
+      if (splitSucceeded) timing.push("cove_ssr_split_success;dur=0");
+    }
+    if (result === null) timing.push("cove_ssr_empty;dur=0");
+    setResponseHeader("Server-Timing", timing.join(", "));
+    return result;
   });
