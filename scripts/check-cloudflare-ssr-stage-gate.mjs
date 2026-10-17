@@ -14,33 +14,40 @@ try {
     outfile: path.join(dir, "gate.mjs"),
     logLevel: "silent",
   });
-  const { rejectUnauthenticatedStagingRequest, stageNoStore, isStagingStaticAsset } =
-    await import(path.join(dir, "gate.mjs"));
+  const { rejectUnauthenticatedStagingRequest, stageNoStore, isStagingStaticAsset } = await import(
+    path.join(dir, "gate.mjs")
+  );
   const token = "a".repeat(64);
   const env = { COVE_SSR_STAGING: "1", COVE_SSR_STAGING_GATE_KEY: token };
   const request = (headers = {}, method = "GET") =>
     new Request("https://cove.test/", { method, headers });
   assert.equal(await rejectUnauthenticatedStagingRequest(request(), {}), null);
-  assert.equal((await rejectUnauthenticatedStagingRequest(request(), env)).status, 401);
-  assert.equal(
-    (await rejectUnauthenticatedStagingRequest(request({ Authorization: "Bearer " + "b".repeat(64) }), env)).status,
-    401,
+  const missing = await rejectUnauthenticatedStagingRequest(request(), env);
+  assert.equal(missing.status, 401);
+  const wrong = await rejectUnauthenticatedStagingRequest(
+    request({ Authorization: "Bearer " + "b".repeat(64) }),
+    env,
   );
-  assert.equal(
-    (await rejectUnauthenticatedStagingRequest(request({ Authorization: "Bearer " + token }), env)),
-    null,
+  assert.equal(wrong.status, 401);
+  const authorized = await rejectUnauthenticatedStagingRequest(
+    request({ Authorization: "Bearer " + token }),
+    env,
   );
-  assert.equal(
-    (await rejectUnauthenticatedStagingRequest(request({ Authorization: "Bearer " + token }, "POST"), env)).status,
-    405,
+  assert.equal(authorized, null);
+  const attemptedWrite = await rejectUnauthenticatedStagingRequest(
+    request({ Authorization: "Bearer " + token }, "POST"),
+    env,
   );
-  assert.equal(
-    (await rejectUnauthenticatedStagingRequest(request({ Authorization: "Bearer " + token }), {
-      COVE_SSR_STAGING: "1",
-    })).status,
-    503,
+  assert.equal(attemptedWrite.status, 405);
+  const unconfigured = await rejectUnauthenticatedStagingRequest(
+    request({ Authorization: "Bearer " + token }),
+    { COVE_SSR_STAGING: "1" },
   );
-  const sealed = stageNoStore(new Response("safe", { headers: { "cache-control": "public" } }), true);
+  assert.equal(unconfigured.status, 503);
+  const sealed = stageNoStore(
+    new Response("safe", { headers: { "cache-control": "public" } }),
+    true,
+  );
   assert.match(sealed.headers.get("cache-control"), /no-store/);
   assert.match(sealed.headers.get("x-robots-tag"), /noindex/);
   assert.equal(isStagingStaticAsset("/assets/main.js"), true);
