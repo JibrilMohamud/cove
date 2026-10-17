@@ -3,10 +3,7 @@ import type { StorefrontBootstrap } from "./storefront-bootstrap";
 export type HedgedStorefrontPhase = "primary" | "alternate";
 export type HedgedStorefrontOutcome = "ok" | "denied" | "invalid" | "unavailable" | "timeout";
 
-type Result =
-  | { kind: "ok"; value: string }
-  | { kind: "denied" }
-  | { kind: "unavailable" };
+type Result = { kind: "ok"; value: string } | { kind: "denied" } | { kind: "unavailable" };
 
 type ResultWithPhase = Result & { phase: HedgedStorefrontPhase };
 
@@ -23,7 +20,11 @@ export async function hedgedStorefrontBootstrap(
   options: {
     hedgeAfterMs?: number;
     timeoutMs?: number;
-    onPhase?: (phase: HedgedStorefrontPhase, outcome: HedgedStorefrontOutcome, durationMs: number) => void;
+    onPhase?: (
+      phase: HedgedStorefrontPhase,
+      outcome: HedgedStorefrontOutcome,
+      durationMs: number,
+    ) => void;
   } = {},
 ): Promise<string | null> {
   if (source.signal.aborted) return null;
@@ -120,10 +121,7 @@ export async function hedgedStorefrontBootstrap(
       // Without an original platform-country assertion, a second invocation
       // may have a different IP/territory. Keep waiting for the authoritative
       // first request rather than incorrectly blanking an otherwise healthy SSR.
-      const unhedged = await Promise.race<ResultWithPhase | "expired">([
-        primaryPromise,
-        timeout,
-      ]);
+      const unhedged = await Promise.race<ResultWithPhase | "expired">([primaryPromise, timeout]);
       return unhedged !== "expired" && unhedged.kind === "ok" ? unhedged.value : null;
     }
     const alternatePromise = tryRequest("alternate", alternate, alternateCtrl);
