@@ -62,12 +62,16 @@ export async function hedgedStorefrontBootstrap(
         new Request(url, { headers: source.headers, signal, redirect: "manual" }),
       );
       if (!response.ok) {
-        await response.body?.cancel();
-        if (phase === "primary" && [401, 403, 404].includes(response.status)) {
-          outcome = "denied";
-          return { phase, kind: "denied" };
+        const denied = phase === "primary" && [401, 403, 404].includes(response.status);
+        // A stream-cancellation failure must never reclassify a 403 denial
+        // as a transient error that can be overridden by the alternate.
+        if (denied) outcome = "denied";
+        try {
+          await response.body?.cancel();
+        } catch {
+          // The HTTP status remains authoritative even if cleanup fails.
         }
-        return { phase, kind: "unavailable" };
+        return denied ? { phase, kind: "denied" } : { phase, kind: "unavailable" };
       }
       // An alternate Vercel invocation cannot supply the definitive country.
       // Require the original trusted platform country and remote backend proof.
