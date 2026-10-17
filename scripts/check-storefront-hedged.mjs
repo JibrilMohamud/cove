@@ -14,7 +14,16 @@ try {
     outfile: path.join(dir, "hedged.mjs"),
     logLevel: "silent",
   });
-  const { hedgedStorefrontBootstrap } = await import(path.join(dir, "hedged.mjs"));
+  const { hedgedStorefrontBootstrap, sanitizedStorefrontBackendTiming } = await import(
+    path.join(dir, "hedged.mjs")
+  );
+  assert.deepEqual(
+    sanitizedStorefrontBackendTiming(
+      "cove_context;dur=103.1, cove_catalog;dur=200, user;desc=private, cove_rogue;dur=42, cove_bootstrap;dur=360"
+    ),
+    ["cove_backend_context;dur=103.1", "cove_backend_catalog;dur=200", "cove_backend_bootstrap;dur=360"]
+  );
+  assert.deepEqual(sanitizedStorefrontBackendTiming("cove_catalog;dur=0;desc=secret"), []);
   const source = new Request("https://cove.test/api/fore/storefront/bootstrap", {
     headers: { "x-vercel-ip-country": "CA", "accept-language": "fr-CA" },
   });
@@ -39,6 +48,14 @@ try {
       if (request.signal.aborted) onAbort();
     });
 
+  const receivedTimings = [];
+  const verifiedWithTiming = () =>
+    Response.json(payload, {
+      headers: {
+        "x-cove-persistence": "remote-d1-r2",
+        "Server-Timing": "cove_context;dur=90, cove_catalog;dur=30.1, leak;desc=private",
+      },
+    });
   let alternateCalls = 0;
   const phases = [];
   const started = performance.now();
@@ -49,16 +66,20 @@ try {
       alternateCalls++;
       assert.equal(request.headers.get("x-vercel-ip-country"), "CA");
       assert.equal(request.headers.get("accept-language"), "fr-CA");
-      return verified();
+      return verifiedWithTiming();
     },
     {
       hedgeAfterMs: 15,
       timeoutMs: 350,
       onPhase: (...args) => phases.push(args),
+      onVerifiedTimings: (_phase, timings) => receivedTimings.push(timings),
     },
   );
   assert.equal(JSON.parse(hedged).catalog.results.length, 1);
   assert.equal(alternateCalls, 1);
+  assert.deepEqual(receivedTimings, [
+    ["cove_backend_context;dur=90", "cove_backend_catalog;dur=30.1"],
+  ]);
   assert.ok(performance.now() - started < 200, "Independent hedge must beat the cold timeout");
   assert.ok(phases.some(([phase, kind]) => phase === "alternate" && kind === "ok"));
 
