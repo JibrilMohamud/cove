@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { withCoveRequestEnvironment } from "./lib/cove-request-env.server";
+import { isolateWorkerCountry } from "./lib/cloudflare-country.server";
 import { renderErrorPage } from "./lib/error-page";
 import { cachePublicDocument } from "./lib/public-document-cache";
 import { applySecurityHeaders, securityTxt } from "./lib/security-headers";
@@ -69,6 +70,22 @@ export default {
         FORE_INGESTION_TRIGGER_TOKEN?: string;
         FORE_INGESTION_VERIFY_JWK?: string;
       };
+      // Production Cloudflare pilot requests have direct D1 bindings and must
+      // never use HTTP-forgeable country headers to select licensed books.
+      // Vercel's existing authenticated gateway remains unchanged.
+      if (foreEnv.DB && typeof foreEnv.DB.prepare === "function") {
+        const safe = isolateWorkerCountry(request);
+        if (!safe)
+          return applySecurityHeaders(
+            request,
+            new Response("Unable to verify storefront territory.", {
+              status: 503,
+              headers: { "cache-control": "no-store", "content-type": "text/plain" },
+            }),
+            foreEnv,
+          );
+        request = safe;
+      }
       const ingestionControl = await handleVercelIngestionControl(request, foreEnv);
       if (ingestionControl) return applySecurityHeaders(request, ingestionControl, foreEnv);
       const persistenceResponse = await proxyPersistenceApi(request, foreEnv);
