@@ -3,6 +3,11 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { withCoveRequestEnvironment } from "./lib/cove-request-env.server";
 import { isolateWorkerCountry } from "./lib/cloudflare-country.server";
+import {
+  isStagingStaticAsset,
+  rejectUnauthenticatedStagingRequest,
+  stageNoStore,
+} from "./lib/cloudflare-ssr-stage-gate.server";
 import { renderErrorPage } from "./lib/error-page";
 import { cachePublicDocument } from "./lib/public-document-cache";
 import { applySecurityHeaders, securityTxt } from "./lib/security-headers";
@@ -58,6 +63,9 @@ export default {
       const foreEnv = runtimeEnv as {
         DB?: any;
         BUCKET?: any;
+        ASSETS?: { fetch: (request: Request) => Promise<Response> };
+        COVE_SSR_STAGING?: string;
+        COVE_SSR_STAGING_GATE_KEY?: string;
         FORE_PUBLIC_URL?: string;
         FORE_ENVIRONMENT?: string;
         FORE_CSP_REPORT_URI?: string;
@@ -70,40 +78,64 @@ export default {
         FORE_INGESTION_TRIGGER_TOKEN?: string;
         FORE_INGESTION_VERIFY_JWK?: string;
       };
+      const staging = foreEnv.COVE_SSR_STAGING === "1";
+      const rejected = await rejectUnauthenticatedStagingRequest(request, foreEnv);
+      if (rejected) return rejected;
+      // All static assets use Worker-first routing in staging so a missing
+      // credential cannot bypass this gate via the assets service.
+      if (staging && isStagingStaticAsset(new URL(request.url).pathname)) {
+        const asset = foreEnv.ASSETS
+          ? await foreEnv.ASSETS.fetch(request)
+          : new Response(null, { status: 503 });
+        return stageNoStore(applySecurityHeaders(request, asset, foreEnv), true);
+      }
       // Production Cloudflare pilot requests have direct D1 bindings and must
       // never use HTTP-forgeable country headers to select licensed books.
       // Vercel's existing authenticated gateway remains unchanged.
       if (foreEnv.DB && typeof foreEnv.DB.prepare === "function") {
         const safe = isolateWorkerCountry(request);
         if (!safe)
-          return applySecurityHeaders(
-            request,
-            new Response("Unable to verify storefront territory.", {
-              status: 503,
-              headers: { "cache-control": "no-store", "content-type": "text/plain" },
-            }),
-            foreEnv,
+          return stageNoStore(
+            applySecurityHeaders(
+              request,
+              new Response("Unable to verify storefront territory.", {
+                status: 503,
+                headers: { "cache-control": "no-store", "content-type": "text/plain" },
+              }),
+              foreEnv,
+            ),
+            staging,
           );
         request = safe;
       }
+      if (staging) {
+        // Authenticated stage transport must never forward its ephemeral
+        // bearer token into any application/session/backend handler.
+        const headers = new Headers(request.headers);
+        headers.delete("authorization");
+        request = new Request(request, { headers });
+      }
       const ingestionControl = await handleVercelIngestionControl(request, foreEnv);
-      if (ingestionControl) return applySecurityHeaders(request, ingestionControl, foreEnv);
+      if (ingestionControl)
+        return stageNoStore(applySecurityHeaders(request, ingestionControl, foreEnv), staging);
       const persistenceResponse = await proxyPersistenceApi(request, foreEnv);
-      if (persistenceResponse) return applySecurityHeaders(request, persistenceResponse, foreEnv);
+      if (persistenceResponse)
+        return stageNoStore(applySecurityHeaders(request, persistenceResponse, foreEnv), staging);
       // A configured persistence gateway handles APIs without loading the entire
       // catalog, publishing, commerce and audio backend into the Vercel process.
       const apiResponse = new URL(request.url).pathname.startsWith("/api/fore/")
         ? await (await import("./features/fore/api.server")).handleCoveApi(request, foreEnv as any)
         : null;
       if (apiResponse) {
-        return applySecurityHeaders(request, apiResponse, foreEnv);
+        return stageNoStore(applySecurityHeaders(request, apiResponse, foreEnv), staging);
       }
       const securityDocument = securityTxt(request, foreEnv);
-      if (securityDocument) return applySecurityHeaders(request, securityDocument, foreEnv);
+      if (securityDocument)
+        return stageNoStore(applySecurityHeaders(request, securityDocument, foreEnv), staging);
       if (foreEnv.DB) {
         const { handleSeoDocumentRequest } = await import("./features/fore/seo.server");
         const seo = await handleSeoDocumentRequest(request, foreEnv.DB, foreEnv.FORE_PUBLIC_URL);
-        if (seo) return applySecurityHeaders(request, seo, foreEnv);
+        if (seo) return stageNoStore(applySecurityHeaders(request, seo, foreEnv), staging);
       }
       const publicOrigin = foreEnv.FORE_PUBLIC_URL
         ? new URL(foreEnv.FORE_PUBLIC_URL).origin
@@ -155,26 +187,36 @@ export default {
             `cove_total;dur=${(performance.now() - requestStarted).toFixed(1)}`,
           ].join(", "),
         );
-        return new Response(secured.body, {
-          status: secured.status,
-          statusText: secured.statusText,
-          headers,
-        });
+        return stageNoStore(
+          new Response(secured.body, {
+            status: secured.status,
+            statusText: secured.statusText,
+            headers,
+          }),
+          staging,
+        );
       }
-      return secured;
+      return stageNoStore(secured, staging);
     } catch (error) {
       console.error(error);
-      return applySecurityHeaders(
-        request,
-        new Response(renderErrorPage(), {
-          status: 500,
-          headers: { "content-type": "text/html; charset=utf-8" },
-        }),
-        (env && typeof env === "object"
-          ? env
-          : typeof process !== "undefined"
-            ? process.env
-            : {}) as any,
+      return stageNoStore(
+        applySecurityHeaders(
+          request,
+          new Response(renderErrorPage(), {
+            status: 500,
+            headers: { "content-type": "text/html; charset=utf-8" },
+          }),
+          (env && typeof env === "object"
+            ? env
+            : typeof process !== "undefined"
+              ? process.env
+              : {}) as any,
+        ),
+        !!(
+          env &&
+          typeof env === "object" &&
+          (env as { COVE_SSR_STAGING?: string }).COVE_SSR_STAGING === "1"
+        ),
       );
     }
   },
