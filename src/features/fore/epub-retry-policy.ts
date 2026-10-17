@@ -31,7 +31,11 @@ export function planEpubRetry(message: string, attempts: number, nowMs = Date.no
  * starve first-time storage (or vice versa). Per-item rights/claim checks stay
  * in the downloader, not in this fair scheduler.
  */
-export function mixEpubFrontier<T>(pending: readonly T[], retries: readonly T[], limit: number): T[] {
+export function mixEpubFrontier<T>(
+  pending: readonly T[],
+  retries: readonly T[],
+  limit: number,
+): T[] {
   const count = Number.isFinite(limit) ? Math.max(0, Math.min(64, Math.floor(limit))) : 0;
   const result: T[] = [];
   let fresh = 0;
