@@ -26,6 +26,26 @@ try {
   });
   const { upsertTaxonomyNode, taxonomyTree } = await import(path.join(root, "taxonomy.mjs"));
   const env = localBindings(root);
+  // Guard the cold SSR path itself, not merely its JSON shape: a future
+  // refactor must not silently bring large live taxonomy scans back into
+  // the render-blocking bootstrap.
+  const fastFirstPaintEnv = {
+    ...env,
+    DB: new Proxy(env.DB, {
+      get(target, property) {
+        if (property === "prepare")
+          return (sql) => {
+            assert.ok(
+              !/edition_taxonomy_nodes/i.test(sql),
+              "first-paint bootstrap must defer all category membership scans",
+            );
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, property);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }),
+  };
   for (const [country, locale] of [
     ["US", "en-US"],
     ["CA", "fr-FR"],
@@ -35,7 +55,7 @@ try {
     const headers = { "cf-ipcountry": country, "accept-language": locale };
     const response = await handleCoveApi(
       new Request("https://cove.test/api/fore/storefront/bootstrap", { headers }),
-      env,
+      fastFirstPaintEnv,
     );
     assert.equal(response.status, 200);
     const bootstrap = await response.json();
@@ -105,7 +125,7 @@ try {
           cookie: "fore-locale=" + locale + "; fore-storefront-country=SA",
         },
       }),
-      env,
+      fastFirstPaintEnv,
     );
     assert.equal(response.status, 200);
     const bootstrap = await response.json();
