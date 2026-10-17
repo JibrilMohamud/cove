@@ -26,7 +26,11 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       return fetch(forwarded);
     };
     const started = performance.now();
-    const phase: { splitMs: number | null; splitSucceeded: boolean; firstFailureMs: number | null } = {
+    const phase: {
+      splitMs: number | null;
+      splitSucceeded: boolean;
+      firstFailureMs: number | null;
+    } = {
       splitMs: null,
       splitSucceeded: false,
       firstFailureMs: null,
