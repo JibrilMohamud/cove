@@ -30,7 +30,9 @@ export async function requestStorefrontBootstrap(
     if (remaining <= 0) return null;
     const signal = AbortSignal.any([
       source.signal,
-      AbortSignal.timeout(Math.max(1, Math.min(remaining, attempt === 1 ? firstBudget : remaining))),
+      AbortSignal.timeout(
+        Math.max(1, Math.min(remaining, attempt === 1 ? firstBudget : remaining)),
+      ),
     ]);
     try {
       const forwarded = new Request(source.url, { method: "GET", headers: source.headers, signal });
