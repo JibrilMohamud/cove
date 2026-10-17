@@ -115,7 +115,17 @@ export async function hedgedStorefrontBootstrap(
       if (first.kind === "ok") return first.value;
       if (first.kind === "denied") return null;
     }
-    if (source.signal.aborted || expiration.aborted || !validCountry) return null;
+    if (source.signal.aborted || expiration.aborted) return null;
+    if (!validCountry) {
+      // Without an original platform-country assertion, a second invocation
+      // may have a different IP/territory. Keep waiting for the authoritative
+      // first request rather than incorrectly blanking an otherwise healthy SSR.
+      const unhedged = await Promise.race<ResultWithPhase | "expired">([
+        primaryPromise,
+        timeout,
+      ]);
+      return unhedged !== "expired" && unhedged.kind === "ok" ? unhedged.value : null;
+    }
     const alternatePromise = tryRequest("alternate", alternate, alternateCtrl);
     const next =
       first === "hedge"
