@@ -1202,7 +1202,9 @@ async function fetchGutenbergAsset(
 ) {
   const remaining = deadlineMs - Date.now();
   if (remaining <= 0) throw new Error("Catalog batch deadline reached.");
-  const signal = AbortSignal.timeout(Math.max(1, Math.min(60000, Math.floor(remaining))));
+  // A stalled mirror must not consume the whole 50-second asset tick. Retry
+  // the individual asset with backoff instead of starving every other book.
+  const signal = AbortSignal.timeout(Math.max(1, Math.min(22_000, Math.floor(remaining))));
   const headers = {
     Accept:
       mimeType === "text/html" ? "text/html,application/xhtml+xml;q=0.9" : "application/epub+zip",
@@ -1235,6 +1237,7 @@ async function fetchGutenbergAsset(
     if (![301, 302, 303, 307, 308].includes(response.status)) return response;
     const location = response.headers.get("location");
     if (!location) throw new Error("Gutenberg asset redirect omitted Location.");
+    await response.body?.cancel();
     target = new URL(location, target);
   }
   throw new Error("Gutenberg asset exceeded the redirect limit.");
