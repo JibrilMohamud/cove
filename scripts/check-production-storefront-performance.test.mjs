@@ -64,7 +64,10 @@ test("all supported locales must satisfy strict 800 ms on every sample", () => {
   }
   for (const index of [0, 4, 8, 12, 16]) {
     assert.equal(
-      evaluateProbes(samples.filter((_, i) => i !== index), []).status,
+      evaluateProbes(
+        samples.filter((_, i) => i !== index),
+        [],
+      ).status,
       "fail",
       "every requested language and sample must be present",
     );
