@@ -56,6 +56,7 @@ jobs:
                 cacheControl: response.headers.get("cache-control"),
                 vercelCache: response.headers.get("x-vercel-cache"),
                 backendCache: response.headers.get("x-cove-backend-cache"),
+                persistenceAuthority: response.headers.get("x-cove-persistence"),
                 serverTiming: response.headers.get("server-timing"),
                 exactBookCards: (body.match(/class=["']book-card["']/g) || []).length,
                 containsBookCardToken: body.includes("book-card"),
