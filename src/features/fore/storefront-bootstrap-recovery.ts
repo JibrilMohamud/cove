@@ -19,10 +19,8 @@ export async function recoverStorefrontBootstrap(
     if (!response.ok) throw new Error("Storefront recovery endpoint unavailable");
     // Production may NOT use Vercel's bundled US-only catalog fallback when
     // the actual rights authority is temporarily unreachable.
-    if (
-      requireRemoteBackend &&
-      response.headers.get("x-cove-persistence") !== "remote-d1-r2"
-    ) throw new Error("Storefront recovery requires live rights authority");
+    if (requireRemoteBackend && response.headers.get("x-cove-persistence") !== "remote-d1-r2")
+      throw new Error("Storefront recovery requires live rights authority");
     return (await response.json()) as T;
   }
   try {
@@ -39,23 +37,23 @@ export async function recoverStorefrontBootstrap(
       typeof page !== "object" ||
       !page.query ||
       typeof page.query !== "object" ||
-      "redirectTo" in page && Boolean(page.redirectTo)
-    ) return null;
+      ("redirectTo" in page && Boolean(page.redirectTo))
+    )
+      return null;
     const catalogQuery = new URLSearchParams({
       search: "",
       sort: "popular",
       page: "1",
       currency: context.currency,
     }).toString();
-    const catalog = await read<StorefrontBootstrap["catalog"]>(
-      "/api/fore/catalog?" + catalogQuery,
-    );
+    const catalog = await read<StorefrontBootstrap["catalog"]>("/api/fore/catalog?" + catalogQuery);
     if (
       !Array.isArray(catalog?.results) ||
       catalog.results.length === 0 ||
       typeof catalog.count !== "number" ||
       !catalog.results.every((book) => book && typeof book.productId === "string")
-    ) return null;
+    )
+      return null;
     const value: StorefrontBootstrap = {
       context,
       page,
