@@ -41,7 +41,15 @@ try {
     const bootstrap = await response.json();
     assert.equal(bootstrap.context.rightsCountry, country);
     assert.ok(bootstrap.context.availableMarkets.length);
-    assert.ok(Array.isArray(bootstrap.taxonomy.nodes));
+    assert.equal("taxonomy" in bootstrap, false, "slow category counts cannot gate the first book shelf");
+    const categoryResponse = await handleCoveApi(
+      new Request("https://cove.test/api/fore/taxonomy", { headers }),
+      env,
+    );
+    assert.equal(categoryResponse.status, 200);
+    const categories = await categoryResponse.json();
+    assert.equal(categories.territory, country);
+    assert.ok(Array.isArray(categories.nodes), "category browsing still fetches the rights-scoped taxonomy");
     const catalog = await handleCoveApi(
       new Request("https://cove.test/api/fore/catalog?" + bootstrap.catalogQuery, { headers }),
       env,
@@ -167,7 +175,7 @@ try {
     "renamed-category/child",
   );
   console.log(
-    "PASS: combined storefront context/catalog/taxonomy bootstrap, matching first-page projections, currency and US/CA/SA/JP rights isolation.",
+    "PASS: first-paint storefront context/catalog without blocking on taxonomy, deferred rights-scoped categories, currency and US/CA/SA/JP isolation.",
   );
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
