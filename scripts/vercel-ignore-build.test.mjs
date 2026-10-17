@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 import {
   changedFilesForCurrentCommit,
@@ -103,4 +104,13 @@ test("missing shallow Git history fails open, never suppresses production releas
     ).ignore,
     false,
   );
+});
+
+test("repository Vercel config wires skip command and protects diagnostics previews", () => {
+  const config = JSON.parse(fs.readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
+  assert.equal(config.ignoreCommand, "node scripts/vercel-ignore-build.mjs");
+  assert.equal(config.git.deploymentEnabled["diagnostics/**"], false);
+  assert.equal(config.git.deploymentEnabled["docs/**"], false);
+  assert.equal(config.fluid, true, "Never change runtime semantics to reduce build charges");
+  assert.equal(config.services.app.framework, "tanstack-start");
 });
