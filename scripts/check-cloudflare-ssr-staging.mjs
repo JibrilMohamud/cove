@@ -60,6 +60,27 @@ async function assertProtected() {
   assert.equal(deniedMutation.status, 405, "Staging must remain read-only.");
 }
 
+async function assertLocalDatabaseReady() {
+  const res = await fetch(origin + "/api/fore/health/ready", {
+    headers: headers(),
+    redirect: "manual",
+    signal: AbortSignal.timeout(12_000),
+  });
+  let state = {};
+  try {
+    const value = await res.json();
+    state = value && typeof value === "object" ? value : {};
+  } catch {
+    // A non-JSON result is not a successful D1 readiness response.
+  }
+  const ready = state;
+  if (res.status !== 200 || ready.database !== true || ready.ok !== true) {
+    throw new Error(
+      `Native SSR D1 health check failed: http=${res.status}, database=${ready.database === true}, activeMarkets=${Number(ready.activeMarkets || 0)}, ready=${ready.ok === true}`,
+    );
+  }
+}
+
 async function assertRightsIsolation() {
   const endpoint = origin + "/api/fore/storefront/bootstrap";
   const common = { redirect: "manual", signal: AbortSignal.timeout(12_000) };
@@ -128,6 +149,7 @@ async function probe(language, sample, sequence) {
 }
 
 await assertProtected();
+await assertLocalDatabaseReady();
 await assertRightsIsolation();
 const results = [];
 const failures = [];
