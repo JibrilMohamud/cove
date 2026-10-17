@@ -30,8 +30,8 @@ try {
   assert.equal(lib.LITERARY_GENERATION_LIMITS.reservedOutputCharacters, 12000);
   assert.deepEqual(
     Array.from({ length: 8 }, (_, n) => lib.preferLiterarySection(n)),
-    [false, true, true, true, false, true, true, true],
-    "Chapter turns outnumber overviews three to one within the same daily quota",
+    [false, false, false, true, false, false, false, true],
+    "Book overviews get three of four turns; chapters retain guaranteed coverage",
   );
 
   assert.equal(
