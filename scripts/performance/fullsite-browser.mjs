@@ -50,6 +50,7 @@ try {
           lastShift: 0,
           tasks: [],
           events: [],
+          shifts: [],
           observed: [],
         });
         for (const type of ["largest-contentful-paint", "layout-shift", "longtask", "event"]) {
@@ -68,6 +69,16 @@ try {
                 if (type === "longtask") state.tasks.push(entry.duration);
                 if (type === "event" && entry.interactionId) state.events.push(entry.duration);
                 if (type === "layout-shift" && !entry.hadRecentInput) {
+                  state.shifts.push({
+                    value: entry.value,
+                    time: entry.startTime,
+                    sources: (entry.sources || []).map((source) => ({
+                      tag: source.node?.tagName,
+                      className: String(source.node?.className || "").slice(0, 100),
+                      previous: source.previousRect.toJSON(),
+                      current: source.currentRect.toJSON(),
+                    })),
+                  });
                   if (
                     state.firstShift === 0 ||
                     entry.startTime - state.lastShift > 1000 ||
@@ -104,9 +115,6 @@ try {
         requests = [];
         errors = [];
         const started = Date.now();
-        const beforeCpu = Object.fromEntries(
-          (await cdp.send("Performance.getMetrics")).metrics.map((m) => [m.name, m.value]),
-        );
         const captureCpu = route === "/" && phase === "fresh-context";
         if (captureCpu) {
           await cdp.send("Profiler.enable");
@@ -170,6 +178,15 @@ try {
               lcpMs: state?.lcp ?? null,
               lcpElement: state?.lcpElement ?? null,
               cls: state?.observed.includes("layout-shift") ? state.cls : null,
+              shifts: state?.shifts ?? [],
+              apiTimings: resources
+                .filter((r) => new URL(r.name).pathname.startsWith("/api/"))
+                .map((r) => ({
+                  path: new URL(r.name).pathname,
+                  startMs: r.startTime,
+                  durationMs: r.duration,
+                  responseStartMs: r.responseStart,
+                })),
               longTaskCount: state?.observed.includes("longtask") ? state.tasks.length : null,
               longTaskTotalMs: state?.observed.includes("longtask")
                 ? state.tasks.reduce((a, b) => a + b, 0)
@@ -208,7 +225,7 @@ try {
           interactionNextPaintMs,
           mainThread: Object.fromEntries(
             ["ScriptDuration", "LayoutDuration", "RecalcStyleDuration", "TaskDuration"].map(
-              (key) => [key + "Ms", Math.round(1000 * (afterCpu[key] - beforeCpu[key]))],
+              (key) => [key + "Ms", Math.round(1000 * afterCpu[key])],
             ),
           ),
           observedMs: Date.now() - started,
@@ -233,6 +250,7 @@ try {
   await browser.close();
 }
 const report = {
+  instrumentationVersion: 2,
   at: new Date().toISOString(),
   origin,
   boundary:

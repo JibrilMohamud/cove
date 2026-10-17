@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { coveServiceWorkerReady } from "./service-worker";
 import { Bell, CheckCheck, Mail, ShieldAlert, Smartphone, Webcam } from "lucide-react";
 import { toast } from "sonner";
 import { api, useAccount } from "./client";
@@ -121,9 +122,9 @@ export function NotificationsPage() {
     try {
       const cfg = await api<{ webPushPublicKey: string | null }>("/notifications/config");
       if (!cfg.webPushPublicKey) throw Error("Web Push is not configured on this Cove deployment.");
-      const reg = await navigator.serviceWorker.ready;
       const permission = await Notification.requestPermission();
       if (permission !== "granted") throw Error("Browser notification permission was not granted.");
+      const reg = await coveServiceWorkerReady();
       let sub = await reg.pushManager.getSubscription();
       if (!sub)
         sub = await reg.pushManager.subscribe({

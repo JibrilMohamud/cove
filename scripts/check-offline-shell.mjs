@@ -90,3 +90,4 @@ assert.ok(
 console.log(
   "PASS: complete offline installation, partial-install rejection, legacy-private-cache removal, no document persistence and safe offline navigation.",
 );
+await import("./check-browser-preparation.mjs");

@@ -2847,3 +2847,12 @@ a svg {
   font-weight: 400;
   overflow-wrap: anywhere;
 }
+
+/* Reserve a real result region while audio metadata loads; no animated fake progress. */
+.audio-results { min-height: 22rem; }
+.audio-loading .audio-card { min-height: 164px; }
+.audio-loading-lines { display: grid; gap: 14px; }
+.audio-loading-lines i { display: block; height: 12px; width: 86%; border-radius: 4px; background: var(--muted); }
+.audio-loading-lines i:first-child { height: 23px; width: 72%; }
+.audio-loading-lines i:last-child { width: 60%; }
+@media (max-width: 650px) { .audio-loading .audio-card { min-height: 154px; } }
