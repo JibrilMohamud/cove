@@ -8,7 +8,11 @@ const temp = fs.mkdtempSync(path.join(os.tmpdir(), "cove-public-seo-"));
 const originalFetch = globalThis.fetch;
 try {
   await build({
-    entryPoints: ["src/lib/persistence-backend.ts", "src/lib/public-seo-document-path.ts"],
+    entryPoints: [
+      "src/lib/persistence-backend.ts",
+      "src/lib/public-seo-document-path.ts",
+      "src/features/fore/seo.server.ts",
+    ],
     bundle: true,
     platform: "node",
     format: "esm",
@@ -115,6 +119,39 @@ try {
   nextHeaders = { "set-cookie": "session=private; HttpOnly" };
   result = await proxyPersistenceApi(new Request("https://cove.example/sitemap.xml"), env);
   assert.equal(result.headers.has("Vercel-CDN-Cache-Control"), false);
+  // Unknown sitemap pages must never perform huge OFFSET scans in D1.
+  const { handleSeoDocumentRequest } = await import(path.join(temp, "seo.server.mjs"));
+  let selectScans = 0;
+  const db = {
+    prepare(query) {
+      return {
+        bind() {
+          return this;
+        },
+        async first() {
+          assert.match(query, /COUNT/);
+          return { n: 42_635 };
+        },
+        async all() {
+          selectScans++;
+          return { results: [] };
+        },
+      };
+    },
+  };
+  const invalid = await handleSeoDocumentRequest(
+    new Request("https://cove.example/sitemaps/books/99999.xml"),
+    db,
+  );
+  assert.equal(invalid.status, 404);
+  assert.equal(selectScans, 0, "Invalid sitemap pages must not scan a large SQL OFFSET");
+  const valid = await handleSeoDocumentRequest(
+    new Request("https://cove.example/sitemaps/books/1.xml"),
+    db,
+  );
+  assert.equal(valid.status, 200);
+  assert.equal(selectScans, 1);
+
   console.log("Public crawler-document proxy and privacy/cache safety checks passed.");
 } finally {
   globalThis.fetch = originalFetch;
