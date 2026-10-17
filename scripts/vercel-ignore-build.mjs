@@ -70,7 +70,11 @@ export function changedSinceLastSuccess(env = process.env, git = execFileSync) {
     const options = { encoding: "utf8", timeout: 5000, maxBuffer: 1024 * 1024 };
     const head = git("git", ["rev-parse", "HEAD"], options).trim();
     if (!VALID_SHA.test(head)) return null;
-    const result = git("git", ["diff", "--no-ext-diff", "--name-only", previous, head, "--"], options);
+    const result = git(
+      "git",
+      ["diff", "--no-ext-diff", "--name-only", previous, head, "--"],
+      options,
+    );
     return result.split(/\r?\n/).filter(Boolean);
   } catch {
     return null;
