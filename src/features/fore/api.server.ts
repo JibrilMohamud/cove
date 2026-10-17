@@ -3022,6 +3022,9 @@ async function handleCoveRequest(
     const storefrontTerritory = storefront.rightsCountry;
     if (request.method === "GET" && path === "/storefront/bootstrap") {
       const bootstrapStarted = performance.now();
+      // Production ingestion runs independently. Local fixtures still require
+      // the same development-only catalog seeding as /catalog before a shelf read.
+      if (env.FORE_ENVIRONMENT !== "production") await seedCatalog(env);
       // First-paint bootstrap resolves only the book shelf, landing metadata and
       // market context. Category counts are expensive and can load through the
       // existing rights-filtered /taxonomy query after the shelf has rendered.
