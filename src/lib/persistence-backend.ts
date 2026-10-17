@@ -9,6 +9,8 @@ type PersistenceEnv = {
   FORE_INGESTION_TRIGGER_TOKEN?: string;
   FORE_INGESTION_VERIFY_JWK?: string;
   FORE_AUDIO_COMPUTE_MODE?: string;
+  FORE_ENVIRONMENT?: string;
+  VERCEL_ENV?: string;
 };
 
 const gatewayHeader = "x-cove-backend-token";
@@ -29,6 +31,24 @@ function safePublicFallback(request: Request) {
     path === "/api/fore/audiobooks" ||
     /^\/api\/fore\/books\/[1-9][0-9]{0,8}(?:\/(?:detail|epub|download\/epub))?$/.test(path) ||
     /^\/api\/fore\/audio\/pg-[1-9][0-9]{0,8}(?:\/tracks\/[^/]+)?$/.test(path)
+  );
+}
+
+/** Production never fabricates a locally seeded market on D1 outage. */
+function productionFallbackDenied(env: PersistenceEnv) {
+  return env.FORE_ENVIRONMENT === "production" || env.VERCEL_ENV === "production";
+}
+
+function unavailablePersistenceResponse() {
+  return new Response(
+    JSON.stringify({ error: "The live Cove catalog is temporarily unavailable. Please retry." }),
+    {
+      status: 503,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "no-store",
+      },
+    },
   );
 }
 
@@ -193,7 +213,12 @@ export async function proxyPersistenceApi(
     }
     const response = await fetch(target, init);
     if ([502, 503, 504].includes(response.status) && safePublicFallback(request)) {
-      console.warn("Persistent backend unavailable; using public-domain fallback", response.status);
+      if (productionFallbackDenied(env)) {
+        console.warn("Persistent backend unavailable; production catalog fails closed", response.status);
+        await response.body?.cancel();
+        return unavailablePersistenceResponse();
+      }
+      console.warn("Persistent backend unavailable; using development fallback", response.status);
       return null;
     }
     const rewritten = await rewriteResponse(response, env);
@@ -219,7 +244,11 @@ export async function proxyPersistenceApi(
     return rewritten;
   } catch (error) {
     if (safePublicFallback(request)) {
-      console.warn("Persistent backend request failed; using public-domain fallback", error);
+      if (productionFallbackDenied(env)) {
+        console.warn("Persistent backend request failed; production catalog fails closed");
+        return unavailablePersistenceResponse();
+      }
+      console.warn("Persistent backend request failed; using development fallback", error);
       return null;
     }
     console.error("Persistent backend request failed", error);
