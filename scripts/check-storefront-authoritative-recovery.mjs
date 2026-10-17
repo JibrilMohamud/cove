@@ -107,23 +107,23 @@ try {
       onRecovery: (result) => recoveryEvents.push(result),
     },
   );
-  assert.equal(stalledAttempts, 1, "A successful split recovery avoids retrying a stalled bootstrap");
+  assert.equal(
+    stalledAttempts,
+    1,
+    "A successful split recovery avoids retrying a stalled bootstrap",
+  );
   assert.equal(JSON.parse(timed).catalog.results[0].productId, "prd_ca_1");
   assert.equal(recoveryEvents.length, 1);
   assert.equal(recoveryEvents[0].success, true);
 
   let called = false;
   assert.equal(
-    await requestStorefrontBootstrap(
-      source,
-      async () => new Response(null, { status: 403 }),
-      {
-        recover: async () => {
-          called = true;
-          return htmlInitial;
-        },
+    await requestStorefrontBootstrap(source, async () => new Response(null, { status: 403 }), {
+      recover: async () => {
+        called = true;
+        return htmlInitial;
       },
-    ),
+    }),
     null,
   );
   assert.equal(called, false, "Denied bootstrap must never invoke recovery");
@@ -132,7 +132,8 @@ try {
     await recoverStorefrontBootstrap(
       source,
       async (request) => {
-        if (request.url.includes("/context")) return Response.json({ ...context, rightsCountry: "US" });
+        if (request.url.includes("/context"))
+          return Response.json({ ...context, rightsCountry: "US" });
         if (request.url.includes("/page")) return trusted(page);
         return trusted(catalog);
       },
