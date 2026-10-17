@@ -3055,10 +3055,7 @@ async function handleCoveRequest(
             storefront.locale,
           ),
         ),
-        timed(
-          "catalog",
-          firstPaintStorefrontShelf(env, storefront.currency, storefrontTerritory),
-        ),
+        timed("catalog", firstPaintStorefrontShelf(env, storefront.currency, storefrontTerritory)),
         timed("markets", storefrontMarkets(dbForContext)),
       ]);
       const response = json({
