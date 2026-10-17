@@ -1379,11 +1379,7 @@ async function searchMeili(env: SearchEnv, input: SearchInput) {
   };
 }
 
-async function loadChannelEligibility(
-  db: CatalogDB,
-  productIds: string[],
-  territory: string,
-) {
+async function loadChannelEligibility(db: CatalogDB, productIds: string[], territory: string) {
   const unique = [...new Set(productIds.filter(Boolean))].slice(0, 200);
   if (!unique.length) return new Set<string>();
   const rows = await db
