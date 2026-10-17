@@ -40,7 +40,7 @@ async function waitForUnauthenticatedDenial(pathname) {
     if (lastStatus !== 503) break;
     // This endpoint is unauthenticated: body is either our fail-closed
     // message or Cloudflare's generic Worker error page.
-    lastBody = (await response.text()).slice(0, 120).replace(/\\s+/g, " ");
+    lastBody = (await response.text()).slice(0, 120).replace(/\s+/g, " ");
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
   throw new Error(
