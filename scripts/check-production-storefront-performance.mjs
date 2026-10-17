@@ -42,7 +42,7 @@ export function safeProbeTelemetry(headers, ttfbMs, totalMs) {
   const timing = (headers.get("server-timing") || "")
     .split(",")
     .map((part) => part.trim())
-    .filter((part) => /^cove_[a-z_]+;dur=[0-9]+(?:\\.[0-9]+)?$/.test(part))
+    .filter((part) => /^cove_[a-z_]+;dur=[0-9]+(?:\.[0-9]+)?$/.test(part))
     .join(", ")
     .slice(0, 200);
   const cache = (headers.get("x-vercel-cache") || "").toUpperCase();
@@ -74,7 +74,7 @@ export async function probeHomepage(origin, language, sample) {
   let cards;
   try {
     cards = validateHtml(response.status, response.headers.get("content-type") || "", html);
-    if (!/\\bno-store\\b/i.test(response.headers.get("cache-control") || ""))
+    if (!/\bno-store\b/i.test(response.headers.get("cache-control") || ""))
       throw new Error("Personalized storefront HTML was not marked no-store.");
   } catch (error) {
     // Never retain HTML, cookies or user headers. Preserve aggregate timing
