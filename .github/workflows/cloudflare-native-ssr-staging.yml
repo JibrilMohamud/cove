@@ -10,6 +10,8 @@ on:
       - "src/lib/cove-request-env.server.ts"
       - "src/lib/cloudflare-country.server.ts"
       - "src/features/fore/api.server.ts"
+      - "src/features/fore/storefront-read-rate-limit.server.ts"
+      - "scripts/check-storefront-firstpaint-rate-limit.mjs"
       - "src/features/fore/search.server.ts"
       - "src/features/fore/localization.server.ts"
       - "scripts/check-storefront-bootstrap.mjs"
@@ -30,6 +32,8 @@ on:
       - "src/lib/cove-request-env.server.ts"
       - "src/lib/cloudflare-country.server.ts"
       - "src/features/fore/api.server.ts"
+      - "src/features/fore/storefront-read-rate-limit.server.ts"
+      - "scripts/check-storefront-firstpaint-rate-limit.mjs"
       - "src/features/fore/search.server.ts"
       - "src/features/fore/localization.server.ts"
       - "scripts/check-storefront-bootstrap.mjs"
@@ -73,6 +77,7 @@ jobs:
         run: |
           node scripts/check-cloudflare-ssr-stage-gate.mjs
           node scripts/check-cloudflare-native-bindings.mjs
+          node scripts/check-storefront-firstpaint-rate-limit.mjs
           node scripts/check-storefront-bootstrap.mjs
           node scripts/check-cove-request-context.mjs
           node scripts/check-storefront-hedged.mjs
