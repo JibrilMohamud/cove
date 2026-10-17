@@ -734,8 +734,19 @@ export function BookPage({ id }: { id: string }) {
                   </>
                 )}
               </div>
+              {b.readingAvailability?.state === "unavailable" && (
+                <p role="status">
+                  The EPUB for this edition is currently unavailable. Please choose another edition.
+                </p>
+              )}
+              {b.readingAvailability?.state === "on-demand" && (
+                <p>
+                  This edition downloads from its public source when you open it. Save it offline
+                  for dependable access.
+                </p>
+              )}
               <div className="detail-actions">
-                {d.commerce.canReadFull && (
+                {d.commerce.canReadFull && b.readingAvailability?.state !== "unavailable" && (
                   <a href={readPath(id)} className="button gold">
                     <BookOpen size={18} />
                     {entry?.cfi ? "Continue reading" : "Read now"}

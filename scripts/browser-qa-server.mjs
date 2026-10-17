@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -11,11 +12,13 @@ for (const key of Object.keys(process.env))
   if (/^(SUPABASE_|FORE_BACKEND_|FORE_INGESTION_)/.test(key)) delete process.env[key];
 process.env.FORE_AUTH_MODE = "browser-qa-managed";
 const checkout = process.cwd();
+execFileSync(process.execPath, ["scripts/build-offline-reader.mjs"], { stdio: "inherit" });
 // Windows TEMP can use an 8.3 name (RUNNER~1). Vite deliberately rejects
 // requests containing '~', even within its allow list. Expand the real path.
 const scratch = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "cove-browser-qa-")));
 for (const dir of ["src", "public", "drizzle"])
   fs.cpSync(path.join(checkout, dir), path.join(scratch, dir), { recursive: true });
+fs.cpSync(path.join(checkout, ".output/public"), path.join(scratch, "public"), { recursive: true });
 for (const file of ["package.json", "vite.config.ts", "tsconfig.json"])
   fs.copyFileSync(path.join(checkout, file), path.join(scratch, file));
 fs.mkdirSync(path.join(scratch, "scripts"));

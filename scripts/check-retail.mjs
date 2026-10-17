@@ -110,7 +110,7 @@ assert.match(api, /Customer requests never fetch publisher-controlled URLs/);
 assert.match(api, /preview_derivatives/);
 assert.match(api, /Keeping every image\/font from the publisher EPUB would leak future pages/);
 assert.match(api, /bits\[3\] === "preview" && bits\[4\] === "epub"/);
-assert.match(api, /getPreviewEpub\(env,id/);
+assert.match(api, /getPreviewEpub\(env,\s*id/);
 assert.match(retail, /No active|not currently available|offer/);
 assert.match(retail, /share_token=excluded\.share_token/);
 assert.match(retail, /stalePrice/);

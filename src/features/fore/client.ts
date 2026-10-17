@@ -54,6 +54,7 @@ export type CatalogBook = {
   layout?: string;
   drmStatus?: string;
   downloadable?: boolean;
+  readingAvailability?: { state: "stored" | "on-demand" | "processing" | "unavailable" };
   releaseStatus?: string;
   subscriptionEligible?: boolean;
   libraryEligible?: boolean;

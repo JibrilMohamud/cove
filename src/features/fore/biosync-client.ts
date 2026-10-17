@@ -115,12 +115,19 @@ export type SyncPosition = {
   updated_at: string;
   pending?: boolean;
 };
-export async function openBiosync(bookId: string, uid: string | null) {
+export async function openBiosync(
+  bookId: string,
+  uid: string | null,
+  options: { localOnly?: boolean } = {},
+) {
   const key = `biosync:position:${uid || "guest"}:${bookId}`;
   let current: SyncPosition | null = (await getRecord("assets", key).catch(() => null)) || null;
-  if (uid) {
+  if (uid && !options.localOnly) {
     try {
-      const remote = await api("/biosync/" + bookId);
+      const remote = await api("/biosync/" + bookId, "GET", undefined, {
+        timeoutMs: 5000,
+        retryReads: false,
+      });
       if (!current?.pending || current.version !== (remote?.version || 0)) current = remote;
     } catch (error) {
       if ((error as any).status && (error as any).status !== 503) throw error;
