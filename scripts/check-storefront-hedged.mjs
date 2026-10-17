@@ -160,6 +160,42 @@ try {
   assert.ok(unassertedSuccess, "An ordinary first request may complete without a country header");
   assert.equal(alternateCalls, 0);
 
+  // A cold timeout must report whether legal country proof permitted a hedge.
+  const coldDeadline = [];
+  assert.equal(
+    await hedgedStorefrontBootstrap(source, never, never, {
+      hedgeAfterMs: 5,
+      timeoutMs: 50,
+      onDeadline: (state) => coldDeadline.push(state),
+    }),
+    null,
+  );
+  assert.deepEqual(coldDeadline, [
+    {
+      countryAsserted: true,
+      primaryCompleted: false,
+      alternateStarted: true,
+      alternateCompleted: false,
+    },
+  ]);
+  const unknownDeadline = [];
+  assert.equal(
+    await hedgedStorefrontBootstrap(
+      new Request(source, { headers: withoutCountry }),
+      never,
+      never,
+      {
+        hedgeAfterMs: 5,
+        timeoutMs: 30,
+        onDeadline: (state) => unknownDeadline.push(state),
+      },
+    ),
+    null,
+  );
+  assert.equal(unknownDeadline.length, 1);
+  assert.equal(unknownDeadline[0].countryAsserted, false);
+  assert.equal(unknownDeadline[0].alternateStarted, false);
+
   const cancelled = new AbortController();
   cancelled.abort();
   assert.equal(

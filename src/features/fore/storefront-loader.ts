@@ -51,9 +51,20 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       alternateMs: null,
       alternateSucceeded: false,
     };
+    const deadline = {
+      expired: null as {
+        countryAsserted: boolean;
+        primaryCompleted: boolean;
+        alternateStarted: boolean;
+        alternateCompleted: boolean;
+      } | null,
+    };
     const result = await hedgedStorefrontBootstrap(source, primary, alternate, {
       hedgeAfterMs: 1_650,
       timeoutMs: 8_000,
+      onDeadline: (state) => {
+        deadline.expired = state;
+      },
       onPhase: (channel, outcome, durationMs) => {
         // Aggregate timings/status ONLY: no locale, location, cookies, book data or IP.
         if (channel === "primary" && outcome !== "ok") phase.primaryFailureMs = durationMs;
@@ -70,6 +81,14 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
     if (phase.alternateMs !== null) {
       timing.push(`cove_ssr_split;dur=${phase.alternateMs.toFixed(1)}`);
       if (phase.alternateSucceeded) timing.push("cove_ssr_split_success;dur=0");
+    }
+    if (deadline.expired) {
+      timing.push("cove_ssr_deadline;dur=0");
+      if (!deadline.expired.countryAsserted) timing.push("cove_ssr_country_unasserted;dur=0");
+      if (!deadline.expired.primaryCompleted) timing.push("cove_ssr_primary_pending;dur=0");
+      if (!deadline.expired.alternateStarted) timing.push("cove_ssr_alternate_not_started;dur=0");
+      else if (!deadline.expired.alternateCompleted)
+        timing.push("cove_ssr_alternate_pending;dur=0");
     }
     if (result === null) timing.push("cove_ssr_empty;dur=0");
     setResponseHeader("Server-Timing", timing.join(", "));

@@ -25,6 +25,12 @@ export async function hedgedStorefrontBootstrap(
       outcome: HedgedStorefrontOutcome,
       durationMs: number,
     ) => void;
+    onDeadline?: (state: {
+      countryAsserted: boolean;
+      primaryCompleted: boolean;
+      alternateStarted: boolean;
+      alternateCompleted: boolean;
+    }) => void;
   } = {},
 ): Promise<string | null> {
   if (source.signal.aborted) return null;
@@ -41,6 +47,9 @@ export async function hedgedStorefrontBootstrap(
   const sourceCountry = source.headers.get("x-vercel-ip-country")?.trim().toUpperCase() || "";
   const validCountry = /^[A-Z]{2}$/.test(sourceCountry);
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let primaryCompleted = false;
+  let alternateStarted = false;
+  let alternateCompleted = false;
   let onCallerAbort: () => void = () => {};
   const timeout = new Promise<"expired">((resolve) => {
     expiration.addEventListener("abort", () => resolve("expired"), { once: true });
@@ -108,6 +117,12 @@ export async function hedgedStorefrontBootstrap(
       outcome = signal.aborted ? "timeout" : "unavailable";
       return { phase, kind: "unavailable" };
     } finally {
+      // Aborted fetches may settle immediately *after* the hard deadline;
+      // that is not a completed response within the serving budget.
+      if (!expiration.aborted) {
+        if (phase === "primary") primaryCompleted = true;
+        else alternateCompleted = true;
+      }
       options.onPhase?.(phase, outcome, performance.now() - started);
     }
   }
@@ -135,6 +150,7 @@ export async function hedgedStorefrontBootstrap(
       const unhedged = await Promise.race<ResultWithPhase | "expired">([primaryPromise, timeout]);
       return unhedged !== "expired" && unhedged.kind === "ok" ? unhedged.value : null;
     }
+    alternateStarted = true;
     const alternatePromise = tryRequest("alternate", alternate, alternateCtrl);
     const next =
       first === "hedge"
@@ -152,6 +168,16 @@ export async function hedgedStorefrontBootstrap(
     const last = await Promise.race<ResultWithPhase | "expired">([remaining, timeout]);
     return last !== "expired" && last.kind === "ok" ? last.value : null;
   } finally {
+    // An eight-second deadline can expire while both outbound calls are
+    // unresolved; onPhase cannot report a pending request. Emit only a
+    // bounded, country-free summary, including whether the safe hedge ran.
+    if (expiration.aborted)
+      options.onDeadline?.({
+        countryAsserted: validCountry,
+        primaryCompleted,
+        alternateStarted,
+        alternateCompleted,
+      });
     if (timer) clearTimeout(timer);
     clearTimeout(deadlineTimer);
     source.signal.removeEventListener("abort", onCallerAbort);
