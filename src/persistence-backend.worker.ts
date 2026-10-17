@@ -31,6 +31,8 @@ import { syncSearchIndex } from "./features/fore/search.server";
 import { hostedBiosyncChunks } from "./features/fore/hosted-biosync-chunks.server";
 import { cachedPublicApi, prunePublicCache } from "./features/fore/public-api-cache.server";
 import { refreshPublicStatus } from "./features/fore/public-status.server";
+import { handleSeoDocumentRequest } from "./features/fore/seo.server";
+import { isPublicSeoDocumentPath } from "./lib/public-seo-document-path";
 import {
   audioComputeAdmission,
   type AudioComputeEnv,
@@ -845,6 +847,16 @@ export default {
     }
 
     const path = new URL(request.url).pathname;
+    if (isPublicSeoDocumentPath(path)) {
+      if (!["GET", "HEAD"].includes(request.method))
+        return json({ error: "Method not allowed." }, 405);
+      if (new URL(request.url).search) return json({ error: "Not found." }, 404);
+      const document = await handleSeoDocumentRequest(request, env.DB, env.FORE_PUBLIC_URL);
+      if (!document) return json({ error: "Not found." }, 404);
+      if (request.method === "HEAD")
+        return new Response(null, { status: document.status, headers: document.headers });
+      return document;
+    }
     const chunkTranscript = path.match(
       /^\/api\/fore\/pipeline\/hosted-transcript\/(pg-[1-9][0-9]{0,8})\/([a-zA-Z0-9_-]{1,100})\/chunks(?:\/([0-9]{1,3}))?$/,
     );

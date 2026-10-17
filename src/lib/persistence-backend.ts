@@ -1,3 +1,5 @@
+import { isPublicSeoDocumentPath } from "./public-seo-document-path";
+
 type PersistenceEnv = {
   FORE_BACKEND_URL?: string;
   FORE_BACKEND_TOKEN?: string;
@@ -7,6 +9,8 @@ type PersistenceEnv = {
   FORE_INGESTION_TRIGGER_TOKEN?: string;
   FORE_INGESTION_VERIFY_JWK?: string;
   FORE_AUDIO_COMPUTE_MODE?: string;
+  FORE_ENVIRONMENT?: string;
+  VERCEL_ENV?: string;
 };
 
 const gatewayHeader = "x-cove-backend-token";
@@ -27,6 +31,24 @@ function safePublicFallback(request: Request) {
     path === "/api/fore/audiobooks" ||
     /^\/api\/fore\/books\/[1-9][0-9]{0,8}(?:\/(?:detail|epub|download\/epub))?$/.test(path) ||
     /^\/api\/fore\/audio\/pg-[1-9][0-9]{0,8}(?:\/tracks\/[^/]+)?$/.test(path)
+  );
+}
+
+/** Production never fabricates a locally seeded market on D1 outage. */
+function productionFallbackDenied(env: PersistenceEnv) {
+  return env.FORE_ENVIRONMENT === "production" || env.VERCEL_ENV === "production";
+}
+
+function unavailablePersistenceResponse() {
+  return new Response(
+    JSON.stringify({ error: "The live Cove catalog is temporarily unavailable. Please retry." }),
+    {
+      status: 503,
+      headers: {
+        "content-type": "application/json; charset=utf-8",
+        "cache-control": "no-store",
+      },
+    },
   );
 }
 
@@ -148,7 +170,12 @@ export async function proxyPersistenceApi(
   env: PersistenceEnv,
 ): Promise<Response | null> {
   const requestUrl = new URL(request.url);
-  if (!requestUrl.pathname.startsWith("/api/fore/")) return null;
+  const seoDocument = isPublicSeoDocumentPath(requestUrl.pathname);
+  if (!seoDocument && !requestUrl.pathname.startsWith("/api/fore/")) return null;
+  // Crawler documents are read-only; never proxy a mutation or unbounded
+  // query variation to the SEO backend.
+  if (seoDocument && (!["GET", "HEAD"].includes(request.method) || requestUrl.search))
+    return new Response("Not found", { status: 404, headers: { "cache-control": "no-store" } });
   if (requestUrl.pathname.startsWith("/api/fore/internal/ingestion/")) {
     return null;
   }
@@ -186,13 +213,45 @@ export async function proxyPersistenceApi(
     }
     const response = await fetch(target, init);
     if ([502, 503, 504].includes(response.status) && safePublicFallback(request)) {
-      console.warn("Persistent backend unavailable; using public-domain fallback", response.status);
+      if (productionFallbackDenied(env)) {
+        console.warn(
+          "Persistent backend unavailable; production catalog fails closed",
+          response.status,
+        );
+        await response.body?.cancel();
+        return unavailablePersistenceResponse();
+      }
+      console.warn("Persistent backend unavailable; using development fallback", response.status);
       return null;
     }
-    return await rewriteResponse(response, env);
+    const rewritten = await rewriteResponse(response, env);
+    if (
+      seoDocument &&
+      rewritten.status === 200 &&
+      !rewritten.headers.has("set-cookie") &&
+      /\bpublic\b/.test(rewritten.headers.get("cache-control") || "") &&
+      !/\b(?:private|no-store)\b/.test(rewritten.headers.get("cache-control") || "") &&
+      !request.headers.has("authorization") &&
+      !request.headers.has("cookie")
+    ) {
+      const headers = new Headers(rewritten.headers);
+      // These canonical sitemap/robots bytes do not contain visitor, account,
+      // IP, currency or market data. Cache only at the CDN; every storefront,
+      // customer API and authenticated request retains its existing policy.
+      headers.set("Vercel-CDN-Cache-Control", "public, s-maxage=900");
+      return new Response(request.method === "HEAD" ? null : rewritten.body, {
+        status: rewritten.status,
+        headers,
+      });
+    }
+    return rewritten;
   } catch (error) {
     if (safePublicFallback(request)) {
-      console.warn("Persistent backend request failed; using public-domain fallback", error);
+      if (productionFallbackDenied(env)) {
+        console.warn("Persistent backend request failed; production catalog fails closed");
+        return unavailablePersistenceResponse();
+      }
+      console.warn("Persistent backend request failed; using development fallback", error);
       return null;
     }
     console.error("Persistent backend request failed", error);

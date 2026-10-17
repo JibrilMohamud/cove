@@ -73,8 +73,16 @@ async function page(
   pageNo: number,
   publicUrl?: string,
 ) {
-  const origin = originOf(request, publicUrl),
-    offset = (Math.max(1, pageNo) - 1) * PAGE_SIZE;
+  const origin = originOf(request, publicUrl);
+  // Avoid huge OFFSET scans for arbitrary /sitemaps/books/99999.xml bot
+  // probes. Check against the live published-document count first.
+  const totalPages = Math.max(1, Math.ceil((await count(db, kind)) / PAGE_SIZE));
+  if (!Number.isSafeInteger(pageNo) || pageNo < 1 || pageNo > totalPages)
+    return new Response("Sitemap page not found", {
+      status: 404,
+      headers: { "cache-control": "public, max-age=900" },
+    });
+  const offset = (pageNo - 1) * PAGE_SIZE;
   let rows: any[] = [];
   if (kind === "books")
     rows = (
