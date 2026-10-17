@@ -159,7 +159,8 @@ async function main() {
     "| Language request | Sample | TTFB | Total HTML | SSR books | Vercel cache | Safe server phases |",
     "| --- | ---: | ---: | ---: | ---: | --- | --- |",
     ...results.map(
-      (r) => `| ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.totalMs} ms | ${r.cards} | ${r.vercelCache} | ${r.timing || "none"} |`,
+      (r) =>
+        `| ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.totalMs} ms | ${r.cards} | ${r.vercelCache} | ${r.timing || "none"} |`,
     ),
     "",
     `Result: **${assessment.status}** — TTFB p75 ${assessment.p75 ?? "n/a"} ms, p95 ${assessment.p95 ?? "n/a"} ms; ${failures.length} errors.`,
