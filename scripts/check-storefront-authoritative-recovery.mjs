@@ -140,8 +140,7 @@ try {
     await recoverStorefrontBootstrap(
       source,
       async (request) => {
-        if (request.url.includes("/context"))
-          return trusted({ ...context, rightsCountry: "US" });
+        if (request.url.includes("/context")) return trusted({ ...context, rightsCountry: "US" });
         if (request.url.includes("/page")) return trusted(page);
         return trusted(catalog);
       },
