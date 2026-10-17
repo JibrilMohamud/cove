@@ -863,7 +863,10 @@ export function ReaderPage({ id }: { id: string }) {
       });
     await savingPosition.current;
   }
-  const waitForAccount = accountLoading && bookQuery.data?.sourceName !== "gutenberg";
+  // A known reader must restore their account position before autosaving. Guests
+  // can open public text immediately, even when optional account lookup stalls.
+  const waitForAccount =
+    accountLoading && (bookQuery.data?.sourceName !== "gutenberg" || !!offlineAccountId());
   useEffect(() => {
     if (waitForAccount || !container.current || !bookQuery.data) return;
     let canceled = false;
