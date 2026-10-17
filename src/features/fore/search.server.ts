@@ -1379,14 +1379,9 @@ async function searchMeili(env: SearchEnv, input: SearchInput) {
   };
 }
 
-async function contextualizeChannelEligibility(
-  db: CatalogDB,
-  books: CatalogBook[],
-  territory: string,
-) {
-  const productIds = books.map((book) => String(book.productId || "")).filter(Boolean);
-  if (!productIds.length) return books;
-  const unique = [...new Set(productIds)].slice(0, 200);
+async function loadChannelEligibility(db: CatalogDB, productIds: string[], territory: string) {
+  const unique = [...new Set(productIds.filter(Boolean))].slice(0, 200);
+  if (!unique.length) return new Set<string>();
   const rows = await db
     .prepare(
       `SELECT product_id,sales_channel FROM product_channel_availability
@@ -1395,9 +1390,12 @@ async function contextualizeChannelEligibility(
     )
     .bind(territory, ...unique)
     .all<any>();
-  const allowed = new Set(
+  return new Set(
     rows.results.map((row) => `${String(row.product_id)}:${String(row.sales_channel)}`),
   );
+}
+
+function applyChannelEligibility(books: CatalogBook[], allowed: Set<string>) {
   return books.map((book) => {
     const id = String(book.productId || "");
     return {
@@ -1406,6 +1404,17 @@ async function contextualizeChannelEligibility(
       libraryEligible: allowed.has(`${id}:library`),
     };
   });
+}
+
+async function contextualizeChannelEligibility(
+  db: CatalogDB,
+  books: CatalogBook[],
+  territory: string,
+) {
+  const productIds = books.map((book) => String(book.productId || ""));
+  if (!productIds.some(Boolean)) return books;
+  const allowed = await loadChannelEligibility(db, productIds, territory);
+  return applyChannelEligibility(books, allowed);
 }
 
 async function logQuery(
@@ -1527,11 +1536,14 @@ export async function firstPaintStorefrontShelf(
     .all<{ product_id: string }>();
   const hasMore = rows.results.length > input.limit;
   const ids = rows.results.slice(0, input.limit).map((row) => String(row.product_id));
-  const books = await contextualizeChannelEligibility(
-    env.DB,
-    await canonicalBooksByProductIds(env.DB, ids),
-    input.territory,
-  );
+  // Both reads depend only on validated, current rights-eligible IDs.
+  // Parallel D1 hydration avoids an extra serialized cold read without
+  // caching either channel eligibility or legal territorial authority.
+  const [canonicalBooks, allowedChannels] = await Promise.all([
+    canonicalBooksByProductIds(env.DB, ids),
+    loadChannelEligibility(env.DB, ids, input.territory),
+  ]);
+  const books = applyChannelEligibility(canonicalBooks, allowedChannels);
   return {
     results: books,
     // Partial count is intentionally identified as a preview, never the full
