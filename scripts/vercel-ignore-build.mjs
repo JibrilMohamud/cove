@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { pathToFileURL } from "node:url";
 import path from "node:path";
 
 const VALID_SHA = /^[a-f0-9]{40}$/i;
@@ -87,5 +87,5 @@ function main() {
   process.exitCode = build ? 1 : 0; // Vercel: exit 0 skips; exit 1 builds.
 }
 
-if (process.argv[1] && import.meta.url === new URL("file://" + path.resolve(process.argv[1])).href)
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href)
   main();
