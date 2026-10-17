@@ -38,7 +38,15 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
     const result = await requestStorefrontBootstrap(source, fetchApi, {
       firstAttemptMs: 3_500,
       timeoutMs: 10_000,
-      recover: (request, api) => recoverStorefrontBootstrap(request, api, remoteRequired),
+      recover: (request, api) =>
+        recoverStorefrontBootstrap(
+          request,
+          remoteRequired
+            ? (forwarded) => fetch(new Request(forwarded, { redirect: "manual", cache: "no-store" }))
+            : api,
+          remoteRequired,
+          remoteRequired,
+        ),
       onRecovery: ({ success, durationMs }) => {
         phase.splitMs = durationMs;
         phase.splitSucceeded = success;
