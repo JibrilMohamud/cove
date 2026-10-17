@@ -3,7 +3,7 @@ import { validateStoredEpub } from "./stored-epub.server";
 import { createAuth, resolvedIdentity } from "./auth.server";
 import { handleLegalContact } from "./legal.server";
 import { mirrorUrl } from "./gutenberg-source";
-import { hasEpubDownloadWindow, planEpubRetry } from "./epub-retry-policy";
+import { hasEpubDownloadWindow, mixEpubFrontier, planEpubRetry } from "./epub-retry-policy";
 import { fetchCatalogPage, CatalogSourceError } from "./catalog-fetch.server";
 import {
   canonicalizeRegionalDocument,
@@ -1397,16 +1397,18 @@ async function cachePendingEpubs(
   const frontiers: PendingEpub[][] = [];
   for (const source of sources.results) {
     if (!hasEpubDownloadWindow(deadlineMs)) break;
-    const due = await db
-      .prepare(
-        `SELECT id,title,authors_json,languages_json,source_id,source_item_id,formats_json,epub_attempts,rights_territories_json,rights_evidence_url,source_url,content_hash,source_metadata_json
-         FROM gutenberg_source_cache
-         WHERE source_id=? AND epub_status IN ('pending','retry') AND ingest_status<>'quarantined' AND epub_next_attempt_at<=?
-         ORDER BY epub_status DESC,epub_next_attempt_at,updated_at,id LIMIT ?`,
-      )
-      .bind(source.id, now(), safeLimit)
-      .all<PendingEpub>();
-    frontiers.push(due.results);
+    const dueSql = `SELECT id,title,authors_json,languages_json,source_id,source_item_id,formats_json,epub_attempts,rights_territories_json,rights_evidence_url,source_url,content_hash,source_metadata_json
+      FROM gutenberg_source_cache
+      WHERE source_id=? AND epub_status=? AND ingest_status<>'quarantined' AND epub_next_attempt_at<=?
+      ORDER BY epub_next_attempt_at,updated_at,id LIMIT ?`;
+    const dueAt = now();
+    // Separate index frontiers prevent hundreds of due timeout retries from
+    // monopolizing the entire tick while new titles wait for first storage.
+    const [pending, retries] = await Promise.all([
+      db.prepare(dueSql).bind(source.id, "pending", dueAt, safeLimit).all<PendingEpub>(),
+      db.prepare(dueSql).bind(source.id, "retry", dueAt, safeLimit).all<PendingEpub>(),
+    ]);
+    frontiers.push(mixEpubFrontier(pending.results, retries.results, safeLimit));
   }
   const queued: PendingEpub[] = [];
   for (let rank = 0; rank < safeLimit && queued.length < safeLimit; rank++) {
