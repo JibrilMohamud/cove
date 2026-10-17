@@ -20,6 +20,16 @@ binding = "ASSETS"
 # delegates accepted static asset requests to ASSETS.fetch.
 run_worker_first = true
 
+# Per-colo public storefront SSR abuse limit. All authenticated/account,
+# commerce and other search endpoints retain their durable D1 controls.
+[[ratelimits]]
+name = "COVE_STOREFRONT_READ_LIMITER"
+namespace_id = "731903"
+
+[ratelimits.simple]
+limit = 180
+period = 60
+
 [[d1_databases]]
 binding = "DB"
 database_name = "cove-production"
