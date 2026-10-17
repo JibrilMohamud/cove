@@ -51,6 +51,7 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       alternateMs: null,
       alternateSucceeded: false,
     };
+    const backendTimings: string[] = [];
     const deadline = {
       expired: null as {
         countryAsserted: boolean;
@@ -64,6 +65,11 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       timeoutMs: 8_000,
       onDeadline: (state) => {
         deadline.expired = state;
+      },
+      onVerifiedTimings: (_phase, values) => {
+        // Never expose raw backend headers. Only hardcoded numeric D1 phase
+        // names from a territory-validated result reach Server-Timing.
+        backendTimings.splice(0, backendTimings.length, ...values);
       },
       onPhase: (channel, outcome, durationMs) => {
         // Aggregate timings/status ONLY: no locale, location, cookies, book data or IP.
@@ -90,6 +96,7 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       else if (!deadline.expired.alternateCompleted)
         timing.push("cove_ssr_alternate_pending;dur=0");
     }
+    if (result !== null) timing.push(...backendTimings);
     if (result === null) timing.push("cove_ssr_empty;dur=0");
     setResponseHeader("Server-Timing", timing.join(", "));
     return result;
