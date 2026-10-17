@@ -87,7 +87,13 @@ async function probe(language, sample, sequence) {
     throw new Error("Stage homepage must never be cached.");
   if (!/cove_ssr_local_rights;dur=0/.test(response.headers.get("server-timing") || ""))
     throw new Error("No evidence of in-Worker D1 rights authority.");
-  return { language, sample, sequence, cards, ...safeProbeTelemetry(response.headers, ttfbMs, totalMs) };
+  return {
+    language,
+    sample,
+    sequence,
+    cards,
+    ...safeProbeTelemetry(response.headers, ttfbMs, totalMs),
+  };
 }
 
 await assertProtected();
@@ -98,7 +104,7 @@ for (const { language, sample, sequence } of probeSequence()) {
   try {
     results.push(await probe(language, sample, sequence));
   } catch (error) {
-    failures.push({ sequence, language, sample, error: String(error).slice(0,300) });
+    failures.push({ sequence, language, sample, error: String(error).slice(0, 300) });
   }
 }
 const allPass =
@@ -111,13 +117,22 @@ const summary = {
   successes: results.length,
   errors: failures.length,
   slowSamples: results.filter((r) => r.ttfbMs >= 800).length,
-  p75: percentile(results.map((r) => r.ttfbMs), 0.75),
-  p95: percentile(results.map((r) => r.ttfbMs), 0.95),
+  p75: percentile(
+    results.map((r) => r.ttfbMs),
+    0.75,
+  ),
+  p95: percentile(
+    results.map((r) => r.ttfbMs),
+    0.95,
+  ),
   results,
   failures,
 };
 fs.mkdirSync("artifacts", { recursive: true });
-fs.writeFileSync("artifacts/cloudflare-ssr-staging-performance.json", JSON.stringify(summary, null, 2) + "\n");
+fs.writeFileSync(
+  "artifacts/cloudflare-ssr-staging-performance.json",
+  JSON.stringify(summary, null, 2) + "\n",
+);
 const table = [
   "## Authenticated Cloudflare-native SSR staging canary",
   "",
@@ -127,11 +142,14 @@ const table = [
   "",
   "| Sequence | Locale | Sample | TTFB | SSR cards |",
   "| ---: | --- | ---: | ---: | ---: |",
-  ...results.map((r) => `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.cards} |`),
+  ...results.map(
+    (r) => `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.cards} |`,
+  ),
   "",
   `Result **${summary.status}** — p75 ${summary.p75 ?? "n/a"} ms, p95 ${summary.p95 ?? "n/a"} ms; ${summary.slowSamples} >=800 ms; ${summary.errors} failures.`,
   ...failures.map((r) => `- request ${r.sequence}: ${r.error}`),
 ].join("\n");
 console.log(table);
-if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, table + "\n");
+if (process.env.GITHUB_STEP_SUMMARY)
+  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, table + "\n");
 if (!allPass) process.exitCode = 1;
