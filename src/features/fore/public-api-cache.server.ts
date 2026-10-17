@@ -141,6 +141,7 @@ export async function cachedPublicApi(
   ctx: Context,
   handler: Handler,
 ) {
+  const cacheStarted = performance.now();
   if (!publicCacheEligible(request)) {
     const response = await handler(request, env);
     return response ? decorate(response, "BYPASS") : null;
@@ -235,15 +236,15 @@ export async function cachedPublicApi(
           const catalogUrl = new URL(`/api/fore/catalog?${data.catalogQuery}`, request.url);
           // The cache is not a rights authority: re-check every edition against
           // current territory, publication and suppression rules on each HIT.
-          if (
-            !(await cachedCatalogPageAllowed(
-              env,
-              catalogUrl,
-              results.map((book) => book.productId),
-              context.rightsCountry,
-            ))
-          )
-            throw new Error("Cached storefront rights changed.");
+          const rightsStarted = performance.now();
+          const rightsValid = await cachedCatalogPageAllowed(
+            env,
+            catalogUrl,
+            results.map((book) => book.productId),
+            context.rightsCountry,
+          );
+          const rightsDurationMs = performance.now() - rightsStarted;
+          if (!rightsValid) throw new Error("Cached storefront rights changed.");
           const queryId = await recordCachedSearchQuery(
             env,
             catalogUrl,
@@ -262,7 +263,12 @@ export async function cachedPublicApi(
             return null;
           });
           catalog.search = { ...catalog.search, queryId, processingTimeMs: 0 };
-          return decorate(Response.json(data), "HIT", true);
+          const result = decorate(Response.json(data), "HIT", true);
+          result.headers.set(
+            "Server-Timing",
+            `cove_cached_rights;dur=${rightsDurationMs.toFixed(1)}, cove_cached_total;dur=${(performance.now() - cacheStarted).toFixed(1)}`,
+          );
+          return result;
         }
         if (
           path === "/api/fore/catalog" &&
