@@ -7,6 +7,18 @@ type Result = { kind: "ok"; value: string } | { kind: "denied" } | { kind: "unav
 
 type ResultWithPhase = Result & { phase: HedgedStorefrontPhase };
 
+/** Only quantitative, known backend phase names may cross into the SSR header. */
+export function sanitizedStorefrontBackendTiming(value: string | null): string[] {
+  const known = new Set(["context", "page", "catalog", "markets", "bootstrap"]);
+  return (value || "")
+    .split(",")
+    .map((part) => part.trim().match(/^cove_([a-z]+);dur=([0-9]+(?:\.[0-9]+)?)$/))
+    .filter((match): match is RegExpMatchArray => !!match)
+    .filter((match) => known.has(match[1]) && Number(match[2]) <= 12_000)
+    .map((match) => `cove_backend_${match[1]};dur=${match[2]}`)
+    .slice(0, 5);
+}
+
 /**
  * Vercel cold invocations can stall all outbound I/O. Start a single,
  * independently authorized API probe while the original backend call is still
@@ -25,6 +37,8 @@ export async function hedgedStorefrontBootstrap(
       outcome: HedgedStorefrontOutcome,
       durationMs: number,
     ) => void;
+    /** Phase metrics only from a validated live-rights response, never arbitrary headers. */
+    onVerifiedTimings?: (phase: HedgedStorefrontPhase, values: string[]) => void;
     onDeadline?: (state: {
       countryAsserted: boolean;
       primaryCompleted: boolean;
@@ -112,6 +126,10 @@ export async function hedgedStorefrontBootstrap(
         return { phase, kind: "unavailable" };
       }
       outcome = "ok";
+      options.onVerifiedTimings?.(
+        phase,
+        sanitizedStorefrontBackendTiming(response.headers.get("server-timing")),
+      );
       return { phase, kind: "ok", value: JSON.stringify(value) };
     } catch {
       outcome = signal.aborted ? "timeout" : "unavailable";
