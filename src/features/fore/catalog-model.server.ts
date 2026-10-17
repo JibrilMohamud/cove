@@ -672,9 +672,7 @@ export async function canonicalFirstPaintBooksByProductIds(db: DB, productIds: s
     )
     .bind(...productIds)
     .all<Record<string, unknown>>();
-  const byId = new Map(
-    rows.results.map((row) => [String(row.product_id), canonicalRowBook(row)]),
-  );
+  const byId = new Map(rows.results.map((row) => [String(row.product_id), canonicalRowBook(row)]));
   return productIds.map((id) => byId.get(id)).filter((book): book is CatalogBook => !!book);
 }
 
