@@ -615,7 +615,6 @@ export async function canonicalBooksByProductIds(db: DB, productIds: string[]) {
   return productIds.map((id) => byId.get(id)).filter((book): book is CatalogBook => !!book);
 }
 
-
 /**
  * A rights-checked first-page shelf needs covers, prices and bylines—not the
  * complete detail page's accessibility, editions, identifiers and provenance
@@ -672,9 +671,9 @@ export async function canonicalFirstPaintBooksByProductIds(db: DB, productIds: s
        WHERE p.id IN (${productIds.map(() => "?").join(",")})`,
     )
     .bind(...productIds)
-    .all<any>();
+    .all<Record<string, unknown>>();
   const byId = new Map(
-    rows.results.map((row: any) => [String(row.product_id), canonicalRowBook(row)]),
+    rows.results.map((row) => [String(row.product_id), canonicalRowBook(row)]),
   );
   return productIds.map((id) => byId.get(id)).filter((book): book is CatalogBook => !!book);
 }
