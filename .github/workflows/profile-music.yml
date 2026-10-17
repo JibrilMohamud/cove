@@ -113,7 +113,7 @@ jobs:
         run: python scripts/soundtracks/run-profiles.py --max-tracks 40 --max-minutes 24 --output music-profile-receipt.json
       - name: Keep non-secret analysis receipt
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: music-profile-receipt-${{ matrix.consumer }}
           path: music-profile-receipt.json
