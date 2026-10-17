@@ -5,6 +5,7 @@ import {
   evaluateProbes,
   percentile,
   probeHomepage,
+  probeSequence,
   productionOrigin,
   requestedLanguages,
   safeProbeTelemetry,
@@ -49,7 +50,7 @@ test("all supported locales must satisfy strict 800 ms on every sample", () => {
   assert.equal(strictTtfbTargetMs, 800);
   assert.equal(requestedLanguages.length, 5);
   const samples = requestedLanguages.flatMap((language) =>
-    [250, 375, 550, 799].map((ttfbMs) => ({ language, ttfbMs })),
+    [250, 375, 550, 799].map((ttfbMs, index) => ({ language, sample: index + 1, ttfbMs })),
   );
   const good = evaluateProbes(samples, []);
   assert.equal(good.status, "pass");
@@ -77,6 +78,14 @@ test("all supported locales must satisfy strict 800 ms on every sample", () => {
     "fail",
   );
   assert.equal(evaluateProbes(samples.slice(0, 4), []).status, "fail");
+  assert.equal(
+    evaluateProbes(
+      samples.map((item, i) => (i === 0 ? { ...item, sample: 2 } : item)),
+      [],
+    ).status,
+    "fail",
+    "Duplicate locale/sample pairs cannot mask a missing sample",
+  );
 });
 
 test("failure diagnostics retain only aggregate numeric timings and safe cache labels", () => {
@@ -130,4 +139,19 @@ test("successful homepage probes retain only numeric phases and a safe cache lab
   } finally {
     globalThis.fetch = previousFetch;
   }
+});
+
+test("production probe interleaves locales without losing or repeating samples", () => {
+  const order = probeSequence();
+  assert.equal(order.length, 20);
+  assert.equal(new Set(order.map((row) => `${row.language}|${row.sample}`)).size, 20);
+  assert.deepEqual(
+    order.map((row) => row.sequence),
+    Array.from({ length: 20 }, (_, i) => i + 1),
+  );
+  assert.deepEqual(
+    [1, 2, 3, 4].map((sample) => order.find((row) => row.sample === sample)?.language),
+    [requestedLanguages[0], requestedLanguages[2], requestedLanguages[4], requestedLanguages[1]],
+    "Cold first request is not permanently associated with the English locale",
+  );
 });
