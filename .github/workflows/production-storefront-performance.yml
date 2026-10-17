@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "scripts/check-production-storefront-performance*.mjs"
+      - "scripts/wait-vercel-production*.mjs"
       - ".github/workflows/production-storefront-performance.yml"
       - "src/features/fore/storefront-loader.ts"
       - "src/features/fore/storefront-bootstrap-fetch.ts"
@@ -19,6 +20,7 @@ on:
 
 permissions:
   contents: read
+  statuses: read
 
 concurrency:
   group: cove-production-storefront-performance
@@ -27,14 +29,20 @@ concurrency:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 22
       - name: Validate probe calculations and SSR assertions
-        run: node --test scripts/check-production-storefront-performance.test.mjs
+        run: node --test scripts/check-production-storefront-performance.test.mjs scripts/wait-vercel-production.test.mjs
+      - name: Wait for pushed commit to reach Vercel production
+        if: github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/wait-vercel-production.mjs
+
       - name: Measure public production homepage
         if: github.event_name != 'pull_request'
         env:
