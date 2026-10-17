@@ -1,3 +1,4 @@
+import { tasteControlsSchema, type TasteControls } from "./discovery-engine";
 import { formatMinorCurrency } from "./currency";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStorefrontLocale } from "./localization";
@@ -283,6 +284,190 @@ type RecommendationResponse = {
   model: { key: string; version: string; externalScorer?: boolean };
 };
 
+function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
+  const { data } = useAccount();
+  const [query, setQuery] = useState("");
+  const [likes, setLikes] = useState("");
+  const [dislikes, setDislikes] = useState("");
+  const [minutes, setMinutes] = useState("");
+  const [adventure, setAdventure] = useState(0.3);
+  const [response, setResponse] = useState<{
+    rails: RecommendationRailData[];
+    emptyReason: string | null;
+    intent: { unresolved: string[] };
+  } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const saved = useQuery<TasteControls>({
+    queryKey: ["discovery-taste", data.user?.id],
+    queryFn: () => api("/recommendations/taste"),
+    enabled: !!data.user,
+  });
+  useEffect(() => {
+    const controls = saved.data;
+    setLikes(controls?.likes.join(", ") || "");
+    setDislikes(controls?.dislikes.join(", ") || "");
+    setMinutes(controls?.maxMinutes?.toString() || "");
+    setAdventure(controls?.adventurousness ?? 0.3);
+    setResponse(null);
+  }, [saved.data, data.user?.id]);
+  const controls = () =>
+    tasteControlsSchema.parse({
+      likes: likes
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+      dislikes: dislikes
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+      maxMinutes: minutes ? Number(minutes) : null,
+      adventurousness: adventure,
+      languages: saved.data?.languages || [],
+    });
+  return (
+    <section className="recommendation-rail" aria-labelledby="literary-discovery-title">
+      <h2 id="literary-discovery-title">What would you love to read next?</h2>
+      <p>
+        Explore by theme, mood, style or setting. Try “mystery, reflective, under 4 hours”. Results
+        use available book evidence.
+      </p>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setMessage("");
+          try {
+            setResponse(
+              await api(
+                `/recommendations/discover?visitor=${encodeURIComponent(visitor)}`,
+                "POST",
+                { query, controls: controls() },
+              ),
+            );
+          } catch {
+            setMessage("Discovery is unavailable or a preference is invalid. Please try again.");
+          } finally {
+            setBusy(false);
+          }
+        }}
+        className="grid gap-3 max-w-3xl my-5"
+      >
+        <label>
+          For this search
+          <input
+            className="block border rounded p-2 w-full"
+            value={query}
+            maxLength={500}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="mystery, reflective, less violence"
+          />
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label>
+            More of (comma-separated)
+            <input
+              className="block border rounded p-2 w-full"
+              value={likes}
+              maxLength={1000}
+              onChange={(e) => setLikes(e.target.value)}
+              placeholder="friendship, witty"
+            />
+          </label>
+          <label>
+            Avoid known themes or styles
+            <input
+              className="block border rounded p-2 w-full"
+              value={dislikes}
+              maxLength={1000}
+              onChange={(e) => setDislikes(e.target.value)}
+              placeholder="war, melancholic"
+            />
+          </label>
+          <label>
+            Maximum reading time in minutes
+            <input
+              className="block border rounded p-2 w-full"
+              type="number"
+              min={5}
+              max={10000}
+              value={minutes}
+              onChange={(e) => setMinutes(e.target.value)}
+              placeholder="Any length"
+            />
+          </label>
+          <label>
+            Discovery adventure: {Math.round(adventure * 100)}%
+            <input
+              className="block w-full"
+              type="range"
+              min={0}
+              max={1}
+              step={0.1}
+              value={adventure}
+              onChange={(e) => setAdventure(Number(e.target.value))}
+            />
+          </label>
+        </div>
+        <p className="text-sm">
+          Avoid filters exclude books tagged with those terms; books with incomplete profiles may
+          have unrecorded content. Time limits require a supported estimate.
+        </p>
+        <div className="flex gap-4 flex-wrap">
+          <button className="border rounded px-4 py-2" disabled={busy || !visitor} type="submit">
+            {busy ? "Finding books…" : "Discover books"}
+          </button>
+          {data.user && (
+            <button
+              className="border rounded px-4 py-2"
+              type="button"
+              onClick={async () => {
+                try {
+                  await api("/recommendations/taste", "POST", controls());
+                  setMessage(
+                    "Taste preferences saved. Search wording applies only to this search.",
+                  );
+                } catch {
+                  setMessage("Could not save these preferences. Check the values and try again.");
+                }
+              }}
+            >
+              Save taste preferences
+            </button>
+          )}
+          <button
+            className="border rounded px-4 py-2"
+            type="button"
+            onClick={() => {
+              setLikes("");
+              setDislikes("");
+              setMinutes("");
+              setQuery("");
+              setAdventure(0.3);
+              setResponse(null);
+              setMessage("Form cleared. Save to replace your saved preferences.");
+            }}
+          >
+            Clear preferences
+          </button>
+        </div>
+      </form>
+      <p role="status" aria-live="polite">
+        {message || response?.emptyReason || ""}
+      </p>
+      {!!response?.intent.unresolved.length && (
+        <p>
+          Could not interpret: {response.intent.unresolved.join(", ")}. Try individual themes or
+          “under 4 hours”.
+        </p>
+      )}
+      {response?.rails.map((rail) => (
+        <RecommendationRailView key={rail.requestId} rail={rail} visitor={visitor} />
+      ))}
+    </section>
+  );
+}
+
 function RecommendationCard({
   rail,
   book,
@@ -349,6 +534,29 @@ function RecommendationCard({
         }}
       />
       {reason && <p className="recommendation-reason">{reason}</p>}
+      {data.user && book.productId && (
+        <button
+          className="recommendation-hide"
+          onClick={async () => {
+            try {
+              await api("/recommendations/event", "POST", {
+                type: "loved",
+                requestId: rail.requestId,
+                productId: book.productId,
+                eventId: crypto.randomUUID(),
+                visitorId: visitor,
+                surface: "discovery-feedback",
+              });
+              toast.success("Your feedback will help shape your recommendations.");
+            } catch {
+              toast.error("Could not save feedback. Please try again.");
+            }
+          }}
+          aria-label={`I loved ${book.title}`}
+        >
+          I loved this
+        </button>
+      )}
       {data.user && book.productId && (
         <button
           className="recommendation-hide"
@@ -1631,6 +1839,7 @@ export function StorePage({
             pageViewId={pageViewId}
           />
         ))}
+      {home && <LiteraryDiscoveryPanel visitor={visitor} />}
       {home &&
         (recommendations.data?.rails || []).map((rail) => (
           <RecommendationRailView

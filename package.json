@@ -67,7 +67,8 @@
     "test:stripe-webhooks": "node scripts/check-stripe-webhooks.mjs",
     "test:literary-profiles": "node scripts/check-literary-profiles.mjs",
     "test:music-profiles": "node scripts/check-music-profiles.mjs",
-    "test:matching": "node scripts/check-matching-engine.mjs"
+    "test:matching": "node scripts/check-matching-engine.mjs",
+    "test:literary-discovery": "node scripts/check-literary-discovery.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

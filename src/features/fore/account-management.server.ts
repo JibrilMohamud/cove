@@ -719,6 +719,23 @@ export async function accountDataExport(db: AccountDB, userId: string) {
           .all()
       ).results,
     },
+    discovery: {
+      controls: await db
+        .prepare(
+          "SELECT preferences_json,revision,updated_at FROM recommendation_taste_controls WHERE user_id=?",
+        )
+        .bind(userId)
+        .first(),
+      feedback: (
+        await db.prepare("SELECT * FROM recommendation_feedback WHERE user_id=?").bind(userId).all()
+      ).results,
+      events: (
+        await db
+          .prepare("SELECT * FROM recommendation_events WHERE user_id=? ORDER BY occurred_at")
+          .bind(userId)
+          .all()
+      ).results,
+    },
     schema: "fore-account-export",
     version: 4,
     exportedAt: now(),
@@ -1070,6 +1087,10 @@ export async function processAccountDeletionQueue(env: CoveEnv, limit = 25) {
           db.prepare("DELETE FROM recommendation_requests WHERE user_id=?").bind(r.user_id),
           db.prepare("DELETE FROM recommendation_events WHERE user_id=?").bind(r.user_id),
           db.prepare("DELETE FROM recommendation_user_features WHERE user_id=?").bind(r.user_id),
+          db.prepare("DELETE FROM recommendation_taste_controls WHERE user_id=?").bind(r.user_id),
+          db
+            .prepare("DELETE FROM recommendation_learning_boundaries WHERE user_id=?")
+            .bind(r.user_id),
           db.prepare("DELETE FROM recommendation_privacy WHERE user_id=?").bind(r.user_id),
           db.prepare("DELETE FROM search_query_events WHERE user_id=?").bind(r.user_id),
           db.prepare("DELETE FROM merch_events WHERE user_id=?").bind(r.user_id),
