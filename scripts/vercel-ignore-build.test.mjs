@@ -29,7 +29,10 @@ test("storefront revisions don't rebuild the FastAPI audio service", () => {
     assert.equal(shouldBuildService("app", "preview", [file]), true);
     assert.equal(shouldBuildService("audio", "preview", [file]), false);
   }
-  assert.equal(shouldBuildService("audio", "preview", ["src/server.ts", "scripts/check-store.mjs"]), false);
+  assert.equal(
+    shouldBuildService("audio", "preview", ["src/server.ts", "scripts/check-store.mjs"]),
+    false,
+  );
 });
 
 test("audio-only changes don't rebuild unrelated app service", () => {
@@ -46,7 +49,12 @@ test("audio-only changes don't rebuild unrelated app service", () => {
 });
 
 test("shared and unrecognized changes fail open for both services", () => {
-  for (const file of ["vercel.json", "scripts/unknown-build-helper.mjs", "new-root-file", "../escape"]) {
+  for (const file of [
+    "vercel.json",
+    "scripts/unknown-build-helper.mjs",
+    "new-root-file",
+    "../escape",
+  ]) {
     assert.equal(affectedServices(file), "both");
     assert.equal(shouldBuildService("app", "preview", [file]), true);
     assert.equal(shouldBuildService("audio", "preview", [file]), true);
@@ -74,16 +82,17 @@ test("diff covers all changes since previous successful deployment, not only HEA
 });
 
 test("missing or shallow git history fails open rather than skipping an unbuilt revision", () => {
-  assert.equal(changedSinceLastSuccess({}, () => { throw new Error("should not run"); }), null);
   assert.equal(
-    changedSinceLastSuccess(
-      { VERCEL_GIT_PREVIOUS_SHA: "a".repeat(40) },
-      () => { throw new Error("previous commit not present in shallow checkout"); },
-    ),
+    changedSinceLastSuccess({}, () => {
+      throw new Error("should not run");
+    }),
     null,
   );
   assert.equal(
-    shouldBuildService("audio", "preview", changedSinceLastSuccess({})),
-    true,
+    changedSinceLastSuccess({ VERCEL_GIT_PREVIOUS_SHA: "a".repeat(40) }, () => {
+      throw new Error("previous commit not present in shallow checkout");
+    }),
+    null,
   );
+  assert.equal(shouldBuildService("audio", "preview", changedSinceLastSuccess({})), true);
 });
