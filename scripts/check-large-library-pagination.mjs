@@ -134,3 +134,4 @@ try {
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
+await import("./check-heavy-library.mjs");

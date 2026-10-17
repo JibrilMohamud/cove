@@ -149,3 +149,36 @@ tests exercise actual misses, hits, selected language payloads and bypasses.
 Book-detail query identity now includes reader, country, locale and currency;
 obsolete requests cancel. The lab additionally records content readiness so
 a fast header paint cannot be mistaken for fast result availability.
+
+## Heavy personal library
+
+The 5,000-book synthetic fixture exposed a distinct query-plan problem. The
+old active-entitlement index scanned a reader's entire active set while checking
+each library row. Migration 0073 adds an entitlement covering index keyed by
+reader and product, and a stable reading-state page index including the product
+tie-breaker. The change is additive and compatible with the previous app; a
+code rollback can leave the indexes in place.
+
+In a same-database, same-query comparison on 17 October at 08:05 UTC, the
+101-row lookahead query took 2,672.2 ms before indexes and 0.4 ms afterwards,
+returning exactly equal ordered rows. These single local SQL observations are
+not production D1 latency claims. The plan now seeks the product entitlement
+through a covering index and avoids the temporary page-order sort.
+
+Library hydration uses at most two bounded metadata queries for 100 books,
+with an independent personal-import ownership predicate. The lookahead row is
+not returned as a replacement for an unavailable row, preventing duplicates
+on the next offset. The executed fixture returns 4,997 eligible books across
+50 pages from 5,000 stored records: a foreign import and two expired/revoked
+entitlements remain excluded; the reader's own private import remains visible.
+The local application API page p95 was 14 ms in that run. Production network,
+concurrent capacity and authenticated device timings remain to be measured.
+The fixture, exact ordered-row equivalence and query-plan checks are required
+by the existing large-library security CI step.
+
+Request-local API `Server-Timing` now exposes numeric identity, storefront
+context, logging and total-handler durations. The browser lab records these
+alongside API resource waterfalls. No SQL, identities, country, locale, URL
+query, credentials or book content enter the timing values. This provides a
+way to distinguish slow backend work from proxy/network time while Vercel
+team observability access remains unavailable.

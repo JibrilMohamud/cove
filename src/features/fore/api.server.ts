@@ -116,6 +116,7 @@ import {
   catalogIds,
   commercialCatalogStatements,
   getCanonicalBook,
+  canonicalLibraryBooks,
   personalImportStatements,
   resolveProduct,
 } from "./catalog-model.server";
@@ -1148,7 +1149,7 @@ async function account(env: CoveEnv, request: Request) {
         WHERE rs.user_id=? AND rs.in_library=1 AND EXISTS(
           SELECT 1 FROM entitlements e WHERE e.user_id=rs.user_id AND e.product_id=rs.product_id
           AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)
-        ) ORDER BY rs.updated_at DESC LIMIT 100`,
+        ) ORDER BY rs.updated_at DESC,rs.product_id DESC LIMIT 100`,
       )
       .bind(user.id, now(), now())
       .all<any>(),
@@ -1164,19 +1165,15 @@ async function account(env: CoveEnv, request: Request) {
       .all(),
   ]);
   const bookmarks = await listTextBookmarks(db, user.id);
-  const library = [];
-  for (let i = 0; i < readingStates.results.length; i += 8) {
-    const chunk = readingStates.results.slice(i, i + 8);
-    const books = await Promise.all(
-      chunk.map((row: { external_book_id: string }) =>
-        getCanonicalBook(db, row.external_book_id, user.id),
-      ),
-    );
-    for (let j = 0; j < chunk.length; j++) {
-      const book = books[j];
-      if (book) library.push(libraryRow(chunk[j], book));
-    }
-  }
+  const books = await canonicalLibraryBooks(
+    db,
+    readingStates.results.map((row) => String(row.product_id)),
+    user.id,
+  );
+  const library = readingStates.results.flatMap((row) => {
+    const book = books.get(String(row.product_id));
+    return book ? [libraryRow(row, book)] : [];
+  });
   return {
     user: { ...user, name: profile?.name || user.name, registered: !!profile },
     library,
@@ -2737,6 +2734,8 @@ async function reportExternalError(env: CoveEnv, request: Request, error: unknow
 
 export async function handleCoveApi(request: Request, env: CoveEnv): Promise<Response | null> {
   if (!new URL(request.url).pathname.startsWith("/api/fore/")) return null;
+  const started = performance.now(),
+    timings: Record<string, number> = {};
   const trace = beginRequestTrace(request),
     headers = new Headers(request.headers);
   headers.set("x-fore-request-id", trace.requestId);
@@ -2744,7 +2743,7 @@ export async function handleCoveApi(request: Request, env: CoveEnv): Promise<Res
   headers.set("x-fore-span-id", trace.spanId);
   const tracedRequest = new Request(request, { headers });
   const auth = await createAuth(tracedRequest, env);
-  const raw = await handleCoveRequest(tracedRequest, env, auth);
+  const raw = await handleCoveRequest(tracedRequest, env, auth, timings);
   if (!raw) return null;
   const decorated = auth.decorate(raw) || raw,
     responseHeaders = new Headers(decorated.headers);
@@ -2755,16 +2754,27 @@ export async function handleCoveApi(request: Request, env: CoveEnv): Promise<Res
     statusText: decorated.statusText,
     headers: responseHeaders,
   });
+  const logStarted = performance.now();
   if (env.DB)
     await recordHttpRequest(env.DB as any, trace, tracedRequest, response, {
       actorKind: identity(tracedRequest) ? "user" : "anonymous",
     });
+  timings.log = performance.now() - logStarted;
+  timings.api = performance.now() - started;
+  // Numeric request-local timings only. Exclude URLs, identity, locale and SQL.
+  response.headers.append(
+    "Server-Timing",
+    Object.entries(timings)
+      .map(([name, duration]) => `cove_${name};dur=${duration.toFixed(1)}`)
+      .join(", "),
+  );
   return response;
 }
 async function handleCoveRequest(
   request: Request,
   env: CoveEnv,
   auth: Awaited<ReturnType<typeof createAuth>>,
+  timings: Record<string, number>,
 ): Promise<Response | null> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/fore/")) return null;
@@ -2879,7 +2889,9 @@ async function handleCoveRequest(
     if (legalResponse) return legalResponse;
     const authResponse = await auth.handle(path);
     if (authResponse) return authResponse;
+    const identityStarted = performance.now();
     await auth.identify();
+    timings.identity = performance.now() - identityStarted;
     // Account bootstrap already enforces its own identity and entitlement
     // boundaries. It never consumes merchandising, locale or payment settings;
     // do not serialize those D1 lookups ahead of every reader's account state.
@@ -2992,6 +3004,7 @@ async function handleCoveRequest(
       env.FORE_DEFAULT_TERRITORY || "US",
     );
     const contextMs = performance.now() - contextStarted;
+    timings.context = contextMs;
     const storefrontTerritory = storefront.rightsCountry;
     if (request.method === "GET" && path === "/storefront/bootstrap") {
       const bootstrapStarted = performance.now();
@@ -4434,15 +4447,18 @@ async function handleCoveRequest(
             .bind(...binds, limit + 1, offset)
             .all<Record<string, unknown>>()
         ).results;
-        for (let i = 0; i < rows.length; i += 8) {
-          const chunk = rows.slice(i, i + 8);
-          const books = await Promise.all(
-            chunk.map((row) => getCanonicalBook(db, String(row.external_book_id), user.id)),
-          );
-          for (let j = 0; j < chunk.length; j++) {
-            if (books[j]) items.push(libraryRow(chunk[j], books[j]!));
-          }
-        }
+        // The extra row determines hasMore only. Returning it after a missing
+        // metadata row would repeat it at the next offset.
+        const pageRows = rows.slice(0, limit);
+        const books = await canonicalLibraryBooks(
+          db,
+          pageRows.map((row) => String(row.product_id)),
+          user.id,
+        );
+        items = pageRows.flatMap((row) => {
+          const book = books.get(String(row.product_id));
+          return book ? [libraryRow(row, book)] : [];
+        });
       }
       return json({
         items: items.slice(0, limit),

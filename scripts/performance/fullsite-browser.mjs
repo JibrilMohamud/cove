@@ -188,6 +188,10 @@ try {
                   startMs: r.startTime,
                   durationMs: r.duration,
                   responseStartMs: r.responseStart,
+                  serverTimings: r.serverTiming.map((timing) => ({
+                    name: timing.name,
+                    durationMs: timing.duration,
+                  })),
                 })),
               longTaskCount: state?.observed.includes("longtask") ? state.tasks.length : null,
               longTaskTotalMs: state?.observed.includes("longtask")
