@@ -98,6 +98,28 @@ try {
     "Invalid controls fail closed",
   );
 
+  assert.deepEqual(lib.representativeLiterarySectionIndices(0), []);
+  assert.deepEqual(lib.representativeLiterarySectionIndices(1), [0]);
+  assert.deepEqual(lib.representativeLiterarySectionIndices(2), [0, 1]);
+  assert.deepEqual(lib.representativeLiterarySectionIndices(11), [0, 5, 10]);
+  assert.equal(
+    lib.literaryOverviewPreparationCapacity(2, 266, 2215, 512, 4096),
+    2,
+    "Thousands of pending sections no longer starve distinct book overviews",
+  );
+  assert.equal(
+    lib.literaryOverviewPreparationCapacity(2, 512, 2215, 512, 4096),
+    0,
+    "Distinct book-overview queue has its own hard ceiling",
+  );
+  assert.equal(
+    lib.literaryOverviewPreparationCapacity(2, 266, 4094, 512, 4096),
+    0,
+    "Global inference backlog keeps four slots available per prepared book",
+  );
+  assert.equal(lib.literaryOverviewPreparationCapacity(2, 510, 4092, 512, 4096), 1);
+  assert.equal(lib.literaryOverviewPreparationCapacity(2, 266, Number.NaN), 0);
+
   const extractor = await import(path.join(root, "literary-extract.server.mjs"));
   const api = await import(path.join(root, "api.server.mjs"));
   const env = localBindings(root);
