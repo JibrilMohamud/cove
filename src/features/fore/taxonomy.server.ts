@@ -129,6 +129,7 @@ export async function taxonomyTree(
 ) {
   // Fetch the hierarchy and product counts separately. This avoids one correlated rights/catalog
   // subquery per taxonomy node, which becomes prohibitively expensive once the catalog is large.
+  // Check each book's live eligibility once before expanding its category memberships.
   const [rows, countRows, localizationRows] = await Promise.all([
     db
       .prepare(
@@ -140,14 +141,16 @@ export async function taxonomyTree(
       .all<any>(),
     db
       .prepare(
-        `SELECT et.taxonomy_node_id node_id,COUNT(DISTINCT p.id) product_count
-      FROM edition_taxonomy_nodes et
-      JOIN products p ON p.edition_id=et.edition_id
+        `WITH eligible AS MATERIALIZED (
+      SELECT p.id,p.edition_id FROM products p
       JOIN editions e ON e.id=p.edition_id
       WHERE p.storefront_status='active' AND p.source_name<>'upload'
         AND e.release_status IN ('available','preorder')
         AND (?='' OR EXISTS(SELECT 1 FROM edition_languages el WHERE el.edition_id=e.id AND lower(el.language_code)=lower(?)))
         AND EXISTS(SELECT 1 FROM retail_product_availability rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))
+      )
+      SELECT et.taxonomy_node_id node_id,COUNT(DISTINCT p.id) product_count
+      FROM eligible p JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
       GROUP BY et.taxonomy_node_id`,
       )
       .bind(language, language, territory)
