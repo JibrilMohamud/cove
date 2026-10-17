@@ -76,6 +76,10 @@ test("reader music is opt-in, attributed, and chapter-aware", async ({ page, req
   await player.evaluate((node) => node.dispatchEvent(new Event("ended")));
   await expect.poll(() => player.evaluate((node) => node.__qaPlayCalls)).toBe(1);
   await pane.getByRole("button", { name: "Minimize soundtrack" }).click();
+  await expect(pane.getByRole("button", { name: "Expand soundtrack" })).toBeVisible();
+  await expect(pane.getByLabel("Listening style")).toHaveCount(0);
+  // Playing music retains its compact controls. A paused, collapsed player hides.
+  await player.evaluate((node) => node.dispatchEvent(new Event("pause")));
   await expect(pane).toBeHidden();
   expect(await page.locator(".reader-soundtrack audio").count()).toBe(1);
 });
