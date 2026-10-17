@@ -30,3 +30,11 @@ The initial HTTP probes include this execution environment’s network/proxy pat
 ## Boundaries
 
 This release does not instantly download the pending catalog or override quarantines. Offline access requires a completed save and available browser storage; browser eviction, cleared site data and private-mode limitations remain real. A fresh-page standalone-mode browser exercise is an automated installed-app proxy, not a human OS installation certification. Performance measurements here must retain their environment and sampling limits.
+
+## Deployed verification
+
+PR #83 deployed as `264a3329ec5f03f87d0d8b90f6eae7839b68eb72`; all six browser/device projects, native NVDA, security, CodeQL, backend checks and the Vercel build passed before merge. Production migration 0070 is applied. The actual live single-product lookup read eight rows in 2.85 ms. All five versioned offline assets returned the correct HTML/CSS/JavaScript types and matched the deployed service-worker version. All six public EPUB probes passed again, parsing 119 spine chapters.
+
+The first request immediately after deployment still reached the five-second bootstrap fallback. Subsequent homepage probes rendered 24 book cards: warm server rendering took 0.86–1.22 seconds; fresh English/French and German/English language variants took 3.96 and 3.56 seconds. A separate uncached bootstrap reported 3.18 seconds of backend work, compared with 7.45 seconds in the pre-release probe. The public network/proxy path adds variable overhead. These observations are not field Core Web Vitals or a percentile latency guarantee.
+
+That uncached probe exposed category counts as further critical-path work. A production read-only comparison materialized eligible books once before their taxonomy memberships, preserving all 35 category counts while reducing SQL time from 2.07 to 0.93 seconds. The follow-up change retains live territory, language and release checks; fixture tests compare its counts with the previous query across four territory/language combinations.

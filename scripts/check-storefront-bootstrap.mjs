@@ -24,7 +24,7 @@ try {
     outfile: path.join(root, "taxonomy.mjs"),
     logLevel: "silent",
   });
-  const { upsertTaxonomyNode } = await import(path.join(root, "taxonomy.mjs"));
+  const { upsertTaxonomyNode, taxonomyTree } = await import(path.join(root, "taxonomy.mjs"));
   const env = localBindings(root);
   for (const [country, locale] of [
     ["US", "en-US"],
@@ -60,6 +60,32 @@ try {
       !("user" in bootstrap) && !("library" in bootstrap),
       "bootstrap includes no private reading records",
     );
+  }
+  // Materializing eligible books once must preserve the former live category
+  // counts across territories and content-language filters.
+  const flatten = (nodes) => nodes.flatMap((node) => [node, ...flatten(node.children)]);
+  for (const [country, language] of [
+    ["US", ""],
+    ["CA", "en"],
+    ["SA", "ar"],
+    ["JP", "fr"],
+  ]) {
+    const previous = await env.DB.prepare(
+      `
+      SELECT et.taxonomy_node_id node_id,COUNT(DISTINCT p.id) product_count
+      FROM edition_taxonomy_nodes et JOIN products p ON p.edition_id=et.edition_id
+      JOIN editions e ON e.id=p.edition_id
+      WHERE p.storefront_status='active' AND p.source_name<>'upload'
+        AND e.release_status IN ('available','preorder')
+        AND (?='' OR EXISTS(SELECT 1 FROM edition_languages el WHERE el.edition_id=e.id AND lower(el.language_code)=lower(?)))
+        AND EXISTS(SELECT 1 FROM retail_product_availability rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))
+      GROUP BY et.taxonomy_node_id`,
+    )
+      .bind(language, language, country)
+      .all();
+    const expected = new Map(previous.results.map((row) => [row.node_id, row.product_count]));
+    const tree = await taxonomyTree(env.DB, country, language);
+    for (const node of flatten(tree.nodes)) assert.equal(node.count, expected.get(node.id) || 0);
   }
   // Presentation language must be selectable independently of the legally
   // determined storefront country. A cookie does not grant Saudi-region rights.
