@@ -90,12 +90,16 @@ try {
 
   for (const response of [
     () => Response.json(payload),
-    () => Response.json({ ...payload, context: { ...payload.context, rightsCountry: "US" } }, {
-      headers: { "x-cove-persistence": "remote-d1-r2" },
-    }),
-    () => Response.json({ ...payload, catalog: { ...payload.catalog, results: [] } }, {
-      headers: { "x-cove-persistence": "remote-d1-r2" },
-    }),
+    () =>
+      Response.json(
+        { ...payload, context: { ...payload.context, rightsCountry: "US" } },
+        { headers: { "x-cove-persistence": "remote-d1-r2" } },
+      ),
+    () =>
+      Response.json(
+        { ...payload, catalog: { ...payload.catalog, results: [] } },
+        { headers: { "x-cove-persistence": "remote-d1-r2" } },
+      ),
   ]) {
     const value = await hedgedStorefrontBootstrap(source, never, async () => response(), {
       hedgeAfterMs: 5,
@@ -142,7 +146,9 @@ try {
   assert.equal(
     await hedgedStorefrontBootstrap(
       new Request(source, { signal: cancelled.signal }),
-      async () => { throw new Error("No network on aborted page"); },
+      async () => {
+        throw new Error("No network on aborted page");
+      },
       async () => { throw new Error("No network on aborted page"); },
     ),
     null,
