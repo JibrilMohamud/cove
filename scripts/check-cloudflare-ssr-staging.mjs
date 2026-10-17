@@ -64,7 +64,20 @@ async function assertRightsIsolation() {
   const endpoint = origin + "/api/fore/storefront/bootstrap";
   const common = { redirect: "manual", signal: AbortSignal.timeout(12_000) };
   const first = await fetch(endpoint, { ...common, headers: headers() });
-  assert.equal(first.status, 200, "Trusted Cloudflare country must enable bootstrap.");
+  if (first.status !== 200) {
+    const text = await first.text();
+    const category = text.includes("Unable to verify storefront territory")
+      ? "untrusted-country"
+      : text.includes("No active Cove storefront market")
+        ? "market-configuration"
+        : text.includes("unhandled")
+          ? "unhandled-server-error"
+          : "other-fail-closed";
+    const phases = safeProbeTelemetry(first.headers, 0, 0).timing;
+    throw new Error(
+      `Direct D1 staging bootstrap failed: http=${first.status}, kind=${category}, phases=${phases}`,
+    );
+  }
   const expected = await first.json();
   assert.match(expected.context.rightsCountry, /^[A-Z]{2}$/);
   assert.ok(expected.catalog.results.length >= 1);
