@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { fileURLToPath } from "node:url";
+import { pathToFileURL } from "node:url";
+import path from "node:path";
 
 /** Check the exact pushed commit, not an unrelated successful preview deployment. */
 export function vercelCommitStatus(payload) {
@@ -60,4 +61,5 @@ async function main() {
   console.log("Exact Vercel commit deployment is ready; production probing may begin.");
 }
 
-if (process.argv[1] && import.meta.url === new URL("file://" + fileURLToPath(new URL("file://" + process.argv[1]))).href) await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href)
+  await main();
