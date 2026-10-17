@@ -1,0 +1,115 @@
+name: cloudflare-native-ssr-staging
+
+on:
+  pull_request:
+    paths:
+      - "src/server.ts"
+      - "src/lib/cloudflare-ssr-stage-gate.server.ts"
+      - "src/lib/cove-request-env.server.ts"
+      - "src/lib/cloudflare-country.server.ts"
+      - "src/features/fore/storefront-loader.ts"
+      - "src/features/fore/storefront-hedged-fetch.ts"
+      - "vite.config.ts"
+      - "wrangler.frontend.staging.toml"
+      - "scripts/check-cloudflare-ssr-stage-gate.mjs"
+      - "scripts/check-cloudflare-ssr-staging.mjs"
+      - ".github/workflows/cloudflare-native-ssr-staging.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/server.ts"
+      - "src/lib/cloudflare-ssr-stage-gate.server.ts"
+      - "src/lib/cove-request-env.server.ts"
+      - "src/lib/cloudflare-country.server.ts"
+      - "src/features/fore/storefront-loader.ts"
+      - "src/features/fore/storefront-hedged-fetch.ts"
+      - "vite.config.ts"
+      - "wrangler.frontend.staging.toml"
+      - "scripts/check-cloudflare-ssr-stage-gate.mjs"
+      - "scripts/check-cloudflare-ssr-staging.mjs"
+      - ".github/workflows/cloudflare-native-ssr-staging.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-ssr-staging
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+      VERCEL: "0"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Fail-closed stage gate and country binding tests
+        run: |
+          node scripts/check-cloudflare-ssr-stage-gate.mjs
+          node scripts/check-cove-request-context.mjs
+          node scripts/check-storefront-hedged.mjs
+      - name: Build Cloudflare-native frontend
+        run: npm run build
+      - name: Verify static and SSR artifacts
+        run: node scripts/check-cloudflare-ssr-pilot.mjs
+      - name: Dry-run full staging Worker (no network publish)
+        env:
+          CLOUDFLARE_SEND_METRICS: "false"
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.frontend.staging.toml
+
+  deploy-staging:
+    needs: verify
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+      VERCEL: "0"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_SEND_METRICS: "false"
+      COVE_SSR_STAGING_ORIGIN: "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Require Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Cloudflare credential unavailable"; exit 1; }
+      - name: Build immutable reviewed production-source staging artifact
+        run: npm run build
+      - name: Deploy staging only (no custom domain or traffic migration)
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.staging.toml
+      - name: Rotate ephemeral stage credential, verify protection and benchmark
+        shell: bash
+        run: |
+          set -euo pipefail
+          COVE_SSR_STAGING_GATE_KEY="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          echo "::add-mask::$COVE_SSR_STAGING_GATE_KEY"
+          export COVE_SSR_STAGING_GATE_KEY
+          printf '%s' "$COVE_SSR_STAGING_GATE_KEY" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.frontend.staging.toml
+          node scripts/check-cloudflare-ssr-staging.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cloudflare-native-ssr-staging-performance
+          path: artifacts/cloudflare-ssr-staging-performance.json
+          if-no-files-found: ignore
+          retention-days: 14
