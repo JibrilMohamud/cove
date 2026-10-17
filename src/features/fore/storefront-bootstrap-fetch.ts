@@ -81,7 +81,10 @@ export async function requestStorefrontBootstrap(
       const recoveryStarted = performance.now();
       try {
         const value = await options.recover(recoveryRequest, fetchApi);
-        options.onRecovery?.({ success: value !== null, durationMs: performance.now() - recoveryStarted });
+        options.onRecovery?.({
+          success: value !== null,
+          durationMs: performance.now() - recoveryStarted,
+        });
         if (value !== null) return value;
       } catch {
         options.onRecovery?.({ success: false, durationMs: performance.now() - recoveryStarted });
