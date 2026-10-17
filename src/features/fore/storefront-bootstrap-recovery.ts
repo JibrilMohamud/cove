@@ -1,5 +1,20 @@
 import type { StorefrontBootstrap } from "./storefront-bootstrap";
 
+/**
+ * Route recovery through a separate same-origin API function only when the
+ * direct Worker gateway is configured. This changes network isolation, NOT
+ * authority: the caller still requires live backend provenance and territory.
+ */
+export function storefrontRecoveryTransport(
+  direct: (request: Request) => Promise<Response>,
+  sameOrigin: (request: Request) => Promise<Response>,
+  requireRemoteBackend: boolean,
+): (request: Request) => Promise<Response> {
+  if (!requireRemoteBackend) return direct;
+  return (request) =>
+    sameOrigin(new Request(request, { redirect: "manual", cache: "no-store" }));
+}
+
 /** Reconstruct only from the normal live rights-scoped API endpoints.
  * No cached foreign territory, US seed catalogue, or stale product IDs.
  * Each request inherits the same visitor headers and one shared deadline.
