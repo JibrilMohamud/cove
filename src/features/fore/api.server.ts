@@ -104,6 +104,7 @@ import JSZip from "jszip";
 import seed from "./catalog-seed.json";
 import type { CatalogBook } from "./client";
 import {
+  firstPaintStorefrontShelf,
   parseSearchInput,
   recordSearchClick,
   rebuildSearchIndex,
@@ -3056,12 +3057,7 @@ async function handleCoveRequest(
         ),
         timed(
           "catalog",
-          catalog(
-            env,
-            new URL(`/api/fore/catalog?${catalogQuery}`, url.origin),
-            null,
-            storefrontTerritory,
-          ),
+          firstPaintStorefrontShelf(env, storefront.currency, storefrontTerritory),
         ),
         timed("markets", storefrontMarkets(dbForContext)),
       ]);
