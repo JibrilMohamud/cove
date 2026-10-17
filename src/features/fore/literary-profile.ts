@@ -103,6 +103,7 @@ export function provisionalLiteraryProfile(sources: ProfileEvidence[]): Literary
   } catch {
     return profile;
   }
+  if (!record || typeof record !== "object") return profile;
   const headings = [record.metadata?.subjects, record.metadata?.shelves]
     .flatMap((value) => (Array.isArray(value) ? value : []))
     .filter((value): value is string => typeof value === "string")
