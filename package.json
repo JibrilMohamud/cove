@@ -28,7 +28,7 @@
     "test:publishing": "node scripts/check-publishing.mjs",
     "test:finance-pricing": "node scripts/check-finance-pricing.mjs",
     "test:creator-commerce": "node scripts/check-creator-commerce.mjs",
-    "test:seo-accessibility": "node scripts/check-seo-accessibility.mjs",
+    "test:seo-accessibility": "node scripts/check-seo-accessibility.mjs && node scripts/check-public-seo-gateway.mjs",
     "test:commercial-operations": "node scripts/check-commercial-audio-accounts-support.mjs",
     "test:notifications-delivery": "node scripts/check-notifications-secure-delivery.mjs",
     "test:traditional-publishing": "node scripts/check-traditional-publishing-contracts.mjs",
