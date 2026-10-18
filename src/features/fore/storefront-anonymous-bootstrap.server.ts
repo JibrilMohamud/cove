@@ -4,6 +4,37 @@ import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
 import type { CoveEnv } from "./api.server";
 
+// Only coalesce *in-flight, anonymous presentation reads* on the same Worker
+// D1 binding. Completed promises are deleted immediately, so market pauses,
+// translations and locales are revalidated on the next independent request.
+// No catalog, legal entitlement, user account, rate limit or country rights
+// query is ever shared or cached here.
+const pendingPresentation = new WeakMap<object, Map<string, Promise<unknown>>>();
+
+function singleflightAnonymousPresentation<T>(
+  db: object,
+  key: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  let slots = pendingPresentation.get(db);
+  if (!slots) {
+    slots = new Map();
+    pendingPresentation.set(db, slots);
+  }
+  // Bound the size of untrusted Accept-Language variations. Beyond this,
+  // execute the presentation read normally instead of retaining its key.
+  if (key.length > 192 || (slots.size >= 32 && !slots.has(key))) return task();
+  const old = slots.get(key) as Promise<T> | undefined;
+  if (old) return old;
+  const pending = Promise.resolve().then(task);
+  slots.set(key, pending);
+  const clean = () => {
+    if (slots?.get(key) === pending) slots.delete(key);
+  };
+  void pending.then(clean, clean);
+  return pending;
+}
+
 /**
  * Cloudflare Worker-only, read-only bootstrap for a *provably anonymous*
  * homepage visit. The existing all-purpose API imports payments, ingestion,
@@ -79,25 +110,44 @@ export async function serveLeanAnonymousBootstrap(
   // Launch the authoritative primary-rights query *before* waiting for
   // independent replica presentation reads. No book leaves the Worker until
   // the rate limiter, markets, context, page and rights checks ALL succeed.
+  // Anonymous requests are cookie/session-free by canUseLeanAnonymousBootstrap.
+  // Context varies only by immutable edge country, fallback and negotiated
+  // Accept-Language, all included in the key. The live rights shelf below
+  // must ALWAYS run separately for each request against the primary DB.
+  const presentationKey = JSON.stringify([
+    trustedCountry,
+    env.FORE_DEFAULT_TERRITORY || "US",
+    request.headers.get("accept-language") || "",
+  ]);
   const contextPromise = timed(
     "context",
-    resolveStorefrontContext(readMetadata(), request, null, env.FORE_DEFAULT_TERRITORY || "US"),
+    singleflightAnonymousPresentation(rawDb, "context:" + presentationKey, () =>
+      resolveStorefrontContext(readMetadata(), request, null, env.FORE_DEFAULT_TERRITORY || "US"),
+    ),
   );
   const pagePromise = contextPromise.then((context) =>
     timed(
       "page",
-      resolveStorefrontPage(
-        readMetadata(),
-        "/",
-        context.rightsCountry,
-        context.language,
-        context.locale,
+      singleflightAnonymousPresentation(
+        rawDb,
+        `page:${context.rightsCountry}:${context.language}:${context.locale}`,
+        () =>
+          resolveStorefrontPage(
+            readMetadata(),
+            "/",
+            context.rightsCountry,
+            context.language,
+            context.locale,
+          ),
       ),
     ),
   );
   const [context, availableMarkets, , catalog, page] = await Promise.all([
     contextPromise,
-    timed("markets", storefrontMarkets(readMetadata())),
+    timed(
+      "markets",
+      singleflightAnonymousPresentation(rawDb, "markets", () => storefrontMarkets(readMetadata())),
+    ),
     timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
     // NULL currency means active-market currency is looked up in this SAME
     // live primary D1 statement with the full retail-grant view.
