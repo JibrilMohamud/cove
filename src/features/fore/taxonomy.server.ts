@@ -5,6 +5,7 @@ import {
   presentationTaxonomyCounts,
   taxonomyPresentationReadDb,
 } from "./taxonomy-counts-cache.server";
+import { taxonomyCountPlan, taxonomySparseRightsProbe } from "./taxonomy-count-query";
 
 export type TaxonomyNode = {
   id: string;
@@ -146,21 +147,18 @@ export async function taxonomyTree(
       // This query supplies counts as UI metadata only. Every actual book,
       // sale and reader authorization remains on current primary D1.
       const countDb = taxonomyPresentationReadDb(db);
+      // The counts are presentation metadata; cache hits are only labels.
+      // Every cache MISS is still calculated from current grant rows and the
+      // authoritative retail view. All book delivery/checkout/reader decisions
+      // remain independently authorized against primary D1 on every request.
+      const grants = await countDb
+        .prepare(taxonomySparseRightsProbe)
+        .bind(territory)
+        .first<{ grant_count: number }>();
+      const plan = taxonomyCountPlan(territory, language, Number(grants?.grant_count || 0) <= 1000);
       const current = await countDb
-        .prepare(
-          `WITH eligible AS MATERIALIZED (
-      SELECT p.id,p.edition_id FROM products p
-      JOIN editions e ON e.id=p.edition_id
-      WHERE p.storefront_status='active' AND p.source_name<>'upload'
-        AND e.release_status IN ('available','preorder')
-        AND (?='' OR EXISTS(SELECT 1 FROM edition_languages el WHERE el.edition_id=e.id AND lower(el.language_code)=lower(?)))
-        AND EXISTS(SELECT 1 FROM retail_product_availability rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))
-      )
-      SELECT et.taxonomy_node_id node_id,COUNT(DISTINCT p.id) product_count
-      FROM eligible p JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
-      GROUP BY et.taxonomy_node_id`,
-        )
-        .bind(language, language, territory)
+        .prepare(plan.sql)
+        .bind(...plan.binds)
         .all<{ node_id: string; product_count: number }>();
       return current.results;
     }),
