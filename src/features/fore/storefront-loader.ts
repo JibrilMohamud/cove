@@ -26,8 +26,32 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
     const localRightsAuthority = typeof localDatabase?.prepare === "function";
     const primary = async (forwarded: Request): Promise<Response> => {
       if (localRightsAuthority) {
+        // A public, cookie-free Worker homepage can use the much smaller
+        // read-only bootstrap without dynamically loading account, commerce,
+        // ingest, audio and other API modules on the first SSR.
+        // Any hint of a login/session or missing trusted country/IP falls
+        // straight back to the exact existing full authenticated adapter.
+        if (
+          !forwarded.headers.has("authorization") &&
+          !forwarded.headers.has("cookie") &&
+          forwarded.headers.get("cf-connecting-ip") &&
+          forwarded.headers.get("x-cove-client-country")
+        ) {
+          const { canUseLeanAnonymousBootstrap, serveLeanAnonymousBootstrap } =
+            await import("./storefront-anonymous-bootstrap.server");
+          if (
+            canUseLeanAnonymousBootstrap(
+              forwarded,
+              localEnvironment as Parameters<typeof canUseLeanAnonymousBootstrap>[1],
+            )
+          )
+            return serveLeanAnonymousBootstrap(
+              forwarded,
+              localEnvironment as Parameters<typeof serveLeanAnonymousBootstrap>[1],
+            );
+        }
         // Cloudflare SSR and the live rights database share one Worker invocation.
-        // Avoid cold external egress entirely; never serve a static territory snapshot.
+        // Authenticated and fallback paths always retain their full adapter.
         const { handleCoveApi } = await import("./api.server");
         const response = await handleCoveApi(
           forwarded,
