@@ -280,6 +280,47 @@ Four-territory fixture parity, next-page URLs, full CI and independent
 genuinely cold/geographically distributed tests are mandatory before
 calling this improvement ready; no public cutover is authorized.
 
+### Live-primary D1 query-plan audit and parallel authorization (October 18)
+
+Read-only D1 `sqlite_master`, `EXPLAIN QUERY PLAN` and timed selects
+on the actual Cloudflare D1 primary (ORD) distinguish slow SQL from
+transport/service queueing:
+
+- Locale-market joins, storefront markets, and payment-method queries use
+  existing keyed indexes and execute in roughly **0.16–0.35 ms** of primary
+  SQLite time, though their API round trips took roughly 290–320 ms.
+- Primary indexed 25-book rights-filtered popular candidate search uses
+  `idx_search_popular_stable` plus
+  `idx_rights_grant_live_lookup`; a direct live probe returned a
+  query cost of **16.9 ms** SQL and **225 rows read** while the round trip
+  took **425 ms**.
+- A separate diagnostic `COUNT(*)` over the entire
+  `retail_product_availability_rows` view counted **51,813**
+  records, cost **1,762 ms** SQL and read **414,503** rows. This
+  global count is **not** on the first-paint path and must not be
+  confused with proof that Cove's 25-item indexed selection requires
+  a new index. It does expose the danger of accidentally reintroducing
+  a catalog-wide rights aggregation into SSR.
+
+The next protected experiment starts the original primary-authoritative,
+country-filtered 25-book SQL simultaneously with the independent replica
+presentation context, markets lookup and edge rate limiter. Anonymous
+default currency is determined within the **same primary SQL statement**,
+using live active-market defaults and the canonical US fallback (never
+from potentially lagged replicas). The landing page lookup starts as soon
+as locale context resolves, without waiting for the catalog. This removes
+a strictly unnecessary metadata→primary-rights serial dependency; it
+**does not** cache rights, hide missing titles or permit offline
+authorization. Tests compare US/CA/SA/JP books, locale, currency,
+next-page link and fail-closed behavior against canonical API output.
+
+The D1 API's own `meta.timings.sql_duration_ms` measures SQL execution,
+not network latency, Cloudflare D1 service queueing, database contention
+or edge transport. The occasional multi-second SSR run could still be a
+service/transport anomaly; data obtained so far do **not** demonstrate
+SQLite write locking as the cause. Independent cold and geographic runs
+must prove results before any release.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on
