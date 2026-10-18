@@ -87,6 +87,40 @@ versions, including the very first SSR fetch, with no waived samples and
 independent geographical trials. A favorable replica location cannot turn
 network variability into a guaranteed per-request SLO.
 
+### October 18 lean anonymous Worker bootstrap: independent cold validation
+
+Merged PR #142 moves *only* a truly guest, country-verified homepage
+bootstrap onto a smaller module graph. It avoids importing the complete
+account, commerce, audio, publishing, ingestion and rights-management API
+on the first anonymous SSR. Four-market fixture parity and primary D1
+product-rights assertions passed. The protected first-HTTP canary requires
+a numeric `cove_backend_lean;dur=0` proof, one country-authoritative shelf,
+live D1, and strictly `TTFB <800 ms`.
+
+The first independent three-Worker deployment gate on the merged commit:
+[CI test](https://github.com/JibrilMohamud/cove/actions/runs/39090722952).
+
+| Separate Worker deployment | Requests <800 ms | p95 | Slowest request |
+| --- | ---: | ---: | ---: |
+| Cold deployment 1 | **20/20** | 461 ms | <800 ms |
+| Cold deployment 2 | **19/20** | 379 ms | **1,054 ms** |
+| Cold deployment 3 | **20/20** | 363 ms | <800 ms |
+
+All responses rendered 24 rights-checked books via the lean backend.
+The sole miss was the **very first** LAX-edge request on deployment two:
+1,054 ms client TTFB, of which 278 ms was measured Worker processing;
+776 ms was outside measured Worker duration (38 ms client queue and
+987 ms sent-to-headers including network/remote time). All later requests
+in that deployment were <=379 ms (excluding cold outlier). The
+all-or-nothing release gate **correctly failed** at 59/60. The cold-path
+optimization removed most server-side delays but cannot certify global
+network ingress/cold routing under the absolute threshold.
+
+A separate three-version redeployment is required to test consistency.
+Do not claim the hard gate passes based on 59/60, p95, or warm responses.
+Even a later 60/60 pass must not erase the earlier miss. Preserve staging
+read-only protection, authoritative legal rights and public Vercel fallback.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on
