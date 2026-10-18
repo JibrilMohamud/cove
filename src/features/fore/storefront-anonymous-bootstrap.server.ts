@@ -1,5 +1,5 @@
 import { networkCountry, resolveStorefrontContext, storefrontMarkets } from "./localization.server";
-import { resolveStorefrontPage } from "./taxonomy.server";
+import { preloadPublishedHomepage, resolveStorefrontPage } from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
 import type { CoveEnv } from "./api.server";
@@ -83,17 +83,21 @@ export async function serveLeanAnonymousBootstrap(
     "context",
     resolveStorefrontContext(readMetadata(), request, null, env.FORE_DEFAULT_TERRITORY || "US"),
   );
-  const pagePromise = contextPromise.then((context) =>
-    timed(
-      "page",
+  // The homepage has a unique path row, so its presentation-only metadata
+  // can be fetched *now*, concurrently with locale and authoritative rights.
+  // Apply the exact territory/language guard after context resolves; do not
+  // use this read to decide legal product eligibility.
+  const homePagePromise = timed("page", preloadPublishedHomepage(readMetadata()));
+  const pagePromise = Promise.all([contextPromise, homePagePromise]).then(
+    ([context, homePage]) =>
       resolveStorefrontPage(
         readMetadata(),
         "/",
         context.rightsCountry,
         context.language,
         context.locale,
+        homePage,
       ),
-    ),
   );
   const [context, availableMarkets, , catalog, page] = await Promise.all([
     contextPromise,
