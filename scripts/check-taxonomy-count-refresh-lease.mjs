@@ -269,8 +269,9 @@ assert.equal(
   "New lease owner must win; old expired output must never overwrite it",
 );
 assert.equal(
-  sqlite.prepare("SELECT COUNT(*) total FROM api_cache WHERE key LIKE 'taxonomy-counts-refresh:%'").get()
-    .total,
+  sqlite
+    .prepare("SELECT COUNT(*) total FROM api_cache WHERE key LIKE 'taxonomy-counts-refresh:%'")
+    .get().total,
   0,
   "Lease owners must release their own completed entries",
 );
