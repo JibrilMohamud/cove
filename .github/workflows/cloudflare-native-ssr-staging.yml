@@ -19,6 +19,8 @@ on:
       - "src/features/fore/taxonomy.server.ts"
       - "src/features/fore/merchandising.server.ts"
       - "scripts/check-rights.mjs"
+      - "drizzle/0075_catalog_fts_indexed_deletes.sql"
+      - "scripts/check-fts-trigger-lookup.py"
       - "scripts/check-production-storefront-performance.mjs"
       - "scripts/check-production-storefront-performance.test.mjs"
       - "scripts/check-storefront-bootstrap.mjs"
@@ -57,6 +59,8 @@ on:
       - "src/features/fore/taxonomy.server.ts"
       - "src/features/fore/merchandising.server.ts"
       - "scripts/check-rights.mjs"
+      - "drizzle/0075_catalog_fts_indexed_deletes.sql"
+      - "scripts/check-fts-trigger-lookup.py"
       - "scripts/check-production-storefront-performance.mjs"
       - "scripts/check-production-storefront-performance.test.mjs"
       - "scripts/check-storefront-bootstrap.mjs"
@@ -114,6 +118,7 @@ jobs:
           node scripts/check-storefront-firstpaint-rate-limit.mjs
           node scripts/check-storefront-bootstrap.mjs
           node scripts/check-rights.mjs
+          python3 scripts/check-fts-trigger-lookup.py
           node --test scripts/check-production-storefront-performance.test.mjs
           node scripts/check-cove-request-context.mjs
           node scripts/check-storefront-hedged.mjs
