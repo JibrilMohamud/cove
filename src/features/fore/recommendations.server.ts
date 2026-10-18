@@ -1334,7 +1334,7 @@ async function eligibleRecommendationIds(
     ph = unique.map(() => "?").join(",");
   const rows = await db
     .prepare(
-      `SELECT p.id FROM products p JOIN editions e ON e.id=p.edition_id WHERE p.id IN (${ph}) AND p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder') AND EXISTS(SELECT 1 FROM retail_product_availability rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))`,
+      `SELECT p.id FROM products p JOIN editions e ON e.id=p.edition_id WHERE p.id IN (${ph}) AND p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder') AND EXISTS(SELECT 1 FROM retail_product_availability_rows rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))`,
     )
     .bind(...unique, territory)
     .all<any>();

@@ -227,6 +227,23 @@ const available = (product, territory) => {
     .get(product, territory);
   assert.equal(raw, result, "raw membership preserves the DISTINCT retail contract");
   assert.equal(raw, generic, "raw retail membership preserves full channel-rights authority");
+  // Recommendation hydration asks for bounded candidate IDs. DISTINCT in
+  // the compatibility view forced a full catalog scan even for one/80 IDs.
+  // Compare the exact boolean predicate at every grant/deny/DRM fixture state.
+  const candidates = (view) =>
+    db
+      .prepare(
+        `SELECT p.id FROM products p JOIN editions e ON e.id=p.edition_id
+     WHERE p.id IN (?) AND p.storefront_status='active' AND p.source_name<>'upload'
+       AND e.release_status IN ('available','preorder')
+       AND EXISTS(SELECT 1 FROM ${view} rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))`,
+      )
+      .all(product, territory);
+  assert.deepEqual(
+    candidates("retail_product_availability_rows"),
+    candidates("retail_product_availability"),
+    "bounded recommendation eligibility preserves the full DISTINCT rights contract",
+  );
   return result;
 };
 assert.equal(available("ebook", "US"), true, "US ebook retail right should be available");
