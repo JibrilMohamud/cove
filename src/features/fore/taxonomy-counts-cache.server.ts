@@ -63,14 +63,7 @@ export async function presentationTaxonomyCounts(
 
   const live = await queryLive();
   try {
-    await writeCatalogCache(
-      db,
-      key,
-      JSON.stringify(live),
-      nowMs() + TTL_MS,
-      PREFIX,
-      MAX_ENTRIES,
-    );
+    await writeCatalogCache(db, key, JSON.stringify(live), nowMs() + TTL_MS, PREFIX, MAX_ENTRIES);
   } catch {
     // Cache write failure must not fail the actual fresh taxonomy response.
   }
