@@ -135,6 +135,7 @@ export async function taxonomyTree(
   // Fetch the hierarchy and product counts separately. This avoids one correlated rights/catalog
   // subquery per taxonomy node, which becomes prohibitively expensive once the catalog is large.
   // Check each book's live eligibility once before expanding its category memberships.
+  const countState = { pending: false };
   const [rows, countRows, localizationRows] = await Promise.all([
     db
       .prepare(
@@ -173,6 +174,7 @@ export async function taxonomyTree(
       },
       undefined,
       defer,
+      countState,
     ),
     db
       .prepare(
@@ -224,6 +226,7 @@ export async function taxonomyTree(
     territory,
     language: language || null,
     locale,
+    countsPending: countState.pending,
     featured: flattenTaxonomy(roots).filter((n) => n.featured && n.count > 0),
     nodes: roots,
   };
