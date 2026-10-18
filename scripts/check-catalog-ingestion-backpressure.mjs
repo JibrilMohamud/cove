@@ -47,23 +47,18 @@ const batchStart = workerSource.indexOf("async function catalogBatch(");
 const batchEnd = workerSource.indexOf("\nasync function maintenance(", batchStart);
 assert.ok(batchStart >= 0 && batchEnd > batchStart);
 const batch = workerSource.slice(batchStart, batchEnd);
-assert.match(batch, /const deferred = await checkPrimaryBeforeBulkWork\("metadata"\)/);
-assert.match(batch, /const deferred = await checkPrimaryBeforeBulkWork\("regional"\)/);
-assert.match(batch, /const deferred = await checkPrimaryBeforeBulkWork\("epubs"\)/);
-assert.match(batch, /const deferred = await checkPrimaryBeforeBulkWork\("search"\)/);
-assert.ok(
-  batch.indexOf('checkPrimaryBeforeBulkWork("metadata")') <
-    batch.indexOf("runCatalogIngestion(env"),
-);
-assert.ok(
-  batch.indexOf('checkPrimaryBeforeBulkWork("search")') < batch.indexOf("syncSearchIndex(env"),
-);
+// Explicitly preserve rights-bearing catalog and regional import execution.
+// Admission is allowed only AFTER those stages and EPUB maintenance.
+const gateAt = batch.indexOf("const admission = await admitCatalogBatch(");
+assert.ok(gateAt > batch.indexOf("runCatalogIngestion(env"));
+assert.ok(gateAt > batch.indexOf("runRegionalCatalogIngestion(env"));
+assert.ok(gateAt > batch.indexOf("runCatalogAssetMaintenance(env"));
+assert.ok(gateAt < batch.indexOf("syncSearchIndex(env"));
+assert.match(batch, /searchSync = \{/);
 assert.match(batch, /skipped: "primary_busy"/);
-assert.match(batch, /pagesAttempted: results.length/);
-// Primary rights, revocations, account deletion, checkout and reading must
-// never be held behind ingestion backpressure.
-assert.doesNotMatch(workerSource.slice(0, batchStart), /checkPrimaryBeforeBulkWork/);
-assert.equal(workerSource.match(/checkPrimaryBeforeBulkWork/g)?.length, 5);
+assert.match(batch, /\.\.\.\(searchSync \? \{ searchSync \} : \{\}\)/);
+assert.doesNotMatch(batch, /checkPrimaryBeforeBulkWork/);
+assert.doesNotMatch(workerSource.slice(0, batchStart), /admitCatalogBatch/);
 console.log(
-  "Background catalog admission: bounded budget, healthy/busy/error cases, phase ordering, fail-closed deferral PASS",
+  "Derived-search admission: bounded latency, safe rights-stage ordering, retryable deferral PASS",
 );
