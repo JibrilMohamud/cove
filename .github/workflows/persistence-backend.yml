@@ -123,6 +123,8 @@ jobs:
         run: npm run test:commercial-experience
       - name: Search, updater and public caching
         run: npm run test:search-updater-cache
+      - name: Indexed FTS trigger identity, suppression, deletion and bounded work
+        run: python3 scripts/check-fts-trigger-lookup.py
       - name: Reader rendering, share withdrawal and offline authorization
         run: npm run test:reader-sharing-offline
       - name: Direct sharing, group discussions and account erasure
