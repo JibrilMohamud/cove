@@ -8,8 +8,10 @@ const caller = fs.readFileSync("src/features/fore/taxonomy.server.ts", "utf8");
 const api = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
 const publicCache = fs.readFileSync("src/features/fore/public-api-cache.server.ts", "utf8");
 const storefront = fs.readFileSync("src/features/fore/Store.tsx", "utf8");
-assert.match(source, /ON CONFLICT\(key\) DO UPDATE SET expires_at=excluded.expires_at/);
-assert.match(source, /RETURNING key/);
+assert.match(source, /ON CONFLICT\(key\) DO UPDATE SET\s+body=excluded.body/);
+assert.match(source, /RETURNING body/);
+assert.match(source, /WHERE key=\? AND body=\? AND expires_at>\?/);
+assert.match(source, /DELETE FROM api_cache WHERE key=\? AND body=\?/);
 assert.match(source, /MAX_STALE_MS = 3_600_000/);
 assert.match(caller, /countsPending: countState.pending/);
 assert.match(api, /execution\?\.waitUntil \? \(work\) => execution.waitUntil\?\.\(work\)/);
@@ -195,6 +197,82 @@ assert.equal(
   (await presentationTaxonomyCounts(db, "CA", "es", async () => [], clock, defer))[0]
     ?.product_count,
   7,
+);
+
+// Force lease expiration and takeover while the first D1 aggregation is
+// STILL IN FLIGHT. Its eventual completion must not publish old results or
+// release the newer owner's lock (which could cause a stampede).
+let firstStarted;
+const firstReady = new Promise((resolve) => {
+  firstStarted = resolve;
+});
+let releaseFirst;
+const firstBarrier = new Promise((resolve) => {
+  releaseFirst = resolve;
+});
+let secondStarted;
+const secondReady = new Promise((resolve) => {
+  secondStarted = resolve;
+});
+let releaseSecond;
+const secondBarrier = new Promise((resolve) => {
+  releaseSecond = resolve;
+});
+state = { pending: false };
+await presentationTaxonomyCounts(
+  db,
+  "DE",
+  "de",
+  async () => {
+    firstStarted();
+    await firstBarrier;
+    return [{ node_id: "fiction", product_count: 501 }];
+  },
+  clock,
+  defer,
+  state,
+);
+assert.equal(state.pending, true);
+await firstReady;
+assert.equal(jobs.length, 1);
+const firstJob = jobs.shift();
+
+now += 30_001; // lease expiry; current owner has not finished its query
+await presentationTaxonomyCounts(
+  db,
+  "DE",
+  "de",
+  async () => {
+    secondStarted();
+    await secondBarrier;
+    return [{ node_id: "fiction", product_count: 502 }];
+  },
+  clock,
+  defer,
+);
+await secondReady;
+assert.equal(jobs.length, 1);
+const secondJob = jobs.shift();
+releaseFirst();
+await firstJob;
+const leases = sqlite
+  .prepare("SELECT body FROM api_cache WHERE key LIKE 'taxonomy-counts-refresh:%'")
+  .all();
+assert.equal(leases.length, 1, "Expired old worker must not erase the replacement lease");
+assert.notEqual(leases[0].body, "refreshing");
+releaseSecond();
+await secondJob;
+assert.equal(
+  (await presentationTaxonomyCounts(db, "DE", "de", async () => [], clock, defer))[0]
+    ?.product_count,
+  502,
+  "New lease owner must win; old expired output must never overwrite it",
+);
+assert.equal(
+  sqlite.prepare("SELECT COUNT(*) total FROM api_cache WHERE key LIKE 'taxonomy-counts-refresh:%'").get()
+    .total,
+  0,
+  "Lease owners must release their own completed entries",
 );
 
 // No caller lacking a waitUntil gets the async/possibly stale path.
