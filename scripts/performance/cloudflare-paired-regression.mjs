@@ -52,8 +52,14 @@ function prepareConfigs() {
     // current Smart Placement experiments. Test placement separately later.
     let config = template.replace(/\[placement\]\s*mode\s*=\s*"smart"\s*/m, "");
     config = config.replace(/^name = "cove-storefront-ssr-staging"$/m, `name = "${cohort.name}"`);
+    // Cloudflare shares rate counters between scripts with the same namespace.
+    // Each cohort has a different identifier, but the EXACT same limit/key
+    // policy; neither cohort shares counters with the ordinary staging Worker.
+    const namespace = cohort.name.includes("baseline") ? "731904" : "731905";
+    config = config.replace('namespace_id = "731903"', `namespace_id = "${namespace}"`);
     assert.doesNotMatch(config, /^\[placement\]/m);
     assert.match(config, new RegExp(`name = "${cohort.name}"`));
+    assert.match(config, new RegExp(`namespace_id = "${namespace}"`));
     fs.writeFileSync(path.join(cohort.dir, configName), config);
   }
 }
