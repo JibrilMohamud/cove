@@ -362,12 +362,12 @@ async function productMeta(db: CatalogDB, productIds: string[]): Promise<Map<str
 async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400) {
   const wanted = Math.max(0, Math.min(MAX_CANDIDATES, Math.floor(limit)));
   if (!wanted) return [];
-  // This covering-index count is a live read, not a cached rights hint.
+  // Bounded index probe counts at most 1001 grants; never scan 50k just to\n  // choose an execution plan. It is a live read, not a cached rights hint.
   // For small markets, seed directly from territorial grants instead of
   // scanning and ranking the whole worldwide catalog first.
   const grantCount = await db
     .prepare(
-      "SELECT COUNT(*) grant_count FROM rights_grant_territories WHERE territory_code=upper(?)",
+      "SELECT COUNT(*) grant_count FROM (SELECT 1 FROM rights_grant_territories WHERE territory_code=upper(?) LIMIT 1001)",
     )
     .bind(territory)
     .first<{ grant_count: number }>();
