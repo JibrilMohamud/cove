@@ -215,7 +215,31 @@ async function probe(language, sample, sequence) {
   }
   const html = await response.text();
   const totalMs = Math.round(performance.now() - started);
-  const cards = validateHtml(response.status, response.headers.get("content-type") || "", html);
+  let cards: number;
+  try {
+    cards = validateHtml(response.status, response.headers.get("content-type") || "", html);
+  } catch (error) {
+    // Only report fixed numeric status/phase markers. Never include HTML,
+    // header values, authorization tokens, country or request identifiers.
+    const timing = response.headers.get("server-timing") || "";
+    const flags = [
+      "cove_ssr_empty",
+      "cove_ssr_deadline",
+      "cove_ssr_primary_failure",
+      "cove_ssr_local_rights",
+      "cove_backend_lean",
+    ]
+      .filter((name) => new RegExp(`(?:^|, )${name};dur=[0-9.]+`).test(timing))
+      .join(",");
+    const duration = safeProbeTelemetry(response.headers, ttfbMs, totalMs).timing
+      .split(", ")
+      .filter((part) => /^(cove_ssr_bootstrap|cove_ssr_primary_failure|cove_ssr_deadline|cove_backend_catalog|cove_backend_context|cove_backend_lean);/.test(part))
+      .slice(0, 6)
+      .join(",");
+    throw new Error(
+      `No rendered books: status=${response.status} flags=${flags || "none"} phases=${duration || "none"} ${error instanceof Error ? error.message : "invalid-page"}`,
+    );
+  }
   if (!/no-store/.test(response.headers.get("cache-control") || ""))
     throw new Error("Stage homepage must never be cached.");
   if (!/cove_ssr_local_rights;dur=0/.test(response.headers.get("server-timing") || ""))
