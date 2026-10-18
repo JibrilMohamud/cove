@@ -12,7 +12,7 @@ export function sanitizedStorefrontBackendTiming(value: string | null): string[]
   const known = new Set(["auth", "context", "page", "catalog", "markets", "bootstrap", "log_queued", "api"]);
   return (value || "")
     .split(",")
-    .map((part) => part.trim().match(/^cove_([a-z]+);dur=([0-9]+(?:\.[0-9]+)?)$/))
+    .map((part) => part.trim().match(/^cove_([a-z_]+);dur=([0-9]+(?:\.[0-9]+)?)$/))
     .filter((match): match is RegExpMatchArray => !!match)
     .filter((match) => known.has(match[1]) && Number(match[2]) <= 12_000)
     .map((match) => `cove_backend_${match[1]};dur=${match[2]}`)
