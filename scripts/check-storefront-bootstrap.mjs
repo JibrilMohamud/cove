@@ -61,6 +61,11 @@ try {
             if (/WITH eligible AS MATERIALIZED/i.test(sql)) {
               assert.match(sql, /JOIN eligible selected ON selected\.product_id=p\.id/);
               assert.match(sql, /retail_product_availability_rows/i);
+              assert.match(
+                sql,
+                /currency_probe INDEXED BY idx_search_price/i,
+                "Live first-paint selection must reject empty currencies via existing indexed primary D1",
+              );
               atomicRightsShelfQueries += 1;
             }
             return target.prepare(sql);
@@ -202,6 +207,11 @@ try {
           return (sql) => {
             if (/WITH eligible AS MATERIALIZED/i.test(sql)) {
               assert.match(sql, /retail_product_availability_rows/i);
+              assert.match(
+                sql,
+                /currency_probe INDEXED BY idx_search_price/i,
+                "Live first-paint selection must reject empty currencies via existing indexed primary D1",
+              );
               authoritativeRights++;
             }
             return target.prepare(sql);

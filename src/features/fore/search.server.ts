@@ -1534,6 +1534,24 @@ export async function firstPaintStorefrontShelf(
   }).toString();
   const input = { ...parseSearchInput(url), territory: normalizeTerritoryCode(territory) };
   const part = candidateParts(input, "");
+  // The popularity-first index is ideal for USD's 25-book first page, but
+  // when no active unsuppressed catalog document exists for a market currency
+  // (currently CA/SA/JP), it otherwise walks all ~52k USD documents and
+  // invokes expensive legal-view machinery before proving the empty shelf.
+  // This *noncorrelated* existence guard is evaluated on the SAME live,
+  // primary-authoritative D1 statement. It can reject only a provably empty
+  // currency; whenever a candidate exists the original territorial grants,
+  // contract/DRM revocations and bestseller ordering remain mandatory.
+  // idx_search_price(currency,price_minor) already exists in production and
+  // local migrations. Never infer currency availability from cache/replicas.
+  if (input.currency && input.availability === "available") {
+    part.where.unshift(`EXISTS(
+      SELECT 1 FROM catalog_search_documents currency_probe INDEXED BY idx_search_price
+      WHERE currency_probe.currency=? AND currency_probe.availability='available'
+        AND currency_probe.suppressed=0 LIMIT 1
+    )`);
+    part.binds.unshift(input.currency);
+  }
   // The same live, country-filtered candidate SQL now selects and hydrates
   // books inside one atomic D1 read, rather than two serial primary-region
   // trips. No shelf cache or stale legal rights snapshot is introduced.
