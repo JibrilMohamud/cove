@@ -130,6 +130,7 @@ export async function taxonomyTree(
   territory = "US",
   language = "",
   locale = "en-US",
+  defer?: (work: Promise<unknown>) => void,
 ) {
   // Fetch the hierarchy and product counts separately. This avoids one correlated rights/catalog
   // subquery per taxonomy node, which becomes prohibitively expensive once the catalog is large.
@@ -161,7 +162,7 @@ export async function taxonomyTree(
         .bind(...plan.binds)
         .all<{ node_id: string; product_count: number }>();
       return current.results;
-    }),
+    }, undefined, defer),
     db
       .prepare(
         "SELECT taxonomy_node_id,name,description,seo_title,seo_description FROM storefront_taxonomy_node_localizations WHERE locale=?",
