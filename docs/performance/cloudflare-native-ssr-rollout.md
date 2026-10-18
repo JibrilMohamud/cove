@@ -216,6 +216,33 @@ Cloudflare public routing remains disabled, with Vercel retained as
 production. Further repeat and geographic tests are mandatory before any
 commercial readiness claim or live purchase and identity journey.
 
+### Independent repeat of control-plane-settled stage benchmark
+
+A second independent run of the **same merged code**, with **three further
+fresh Worker versions**, failed **57/60**. The separate version matrices were
+**18/20**, **19/20**, and **20/20**. The first version's first HTML request
+took **7,289 ms** end-to-end (6,884 ms timed Worker processing), with
+live D1 phases showing context **4,567 ms**, active markets **1,402 ms**,
+page metadata **2,197 ms** and the primary-authoritative catalog
+**2,316 ms**. Its next HTML request also took **1,671 ms** (context
+1,528 ms). Version two's #19 sample took **881 ms** (catalog 597 ms and
+page 594 ms). All 60 responses rendered 24 authorized books. The third
+version passed 20/20, but cannot mask the red earlier deployments.
+
+[Independent repeat evidence](https://github.com/JibrilMohamud/cove/actions/runs/39092487232/attempts/2).
+Across the two control-plane-readiness attempts, the total is **116/120**,
+with both attempts failing the strict all-request gate. This confirms
+**real intermittent platform/D1 latency**, not merely early secret-version
+propagation or an expensive full-API cold import. Do not claim cold-starts
+or the commercial 800-ms objective are solved; preserve the public Vercel
+route and Cloudflare candidate's disabled routing.
+
+Tracked unresolved with detailed reproduction and actionable diagnostics in
+[release-blocking issue #145](https://github.com/JibrilMohamud/cove/issues/145).
+Next work requires D1 and network-side root-cause analysis, a
+primary-authoritative optimization, and independent cold/geographic
+validation of every request, not a change to thresholds.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on
