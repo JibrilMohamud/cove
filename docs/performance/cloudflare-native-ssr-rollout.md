@@ -243,6 +243,43 @@ Next work requires D1 and network-side root-cause analysis, a
 primary-authoritative optimization, and independent cold/geographic
 validation of every request, not a change to thresholds.
 
+### October 2026 D1 query-plan investigation and parallel primary rights trial
+
+The live production D1 database is ~1.63 GB with an ORD authoritative
+primary. Read-only `EXPLAIN QUERY PLAN` shows the first-paint query seeks
+`catalog_search_documents` using `idx_search_popular_stable` and joins
+current `retail_product_availability_rows` grants using
+`idx_rights_grant_live_lookup`; it is NOT a catalog-wide count. One
+primary D1 measurement for 25 rights-filtered candidates took **16.9 ms
+SQLite execution**, read **225 rows**, but **425 ms API wall time**.
+By contrast an intentionally full `COUNT(*)` against the complex retail
+view scanned 414,503 rows and spent 1,762 ms in SQLite; the homepage
+already avoids this expensive global count. It would be inaccurate to
+identify this full count as the homepage's normal cause or to assume
+the database service never stalls.
+
+Other marketplace configuration EXPLAIN plans use indexed country
+lookups. They consume typically <1 ms SQLite time each, yet the external
+requests required hundreds of milliseconds wall time. Previous cold
+deployments recorded real multi-second Worker-side D1 waits. These probes
+establish **both** efficient normal SQL execution and material
+Cloudflare/D1 transport-or-queueing variability; an index alone cannot
+guarantee the desired 800 ms hard TTFB across network geographies.
+
+The next read-only staging trial starts the strictly primary-authoritative
+retail rights query at the same time as anonymous storefront context,
+markets and rate limiting, rather than waiting for the multi-query
+localization path. The primary lookup computes the active market's
+default currency inside the same SQL snapshot, falling back to the US
+market exactly as the existing cookie-free context resolver does.
+Cookies/account/authenticated requests retain the complete original
+adapter. Legal territory comes from the same trusted network resolver
+and is checked again against context before sending HTML. No grant
+cache, replica-based legal verdict, estimated currency or warmup is used.
+Four-territory fixture parity, next-page URLs, full CI and independent
+genuinely cold/geographically distributed tests are mandatory before
+calling this improvement ready; no public cutover is authorized.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on
