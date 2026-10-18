@@ -18,6 +18,7 @@ assert.doesNotMatch(production, /cove-puce-theta\.vercel\.app/);
 // A committed, unreviewed deployment must NEVER silently open a new
 // storefront before the manual security/payment/customer-journey gate.
 assert.match(production, /^workers_dev = false$/m);
+assert.match(production, /^preview_urls = false$/m);
 assert.doesNotMatch(production, /^routes?\s*=/m);
 assert.doesNotMatch(production, /^\[\[routes\]\]/m);
 assert.doesNotMatch(production, /^COVE_SSR_STAGING\s*=/m);
