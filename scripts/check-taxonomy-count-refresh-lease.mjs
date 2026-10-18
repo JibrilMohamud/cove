@@ -7,12 +7,19 @@ const source = fs.readFileSync("src/features/fore/taxonomy-counts-cache.server.t
 const caller = fs.readFileSync("src/features/fore/taxonomy.server.ts", "utf8");
 const api = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
 const publicCache = fs.readFileSync("src/features/fore/public-api-cache.server.ts", "utf8");
+const storefront = fs.readFileSync("src/features/fore/Store.tsx", "utf8");
 assert.match(source, /ON CONFLICT\(key\) DO UPDATE SET expires_at=excluded.expires_at/);
 assert.match(source, /RETURNING key/);
 assert.match(source, /MAX_STALE_MS = 3_600_000/);
 assert.match(caller, /countsPending: countState.pending/);
 assert.match(api, /execution\?\.waitUntil \? \(work\) => execution.waitUntil\?\.\(work\)/);
 assert.match(publicCache, /path === "\/api\/fore\/taxonomy" && data.countsPending === true/);
+assert.match(storefront, /countsPending\?: boolean/);
+assert.match(storefront, /refetchInterval: \(query\) => \(query.state.data\?\.countsPending \? 5_000 : false\)/);
+assert.match(storefront, /if \(!countsPending && node.count <= 0\) return null/);
+assert.match(storefront, /countsPending \|\| child.count > 0/);
+assert.match(storefront, /countsPending \|\| n.count > 0/);
+assert.match(storefront, /aria-label=\{countsPending \? "Count updating" : undefined\}/);
 
 const output = await build({
   entryPoints: ["src/features/fore/taxonomy-counts-cache.server.ts"],
