@@ -7,7 +7,6 @@ import {
 } from "./catalog-model.server";
 import { ApiError } from "./service";
 import { normalizeTerritoryCode } from "./rights.server";
-import { personalizeSearchBooks, personalizedSearchEnabled } from "./recommendations.server";
 import { writeCatalogCache } from "./catalog-cache.server";
 
 type SearchEnv = {
@@ -1632,6 +1631,10 @@ export async function searchCatalog(
       processingTimeMs: 0,
       limit: input.limit,
     };
+  // The primary-rights first-paint shelf also imports this module, but does
+  // not use account personalization or its ingestion/ZIP dependencies.
+  const { personalizeSearchBooks, personalizedSearchEnabled } =
+    await import("./recommendations.server");
   const personalizeWindow =
     !!input.query &&
     input.sort === "relevance" &&
