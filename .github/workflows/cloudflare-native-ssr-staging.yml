@@ -20,6 +20,7 @@ on:
       - "src/features/fore/taxonomy-count-query.ts"
       - "scripts/check-sparse-taxonomy-rights-counts.mjs"
       - "scripts/check-taxonomy-presentation-count-cache.mjs"
+      - "scripts/check-taxonomy-count-refresh-lease.mjs"
       - "src/features/fore/rights-scoped-cache-page.ts"
       - "scripts/check-bounded-cached-rights-recheck.mjs"
       - "src/features/fore/catalog-model.server.ts"
@@ -76,6 +77,7 @@ on:
       - "src/features/fore/taxonomy-count-query.ts"
       - "scripts/check-sparse-taxonomy-rights-counts.mjs"
       - "scripts/check-taxonomy-presentation-count-cache.mjs"
+      - "scripts/check-taxonomy-count-refresh-lease.mjs"
       - "src/features/fore/rights-scoped-cache-page.ts"
       - "scripts/check-bounded-cached-rights-recheck.mjs"
       - "src/features/fore/catalog-model.server.ts"
@@ -158,6 +160,7 @@ jobs:
           node scripts/check-catalog-added-sort-index.mjs
           node scripts/check-public-search-count-scope.mjs
           node scripts/check-taxonomy-presentation-count-cache.mjs
+          node scripts/check-taxonomy-count-refresh-lease.mjs
           node scripts/check-sparse-taxonomy-rights-counts.mjs
           node scripts/check-secondary-channel-index.mjs
           node scripts/check-external-identifier-index.mjs

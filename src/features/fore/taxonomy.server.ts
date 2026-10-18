@@ -130,10 +130,12 @@ export async function taxonomyTree(
   territory = "US",
   language = "",
   locale = "en-US",
+  defer?: (work: Promise<unknown>) => void,
 ) {
   // Fetch the hierarchy and product counts separately. This avoids one correlated rights/catalog
   // subquery per taxonomy node, which becomes prohibitively expensive once the catalog is large.
   // Check each book's live eligibility once before expanding its category memberships.
+  const countState = { pending: false };
   const [rows, countRows, localizationRows] = await Promise.all([
     db
       .prepare(
@@ -143,25 +145,37 @@ export async function taxonomyTree(
       ORDER BY n.depth,n.sort_order,n.name`,
       )
       .all<any>(),
-    presentationTaxonomyCounts(db, territory, language, async () => {
-      // This query supplies counts as UI metadata only. Every actual book,
-      // sale and reader authorization remains on current primary D1.
-      const countDb = taxonomyPresentationReadDb(db);
-      // The counts are presentation metadata; cache hits are only labels.
-      // Every cache MISS is still calculated from current grant rows and the
-      // authoritative retail view. All book delivery/checkout/reader decisions
-      // remain independently authorized against primary D1 on every request.
-      const grants = await countDb
-        .prepare(taxonomySparseRightsProbe)
-        .bind(territory)
-        .first<{ grant_count: number }>();
-      const plan = taxonomyCountPlan(territory, language, Number(grants?.grant_count || 0) <= 1000);
-      const current = await countDb
-        .prepare(plan.sql)
-        .bind(...plan.binds)
-        .all<{ node_id: string; product_count: number }>();
-      return current.results;
-    }),
+    presentationTaxonomyCounts(
+      db,
+      territory,
+      language,
+      async () => {
+        // This query supplies counts as UI metadata only. Every actual book,
+        // sale and reader authorization remains on current primary D1.
+        const countDb = taxonomyPresentationReadDb(db);
+        // The counts are presentation metadata; cache hits are only labels.
+        // Every cache MISS is still calculated from current grant rows and the
+        // authoritative retail view. All book delivery/checkout/reader decisions
+        // remain independently authorized against primary D1 on every request.
+        const grants = await countDb
+          .prepare(taxonomySparseRightsProbe)
+          .bind(territory)
+          .first<{ grant_count: number }>();
+        const plan = taxonomyCountPlan(
+          territory,
+          language,
+          Number(grants?.grant_count || 0) <= 1000,
+        );
+        const current = await countDb
+          .prepare(plan.sql)
+          .bind(...plan.binds)
+          .all<{ node_id: string; product_count: number }>();
+        return current.results;
+      },
+      undefined,
+      defer,
+      countState,
+    ),
     db
       .prepare(
         "SELECT taxonomy_node_id,name,description,seo_title,seo_description FROM storefront_taxonomy_node_localizations WHERE locale=?",
@@ -212,6 +226,7 @@ export async function taxonomyTree(
     territory,
     language: language || null,
     locale,
+    countsPending: countState.pending,
     featured: flattenTaxonomy(roots).filter((n) => n.featured && n.count > 0),
     nodes: roots,
   };

@@ -4113,7 +4113,15 @@ async function handleCoveRequest(
         .string()
         .max(16)
         .parse(url.searchParams.get("language") || "");
-      return json(await taxonomyTree(database(env), territory, language, storefront.locale));
+      return json(
+        await taxonomyTree(
+          database(env),
+          territory,
+          language,
+          storefront.locale,
+          execution?.waitUntil ? (work) => execution.waitUntil?.(work) : undefined,
+        ),
+      );
     }
     if (request.method === "GET" && path === "/storefront/page") {
       const territory = storefrontTerritory;

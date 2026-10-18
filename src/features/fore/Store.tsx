@@ -213,6 +213,7 @@ type TaxonomyNode = {
 export type TaxonomyResponse = {
   taxonomy: string;
   version: string;
+  countsPending?: boolean;
   featured: TaxonomyNode[];
   nodes: TaxonomyNode[];
 };
@@ -857,12 +858,14 @@ function TaxonomyBranch({
   node,
   activePath,
   depth = 0,
+  countsPending = false,
 }: {
   node: TaxonomyNode;
   activePath?: string;
   depth?: number;
+  countsPending?: boolean;
 }) {
-  if (node.count <= 0) return null;
+  if (!countsPending && node.count <= 0) return null;
   return (
     <div className={depth === 0 ? "taxonomy-branch taxonomy-column" : "taxonomy-branch nested"}>
       <a
@@ -872,12 +875,20 @@ function TaxonomyBranch({
         href={node.href}
       >
         {node.name}
-        <small>{node.count.toLocaleString()}</small>
+        <small aria-label={countsPending ? "Count updating" : undefined}>
+          {countsPending ? "…" : node.count.toLocaleString()}
+        </small>
       </a>
       {node.children
-        .filter((child) => child.count > 0)
+        .filter((child) => countsPending || child.count > 0)
         .map((child) => (
-          <TaxonomyBranch key={child.id} node={child} activePath={activePath} depth={depth + 1} />
+          <TaxonomyBranch
+            key={child.id}
+            node={child}
+            activePath={activePath}
+            depth={depth + 1}
+            countsPending={countsPending}
+          />
         ))}
     </div>
   );
@@ -943,6 +954,7 @@ function TaxonomyBrowse({
   activePath?: string;
 }) {
   if (!taxonomy?.nodes?.length) return null;
+  const countsPending = taxonomy.countsPending === true;
   return (
     <details className="taxonomy-browser" open={!!activePath}>
       <summary>
@@ -950,9 +962,14 @@ function TaxonomyBrowse({
       </summary>
       <div className="taxonomy-mega">
         {taxonomy.nodes
-          .filter((n) => n.count > 0)
+          .filter((n) => countsPending || n.count > 0)
           .map((root) => (
-            <TaxonomyBranch key={root.id} node={root} activePath={activePath} />
+            <TaxonomyBranch
+              key={root.id}
+              node={root}
+              activePath={activePath}
+              countsPending={countsPending}
+            />
           ))}
       </div>
     </details>
@@ -1064,6 +1081,7 @@ export function StorePage({
     queryFn: () =>
       api("/taxonomy" + (language !== "all" ? "?language=" + encodeURIComponent(language) : "")),
     staleTime: 30 * 60_000,
+    refetchInterval: (query) => (query.state.data?.countsPending ? 5_000 : false),
     gcTime: typeof window === "undefined" ? Infinity : 60 * 60_000,
     refetchOnWindowFocus: false,
     retry: 1,
@@ -1472,15 +1490,20 @@ export function StorePage({
           <a className={!taxonomyPath ? "active" : ""} href="/store">
             All books
           </a>
-          {(taxonomy.data?.featured || []).slice(0, 9).map((node) => (
-            <a
-              key={node.id}
-              href={node.href}
-              className={taxonomyPath === node.path ? "active" : ""}
-            >
-              {node.name}
-            </a>
-          ))}
+          {(taxonomy.data?.countsPending
+            ? flattenTaxonomy(taxonomy.data.nodes).filter((node) => node.featured)
+            : taxonomy.data?.featured || []
+          )
+            .slice(0, 9)
+            .map((node) => (
+              <a
+                key={node.id}
+                href={node.href}
+                className={taxonomyPath === node.path ? "active" : ""}
+              >
+                {node.name}
+              </a>
+            ))}
         </div>
         <div className="filter-row">
           <span className="catalog-count">
