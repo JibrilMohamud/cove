@@ -101,7 +101,10 @@ export async function serveLeanAnonymousBootstrap(
     ),
     // IMPORTANT: no replica/session here. Legal filtering stays in the
     // original D1 binding, enforcing revocations on every SSR request.
-    timed("catalog", firstPaintStorefrontShelf(env, context.currency, context.rightsCountry, d1Metrics)),
+    timed(
+      "catalog",
+      firstPaintStorefrontShelf(env, context.currency, context.rightsCountry, d1Metrics),
+    ),
   ]);
   // Numbers only; a slow catalog SQL phase vs a slow D1 service/transport
   // round trip can now be distinguished without logging rights details.
