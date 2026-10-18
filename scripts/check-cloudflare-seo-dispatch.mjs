@@ -64,4 +64,15 @@ assert.doesNotMatch(
   /import \{ handleVercelIngestionControl, proxyPersistenceApi \} from/,
   "Homepage must not statically import the full persistence controller",
 );
+const loaderSource = fs.readFileSync("src/features/fore/storefront-loader.ts", "utf8");
+const localRightsBranch = loaderSource.indexOf("if (localRightsAuthority) {");
+const vProxyImport = loaderSource.indexOf(
+  'const { proxyPersistenceApi } = await import("@/lib/persistence-backend");',
+);
+assert.ok(localRightsBranch >= 0 && vProxyImport > localRightsBranch);
+assert.match(
+  loaderSource.slice(localRightsBranch, vProxyImport),
+  /return response \?\? new Response\(null, \{ status: 503 \}\);/,
+  "Authoritative D1 local bootstrap must return before the Vercel-only proxy module loads",
+);
 console.log("Cold SSR avoids unrelated SEO/proxy modules; API/SEO routes retained: PASS");
