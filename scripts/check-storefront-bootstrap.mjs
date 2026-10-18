@@ -174,7 +174,8 @@ try {
     const req = new Request("https://cove.test/api/fore/storefront/bootstrap", {
       headers: visitorHeaders,
     });
-    let limitCalls = 0, authoritativeRights = 0;
+    let limitCalls = 0,
+      authoritativeRights = 0;
     const sessionModes = [];
     const proxyDb = new Proxy(env.DB, {
       get(target, property) {
