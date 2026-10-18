@@ -1,9 +1,9 @@
 # Cove Cloudflare-native SSR: staging and commercial release gates
 
-Status: **the strict 800 ms synthetic gate has passed on three independent
-authenticated staging deployments; production cutover is still blocked**.
-Do not equate a single-runner, protected-workers.dev success with a sustained
-global customer-facing SLO.
+Status: **NOT commercial-release ready.** Earlier protected staging deployments
+passed 20/20, but the latest independent cold redeployments missed the strict
+800 ms limit. The live Vercel homepage also fails the complete 20-request gate.
+Never infer sustained global performance from a single green staging matrix.
 
 ## Why the architecture changes
 
@@ -91,9 +91,37 @@ Read-only D1 metadata reports the current primary in Cloudflare colo
 supported `placement.region` mode can place a Worker near a fixed cloud
 region before it has collected Smart Placement traffic. The staging-only
 trial therefore uses `region = "aws:us-east-2"` instead of `mode = "smart"`;
-it **must pass independent cold-deployment matrices** before claiming
-a reliable improvement. This is a geography/runtime-placement experiment,
-not an authorization, rights cache, or production route change.
+it must pass independent cold-deployment matrices before claiming a reliable
+improvement. This is a geography/runtime-placement experiment, not an
+authorization, rights cache, or production route change.
+
+The **independent fixed-Midwest-placement trials have now failed** even though
+all 20 responses retained 24 server-rendered, live-rights-cleared books:
+
+| Explicit-placement cold run | Requests strictly below 800 ms | p75 TTFB | p95 TTFB | Slowest |
+| --- | --- | --- | --- | --- |
+| Initial deployment | 16/20 | 646 ms | 982 ms | 1,009 ms |
+| Independent redeployment | 15/20 | 725 ms | 909 ms | 1,141 ms |
+
+Evidence: [staging workflow and two independent benchmark attempts](https://github.com/JibrilMohamud/cove/actions/runs/39080728108).
+
+Sanitized request timings in the first trial show Worker processing below
+450 ms on every sample, yet four end-to-end TTFBs reached 815–1,009 ms.
+For example, the 982 ms request included only 135 ms within the Worker.
+The remaining measured interval is **unattributed edge/transport/scheduler
+overhead**, not evidence of a slow territorial-rights SQL statement. In the
+independent repeat, four of five misses similarly contained over 500 ms
+outside Worker processing; one additionally spent 712 ms inside SSR despite
+short recorded D1 phases. The latter merits a cold module/SSR investigation.
+Further SQL tuning alone cannot remove the unexplained external delay.
+
+These failures MUST remain release blockers. Do not warm the endpoint before
+sampling, loosen the threshold, skip late response anomalies, stream an empty
+HTML shell before live book authorization, or use a static regional catalog
+to manufacture green TTFB results. The next accepted experiment must
+differentiate ingress/connection/placement latency from cold SSR module
+initialization, retain all territorial-rights protections, and reproduce
+zero misses across independent geographic and cold deployment matrices.
 
 The latest October 17 Vercel public check failed with **17/20** complete
 under-800-ms+SSR-books samples: two slow populated responses at 3,282
@@ -103,14 +131,18 @@ The public route remains unchanged and fails the SLO.
 
 ### Remaining customer-facing blocker
 
-The existing Vercel homepage remains the actual public product. Its fresh
-October 17 20-request recheck restored SSR books on 20/20 requests after a
-transient failed canary, but **two cold responses still exceeded 800 ms**
-(1,589 ms and 1,421 ms). That is not an accepted production TTFB SLO.
+The existing Vercel homepage remains the actual public product. The most
+recent October 17 20-request canary failed **three complete checks**: one
+empty SSR result after an 8.4-second bootstrap timeout, and two populated
+responses at 3,282 and 6,777 ms. This is not an accepted production SLO.
+Earlier 20/20-book-availability reports are historical, not the latest state.
 
-The connected Vercel project has only its `cove-puce-theta.vercel.app`
-hostname; the connected Vercel account has no registered owned domain, and
-the connected Cloudflare account has no managed DNS zone/Worker custom domain.
+The previously verified Vercel public hostname is
+`cove-puce-theta.vercel.app`. The connected Cloudflare account was rechecked:
+**zero managed DNS zones** exist as of October 17. Rechecking Vercel's
+account/project domain inventory currently requires restored authorization
+(the domain API returned HTTP 403), so no new owned-domain availability is
+claimed.
 Domain acquisition or connection remains an explicit owner prerequisite.
 A staging workers.dev URL and a Vercel-owned vercel.app hostname cannot be
 substituted for an owned, verified Cloudflare production route.
