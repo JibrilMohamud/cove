@@ -3,6 +3,7 @@ import {
   canonicalBooksByProductIds,
   canonicalFirstPaintShelfByRightsQuery,
   type CatalogDB,
+  type FirstPaintD1QueryMetrics,
 } from "./catalog-model.server";
 import { ApiError } from "./service";
 import { normalizeTerritoryCode } from "./rights.server";
@@ -1521,6 +1522,7 @@ export async function firstPaintStorefrontShelf(
   env: SearchEnv,
   currency: string,
   territory: string,
+  diagnostics?: FirstPaintD1QueryMetrics,
 ) {
   const started = performance.now();
   const url = new URL("https://internal.invalid/api/fore/catalog");
@@ -1541,7 +1543,7 @@ export async function firstPaintStorefrontShelf(
     order: d1Sort(input, false),
     binds: part.binds,
     limit: input.limit,
-  });
+  }, diagnostics);
   // The first-paint BookCard displays titles, covers, retail offers and
   // genres, but NEVER the subscription/library access flags. Computing those
   // flags materializes the full legal channel view on every anonymous
