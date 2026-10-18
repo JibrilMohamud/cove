@@ -9,6 +9,27 @@ assert.match(
   /COALESCE\(product_created_at, first_ingested_at\) DESC,\s*external_book_id DESC,\s*product_id ASC/,
 );
 
+// Assert the real search query uses the bounded plan only for result pages,
+// never for FTS candidate matching, facet aggregation or global counts.
+const source = fs.readFileSync("src/features/fore/search.server.ts", "utf8");
+const selectorStart = source.indexOf("function rankedCandidateFrom(");
+const selectorEnd = source.indexOf("function withoutFacet(", selectorStart);
+assert.ok(selectorStart >= 0 && selectorEnd > selectorStart);
+const selector = source.slice(selectorStart, selectorEnd);
+assert.match(selector, /input\.sort !== "added" \|\| part\.hasFts/);
+assert.match(selector, /idx_search_added_effective_stable/);
+assert.match(selector, /CROSS JOIN products p/);
+assert.match(selector, /CROSS JOIN editions e/);
+const idsStart = source.indexOf("const runIds = async () =>");
+const countStart = source.indexOf("const runCount = ()", idsStart);
+assert.ok(idsStart >= 0 && countStart > idsStart);
+assert.match(source.slice(idsStart, countStart), /rankedCandidateFrom\(input, part\)/);
+assert.doesNotMatch(
+  source.slice(countStart, countStart + 450),
+  /rankedCandidateFrom/,
+  "Unranked count must not use the forced newest index",
+);
+
 const db = new DatabaseSync(":memory:");
 try {
   db.exec(`
