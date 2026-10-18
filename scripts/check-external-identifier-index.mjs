@@ -35,18 +35,21 @@ try {
     external.run("work", id, "catalog", "ext-" + n);
   }
   alias.run("work", "legacy-7", "wrk_7");
-  const examples = ["wrk_7", "public-7", "legacy-7", "ext-7", "missing",
-    "wrk_7000", "ext-7000"];
-  const original = examples.map((ref) =>
-    db.prepare(query).all(ref, ref, ref, ref),
-  );
+  const examples = ["wrk_7", "public-7", "legacy-7", "ext-7", "missing", "wrk_7000", "ext-7000"];
+  const original = examples.map((ref) => db.prepare(query).all(ref, ref, ref, ref));
   const before = db
-    .prepare("EXPLAIN QUERY PLAN SELECT entity_id FROM external_identifiers WHERE entity_type='work' AND value=?")
+    .prepare(
+      "EXPLAIN QUERY PLAN SELECT entity_id FROM external_identifiers WHERE entity_type='work' AND value=?",
+    )
     .all("ext-7");
-  assert.ok(before.some((row) => String(row.detail).includes("sqlite_autoindex_external_identifiers_1")));
+  assert.ok(
+    before.some((row) => String(row.detail).includes("sqlite_autoindex_external_identifiers_1")),
+  );
   db.exec(migration);
   const after = db
-    .prepare("EXPLAIN QUERY PLAN SELECT entity_id FROM external_identifiers WHERE entity_type='work' AND value=?")
+    .prepare(
+      "EXPLAIN QUERY PLAN SELECT entity_id FROM external_identifiers WHERE entity_type='work' AND value=?",
+    )
     .all("ext-7");
   assert.ok(
     after.some((row) => String(row.detail).includes("idx_external_identifiers_entity_value")),
@@ -63,11 +66,27 @@ try {
     );
   // Both insertions and canonical identifier updates remain immediately visible.
   external.run("work", "wrk_7", "openlibrary", "ol-new-7");
-  assert.deepEqual(db.prepare(query).all(...Array(4).fill("ol-new-7")).map((r) => ({ ...r })), [{ id: "wrk_7" }]);
-  db.prepare("UPDATE external_identifiers SET value='ol-revised-7' WHERE entity_type='work' AND entity_id='wrk_7' AND scheme='openlibrary'").run();
+  assert.deepEqual(
+    db
+      .prepare(query)
+      .all(...Array(4).fill("ol-new-7"))
+      .map((r) => ({ ...r })),
+    [{ id: "wrk_7" }],
+  );
+  db.prepare(
+    "UPDATE external_identifiers SET value='ol-revised-7' WHERE entity_type='work' AND entity_id='wrk_7' AND scheme='openlibrary'",
+  ).run();
   assert.deepEqual(db.prepare(query).all(...Array(4).fill("ol-new-7")), []);
-  assert.deepEqual(db.prepare(query).all(...Array(4).fill("ol-revised-7")).map((r) => ({ ...r })), [{ id: "wrk_7" }]);
-  console.log("Work ID lookup index: exact resolver parity, covering seek, aliases, insert/update PASS");
+  assert.deepEqual(
+    db
+      .prepare(query)
+      .all(...Array(4).fill("ol-revised-7"))
+      .map((r) => ({ ...r })),
+    [{ id: "wrk_7" }],
+  );
+  console.log(
+    "Work ID lookup index: exact resolver parity, covering seek, aliases, insert/update PASS",
+  );
 } finally {
   db.close();
 }
