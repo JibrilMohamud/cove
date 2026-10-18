@@ -280,6 +280,44 @@ Four-territory fixture parity, next-page URLs, full CI and independent
 genuinely cold/geographically distributed tests are mandatory before
 calling this improvement ready; no public cutover is authorized.
 
+### Parallel primary D1 reads: rejected after real cold-deployment regression
+
+PR #146 launched rights-authoritative D1 and storefront metadata reads
+concurrently and selected the current active market currency inside the
+primary D1 rights SQL. CI, locale/right parity and direct production SQL
+checks all passed. The live indexed rights lookup in isolation executed in
+**2.7–16.9 ms** of SQLite time, read **~225 rows**, and had 351–425 ms
+Cloudflare API wall times. A full count against the complex legal view
+scanned 414,503 rows and took 1.76 seconds, but **this global count is
+not part of the homepage first-paint request**.
+
+The actual three-version first-HTTP-cold staging validation of the
+parallel experiment **failed 12/20, 10/20, 20/20 (42/60 total)**.
+It retained 24 live country-authorized cards on every response but
+regressed the latency target sharply: maximum **3,039 ms**, p95 up to
+**1,802 ms**. Slow samples repeatedly showed D1 metadata and rights
+durations stalling together: the first request spent **2,520 ms** in
+both concurrent `markets` and `catalog`, and **2,615 ms** in context.
+In other slow requests `catalog` and `markets` each stalled
+for ~600–960 ms. The evidence strongly suggests shared D1 request
+transport, queueing, or primary contention during some periods,
+**not** a simple unindexed candidate scan. It does not establish
+whether the contention is from a writer, internal request scheduling,
+network transport, or database service behavior.
+
+[PR #146 trial](https://github.com/JibrilMohamud/cove/actions/runs/39094948013).
+The change is **reverted to the earlier serial-rights ordering** because
+it made the strict commercial gate demonstrably worse. A revert is not
+a claim that cold reliability is fixed: the earlier configuration also
+missed isolated first requests and the release remains blocked.
+Future work should instrument D1 query `meta.timings.sql_duration_ms`
+versus Worker wall clock and rows read/attempts, investigate
+backend traffic and primary queue contention, reduce independent remote
+metadata reads safely, and revalidate all cold/geographic cases.
+Do not re-enable the parallel legal query or route production until a
+new candidate improves repeated independent results without weakening
+revocation, territorial-rights or checkout behavior.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on

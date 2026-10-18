@@ -1519,7 +1519,7 @@ async function logQuery(
  */
 export async function firstPaintStorefrontShelf(
   env: SearchEnv,
-  currency: string | null,
+  currency: string,
   territory: string,
 ) {
   const started = performance.now();
@@ -1528,25 +1528,10 @@ export async function firstPaintStorefrontShelf(
     search: "",
     sort: "popular",
     page: "1",
-    currency: currency || "USD",
+    currency,
   }).toString();
   const input = { ...parseSearchInput(url), territory: normalizeTerritoryCode(territory) };
   const part = candidateParts(input, "");
-  if (currency === null) {
-    // Anonymous SSR is the only caller permitted to resolve currency inside
-    // the authoritative rights SQL. This starts the rights query in parallel
-    // with replica-backed presentation data, eliminating a serial D1 round
-    // trip. All other catalog callers retain the exact original predicate.
-    // The fallback follows resolveStorefrontContext's active-market order.
-    const index = part.where.indexOf("d.currency=?");
-    if (index !== part.where.length - 1 || part.binds.at(-1) !== input.currency)
-      throw new Error("First-paint currency predicate changed; refuse unsafe SQL rewrite.");
-    part.where[index] = `d.currency=COALESCE(
-      (SELECT default_currency FROM storefront_markets WHERE country_code=upper(?) AND market_status='active'),
-      (SELECT default_currency FROM storefront_markets WHERE country_code='US' AND market_status='active')
-    )`;
-    part.binds[part.binds.length - 1] = input.territory;
-  }
   // The same live, country-filtered candidate SQL now selects and hydrates
   // books inside one atomic D1 read, rather than two serial primary-region
   // trips. No shelf cache or stale legal rights snapshot is introduced.

@@ -1,4 +1,4 @@
-import { networkCountry, resolveStorefrontContext, storefrontMarkets } from "./localization.server";
+import { resolveStorefrontContext, storefrontMarkets } from "./localization.server";
 import { resolveStorefrontPage } from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
@@ -72,48 +72,36 @@ export async function serveLeanAnonymousBootstrap(
       ? configDb.withSession("first-unconstrained")
       : rawDb;
   const ip = request.headers.get("cf-connecting-ip")!.trim();
-  // With no cookies or account identity, the canonical rightsCountry is
-  // derived entirely from the trusted network. Use exactly that resolver
-  // rather than an untrusted visitor header to start rights work immediately.
-  const trustedCountry = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country;
-  // All three checks plus the primary D1 legal read start together.
-  // No preview leaves the Worker until all four have succeeded.
-  const [context, availableMarkets, catalog] = await Promise.all([
+  // Exactly the canonical search:catalog:ip:<cf-connecting-ip> limiter key.
+  const [context, availableMarkets] = await Promise.all([
     timed(
       "context",
       resolveStorefrontContext(readMetadata(), request, null, env.FORE_DEFAULT_TERRITORY || "US"),
     ),
     timed("markets", storefrontMarkets(readMetadata())),
-    timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)).then(
-      () => null,
-    ),
-    // The primary determines current default currency in this exact SQL
-    // snapshot; presentation replicas never decide authorized book access.
-    timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry)),
-  ]).then(([resolved, markets, , firstPage]) => [resolved, markets, firstPage] as const);
-  if (context.rightsCountry !== trustedCountry)
-    throw new Error("Anonymous network rights mismatch; fail closed.");
+    timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
+  ]);
   const query = new URLSearchParams({
     search: "",
     sort: "popular",
     page: "1",
     currency: context.currency,
   }).toString();
-  if (catalog.next) {
-    const nextQuery = new URLSearchParams(query);
-    nextQuery.set("page", "2");
-    catalog.next = `/api/fore/catalog?${nextQuery}`;
-  }
-  const page = await timed(
-    "page",
-    resolveStorefrontPage(
-      readMetadata(),
-      "/",
-      context.rightsCountry,
-      context.language,
-      context.locale,
+  const [page, catalog] = await Promise.all([
+    timed(
+      "page",
+      resolveStorefrontPage(
+        readMetadata(),
+        "/",
+        context.rightsCountry,
+        context.language,
+        context.locale,
+      ),
     ),
-  );
+    // IMPORTANT: no replica/session here. Legal filtering stays in the
+    // original D1 binding, enforcing revocations on every SSR request.
+    timed("catalog", firstPaintStorefrontShelf(env, context.currency, context.rightsCountry)),
+  ]);
   timings.bootstrap = performance.now() - started;
   timings.lean = 0;
   return new Response(

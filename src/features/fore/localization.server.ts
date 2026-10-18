@@ -69,7 +69,7 @@ const cookie = (request: Request, key: string) => {
   return "";
 };
 
-export function networkCountry(request: Request, fallback: string) {
+function networkCountry(request: Request, fallback: string) {
   const cf = String(
     request.headers.get("x-cove-client-country") || request.headers.get("cf-ipcountry") || "",
   )
