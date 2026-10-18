@@ -202,6 +202,11 @@ try {
           return (sql) => {
             if (/WITH eligible AS MATERIALIZED/i.test(sql)) {
               assert.match(sql, /retail_product_availability_rows/i);
+              assert.match(
+                sql,
+                /SELECT default_currency FROM storefront_markets WHERE country_code=upper\(\?\)/i,
+                "Anonymous currency must resolve inside the authoritative D1 query",
+              );
               authoritativeRights++;
             }
             return target.prepare(sql);
