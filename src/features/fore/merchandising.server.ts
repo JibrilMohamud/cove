@@ -172,7 +172,7 @@ async function resolveCollection(
     `SELECT mci.product_id FROM merch_collection_items mci
     WHERE mci.collection_id=?
       AND (mci.starts_at IS NULL OR mci.starts_at<=datetime('now')) AND (mci.ends_at IS NULL OR mci.ends_at>datetime('now'))
-      AND EXISTS(SELECT 1 FROM retail_product_availability_rows rpa WHERE rpa.product_id=mci.product_id AND rpa.territory_code=upper(?))
+      AND EXISTS(SELECT 1 FROM retail_product_availability rpa WHERE rpa.product_id=mci.product_id AND rpa.territory_code=upper(?))
     ORDER BY mci.sort_order,mci.product_id LIMIT ?`,
   )
     .bind(row.id, territory, maxItems)
