@@ -11,16 +11,17 @@ import {
 } from "../check-production-storefront-performance.mjs";
 
 // Synthetic, read-only authenticated staging probe; NOT a production load test.
-// The total is capped at 60 requests to respect the Worker edge rate limiter.
+// Bounded 92-request sweep stays below the unchanged 180/minute edge cap.
 // No client IP, hostname, URL, book contents, headers or bearer key are logged.
 const waves = Object.freeze([
   { concurrency: 1, requests: 8 },
   { concurrency: 4, requests: 12 },
   { concurrency: 8, requests: 16 },
   { concurrency: 16, requests: 24 },
+  { concurrency: 32, requests: 32 },
 ]);
 const total = waves.reduce((sum, wave) => sum + wave.requests, 0);
-assert.equal(total, 60, "Keep the concurrency probe below the per-colo read cap");
+assert.equal(total, 92, "Keep the concurrency probe below the per-colo read cap");
 const origin = productionOrigin(process.env.COVE_SSR_STAGING_ORIGIN);
 const token = process.env.COVE_SSR_STAGING_GATE_KEY;
 assert.match(token || "", /^[a-f0-9]{64}$/, "Only protected staging may be load-tested");
@@ -173,6 +174,7 @@ const summaries = waves.map(({ concurrency, requests }) => {
     p50Ms: percentile(times, 0.5),
     p75Ms: percentile(times, 0.75),
     p95Ms,
+    p99Ms: percentile(times, 0.99),
     maxMs,
     colo: [...new Set(good.map((r) => r.cfColo))].sort(),
     pass:
@@ -181,8 +183,7 @@ const summaries = waves.map(({ concurrency, requests }) => {
       maxMs !== null &&
       maxMs < thresholds.maxTtfbMs &&
       p95Ms !== null &&
-      // Higher load may increase p95 but may never breach the hard 800ms gate.
-      p95Ms <= (concurrency <= 8 ? thresholds.p95TtfbMs : thresholds.maxTtfbMs),
+      p95Ms <= thresholds.p95TtfbMs,
   };
 });
 // Run *after* licensed tests to avoid prewarming the truly cold SSR trials.

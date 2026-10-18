@@ -20,10 +20,8 @@ assert.match(caller, /countsPending: countState.pending/);
 assert.match(api, /execution\?\.waitUntil \? \(work\) => execution.waitUntil\?\.\(work\)/);
 assert.match(publicCache, /path === "\/api\/fore\/taxonomy" && data.countsPending === true/);
 assert.match(storefront, /countsPending\?: boolean/);
-assert.match(
-  storefront,
-  /refetchInterval: \(query\) => \(query.state.data\?\.countsPending \? 5_000 : false\)/,
-);
+assert.match(storefront, /taxonomyCountPollInterval\(query.state\)/);
+assert.match(storefront, /void taxonomy.refetch\(\)/);
 assert.match(storefront, /if \(!countsPending && node.count <= 0\) return null/);
 assert.match(storefront, /countsPending \|\| child.count > 0/);
 assert.match(storefront, /countsPending \|\| n.count > 0/);
@@ -169,7 +167,7 @@ assert.equal(
 );
 assert.equal(state.pending, false);
 
-// A rejected aggregation releases the lease, so the next request can retry.
+// A failed refresh backs off for one lease period, then recovers.
 state = { pending: false };
 assert.deepEqual(
   await presentationTaxonomyCounts(
@@ -186,6 +184,23 @@ assert.deepEqual(
   [],
 );
 await Promise.all(jobs.splice(0));
+let failedRetryCalls = 0;
+for (let i = 0; i < 32; i++) {
+  await presentationTaxonomyCounts(
+    db,
+    "CA",
+    "es",
+    async () => {
+      failedRetryCalls++;
+      throw Error("still unavailable");
+    },
+    clock,
+    defer,
+  );
+  await Promise.all(jobs.splice(0));
+}
+assert.equal(failedRetryCalls, 0, "Failed refresh must not cause sequential retry stampedes");
+now += 30_001;
 const retried = await presentationTaxonomyCounts(
   db,
   "CA",
@@ -310,5 +325,33 @@ const caches = sqlite.prepare("SELECT key,body FROM api_cache").all();
 assert.ok(caches.every((r) => !r.body.includes("product_id")));
 sqlite.close();
 console.log(
-  "Taxonomy presentation lease: 16-request cold stampede, TTL refresh, bounded stale, failure release, market isolation and rights boundaries PASS",
+  "Taxonomy presentation lease: 16-request cold stampede, TTL refresh, bounded stale, failure backoff/recovery, market isolation and rights boundaries PASS",
 );
+
+const pollingBuild = await build({
+  entryPoints: ["src/features/fore/taxonomy-count-polling.ts"],
+  bundle: true,
+  platform: "neutral",
+  format: "esm",
+  write: false,
+});
+const { taxonomyCountPollInterval } = await import(
+  "data:text/javascript;base64," + Buffer.from(pollingBuild.outputFiles[0].text).toString("base64")
+);
+for (let count = 0; count < 100; count++) {
+  const state = { data: { countsPending: true }, dataUpdateCount: count, errorUpdateCount: 0 };
+  assert.equal(
+    taxonomyCountPollInterval(state),
+    count >= 6 ? false : Math.min(5000 * 2 ** Math.max(0, count - 1), 60000),
+  );
+  assert.equal(taxonomyCountPollInterval({ ...state, data: { countsPending: false } }), false);
+}
+assert.equal(
+  taxonomyCountPollInterval({
+    data: { countsPending: true },
+    dataUpdateCount: 1,
+    errorUpdateCount: 5,
+  }),
+  false,
+);
+console.log("Bounded taxonomy polling, terminal errors and completed refresh: PASS");

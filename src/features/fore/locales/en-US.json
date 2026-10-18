@@ -799,5 +799,7 @@
   "Taste preferences saved. Search wording applies only to this search.": "Taste preferences saved. Search wording applies only to this search.",
   "Could not save these preferences. Check the values and try again.": "Could not save these preferences. Check the values and try again.",
   "Form cleared. Save to replace your saved preferences.": "Form cleared. Save to replace your saved preferences.",
-  "No eligible books with enough evidence match these preferences. Try fewer constraints.": "No eligible books with enough evidence match these preferences. Try fewer constraints."
+  "No eligible books with enough evidence match these preferences. Try fewer constraints.": "No eligible books with enough evidence match these preferences. Try fewer constraints.",
+  "Category counts are unavailable. You can still browse.": "Category counts are unavailable. You can still browse.",
+  "Refresh counts": "Refresh counts"
 }

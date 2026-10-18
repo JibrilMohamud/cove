@@ -799,5 +799,7 @@
   "Taste preferences saved. Search wording applies only to this search.": "حُفظت التفضيلات. تنطبق صياغة البحث على هذا البحث فقط.",
   "Could not save these preferences. Check the values and try again.": "تعذر حفظ هذه التفضيلات. تحقق من القيم وحاول مجددًا.",
   "Form cleared. Save to replace your saved preferences.": "مُسح النموذج. احفظ لاستبدال تفضيلاتك المحفوظة.",
-  "No eligible books with enough evidence match these preferences. Try fewer constraints.": "لا توجد كتب مؤهلة بمعلومات كافية تطابق هذه التفضيلات. جرّب قيودًا أقل."
+  "No eligible books with enough evidence match these preferences. Try fewer constraints.": "لا توجد كتب مؤهلة بمعلومات كافية تطابق هذه التفضيلات. جرّب قيودًا أقل.",
+  "Category counts are unavailable. You can still browse.": "أعداد الفئات غير متاحة. يمكنك متابعة التصفح.",
+  "Refresh counts": "تحديث الأعداد"
 }
