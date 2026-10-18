@@ -51,7 +51,7 @@ try {
   write.run("direct-library", "active", "library", 0, 0, "new-edition");
   assert.ok(db.prepare(sql).get(), "Direct library channel forces full legal view");
   assert.equal(
-    db.prepare("SELECT COUNT(*) total FROM rights_grants INDEXED BY idx_rights_secondary_channel_potential WHERE (sales_channel IN ('subscription','library') OR (sales_channel='retail' AND (subscription_permitted=1 OR library_permitted=1)))").get().total,
+    db.prepare("SELECT COUNT(*) total FROM rights_grants INDEXED BY idx_rights_secondary_channel_potential WHERE status='active' AND (sales_channel IN ('subscription','library') OR (sales_channel='retail' AND (subscription_permitted=1 OR library_permitted=1)))").get().total,
     1,
   );
   // This index is only a negative gate. It must NEVER be used as an
