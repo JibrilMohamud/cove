@@ -44,6 +44,27 @@ External geographically distributed checks, owner-controlled DNS, correct
 OAuth/checkout callbacks, and real paid/offline customer tests must pass before
 public routing is switched.
 
+### First-HTTP cold gate: deployment propagation incident
+
+The October 18 three-deployment workflow on PR #137's merged source
+correctly counted each new version's very first HTTP request as SSR. Two
+first requests received **401** because Cloudflare had not yet installed
+the newly rotated, independent staging bearer secret at that entry edge.
+One independent rollout passed **20/20, p95 421 ms**. Another missed the
+hard latency gate on **five otherwise valid SSR requests** (maximum
+3,071 ms) with large primary-anchored D1 market/context phases.
+[Production-source stage trial](https://github.com/JibrilMohamud/cove/actions/runs/39087445858).
+These are genuine release blockers; earlier green passes are not sufficient.
+
+To avoid confusing *secret propagation* with cold Worker execution, the
+revised workflow waits ten seconds **without sending any HTTP request**
+after publishing the new secret. The next request remains the first actual
+HTTP/SSR request to the new version, and every HTTP error/TTFB sample
+continues counting. This is a staging-only deployment-readiness delay, **not**
+a warmed handler, rights snapshot, retried/discounted probe, or an extension
+of the 800 ms limit. If propagation still fails, the deployment fails.
+Any true D1 slowness still fails separately.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on
