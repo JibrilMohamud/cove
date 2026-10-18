@@ -16,14 +16,18 @@ const selectorStart = source.indexOf("async function rankedCandidatePlan(");
 const selectorEnd = source.indexOf("function withoutFacet(", selectorStart);
 assert.ok(selectorStart >= 0 && selectorEnd > selectorStart);
 const selector = source.slice(selectorStart, selectorEnd);
-assert.match(selector, /input\.sort !== "added" \|\| part\.hasFts/);\nassert.match(selector, /LIMIT 1001/);\nassert.match(selector, /territory_seed AS MATERIALIZED/);\nassert.match(selector, /preBinds: \[input\.territory\]/);
+assert.match(selector, /input\.sort !== "added" \|\| part\.hasFts/);
+assert.match(selector, /LIMIT 1001/);
+assert.match(selector, /territory_seed AS MATERIALIZED/);
+assert.match(selector, /preBinds: \[input\.territory\]/);
 assert.match(selector, /idx_search_added_effective_stable/);
 assert.match(selector, /CROSS JOIN products p/);
 assert.match(selector, /CROSS JOIN editions e/);
 const idsStart = source.indexOf("const runIds = async () =>");
 const countStart = source.indexOf("const runCount = ()", idsStart);
 assert.ok(idsStart >= 0 && countStart > idsStart);
-assert.match(source.slice(idsStart, countStart), /rankedCandidatePlan\(env\.DB, input, part\)/);\nassert.match(source.slice(idsStart, countStart), /\.\.\.plan\.preBinds/);
+assert.match(source.slice(idsStart, countStart), /rankedCandidatePlan\(env\.DB, input, part\)/);
+assert.match(source.slice(idsStart, countStart), /\.\.\.plan\.preBinds/);
 assert.doesNotMatch(
   source.slice(countStart, countStart + 450),
   /rankedCandidatePlan/,
