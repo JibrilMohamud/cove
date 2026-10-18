@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { CatalogDB } from "./catalog-model.server";
 import { ApiError, now } from "./service";
+import { presentationTaxonomyCounts } from "./taxonomy-counts-cache.server";
 
 export type TaxonomyNode = {
   id: string;
@@ -138,9 +139,10 @@ export async function taxonomyTree(
       ORDER BY n.depth,n.sort_order,n.name`,
       )
       .all<any>(),
-    db
-      .prepare(
-        `WITH eligible AS MATERIALIZED (
+    presentationTaxonomyCounts(db, territory, language, async () => {
+      const current = await db
+        .prepare(
+          `WITH eligible AS MATERIALIZED (
       SELECT p.id,p.edition_id FROM products p
       JOIN editions e ON e.id=p.edition_id
       WHERE p.storefront_status='active' AND p.source_name<>'upload'
@@ -151,9 +153,11 @@ export async function taxonomyTree(
       SELECT et.taxonomy_node_id node_id,COUNT(DISTINCT p.id) product_count
       FROM eligible p JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
       GROUP BY et.taxonomy_node_id`,
-      )
-      .bind(language, language, territory)
-      .all<any>(),
+        )
+        .bind(language, language, territory)
+        .all<{ node_id: string; product_count: number }>();
+      return current.results;
+    }),
     db
       .prepare(
         "SELECT taxonomy_node_id,name,description,seo_title,seo_description FROM storefront_taxonomy_node_localizations WHERE locale=?",
@@ -165,7 +169,7 @@ export async function taxonomyTree(
     localizationRows.results.map((row) => [String(row.taxonomy_node_id), row]),
   );
   const counts = new Map(
-    countRows.results.map((row) => [String(row.node_id), Number(row.product_count || 0)]),
+    countRows.map((row) => [String(row.node_id), Number(row.product_count || 0)]),
   );
   const byId = new Map<string, TaxonomyNode>();
   for (const row of rows.results) {
