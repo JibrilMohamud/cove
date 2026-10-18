@@ -102,9 +102,9 @@ try {
     }
   }
   // Updates, including a new NULL date and a rights revocation, must remain exact.
-  db
-    .prepare("UPDATE catalog_search_documents SET product_created_at=NULL WHERE product_id=?")
-    .run("book-00001");
+  db.prepare("UPDATE catalog_search_documents SET product_created_at=NULL WHERE product_id=?").run(
+    "book-00001",
+  );
   db.prepare("UPDATE rights_grants SET status='revoked' WHERE edition_id=?").run("book-00002");
   assert.deepEqual(
     db.prepare(nextSql).all("available", "US", "USD", 24, 0),
