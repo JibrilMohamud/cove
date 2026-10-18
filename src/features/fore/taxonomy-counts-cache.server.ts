@@ -95,6 +95,7 @@ export async function presentationTaxonomyCounts(
   queryLive: () => Promise<TaxonomyCountRow[]>,
   nowMs = () => Date.now(),
   defer?: DeferredWork,
+  state?: { pending: boolean },
 ): Promise<TaxonomyCountRow[]> {
   // Include both rights territory and content language, but never
   // account/session/private user data. Lowercase normalization mirrors the
@@ -132,6 +133,7 @@ export async function presentationTaxonomyCounts(
       // Cold-cache rendering must never block an entire catalog on a
       // multi-second display-only count aggregation. The background task
       // fills the counts; actual book rights remain checked per request.
+      if (state) state.pending = true;
       return [];
     }
 
@@ -139,9 +141,14 @@ export async function presentationTaxonomyCounts(
     // semantics and fail-closed legal book checks.
     if (counts && expiresAt > now) return counts;
   } catch {
-    // Cache faults never authorize a book; legacy callers recount live.
-    // Deferred Cloudflare requests fall through to a synchronous recount
-    // only if even the small cache probe itself is unavailable.
+    // A failed cache read must NOT trigger an expensive foreground
+    // aggregation on a congested primary. Return a display-only pending
+    // response; retry the cache lookup on the next request. Legal rights are
+    // never inferred from taxonomy count labels.
+    if (defer) {
+      if (state) state.pending = true;
+      return [];
+    }
   }
 
   const live = await queryLive();
