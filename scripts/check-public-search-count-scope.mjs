@@ -55,7 +55,9 @@ assert.notEqual(id(scope, "star"), id(scope, "ocean"), "FTS scope is unique");
 
 const sql = new DatabaseSync(":memory:");
 try {
-  sql.exec("CREATE TABLE api_cache(key TEXT PRIMARY KEY,body TEXT NOT NULL,expires_at INTEGER NOT NULL)");
+  sql.exec(
+    "CREATE TABLE api_cache(key TEXT PRIMARY KEY,body TEXT NOT NULL,expires_at INTEGER NOT NULL)",
+  );
   const db = {
     prepare(q) {
       const stmt = sql.prepare(q);
@@ -116,16 +118,15 @@ try {
       throw Error("D1 cache unavailable");
     },
   };
-  assert.equal(
-    await presentationSearchCount(brokenDb, scope, "", live(40000), clock),
-    40000,
-  );
+  assert.equal(await presentationSearchCount(brokenDb, scope, "", live(40000), clock), 40000);
   assert.equal(liveCalls, 5, "Missing cache recomputes on primary");
   await assert.rejects(
     presentationSearchCount(brokenDb, scope, "", live(-5), clock),
     /Invalid public search count/,
   );
-  console.log("Public count presentation cache: market/isolation, paging/sort, TTL, stale-count safety, invalid cache PASS");
+  console.log(
+    "Public count presentation cache: market/isolation, paging/sort, TTL, stale-count safety, invalid cache PASS",
+  );
 } finally {
   sql.close();
 }
