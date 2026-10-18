@@ -362,20 +362,21 @@ async function productMeta(db: CatalogDB, productIds: string[]): Promise<Map<str
 async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400) {
   const wanted = Math.max(0, Math.min(MAX_CANDIDATES, Math.floor(limit)));
   if (!wanted) return [];
-  // Sorting before rights filtering avoids running the expensive legal view
-  // across every active product in the catalog. The extra headroom is NOT an
-  // eligibility assumption: an undersized approved shortlist always falls back.
   // This covering-index count is a live read, not a cached rights hint.
   // For small markets, seed directly from territorial grants instead of
   // scanning and ranking the whole worldwide catalog first.
   const grantCount = await db
-    .prepare("SELECT COUNT(*) grant_count FROM rights_grant_territories WHERE territory_code=upper(?)")
+    .prepare(
+      "SELECT COUNT(*) grant_count FROM rights_grant_territories WHERE territory_code=upper(?)",
+    )
     .bind(territory)
     .first<{ grant_count: number }>();
   if (Number(grantCount?.grant_count || 0) > 1000) {
+    // The extra headroom is never authorization; insufficient live-rights
+    // results always force the exact full-catalog fallback.
     const shortlist = Math.min(1000, Math.max(wanted + 100, Math.ceil(wanted * 1.375)));
     const fast = await db
-    .prepare(
+      .prepare(
       `WITH ranked AS MATERIALIZED (
         SELECT p.id,
           COALESCE(rm.trend_score,m.trend_score,d.sales_velocity,0) trend_rank,
@@ -397,11 +398,11 @@ async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400)
       )
       ORDER BY ranked.trend_rank DESC,ranked.popularity_rank DESC,
         ranked.rank_updated DESC,ranked.id ASC LIMIT ?`,
-    )
-    .bind(territory, shortlist, territory, wanted)
-    .all<any>();
-  // If the top N *eligible* works are all inside the ranked shortlist, this
-  // is precisely the full catalogue's top N, not an approximate result.
+      )
+      .bind(territory, shortlist, territory, wanted)
+      .all<any>();
+    // If the top N eligible works fit in the shortlist, they are exactly
+    // the complete catalogue's top N.
     if (fast.results.length === wanted) return fast.results.map((x) => String(x.id));
   }
 
