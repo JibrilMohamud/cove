@@ -50,8 +50,7 @@ export async function presentationSearchCount<
       .first<{ body: string }>();
     if (cached) {
       const value: unknown = JSON.parse(cached.body);
-      if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0)
-        return value;
+      if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
     }
   } catch {
     // Missing/corrupt cache may never cause a rights or search decision.
@@ -60,7 +59,14 @@ export async function presentationSearchCount<
   if (!Number.isSafeInteger(liveCount) || liveCount < 0)
     throw new Error("Invalid public search count");
   try {
-    await writeCatalogCache(db, key, JSON.stringify(liveCount), nowMs() + TTL_MS, PREFIX, MAX_ENTRIES);
+    await writeCatalogCache(
+      db,
+      key,
+      JSON.stringify(liveCount),
+      nowMs() + TTL_MS,
+      PREFIX,
+      MAX_ENTRIES,
+    );
   } catch {
     // Best effort: a cache write failure never loses the live query result.
   }
