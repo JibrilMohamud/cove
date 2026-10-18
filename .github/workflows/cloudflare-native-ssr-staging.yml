@@ -15,6 +15,12 @@ on:
       - "src/features/fore/search.server.ts"
       - "src/features/fore/catalog-model.server.ts"
       - "src/features/fore/localization.server.ts"
+      - "src/features/fore/recommendations.server.ts"
+      - "src/features/fore/taxonomy.server.ts"
+      - "src/features/fore/merchandising.server.ts"
+      - "scripts/check-rights.mjs"
+      - "scripts/check-production-storefront-performance.mjs"
+      - "scripts/check-production-storefront-performance.test.mjs"
       - "scripts/check-storefront-bootstrap.mjs"
       - "scripts/local-api.mjs"
       - "src/features/fore/storefront-loader.ts"
@@ -47,6 +53,12 @@ on:
       - "src/features/fore/search.server.ts"
       - "src/features/fore/catalog-model.server.ts"
       - "src/features/fore/localization.server.ts"
+      - "src/features/fore/recommendations.server.ts"
+      - "src/features/fore/taxonomy.server.ts"
+      - "src/features/fore/merchandising.server.ts"
+      - "scripts/check-rights.mjs"
+      - "scripts/check-production-storefront-performance.mjs"
+      - "scripts/check-production-storefront-performance.test.mjs"
       - "scripts/check-storefront-bootstrap.mjs"
       - "scripts/local-api.mjs"
       - "src/features/fore/storefront-loader.ts"
@@ -101,6 +113,8 @@ jobs:
           node scripts/check-cloudflare-native-bindings.mjs
           node scripts/check-storefront-firstpaint-rate-limit.mjs
           node scripts/check-storefront-bootstrap.mjs
+          node scripts/check-rights.mjs
+          node --test scripts/check-production-storefront-performance.test.mjs
           node scripts/check-cove-request-context.mjs
           node scripts/check-storefront-hedged.mjs
       - name: Build Cloudflare-native frontend
