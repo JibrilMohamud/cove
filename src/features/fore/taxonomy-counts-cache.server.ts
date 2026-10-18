@@ -59,7 +59,14 @@ async function refreshPresentationCounts(
 
   try {
     const current = await queryLive();
-    await writeCatalogCache(db, key, JSON.stringify(current), nowMs() + TTL_MS, PREFIX, MAX_ENTRIES);
+    await writeCatalogCache(
+      db,
+      key,
+      JSON.stringify(current),
+      nowMs() + TTL_MS,
+      PREFIX,
+      MAX_ENTRIES,
+    );
   } finally {
     // An exception must never pin the lease permanently or cause a cached
     // rights approval. Next request can retry; only display counts are stale.
@@ -70,7 +77,6 @@ async function refreshPresentationCounts(
       .catch(() => undefined);
   }
 }
-
 
 /**
  * These are PRESENTATION counts, not products, identities, entitlement, or
