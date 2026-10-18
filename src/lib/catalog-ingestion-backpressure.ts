@@ -32,8 +32,7 @@ export async function admitCatalogBatch(
   try {
     const row = await db.prepare("SELECT 1 AS ok").first<{ ok: number }>();
     const probeMs = Math.max(0, Math.ceil(clock() - begin));
-    if (row?.ok !== 1)
-      return { allowed: false, reason: "primary_unavailable", probeMs };
+    if (row?.ok !== 1) return { allowed: false, reason: "primary_unavailable", probeMs };
     return {
       allowed: probeMs <= limit,
       reason: probeMs <= limit ? "healthy" : "primary_busy",
