@@ -66,6 +66,7 @@ jobs:
         run: |
           npm run test:search-updater-cache
           npm run test:recommendations
+          node scripts/check-literary-genre-rights-query.mjs
       - name: Reader, sharing privacy and offline authorization regressions
         run: npm run test:reader-sharing-offline
       - name: Direct sharing, group discussions and account erasure
