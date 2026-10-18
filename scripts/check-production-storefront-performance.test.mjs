@@ -114,6 +114,21 @@ test("failure diagnostics retain only aggregate numeric timings and safe cache l
   );
 });
 
+test("D1 counters retain bounded numeric attempt and row counts without treating them as time", () => {
+  const result = safeProbeTelemetry(
+    new Headers({
+      "server-timing":
+        'cove_backend_catalog_attempts;desc="3", cove_backend_catalog_rows;desc="1024", cove_backend_catalog_attempts;desc="999", cove_backend_catalog_rows;desc="private"',
+    }),
+    900,
+    920,
+  );
+  assert.equal(result.d1CatalogAttempts, 3);
+  assert.equal(result.d1CatalogRowsRead, 1024);
+  assert.equal(result.timing, "");
+  assert.equal(JSON.stringify(result).includes("private"), false);
+});
+
 // A successful cold response must be as diagnosable as a failed response,
 // without persisting arbitrary response headers, cookies or visitor context.
 test("successful homepage probes retain only numeric phases and a safe cache label", async () => {
