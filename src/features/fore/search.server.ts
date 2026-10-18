@@ -1545,29 +1545,16 @@ export async function firstPaintStorefrontShelf(
   // idx_search_price(currency,price_minor) already exists in production and
   // local migrations. Never infer currency availability from cache/replicas.
   if (currency === null) {
-    // Only the verified cookie-free Cloudflare homepage enters this branch.
-    // Derive currency and legally eligible books from ONE authoritative
-    // primary-D1 query; replica UI metadata cannot authorize an edition.
+    // Resolve the active market currency inside the SAME authoritative D1
+    // rights statement, but outside the rights view's deep expression tree.
+    // The separate CTE for indexed currency existence rejects empty markets
+    // without scanning the entire 52k-book popular index.
     const index = part.where.indexOf("d.currency=?");
     if (index !== part.where.length - 1 || part.binds.at(-1) !== input.currency)
       throw new Error("Unexpected first-paint currency predicate; refuse the fast path.");
-    const liveCurrency = `COALESCE(
-      (SELECT default_currency FROM storefront_markets WHERE country_code=upper(?) AND market_status='active'),
-      (SELECT default_currency FROM storefront_markets WHERE country_code='US' AND market_status='active')
-    )`;
-    part.where[index] = `d.currency=${liveCurrency}`;
-    part.binds[part.binds.length - 1] = input.territory;
-    // The equivalent existence check prevents an all-52k-catalog
-    // popularity scan if no eligible currency catalog docs exist. It
-    // cannot add books or grant rights. The original live rights view
-    // remains evaluated for every selected product.
-    part.where.unshift(`EXISTS(
-      SELECT 1 FROM catalog_search_documents currency_probe INDEXED BY idx_search_price
-      WHERE currency_probe.currency=${liveCurrency}
-        AND currency_probe.availability='available'
-        AND currency_probe.suppressed=0 LIMIT 1
-    )`);
-    part.binds.unshift(input.territory);
+    part.where[index] = "d.currency=(SELECT currency FROM first_paint_currency)";
+    part.binds.pop();
+    part.where.unshift("EXISTS(SELECT 1 FROM first_paint_currency_available)");
   } else if (input.currency && input.availability === "available") {
     part.where.unshift(`EXISTS(
       SELECT 1 FROM catalog_search_documents currency_probe INDEXED BY idx_search_price
@@ -1587,6 +1574,7 @@ export async function firstPaintStorefrontShelf(
       order: d1Sort(input, false),
       binds: part.binds,
       limit: input.limit,
+      currencyCountry: currency === null ? input.territory : undefined,
     },
     diagnostics,
   );
