@@ -125,6 +125,7 @@ jobs:
       - name: Search, updater and public caching
         run: |
           npm run test:search-updater-cache
+          node scripts/check-facet-cache-identity.mjs
           npm run test:recommendations
           node scripts/check-literary-genre-rights-query.mjs
       - name: Indexed FTS trigger identity, suppression, deletion and bounded work

@@ -594,6 +594,18 @@ function d1FacetCandidate(
   return { cte, binds: part.binds };
 }
 
+/**
+ * Sort order affects product ranking, not the eligible population counted by
+ * facets. Share the existing 10-minute *counts-only* cache between popular,
+ * newest, rating, and title orderings without changing territory, currency,
+ * filters, query, or selected legal-rights scope. Full product results
+ * ALWAYS independently revalidate current primary-D1 retail authorization.
+ */
+function facetCacheIdentity(input: SearchInput, expression: string) {
+  const { sort: _rankingOnly, ...filters } = input;
+  return { ...filters, page: 1, limit: 1, expression };
+}
+
 async function d1Facets(
   db: CatalogDB,
   input: SearchInput,
@@ -605,13 +617,13 @@ async function d1Facets(
     ...new Uint8Array(
       await crypto.subtle.digest(
         "SHA-256",
-        new TextEncoder().encode(JSON.stringify({ ...input, page: 1, limit: 1, expression })),
+        new TextEncoder().encode(JSON.stringify(facetCacheIdentity(input, expression))),
       ),
     ),
   ]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
-  const cacheKey = `search-facets:v1:${cacheId}`;
+  const cacheKey = `search-facets:v2:${cacheId}`;
   try {
     const cached = await db
       .prepare("SELECT body FROM api_cache WHERE key=? AND expires_at>?")
@@ -774,7 +786,7 @@ async function d1Facets(
       cacheKey,
       JSON.stringify(result),
       Date.now() + 600_000,
-      "search-facets:v1:",
+      "search-facets:v2:",
       128,
     );
   } catch {
