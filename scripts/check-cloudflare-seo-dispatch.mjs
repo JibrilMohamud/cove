@@ -50,7 +50,7 @@ for (const method of ["POST", "PUT", "DELETE", "OPTIONS"]) {
 }
 assert.match(
   fs.readFileSync("src/server.ts", "utf8"),
-  /foreEnv\.DB && isSeoDocumentDispatchCandidate\(request\.method, new URL\(request\.url\)\.pathname\)/,
+  /foreEnv\.DB\s*&&\s*isSeoDocumentDispatchCandidate\(request\.method,\s*new URL\(request\.url\)\.pathname\)/,
   "Cloudflare Worker entry must use the SEO dispatch guard before dynamically importing",
 );
 console.log("Cold SSR skips SEO module; crawler endpoints and HTTP methods retained: PASS");
