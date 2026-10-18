@@ -559,6 +559,27 @@ function candidateParts(input: SearchInput, expression: string) {
   };
 }
 
+/**
+ * Prefer the expression index for newest/added catalog *result pages only*.
+ * The index preserves COALESCE's NULL fallback and both stable tie-breakers.
+ * CROSS JOIN fixes the scan order before the costly correlated live-rights
+ * EXISTS checks; it never weakens or omits them. FTS and facet/count queries
+ * retain their independently chosen plans.
+ *
+ * This is safe to enable only after D1 migration 0076 is installed on every
+ * serving database, as SQLite's INDEXED BY deliberately fails if absent.
+ */
+function rankedCandidateFrom(
+  input: SearchInput,
+  part: ReturnType<typeof candidateParts>,
+) {
+  if (input.sort !== "added" || part.hasFts) return part.from;
+  return `catalog_search_documents d INDEXED BY idx_search_added_effective_stable
+    CROSS JOIN products p ON p.id=d.product_id
+    CROSS JOIN editions e ON e.id=p.edition_id
+    LEFT JOIN publishers pub ON pub.id=e.publisher_id`;
+}
+
 function withoutFacet(
   input: SearchInput,
   facet: "categories" | "languages" | "formats" | "publishers" | "series" | "price",
@@ -930,7 +951,7 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
   let part = candidateParts(input, expression);
   const runIds = async () => {
     const clause = part.where.join(" AND ");
-    const sql = `${part.prefix} SELECT d.product_id,${part.rank} FROM ${part.from} WHERE ${clause} ORDER BY ${d1Sort(input, part.hasFts)},d.product_id ASC LIMIT ? OFFSET ?`;
+    const sql = `${part.prefix} SELECT d.product_id,${part.rank} FROM ${rankedCandidateFrom(input, part)} WHERE ${clause} ORDER BY ${d1Sort(input, part.hasFts)},d.product_id ASC LIMIT ? OFFSET ?`;
     const orderedBinds = part.hasFts
       ? [
           part.binds[0],
