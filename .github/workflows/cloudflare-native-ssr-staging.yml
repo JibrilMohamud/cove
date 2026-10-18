@@ -25,6 +25,7 @@ on:
       - "drizzle/0076_catalog_added_expression_sort.sql"
       - "drizzle/0077_secondary_channel_potential_index.sql"
       - "scripts/check-secondary-channel-index.mjs"
+      - "scripts/check-live-channel-zero-grant-gate.mjs"
       - "scripts/check-fts-trigger-lookup.py"
       - "scripts/check-production-storefront-performance.mjs"
       - "scripts/check-production-storefront-performance.test.mjs"
@@ -71,6 +72,7 @@ on:
       - "drizzle/0076_catalog_added_expression_sort.sql"
       - "drizzle/0077_secondary_channel_potential_index.sql"
       - "scripts/check-secondary-channel-index.mjs"
+      - "scripts/check-live-channel-zero-grant-gate.mjs"
       - "scripts/check-fts-trigger-lookup.py"
       - "scripts/check-production-storefront-performance.mjs"
       - "scripts/check-production-storefront-performance.test.mjs"
@@ -137,6 +139,7 @@ jobs:
           python3 scripts/check-fts-trigger-lookup.py
           node scripts/check-catalog-added-sort-index.mjs
           node scripts/check-secondary-channel-index.mjs
+          node scripts/check-live-channel-zero-grant-gate.mjs
           node scripts/check-bounded-cached-rights-recheck.mjs
           node --test scripts/check-production-storefront-performance.test.mjs
           node scripts/check-cove-request-context.mjs
