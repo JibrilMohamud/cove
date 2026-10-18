@@ -224,7 +224,6 @@ async function probe(language, sample, sequence) {
   };
 }
 
-await assertProtected();
 const results = [];
 const failures = [];
 // First real SSR request precedes the D1 health and API rights probes.
@@ -238,7 +237,11 @@ const measure = async ({ language, sample, sequence: order }) => {
     failures.push({ sequence: order, language, sample, error: String(error).slice(0, 300) });
   }
 };
+// The very first request to the freshly deployed Worker version MUST execute
+// actual SSR, before even unauthenticated 401 checks can warm its JS isolate.
+// A not-yet-propagated secret (401/503) fails the cold gate; never discount it.
 await measure(sequence[0]);
+await assertProtected();
 await assertLocalDatabaseReady();
 await assertRightsIsolation();
 for (const entry of sequence.slice(1)) await measure(entry);
@@ -275,7 +278,7 @@ const table = [
   "This is synthetic runner TTFB, not a field performance guarantee.",
   "Workers.dev staging is not the production hostname.",
   "",
-  "The first counted homepage request precedes any authenticated D1/rights preflight.",
+  "The first counted SSR homepage request is the first HTTP request in the newly deployed Worker gate.",
   "Residual = client TTFB - timed Worker duration; not necessarily a cold-start diagnosis.",
   "Undici client-to-headers includes network and remote processing; phases are diagnostic only.",
   "",

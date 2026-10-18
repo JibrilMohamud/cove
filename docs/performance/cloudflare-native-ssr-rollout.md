@@ -16,6 +16,34 @@ Cloudflare-native SSR uses a request-scoped D1 binding and immutable Worker
 country metadata, avoiding that external HTTP bootstrap. It does **not** remove
 the need for per-request territorial rights checks.
 
+## Next controlled experiment: primary-anchored configuration sessions
+
+Cloudflare D1 `cove-production` reports `read_replication.mode=auto`, but
+replicas do not participate in plain D1 binding reads. In the **first-paint
+SSR configuration path only**, use a fresh D1
+`withSession("first-primary")` session per concurrent reader for storefront
+context/market metadata. The first query obtains an authoritative primary
+bookmark, and later queries cannot observe older data, even if Cloudflare
+routes them to a replica. The actual book shelf continues to execute through
+`env.DB` directly, without Sessions API; checkout, ownership and EPUB
+downloads are untouched. The local fixture test asserts that all live
+`retail_product_availability_rows` reads use the authoritative binding, never
+a potentially lagged replica.
+
+The protected staging workflow now runs **three independent Worker
+deployments** per main execution, regenerates the staging bearer secret for
+each version, counts the first authenticated SSR HTML fetch *before any other
+HTTP request* (including a 401 check), and fails the complete job if **any**
+20-request matrix contains a >=800 ms response or invalid rights. Preserve
+every run's JSON evidence. A green single-run or two-run subset can no longer
+conceal a failed independent deployment.
+
+These improvements cannot remove all unpredictable platform/network tail
+latency. No global hard SLO has been established by the code change alone.
+External geographically distributed checks, owner-controlled DNS, correct
+OAuth/checkout callbacks, and real paid/offline customer tests must pass before
+public routing is switched.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on
@@ -48,8 +76,9 @@ if any of the following occur:
 5. Any of 20 interleaved language/sample requests has TTFB >= 800 ms.
 6. Any staging response can be publicly cached.
 
-The staging benchmark is synthetic and from a single runner geography; it
-does not replace field Web Vitals or legal QA in multiple countries.
+The staging benchmark is synthetic and each workflow attempt uses a single
+runner geography, even though separate jobs or runners may land in different
+colos. It does not replace field Web Vitals or legal QA in multiple countries.
 
 ### October 17, 2026 validated staging evidence
 

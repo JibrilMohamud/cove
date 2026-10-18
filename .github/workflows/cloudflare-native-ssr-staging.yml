@@ -13,6 +13,7 @@ on:
       - "src/features/fore/storefront-read-rate-limit.server.ts"
       - "scripts/check-storefront-firstpaint-rate-limit.mjs"
       - "src/features/fore/search.server.ts"
+      - "src/features/fore/catalog-model.server.ts"
       - "src/features/fore/localization.server.ts"
       - "scripts/check-storefront-bootstrap.mjs"
       - "src/features/fore/storefront-loader.ts"
@@ -35,6 +36,7 @@ on:
       - "src/features/fore/storefront-read-rate-limit.server.ts"
       - "scripts/check-storefront-firstpaint-rate-limit.mjs"
       - "src/features/fore/search.server.ts"
+      - "src/features/fore/catalog-model.server.ts"
       - "src/features/fore/localization.server.ts"
       - "scripts/check-storefront-bootstrap.mjs"
       - "src/features/fore/storefront-loader.ts"
@@ -120,15 +122,36 @@ jobs:
         run: npm run build
       - name: Deploy staging only (no custom domain or traffic migration)
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.staging.toml
-      - name: Rotate ephemeral stage credential, verify protection and benchmark
+      - name: Independently cold-deploy and strictly benchmark three times
         shell: bash
         run: |
           set -euo pipefail
-          COVE_SSR_STAGING_GATE_KEY="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
-          echo "::add-mask::$COVE_SSR_STAGING_GATE_KEY"
-          export COVE_SSR_STAGING_GATE_KEY
-          printf '%s' "$COVE_SSR_STAGING_GATE_KEY" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.frontend.staging.toml
-          node scripts/check-cloudflare-ssr-staging.mjs
+          failures=0
+          for trial in 1 2 3; do
+            echo "::group::Independent cold SSR deployment $trial/3"
+            # Even when the code has not changed, rotating the secret creates
+            # a new Worker version. On later trials, also redeploy all assets.
+            if [ "$trial" -gt 1 ]; then
+              npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.staging.toml
+            fi
+            COVE_SSR_STAGING_GATE_KEY="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+            echo "::add-mask::$COVE_SSR_STAGING_GATE_KEY"
+            export COVE_SSR_STAGING_GATE_KEY
+            printf '%s' "$COVE_SSR_STAGING_GATE_KEY" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.frontend.staging.toml
+            rm -f artifacts/cloudflare-ssr-staging-performance.json
+            if ! node scripts/check-cloudflare-ssr-staging.mjs; then
+              echo "::error::Cold deployment $trial failed the strict 20/20 gate"
+              failures=$((failures + 1))
+            fi
+            if [ -f artifacts/cloudflare-ssr-staging-performance.json ]; then
+              cp artifacts/cloudflare-ssr-staging-performance.json "artifacts/cloudflare-ssr-staging-performance-$trial.json"
+            fi
+            echo "::endgroup::"
+          done
+          if [ "$failures" -ne 0 ]; then
+            echo "::error::$failures of 3 independent cold deployments failed"
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
