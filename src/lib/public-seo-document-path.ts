@@ -13,3 +13,16 @@ export function isPublicSeoDocumentPath(path: string): boolean {
     )
   );
 }
+
+/**
+ * Cheap route guard for the D1 SEO handler. The homepage must not import the
+ * sitemap implementation on a first-render cold Worker isolate. Keep this
+ * broader than isPublicSeoDocumentPath: malformed sitemap requests still
+ * enter the same handler and retain the previous 404/SSR behavior.
+ */
+export function isSeoDocumentDispatchCandidate(method: string, path: string): boolean {
+  return (
+    (method === "GET" || method === "HEAD") &&
+    (path === "/robots.txt" || path === "/sitemap.xml" || path.startsWith("/sitemaps/"))
+  );
+}
