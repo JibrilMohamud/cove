@@ -2,6 +2,7 @@
 # route or disable COVE_SSR_STAGING until geo-rights and rollout are approved.
 name = "cove-storefront-ssr-staging"
 main = ".output/server/index.mjs"
+minify = true
 compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
