@@ -1,0 +1,101 @@
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import { chromium, devices } from "@playwright/test";
+import { percentile, productionOrigin } from "../check-production-storefront-performance.mjs";
+
+// Runs AFTER every cold HTTP trial. Browser asset requests must never warm
+// the Worker before its first counted SSR request.
+const origin = productionOrigin(process.env.COVE_SSR_STAGING_ORIGIN);
+const token = process.env.COVE_SSR_STAGING_GATE_KEY;
+assert.match(token || "", /^[a-f0-9]{64}$/);
+const rows = [];
+const browser = await chromium.launch();
+try {
+  for (const profile of ["desktop", "mobile-4g"]) {
+    for (let sample = 1; sample <= 4; sample++) {
+      const context = await browser.newContext({
+        ...(profile === "desktop" ? { viewport: { width: 1440, height: 1000 } } : devices["Pixel 5"]),
+        serviceWorkers: "block",
+      });
+      const page = await context.newPage();
+      const cdp = await context.newCDPSession(page);
+      let interceptionErrors = 0;
+      // CDP applies header overrides to this request only, NOT redirects.
+      // Every hop pauses again; the bearer key never reaches external covers.
+      // Playwright route.continue header overrides persist across redirects.
+      cdp.on("Fetch.requestPaused", (event) => {
+        const headers = Object.entries(event.request.headers)
+          .filter(([name]) => name.toLowerCase() !== "authorization")
+          .map(([name, value]) => ({ name, value: String(value) }));
+        if (new URL(event.request.url).origin === origin)
+          headers.push({ name: "Authorization", value: "Bearer " + token });
+        void cdp.send("Fetch.continueRequest", { requestId: event.requestId, headers })
+          .catch(() => interceptionErrors++);
+      });
+      await cdp.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }] });
+      await cdp.send("Network.enable");
+      await cdp.send("Network.setCacheDisabled", { cacheDisabled: true });
+      if (profile === "mobile-4g") {
+        await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+        await cdp.send("Network.enable");
+        await cdp.send("Network.emulateNetworkConditions", {
+          offline: false, latency: 150, downloadThroughput: 200000, uploadThroughput: 93750,
+        });
+      }
+      await page.addInitScript(() => {
+        window.__covePaint = { lcp: null };
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries())
+            window.__covePaint.lcp = entry.startTime;
+        }).observe({ type: "largest-contentful-paint", buffered: true });
+      });
+      let failure = null;
+      let status = null;
+      let pageErrors = 0;
+      page.on("pageerror", () => pageErrors++);
+      try {
+        const response = await page.goto(origin, { waitUntil: "load", timeout: 45000 });
+        status = response.status();
+        assert.equal(status, 200);
+        await page.locator(".book-card").first().waitFor({ timeout: 15000 });
+        await page.locator('html[data-cove-client-ready="true"]').waitFor({ timeout: 15000 });
+        // Allow late images/layout to replace the initial text LCP. Do not
+        // interact with the page, which would stop LCP observation early.
+        await page.waitForTimeout(2500);
+      } catch {
+        // Do not serialize browser errors: they can include request headers.
+        failure = "Navigation, authorized catalog or hydration failed";
+      }
+      const metrics = await page.evaluate(() => {
+        const nav = performance.getEntriesByType("navigation")[0];
+        return {
+          ttfbMs: nav?.responseStart ?? null,
+          lcpMs: window.__covePaint?.lcp ?? null,
+          cards: document.querySelectorAll(".book-card").length,
+        };
+      }).catch(() => ({ ttfbMs: null, lcpMs: null, cards: 0 }));
+      rows.push({ profile, sample, status, failure, pageErrors, interceptionErrors, ...metrics });
+      await context.close();
+    }
+  }
+} finally {
+  await browser.close();
+}
+const profiles = ["desktop", "mobile-4g"].map((profile) => {
+  const samples = rows.filter((row) => row.profile === profile);
+  const valid = samples.every((r) =>
+    !r.failure && !r.pageErrors && !r.interceptionErrors && r.cards > 0 && Number.isFinite(r.lcpMs) &&
+    Number.isFinite(r.ttfbMs) && r.ttfbMs < 800,
+  );
+  const lcpP75Ms = percentile(samples.map((r) => r.lcpMs).filter(Number.isFinite), 0.75);
+  return { profile, lcpP75Ms, pass: valid && lcpP75Ms < 2500 };
+});
+const report = {
+  boundary: "Synthetic Chromium, four fresh browser contexts per profile, after cold HTTP tests. Not cold-server or field p75 proof. Mobile: 4x CPU, 150ms latency, 1.6Mbps. Browser cache disabled and service workers blocked for both profiles.",
+  targets: { everyTtfbBelowMs: 800, labLcpP75BelowMs: 2500 },
+  profiles, rows,
+};
+await fs.mkdir("artifacts", { recursive: true });
+await fs.writeFile("artifacts/cloudflare-browser-performance.json", JSON.stringify(report, null, 2));
+console.log(JSON.stringify(report));
+if (profiles.some((p) => !p.pass)) process.exitCode = 1;
