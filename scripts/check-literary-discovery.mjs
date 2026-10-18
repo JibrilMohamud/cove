@@ -351,3 +351,6 @@ try {
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
+
+// Preserve exact ordered literary candidates after all rights and revocation filters.
+await import("./check-literary-genre-rights-query.mjs");
