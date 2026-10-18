@@ -25,6 +25,8 @@ on:
       - "wrangler.frontend.production.toml"
       - "scripts/check-cloudflare-production-candidate.mjs"
       - "scripts/check-cloudflare-ssr-stage-gate.mjs"
+      - "scripts/check-cloudflare-ssr-pilot.mjs"
+      - "scripts/performance/cloudflare-browser.mjs"
       - "scripts/check-cloudflare-ssr-staging.mjs"
       - "scripts/cloudflare-deployment-readiness.mjs"
       - "scripts/check-cloudflare-deployment-readiness.mjs"
@@ -55,6 +57,8 @@ on:
       - "wrangler.frontend.production.toml"
       - "scripts/check-cloudflare-production-candidate.mjs"
       - "scripts/check-cloudflare-ssr-stage-gate.mjs"
+      - "scripts/check-cloudflare-ssr-pilot.mjs"
+      - "scripts/performance/cloudflare-browser.mjs"
       - "scripts/check-cloudflare-ssr-staging.mjs"
       - "scripts/cloudflare-deployment-readiness.mjs"
       - "scripts/check-cloudflare-deployment-readiness.mjs"
@@ -157,6 +161,9 @@ jobs:
             COVE_SSR_STAGING_GATE_KEY="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
             echo "::add-mask::$COVE_SSR_STAGING_GATE_KEY"
             export COVE_SSR_STAGING_GATE_KEY
+            # Later browser checks use only this last version's key. Never
+            # print it; its mask remains active through the rest of the job.
+            echo "COVE_SSR_STAGING_GATE_KEY=$COVE_SSR_STAGING_GATE_KEY" >> "$GITHUB_ENV"
             export COVE_STAGE_SECRET_ROTATION_EPOCH_MS="$(node -p 'Date.now()')"
             printf '%s' "$COVE_SSR_STAGING_GATE_KEY" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.frontend.staging.toml
             # Verify the new secret deployment is targeting 100% and has
@@ -178,6 +185,12 @@ jobs:
             echo "::error::$failures of 3 independent cold deployments failed"
             exit 1
           fi
+      - name: Install Chromium for independent LCP measurement
+        if: ${{ !cancelled() }}
+        run: npx playwright install --with-deps chromium
+      - name: Measure protected Worker homepage TTFB and LCP in fresh browsers
+        if: ${{ !cancelled() }}
+        run: node scripts/performance/cloudflare-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -187,5 +200,6 @@ jobs:
             artifacts/cloudflare-ssr-staging-performance-1.json
             artifacts/cloudflare-ssr-staging-performance-2.json
             artifacts/cloudflare-ssr-staging-performance-3.json
+            artifacts/cloudflare-browser-performance.json
           if-no-files-found: ignore
           retention-days: 14
