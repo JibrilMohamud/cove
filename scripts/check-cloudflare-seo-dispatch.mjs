@@ -50,7 +50,18 @@ for (const method of ["POST", "PUT", "DELETE", "OPTIONS"]) {
 }
 assert.match(
   fs.readFileSync("src/server.ts", "utf8"),
-  /foreEnv\.DB\s*&&\s*isSeoDocumentDispatchCandidate\(request\.method,\s*new URL\(request\.url\)\.pathname\)/,
+  /foreEnv\.DB\s*&&\s*isSeoDocumentDispatchCandidate\(request\.method,\s*requestPath\)/,
   "Cloudflare Worker entry must use the SEO dispatch guard before dynamically importing",
 );
-console.log("Cold SSR skips SEO module; crawler endpoints and HTTP methods retained: PASS");
+const serverSource = fs.readFileSync("src/server.ts", "utf8");
+assert.match(
+  serverSource,
+  /requestPath\.startsWith\("\/api\/fore\/"\) \|\| isPublicSeoDocumentPath\(requestPath\)/,
+  "API and SEO paths retain persistence proxy and ingestion controls",
+);
+assert.doesNotMatch(
+  serverSource,
+  /import \{ handleVercelIngestionControl, proxyPersistenceApi \} from/,
+  "Homepage must not statically import the full persistence controller",
+);
+console.log("Cold SSR avoids unrelated SEO/proxy modules; API/SEO routes retained: PASS");
