@@ -5,10 +5,10 @@ import { transform } from "esbuild";
 
 const production = fs.readFileSync("src/features/fore/taxonomy-count-query.ts", "utf8");
 const caller = fs.readFileSync("src/features/fore/taxonomy.server.ts", "utf8");
-assert.match(caller, /presentationTaxonomyCounts\(db, territory, language/);
+assert.match(caller, /presentationTaxonomyCounts\(\s*db,\s*territory,\s*language/);
 assert.match(caller, /taxonomyPresentationReadDb\(db\)/);
 assert.match(caller, /\.prepare\(taxonomySparseRightsProbe\)/);
-assert.match(caller, /taxonomyCountPlan\(territory, language,/);
+assert.match(caller, /taxonomyCountPlan\(\s*territory,\s*language,/);
 assert.match(production, /retail_product_availability rpa/);
 assert.match(production, /retail_product_availability_rows rpa/);
 assert.match(production, /g\.sales_channel='retail' AND g\.status='active'/);
