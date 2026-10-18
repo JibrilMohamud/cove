@@ -20,7 +20,6 @@ import {
 } from "./lib/public-seo-document-path";
 import { applySecurityHeaders, securityTxt } from "./lib/security-headers";
 
-
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
 };
