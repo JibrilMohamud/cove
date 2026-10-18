@@ -3,6 +3,8 @@ import { resolveStorefrontPage } from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
 import type { CoveEnv } from "./api.server";
+import { currentCoveRequestExecutionContext } from "@/lib/cove-request-env.server";
+import { primaryReadWithHedge } from "./primary-read-hedge.server";
 
 /**
  * Cloudflare Worker-only, read-only bootstrap for a *provably anonymous*
@@ -76,6 +78,33 @@ export async function serveLeanAnonymousBootstrap(
   // drives resolveStorefrontContext's country for anonymous visitors.
   const trustedCountry = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country;
   const d1Metrics: { sqlDurationMs?: number; rowsRead?: number; attempts?: number } = {};
+  const admission = timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180));
+  const catalogRead = primaryReadWithHedge(
+    async () => {
+      // Per-attempt telemetry cannot be overwritten by a slower losing read.
+      const metrics: typeof d1Metrics = {};
+      const catalog = await firstPaintStorefrontShelf(env, null, trustedCountry, metrics);
+      return { catalog, metrics };
+    },
+    {
+      execution: currentCoveRequestExecutionContext(),
+      // Same edge limiter, separate shared key: at most 180 extra primary
+      // reads per minute per colo, regardless of visitor/IP count. Each
+      // bootstrap can issue at most one, and all normal limits still apply.
+      allowDuplicate: async () => {
+        try {
+          if (request.signal.aborted) return false;
+          await admission;
+          const result = await env.COVE_STOREFRONT_READ_LIMITER!.limit({
+            key: "search:catalog:primary-hedge-budget",
+          });
+          return result.success && !request.signal.aborted;
+        } catch {
+          return false;
+        }
+      },
+    },
+  );
   // Launch the authoritative primary-rights query *before* waiting for
   // independent replica presentation reads. No book leaves the Worker until
   // the rate limiter, markets, context, page and rights checks ALL succeed.
@@ -95,15 +124,18 @@ export async function serveLeanAnonymousBootstrap(
       ),
     ),
   );
-  const [context, availableMarkets, , catalog, page] = await Promise.all([
+  const [context, availableMarkets, , catalogResult, page] = await Promise.all([
     contextPromise,
     timed("markets", storefrontMarkets(readMetadata())),
-    timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
+    admission,
     // NULL currency means active-market currency is looked up in this SAME
     // live primary D1 statement with the full retail-grant view.
-    timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics)),
+    timed("catalog", catalogRead),
     pagePromise,
   ]);
+  const { catalog, metrics } = catalogResult.value;
+  Object.assign(d1Metrics, metrics);
+  timings.catalog_duplicated = catalogResult.duplicated ? 1 : 0;
   if (context.rightsCountry !== trustedCountry)
     throw new Error("Anonymous country mismatch; refuse to render a legal-rights shelf.");
   const query = new URLSearchParams({
