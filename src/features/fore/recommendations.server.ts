@@ -365,8 +365,16 @@ async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400)
   // Sorting before rights filtering avoids running the expensive legal view
   // across every active product in the catalog. The extra headroom is NOT an
   // eligibility assumption: an undersized approved shortlist always falls back.
-  const shortlist = Math.min(1000, Math.max(wanted + 100, Math.ceil(wanted * 1.375)));
-  const fast = await db
+  // This covering-index count is a live read, not a cached rights hint.
+  // For small markets, seed directly from territorial grants instead of
+  // scanning and ranking the whole worldwide catalog first.
+  const grantCount = await db
+    .prepare("SELECT COUNT(*) grant_count FROM rights_grant_territories WHERE territory_code=upper(?)")
+    .bind(territory)
+    .first<{ grant_count: number }>();
+  if (Number(grantCount?.grant_count || 0) > 1000) {
+    const shortlist = Math.min(1000, Math.max(wanted + 100, Math.ceil(wanted * 1.375)));
+    const fast = await db
     .prepare(
       `WITH ranked AS MATERIALIZED (
         SELECT p.id,
@@ -394,7 +402,8 @@ async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400)
     .all<any>();
   // If the top N *eligible* works are all inside the ranked shortlist, this
   // is precisely the full catalogue's top N, not an approximate result.
-  if (fast.results.length === wanted) return fast.results.map((x) => String(x.id));
+    if (fast.results.length === wanted) return fast.results.map((x) => String(x.id));
+  }
 
   // No truncation when a market has sparse live grants. The territory/grant
   // seed is only a superset; the full live rights view still makes the final
