@@ -1,4 +1,4 @@
-import { networkCountry, resolveStorefrontContext, storefrontMarkets } from "./localization.server";
+import { networkCountry, resolveStorefrontContext } from "./localization.server";
 import { resolveStorefrontPage } from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
@@ -81,7 +81,13 @@ export async function serveLeanAnonymousBootstrap(
   // the rate limiter, markets, context, page and rights checks ALL succeed.
   const contextPromise = timed(
     "context",
-    resolveStorefrontContext(readMetadata(), request, null, env.FORE_DEFAULT_TERRITORY || "US"),
+    resolveStorefrontContext(
+      readMetadata(),
+      request,
+      null,
+      env.FORE_DEFAULT_TERRITORY || "US",
+      true,
+    ),
   );
   const pagePromise = contextPromise.then((context) =>
     timed(
@@ -95,9 +101,8 @@ export async function serveLeanAnonymousBootstrap(
       ),
     ),
   );
-  const [context, availableMarkets, , catalog, page] = await Promise.all([
+  const [context, , catalog, page] = await Promise.all([
     contextPromise,
-    timed("markets", storefrontMarkets(readMetadata())),
     timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
     // NULL currency means active-market currency is looked up in this SAME
     // live primary D1 statement with the full retail-grant view.
@@ -106,6 +111,11 @@ export async function serveLeanAnonymousBootstrap(
   ]);
   if (context.rightsCountry !== trustedCountry)
     throw new Error("Anonymous country mismatch; refuse to render a legal-rights shelf.");
+  // Only the presentation projection is combined. No entitlement data comes
+  // from the market list, and the primary D1 rights query above must finish.
+  const { availableMarkets, ...publicContext } = context;
+  if (!Array.isArray(availableMarkets))
+    throw new Error("Anonymous market projection is unavailable.");
   const query = new URLSearchParams({
     search: "",
     sort: "popular",
@@ -125,7 +135,7 @@ export async function serveLeanAnonymousBootstrap(
   timings.lean = 0;
   return new Response(
     JSON.stringify({
-      context: { ...context, availableMarkets },
+      context: { ...publicContext, availableMarkets },
       page,
       catalog,
       catalogQuery: query,

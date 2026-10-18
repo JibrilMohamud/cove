@@ -274,7 +274,11 @@ try {
     assert.equal(value.context.rightsCountry, country);
     assert.equal(value.context.locale, expected.context.locale);
     assert.equal(value.context.currency, expected.context.currency);
-    assert.deepEqual(value.context.availableMarkets, expected.context.availableMarkets);
+    assert.deepEqual(
+      value.context.availableMarkets,
+      expected.context.availableMarkets,
+      "One combined D1 read must preserve the exact country/locale market list",
+    );
     assert.deepEqual(value.page, expected.page);
     assert.deepEqual(
       value.catalog.results.map((book) => book.productId),
@@ -284,11 +288,11 @@ try {
     assert.equal(value.catalogQuery, expected.catalogQuery);
     assert.equal(authoritativeRights, 1, "Exactly one primary rights query");
     assert.equal(limitCalls, 1, "Exactly one enforced Cloudflare edge limit");
-    assert.deepEqual(sessionModes, [
-      "first-unconstrained",
-      "first-unconstrained",
-      "first-unconstrained",
-    ]);
+    assert.deepEqual(
+      sessionModes,
+      ["first-unconstrained", "first-unconstrained"],
+      "Exactly two replica presentation reads: combined market/locale/menu and page",
+    );
   }
   assert.ok(joinedMarketLocaleReads >= 4, "One live joined market/locale read per bootstrap");
   assert.ok(

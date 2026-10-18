@@ -35,6 +35,9 @@ export type StorefrontContext = {
   messages: Record<string, string>;
   uiMessages: Record<string, string>;
   requestedCountry?: string | null;
+  // Only present for the explicit anonymous homepage combined metadata read.
+  // Never used to authorize a sale, download, or content delivery.
+  availableMarkets?: Awaited<ReturnType<typeof storefrontMarkets>>;
 };
 
 const countrySchema = z
@@ -117,12 +120,39 @@ async function preference(db: StorefrontDB, userId: string | null) {
  * Keep empty locales distinct from a missing market so fallback behavior stays
  * identical to the former independent market/locale reads.
  */
-async function marketWithSupportedLocales(db: StorefrontDB, country: string) {
+async function marketWithSupportedLocales(
+  db: StorefrontDB,
+  country: string,
+  includeMarkets = false,
+) {
+  // Add an independent presentation-only market list to the same D1 response
+  // for anonymous homepage bootstrap. All markets are fresh for THIS request.
+  // Rights still come from the separate primary-D1 legal availability query.
+  const marketProjection = includeMarkets
+    ? `,(SELECT json_group_array(json_object(
+          'countryCode', country_code,
+          'displayName', display_name,
+          'defaultLocale', default_locale,
+          'defaultCurrency', default_currency,
+          'taxInclusive', tax_inclusive_default,
+          'checkoutEnabled', checkout_enabled,
+          'locales', locales
+        )) FROM (
+          SELECT sm.country_code,sm.display_name,sm.default_locale,
+            sm.default_currency,sm.tax_inclusive_default,sm.checkout_enabled,
+            (SELECT GROUP_CONCAT(ml2.locale,',')
+              FROM storefront_market_locales ml2
+              WHERE ml2.country_code=sm.country_code AND ml2.active=1) locales
+          FROM storefront_markets sm
+          WHERE sm.market_status='active' ORDER BY sm.display_name
+        )) available_markets_json`
+    : "";
   const rows = (
     await db
       .prepare(
         `SELECT m.*,l.locale active_locale,l.language_code active_language_code,
           l.direction active_direction,ml.priority active_priority
+          ${marketProjection}
           FROM storefront_markets m
           LEFT JOIN storefront_market_locales ml
             ON ml.country_code=m.country_code AND ml.active=1
@@ -134,8 +164,23 @@ async function marketWithSupportedLocales(db: StorefrontDB, country: string) {
       .bind(country)
       .all<any>()
   ).results;
+  const availableMarkets: Awaited<ReturnType<typeof storefrontMarkets>> | undefined =
+    includeMarkets && rows[0]
+      ? (JSON.parse(String(rows[0].available_markets_json || "[]")) as any[]).map((row) => ({
+          countryCode: String(row.countryCode),
+          displayName: String(row.displayName),
+          defaultLocale: String(row.defaultLocale),
+          defaultCurrency: String(row.defaultCurrency),
+          taxInclusive: !!row.taxInclusive,
+          checkoutEnabled: !!row.checkoutEnabled,
+          locales: String(row.locales || "")
+            .split(",")
+            .filter(Boolean),
+        }))
+      : undefined;
   return {
     selectedMarket: rows[0] || null,
+    availableMarkets,
     localeRows: rows
       .filter((row) => row.active_locale)
       .map((row) => ({
@@ -202,6 +247,7 @@ export async function resolveStorefrontContext(
   request: Request,
   userId: string | null,
   fallbackCountry = "US",
+  includeMarkets = false,
 ): Promise<StorefrontContext> {
   const network = networkCountry(request, fallbackCountry);
   const pref = await preference(db, userId);
@@ -224,16 +270,28 @@ export async function resolveStorefrontContext(
     effectiveCountry = network.country;
     countrySource = network.source;
   }
-  let { selectedMarket, localeRows } = await marketWithSupportedLocales(db, effectiveCountry);
+  let { selectedMarket, localeRows, availableMarkets } = await marketWithSupportedLocales(
+    db,
+    effectiveCountry,
+    includeMarkets,
+  );
   if (!selectedMarket) {
     effectiveCountry = network.country;
     countrySource = network.source;
-    ({ selectedMarket, localeRows } = await marketWithSupportedLocales(db, effectiveCountry));
+    ({ selectedMarket, localeRows, availableMarkets } = await marketWithSupportedLocales(
+      db,
+      effectiveCountry,
+      includeMarkets,
+    ));
   }
   if (!selectedMarket) {
     effectiveCountry = "US";
     countrySource = "default";
-    ({ selectedMarket, localeRows } = await marketWithSupportedLocales(db, "US"));
+    ({ selectedMarket, localeRows, availableMarkets } = await marketWithSupportedLocales(
+      db,
+      "US",
+      includeMarkets,
+    ));
   }
   if (!selectedMarket) throw new ApiError(503, "No active Cove storefront market is configured.");
 
@@ -321,6 +379,7 @@ export async function resolveStorefrontContext(
     uiMessages: selectedUiCatalog(String(loc.locale)),
     requestedCountry:
       requestedCountry && requestedCountry !== effectiveCountry ? requestedCountry : null,
+    ...(includeMarkets ? { availableMarkets: availableMarkets || [] } : {}),
   };
 }
 
