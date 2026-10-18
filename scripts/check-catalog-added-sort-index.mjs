@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { DatabaseSync } from "node:sqlite";
+import { transform } from "esbuild";
 
 const migration = fs.readFileSync("drizzle/0076_catalog_added_expression_sort.sql", "utf8");
 assert.match(migration, /CREATE INDEX IF NOT EXISTS idx_search_added_effective_stable/);
@@ -33,6 +34,60 @@ assert.doesNotMatch(
   /rankedCandidatePlan/,
   "Unranked count must not use the forced newest index",
 );
+
+// Execute the exact production planner (not a test-only approximation) to
+// prove routing and bound the extra plan-selection database read.
+const compiledPlanner = await transform(
+  selector.replace("async function rankedCandidatePlan(", "export async function rankedCandidatePlan("),
+  { loader: "ts", format: "esm" },
+);
+const { rankedCandidatePlan } = await import(
+  "data:text/javascript;base64," + Buffer.from(compiledPlanner.code).toString("base64")
+);
+const markets = { US: 1001, CA: 337, GB: 0 };
+const probes = [];
+const preflightDb = {
+  prepare(sql) {
+    assert.match(sql, /LIMIT 1001/);
+    return {
+      bind(country) {
+        probes.push(country);
+        return { async first() { return { grants: markets[country] || 0 }; } };
+      },
+    };
+  },
+};
+const originalPart = { prefix: "", from: "original candidate joins", hasFts: false };
+const indexedPlan = await rankedCandidatePlan(
+  preflightDb,
+  { sort: "added", territory: "US" },
+  originalPart,
+);
+assert.match(indexedPlan.from, /INDEXED BY idx_search_added_effective_stable/);
+assert.deepEqual(indexedPlan.preBinds, []);
+for (const country of ["CA", "GB"]) {
+  const sparsePlan = await rankedCandidatePlan(
+    preflightDb,
+    { sort: "added", territory: country },
+    originalPart,
+  );
+  assert.match(sparsePlan.prefix, /territory_seed AS MATERIALIZED/);
+  assert.deepEqual(sparsePlan.preBinds, [country]);
+  assert.match(sparsePlan.from, /territory_seed seed/);
+}
+assert.deepEqual(probes, ["US", "CA", "GB"]);
+assert.equal(
+  (await rankedCandidatePlan(preflightDb, { sort: "popular", territory: "US" }, originalPart)).from,
+  originalPart.from,
+);
+assert.equal(
+  (await rankedCandidatePlan(preflightDb, { sort: "added", territory: "US" }, {
+    ...originalPart,
+    hasFts: true,
+  })).from,
+  originalPart.from,
+);
+assert.equal(probes.length, 3, "Other sorts and FTS must not add D1 preflight reads");
 
 const db = new DatabaseSync(":memory:");
 try {
