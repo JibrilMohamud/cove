@@ -569,10 +569,7 @@ function candidateParts(input: SearchInput, expression: string) {
  * This is safe to enable only after D1 migration 0076 is installed on every
  * serving database, as SQLite's INDEXED BY deliberately fails if absent.
  */
-function rankedCandidateFrom(
-  input: SearchInput,
-  part: ReturnType<typeof candidateParts>,
-) {
+function rankedCandidateFrom(input: SearchInput, part: ReturnType<typeof candidateParts>) {
   if (input.sort !== "added" || part.hasFts) return part.from;
   return `catalog_search_documents d INDEXED BY idx_search_added_effective_stable
     CROSS JOIN products p ON p.id=d.product_id
