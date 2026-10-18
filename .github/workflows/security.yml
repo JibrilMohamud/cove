@@ -68,6 +68,7 @@ jobs:
           node scripts/check-catalog-ingestion-backpressure.mjs
           node scripts/check-catalog-added-sort-index.mjs
           node scripts/check-secondary-channel-index.mjs
+          node scripts/check-live-channel-zero-grant-gate.mjs
           node scripts/check-bounded-cached-rights-recheck.mjs
           node scripts/check-facet-cache-identity.mjs
           npm run test:recommendations
