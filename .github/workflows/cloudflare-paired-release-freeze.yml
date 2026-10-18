@@ -72,6 +72,9 @@ jobs:
           npm ci --no-audit --no-fund
           npm run build
           test -s .output/server/index.mjs
+      - name: Install Chromium for actual fresh-browser LCP
+        working-directory: candidate
+        run: npx playwright install --with-deps chromium
       - name: Run matched three-cold, four-concurrency, browser, D1 comparison
         working-directory: candidate
         shell: bash
