@@ -13,3 +13,12 @@ export function isPublicSeoDocumentPath(path: string): boolean {
     )
   );
 }
+
+/**
+ * Exactly the routes the persistence backend gateway could handle.
+ * Keep this shared with the SSR dispatcher: non-API HTML (including "/")
+ * must never eagerly load API/ingestion code.
+ */
+export function isPersistenceGatewayRoute(path: string): boolean {
+  return path.startsWith("/api/fore/") || isPublicSeoDocumentPath(path);
+}
