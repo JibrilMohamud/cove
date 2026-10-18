@@ -15,7 +15,10 @@ assert.match(caller, /countsPending: countState.pending/);
 assert.match(api, /execution\?\.waitUntil \? \(work\) => execution.waitUntil\?\.\(work\)/);
 assert.match(publicCache, /path === "\/api\/fore\/taxonomy" && data.countsPending === true/);
 assert.match(storefront, /countsPending\?: boolean/);
-assert.match(storefront, /refetchInterval: \(query\) => \(query.state.data\?\.countsPending \? 5_000 : false\)/);
+assert.match(
+  storefront,
+  /refetchInterval: \(query\) => \(query.state.data\?\.countsPending \? 5_000 : false\)/,
+);
 assert.match(storefront, /if \(!countsPending && node.count <= 0\) return null/);
 assert.match(storefront, /countsPending \|\| child.count > 0/);
 assert.match(storefront, /countsPending \|\| n.count > 0/);
