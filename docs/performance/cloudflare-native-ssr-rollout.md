@@ -485,6 +485,39 @@ the first HTTP request counted, meaningful geographic spread,
 revocation-safe rights and checkout, reader/offline journeys before
 any Cloudflare public production activation.
 
+### D1 production SQL/queue diagnosis and localized context batching (October 18)
+
+A direct **live production D1 primary** inspection found that storefront
+configuration joins use appropriate existing indexes and execute in
+approximately 0.2–0.4 ms SQLite time. The real indexed first-paint
+popular-country eligibility query (retaining the complete
+`retail_product_availability_rows` view) executed in approximately
+17 ms SQLite time while its remote D1 API call took roughly 425 ms.
+The broad `SELECT COUNT(*)` over the entire rights VIEW took ~1,762 ms
+SQL and scanned 414,503 rows, but the homepage first-paint query **never
+runs** that count. This shows that optimizing absent indexes or counting
+the entire rights view is not the right fix for intermittent cold
+homepage tails. The actual requests may encounter network transport,
+database dispatch and/or service queue delays that SQL execution time
+alone cannot explain. A single direct measurement cannot establish
+locking/queueing as a fact.
+
+To reduce D1 request fanout without hiding authorization or changing
+locale output, Cove now sends the independent *presentation-only*
+payment-method and translated-message reads through **one** read-only
+D1 `batch` operation instead of two simultaneous D1 requests. D1
+executes both statements under one request, in order. Market activation,
+the canonical country resolution, locale fallback, payment labels, and
+customer-visible translations still use live D1 data. The **independent
+legal-rights query** still performs its full primary-D1 permissions
+check for every request, including revocations, contracts, DRM and deny
+precedence. No legal rights caches or permissive fallback were added.
+
+The experiment can still fail the strict 3 deployments × 20 *first
+HTTP request counted* <800-ms TTFB gate. Even if SQL batching passes
+CI and provides lower typical latency, full geographic and genuinely
+cold results are still required before production Cloudflare cutover.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on

@@ -42,10 +42,16 @@ try {
   // the render-blocking bootstrap.
   let joinedMarketLocaleReads = 0;
   let atomicRightsShelfQueries = 0;
+  let localePaymentBatches = 0;
   const fastFirstPaintEnv = {
     ...env,
     DB: new Proxy(env.DB, {
       get(target, property) {
+        if (property === "batch")
+          return async (statements) => {
+            if (statements.length === 2) localePaymentBatches++;
+            return target.batch(statements);
+          };
         if (property === "prepare")
           return (sql) => {
             assert.ok(
@@ -285,6 +291,10 @@ try {
     ]);
   }
   assert.ok(joinedMarketLocaleReads >= 4, "One live joined market/locale read per bootstrap");
+  assert.ok(
+    localePaymentBatches >= 4,
+    "Every regional canonical context must batch payment metadata and translations",
+  );
   // Simulate native D1's Sessions API. Configuration may use a
   // geographically close session, but licensed eligibility MUST continue
   // through the non-session, authoritative DB binding.
