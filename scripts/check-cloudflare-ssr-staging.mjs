@@ -30,7 +30,9 @@ channel("undici:request:create").subscribe(({ request }) => {
     request?.origin !== origin ||
     request?.path !== "/" ||
     request?.method !== "GET"
-  ) return;
+  ) {
+    return;
+  }
   const span = activeProbe;
   span.createdAt = performance.now();
   requestSpans.set(request, span);
@@ -280,7 +282,8 @@ const table = [
   "| Sequence | Locale | Sample | TTFB | Worker | Residual | Client queue | Sent-to-headers | CF colo | SSR cards |",
   "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |",
   ...results.map(
-    (r) => `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.workerMs ?? "n/a"} ms | ${r.unattributedMs ?? "n/a"} ms | ${r.clientQueueMs ?? "n/a"} ms | ${r.clientToHeadersMs ?? "n/a"} ms | ${r.cfColo} | ${r.cards} |`,
+    (r) =>
+      `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.workerMs ?? "n/a"} ms | ${r.unattributedMs ?? "n/a"} ms | ${r.clientQueueMs ?? "n/a"} ms | ${r.clientToHeadersMs ?? "n/a"} ms | ${r.cfColo} | ${r.cards} |`,
   ),
   "",
   `Result **${summary.status}** — p75 ${summary.p75 ?? "n/a"} ms, p95 ${summary.p95 ?? "n/a"} ms; ${summary.slowSamples} >=800 ms; ${summary.errors} failures.`,
