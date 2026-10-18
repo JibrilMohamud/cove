@@ -674,7 +674,7 @@ export async function canonicalFirstPaintBooksByProductIds(db: DB, productIds: s
   const rows = await db
     .prepare(
       `${firstPaintBookProjectionSql}
-       WHERE p.id IN (${productIds.map(() => "?").join(",")})`,,
+       WHERE p.id IN (${productIds.map(() => "?").join(",")})`,
     )
     .bind(...productIds)
     .all<Record<string, unknown>>();
