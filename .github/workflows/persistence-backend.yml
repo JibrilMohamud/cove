@@ -122,7 +122,9 @@ jobs:
       - name: Customer support, status and recovery
         run: npm run test:commercial-experience
       - name: Search, updater and public caching
-        run: npm run test:search-updater-cache
+        run: |
+          npm run test:search-updater-cache
+          npm run test:recommendations
       - name: Indexed FTS trigger identity, suppression, deletion and bounded work
         run: python3 scripts/check-fts-trigger-lookup.py
       - name: Reader rendering, share withdrawal and offline authorization

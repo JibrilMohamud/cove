@@ -353,17 +353,88 @@ async function productMeta(db: CatalogDB, productIds: string[]): Promise<Map<str
   return map;
 }
 
+/** Ranked candidate selection preserves exact current rights, with bounded work.
+ * The pre-rights shortlist may be used ONLY when it contains a full page of
+ * rights-approved books. Otherwise the complete live-rights query runs, so an
+ * out-of-territory, revoked or unlicensed item can never displace a valid one.
+ * Rights are checked at read time; no grants or eligibility are cached.
+ */
 async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400) {
-  const rows = await db
+  const wanted = Math.max(0, Math.min(MAX_CANDIDATES, Math.floor(limit)));
+  if (!wanted) return [];
+  // Bounded index probe counts at most 1001 grants; never scan 50k just to\n  // choose an execution plan. It is a live read, not a cached rights hint.
+  // For small markets, seed directly from territorial grants instead of
+  // scanning and ranking the whole worldwide catalog first.
+  const grantCount = await db
     .prepare(
-      `SELECT p.id FROM products p JOIN editions e ON e.id=p.edition_id LEFT JOIN recommendation_item_metrics m ON m.product_id=p.id LEFT JOIN recommendation_regional_item_metrics rm ON rm.product_id=p.id AND rm.territory_code=upper(?) LEFT JOIN catalog_search_documents d ON d.product_id=p.id
-    WHERE p.storefront_status='active' AND e.release_status IN ('available','preorder') AND p.source_name<>'upload'
-      AND EXISTS(SELECT 1 FROM retail_product_availability rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))
-    ORDER BY COALESCE(rm.trend_score,m.trend_score,d.sales_velocity,0) DESC,COALESCE(rm.popularity_score,m.popularity_score,d.download_count,0) DESC,p.updated_at DESC LIMIT ?`,
+      "SELECT COUNT(*) grant_count FROM (SELECT 1 FROM rights_grant_territories WHERE territory_code=upper(?) LIMIT 1001)",
     )
-    .bind(territory, territory, Math.min(MAX_CANDIDATES, limit))
-    .all<any>();
-  return rows.results.map((x) => String(x.id));
+    .bind(territory)
+    .first<{ grant_count: number }>();
+  if (Number(grantCount?.grant_count || 0) > 1000) {
+    // The extra headroom is never authorization; insufficient live-rights
+    // results always force the exact full-catalog fallback.
+    const shortlist = Math.min(1000, Math.max(wanted + 100, Math.ceil(wanted * 1.375)));
+    const fast = await db
+      .prepare(
+        `WITH ranked AS MATERIALIZED (
+        SELECT p.id,
+          COALESCE(rm.trend_score,m.trend_score,d.sales_velocity,0) trend_rank,
+          COALESCE(rm.popularity_score,m.popularity_score,d.download_count,0) popularity_rank,
+          p.updated_at rank_updated
+        FROM products p JOIN editions e ON e.id=p.edition_id
+          LEFT JOIN recommendation_item_metrics m ON m.product_id=p.id
+          LEFT JOIN recommendation_regional_item_metrics rm
+            ON rm.product_id=p.id AND rm.territory_code=upper(?)
+          LEFT JOIN catalog_search_documents d ON d.product_id=p.id
+        WHERE p.storefront_status='active'
+          AND e.release_status IN ('available','preorder') AND p.source_name<>'upload'
+        ORDER BY trend_rank DESC,popularity_rank DESC,p.updated_at DESC,p.id ASC
+        LIMIT ?
+      )
+      SELECT ranked.id FROM ranked WHERE EXISTS(
+        SELECT 1 FROM retail_product_availability_rows rpa
+        WHERE rpa.product_id=ranked.id AND rpa.territory_code=upper(?)
+      )
+      ORDER BY ranked.trend_rank DESC,ranked.popularity_rank DESC,
+        ranked.rank_updated DESC,ranked.id ASC LIMIT ?`,
+      )
+      .bind(territory, shortlist, territory, wanted)
+      .all<{ id: string }>();
+    // If the top N eligible works fit in the shortlist, they are exactly
+    // the complete catalogue's top N.
+    if (fast.results.length === wanted) return fast.results.map((x) => String(x.id));
+  }
+
+  // No truncation when a market has sparse live grants. The territory/grant
+  // seed is only a superset; the full live rights view still makes the final
+  // contract, date, language, DRM and distribution eligibility decisions.
+  const complete = await db
+    .prepare(
+      `SELECT p.id FROM products p JOIN editions e ON e.id=p.edition_id
+      LEFT JOIN recommendation_item_metrics m ON m.product_id=p.id
+      LEFT JOIN recommendation_regional_item_metrics rm
+        ON rm.product_id=p.id AND rm.territory_code=upper(?)
+      LEFT JOIN catalog_search_documents d ON d.product_id=p.id
+      WHERE p.storefront_status='active' AND e.release_status IN ('available','preorder')
+        AND p.source_name<>'upload'
+        AND p.id IN (
+          SELECT DISTINCT seeded.id FROM rights_grant_territories rgt
+          JOIN rights_grants grant_row ON grant_row.id=rgt.grant_id
+          JOIN products seeded ON seeded.edition_id=grant_row.edition_id
+          WHERE rgt.territory_code=upper(?) AND grant_row.sales_channel='retail'
+        )
+        AND EXISTS(
+          SELECT 1 FROM retail_product_availability_rows rpa
+          WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?)
+        )
+      ORDER BY COALESCE(rm.trend_score,m.trend_score,d.sales_velocity,0) DESC,
+        COALESCE(rm.popularity_score,m.popularity_score,d.download_count,0) DESC,
+        p.updated_at DESC,p.id ASC LIMIT ?`,
+    )
+    .bind(territory, territory, territory, wanted)
+    .all<{ id: string }>();
+  return complete.results.map((x) => String(x.id));
 }
 
 function addFeature(

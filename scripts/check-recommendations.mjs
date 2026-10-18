@@ -156,3 +156,6 @@ assert.match(stage, /runRecommendationMaintenance/);
 console.log(
   "Recommendation regression checks passed: privacy, idempotent event ingestion, learned negative feedback, hybrid + external candidates, model-versioned ranking/diversity, explainability, cross-rail dedupe, large-catalog item/co-read neighbors, validated attribution, resilient jobs, model deployment/evaluation, follows/wishlist, homepage/book rails, operator tooling, CMS integration and search personalization.",
 );
+
+// Ranking shortcuts are accepted only when full live-rights equivalence holds.
+await import("./check-recommendation-candidate-query.mjs");
