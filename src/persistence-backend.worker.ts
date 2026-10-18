@@ -33,6 +33,7 @@ import { cachedPublicApi, prunePublicCache } from "./features/fore/public-api-ca
 import { refreshPublicStatus } from "./features/fore/public-status.server";
 import { handleSeoDocumentRequest } from "./features/fore/seo.server";
 import { isPublicSeoDocumentPath } from "./lib/public-seo-document-path";
+import { admitCatalogBatch, catalogAdmissionBudget } from "./lib/catalog-ingestion-backpressure";
 import {
   audioComputeAdmission,
   type AudioComputeEnv,
@@ -45,6 +46,7 @@ type BackendEnv = CoveEnv &
     FORE_PUBLIC_URL?: string;
     FORE_CATALOG_PAGES_PER_TICK?: string;
     FORE_CATALOG_EPUBS_PER_TICK?: string;
+    FORE_CATALOG_ADMISSION_MAX_MS?: string;
     FORE_ASSETS_PER_MINUTE?: string;
     FORE_INGESTION_TRIGGER_TOKEN?: string;
     FORE_INGESTION_SIGNING_KEY?: string;
@@ -195,10 +197,40 @@ async function catalogBatch(request: Request, env: BackendEnv) {
   );
   const deadline = Date.now() + maxMillis;
   const results: unknown[] = [];
+  const probeBudgetMs = catalogAdmissionBudget(env.FORE_CATALOG_ADMISSION_MAX_MS);
+  const checkPrimaryBeforeBulkWork = async (phase: string): Promise<Response | null> => {
+    const admission = await admitCatalogBatch(env.DB, probeBudgetMs);
+    if (admission.allowed) return null;
+    // Defer only retryable ingestion; rights checks, revocations, checkout,
+    // customer reads and account deletion are never routed through this gate.
+    // Durable ingestion cursor remains at the last successfully committed page.
+    console.warn(
+      JSON.stringify({
+        event: "catalog_background_deferred",
+        phase,
+        reason: admission.reason,
+        probeMs: admission.probeMs,
+        budgetMs: probeBudgetMs,
+      }),
+    );
+    return json({
+      ok: true,
+      skipped: "primary_busy",
+      phase,
+      admission,
+      pagesAttempted: results.length,
+      results,
+      regional: { skipped: "primary_busy" },
+      epubs: { skipped: "primary_busy" },
+      searchSync: { skipped: "primary_busy" },
+    });
+  };
   // Index metadata first. Regional scraping and EPUB transfers share the remaining
   // deadline, but cannot consume a page's asset allowance or stop later pages.
   const metadataDeadline = deadline - Math.min(30_000, maxMillis * 0.2);
   for (let i = 0; i < maxPages && Date.now() < metadataDeadline; i++) {
+    const deferred = await checkPrimaryBeforeBulkWork("metadata");
+    if (deferred) return deferred;
     const result = await runCatalogIngestion(env, 0, {
       deadlineMs: metadataDeadline,
       includeRegional: false,
@@ -206,6 +238,10 @@ async function catalogBatch(request: Request, env: BackendEnv) {
     });
     results.push(result);
     if (terminalIngestionResult(result)) break;
+  }
+  if (Date.now() < deadline) {
+    const deferred = await checkPrimaryBeforeBulkWork("regional");
+    if (deferred) return deferred;
   }
   const regional =
     Date.now() < deadline
@@ -216,8 +252,14 @@ async function catalogBatch(request: Request, env: BackendEnv) {
           }),
         )
       : { skipped: "deadline" };
+  if (epubLimit > 0 && Date.now() < deadline) {
+    const deferred = await checkPrimaryBeforeBulkWork("epubs");
+    if (deferred) return deferred;
+  }
   const epubs = await runCatalogAssetMaintenance(env, epubLimit, deadline);
   if (Date.now() < deadline) {
+    const deferred = await checkPrimaryBeforeBulkWork("search");
+    if (deferred) return deferred;
     await syncSearchIndex(env, 500).catch((error) =>
       console.warn("Catalog search sync failed", error),
     );
