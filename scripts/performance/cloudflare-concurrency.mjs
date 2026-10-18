@@ -83,7 +83,10 @@ async function fetchOne(concurrency) {
       totalMs: null,
       cfColo: "unknown",
       timing: null,
-      error: httpStatus && httpStatus !== 200 ? "http-or-render-failed" : "request-or-rights-check-failed",
+      error:
+        httpStatus && httpStatus !== 200
+          ? "http-or-render-failed"
+          : "request-or-rights-check-failed",
     };
   }
 }
@@ -156,8 +159,9 @@ const report = [
   "",
   "| Concurrency | Requests | Valid | p50 | p75 | p95 | Max | CF colos | Gate |",
   "| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
-  ...summaries.map((s) =>
-    `| ${s.concurrency} | ${s.requests} | ${s.successes} | ${s.p50Ms ?? "n/a"} ms | ${s.p75Ms ?? "n/a"} ms | ${s.p95Ms ?? "n/a"} ms | ${s.maxMs ?? "n/a"} ms | ${s.colo.join(",")} | ${s.pass ? "pass" : "FAIL"} |`,
+  ...summaries.map(
+    (s) =>
+      `| ${s.concurrency} | ${s.requests} | ${s.successes} | ${s.p50Ms ?? "n/a"} ms | ${s.p75Ms ?? "n/a"} ms | ${s.p95Ms ?? "n/a"} ms | ${s.maxMs ?? "n/a"} ms | ${s.colo.join(",")} | ${s.pass ? "pass" : "FAIL"} |`,
   ),
   "",
   `Result **${passed ? "pass" : "fail"}** — ${total} bounded requests, no allowed 5xx/429/invalid rights.`,
