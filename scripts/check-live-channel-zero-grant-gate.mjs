@@ -13,7 +13,10 @@ assert.match(selector, /EXISTS \(/);
 assert.match(selector, /idx_rights_secondary_channel_potential/);
 assert.match(selector, /subscription_permitted=1 OR library_permitted=1/);
 const { code } = await transform(
-  selector.replace("async function loadChannelEligibility(", "export async function loadChannelEligibility("),
+  selector.replace(
+    "async function loadChannelEligibility(",
+    "export async function loadChannelEligibility(",
+  ),
   { loader: "ts", format: "esm" },
 );
 const { loadChannelEligibility } = await import(
@@ -58,42 +61,55 @@ try {
   const grants = db.prepare("INSERT INTO rights_grants VALUES (?,?,?,?,?,?,?)");
   const territories = db.prepare("INSERT INTO rights_grant_territories VALUES (?,?)");
   for (let n = 1; n <= 1500; n++) {
-    products.run("book-"+n, "edition-"+n);
-    grants.run("retail-"+n, "edition-"+n, "retail", "active", "allow", 0, 0);
-    territories.run("retail-"+n, "US");
+    products.run("book-" + n, "edition-" + n);
+    grants.run("retail-" + n, "edition-" + n, "retail", "active", "allow", 0, 0);
+    territories.run("retail-" + n, "US");
   }
   db.exec(fs.readFileSync("drizzle/0077_secondary_channel_potential_index.sql", "utf8"));
-  const ids = ["book-1","book-2","book-3","book-500","book-1499"];
+  const ids = ["book-1", "book-2", "book-3", "book-500", "book-1499"];
   const dbAdapter = {
     prepare(sql) {
-      return { bind(...args) {
-        return { async all() { return { results: db.prepare(sql).all(...args) }; } };
-      } };
+      return {
+        bind(...args) {
+          return {
+            async all() {
+              return { results: db.prepare(sql).all(...args) };
+            },
+          };
+        },
+      };
     },
   };
-  const original = (country) => db.prepare(
-    `SELECT product_id,sales_channel FROM product_channel_availability
+  const original = (country) =>
+    db
+      .prepare(
+        `SELECT product_id,sales_channel FROM product_channel_availability
       WHERE territory_code=upper(?) AND sales_channel IN ('subscription','library')
         AND product_id IN (${ids.map(() => "?").join(",")})`,
-  ).all(country,...ids).map((x)=>x.product_id+":"+x.sales_channel).sort();
+      )
+      .all(country, ...ids)
+      .map((x) => x.product_id + ":" + x.sales_channel)
+      .sort();
   const check = async (country) => {
     const before = original(country);
-    const actual = [...await loadChannelEligibility(dbAdapter, ids, country)].sort();
+    const actual = [...(await loadChannelEligibility(dbAdapter, ids, country))].sort();
     assert.deepEqual(actual, before, "Original legal view results differ for " + country);
   };
   for (const country of ["US", "CA", "GB"]) await check(country);
   // As new channel rights are granted, the negative gate must immediately
   // return to the exact current legal view, without a rights/eligibility cache.
-  grants.run("subscription-1","edition-1","subscription","active","allow",0,0);
-  territories.run("subscription-1","US");
-  grants.run("library-2","edition-2","retail","active","allow",0,1);
-  territories.run("library-2","CA");
+  grants.run("subscription-1", "edition-1", "subscription", "active", "allow", 0, 0);
+  territories.run("subscription-1", "US");
+  grants.run("library-2", "edition-2", "retail", "active", "allow", 0, 1);
+  territories.run("library-2", "CA");
   for (const country of ["US", "CA", "GB"]) await check(country);
-  grants.run("deny-subscription-1","edition-1","subscription","active","deny",0,0);
-  territories.run("deny-subscription-1","US");
+  grants.run("deny-subscription-1", "edition-1", "subscription", "active", "deny", 0, 0);
+  territories.run("deny-subscription-1", "US");
   db.prepare("UPDATE rights_grants SET status='revoked' WHERE id='library-2'").run();
   for (const country of ["US", "CA", "GB"]) await check(country);
-  db.prepare("UPDATE rights_grants SET decision='allow',status='active' WHERE id='deny-subscription-1'").run();
+  db.prepare(
+    "UPDATE rights_grants SET decision='allow',status='active' WHERE id='deny-subscription-1'",
+  ).run();
   await check("US");
   const sample = dbAdapter.prepare(
     `SELECT 1 FROM rights_grants INDEXED BY idx_rights_secondary_channel_potential
@@ -101,10 +117,16 @@ try {
       OR (sales_channel='retail' AND (subscription_permitted=1 OR library_permitted=1))) LIMIT 1`,
   );
   assert.ok((await sample.bind().all()).results.length, "Live grant candidate probe must be valid");
-  const sqlPlan = db.prepare("EXPLAIN QUERY PLAN "+
-    "SELECT 1 FROM rights_grants INDEXED BY idx_rights_secondary_channel_potential WHERE status='active' AND (sales_channel IN ('subscription','library') OR (sales_channel='retail' AND (subscription_permitted=1 OR library_permitted=1))) LIMIT 1").all();
-  assert.ok(sqlPlan.some((x)=>x.detail.includes("idx_rights_secondary_channel_potential")));
-  console.log("Channel negative gate: live retail permissions, direct grants, denials, revocations, US/CA/GB PASS");
+  const sqlPlan = db
+    .prepare(
+      "EXPLAIN QUERY PLAN " +
+        "SELECT 1 FROM rights_grants INDEXED BY idx_rights_secondary_channel_potential WHERE status='active' AND (sales_channel IN ('subscription','library') OR (sales_channel='retail' AND (subscription_permitted=1 OR library_permitted=1))) LIMIT 1",
+    )
+    .all();
+  assert.ok(sqlPlan.some((x) => x.detail.includes("idx_rights_secondary_channel_potential")));
+  console.log(
+    "Channel negative gate: live retail permissions, direct grants, denials, revocations, US/CA/GB PASS",
+  );
 } finally {
   db.close();
 }
