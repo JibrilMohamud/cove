@@ -957,12 +957,13 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
       const part = candidateParts(input, cached.expression);
       // Cache only public IDs/facets. Revalidate current filters and distribution
       // rights for the small cached page, then hydrate current metadata/prices.
-      const recheck = cached.ids.length
-        ? rightsScopedCachedPageQuery(part, cached.ids)
-        : null;
+      const recheck = cached.ids.length ? rightsScopedCachedPageQuery(part, cached.ids) : null;
       const eligible = recheck
-        ? (await env.DB.prepare(recheck.sql).bind(...recheck.binds).all<{ product_id: string }>())
-            .results
+        ? (
+            await env.DB.prepare(recheck.sql)
+              .bind(...recheck.binds)
+              .all<{ product_id: string }>()
+          ).results
         : [];
       if (eligible.length === cached.ids.length)
         return {
