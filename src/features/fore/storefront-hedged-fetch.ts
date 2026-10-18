@@ -31,10 +31,7 @@ export function sanitizedStorefrontBackendTiming(value: string | null): string[]
   const counters = parts
     .map((part) => part.match(/^cove_(catalog_rows|catalog_attempts);desc="([0-9]{1,9})"$/))
     .filter((match): match is RegExpMatchArray => !!match)
-    .filter(
-      (match) =>
-        Number(match[2]) <= (match[1] === "catalog_attempts" ? 50 : 100_000_000),
-    )
+    .filter((match) => Number(match[2]) <= (match[1] === "catalog_attempts" ? 50 : 100_000_000))
     .map((match) => `cove_backend_${match[1]};desc="${match[2]}"`);
   return [...durations, ...counters].slice(0, 13);
 }
