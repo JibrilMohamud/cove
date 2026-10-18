@@ -63,6 +63,14 @@ export function validateHtml(status, contentType, html) {
 
 /** Only allow numeric server timing and known CDN cache labels into diagnostics. */
 export function safeProbeTelemetry(headers, ttfbMs, totalMs) {
+  const counters = {};
+  for (const part of (headers.get("server-timing") || "").split(",")) {
+    const match = part.trim().match(/^cove_backend_catalog_(attempts|rows);desc="([0-9]{1,9})"$/);
+    if (!match) continue;
+    const value = Number(match[2]);
+    if (value > (match[1] === "attempts" ? 50 : 100_000_000)) continue;
+    counters[match[1] === "attempts" ? "d1CatalogAttempts" : "d1CatalogRowsRead"] = value;
+  }
   const timing = (headers.get("server-timing") || "")
     .split(",")
     .map((part) => part.trim())
@@ -75,6 +83,7 @@ export function safeProbeTelemetry(headers, ttfbMs, totalMs) {
   return {
     ttfbMs,
     totalMs,
+    ...counters,
     timing,
     vercelCache: ["HIT", "MISS", "BYPASS", "STALE", "PRERENDER"].includes(cache)
       ? cache
