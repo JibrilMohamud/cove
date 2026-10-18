@@ -1541,11 +1541,25 @@ export async function firstPaintStorefrontShelf(
     const index = part.where.indexOf("d.currency=?");
     if (index !== part.where.length - 1 || part.binds.at(-1) !== input.currency)
       throw new Error("First-paint currency predicate changed; refuse unsafe SQL rewrite.");
-    part.where[index] = `d.currency=COALESCE(
+    const liveCurrency = `COALESCE(
       (SELECT default_currency FROM storefront_markets WHERE country_code=upper(?) AND market_status='active'),
       (SELECT default_currency FROM storefront_markets WHERE country_code='US' AND market_status='active')
     )`;
+    part.where[index] = `d.currency=${liveCurrency}`;
     part.binds[part.binds.length - 1] = input.territory;
+    // Popularity-sorted catalog reads deliberately force the stable popular
+    // index. For a market with no books in its configured currency, that
+    // index otherwise scans all ~52k USD books before proving the empty
+    // result. A single *non-correlated, primary-D1* currency-index probe
+    // rejects the empty case before touching any product or rights row.
+    // The live legal predicate remains mandatory when candidates exist.
+    // This is an equivalent SQL semijoin—not a cache or rights shortcut.
+    part.where.unshift(`EXISTS(
+      SELECT 1 FROM catalog_search_documents currency_probe INDEXED BY idx_search_price
+      WHERE currency_probe.currency=${liveCurrency}
+        AND currency_probe.availability='available' AND currency_probe.suppressed=0 LIMIT 1
+    )`);
+    part.binds.unshift(input.territory);
   }
   // The same live, country-filtered candidate SQL now selects and hydrates
   // books inside one atomic D1 read, rather than two serial primary-region
