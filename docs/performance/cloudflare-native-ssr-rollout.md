@@ -171,6 +171,28 @@ optimizing any potentially costly per-request work. Enabling a geographically
 near replica or caching rights without a carefully demonstrated authoritative
 country/revocation-consistency model is **not** an acceptable shortcut.
 
+### October 18 west-coast cold-path diagnosis and next experiment
+
+The next protected stage run after PR #134 entered **YVR** (Vancouver) and
+failed the strict gate with **10/20** successful under-800 ms requests,
+p95 **3,681 ms**, max **4,468 ms**. Each response still rendered 24 live
+rights-cleared cards. Worker duration accounted for nearly all the long
+requests, with only 40–83 ms residual on the largest misses.
+[Staging run](https://github.com/JibrilMohamud/cove/actions/runs/39083846180).
+At sample 16, the measured context step took 1,450 ms and the first-paint
+catalog phase 1,149 ms (several independently remote D1 requests each).
+The edge-local Worker cannot reliably obtain authoritative Midwest D1 data
+within 800 ms from all runner regions.
+
+The next first-paint experiment runs the independent Cloudflare abuse-limit
+check and live list of active markets in parallel with resolving the
+visitor's market/locale/rights context. It still awaits **all three** before
+building/rendering any book; context, approved-market and rights
+queries retain their D1 source and the limiter cannot be bypassed. It
+adds a numeric `cove_limit` phase to track the impact. This optimization
+removes unnecessary ordering, not strong geographic read latency, and needs
+independent cold-deployment proof before any release claim.
+
 ### Remaining customer-facing blocker
 
 The existing Vercel homepage remains the actual public product. The most
