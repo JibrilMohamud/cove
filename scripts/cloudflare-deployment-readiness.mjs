@@ -38,8 +38,7 @@ export async function waitForCloudflareStageDeployment(
   const maxWaitMs = options.maxWaitMs ?? 110_000;
   const settleMs = options.settleMs ?? 30_000;
   const deadline = now() + maxWaitMs;
-  const endpoint =
-    `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/cove-storefront-ssr-staging/deployments`;
+  const endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/cove-storefront-ssr-staging/deployments`;
   while (now() < deadline) {
     const result = await fetcher(endpoint, {
       headers: { Authorization: `Bearer ${token}` },
@@ -51,12 +50,7 @@ export async function waitForCloudflareStageDeployment(
     const payload = await result.json();
     if (payload.success !== true)
       throw new Error("Cloudflare Worker deployment control-plane response was unsuccessful.");
-    const readiness = latestSecretDeploymentStatus(
-      payload,
-      rotationStartedMs,
-      now(),
-      settleMs,
-    );
+    const readiness = latestSecretDeploymentStatus(payload, rotationStartedMs, now(), settleMs);
     if (readiness.ready) return;
     await sleep(2000);
   }
