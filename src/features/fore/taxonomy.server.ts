@@ -146,7 +146,7 @@ export async function taxonomyTree(
       WHERE p.storefront_status='active' AND p.source_name<>'upload'
         AND e.release_status IN ('available','preorder')
         AND (?='' OR EXISTS(SELECT 1 FROM edition_languages el WHERE el.edition_id=e.id AND lower(el.language_code)=lower(?)))
-        AND EXISTS(SELECT 1 FROM retail_product_availability rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))
+        AND EXISTS(SELECT 1 FROM retail_product_availability_rows rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))
       )
       SELECT et.taxonomy_node_id node_id,COUNT(DISTINCT p.id) product_count
       FROM eligible p JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
