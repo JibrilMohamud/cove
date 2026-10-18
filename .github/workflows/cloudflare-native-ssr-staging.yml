@@ -1,5 +1,11 @@
 name: cloudflare-native-ssr-staging
 
+# Keep cold deployments isolated from concurrent scheduled/push benchmarks.
+# Repeated real deployments rotate a protected secret: never overlap them.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 on:
   pull_request:
     paths:
@@ -80,6 +86,9 @@ on:
       - "scripts/check-cloudflare-deployment-readiness.mjs"
       - "scripts/wait-cloudflare-native-deployment.mjs"
       - ".github/workflows/cloudflare-native-ssr-staging.yml"
+  # Detect performance drift during normal ingestion even with no code changes.
+  schedule:
+    - cron: "19 7 * * *"
   workflow_dispatch:
   # Preserve a rolling independent cold-start and live-rights signal even
   # when no code ships. Run off the hour to reduce shared-runner contention.
@@ -114,6 +123,7 @@ jobs:
       - run: npm ci
       - name: Fail-closed stage gate and country binding tests
         run: |
+          node --check scripts/performance/cloudflare-concurrency.mjs
           node scripts/check-cloudflare-ssr-stage-gate.mjs
           node scripts/check-cloudflare-deployment-readiness.mjs
           node scripts/check-cloudflare-production-candidate.mjs
@@ -213,6 +223,9 @@ jobs:
       - name: Measure protected Worker homepage TTFB and LCP in fresh browsers
         if: ${{ !cancelled() }}
         run: node scripts/performance/cloudflare-browser.mjs
+      - name: Gate concurrent licensed storefront reads (1/4/8/16 in-flight)
+        if: ${{ !cancelled() }}
+        run: node scripts/performance/cloudflare-concurrency.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -223,5 +236,6 @@ jobs:
             artifacts/cloudflare-ssr-staging-performance-2.json
             artifacts/cloudflare-ssr-staging-performance-3.json
             artifacts/cloudflare-browser-performance.json
+            artifacts/cloudflare-concurrency-performance.json
           if-no-files-found: ignore
           retention-days: 14
