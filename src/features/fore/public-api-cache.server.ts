@@ -345,6 +345,10 @@ export async function cachedPublicApi(
   const write = async () => {
     const data = await boundedJson(response.clone());
     if (!data) return;
+    // Cold-cache taxonomy responses advertise that the authoritative
+    // display-only aggregation is refreshing. Never cache this temporary
+    // empty-count shell for the normal 30-minute public API TTL.
+    if (path === "/api/fore/taxonomy" && data.countsPending === true) return;
     // A query UUID and request diagnostics belong to one request, never the shared cache.
     if (data.search && typeof data.search === "object" && "queryId" in data.search)
       data.search.queryId = null;
