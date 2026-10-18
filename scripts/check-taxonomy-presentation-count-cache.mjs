@@ -6,7 +6,7 @@ import { build } from "esbuild";
 const code = fs.readFileSync("src/features/fore/taxonomy-counts-cache.server.ts", "utf8");
 const taxonomy = fs.readFileSync("src/features/fore/taxonomy.server.ts", "utf8");
 const countQueries = fs.readFileSync("src/features/fore/taxonomy-count-query.ts", "utf8");
-assert.match(taxonomy, /presentationTaxonomyCounts\(db, territory, language, async \(\) =>/);
+assert.match(taxonomy, /presentationTaxonomyCounts\(\s*db,\s*territory,\s*language,\s*async \(\) =>/);
 assert.match(countQueries, /retail_product_availability rpa/);
 assert.match(countQueries, /retail_product_availability_rows rpa/);
 assert.match(taxonomy, /\.prepare\(taxonomySparseRightsProbe\)/);
