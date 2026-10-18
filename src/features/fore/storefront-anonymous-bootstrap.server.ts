@@ -89,7 +89,7 @@ export async function serveLeanAnonymousBootstrap(
       "limit",
       enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180),
     ),
-  ]).then(([resolvedContext, markets]) => [resolvedContext, markets] as const);
+  ]);
   const query = new URLSearchParams({
     search: "",
     sort: "popular",
@@ -112,6 +112,7 @@ export async function serveLeanAnonymousBootstrap(
     timed("catalog", firstPaintStorefrontShelf(env, context.currency, context.rightsCountry)),
   ]);
   timings.bootstrap = performance.now() - started;
+  timings.lean = 0;
   return new Response(
     JSON.stringify({
       context: { ...context, availableMarkets },
