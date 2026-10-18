@@ -727,13 +727,15 @@ export async function canonicalFirstPaintShelfByRightsQuery(
   if (diagnostics) {
     // D1's SQL time excludes service dispatch, queueing and Worker/D1
     // transport. Do not record SQL text, rights values, visitor or product IDs.
-    const meta = (rows as typeof rows & {
-      meta?: {
-        timings?: { sql_duration_ms?: number };
-        rows_read?: number;
-        total_attempts?: number;
-      };
-    }).meta;
+    const meta = (
+      rows as typeof rows & {
+        meta?: {
+          timings?: { sql_duration_ms?: number };
+          rows_read?: number;
+          total_attempts?: number;
+        };
+      }
+    ).meta;
     const add = (key: keyof FirstPaintD1QueryMetrics, value: unknown) => {
       if (typeof value === "number" && Number.isFinite(value) && value >= 0)
         diagnostics[key] = value;
