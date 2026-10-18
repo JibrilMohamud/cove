@@ -66,7 +66,14 @@ try {
       let consoleErrors = 0;
       let failedScriptRequests = 0;
       let failedStylesheetRequests = 0;
-      const scripts = { ok: 0, redirects: 0, unauthorized: 0, missing: 0, other4xx: 0, server5xx: 0 };
+      const scripts = {
+        ok: 0,
+        redirects: 0,
+        unauthorized: 0,
+        missing: 0,
+        other4xx: 0,
+        server5xx: 0,
+      };
       // Counters only: no URL, host, request body, header or error message is
       // retained. This distinguishes missing bundles from React not hydrating.
       page.on("pageerror", () => pageErrors++);
@@ -116,12 +123,13 @@ try {
             hydrated: document.documentElement.dataset.coveClientReady === "true",
             scriptTags: document.querySelectorAll("script[src]").length,
             moduleScriptTags: document.querySelectorAll('script[type="module"]').length,
-            sameOriginScripts: [...document.querySelectorAll("script[src]")].filter(
-              (script) => {
-                try { return new URL(script.src).origin === location.origin; }
-                catch { return false; }
+            sameOriginScripts: [...document.querySelectorAll("script[src]")].filter((script) => {
+              try {
+                return new URL(script.src).origin === location.origin;
+              } catch {
+                return false;
               }
-            ).length,
+            }).length,
             connectMs: nav ? nav.connectEnd - nav.connectStart : null,
             dnsMs: nav ? nav.domainLookupEnd - nav.domainLookupStart : null,
             tlsMs: nav?.secureConnectionStart ? nav.connectEnd - nav.secureConnectionStart : null,
