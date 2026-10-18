@@ -21,6 +21,8 @@ on:
       - "src/features/fore/storefront-hedged-fetch.ts"
       - "vite.config.ts"
       - "wrangler.frontend.staging.toml"
+      - "wrangler.frontend.production.toml"
+      - "scripts/check-cloudflare-production-candidate.mjs"
       - "scripts/check-cloudflare-ssr-stage-gate.mjs"
       - "scripts/check-cloudflare-ssr-staging.mjs"
       - ".github/workflows/cloudflare-native-ssr-staging.yml"
@@ -45,6 +47,8 @@ on:
       - "src/features/fore/storefront-hedged-fetch.ts"
       - "vite.config.ts"
       - "wrangler.frontend.staging.toml"
+      - "wrangler.frontend.production.toml"
+      - "scripts/check-cloudflare-production-candidate.mjs"
       - "scripts/check-cloudflare-ssr-stage-gate.mjs"
       - "scripts/check-cloudflare-ssr-staging.mjs"
       - ".github/workflows/cloudflare-native-ssr-staging.yml"
@@ -80,6 +84,7 @@ jobs:
       - name: Fail-closed stage gate and country binding tests
         run: |
           node scripts/check-cloudflare-ssr-stage-gate.mjs
+          node scripts/check-cloudflare-production-candidate.mjs
           node scripts/check-cloudflare-native-bindings.mjs
           node scripts/check-storefront-firstpaint-rate-limit.mjs
           node scripts/check-storefront-bootstrap.mjs
@@ -93,6 +98,10 @@ jobs:
         env:
           CLOUDFLARE_SEND_METRICS: "false"
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.frontend.staging.toml
+      - name: Dry-run disabled-production Worker candidate (no publish)
+        env:
+          CLOUDFLARE_SEND_METRICS: "false"
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.frontend.production.toml
 
   deploy-staging:
     needs: verify
