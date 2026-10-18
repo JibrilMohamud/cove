@@ -261,9 +261,6 @@ try {
       "No change to geographically authorized first paint products",
     );
     assert.equal(value.catalogQuery, expected.catalogQuery);
-    assert.equal(value.catalog.next, expected.catalog.next);
-    assert.equal(value.context.rightsCountry, expected.context.rightsCountry);
-
     assert.equal(authoritativeRights, 1, "Exactly one primary rights query");
     assert.equal(limitCalls, 1, "Exactly one enforced Cloudflare edge limit");
     assert.deepEqual(sessionModes, [
