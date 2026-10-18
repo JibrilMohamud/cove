@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { CatalogDB } from "./catalog-model.server";
 import { ApiError, now } from "./service";
-import { presentationTaxonomyCounts } from "./taxonomy-counts-cache.server";
+import { presentationTaxonomyCounts, taxonomyPresentationReadDb } from "./taxonomy-counts-cache.server";
 
 export type TaxonomyNode = {
   id: string;
@@ -140,7 +140,10 @@ export async function taxonomyTree(
       )
       .all<any>(),
     presentationTaxonomyCounts(db, territory, language, async () => {
-      const current = await db
+      // This query supplies counts as UI metadata only. Every actual book,
+      // sale and reader authorization remains on current primary D1.
+      const countDb = taxonomyPresentationReadDb(db);
+      const current = await countDb
         .prepare(
           `WITH eligible AS MATERIALIZED (
       SELECT p.id,p.edition_id FROM products p
