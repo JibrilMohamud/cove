@@ -13,6 +13,8 @@ on:
       - "src/features/fore/storefront-read-rate-limit.server.ts"
       - "scripts/check-storefront-firstpaint-rate-limit.mjs"
       - "src/features/fore/search.server.ts"
+      - "src/features/fore/rights-scoped-cache-page.ts"
+      - "scripts/check-bounded-cached-rights-recheck.mjs"
       - "src/features/fore/catalog-model.server.ts"
       - "src/features/fore/localization.server.ts"
       - "src/features/fore/recommendations.server.ts"
@@ -55,6 +57,8 @@ on:
       - "src/features/fore/storefront-read-rate-limit.server.ts"
       - "scripts/check-storefront-firstpaint-rate-limit.mjs"
       - "src/features/fore/search.server.ts"
+      - "src/features/fore/rights-scoped-cache-page.ts"
+      - "scripts/check-bounded-cached-rights-recheck.mjs"
       - "src/features/fore/catalog-model.server.ts"
       - "src/features/fore/localization.server.ts"
       - "src/features/fore/recommendations.server.ts"
@@ -128,6 +132,7 @@ jobs:
           node scripts/check-rights.mjs
           python3 scripts/check-fts-trigger-lookup.py
           node scripts/check-catalog-added-sort-index.mjs
+          node scripts/check-bounded-cached-rights-recheck.mjs
           node --test scripts/check-production-storefront-performance.test.mjs
           node scripts/check-cove-request-context.mjs
           node scripts/check-storefront-hedged.mjs
