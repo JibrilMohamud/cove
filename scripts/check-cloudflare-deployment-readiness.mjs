@@ -12,11 +12,7 @@ const deployment = {
 };
 const payload = { success: true, result: { deployments: [deployment] } };
 const status = (entry, rotationMs = started, nowMs = started + 34_000) =>
-  latestSecretDeploymentStatus(
-    { result: { deployments: [entry] } },
-    rotationMs,
-    nowMs,
-  );
+  latestSecretDeploymentStatus({ result: { deployments: [entry] } }, rotationMs, nowMs);
 
 assert.equal(status(deployment, started, started + 10_000).state, "settling");
 assert.equal(status(deployment).ready, true);
