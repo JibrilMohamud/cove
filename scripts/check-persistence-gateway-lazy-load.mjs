@@ -42,11 +42,15 @@ for (const path of [
 }
 assert.equal(isPublicSeoDocumentPath("/robots.txt"), true);
 assert.ok(
-  !server.includes('import { handleVercelIngestionControl, proxyPersistenceApi } from "./lib/persistence-backend"'),
+  !server.includes(
+    'import { handleVercelIngestionControl, proxyPersistenceApi } from "./lib/persistence-backend"',
+  ),
   "Top-level SSR must not eagerly import persistence API routing",
 );
 assert.match(server, /if \(isPersistenceGatewayRoute\(gatewayPath\)\)/);
 assert.match(server, /await import\("\.\/lib\/persistence-backend"\)/);
 assert.match(server, /await handleVercelIngestionControl\(request, foreEnv\)/);
 assert.match(server, /await proxyPersistenceApi\(request, foreEnv\)/);
-console.log("SSR gateway route coverage: anonymous HTML bypass; API, ingestion and SEO preserved PASS");
+console.log(
+  "SSR gateway route coverage: anonymous HTML bypass; API, ingestion and SEO preserved PASS",
+);
