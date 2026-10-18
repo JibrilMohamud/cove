@@ -1,7 +1,8 @@
 /**
- * Taxonomy counts are DISPLAY METADATA, but remain strictly live-rights
- * authoritative, even for sparse markets and grant revocations. No cached
- * eligibility, snapshots, materialized authorization or cross-request I/O.
+ * These plans calculate taxonomy DISPLAY counts on cache misses from
+ * live rights; their results may subsequently be cached as presentation-only
+ * numbers. No cached count authorizes a book, sale, download or reading,
+ * and there is no cached eligibility or cross-request Worker I/O.
  *
  * With <=1000 potential active retail territorial grants, seed only those
  * products before executing the UNCHANGED retail availability view. At
