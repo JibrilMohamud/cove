@@ -6,6 +6,7 @@
 # Deploying with workers_dev=false cannot expose public customers.
 name = "cove"
 main = ".output/server/index.mjs"
+minify = true
 compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = false
