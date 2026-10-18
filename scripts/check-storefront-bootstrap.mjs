@@ -147,6 +147,61 @@ try {
     );
   }
   assert.ok(joinedMarketLocaleReads >= 4, "One live joined market/locale read per bootstrap");
+  // Simulate native D1's Sessions API. Configuration may use a
+  // primary-anchored session, but licensed product eligibility MUST continue
+  // through the non-session, authoritative DB binding.
+  const nativeSessions = [];
+  let primaryRightsSelections = 0;
+  const sessionProbeDb = new Proxy(env.DB, {
+    get(target, property) {
+      if (property === "withSession")
+        return (constraint) => {
+          nativeSessions.push(constraint);
+          return new Proxy(target, {
+            get(sessionTarget, key) {
+              if (key === "prepare")
+                return (sql) => {
+                  assert.doesNotMatch(
+                    sql,
+                    /retail_product_availability_rows/i,
+                    "Never evaluate territorial retail rights through a potentially lagged read replica",
+                  );
+                  return sessionTarget.prepare(sql);
+                };
+              const value = Reflect.get(sessionTarget, key);
+              return typeof value === "function" ? value.bind(sessionTarget) : value;
+            },
+          });
+        };
+      if (property === "prepare")
+        return (sql) => {
+          if (/WITH eligible AS MATERIALIZED/i.test(sql)) {
+            assert.match(sql, /retail_product_availability_rows/i);
+            primaryRightsSelections++;
+          }
+          return target.prepare(sql);
+        };
+      const value = Reflect.get(target, property);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  const anchoredResponse = await handleCoveApi(
+    new Request("https://cove.test/api/fore/storefront/bootstrap", {
+      headers: { "cf-ipcountry": "US", "accept-language": "en-US" },
+    }),
+    { ...env, FORE_ENVIRONMENT: "production", DB: sessionProbeDb },
+  );
+  assert.equal(anchoredResponse.status, 200);
+  const anchored = await anchoredResponse.json();
+  assert.equal(anchored.context.rightsCountry, "US");
+  assert.ok(anchored.catalog.results.length > 0);
+  assert.deepEqual(
+    nativeSessions,
+    ["first-primary", "first-primary"],
+    "Two concurrent configuration reads require independent primary bookmarks",
+  );
+  assert.equal(primaryRightsSelections, 1, "Firstpaint legal rights must query primary once");
+
   assert.ok(
     atomicRightsShelfQueries >= 4,
     "Every tested territory must select eligible candidates and hydrate in one D1 statement",
