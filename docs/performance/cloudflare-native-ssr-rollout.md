@@ -181,6 +181,41 @@ deployment JSON artifacts are kept even when the combined CI gate fails.
 Continue multi-geography and customer-journey validation; do not public-cutover
 or claim a per-request global SLO from favorable synthetic samples.
 
+### Deployment-control-plane settling trial — October 18, 2026 UTC
+
+Merged PR #144 waits for Cloudflare to report the newly rotated secret Worker
+version at **100%** routing and another 30 seconds of deployment-settling
+time **without any Worker HTTP fetch**. It preserves all three JSON files,
+including failed runs, and now reports optional numeric Undici connection
+duration alongside Worker duration and unexplained ingress/transport time.
+
+The first independent three-version protected staging validation still
+**failed 59/60**, with exactly one cold first-request miss:
+
+| Independent new version | Result <800 ms | p95 | Maximum | First-request TTFB |
+| --- | ---: | ---: | ---: | ---: |
+| #1 (IAD) | **20/20** | 476 ms | 657 ms | 657 ms |
+| #2 (IAD) | **19/20** | 634 ms | **802 ms** | 802 ms |
+| #3 (IAD) | **20/20** | 737 ms | 769 ms | 737 ms |
+
+The missed request (version #2) returned 24 live rights-cleared books and
+recorded **379 ms inside Worker**: 89 ms storefront context, 49 ms market
+metadata, 37 ms landing-page lookup and a **290 ms authoritative D1
+catalog-rights query**. Another **423 ms** lies outside timed Worker
+processing; establishing its new Undici connection took ~31 ms (and is
+part of this request's measured transport). The failure is neither a
+missing rights record nor a warmed/cached response. The actual
+802-ms measurement is a strict failure: **no 800-ms exception is permitted**.
+[GitHub Actions evidence](https://github.com/JibrilMohamud/cove/actions/runs/39092487232).
+
+Control-plane settlement rules out only the simple case where GitHub starts
+before the new deployment appears at 100% in the control plane. It
+**cannot guarantee propagation to every edge**, prevent cold SQLite/
+upstream/network variability, or certify every user geography. Thus
+Cloudflare public routing remains disabled, with Vercel retained as
+production. Further repeat and geographic tests are mandatory before any
+commercial readiness claim or live purchase and identity journey.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on
