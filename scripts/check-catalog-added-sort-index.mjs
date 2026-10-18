@@ -39,14 +39,23 @@ try {
     book.run(id, id, n % 31 === 0 ? "draft" : "active", n % 29 === 0 ? "upload" : "gutenberg");
     edition.run(id, n % 37 === 0 ? "archived" : "available");
     // Duplicate timestamps and external IDs deliberately exercise stable product-id ties.
-    doc.run(id, "external-" + String(n % 61).padStart(3, "0"), created, first,
-      n % 23 === 0 ? "CAD" : "USD", "available", n % 41 === 0 ? 1 : 0);
+    doc.run(
+      id,
+      "external-" + String(n % 61).padStart(3, "0"),
+      created,
+      first,
+      n % 23 === 0 ? "CAD" : "USD",
+      "available",
+      n % 41 === 0 ? 1 : 0,
+    );
     grant.run("grant-" + id, id, n % 19 === 0 ? "revoked" : "active");
     region.run("grant-" + id, "US");
     if (n % 13 === 0) region.run("grant-" + id, "CA");
   }
   db.exec(migration);
-  const storedIndex = db.prepare("SELECT sql FROM sqlite_master WHERE name='idx_search_added_effective_stable'").get();
+  const storedIndex = db
+    .prepare("SELECT sql FROM sqlite_master WHERE name='idx_search_added_effective_stable'")
+    .get();
   assert.ok(storedIndex?.sql, "Migration must create the real expression index");
 
   const clause = `FROM catalog_search_documents d
@@ -54,14 +63,17 @@ try {
     JOIN editions e ON e.id=p.edition_id
     LEFT JOIN publishers pub ON pub.id=e.publisher_id`;
   // Production joins publishers; minimal fixture intentionally adds it too.
-  db.exec("CREATE TABLE publishers(id TEXT PRIMARY KEY,name TEXT); ALTER TABLE editions ADD COLUMN publisher_id TEXT");
+  db.exec(
+    "CREATE TABLE publishers(id TEXT PRIMARY KEY,name TEXT); ALTER TABLE editions ADD COLUMN publisher_id TEXT",
+  );
   const where = `p.storefront_status='active' AND p.source_name<>'upload'
     AND d.suppressed=0 AND e.release_status IN ('available','preorder')
     AND d.availability=? AND EXISTS(
       SELECT 1 FROM retail_product_availability_rows rpa
       WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?)
     ) AND d.currency=?`;
-  const order = "COALESCE(d.product_created_at,d.first_ingested_at) DESC,d.external_book_id DESC,d.product_id ASC";
+  const order =
+    "COALESCE(d.product_created_at,d.first_ingested_at) DESC,d.external_book_id DESC,d.product_id ASC";
   const oldSql = `SELECT d.product_id ${clause} WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`;
   const optimizedFrom = `FROM catalog_search_documents d INDEXED BY idx_search_added_effective_stable
     CROSS JOIN products p ON p.id=d.product_id
@@ -90,13 +102,17 @@ try {
     }
   }
   // Updates, including a new NULL date and a rights revocation, must remain exact.
-  db.prepare("UPDATE catalog_search_documents SET product_created_at=NULL WHERE product_id=?").run("book-00001");
+  db
+    .prepare("UPDATE catalog_search_documents SET product_created_at=NULL WHERE product_id=?")
+    .run("book-00001");
   db.prepare("UPDATE rights_grants SET status='revoked' WHERE edition_id=?").run("book-00002");
   assert.deepEqual(
     db.prepare(nextSql).all("available", "US", "USD", 24, 0),
     db.prepare(oldSql).all("available", "US", "USD", 24, 0),
   );
-  console.log("Stable newest/added index: null fallback, ties, revocations, territorial filters and pages PASS");
+  console.log(
+    "Stable newest/added index: null fallback, ties, revocations, territorial filters and pages PASS",
+  );
 } finally {
   db.close();
 }
