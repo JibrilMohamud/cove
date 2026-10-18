@@ -682,7 +682,6 @@ export async function canonicalFirstPaintBooksByProductIds(db: DB, productIds: s
   return productIds.map((id) => byId.get(id)).filter((book): book is CatalogBook => !!book);
 }
 
-
 /**
  * Authoritative first-paint selection and hydration in a single D1 statement.
  * The caller constructs the predicate exclusively from the existing rights-
