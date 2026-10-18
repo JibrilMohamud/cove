@@ -148,7 +148,7 @@ try {
   }
   assert.ok(joinedMarketLocaleReads >= 4, "One live joined market/locale read per bootstrap");
   // Simulate native D1's Sessions API. Configuration may use a
-  // primary-anchored session, but licensed product eligibility MUST continue
+  // geographically close session, but licensed eligibility MUST continue
   // through the non-session, authoritative DB binding.
   const nativeSessions = [];
   let primaryRightsSelections = 0;
@@ -197,8 +197,8 @@ try {
   assert.ok(anchored.catalog.results.length > 0);
   assert.deepEqual(
     nativeSessions,
-    ["first-primary", "first-primary"],
-    "Two concurrent configuration reads require independent primary bookmarks",
+    ["first-unconstrained", "first-unconstrained"],
+    "Anonymous presentation-only requests may read replicas in separate sessions",
   );
   assert.equal(primaryRightsSelections, 1, "Firstpaint legal rights must query primary once");
 
