@@ -1493,15 +1493,17 @@ export function StorePage({
           {(taxonomy.data?.countsPending
             ? flattenTaxonomy(taxonomy.data.nodes).filter((node) => node.featured)
             : taxonomy.data?.featured || []
-          ).slice(0, 9).map((node) => (
-            <a
-              key={node.id}
-              href={node.href}
-              className={taxonomyPath === node.path ? "active" : ""}
-            >
-              {node.name}
-            </a>
-          ))}
+          )
+            .slice(0, 9)
+            .map((node) => (
+              <a
+                key={node.id}
+                href={node.href}
+                className={taxonomyPath === node.path ? "active" : ""}
+              >
+                {node.name}
+              </a>
+            ))}
         </div>
         <div className="filter-row">
           <span className="catalog-count">
