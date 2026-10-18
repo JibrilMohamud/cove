@@ -7,6 +7,7 @@ on:
       - "src/persistence-backend.worker.ts"
       - "src/server.ts"
       - "src/features/fore/**"
+      - "scripts/check-literary-genre-rights-query.mjs"
       - "scripts/audio_pipeline/**"
       - "scripts/build-persistence-backend.mjs"
       - "scripts/check-persistence-backend.mjs"
@@ -125,6 +126,7 @@ jobs:
         run: |
           npm run test:search-updater-cache
           npm run test:recommendations
+          node scripts/check-literary-genre-rights-query.mjs
       - name: Indexed FTS trigger identity, suppression, deletion and bounded work
         run: python3 scripts/check-fts-trigger-lookup.py
       - name: Reader rendering, share withdrawal and offline authorization
