@@ -33,6 +33,7 @@ import { cachedPublicApi, prunePublicCache } from "./features/fore/public-api-ca
 import { refreshPublicStatus } from "./features/fore/public-status.server";
 import { handleSeoDocumentRequest } from "./features/fore/seo.server";
 import { isPublicSeoDocumentPath } from "./lib/public-seo-document-path";
+import { admitCatalogBatch, catalogAdmissionBudget } from "./lib/catalog-ingestion-backpressure";
 import {
   audioComputeAdmission,
   type AudioComputeEnv,
@@ -45,6 +46,7 @@ type BackendEnv = CoveEnv &
     FORE_PUBLIC_URL?: string;
     FORE_CATALOG_PAGES_PER_TICK?: string;
     FORE_CATALOG_EPUBS_PER_TICK?: string;
+    FORE_CATALOG_ADMISSION_MAX_MS?: string;
     FORE_ASSETS_PER_MINUTE?: string;
     FORE_INGESTION_TRIGGER_TOKEN?: string;
     FORE_INGESTION_SIGNING_KEY?: string;
@@ -217,10 +219,34 @@ async function catalogBatch(request: Request, env: BackendEnv) {
         )
       : { skipped: "deadline" };
   const epubs = await runCatalogAssetMaintenance(env, epubLimit, deadline);
+  // Defer only the nonauthoritative, retryable search-index projection.
+  // Catalog metadata and regional rights/evidence MUST always be processed,
+  // including urgent withdrawals or changed commercial-use determinations.
+  // The next scheduled tick resumes the unsynchronized index backlog.
+  let searchSync: { skipped: string; reason: string; probeMs: number } | undefined;
   if (Date.now() < deadline) {
-    await syncSearchIndex(env, 500).catch((error) =>
-      console.warn("Catalog search sync failed", error),
+    const admission = await admitCatalogBatch(
+      env.DB,
+      catalogAdmissionBudget(env.FORE_CATALOG_ADMISSION_MAX_MS),
     );
+    if (admission.allowed) {
+      await syncSearchIndex(env, 500).catch((error) =>
+        console.warn("Catalog search sync failed", error),
+      );
+    } else {
+      searchSync = {
+        skipped: "primary_busy",
+        reason: admission.reason,
+        probeMs: admission.probeMs,
+      };
+      console.warn(
+        JSON.stringify({
+          event: "catalog_search_index_deferred",
+          reason: admission.reason,
+          probeMs: admission.probeMs,
+        }),
+      );
+    }
   }
   return json({
     ok: !results.some(
@@ -230,6 +256,7 @@ async function catalogBatch(request: Request, env: BackendEnv) {
     results,
     regional,
     epubs,
+    ...(searchSync ? { searchSync } : {}),
   });
 }
 
