@@ -3,6 +3,7 @@
 # The existing Vercel storefront and persistence backend remain unchanged.
 name = "cove-storefront-ssr-pilot"
 main = ".output/server/index.mjs"
+minify = true
 compatibility_date = "2026-10-17"
 workers_dev = false
 

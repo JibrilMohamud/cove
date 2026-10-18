@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { chromium, devices } from "@playwright/test";
-import { percentile, productionOrigin } from "../check-production-storefront-performance.mjs";
+import {
+  percentile,
+  productionOrigin,
+  safeProbeTelemetry,
+} from "../check-production-storefront-performance.mjs";
 
 // Runs AFTER every cold HTTP trial. Browser asset requests must never warm
 // the Worker before its first counted SSR request.
@@ -56,11 +60,15 @@ try {
       });
       let failure = null;
       let status = null;
+      let responseTelemetry = {};
       let pageErrors = 0;
       page.on("pageerror", () => pageErrors++);
       try {
         const response = await page.goto(origin, { waitUntil: "load", timeout: 45000 });
         status = response.status();
+        responseTelemetry = safeProbeTelemetry(new Headers(response.headers()), 0, 0);
+        delete responseTelemetry.ttfbMs;
+        delete responseTelemetry.totalMs;
         assert.equal(status, 200);
         await page.locator(".book-card").first().waitFor({ timeout: 15000 });
         await page.locator('html[data-cove-client-ready="true"]').waitFor({ timeout: 15000 });
@@ -78,10 +86,25 @@ try {
             ttfbMs: nav?.responseStart ?? null,
             lcpMs: window.__covePaint?.lcp ?? null,
             cards: document.querySelectorAll(".book-card").length,
+            connectMs: nav ? nav.connectEnd - nav.connectStart : null,
+            dnsMs: nav ? nav.domainLookupEnd - nav.domainLookupStart : null,
+            tlsMs: nav?.secureConnectionStart ? nav.connectEnd - nav.secureConnectionStart : null,
+            protocol: ["h2", "h3", "http/1.1"].includes(nav?.nextHopProtocol)
+              ? nav.nextHopProtocol
+              : "unknown",
           };
         })
         .catch(() => ({ ttfbMs: null, lcpMs: null, cards: 0 }));
-      rows.push({ profile, sample, status, failure, pageErrors, interceptionErrors, ...metrics });
+      rows.push({
+        profile,
+        sample,
+        status,
+        failure,
+        pageErrors,
+        interceptionErrors,
+        ...responseTelemetry,
+        ...metrics,
+      });
       await context.close();
     }
   }

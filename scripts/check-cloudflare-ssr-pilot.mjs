@@ -14,6 +14,16 @@ assert.match(config, /^binding\s*=\s*"BUCKET"$/m);
 assert.ok(fs.existsSync(workerFile), "Cloudflare module server entry must exist");
 assert.ok(fs.statSync(workerFile).size > 0, "Cloudflare module must not be empty");
 assert.ok(fs.existsSync(assets) && fs.statSync(assets).isDirectory(), "SSR public assets required");
+for (const file of [
+  "wrangler.frontend.pilot.toml",
+  "wrangler.frontend.staging.toml",
+  "wrangler.frontend.production.toml",
+])
+  assert.match(
+    fs.readFileSync(file, "utf8"),
+    /^minify\s*=\s*true$/m,
+    "Final Wrangler upload must preserve minification",
+  );
 // Inspect the actual generated graph: a harmless global polyfill can merge
 // with a reader chunk and silently make it eager before cove_total begins.
 const graph = new Map();
@@ -30,7 +40,7 @@ function imports(file) {
   function dynamicImports(node) {
     if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
       const specifier = node.arguments[0];
-      if (specifier && ts.isStringLiteral(specifier) && specifier.text.startsWith("."))
+      if (specifier && ts.isStringLiteralLike(specifier) && specifier.text.startsWith("."))
         links.push({ file: path.resolve(path.dirname(file), specifier.text), dynamic: true });
     }
     ts.forEachChild(node, dynamicImports);
@@ -47,6 +57,7 @@ function closure(file, dynamic = false, seen = new Set()) {
 }
 const entry = path.resolve(".output/server/_ssr/ssr.mjs");
 const eager = closure(entry);
+const deployedGraph = closure(workerFile, true);
 const leanEntries = [...closure(entry, true)].filter((file) =>
   path.basename(file).startsWith("storefront-anonymous-bootstrap.server-"),
 );
@@ -68,5 +79,6 @@ console.log(
     eagerEntryModules: eager.size,
     eagerEntryBytes: [...eager].reduce((sum, file) => sum + fs.statSync(file).size, 0),
     anonymousBootstrapBytes: [...lean].reduce((sum, file) => sum + fs.statSync(file).size, 0),
+    reachableWorkerBytes: [...deployedGraph].reduce((sum, file) => sum + fs.statSync(file).size, 0),
   }),
 );

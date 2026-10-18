@@ -90,8 +90,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: cove-ssr-staging
-  cancel-in-progress: false
+  # PRs only build/dry-run; separate them so an unrelated PR cannot replace
+  # another pending verification. Keep the original deployment group name
+  # across old/new workflows so secret-rotating cold trials never overlap.
+  group: cove-ssr-${{ github.event.pull_request.number || 'staging' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:

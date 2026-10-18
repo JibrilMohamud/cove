@@ -15,6 +15,7 @@ const isCloudflarePilotBuild = process.env.COVE_CLOUDFLARE_SSR_PILOT === "1";
 // Validate the complete preset with Nitro's own schema before passing it on.
 const cloudflarePilotConfig = {
   preset: "cloudflare-module",
+  minify: true,
   // Workers provides performance natively. Nitro's generic nodeless
   // injection put its shim in the same shared chunk as epubjs, making
   // the first SSR entry eagerly evaluate reader/XML dependencies
