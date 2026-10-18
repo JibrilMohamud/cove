@@ -415,6 +415,39 @@ Production still remains on Vercel; the Cloudflare production candidate
 is unroutable. Do not prewarm/discount the first request, omit live
 rights or relax <800 ms to manufacture a pass.
 
+### Independent repeat of indexed-currency guard: YVR cold outliers
+
+The same merged PR #150 code underwent **three more separately deployed
+cold Worker versions**, all entering via **YVR**:
+**18/20**, **19/20**, **20/20** strictly <800ms. Version #1
+started with a **6,521 ms** TTFB (6,155 ms Worker), and its second
+response was 2,722 ms; version #2's first was 856 ms. Version #3
+passed all 20 (max 763 ms). Every response continued to render
+24 currently rights-cleared books and to use the audited lean path.
+
+The 6,521 ms request recorded **9.4 ms actual primary rights SQLite
+engine time**, despite 2,201 ms catalog D1 wall time, 3,952 ms
+storefront context and 1,877 ms active-market list phases. Every
+primary-rights SQL query across this repeat took <=16.4 ms.
+Thus SQL execution, missing indexes and presumed write locks do
+**not** explain the long latency. Cloudflare D1 service scheduling,
+routing/queueing or Worker-to-service transport remain unresolved
+with the available telemetry.
+
+Both fresh three-version attempts of the merged commit therefore
+failed: **53/60** (ORD) and **57/60** (YVR), or **110/120**
+under the unchanged hard threshold. The two passing third versions
+are not permission to discard the failures. True global
+commercial-grade cold reliability is **not established**.
+
+[Independent YVR rerun](https://github.com/JibrilMohamud/cove/actions/runs/39097396203/attempts/2).
+Next development should reduce the number of serial metadata D1 requests
+**without** concurrent rights/metadata contention (which already
+regressed in PR #146), and investigate D1 service latency with
+Cloudflare using this concrete engine-time vs wall-time evidence.
+Authoritative primary territorial grant checks must remain mandatory.
+No public migration or threshold relaxation is authorized.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on
