@@ -206,7 +206,8 @@ async function deniedControl(concurrency) {
       ttfbMs,
       status: response.status,
       colo: (response.headers.get("cf-ray") || "").match(/-([A-Z]{3})$/)?.[1] || "unknown",
-      denied: response.status === 401 && /no-store/.test(response.headers.get("cache-control") || ""),
+      denied:
+        response.status === 401 && /no-store/.test(response.headers.get("cache-control") || ""),
     };
   } catch {
     return {
@@ -218,7 +219,10 @@ async function deniedControl(concurrency) {
     };
   }
 }
-const controlWaves = [{ concurrency: 8, requests: 16 }, { concurrency: 16, requests: 16 }];
+const controlWaves = [
+  { concurrency: 8, requests: 16 },
+  { concurrency: 16, requests: 16 },
+];
 const deniedControls = [];
 for (const { concurrency, requests } of controlWaves) {
   let next = 0;
