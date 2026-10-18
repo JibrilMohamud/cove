@@ -400,7 +400,7 @@ async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400)
         ranked.rank_updated DESC,ranked.id ASC LIMIT ?`,
       )
       .bind(territory, shortlist, territory, wanted)
-      .all<any>();
+      .all<{ id: string }>();
     // If the top N eligible works fit in the shortlist, they are exactly
     // the complete catalogue's top N.
     if (fast.results.length === wanted) return fast.results.map((x) => String(x.id));
@@ -433,7 +433,7 @@ async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400)
         p.updated_at DESC,p.id ASC LIMIT ?`,
     )
     .bind(territory, territory, territory, wanted)
-    .all<any>();
+    .all<{ id: string }>();
   return complete.results.map((x) => String(x.id));
 }
 
