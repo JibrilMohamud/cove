@@ -25,6 +25,9 @@ sql.exec(`
   CREATE TABLE catalog_search_documents (product_id TEXT PRIMARY KEY,sales_velocity REAL,download_count INTEGER);
   CREATE TABLE rights_grants (id TEXT PRIMARY KEY,edition_id TEXT,sales_channel TEXT,status TEXT);
   CREATE TABLE rights_grant_territories (grant_id TEXT,territory_code TEXT);
+  CREATE INDEX test_products_edition ON products(edition_id);
+  CREATE INDEX test_rights_grants_edition ON rights_grants(edition_id,sales_channel,status);
+  CREATE INDEX test_rights_territory ON rights_grant_territories(territory_code,grant_id);
   CREATE VIEW retail_product_availability_rows AS
     SELECT p.id product_id,rgt.territory_code FROM products p
     JOIN rights_grants rg ON rg.edition_id=p.edition_id
