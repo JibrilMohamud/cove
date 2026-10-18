@@ -114,6 +114,7 @@ jobs:
       - run: npm ci
       - name: Fail-closed stage gate and country binding tests
         run: |
+          node --check scripts/performance/cloudflare-concurrency.mjs
           node scripts/check-cloudflare-ssr-stage-gate.mjs
           node scripts/check-cloudflare-deployment-readiness.mjs
           node scripts/check-cloudflare-production-candidate.mjs
@@ -213,6 +214,9 @@ jobs:
       - name: Measure protected Worker homepage TTFB and LCP in fresh browsers
         if: ${{ !cancelled() }}
         run: node scripts/performance/cloudflare-browser.mjs
+      - name: Gate concurrent licensed storefront reads (1/4/8/16 in-flight)
+        if: ${{ !cancelled() }}
+        run: node scripts/performance/cloudflare-concurrency.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -223,5 +227,6 @@ jobs:
             artifacts/cloudflare-ssr-staging-performance-2.json
             artifacts/cloudflare-ssr-staging-performance-3.json
             artifacts/cloudflare-browser-performance.json
+            artifacts/cloudflare-concurrency-performance.json
           if-no-files-found: ignore
           retention-days: 14
