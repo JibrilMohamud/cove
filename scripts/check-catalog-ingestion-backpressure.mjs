@@ -56,8 +56,7 @@ assert.ok(
     batch.indexOf("runCatalogIngestion(env"),
 );
 assert.ok(
-  batch.indexOf('checkPrimaryBeforeBulkWork("search")') <
-    batch.indexOf("syncSearchIndex(env"),
+  batch.indexOf('checkPrimaryBeforeBulkWork("search")') < batch.indexOf("syncSearchIndex(env"),
 );
 assert.match(batch, /skipped: "primary_busy"/);
 assert.match(batch, /pagesAttempted: results.length/);
