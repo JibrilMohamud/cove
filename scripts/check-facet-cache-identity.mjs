@@ -51,4 +51,6 @@ assert.match(facetSource, /facetCacheIdentity\(input, expression\)/);
 assert.match(facetSource, /writeCatalogCache/);
 assert.doesNotMatch(facetSource, /canonicalBooksByProductIds/);
 assert.match(src, /retail_product_availability_rows/);
-console.log("Facets: sorting/pagination reuse, country/currency/filter isolation, counts-only caching PASS");
+console.log(
+  "Facets: sorting/pagination reuse, country/currency/filter isolation, counts-only caching PASS",
+);
