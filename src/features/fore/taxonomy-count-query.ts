@@ -49,7 +49,7 @@ export function taxonomyCountPlan(
     FROM territory_seed seed
     CROSS JOIN products p ON p.id=seed.id
     CROSS JOIN editions e ON e.id=p.edition_id
-    ${eligibleWhere}
+    ${eligibleWhere.replace("retail_product_availability rpa", "retail_product_availability_rows rpa")}
   )
   SELECT et.taxonomy_node_id node_id,COUNT(*) product_count
   FROM eligible p JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
