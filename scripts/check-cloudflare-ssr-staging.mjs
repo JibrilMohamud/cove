@@ -45,6 +45,17 @@ channel("undici:request:headers").subscribe(({ request }) => {
   const span = requestSpans.get(request);
   if (span) span.headersAt = performance.now();
 });
+// Connect diagnostics are scoped to the one active first-paint GET. They keep
+// only durations, never socket details, remote addresses or request headers.
+const probeHostname = new URL(origin).hostname;
+channel("undici:client:beforeConnect").subscribe(({ connectParams }) => {
+  if (activeProbe && connectParams?.hostname === probeHostname)
+    activeProbe.connectStartedAt = performance.now();
+});
+channel("undici:client:connected").subscribe(({ connectParams }) => {
+  if (activeProbe && connectParams?.hostname === probeHostname)
+    activeProbe.connectDoneAt = performance.now();
+});
 
 function integerDelta(after, before) {
   return Number.isFinite(after) && Number.isFinite(before)
@@ -224,6 +235,7 @@ async function probe(language, sample, sequence) {
     unattributedMs: workerMs === null ? null : Math.max(0, Math.round(ttfbMs - workerMs)),
     cfColo: safeCloudflareColo(response.headers),
     clientQueueMs: integerDelta(span.sentAt, span.createdAt),
+    clientConnectMs: integerDelta(span.connectDoneAt, span.connectStartedAt),
     clientToHeadersMs: integerDelta(span.headersAt, span.sentAt),
   };
 }
@@ -284,13 +296,14 @@ const table = [
   "",
   "The first counted SSR homepage request is the first HTTP request in the newly deployed Worker gate.",
   "Residual = client TTFB - timed Worker duration; not necessarily a cold-start diagnosis.",
+  "Undici connect covers any new DNS/TCP/TLS setup and may be n/a for reused sockets.",
   "Undici client-to-headers includes network and remote processing; phases are diagnostic only.",
   "",
-  "| Sequence | Locale | Sample | TTFB | Worker | Residual | Client queue | Sent-to-headers | CF colo | SSR cards |",
-  "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |",
+  "| Sequence | Locale | Sample | TTFB | Worker | Residual | Client queue | New connect | Sent-to-headers | CF colo | SSR cards |",
+  "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |",
   ...results.map(
     (r) =>
-      `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.workerMs ?? "n/a"} ms | ${r.unattributedMs ?? "n/a"} ms | ${r.clientQueueMs ?? "n/a"} ms | ${r.clientToHeadersMs ?? "n/a"} ms | ${r.cfColo} | ${r.cards} |`,
+      `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.workerMs ?? "n/a"} ms | ${r.unattributedMs ?? "n/a"} ms | ${r.clientQueueMs ?? "n/a"} ms | ${r.clientConnectMs ?? "n/a"} ms | ${r.clientToHeadersMs ?? "n/a"} ms | ${r.cfColo} | ${r.cards} |`,
   ),
   "",
   `Result **${summary.status}** — p75 ${summary.p75 ?? "n/a"} ms, p95 ${summary.p95 ?? "n/a"} ms; ${summary.slowSamples} >=800 ms; ${summary.errors} failures.`,

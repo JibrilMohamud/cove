@@ -25,6 +25,9 @@ on:
       - "scripts/check-cloudflare-production-candidate.mjs"
       - "scripts/check-cloudflare-ssr-stage-gate.mjs"
       - "scripts/check-cloudflare-ssr-staging.mjs"
+      - "scripts/cloudflare-deployment-readiness.mjs"
+      - "scripts/check-cloudflare-deployment-readiness.mjs"
+      - "scripts/wait-cloudflare-native-deployment.mjs"
       - ".github/workflows/cloudflare-native-ssr-staging.yml"
   push:
     branches: [main]
@@ -51,6 +54,9 @@ on:
       - "scripts/check-cloudflare-production-candidate.mjs"
       - "scripts/check-cloudflare-ssr-stage-gate.mjs"
       - "scripts/check-cloudflare-ssr-staging.mjs"
+      - "scripts/cloudflare-deployment-readiness.mjs"
+      - "scripts/check-cloudflare-deployment-readiness.mjs"
+      - "scripts/wait-cloudflare-native-deployment.mjs"
       - ".github/workflows/cloudflare-native-ssr-staging.yml"
   workflow_dispatch:
   # Preserve a rolling independent cold-start and live-rights signal even
@@ -84,6 +90,7 @@ jobs:
       - name: Fail-closed stage gate and country binding tests
         run: |
           node scripts/check-cloudflare-ssr-stage-gate.mjs
+          node scripts/check-cloudflare-deployment-readiness.mjs
           node scripts/check-cloudflare-production-candidate.mjs
           node scripts/check-cloudflare-native-bindings.mjs
           node scripts/check-storefront-firstpaint-rate-limit.mjs
@@ -148,12 +155,13 @@ jobs:
             COVE_SSR_STAGING_GATE_KEY="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
             echo "::add-mask::$COVE_SSR_STAGING_GATE_KEY"
             export COVE_SSR_STAGING_GATE_KEY
+            export COVE_STAGE_SECRET_ROTATION_EPOCH_MS="$(node -p 'Date.now()')"
             printf '%s' "$COVE_SSR_STAGING_GATE_KEY" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.frontend.staging.toml
-            # Cloudflare secret versions propagate asynchronously worldwide.
-            # Give the control plane time to install the new secret BEFORE
-            # sending the FIRST HTTP request. This is not prewarming: no
-            # fetch/SSR/Worker traffic is sent or discounted while waiting.
-            sleep 10
+            # Verify the new secret deployment is targeting 100% and has
+            # settled via Cloudflare's CONTROL PLANE (not Worker HTTP).
+            # No edge fetch/SSR/asset request is made during this wait; the
+            # next HTTP request is still the first genuinely cold SSR probe.
+            node scripts/wait-cloudflare-native-deployment.mjs
             rm -f artifacts/cloudflare-ssr-staging-performance.json
             if ! node scripts/check-cloudflare-ssr-staging.mjs; then
               echo "::error::Cold deployment $trial failed the strict 20/20 gate"
@@ -172,6 +180,10 @@ jobs:
         if: always()
         with:
           name: cloudflare-native-ssr-staging-performance
-          path: artifacts/cloudflare-ssr-staging-performance.json
+          path: |
+            artifacts/cloudflare-ssr-staging-performance.json
+            artifacts/cloudflare-ssr-staging-performance-1.json
+            artifacts/cloudflare-ssr-staging-performance-2.json
+            artifacts/cloudflare-ssr-staging-performance-3.json
           if-no-files-found: ignore
           retention-days: 14

@@ -121,6 +121,66 @@ Do not claim the hard gate passes based on 59/60, p95, or warm responses.
 Even a later 60/60 pass must not erase the earlier miss. Preserve staging
 read-only protection, authoritative legal rights and public Vercel fallback.
 
+### Cloudflare secret/version settlement and cold connection attribution
+
+Two sets of three independently deployed lean SSR Worker versions delivered
+**118/120** sub-800 ms responses, but *each* run failed exactly the first
+request of its second deployment (1,054 ms via LAX, then 977 ms via IAD).
+These failures cannot be excused by favorable p95 or warm requests.
+The first LAX miss had only 278 ms Worker execution and 776 ms
+unattributed client-to-Worker time; the IAD miss had 583 ms inside Worker
+and 394 ms outside. This is a routing/network/deployment-startup tail
+question, not evidence that legally authorized book queries are always slow.
+
+The next staging experiment observes Cloudflare's **Worker Deployments API**:
+the newest post-rotation secret version must be explicitly targeted at 100%
+and have a 30-second settle age. This is queried solely through the
+Cloudflare **control plane** using the deployment token; no HTTP request is
+sent to the Worker during the wait. Its first HTTP request is still a
+counted, true first-isolate SSR request, not a prewarmed or retried sample.
+Readiness fails closed if the API lacks permission, the version is older,
+or it is not exclusively deployed at 100%. This does not guarantee
+global propagation or remove client transport variability.
+
+The client probe also records numeric Undici new-connection time (when
+a new connection occurs), separately from the Worker duration,
+client queue and total TTFB. No socket addresses, account IDs, raw
+CF-Ray values, cookies or credentials enter performance artifacts.
+Repeat the same three independently cold 20-request deployments with
+this evidence before making any production or reliability claim.
+
+### October 18: separate Worker execution from deployment/connection tail
+
+The lean SSR main-branch implementation's first three-version protected test
+passed **59/60** requests. Two independently cold versions were 20/20;
+the single miss was the first LAX-edge request of the middle version:
+**1,054 ms** client TTFB, **278 ms** measured Worker duration and
+**776 ms** unattributed transport/deployment overhead. An independent
+three-version rerun also passed **59/60**: the middle version's first
+IAD request took **977 ms**, with **583 ms** inside the Worker and
+**394 ms** outside. All 120 homepage HTML responses displayed 24
+live-authorized books. These two 59/60 results are **both release failures**,
+not an acceptable rounding of the all-requests hard gate. Sources:
+[initial run](https://github.com/JibrilMohamud/cove/actions/runs/39090722952),
+[rerun of independent stage job](https://github.com/JibrilMohamud/cove/actions/runs/39090722952/attempts/2).
+
+The next staging experiment queries Cloudflare's **deployment control plane**
+after a new ephemeral bearer secret is installed. It waits until the latest
+secret-triggered Worker version is routed at 100% and a 30-second settlement
+period has elapsed. It **does not send any HTTP request to the Worker** before
+the first counted SSR sample. A control-plane report is not proof that
+every edge has converged or that cold-starts are solved: the *actual first
+request*, including any connection/route delay or failure, remains part of
+the strict threshold.
+
+The probe additionally retains numerical client TCP/TLS connection time
+(if a new Undici connection occurred) alongside existing request-to-headers,
+Worker duration, residual, and CF-colo diagnostics. Credentials, addresses,
+connection details and request IDs are never retained. **All three**
+deployment JSON artifacts are kept even when the combined CI gate fails.
+Continue multi-geography and customer-journey validation; do not public-cutover
+or claim a per-request global SLO from favorable synthetic samples.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on
