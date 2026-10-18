@@ -185,7 +185,67 @@ const summaries = waves.map(({ concurrency, requests }) => {
       p95Ms <= (concurrency <= 8 ? thresholds.p95TtfbMs : thresholds.maxTtfbMs),
   };
 });
-const passed = summaries.every((s) => s.pass);
+// Run *after* licensed tests to avoid prewarming the truly cold SSR trials.
+// A missing staging bearer must terminate at the route authorization gate
+// before D1, server entry, catalog, rights or SSR rendering is invoked.
+// These 32 bounded responses provide a same-runner/colo edge dispatch
+// baseline; they are NOT counted as successful licensed homepage requests.
+async function deniedControl(concurrency) {
+  const begin = performance.now();
+  try {
+    const response = await fetch(origin + "/", {
+      method: "GET",
+      redirect: "manual",
+      headers: { Accept: "text/html", "Cache-Control": "no-store" },
+      signal: AbortSignal.timeout(15000),
+    });
+    const ttfbMs = Math.round(performance.now() - begin);
+    await response.text();
+    return {
+      concurrency,
+      ttfbMs,
+      status: response.status,
+      colo: (response.headers.get("cf-ray") || "").match(/-([A-Z]{3})$/)?.[1] || "unknown",
+      denied: response.status === 401 && /no-store/.test(response.headers.get("cache-control") || ""),
+    };
+  } catch {
+    return {
+      concurrency,
+      ttfbMs: Math.round(performance.now() - begin),
+      status: 0,
+      colo: "unknown",
+      denied: false,
+    };
+  }
+}
+const controlWaves = [{ concurrency: 8, requests: 16 }, { concurrency: 16, requests: 16 }];
+const deniedControls = [];
+for (const { concurrency, requests } of controlWaves) {
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: concurrency }, async () => {
+      while (next < requests) {
+        next += 1;
+        deniedControls.push(await deniedControl(concurrency));
+      }
+    }),
+  );
+}
+const controlSummaries = controlWaves.map(({ concurrency, requests }) => {
+  const rows = deniedControls.filter((x) => x.concurrency === concurrency);
+  const times = rows.map((x) => x.ttfbMs);
+  return {
+    concurrency,
+    requests,
+    denied401: rows.filter((x) => x.denied).length,
+    p50Ms: percentile(times, 0.5),
+    p95Ms: percentile(times, 0.95),
+    maxMs: times.length ? Math.max(...times) : null,
+    colo: [...new Set(rows.map((x) => x.colo))].sort(),
+  };
+});
+const controlsSecure = deniedControls.length === 32 && deniedControls.every((x) => x.denied);
+const passed = summaries.every((s) => s.pass) && controlsSecure;
 const artifact = {
   status: passed ? "pass" : "fail",
   total,
@@ -194,6 +254,9 @@ const artifact = {
   elapsedMs: Math.round(performance.now() - started),
   summaries,
   results,
+  // Metadata only: no request addresses, credentials or response bodies.
+  deniedControls,
+  controlSummaries,
 };
 fs.mkdirSync("artifacts", { recursive: true });
 fs.writeFileSync(
@@ -215,6 +278,15 @@ const report = [
   ),
   "",
   `Result **${passed ? "pass" : "fail"}** — ${total} bounded requests, no allowed 5xx/429/invalid rights.`,
+  "",
+  "Same-runner anonymous edge control (authorization must fail closed with HTTP 401; no D1 work):",
+  "| In-flight | Requests | Secure denials | p50 | p95 | Max | CF colos |",
+  "| ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+  ...controlSummaries.map(
+    (s) =>
+      `| ${s.concurrency} | ${s.requests} | ${s.denied401} | ${s.p50Ms} ms | ${s.p95Ms} ms | ${s.maxMs} ms | ${s.colo.join(",")} |`,
+  ),
+  `Edge control protection **${controlsSecure ? "pass" : "FAIL"}** — no authorization bypass; not included in 60 licensed samples.`,
   "",
   "Slowest five samples (numeric-only edge vs client diagnostics):",
   ...results
