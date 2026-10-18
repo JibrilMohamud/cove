@@ -13,6 +13,7 @@ assert.match(source, /ON CONFLICT\(key\) DO UPDATE SET\s+body=excluded.body/);
 assert.match(source, /RETURNING body/);
 assert.match(cacheUtility, /WHERE key=\? AND body=\? AND expires_at>\?/);
 assert.match(cacheUtility, /ON CONFLICT\(key\) DO UPDATE/);
+assert.match(cacheUtility, /const leaseFence = guard/);
 assert.match(source, /DELETE FROM api_cache WHERE key=\? AND body=\?/);
 assert.match(source, /MAX_STALE_MS = 3_600_000/);
 assert.match(caller, /countsPending: countState.pending/);
@@ -255,8 +256,26 @@ await presentationTaxonomyCounts(
 await secondReady;
 assert.equal(jobs.length, 1);
 const secondJob = jobs.shift();
+// Simulate a still-usable stale UI count while the replacement lease runs.
+// The superseded worker must not evict it via unrelated cache pruning.
+const digest = await crypto.subtle.digest(
+  "SHA-256",
+  new TextEncoder().encode(JSON.stringify(["DE", "de"])),
+);
+const displayKey =
+  "taxonomy-counts:v1:" +
+  [...new Uint8Array(digest)].map((n) => n.toString(16).padStart(2, "0")).join("");
+const staleDisplay = JSON.stringify([{ node_id: "fiction", product_count: 500 }]);
+sqlite
+  .prepare("INSERT INTO api_cache(key,body,expires_at) VALUES(?,?,?)")
+  .run(displayKey, staleDisplay, now - 1);
 releaseFirst();
 await firstJob;
+assert.equal(
+  sqlite.prepare("SELECT body FROM api_cache WHERE key=?").get(displayKey)?.body,
+  staleDisplay,
+  "Superseded refresh may not delete a still-displayable stale count",
+);
 const leases = sqlite
   .prepare("SELECT body FROM api_cache WHERE key LIKE 'taxonomy-counts-refresh:%'")
   .all();
