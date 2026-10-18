@@ -69,3 +69,20 @@ export async function presentationTaxonomyCounts(
   }
   return live;
 }
+
+/**
+ * A new per-miss, independent D1 read-replica session for display-count
+ * aggregation ONLY. Replica lag can make a count label slightly stale but
+ * MUST NEVER authorize a catalog listing, download, sale, or reading access.
+ *
+ * Cache hit reads and cache maintenance remain on the caller's db.
+ * On local SQLite/test adapters lacking D1 Sessions, preserve exact behavior.
+ */
+export function taxonomyPresentationReadDb(db: CatalogDB): CatalogDB {
+  const replicaCapable = db as CatalogDB & {
+    withSession?: (consistency: "first-unconstrained") => CatalogDB;
+  };
+  return typeof replicaCapable.withSession === "function"
+    ? replicaCapable.withSession("first-unconstrained")
+    : db;
+}
