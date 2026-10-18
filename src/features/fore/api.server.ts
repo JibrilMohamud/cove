@@ -3038,9 +3038,7 @@ async function handleCoveRequest(
     // primary, ensuring saved preferences cannot appear to roll backwards.
     // No process/global context cache or legal rights snapshot is introduced.
     const configDb = machineDb as typeof machineDb & {
-      withSession?: (
-        constraint: "first-primary" | "first-unconstrained",
-      ) => typeof machineDb;
+      withSession?: (constraint: "first-primary" | "first-unconstrained") => typeof machineDb;
     };
     const configConstraint = currentIdentity?.id ? "first-primary" : "first-unconstrained";
     const dbForContext =
