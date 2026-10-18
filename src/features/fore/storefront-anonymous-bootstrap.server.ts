@@ -30,8 +30,7 @@ export function canUseLeanAnonymousBootstrap(
     "x-fore-authenticated-user-id",
   ])
     if (request.headers.has(header)) return false;
-  if (!/^[A-Z]{2}$/.test(request.headers.get("x-cove-client-country") || ""))
-    return false;
+  if (!/^[A-Z]{2}$/.test(request.headers.get("x-cove-client-country") || "")) return false;
   // server.ts replaces x-cove-client-country from immutable request.cf.
   // It also removes spoofable client-IP headers, leaving cf-connecting-ip.
   if (!request.headers.get("cf-connecting-ip")?.trim()) return false;
@@ -77,18 +76,10 @@ export async function serveLeanAnonymousBootstrap(
   const [context, availableMarkets] = await Promise.all([
     timed(
       "context",
-      resolveStorefrontContext(
-        readMetadata(),
-        request,
-        null,
-        env.FORE_DEFAULT_TERRITORY || "US",
-      ),
+      resolveStorefrontContext(readMetadata(), request, null, env.FORE_DEFAULT_TERRITORY || "US"),
     ),
     timed("markets", storefrontMarkets(readMetadata())),
-    timed(
-      "limit",
-      enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180),
-    ),
+    timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
   ]);
   const query = new URLSearchParams({
     search: "",
