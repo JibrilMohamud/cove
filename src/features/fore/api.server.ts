@@ -2766,7 +2766,9 @@ export async function handleCoveApi(
   headers.set("x-fore-trace-id", trace.traceId);
   headers.set("x-fore-span-id", trace.spanId);
   const tracedRequest = new Request(request, { headers });
+  const authStarted = performance.now();
   const auth = await createAuth(tracedRequest, env);
+  timings.auth = performance.now() - authStarted;
   const raw = await handleCoveRequest(tracedRequest, env, auth, timings, execution);
   if (!raw) return null;
   const decorated = auth.decorate(raw) || raw,

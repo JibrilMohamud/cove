@@ -147,6 +147,30 @@ timings, and the three-letter Cloudflare colo (no raw CF-Ray identifiers).
 A single successful run is insufficient: repeat genuinely fresh deployments
 and additional geographies before production routing.
 
+### Ingress-edge independent results (October 18 UTC)
+
+The first protected deployment of merged PR #133 passed **20/20** (p95 444 ms,
+max 640 ms) with 24 live-rights-checked books per response. CF-Ray colo was
+IAD on every request. The first genuine homepage SSR response, measured
+before the D1 health/bootstrap warmup, took 640 ms.
+
+The independent redeployment of the identical commit failed **18/20**
+(p95 832 ms, max 1,152 ms), with the two misses at 832 and 1,152 ms.
+This time every request entered through **LAX**. All 20 still rendered
+24 authorized books. Unlike the fixed-region trial, these misses largely
+occurred *inside* the Worker: the 1,152 ms request reported 1,099 ms total
+Worker duration and a 53 ms unattributed residual. The 832 ms request
+reported 718 ms Worker duration and a 114 ms residual. Hence edge-local
+execution does not meet the globally repeatable hard SLO. Comparison:
+[main deployment and independent job attempts](https://github.com/JibrilMohamud/cove/actions/runs/39082829021).
+
+The LAX run's logged backend context, catalog and page timings do not account
+for the full bootstrap handler duration in some slow samples. The next
+diagnostic adds allowlisted auth and aggregate API/telemetry phases before
+optimizing any potentially costly per-request work. Enabling a geographically
+near replica or caching rights without a carefully demonstrated authoritative
+country/revocation-consistency model is **not** an acceptable shortcut.
+
 ### Remaining customer-facing blocker
 
 The existing Vercel homepage remains the actual public product. The most
