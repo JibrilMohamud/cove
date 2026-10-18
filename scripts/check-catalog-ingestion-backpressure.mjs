@@ -58,7 +58,11 @@ assert.match(batch, /searchSync = \{/);
 assert.match(batch, /skipped: "primary_busy"/);
 assert.match(batch, /\.\.\.\(searchSync \? \{ searchSync \} : \{\}\)/);
 assert.doesNotMatch(batch, /checkPrimaryBeforeBulkWork/);
-assert.doesNotMatch(workerSource.slice(0, batchStart), /admitCatalogBatch/);
+assert.equal(
+  (workerSource.match(/await admitCatalogBatch\(/g) || []).length,
+  1,
+  "Only derived search-index synchronization may probe for write admission",
+);
 console.log(
   "Derived-search admission: bounded latency, safe rights-stage ordering, retryable deferral PASS",
 );
