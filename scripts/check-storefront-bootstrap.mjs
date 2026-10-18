@@ -66,11 +66,6 @@ try {
                 /currency_probe INDEXED BY idx_search_price/i,
                 "Live first-paint selection must reject empty currencies via existing indexed primary D1",
               );
-              assert.match(
-                sql,
-                /SELECT default_currency FROM storefront_markets WHERE country_code=upper\(\?\)/i,
-                "Anonymous catalog currency must resolve on authoritative primary D1",
-              );
               atomicRightsShelfQueries += 1;
             }
             return target.prepare(sql);
@@ -216,6 +211,11 @@ try {
                 sql,
                 /currency_probe INDEXED BY idx_search_price/i,
                 "Live first-paint selection must reject empty currencies via existing indexed primary D1",
+              );
+              assert.match(
+                sql,
+                /SELECT default_currency FROM storefront_markets WHERE country_code=upper\(\?\)/i,
+                "Anonymous catalog currency must resolve on authoritative primary D1",
               );
               authoritativeRights++;
             }
