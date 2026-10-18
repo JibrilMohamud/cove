@@ -704,14 +704,39 @@ export async function canonicalFirstPaintShelfByRightsQuery(
     order: string;
     binds: unknown[];
     limit: number;
+    /** Trusted country only; activates an authoritative currency preflight CTE. */
+    currencyCountry?: string;
   },
   diagnostics?: FirstPaintD1QueryMetrics,
 ): Promise<{ books: CatalogBook[]; hasMore: boolean }> {
   if (!Number.isInteger(selection.limit) || selection.limit < 1 || selection.limit > 100)
     throw new ApiError(400, "Invalid storefront shelf limit.");
+  // Nested scalar currency resolution plus the complex legally-scoped
+  // retail view overflowed SQLite's 100-level expression tree in production.
+  // Keep currency resolution and indexed existence checks in separate,
+  // materialized, non-correlated CTEs. Both execute in this SAME primary D1
+  // statement and cannot cache/grant rights.
+  const currencyPrelude = selection.currencyCountry
+    ? `WITH first_paint_currency(currency) AS MATERIALIZED (
+         SELECT COALESCE(
+           (SELECT default_currency FROM storefront_markets
+            WHERE country_code=upper(?) AND market_status='active'),
+           (SELECT default_currency FROM storefront_markets
+            WHERE country_code='US' AND market_status='active')
+         )
+       ), first_paint_currency_available AS MATERIALIZED (
+         SELECT 1 FROM catalog_search_documents currency_probe INDEXED BY idx_search_price
+         WHERE currency_probe.currency=(SELECT currency FROM first_paint_currency)
+           AND currency_probe.availability='available'
+           AND currency_probe.suppressed=0 LIMIT 1
+       ), eligible AS MATERIALIZED (`
+    : "WITH eligible AS MATERIALIZED (";
+  const bindings = selection.currencyCountry
+    ? [selection.currencyCountry, ...selection.binds, selection.limit + 1]
+    : [...selection.binds, selection.limit + 1];
   const rows = await db
     .prepare(
-      `WITH eligible AS MATERIALIZED (
+      `${currencyPrelude}
          SELECT d.product_id,d.fore_bestseller_score AS sort_score,
            d.external_book_id AS sort_source
          FROM ${selection.from}
@@ -722,7 +747,7 @@ export async function canonicalFirstPaintShelfByRightsQuery(
        JOIN eligible selected ON selected.product_id=p.id
        ORDER BY selected.sort_score DESC,selected.sort_source ASC,selected.product_id ASC`,
     )
-    .bind(...selection.binds, selection.limit + 1)
+    .bind(...bindings)
     .all<Record<string, unknown>>();
   if (diagnostics) {
     // D1's SQL time excludes service dispatch, queueing and Worker/D1

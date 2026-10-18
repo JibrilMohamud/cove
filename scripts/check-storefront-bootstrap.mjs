@@ -205,7 +205,7 @@ try {
           };
         if (property === "prepare")
           return (sql) => {
-            if (/WITH eligible AS MATERIALIZED/i.test(sql)) {
+            if (/\beligible AS MATERIALIZED/i.test(sql)) {
               assert.match(sql, /retail_product_availability_rows/i);
               assert.match(
                 sql,
@@ -214,8 +214,8 @@ try {
               );
               assert.match(
                 sql,
-                /SELECT default_currency FROM storefront_markets WHERE country_code=upper\(\?\)/i,
-                "Anonymous catalog currency must resolve on authoritative primary D1",
+                /first_paint_currency\(currency\) AS MATERIALIZED/i,
+                "Anonymous active-market currency must resolve in isolated primary-D1 CTE",
               );
               authoritativeRights++;
             }
