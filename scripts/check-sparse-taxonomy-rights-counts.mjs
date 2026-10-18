@@ -64,8 +64,12 @@ try {
   for (let n = 1; n <= 2500; n++) {
     const id = "edition-" + n;
     edition.run(id, n % 31 === 0 ? "draft" : "available");
-    product.run("product-" + n, id, n % 37 === 0 ? "draft" : "active",
-      n % 41 === 0 ? "upload" : "gutenberg");
+    product.run(
+      "product-" + n,
+      id,
+      n % 37 === 0 ? "draft" : "active",
+      n % 41 === 0 ? "upload" : "gutenberg",
+    );
     language.run(id, n % 6 === 0 ? "fr" : "en");
     membership.run(id, "fantasy");
     if (n % 2 === 0) membership.run(id, "fiction");
@@ -96,21 +100,24 @@ try {
   ) SELECT et.taxonomy_node_id node_id,COUNT(DISTINCT p.id) product_count
     FROM eligible p JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
     GROUP BY et.taxonomy_node_id`;
-  const normalize = (rows) => rows
-    .map((row) => ({ node_id: String(row.node_id), product_count: Number(row.product_count) }))
-    .sort((a, b) => a.node_id.localeCompare(b.node_id));
+  const normalize = (rows) =>
+    rows
+      .map((row) => ({ node_id: String(row.node_id), product_count: Number(row.product_count) }))
+      .sort((a, b) => a.node_id.localeCompare(b.node_id));
   const verify = (territory, lang) => {
     const originalRows = normalize(db.prepare(original).all(lang, lang, territory));
     const probe = db.prepare(taxonomySparseRightsProbe).get(territory).grant_count;
     const sparse = probe <= 1000;
     const plan = taxonomyCountPlan(territory, lang, sparse);
     assert.deepEqual(
-      normalize(db.prepare(plan.sql).all(...plan.binds)), originalRows,
+      normalize(db.prepare(plan.sql).all(...plan.binds)),
+      originalRows,
       `Count must preserve current legal rights for ${territory}/${lang}`,
     );
     const otherPlan = taxonomyCountPlan(territory, lang, !sparse);
     assert.deepEqual(
-      normalize(db.prepare(otherPlan.sql).all(...otherPlan.binds)), originalRows,
+      normalize(db.prepare(otherPlan.sql).all(...otherPlan.binds)),
+      originalRows,
       `Both candidate plans must be fully legally equivalent: ${territory}/${lang}`,
     );
     return { probe, sparse };
@@ -133,9 +140,9 @@ try {
   grant.run("deny-ca", "edition-2", "retail", "active", "deny");
   scope.run("deny-ca", "CA");
   verify("CA", "");
-  const sqlPlan = db.prepare(
-    "EXPLAIN QUERY PLAN " + taxonomyCountPlan("CA", "", true).sql,
-  ).all(...taxonomyCountPlan("CA", "", true).binds);
+  const sqlPlan = db
+    .prepare("EXPLAIN QUERY PLAN " + taxonomyCountPlan("CA", "", true).sql)
+    .all(...taxonomyCountPlan("CA", "", true).binds);
   assert.ok(
     sqlPlan.some((row) => String(row.detail).includes("idx_rights_grant_territories_lookup")),
     "Sparse market must use the indexed territory seed",
@@ -144,7 +151,9 @@ try {
     sqlPlan.some((row) => String(row.detail).includes("retail_product_availability")),
     "Always preserve the authoritative legal view",
   );
-  console.log("Taxonomy counts: dense/sparse rights parity; locale, duplicates, revocations, denials, active grants PASS");
+  console.log(
+    "Taxonomy counts: dense/sparse rights parity; locale, duplicates, revocations, denials, active grants PASS",
+  );
 } finally {
   db.close();
 }
