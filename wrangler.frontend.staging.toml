@@ -6,13 +6,12 @@ compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
-# D1 currently reports its authoritative primary at ORD (Chicago). Explicit
-# Midwest placement avoids Smart Placement needing traffic to learn the D1
-# location on each staging deployment. A Cloudflare location hint is not a
-# database cache: every legal territory/rights query is still live against D1.
-# Immutable request.cf.country remains the sole legal network-country source.
-[placement]
-region = "aws:us-east-2"
+# Diagnostic experiment: run at the ingress edge, rather than forwarding
+# requests to a fixed Ohio execution region. The fixed-region trials showed
+# frequent >500 ms TTFB outside the timed Worker handler. D1 stays the live
+# per-request source for all territorial rights decisions. No rights cache,
+# public routing change or loosened performance threshold is permitted.
+# Compare independent true-cold trials before selecting a production setting.
 
 [assets]
 directory = "./.output/public"
