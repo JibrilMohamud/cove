@@ -43,24 +43,15 @@ function command(cwd, exe, args, env = {}, timeout = 200000, input) {
 }
 
 function prepareConfigs() {
-  const template = fs.readFileSync(
-    path.join(root, "wrangler.frontend.staging.toml"),
-    "utf8",
-  );
+  const template = fs.readFileSync(path.join(root, "wrangler.frontend.staging.toml"), "utf8");
   assert.match(template, /COVE_SSR_STAGING = "1"/);
   assert.match(template, /run_worker_first = true/);
-  assert.match(
-    template,
-    /database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"/,
-  );
+  assert.match(template, /database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"/);
   for (const cohort of Object.values(cohorts)) {
     // Force IDENTICAL ingress-edge placement in BOTH cohorts, independent of
     // current Smart Placement experiments. Test placement separately later.
     let config = template.replace(/\[placement\]\s*mode\s*=\s*"smart"\s*/m, "");
-    config = config.replace(
-      /^name = "cove-storefront-ssr-staging"$/m,
-      `name = "${cohort.name}"`,
-    );
+    config = config.replace(/^name = "cove-storefront-ssr-staging"$/m, `name = "${cohort.name}"`);
     assert.doesNotMatch(config, /^\[placement\]/m);
     assert.match(config, new RegExp(`name = "${cohort.name}"`));
     fs.writeFileSync(path.join(cohort.dir, configName), config);
@@ -84,8 +75,7 @@ async function controlPlane(name) {
       headers: { Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` },
     });
     const j = await r.json();
-    if (!r.ok || !j.success)
-      throw Error("Cloudflare control-plane deployment verification failed");
+    if (!r.ok || !j.success) throw Error("Cloudflare control-plane deployment verification failed");
     const latest = j.result?.deployments?.[0];
     if (latest && latest.versions?.some((v) => Number(v.percentage) === 100))
       return {
@@ -129,34 +119,19 @@ function benchScript(label, cohort, script, outputName, run) {
       saved,
       error: String(e).slice(0, 1000),
     });
-    process.stdout.write(
-      `::error::${label} ${path.basename(script)} failed strict validation\n`,
-    );
+    process.stdout.write(`::error::${label} ${path.basename(script)} failed strict validation\n`);
   }
 }
 async function deployFresh(cohort) {
   const arg = ["exec", "--yes", "--package=wrangler@4.151.0", "--", "wrangler"];
-  command(
-    cohort.dir,
-    "npm",
-    [...arg, "deploy", "--config", configName],
-    {},
-    180000,
-  );
+  command(cohort.dir, "npm", [...arg, "deploy", "--config", configName], {}, 180000);
   cohort.key = randomBytes(32).toString("hex");
   cohort.rotatedAt = Date.now();
   // No gate key, file, request headers or token is logged/artifacted.
   command(
     cohort.dir,
     "npm",
-    [
-      ...arg,
-      "secret",
-      "put",
-      "COVE_SSR_STAGING_GATE_KEY",
-      "--config",
-      configName,
-    ],
+    [...arg, "secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", configName],
     {},
     90000,
     cohort.key,
@@ -187,17 +162,15 @@ async function d1Snapshot(since, until) {
     });
     const j = await r.json();
     if (!r.ok || j.errors) return { warning: "D1 analytics query unavailable" };
-    return (j.data?.viewer?.accounts?.[0]?.d1QueriesAdaptiveGroups || []).map(
-      (v) => ({
-        fingerprint: v.dimensions.query?.replace(/\s+/g, " ").slice(0, 125),
-        role: v.dimensions.databaseRole,
-        calls: v.count,
-        avgSqlMs: v.avg.queryDurationMs,
-        totalSqlMs: v.sum.queryDurationMs,
-        rowsRead: v.sum.rowsRead,
-        rowsWritten: v.sum.rowsWritten,
-      }),
-    );
+    return (j.data?.viewer?.accounts?.[0]?.d1QueriesAdaptiveGroups || []).map((v) => ({
+      fingerprint: v.dimensions.query?.replace(/\s+/g, " ").slice(0, 125),
+      role: v.dimensions.databaseRole,
+      calls: v.count,
+      avgSqlMs: v.avg.queryDurationMs,
+      totalSqlMs: v.sum.queryDurationMs,
+      rowsRead: v.sum.rowsRead,
+      rowsWritten: v.sum.rowsWritten,
+    }));
   } catch {
     return { warning: "D1 analytics unavailable" };
   }
@@ -322,12 +295,8 @@ async function main() {
       return {
         round,
         valid: trial.status === "pass",
-        firstTtfbMs:
-          trial.results?.find((r) => r.sequence === 1)?.ttfbMs ?? null,
-        maxTtfbMs: Math.max(
-          0,
-          ...(trial.results || []).map((r) => r.ttfbMs || 0),
-        ),
+        firstTtfbMs: trial.results?.find((r) => r.sequence === 1)?.ttfbMs ?? null,
+        maxTtfbMs: Math.max(0, ...(trial.results || []).map((r) => r.ttfbMs || 0)),
         p95TtfbMs: trial.p95,
         slowSamples: trial.slowSamples,
         failures: trial.failures?.length ?? 0,
@@ -356,9 +325,7 @@ async function main() {
     const current = newWaves.find((v) => v.concurrency === old.concurrency);
     return {
       concurrency: old.concurrency,
-      sharedColos: (old.colos || []).filter((colo) =>
-        current?.colos?.includes(colo),
-      ),
+      sharedColos: (old.colos || []).filter((colo) => current?.colos?.includes(colo)),
       maxDeltaMs:
         Number.isFinite(current?.maxTtfbMs) && Number.isFinite(old.maxTtfbMs)
           ? current.maxTtfbMs - old.maxTtfbMs
