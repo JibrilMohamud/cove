@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
+import { channel } from "node:diagnostics_channel";
 import {
   requestedLanguages,
   probeSequence,
@@ -17,6 +18,53 @@ const origin = productionOrigin(
 );
 const token = process.env.COVE_SSR_STAGING_GATE_KEY;
 assert.match(token || "", /^[a-f0-9]{64}$/, "Ephemeral staging key required.");
+
+// Undici request lifecycle is strictly diagnostic: these events never affect
+// correctness, retries, the request order, or the hard <800 ms TTFB gate.
+// Capture numeric phases only. Never retain request objects, IPs or headers.
+let activeProbe = null;
+const requestSpans = new WeakMap();
+channel("undici:request:create").subscribe(({ request }) => {
+  if (
+    !activeProbe ||
+    request?.origin !== origin ||
+    request?.path !== "/" ||
+    request?.method !== "GET"
+  ) {
+    return;
+  }
+  const span = activeProbe;
+  span.createdAt = performance.now();
+  requestSpans.set(request, span);
+});
+channel("undici:client:sendHeaders").subscribe(({ request }) => {
+  const span = requestSpans.get(request);
+  if (span) span.sentAt = performance.now();
+});
+channel("undici:request:headers").subscribe(({ request }) => {
+  const span = requestSpans.get(request);
+  if (span) span.headersAt = performance.now();
+});
+
+function integerDelta(after, before) {
+  return Number.isFinite(after) && Number.isFinite(before)
+    ? Math.max(0, Math.round(after - before))
+    : null;
+}
+
+function numericWorkerTiming(headers) {
+  const parts = (headers.get("server-timing") || "").split(",");
+  const matched = parts
+    .map((item) => item.trim().match(/^cove_total;dur=(\d+(?:\.\d+)?)$/))
+    .find(Boolean);
+  return matched ? Number(matched[1]) : null;
+}
+
+function safeCloudflareColo(headers) {
+  // Only the final three-letter colo identifier is retained, not the CF-Ray ID.
+  const match = (headers.get("cf-ray") || "").match(/-([A-Z]{3})$/);
+  return match ? match[1] : "unknown";
+}
 
 function headers(extra = {}) {
   return { Authorization: "Bearer " + token, ...extra };
@@ -141,12 +189,19 @@ async function assertRightsIsolation() {
 
 async function probe(language, sample, sequence) {
   const started = performance.now();
-  const response = await fetch(origin + "/", {
-    headers: headers({ Accept: "text/html", "Accept-Language": language }),
-    redirect: "manual",
-    signal: AbortSignal.timeout(15_000),
-  });
-  const ttfbMs = Math.round(performance.now() - started);
+  const span = {};
+  activeProbe = span;
+  let response, ttfbMs;
+  try {
+    response = await fetch(origin + "/", {
+      headers: headers({ Accept: "text/html", "Accept-Language": language }),
+      redirect: "manual",
+      signal: AbortSignal.timeout(15_000),
+    });
+    ttfbMs = Math.round(performance.now() - started);
+  } finally {
+    activeProbe = null;
+  }
   const html = await response.text();
   const totalMs = Math.round(performance.now() - started);
   const cards = validateHtml(response.status, response.headers.get("content-type") || "", html);
@@ -154,27 +209,39 @@ async function probe(language, sample, sequence) {
     throw new Error("Stage homepage must never be cached.");
   if (!/cove_ssr_local_rights;dur=0/.test(response.headers.get("server-timing") || ""))
     throw new Error("No evidence of in-Worker D1 rights authority.");
+  const workerMs = numericWorkerTiming(response.headers);
   return {
     language,
     sample,
     sequence,
     cards,
     ...safeProbeTelemetry(response.headers, ttfbMs, totalMs),
+    workerMs,
+    unattributedMs: workerMs === null ? null : Math.max(0, Math.round(ttfbMs - workerMs)),
+    cfColo: safeCloudflareColo(response.headers),
+    clientQueueMs: integerDelta(span.sentAt, span.createdAt),
+    clientToHeadersMs: integerDelta(span.headersAt, span.sentAt),
   };
 }
 
 await assertProtected();
-await assertLocalDatabaseReady();
-await assertRightsIsolation();
 const results = [];
 const failures = [];
-for (const { language, sample, sequence } of probeSequence()) {
+// First real SSR request precedes the D1 health and API rights probes.
+// Those preflights previously warmed the entire application and masked a
+// genuine fresh-deployment SSR cold path. Every one of the 20 requests counts.
+const sequence = probeSequence();
+const measure = async ({ language, sample, sequence: order }) => {
   try {
-    results.push(await probe(language, sample, sequence));
+    results.push(await probe(language, sample, order));
   } catch (error) {
-    failures.push({ sequence, language, sample, error: String(error).slice(0, 300) });
+    failures.push({ sequence: order, language, sample, error: String(error).slice(0, 300) });
   }
-}
+};
+await measure(sequence[0]);
+await assertLocalDatabaseReady();
+await assertRightsIsolation();
+for (const entry of sequence.slice(1)) await measure(entry);
 const allPass =
   failures.length === 0 &&
   results.length === requestedLanguages.length * 4 &&
@@ -208,10 +275,15 @@ const table = [
   "This is synthetic runner TTFB, not a field performance guarantee.",
   "Workers.dev staging is not the production hostname.",
   "",
-  "| Sequence | Locale | Sample | TTFB | SSR cards |",
-  "| ---: | --- | ---: | ---: | ---: |",
+  "The first counted homepage request precedes any authenticated D1/rights preflight.",
+  "Residual = client TTFB - timed Worker duration; not necessarily a cold-start diagnosis.",
+  "Undici client-to-headers includes network and remote processing; phases are diagnostic only.",
+  "",
+  "| Sequence | Locale | Sample | TTFB | Worker | Residual | Client queue | Sent-to-headers | CF colo | SSR cards |",
+  "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |",
   ...results.map(
-    (r) => `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.cards} |`,
+    (r) =>
+      `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.workerMs ?? "n/a"} ms | ${r.unattributedMs ?? "n/a"} ms | ${r.clientQueueMs ?? "n/a"} ms | ${r.clientToHeadersMs ?? "n/a"} ms | ${r.cfColo} | ${r.cards} |`,
   ),
   "",
   `Result **${summary.status}** — p75 ${summary.p75 ?? "n/a"} ms, p95 ${summary.p95 ?? "n/a"} ms; ${summary.slowSamples} >=800 ms; ${summary.errors} failures.`,

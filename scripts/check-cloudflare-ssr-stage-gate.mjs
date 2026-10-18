@@ -62,8 +62,9 @@ try {
   assert.match(wrangler, /^run_worker_first\s*=\s*true$/m);
   assert.match(wrangler, /\[\[ratelimits\]\][\s\S]*?name = "COVE_STOREFRONT_READ_LIMITER"/);
   assert.match(wrangler, /\[ratelimits\.simple\]\s*\nlimit = 180\s*\nperiod = 60/);
-  assert.match(wrangler, /\[placement\]\s*\nregion\s*=\s*"aws:us-east-2"/);
-  assert.doesNotMatch(wrangler, /^mode\s*=\s*"smart"$/m);
+  // Staging ingress-edge experiment must not silently retain Smart/Ohio
+  // placement; both previously produced intermittent hard-gate misses.
+  assert.doesNotMatch(wrangler, /^\[placement\]/m);
   assert.match(wrangler, /^COVE_SSR_STAGING\s*=\s*"1"$/m);
   assert.doesNotMatch(wrangler, /COVE_SSR_STAGING_GATE_KEY\s*=/);
   assert.doesNotMatch(wrangler, /^routes?\s*=/m);

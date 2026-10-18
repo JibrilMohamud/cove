@@ -129,6 +129,24 @@ and 6,777 ms, plus one 8.4-second empty bootstrap timeout.
 [Public run](https://github.com/JibrilMohamud/cove/actions/runs/39080119384).
 The public route remains unchanged and fails the SLO.
 
+### Ingress-edge experiment (pending independent evidence)
+
+The fixed Ohio experiment left frequent 500–850 ms gaps between client TTFB
+and measured Worker processing. The next staging-only trial deliberately
+**removes placement entirely**, so the Worker runs near Cloudflare ingress
+instead of a fixed Midwest region. This may lower request transit while
+increasing D1 round trips to the ORD primary; neither outcome is assumed.
+
+The protected staging gate now counts the **first authenticated homepage SSR
+request before** the D1 health and bootstrap/rights preflight, which previously
+warmed SSR before the 20-request test. All 20 requests must still be below
+800 ms with real live country-scoped books, no-store responses, native D1
+rights authority and no exceptions. Synthetic artifacts include only numeric
+client/Worker duration, unattributed residual, Undici request-to-headers
+timings, and the three-letter Cloudflare colo (no raw CF-Ray identifiers).
+A single successful run is insufficient: repeat genuinely fresh deployments
+and additional geographies before production routing.
+
 ### Remaining customer-facing blocker
 
 The existing Vercel homepage remains the actual public product. The most
