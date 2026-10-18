@@ -28,6 +28,10 @@ try {
   function prepare(sql, values = []) {
     const original = env.DB.prepare(sql).bind(...values);
     return {
+      // The held-write fixture must never suspend the new read-only
+      // payment/translation D1 batch: it tests deferred diagnostics writes,
+      // not database availability for live storefront reads.
+      readOnly: /^\s*(?:SELECT\b|WITH RECURSIVE locale_chain\b)/i.test(sql),
       bind: (...next) => prepare(sql, next),
       first: () => original.first(),
       all: () => original.all(),
@@ -39,7 +43,13 @@ try {
   }
   const held = {
     ...env,
-    DB: { prepare, batch: (statements) => gate.then(() => env.DB.batch(statements)) },
+    DB: {
+      prepare,
+      batch: (statements) =>
+        statements.every((stmt) => stmt.readOnly)
+          ? env.DB.batch(statements)
+          : gate.then(() => env.DB.batch(statements)),
+    },
   };
   const request = (path) => new Request("https://isolated.test/api/fore" + path);
   const tasks = [];
