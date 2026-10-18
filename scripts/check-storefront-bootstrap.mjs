@@ -17,6 +17,17 @@ try {
   });
   const { handleCoveApi } = await import(path.join(root, "api.mjs"));
   await build({
+    entryPoints: ["src/features/fore/storefront-anonymous-bootstrap.server.ts"],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    outfile: path.join(root, "anonymous.mjs"),
+    logLevel: "silent",
+  });
+  const { canUseLeanAnonymousBootstrap, serveLeanAnonymousBootstrap } = await import(
+    path.join(root, "anonymous.mjs")
+  );
+  await build({
     entryPoints: ["src/features/fore/taxonomy.server.ts"],
     bundle: true,
     platform: "node",
@@ -145,6 +156,117 @@ try {
       !("user" in bootstrap) && !("library" in bootstrap),
       "bootstrap includes no private reading records",
     );
+  }
+  // Compare the independently bundled, lean Cloudflare SSR path to the
+  // canonical API in four countries. A replica may supply presentation-only
+  // configuration, but the live retail rights filter must remain on primary.
+  for (const [country, language] of [
+    ["US", "en-US"],
+    ["CA", "fr-FR"],
+    ["SA", "ar-SA"],
+    ["JP", "en-US"],
+  ]) {
+    const visitorHeaders = {
+      "x-cove-client-country": country,
+      "cf-connecting-ip": "203.0.113.123",
+      "accept-language": language,
+    };
+    const req = new Request("https://cove.test/api/fore/storefront/bootstrap", {
+      headers: visitorHeaders,
+    });
+    let limitCalls = 0, authoritativeRights = 0;
+    const sessionModes = [];
+    const proxyDb = new Proxy(env.DB, {
+      get(target, property) {
+        if (property === "withSession")
+          return (mode) => {
+            sessionModes.push(mode);
+            return new Proxy(target, {
+              get(reader, key) {
+                if (key === "prepare")
+                  return (sql) => {
+                    assert.doesNotMatch(
+                      sql,
+                      /retail_product_availability_rows/i,
+                      "Anonymous replica may never authorize an edition",
+                    );
+                    return reader.prepare(sql);
+                  };
+                const value = Reflect.get(reader, key);
+                return typeof value === "function" ? value.bind(reader) : value;
+              },
+            });
+          };
+        if (property === "prepare")
+          return (sql) => {
+            if (/WITH eligible AS MATERIALIZED/i.test(sql)) {
+              assert.match(sql, /retail_product_availability_rows/i);
+              authoritativeRights++;
+            }
+            return target.prepare(sql);
+          };
+        const value = Reflect.get(target, property);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const liveEnv = {
+      ...env,
+      DB: proxyDb,
+      FORE_ENVIRONMENT: "production",
+      COVE_STOREFRONT_READ_LIMITER: {
+        async limit(input) {
+          limitCalls++;
+          assert.equal(input.key, "search:catalog:ip:203.0.113.123");
+          return { success: true };
+        },
+      },
+    };
+    assert.equal(canUseLeanAnonymousBootstrap(req, liveEnv), true);
+    for (const key of ["cookie", "authorization", "oai-authenticated-user-id"]) {
+      const guarded = new Request(req, {
+        headers: { ...visitorHeaders, [key]: "non-empty" },
+      });
+      assert.equal(
+        canUseLeanAnonymousBootstrap(guarded, liveEnv),
+        false,
+        `Authenticated/session-bearing request must not use lean SSR: ${key}`,
+      );
+    }
+    const lean = await serveLeanAnonymousBootstrap(req, liveEnv);
+    assert.equal(lean.status, 200);
+    assert.match(lean.headers.get("cache-control") || "", /no-store/);
+    assert.match(lean.headers.get("server-timing") || "", /cove_lean;dur=0/);
+    assert.equal(lean.headers.has("set-cookie"), false);
+    const value = await lean.json();
+    const canonical = await handleCoveApi(
+      new Request("https://cove.test/api/fore/storefront/bootstrap", {
+        headers: {
+          "cf-ipcountry": country,
+          "accept-language": language,
+        },
+      }),
+      { ...env, FORE_ENVIRONMENT: "production" },
+    );
+    assert.equal(canonical.status, 200);
+    const expected = await canonical.json();
+    assert.equal(value.context.rightsCountry, country);
+    assert.equal(value.context.locale, expected.context.locale);
+    assert.equal(value.context.currency, expected.context.currency);
+    assert.deepEqual(value.context.availableMarkets, expected.context.availableMarkets);
+    assert.deepEqual(value.page, expected.page);
+    assert.deepEqual(
+      value.catalog.results.map((book) => book.productId),
+      expected.catalog.results.map((book) => book.productId),
+      "No change to geographically authorized first paint products",
+    );
+    assert.equal(value.catalogQuery, expected.catalogQuery);
+    assert.equal(authoritativeRights, 1, "Exactly one primary rights query");
+    assert.equal(limitCalls, 1, "Exactly one enforced Cloudflare edge limit");
+    assert.deepEqual(sessionModes, [
+      "first-unconstrained",
+      "first-unconstrained",
+      "first-unconstrained",
+    ]);
   }
   assert.ok(joinedMarketLocaleReads >= 4, "One live joined market/locale read per bootstrap");
   // Simulate native D1's Sessions API. Configuration may use a
