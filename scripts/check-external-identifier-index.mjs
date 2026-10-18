@@ -63,10 +63,10 @@ try {
     );
   // Both insertions and canonical identifier updates remain immediately visible.
   external.run("work", "wrk_7", "openlibrary", "ol-new-7");
-  assert.deepEqual(db.prepare(query).all(...Array(4).fill("ol-new-7")), [{ id: "wrk_7" }]);
+  assert.deepEqual(db.prepare(query).all(...Array(4).fill("ol-new-7")).map((r) => ({ ...r })), [{ id: "wrk_7" }]);
   db.prepare("UPDATE external_identifiers SET value='ol-revised-7' WHERE entity_type='work' AND entity_id='wrk_7' AND scheme='openlibrary'").run();
   assert.deepEqual(db.prepare(query).all(...Array(4).fill("ol-new-7")), []);
-  assert.deepEqual(db.prepare(query).all(...Array(4).fill("ol-revised-7")), [{ id: "wrk_7" }]);
+  assert.deepEqual(db.prepare(query).all(...Array(4).fill("ol-revised-7")).map((r) => ({ ...r })), [{ id: "wrk_7" }]);
   console.log("Work ID lookup index: exact resolver parity, covering seek, aliases, insert/update PASS");
 } finally {
   db.close();
