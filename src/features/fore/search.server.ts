@@ -1,7 +1,7 @@
 import type { CatalogBook } from "./client";
 import {
   canonicalBooksByProductIds,
-  canonicalFirstPaintBooksByProductIds,
+  canonicalFirstPaintShelfByRightsQuery,
   type CatalogDB,
 } from "./catalog-model.server";
 import { ApiError } from "./service";
@@ -1532,14 +1532,16 @@ export async function firstPaintStorefrontShelf(
   }).toString();
   const input = { ...parseSearchInput(url), territory: normalizeTerritoryCode(territory) };
   const part = candidateParts(input, "");
-  const rows = await env.DB.prepare(
-    `SELECT d.product_id FROM ${part.from} WHERE ${part.where.join(" AND ")}
-      ORDER BY ${d1Sort(input, false)},d.product_id ASC LIMIT ?`,
-  )
-    .bind(...part.binds, input.limit + 1)
-    .all<{ product_id: string }>();
-  const hasMore = rows.results.length > input.limit;
-  const ids = rows.results.slice(0, input.limit).map((row) => String(row.product_id));
+  // The same live, country-filtered candidate SQL now selects and hydrates
+  // books inside one atomic D1 read, rather than two serial primary-region
+  // trips. No shelf cache or stale legal rights snapshot is introduced.
+  const { books, hasMore } = await canonicalFirstPaintShelfByRightsQuery(env.DB, {
+    from: part.from,
+    where: part.where.join(" AND "),
+    order: d1Sort(input, false),
+    binds: part.binds,
+    limit: input.limit,
+  });
   // The first-paint BookCard displays titles, covers, retail offers and
   // genres, but NEVER the subscription/library access flags. Computing those
   // flags materializes the full legal channel view on every anonymous
@@ -1548,7 +1550,6 @@ export async function firstPaintStorefrontShelf(
   // represent secondary eligibility as UNKNOWN, not false/authorized.
   // Purchase, subscription, library and EPUB handlers independently enforce
   // current rights at action time; no preview data grants access.
-  const books = await canonicalFirstPaintBooksByProductIds(env.DB, ids);
   for (const book of books) {
     delete book.subscriptionEligible;
     delete book.libraryEligible;
