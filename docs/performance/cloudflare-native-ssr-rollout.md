@@ -65,6 +65,28 @@ a warmed handler, rights snapshot, retried/discounted probe, or an extension
 of the 800 ms limit. If propagation still fails, the deployment fails.
 Any true D1 slowness still fails separately.
 
+### Anonymous storefront metadata: geo-near replica experiment (unvalidated)
+
+D1 reports `read_replication.mode=auto` but the primary-anchored
+`withSession("first-primary")` experiment still had five true >800 ms
+home SSR requests in a three-deployment trial. Next try
+`first-unconstrained` **only for anonymous first-paint locale/market
+presentation metadata**, routing the first config query to a nearby D1
+replica when available. First-party logged-in visits continue using
+`first-primary` for saved preferences. The real country-scoped book shelf,
+purchase/subscription grants, EPUB rights, and checkout always query the
+authoritative D1 primary using the original binding; this is enforced in
+fixture tests. UI payment methods/market labels from read replicas may be
+briefly stale, so **no cutover** is allowed until revocation and market-pause
+fixtures show the full browser-to-checkout journey fails closed against
+primary D1. Do not use this replica read to validate authorization or legal
+territory. Assess separately whether any market UI staleness is acceptable.
+
+Strict performance remains a **hard** 20/20 for each of three independent
+versions, including the very first SSR fetch, with no waived samples and
+independent geographical trials. A favorable replica location cannot turn
+network variability into a guaranteed per-request SLO.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on
