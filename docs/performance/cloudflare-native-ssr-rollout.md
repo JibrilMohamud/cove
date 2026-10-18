@@ -448,6 +448,43 @@ Cloudflare using this concrete engine-time vs wall-time evidence.
 Authoritative primary territorial grant checks must remain mandatory.
 No public migration or threshold relaxation is authorized.
 
+### October 18 — parallel primary-authoritative first-paint eligibility trial
+
+The live primary ORD D1 was inspected with read-only SQLite
+`EXPLAIN QUERY PLAN`, table/index introspection, and measured read queries.
+The actual ordered first-paint legal eligibility query scanned using
+`idx_search_popular_stable`, indexed rights grants/territories and product
+lookups. One direct test completed in **~17 ms SQLite** with **~425 ms
+Cloudflare API wall time**. A catalog-wide `COUNT(*)` on the complex
+`retail_product_availability_rows` view took **~1,762 ms SQLite** and
+**414,503 rows read**, but **is not run on first paint**. Therefore,
+no missing index or broad rights count alone explains the recurrent
+first-request multi-second D1 service/transport tail. Lock contention
+and server-side queueing have not been independently proven by these
+measurements.
+
+The next bounded experiment starts the live **primary D1** territory
+rights/currency query alongside the anonymous locale/market configuration
+and Cloudflare read limiter instead of serially awaiting geo-replica
+metadata. Currency is resolved from **current active primary storefront
+market state** in the SAME authoritative selection statement (US
+active-market fallback); a noncorrelated indexed currency existence
+check prevents walking the ~52k popularity index for a provably empty
+currency, but **cannot grant any territory rights**. The complete
+`retail_product_availability_rows` deny-over-allow, contract, date,
+format and DRM logic is unchanged. Page metadata begins as soon as
+locale is resolved, overlapping primary rights access. All required
+operations must finish successfully before SSR renders, and a trusted
+country mismatch fails closed. Previous SQL-duration/rows-read/attempt
+telemetry remains intact; the multi-market fixture tests compare the
+new path to Cove's canonical API.
+
+This is an experiment, NOT proof of commercial-grade TTFB. Require
+independently cold three-version ×20 strict sub-800-ms checks with
+the first HTTP request counted, meaningful geographic spread,
+revocation-safe rights and checkout, reader/offline journeys before
+any Cloudflare public production activation.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on
