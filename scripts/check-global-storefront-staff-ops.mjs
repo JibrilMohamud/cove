@@ -165,7 +165,9 @@ for (const token of [
   "merchandisingRegion",
   "taxInclusive",
   "rightsCountry",
-  "loadMessages",
+  "messageStatement",
+  "mergeMessages",
+  "db.batch([" ,
 ])
   assert.ok(localization.includes(token), `storefront context missing ${token}`);
 const localizationUi = read("src/features/fore/localization.tsx");
