@@ -64,13 +64,9 @@ async function refreshPresentationCounts(
 
   try {
     const current = await queryLive();
-    // When the expensive query outlives its lease, its result is obsolete
-    // with respect to the next refresh attempt. Leave the new owner alone.
-    const stillOwned = await db
-      .prepare("SELECT 1 owned FROM api_cache WHERE key=? AND body=? AND expires_at>?")
-      .bind(refreshKey, owner, nowMs())
-      .first<{ owned: number }>();
-    if (!stillOwned) return;
+    // A batch-transaction conditional UPSERT fences this result by the
+    // current lease owner. If the lease expired or another request won a
+    // takeover, the obsolete result cannot replace the newer count.
     await writeCatalogCache(
       db,
       key,
@@ -78,6 +74,7 @@ async function refreshPresentationCounts(
       nowMs() + TTL_MS,
       PREFIX,
       MAX_ENTRIES,
+      { key: refreshKey, owner, nowMs: nowMs() },
     );
   } finally {
     // Protect a replacement lease from completion of an older request.
