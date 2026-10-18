@@ -24,6 +24,28 @@ the owner promotes the Cloudflare frontend.
   storefront SSR. They do **not** establish signed-in sessions, orders,
   entitlements or installed-reader portability on a new origin.
 
+## Requested Workers.dev hostname clarification
+
+The connected Cloudflare account is registered under the account subdomain
+`cove-jibrilmohamud`. Cloudflare's documented Worker addressing uses
+`https://<worker-name>.cove-jibrilmohamud.workers.dev`. Therefore the
+requested account-root URL `http://cove-jibrilmohamud.workers.dev/` is
+**not** an assignable Worker hostname. The planned frontend Worker script
+is `cove`, yielding
+`https://cove.cove-jibrilmohamud.workers.dev/`.
+
+Its separate `wrangler.frontend.production.toml` production **candidate**
+has `workers_dev=false` and no routes, deliberately preventing an
+unverified app from going public. The file and static release assertion can
+be built/dry-run-tested, but **do not deploy/publicly enable it until**
+all of the following independent gates pass: production runtime secrets,
+sign-in/callback testing, Stripe sandbox payments and webhook fulfilment,
+reader/offline migration, primary territorial rights verification, repeated
+cold deployment performance, and reversible traffic cutover. Cloudflare's
+own documentation recommends a verified custom domain over Workers.dev
+for business-critical production; the Workers.dev hostname alone does not
+change that release safety assessment.
+
 ## Infrastructure prerequisites
 
 1. Owner supplies a registered custom hostname/domain under their control.
