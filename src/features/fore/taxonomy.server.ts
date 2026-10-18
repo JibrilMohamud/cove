@@ -210,12 +210,29 @@ export async function taxonomyTree(
   };
 }
 
+/**
+ * Read-only homepage configuration may be fetched in parallel with
+ * geo-localization. Unlike rights eligibility, this is presentational data
+ * and the final territory/language check still occurs after context resolves.
+ * The unique storefront_pages(path) index guarantees at most one row.
+ */
+export async function preloadPublishedHomepage(db: CatalogDB) {
+  return db
+    .prepare(
+      `SELECT * FROM storefront_pages WHERE path='/' AND status='published'
+      AND (starts_at IS NULL OR starts_at<=datetime('now'))
+      AND (ends_at IS NULL OR ends_at>datetime('now')) LIMIT 1`,
+    )
+    .first<any>();
+}
+
 export async function resolveStorefrontPage(
   db: CatalogDB,
   pathValue: string,
   territory = "US",
   language = "en",
   locale = "en-US",
+  prefetchedHome?: any | null,
 ) {
   const path = normalizePath(pathValue);
   if (path.startsWith("/ebooks/")) {
@@ -501,14 +518,22 @@ export async function resolveStorefrontPage(
       },
     };
   }
-  const row = await db
-    .prepare(
-      `SELECT * FROM storefront_pages WHERE path=? AND status='published'
+  const row =
+    path === "/" && prefetchedHome !== undefined
+      ? prefetchedHome &&
+        (!prefetchedHome.territory_code || prefetchedHome.territory_code === territory) &&
+        (!prefetchedHome.language_code ||
+          String(prefetchedHome.language_code).toLowerCase() === language.toLowerCase())
+        ? prefetchedHome
+        : null
+      : await db
+          .prepare(
+            `SELECT * FROM storefront_pages WHERE path=? AND status='published'
     AND (territory_code IS NULL OR territory_code=?) AND (language_code IS NULL OR lower(language_code)=lower(?))
     AND (starts_at IS NULL OR starts_at<=datetime('now')) AND (ends_at IS NULL OR ends_at>datetime('now')) LIMIT 1`,
-    )
-    .bind(path, territory, language)
-    .first<any>();
+          )
+          .bind(path, territory, language)
+          .first<any>();
   if (!row) {
     if (["/", "/store", "/search"].includes(path)) {
       return {
