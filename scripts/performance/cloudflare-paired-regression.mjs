@@ -322,8 +322,12 @@ async function main() {
       return {
         round,
         valid: trial.status === "pass",
-        firstTtfbMs: trial.results?.find((r) => r.sequence === 1)?.ttfbMs ?? null,
-        maxTtfbMs: Math.max(0, ...(trial.results || []).map((r) => r.ttfbMs || 0)),
+        firstTtfbMs:
+          trial.results?.find((r) => r.sequence === 1)?.ttfbMs ?? null,
+        maxTtfbMs: Math.max(
+          0,
+          ...(trial.results || []).map((r) => r.ttfbMs || 0),
+        ),
         p95TtfbMs: trial.p95,
         slowSamples: trial.slowSamples,
         failures: trial.failures?.length ?? 0,
@@ -332,15 +336,16 @@ async function main() {
     });
     manifest.comparison[name] = {
       cold,
-      waves: conc?.summaries?.map((v) => ({
-        concurrency: v.concurrency,
-        count: v.requests,
-        valid: v.successes,
-        maxTtfbMs: v.maxMs,
-        p95TtfbMs: v.p95Ms,
-        colos: v.colo,
-        pass: v.pass,
-      })) ?? [],
+      waves:
+        conc?.summaries?.map((v) => ({
+          concurrency: v.concurrency,
+          count: v.requests,
+          valid: v.successes,
+          maxTtfbMs: v.maxMs,
+          p95TtfbMs: v.p95Ms,
+          colos: v.colo,
+          pass: v.pass,
+        })) ?? [],
       protectedEdgeControl: conc?.controlSummaries ?? null,
       browserLcp: browser?.profiles ?? null,
     };
@@ -351,7 +356,9 @@ async function main() {
     const current = newWaves.find((v) => v.concurrency === old.concurrency);
     return {
       concurrency: old.concurrency,
-      sharedColos: (old.colos || []).filter((colo) => current?.colos?.includes(colo)),
+      sharedColos: (old.colos || []).filter((colo) =>
+        current?.colos?.includes(colo),
+      ),
       maxDeltaMs:
         Number.isFinite(current?.maxTtfbMs) && Number.isFinite(old.maxTtfbMs)
           ? current.maxTtfbMs - old.maxTtfbMs
