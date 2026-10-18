@@ -472,3 +472,6 @@ try {
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
+
+// Every concurrent storefront read still checks primary legal rights individually.
+await import("./check-anonymous-presentation-singleflight.mjs");
