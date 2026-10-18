@@ -24,6 +24,23 @@ the owner promotes the Cloudflare frontend.
   storefront SSR. They do **not** establish signed-in sessions, orders,
   entitlements or installed-reader portability on a new origin.
 
+## Owner-selected Workers.dev staging destination
+
+Cloudflare's registered account subdomain is `cove-jibrilmohamud`,
+but it is **not** a deployable standalone Worker hostname. A production
+frontend Worker named `cove` would serve HTTPS at
+`https://cove.cove-jibrilmohamud.workers.dev`, not at the account root
+`http://cove-jibrilmohamud.workers.dev/`. Cloudflare recommends a
+verified custom domain for business-critical production.
+
+The candidate `wrangler.frontend.production.toml` has
+`workers_dev=false`, `preview_urls=false`, and no routes.
+Both the Worker and its static assets are built/dry-run-tested in CI,
+but no public production URL is exposed or activated until all release
+checks—including secrets, Stripe, auth callbacks, rights, offline reader,
+and reproducible cold-request performance—are green. Public Vercel
+continues to serve existing customers and is preserved for rollback.
+
 ## Infrastructure prerequisites
 
 1. Owner supplies a registered custom hostname/domain under their control.
