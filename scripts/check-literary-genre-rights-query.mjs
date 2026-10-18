@@ -8,10 +8,12 @@ const file = fs.readFileSync("src/features/fore/discovery-intelligence.server.ts
 const start = file.indexOf("async function rightsExactTaxonomyCandidates(");
 const end = file.indexOf("export async function retrieveLiteraryCandidates(", start);
 assert.ok(start >= 0 && end > start, "Missing rights-preserving genre selector");
-const isolated = file.slice(start, end).replace(
-  "async function rightsExactTaxonomyCandidates(",
-  "export async function rightsExactTaxonomyCandidates(",
-);
+const isolated = file
+  .slice(start, end)
+  .replace(
+    "async function rightsExactTaxonomyCandidates(",
+    "export async function rightsExactTaxonomyCandidates(",
+  );
 const compiled = await transform(isolated, { loader: "ts", format: "esm" });
 const { rightsExactTaxonomyCandidates } = await import(
   "data:text/javascript;base64," + Buffer.from(compiled.code).toString("base64")
@@ -92,4 +94,6 @@ await checkMarket("US", 3);
 assert.deepEqual(await rightsExactTaxonomyCandidates(adapter([]), [], "US"), []);
 assert.match(isolated, /retail_product_availability_rows/);
 assert.match(isolated, /fast\.results\.length === 60/);
-console.log("Literary genre rights: exact US/CA/GB order, revocation, fallback and empty inputs PASS");
+console.log(
+  "Literary genre rights: exact US/CA/GB order, revocation, fallback and empty inputs PASS",
+);
