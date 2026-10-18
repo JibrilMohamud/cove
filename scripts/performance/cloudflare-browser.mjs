@@ -61,8 +61,32 @@ try {
       let failure = null;
       let status = null;
       let responseTelemetry = {};
+      let failurePhase = "navigation";
       let pageErrors = 0;
+      let consoleErrors = 0;
+      let failedScriptRequests = 0;
+      let failedStylesheetRequests = 0;
+      const scripts = { ok: 0, redirects: 0, unauthorized: 0, missing: 0, other4xx: 0, server5xx: 0 };
+      // Counters only: no URL, host, request body, header or error message is
+      // retained. This distinguishes missing bundles from React not hydrating.
       page.on("pageerror", () => pageErrors++);
+      page.on("console", (msg) => {
+        if (msg.type() === "error") consoleErrors++;
+      });
+      page.on("requestfailed", (request) => {
+        if (request.resourceType() === "script") failedScriptRequests++;
+        if (request.resourceType() === "stylesheet") failedStylesheetRequests++;
+      });
+      page.on("response", (response) => {
+        if (response.request().resourceType() !== "script") return;
+        const status = response.status();
+        if (status >= 200 && status < 300) scripts.ok++;
+        else if (status >= 300 && status < 400) scripts.redirects++;
+        else if (status === 401 || status === 403) scripts.unauthorized++;
+        else if (status === 404) scripts.missing++;
+        else if (status >= 400 && status < 500) scripts.other4xx++;
+        else if (status >= 500) scripts.server5xx++;
+      });
       try {
         const response = await page.goto(origin, { waitUntil: "load", timeout: 45000 });
         status = response.status();
@@ -70,8 +94,11 @@ try {
         delete responseTelemetry.ttfbMs;
         delete responseTelemetry.totalMs;
         assert.equal(status, 200);
+        failurePhase = "catalog";
         await page.locator(".book-card").first().waitFor({ timeout: 15000 });
+        failurePhase = "hydration";
         await page.locator('html[data-cove-client-ready="true"]').waitFor({ timeout: 15000 });
+        failurePhase = "paint";
         // Allow late images/layout to replace the initial text LCP. Do not
         // interact with the page, which would stop LCP observation early.
         await page.waitForTimeout(2500);
@@ -86,6 +113,15 @@ try {
             ttfbMs: nav?.responseStart ?? null,
             lcpMs: window.__covePaint?.lcp ?? null,
             cards: document.querySelectorAll(".book-card").length,
+            hydrated: document.documentElement.dataset.coveClientReady === "true",
+            scriptTags: document.querySelectorAll("script[src]").length,
+            moduleScriptTags: document.querySelectorAll('script[type="module"]').length,
+            sameOriginScripts: [...document.querySelectorAll("script[src]")].filter(
+              (script) => {
+                try { return new URL(script.src).origin === location.origin; }
+                catch { return false; }
+              }
+            ).length,
             connectMs: nav ? nav.connectEnd - nav.connectStart : null,
             dnsMs: nav ? nav.domainLookupEnd - nav.domainLookupStart : null,
             tlsMs: nav?.secureConnectionStart ? nav.connectEnd - nav.secureConnectionStart : null,
@@ -100,7 +136,12 @@ try {
         sample,
         status,
         failure,
+        failurePhase: failure ? failurePhase : null,
         pageErrors,
+        consoleErrors,
+        failedScriptRequests,
+        failedStylesheetRequests,
+        scripts,
         interceptionErrors,
         ...responseTelemetry,
         ...metrics,
