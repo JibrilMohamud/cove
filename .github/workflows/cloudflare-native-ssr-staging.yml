@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "src/server.ts"
+      - "src/lib/public-seo-document-path.ts"
+      - "scripts/check-persistence-gateway-lazy-load.mjs"
       - "src/lib/cloudflare-ssr-stage-gate.server.ts"
       - "src/lib/cloudflare-native-bindings.server.ts"
       - "scripts/check-cloudflare-native-bindings.mjs"
@@ -46,6 +48,8 @@ on:
     branches: [main]
     paths:
       - "src/server.ts"
+      - "src/lib/public-seo-document-path.ts"
+      - "scripts/check-persistence-gateway-lazy-load.mjs"
       - "src/lib/cloudflare-ssr-stage-gate.server.ts"
       - "src/lib/cloudflare-native-bindings.server.ts"
       - "scripts/check-cloudflare-native-bindings.mjs"
@@ -120,6 +124,7 @@ jobs:
         run: |
           node --check scripts/performance/cloudflare-concurrency.mjs
           node scripts/check-cloudflare-ssr-stage-gate.mjs
+          node scripts/check-persistence-gateway-lazy-load.mjs
           node scripts/check-cloudflare-deployment-readiness.mjs
           node scripts/check-cloudflare-production-candidate.mjs
           node scripts/check-cloudflare-native-bindings.mjs
