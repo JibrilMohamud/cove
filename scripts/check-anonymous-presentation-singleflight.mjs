@@ -2,14 +2,19 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { transform } from "esbuild";
 
-const source = fs.readFileSync("src/features/fore/storefront-anonymous-bootstrap.server.ts", "utf8");
+const source = fs.readFileSync(
+  "src/features/fore/storefront-anonymous-bootstrap.server.ts",
+  "utf8",
+);
 const start = source.indexOf("const pendingPresentation = new WeakMap");
 const end = source.indexOf("/**\n * Cloudflare Worker-only", start);
 assert.ok(start >= 0 && end > start, "Missing bounded anonymous presentation singleflight");
-const isolated = source.slice(start, end).replace(
-  "function singleflightAnonymousPresentation<T>(",
-  "export function singleflightAnonymousPresentation<T>(",
-);
+const isolated = source
+  .slice(start, end)
+  .replace(
+    "function singleflightAnonymousPresentation<T>(",
+    "export function singleflightAnonymousPresentation<T>(",
+  );
 const compiled = await transform(isolated, { loader: "ts", format: "esm" });
 const { singleflightAnonymousPresentation: coalesce } = await import(
   "data:text/javascript;base64," + Buffer.from(compiled.code).toString("base64")
@@ -71,4 +76,6 @@ assert.equal(longCalls, 2, "Unbounded client-controlled language keys must bypas
 assert.match(source, /timed\("catalog", firstPaintStorefrontShelf\(/);
 assert.match(source, /timed\("limit", enforceFirstPaintRateLimit\(/);
 assert.match(source, /if \(request\.headers\.has\(header\)\) return false;/);
-console.log("Anonymous presentation singleflight: concurrent, regional, locale, rejection, cleanup and rights isolation PASS");
+console.log(
+  "Anonymous presentation singleflight: concurrent, regional, locale, rejection, cleanup and rights isolation PASS",
+);
