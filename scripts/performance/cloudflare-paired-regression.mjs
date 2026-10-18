@@ -294,6 +294,77 @@ async function main() {
     );
     if (!manifest.outcomes.at(-1).pass) anyFailures = true;
   }
+  // Results are paired by the same bounded concurrency wave, not by
+  // independent days/regions. If colos fail to overlap the comparison is
+  // explicitly marked INCONCLUSIVE rather than mislabeling an edge effect
+  // as a code regression.
+  const byName = (name) => {
+    const entry = manifest.outcomes.find((v) => v.name === name);
+    if (!entry?.saved) return null;
+    try {
+      return JSON.parse(fs.readFileSync(entry.saved, "utf8"));
+    } catch {
+      return null;
+    }
+  };
+  manifest.comparison = {
+    baseline: {},
+    current: {},
+    matchedColos: true,
+    decision: "not a production release approval",
+  };
+  for (const name of ["baseline", "current"]) {
+    const conc = byName(`concurrency-${name}`);
+    const browser = byName(`browser-${name}`);
+    const cold = [1, 2, 3].map((round) => {
+      const trial = byName(`cold-${round}-${name}`);
+      if (!trial) return { round, valid: false };
+      return {
+        round,
+        valid: trial.status === "pass",
+        firstTtfbMs: trial.results?.find((r) => r.sequence === 1)?.ttfbMs ?? null,
+        maxTtfbMs: Math.max(0, ...(trial.results || []).map((r) => r.ttfbMs || 0)),
+        p95TtfbMs: trial.p95,
+        slowSamples: trial.slowSamples,
+        failures: trial.failures?.length ?? 0,
+        colos: [...new Set((trial.results || []).map((r) => r.cfColo))].sort(),
+      };
+    });
+    manifest.comparison[name] = {
+      cold,
+      waves: conc?.summaries?.map((v) => ({
+        concurrency: v.concurrency,
+        count: v.requests,
+        valid: v.successes,
+        maxTtfbMs: v.maxMs,
+        p95TtfbMs: v.p95Ms,
+        colos: v.colo,
+        pass: v.pass,
+      })) ?? [],
+      protectedEdgeControl: conc?.controlSummaries ?? null,
+      browserLcp: browser?.profiles ?? null,
+    };
+  }
+  const oldWaves = manifest.comparison.baseline.waves;
+  const newWaves = manifest.comparison.current.waves;
+  const overlaps = oldWaves.map((old) => {
+    const current = newWaves.find((v) => v.concurrency === old.concurrency);
+    return {
+      concurrency: old.concurrency,
+      sharedColos: (old.colos || []).filter((colo) => current?.colos?.includes(colo)),
+      maxDeltaMs:
+        Number.isFinite(current?.maxTtfbMs) && Number.isFinite(old.maxTtfbMs)
+          ? current.maxTtfbMs - old.maxTtfbMs
+          : null,
+    };
+  });
+  manifest.comparison.geographicWaveMatches = overlaps;
+  manifest.comparison.matchedColos =
+    overlaps.length === 4 && overlaps.every((v) => v.sharedColos.length > 0);
+  if (!manifest.comparison.matchedColos) {
+    manifest.comparison.decision =
+      "INCONCLUSIVE geographic comparison; never infer a code regression from unmatched colos";
+  }
   manifest.finishedAt = new Date().toISOString();
   manifest.wallMs = Date.now() - first;
   // Importantly, the cohort secret keys are not part of manifest or files.
