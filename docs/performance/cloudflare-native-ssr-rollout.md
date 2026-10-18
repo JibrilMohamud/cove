@@ -343,6 +343,41 @@ Instrumentation itself is neither a latency fix nor a release-pass
 claim: genuine 3x20 first-HTTP cold deployments and geographic/customer
 QA remain required.
 
+### Currency-index proof without parallel D1 contention (October 18)
+
+Do **not** restore the concurrent primary legal/replica presentation read
+schedule: [PR #146's 42/60 cold gate](https://github.com/JibrilMohamud/cove/actions/runs/39094948013)
+regressed (worst 3,039 ms), and PR #147 safely reverted it.
+PR #148 adds the actual primary D1 engine `catalog_sql` duration,
+`catalog_rows` and `catalog_attempts` metrics to distinguish
+slow SQL execution from D1/transport queueing without altering rights.
+
+A separate read-only D1 audit found that the primary catalog contains
+approximately **51,973 available USD** search documents, and currently
+**zero** CAD/SAR/JPY documents. The popular first-paint seek deliberately
+forces `idx_search_popular_stable` for bestsellers, which can scan all
+~52k documents when market currency is absent (a CA probe consumed
+**2,625 ms SQLite time**, 51,974 rows read), even while the
+`retail_product_availability_rows` legal view remains indexed.
+
+A **noncorrelated** live PRIMARY D1 existence guard using the already
+deployed `idx_search_price(currency,price_minor)` tests for an
+unsuppressed available candidate *inside the same first-paint SQL
+statement*. If no candidate exists, the result is provably empty;
+otherwise **every candidate still passes the unmodified live territorial
+rights, embargo, DRM and revocation filter** and the established popular
+sort. Read-only primary comparisons returned identical 25-book US
+candidates and identical zero results for CA/SA/JP, with ~6–10 ms SQL
+execution for the previously expensive empty cases. This changes no
+legal decisions, routing, session ordering, database schema, caches or
+public production origin.
+
+Run four-territory fixture parity, security, native SSR build,
+six-browser QA, and **three independent truly cold deployments, each
+20/20 strictly under 800ms** including the first HTTP SSR request.
+This improvement alone cannot guarantee global transport or Cloudflare
+D1 service-queue latency. Any red cold-run blocks production.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on
