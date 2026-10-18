@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { performance } from "node:perf_hooks";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { channel } from "node:diagnostics_channel";
 import {
   percentile,
   productionOrigin,
@@ -25,6 +27,39 @@ assert.match(token || "", /^[a-f0-9]{64}$/, "Only protected staging may be load-
 assert.match(origin, /-staging\.[a-z0-9.-]+\.workers\.dev$/);
 const thresholds = { maxTtfbMs: 800, p95TtfbMs: 650 };
 
+// The Node runner itself can queue sockets under 16 in-flight requests.
+// Measure this *per request* so an 800ms failure is never falsely attributed
+// to Worker compute or D1 query execution. Only numeric times are retained;
+// no URL, IP, headers, bearer tokens or request objects enter artifacts.
+const probeContext = new AsyncLocalStorage();
+const requestSpans = new WeakMap();
+channel("undici:request:create").subscribe(({ request }) => {
+  const span = probeContext.getStore();
+  if (span && request?.origin === origin && request?.path === "/" && request?.method === "GET") {
+    span.createdAt = performance.now();
+    requestSpans.set(request, span);
+  }
+});
+channel("undici:client:sendHeaders").subscribe(({ request }) => {
+  const span = requestSpans.get(request);
+  if (span) span.sentAt = performance.now();
+});
+channel("undici:request:headers").subscribe(({ request }) => {
+  const span = requestSpans.get(request);
+  if (span) span.headersAt = performance.now();
+});
+function elapsed(ended, started) {
+  return Number.isFinite(ended) && Number.isFinite(started)
+    ? Math.max(0, Math.round(ended - started))
+    : null;
+}
+function workerDuration(headers) {
+  const match = (headers.get("server-timing") || "").match(
+    /(?:^|,)\s*cove_total;dur=(\d+(?:\.\d+)?)/,
+  );
+  return match ? Number(match[1]) : null;
+}
+
 const started = performance.now();
 const results = [];
 let ordinal = 0;
@@ -34,18 +69,21 @@ async function fetchOne(concurrency) {
   const sequence = ++ordinal;
   const begin = performance.now();
   let httpStatus = 0;
+  const span = {};
   try {
-    const response = await fetch(origin + "/", {
-      method: "GET",
-      redirect: "manual",
-      headers: {
-        Authorization: "Bearer " + token,
-        Accept: "text/html",
-        "Accept-Language": languages[(sequence - 1) % languages.length],
-        "Cache-Control": "no-store",
-      },
-      signal: AbortSignal.timeout(15000),
-    });
+    const response = await probeContext.run(span, () =>
+      fetch(origin + "/", {
+        method: "GET",
+        redirect: "manual",
+        headers: {
+          Authorization: "Bearer " + token,
+          Accept: "text/html",
+          "Accept-Language": languages[(sequence - 1) % languages.length],
+          "Cache-Control": "no-store",
+        },
+        signal: AbortSignal.timeout(15000),
+      }),
+    );
     httpStatus = response.status;
     const ttfbMs = Math.round(performance.now() - begin);
     const html = await response.text();
@@ -60,6 +98,10 @@ async function fetchOne(concurrency) {
       "Must query live primary D1 territorial rights; no cached rights/fallback",
     );
     const timing = safeProbeTelemetry(response.headers, ttfbMs, totalMs);
+    const workerMs = workerDuration(response.headers);
+    const clientQueueMs = elapsed(span.sentAt, span.createdAt);
+    const sentToHeadersMs = elapsed(span.headersAt, span.sentAt);
+    const residualMs = workerMs === null ? null : Math.max(0, Math.round(ttfbMs - workerMs));
     const cfColo = (response.headers.get("cf-ray") || "").match(/-([A-Z]{3})$/)?.[1] || "unknown";
     return {
       sequence,
@@ -70,6 +112,10 @@ async function fetchOne(concurrency) {
       totalMs,
       cfColo,
       timing: timing.timing,
+      workerMs,
+      clientQueueMs,
+      sentToHeadersMs,
+      residualMs,
       error: null,
     };
   } catch {
@@ -83,6 +129,10 @@ async function fetchOne(concurrency) {
       totalMs: null,
       cfColo: "unknown",
       timing: null,
+      workerMs: null,
+      clientQueueMs: elapsed(span.sentAt, span.createdAt),
+      sentToHeadersMs: elapsed(span.headersAt, span.sentAt),
+      residualMs: null,
       error:
         httpStatus && httpStatus !== 200
           ? "http-or-render-failed"
@@ -165,6 +215,16 @@ const report = [
   ),
   "",
   `Result **${passed ? "pass" : "fail"}** — ${total} bounded requests, no allowed 5xx/429/invalid rights.`,
+  "",
+  "Slowest five samples (numeric-only edge vs client diagnostics):",
+  ...results
+    .filter((r) => !r.error)
+    .sort((a, b) => b.ttfbMs - a.ttfbMs)
+    .slice(0, 5)
+    .map(
+      (r) =>
+        `sample ${r.sequence}, in-flight ${r.concurrency}, TTFB ${r.ttfbMs}ms, Worker ${r.workerMs ?? "n/a"}ms, outside Worker ${r.residualMs ?? "n/a"}ms, client queue ${r.clientQueueMs ?? "n/a"}ms, sent-to-headers ${r.sentToHeadersMs ?? "n/a"}ms, colo ${r.cfColo}`,
+    ),
 ].join("\n");
 console.log(report);
 if (process.env.GITHUB_STEP_SUMMARY)
