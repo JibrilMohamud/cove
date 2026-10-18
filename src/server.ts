@@ -149,7 +149,10 @@ export default {
       const securityDocument = securityTxt(request, foreEnv);
       if (securityDocument)
         return stageNoStore(applySecurityHeaders(request, securityDocument, foreEnv), staging);
-      if (foreEnv.DB && isSeoDocumentDispatchCandidate(request.method, new URL(request.url).pathname)) {
+      if (
+        foreEnv.DB &&
+        isSeoDocumentDispatchCandidate(request.method, new URL(request.url).pathname)
+      ) {
         const { handleSeoDocumentRequest } = await import("./features/fore/seo.server");
         const seo = await handleSeoDocumentRequest(request, foreEnv.DB, foreEnv.FORE_PUBLIC_URL);
         if (seo) return stageNoStore(applySecurityHeaders(request, seo, foreEnv), staging);
