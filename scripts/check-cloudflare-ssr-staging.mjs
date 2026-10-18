@@ -53,7 +53,7 @@ function integerDelta(after, before) {
 function numericWorkerTiming(headers) {
   const parts = (headers.get("server-timing") || "").split(",");
   const matched = parts
-    .map((item) => item.trim().match(/^cove_total;dur=(\\d+(?:\\.\\d+)?)$/))
+    .map((item) => item.trim().match(/^cove_total;dur=(\d+(?:\.\d+)?)$/))
     .find(Boolean);
   return matched ? Number(matched[1]) : null;
 }
