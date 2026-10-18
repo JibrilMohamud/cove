@@ -16,6 +16,7 @@ export function sanitizedStorefrontBackendTiming(value: string | null): string[]
     "catalog",
     "markets",
     "limit",
+    "lean",
     "bootstrap",
     "log_queued",
     "api",
@@ -26,7 +27,7 @@ export function sanitizedStorefrontBackendTiming(value: string | null): string[]
     .filter((match): match is RegExpMatchArray => !!match)
     .filter((match) => known.has(match[1]) && Number(match[2]) <= 12_000)
     .map((match) => `cove_backend_${match[1]};dur=${match[2]}`)
-    .slice(0, 9);
+    .slice(0, 10);
 }
 
 /**
