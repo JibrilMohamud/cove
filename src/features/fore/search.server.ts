@@ -8,6 +8,7 @@ import {
 import { ApiError } from "./service";
 import { normalizeTerritoryCode } from "./rights.server";
 import { writeCatalogCache } from "./catalog-cache.server";
+import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
 
 type SearchEnv = {
   DB: CatalogDB;
@@ -956,12 +957,11 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
       const part = candidateParts(input, cached.expression);
       // Cache only public IDs/facets. Revalidate current filters and distribution
       // rights for the small cached page, then hydrate current metadata/prices.
-      const eligible = cached.ids.length
+      const recheck = cached.ids.length ? rightsScopedCachedPageQuery(part, cached.ids) : null;
+      const eligible = recheck
         ? (
-            await env.DB.prepare(
-              `${part.prefix} SELECT d.product_id FROM ${part.from} WHERE ${part.where.join(" AND ")} AND d.product_id IN (${cached.ids.map(() => "?").join(",")})`,
-            )
-              .bind(...part.binds, ...cached.ids)
+            await env.DB.prepare(recheck.sql)
+              .bind(...recheck.binds)
               .all<{ product_id: string }>()
           ).results
         : [];
@@ -1803,10 +1803,9 @@ export async function cachedCatalogPageAllowed(
   if (ids.length > 100) return false;
   const input = { ...parseSearchInput(url), territory };
   const part = candidateParts(input, "");
-  const rows = await env.DB.prepare(
-    `SELECT d.product_id FROM ${part.from} WHERE ${part.where.join(" AND ")} AND d.product_id IN (${ids.map(() => "?").join(",")})`,
-  )
-    .bind(...part.binds, ...ids)
+  const recheck = rightsScopedCachedPageQuery(part, ids);
+  const rows = await env.DB.prepare(recheck.sql)
+    .bind(...recheck.binds)
     .all<{ product_id: string }>();
   const allowed = new Set(rows.results.map((row) => row.product_id));
   return ids.every((id) => allowed.has(id));
