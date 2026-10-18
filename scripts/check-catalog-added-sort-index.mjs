@@ -25,7 +25,7 @@ assert.match(selector, /idx_search_added_effective_stable/);
 assert.match(selector, /CROSS JOIN products p/);
 assert.match(selector, /CROSS JOIN editions e/);
 const idsStart = source.indexOf("const runIds = async () =>");
-const countStart = source.indexOf("const runCount = ()", idsStart);
+const countStart = source.indexOf("const runCount = async ()", idsStart);
 assert.ok(idsStart >= 0 && countStart > idsStart);
 assert.match(source.slice(idsStart, countStart), /rankedCandidatePlan\(env\.DB, input, part\)/);
 assert.match(source.slice(idsStart, countStart), /\.\.\.plan\.preBinds/);
