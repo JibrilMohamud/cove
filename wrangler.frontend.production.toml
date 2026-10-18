@@ -1,0 +1,47 @@
+# Production CANDIDATE only: deliberately not publicly routable until release gate
+# docs/performance/cloudflare-commercial-cutover-gate.md is satisfied.
+# Cloudflare account subdomain "cove-jibrilmohamud" is NOT itself a
+# serving Worker URL. Once verified, this script's HTTPS address is
+# https://cove.cove-jibrilmohamud.workers.dev/
+# Deploying with workers_dev=false cannot expose public customers.
+name = "cove"
+main = ".output/server/index.mjs"
+compatibility_date = "2026-10-17"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+# Unlike workers_dev, Version URLs can be separately routable; disable both.
+preview_urls = false
+
+[assets]
+directory = "./.output/public"
+binding = "ASSETS"
+# SSR must own personalized/account paths; never let assets bypass it.
+run_worker_first = true
+
+[[ratelimits]]
+name = "COVE_STOREFRONT_READ_LIMITER"
+namespace_id = "731904"
+
+[ratelimits.simple]
+limit = 180
+period = 60
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cove-production"
+database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"
+migrations_dir = "drizzle"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "cove-production-media"
+
+[vars]
+FORE_PUBLIC_URL = "https://cove.cove-jibrilmohamud.workers.dev"
+FORE_ENVIRONMENT = "production"
+FORE_DEFAULT_TERRITORY = "US"
+FORE_AUTH_MODE = "supabase"
+
+# Production secrets MUST be added via Cloudflare's scoped secret interface.
+# Do not copy staging secrets, commit access keys, or expose a public route
+# until customer-journey QA, Stripe webhooks, callbacks and rollback pass.
