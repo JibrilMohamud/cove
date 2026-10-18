@@ -244,7 +244,8 @@ async function main() {
   }
   // Flip order for each full 60-request cohort. Never substitute fast 401s
   // or errors for validated rights-authoritative HTML responses.
-  for (const name of ["current", "baseline"]) {
+  // Reverse the previous trial order to detect time-correlated D1 contention.
+  for (const name of ["baseline", "current"]) {
     if (!cohorts[name].key) continue;
     const began = Date.now();
     benchScript(
