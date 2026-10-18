@@ -46,19 +46,31 @@ async function refreshPresentationCounts(
   queryLive: () => Promise<TaxonomyCountRow[]>,
   nowMs: () => number,
 ) {
+  // A lease can expire while a slow rights-count aggregation is running.
+  // Only its owner may publish results or remove the lease. In particular,
+  // an older request may NOT delete a newer owner's lease after takeover.
+  const owner = crypto.randomUUID();
   const acquired = await db
     .prepare(
-      `INSERT INTO api_cache(key,body,expires_at) VALUES(?,'refreshing',?)
-       ON CONFLICT(key) DO UPDATE SET expires_at=excluded.expires_at
+      `INSERT INTO api_cache(key,body,expires_at) VALUES(?,?,?)
+       ON CONFLICT(key) DO UPDATE SET
+         body=excluded.body,expires_at=excluded.expires_at
        WHERE api_cache.expires_at<=?
-       RETURNING key`,
+       RETURNING body`,
     )
-    .bind(refreshKey, nowMs() + LEASE_MS, nowMs())
-    .first<{ key: string }>();
-  if (!acquired) return;
+    .bind(refreshKey, owner, nowMs() + LEASE_MS, nowMs())
+    .first<{ body: string }>();
+  if (acquired?.body !== owner) return;
 
   try {
     const current = await queryLive();
+    // When the expensive query outlives its lease, its result is obsolete
+    // with respect to the next refresh attempt. Leave the new owner alone.
+    const stillOwned = await db
+      .prepare("SELECT 1 owned FROM api_cache WHERE key=? AND body=? AND expires_at>?")
+      .bind(refreshKey, owner, nowMs())
+      .first<{ owned: number }>();
+    if (!stillOwned) return;
     await writeCatalogCache(
       db,
       key,
@@ -68,11 +80,10 @@ async function refreshPresentationCounts(
       MAX_ENTRIES,
     );
   } finally {
-    // An exception must never pin the lease permanently or cause a cached
-    // rights approval. Next request can retry; only display counts are stale.
+    // Protect a replacement lease from completion of an older request.
     await db
-      .prepare("DELETE FROM api_cache WHERE key=?")
-      .bind(refreshKey)
+      .prepare("DELETE FROM api_cache WHERE key=? AND body=?")
+      .bind(refreshKey, owner)
       .run()
       .catch(() => undefined);
   }
