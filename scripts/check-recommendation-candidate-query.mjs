@@ -38,17 +38,17 @@ const putEdition = sql.prepare("INSERT INTO editions VALUES (?,'available')");
 const putMetric = sql.prepare("INSERT INTO recommendation_item_metrics VALUES (?,?,?)");
 const putGrant = sql.prepare("INSERT INTO rights_grants VALUES (?,?,'retail',?)");
 const putTerritory = sql.prepare("INSERT INTO rights_grant_territories VALUES (?,?)");
-for (let i = 1; i <= 160; i++) {
+for (let i = 1; i <= 1160; i++) {
   const id = "book-" + String(i).padStart(3, "0");
   putProduct.run(id, id);
   putEdition.run(id);
-  putMetric.run(id, 200 - i, 200 - i);
+  putMetric.run(id, 1200 - i, 1200 - i);
   // Three revoked US candidates near the very top, with valid grant records;
   // these must remain ineligible even if the rank-first shortlist includes them.
   const status = i <= 3 ? "revoked" : "active";
   putGrant.run("grant-" + id, id, status);
   putTerritory.run("grant-" + id, "US");
-  if (i >= 120) putTerritory.run("grant-" + id, "CA");
+  if (i >= 1120) putTerritory.run("grant-" + id, "CA");
 }
 const reference = sql.prepare(`
 SELECT p.id FROM products p JOIN editions e ON e.id=p.edition_id
@@ -73,6 +73,10 @@ function adapter(calls) {
               calls.push(statement);
               return { results: sql.prepare(statement).all(...params) };
             },
+            async first() {
+              calls.push(statement);
+              return sql.prepare(statement).get(...params);
+            },
           };
         },
       };
@@ -88,7 +92,7 @@ for (const territory of ["US", "CA", "GB"]) {
       .map((row) => row.id);
     assert.deepEqual(actual, expected, `Exact sorted live rights differ for ${territory}/${limit}`);
     if (territory === "US" && limit === 5)
-      assert.equal(calls.length, 1, "Full authorized shortlist should skip expensive fallback");
+      assert.equal(calls.length, 2, "Large market must use grant-count preflight and bounded exact shortlist");
     if ((territory === "CA" || territory === "GB") && limit === 5)
       assert.equal(calls.length, 2, "Sparse rights must force exact complete fallback");
     if (limit === 0) assert.equal(calls.length, 0, "Empty request must not call D1");
@@ -96,6 +100,7 @@ for (const territory of ["US", "CA", "GB"]) {
 }
 assert.match(source.slice(start, end), /retail_product_availability_rows/);
 assert.match(source.slice(start, end), /rights_grant_territories/);
+assert.match(source.slice(start, end), /grantCount\?\.grant_count/);
 assert.match(source.slice(start, end), /fast\.results\.length === wanted/);
 console.log(
   "Recommendation candidates: identical live-rights ranking across US/CA/GB, revocations, sparse markets, empty requests, full-shortlist and exact-fallback branches: PASS",
