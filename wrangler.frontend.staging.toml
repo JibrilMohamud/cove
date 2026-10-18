@@ -9,12 +9,15 @@ compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
-# Diagnostic experiment: run at the ingress edge, rather than forwarding
-# requests to a fixed Ohio execution region. The fixed-region trials showed
-# frequent >500 ms TTFB outside the timed Worker handler. D1 stays the live
-# per-request source for all territorial rights decisions. No rights cache,
-# public routing change or loosened performance threshold is permitted.
-# Compare independent true-cold trials before selecting a production setting.
+# Protected staging-only experiment. Cloudflare Smart Placement considers
+# D1 bindings and can move Worker compute closer to the database, reducing
+# expensive cross-region service trips. Compare it against prior ingress-edge
+# 3x20 cold and 1/4/8/16 concurrent trials before choosing production mode.
+# Original live PRIMARY-D1 territorial checks, fail-closed staging auth,
+# max <800 ms and hard p95 headroom gates remain strictly unchanged.
+# This is NOT a production DNS/Worker routing migration.
+[placement]
+mode = "smart"
 
 [assets]
 directory = "./.output/public"
