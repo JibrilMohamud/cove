@@ -11,7 +11,7 @@ assert.match(production, /^name = "cove"$/m);
 assert.match(production, /^FORE_PUBLIC_URL = "https:\/\/cove\.cove-jibrilmohamud\.workers\.dev"$/m);
 assert.doesNotMatch(
   production,
-  /^FORE_PUBLIC_URL = "https?:\\/\\/cove-jibrilmohamud\\.workers\\.dev"$/m,
+  /^FORE_PUBLIC_URL = "https?:\/\/cove-jibrilmohamud\.workers\.dev"$/m,
 );
 assert.doesNotMatch(production, /cove-puce-theta\.vercel\.app/);
 
@@ -27,7 +27,11 @@ assert.match(production, /^FORE_ENVIRONMENT = "production"$/m);
 assert.match(production, /^main = "\.output\/server\/index\.mjs"$/m);
 assert.match(production, /^run_worker_first = true$/m);
 assert.match(production, /^binding = "ASSETS"$/m);
-for (const name of ['binding = "DB"', 'binding = "BUCKET"', 'name = "COVE_STOREFRONT_READ_LIMITER"'])
+for (const name of [
+  'binding = "DB"',
+  'binding = "BUCKET"',
+  'name = "COVE_STOREFRONT_READ_LIMITER"',
+])
   assert.ok(production.includes(name), "Missing native binding " + name);
 assert.match(production, /^database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"$/m);
 assert.match(production, /^bucket_name = "cove-production-media"$/m);
