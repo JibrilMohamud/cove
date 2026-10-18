@@ -16,7 +16,6 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       headers: request.headers,
       signal: request.signal,
     });
-    const { proxyPersistenceApi } = await import("@/lib/persistence-backend");
     const env: Record<string, string | undefined> =
       typeof process === "undefined" ? {} : process.env;
     const remoteRequired =
@@ -62,6 +61,9 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
         );
         return response ?? new Response(null, { status: 503 });
       }
+      // The native Cloudflare D1 path above must not load Vercel's HTTP
+      // gateway adapter. Only the Vercel/non-D1 fallback requires it.
+      const { proxyPersistenceApi } = await import("@/lib/persistence-backend");
       const response = await proxyPersistenceApi(forwarded, env);
       if (response) return response;
       // Never use an unverified seed when Vercel-to-D1 is unreachable.

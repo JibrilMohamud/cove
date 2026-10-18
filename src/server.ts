@@ -14,8 +14,11 @@ import {
 } from "./lib/cloudflare-ssr-stage-gate.server";
 import { renderErrorPage } from "./lib/error-page";
 import { cachePublicDocument } from "./lib/public-document-cache";
+import {
+  isPublicSeoDocumentPath,
+  isSeoDocumentDispatchCandidate,
+} from "./lib/public-seo-document-path";
 import { applySecurityHeaders, securityTxt } from "./lib/security-headers";
-import { handleVercelIngestionControl, proxyPersistenceApi } from "./lib/persistence-backend";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -129,12 +132,20 @@ export default {
         headers.delete("authorization");
         request = new Request(request, { headers });
       }
-      const ingestionControl = await handleVercelIngestionControl(request, foreEnv);
-      if (ingestionControl)
-        return stageNoStore(applySecurityHeaders(request, ingestionControl, foreEnv), staging);
-      const persistenceResponse = await proxyPersistenceApi(request, foreEnv);
-      if (persistenceResponse)
-        return stageNoStore(applySecurityHeaders(request, persistenceResponse, foreEnv), staging);
+      const requestPath = new URL(request.url).pathname;
+      // Neither the homepage nor ordinary reader pages need the persistence
+      // proxy/controller module. Import it only on API and canonical SEO paths.
+      // Both functions still run in their original order for those routes.
+      if (requestPath.startsWith("/api/fore/") || isPublicSeoDocumentPath(requestPath)) {
+        const { handleVercelIngestionControl, proxyPersistenceApi } =
+          await import("./lib/persistence-backend");
+        const ingestionControl = await handleVercelIngestionControl(request, foreEnv);
+        if (ingestionControl)
+          return stageNoStore(applySecurityHeaders(request, ingestionControl, foreEnv), staging);
+        const persistenceResponse = await proxyPersistenceApi(request, foreEnv);
+        if (persistenceResponse)
+          return stageNoStore(applySecurityHeaders(request, persistenceResponse, foreEnv), staging);
+      }
       // A configured persistence gateway handles APIs without loading the entire
       // catalog, publishing, commerce and audio backend into the Vercel process.
       const apiResponse = new URL(request.url).pathname.startsWith("/api/fore/")
@@ -148,7 +159,7 @@ export default {
       const securityDocument = securityTxt(request, foreEnv);
       if (securityDocument)
         return stageNoStore(applySecurityHeaders(request, securityDocument, foreEnv), staging);
-      if (foreEnv.DB) {
+      if (foreEnv.DB && isSeoDocumentDispatchCandidate(request.method, requestPath)) {
         const { handleSeoDocumentRequest } = await import("./features/fore/seo.server");
         const seo = await handleSeoDocumentRequest(request, foreEnv.DB, foreEnv.FORE_PUBLIC_URL);
         if (seo) return stageNoStore(applySecurityHeaders(request, seo, foreEnv), staging);

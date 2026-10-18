@@ -1,0 +1,78 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { build } from "esbuild";
+
+const built = await build({
+  stdin: {
+    contents: fs.readFileSync("src/lib/public-seo-document-path.ts", "utf8"),
+    loader: "ts",
+    resolveDir: process.cwd(),
+    sourcefile: "public-seo-document-path.ts",
+  },
+  bundle: true,
+  write: false,
+  platform: "neutral",
+  format: "esm",
+  logLevel: "silent",
+});
+const { isSeoDocumentDispatchCandidate } = await import(
+  "data:text/javascript;base64," + Buffer.from(built.outputFiles[0].contents).toString("base64")
+);
+
+for (const method of ["GET", "HEAD"]) {
+  for (const path of [
+    "/robots.txt",
+    "/sitemap.xml",
+    "/sitemaps/pages.xml",
+    "/sitemaps/books.xml",
+    "/sitemaps/books/1.xml",
+    "/sitemaps/authors/999999.xml",
+    "/sitemaps/malformed",
+  ])
+    assert.equal(isSeoDocumentDispatchCandidate(method, path), true, `${method} ${path}`);
+  for (const path of [
+    "/",
+    "/store",
+    "/books/123",
+    "/search",
+    "/api/fore/health/ready",
+    "/api/fore/storefront/bootstrap",
+    "/account",
+    "/checkout",
+    "/sitemap.xml/invalid",
+    "/robots.txt/invalid",
+  ])
+    assert.equal(isSeoDocumentDispatchCandidate(method, path), false, `${method} ${path}`);
+}
+for (const method of ["POST", "PUT", "DELETE", "OPTIONS"]) {
+  assert.equal(isSeoDocumentDispatchCandidate(method, "/sitemap.xml"), false);
+  assert.equal(isSeoDocumentDispatchCandidate(method, "/sitemaps/books/1.xml"), false);
+}
+assert.match(
+  fs.readFileSync("src/server.ts", "utf8"),
+  /foreEnv\.DB\s*&&\s*isSeoDocumentDispatchCandidate\(request\.method,\s*requestPath\)/,
+  "Cloudflare Worker entry must use the SEO dispatch guard before dynamically importing",
+);
+const serverSource = fs.readFileSync("src/server.ts", "utf8");
+assert.match(
+  serverSource,
+  /requestPath\.startsWith\("\/api\/fore\/"\) \|\| isPublicSeoDocumentPath\(requestPath\)/,
+  "API and SEO paths retain persistence proxy and ingestion controls",
+);
+assert.doesNotMatch(
+  serverSource,
+  /import \{ handleVercelIngestionControl, proxyPersistenceApi \} from/,
+  "Homepage must not statically import the full persistence controller",
+);
+const loaderSource = fs.readFileSync("src/features/fore/storefront-loader.ts", "utf8");
+const localRightsBranch = loaderSource.indexOf("if (localRightsAuthority) {");
+const vProxyImport = loaderSource.indexOf(
+  'const { proxyPersistenceApi } = await import("@/lib/persistence-backend");',
+);
+assert.ok(localRightsBranch >= 0 && vProxyImport > localRightsBranch);
+assert.match(
+  loaderSource.slice(localRightsBranch, vProxyImport),
+  /return response \?\? new Response\(null, \{ status: 503 \}\);/,
+  "Authoritative D1 local bootstrap must return before the Vercel-only proxy module loads",
+);
+console.log("Cold SSR avoids unrelated SEO/proxy modules; API/SEO routes retained: PASS");

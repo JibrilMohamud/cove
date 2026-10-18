@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "src/server.ts"
+      - "src/lib/public-seo-document-path.ts"
+      - "scripts/check-cloudflare-seo-dispatch.mjs"
       - "src/lib/cloudflare-ssr-stage-gate.server.ts"
       - "src/lib/cloudflare-native-bindings.server.ts"
       - "scripts/check-cloudflare-native-bindings.mjs"
@@ -44,6 +46,8 @@ on:
     branches: [main]
     paths:
       - "src/server.ts"
+      - "src/lib/public-seo-document-path.ts"
+      - "scripts/check-cloudflare-seo-dispatch.mjs"
       - "src/lib/cloudflare-ssr-stage-gate.server.ts"
       - "src/lib/cloudflare-native-bindings.server.ts"
       - "scripts/check-cloudflare-native-bindings.mjs"
@@ -118,6 +122,7 @@ jobs:
           node scripts/check-cloudflare-deployment-readiness.mjs
           node scripts/check-cloudflare-production-candidate.mjs
           node scripts/check-cloudflare-native-bindings.mjs
+          node scripts/check-cloudflare-seo-dispatch.mjs
           node scripts/check-storefront-firstpaint-rate-limit.mjs
           node scripts/check-storefront-bootstrap.mjs
           node scripts/check-rights.mjs

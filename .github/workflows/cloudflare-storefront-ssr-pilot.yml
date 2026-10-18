@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "src/server.ts"
+      - "src/lib/public-seo-document-path.ts"
+      - "scripts/check-cloudflare-seo-dispatch.mjs"
       - "src/lib/cove-request-env.server.ts"
       - "src/features/fore/storefront-loader.ts"
       - "vite.config.ts"
@@ -33,7 +35,9 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Concurrent Cloudflare rights-context isolation
-        run: node scripts/check-cove-request-context.mjs
+        run: |
+          node scripts/check-cove-request-context.mjs
+          node scripts/check-cloudflare-seo-dispatch.mjs
       - name: Compile Cloudflare-native TanStack SSR (no deployment)
         run: npm run build
       - name: Verify private Worker build and static assets
