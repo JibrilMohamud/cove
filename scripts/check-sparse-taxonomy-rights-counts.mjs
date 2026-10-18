@@ -10,6 +10,7 @@ assert.match(caller, /taxonomyPresentationReadDb\(db\)/);
 assert.match(caller, /\.prepare\(taxonomySparseRightsProbe\)/);
 assert.match(caller, /taxonomyCountPlan\(territory, language,/);
 assert.match(production, /retail_product_availability rpa/);
+assert.match(production, /retail_product_availability_rows rpa/);
 assert.match(production, /g\.sales_channel='retail' AND g\.status='active'/);
 assert.match(production, /COUNT\(\*\) product_count/);
 
@@ -41,7 +42,7 @@ try {
       PRIMARY KEY(grant_id,territory_code));
     CREATE INDEX idx_rights_grant_territories_lookup
       ON rights_grant_territories(territory_code,grant_id);
-    CREATE VIEW retail_product_availability AS
+    CREATE VIEW retail_product_availability_rows AS
       SELECT DISTINCT p.id product_id,rgt.territory_code
       FROM products p
       JOIN rights_grants g ON g.edition_id=p.edition_id
@@ -54,6 +55,8 @@ try {
           AND deny.sales_channel='retail' AND deny.decision='deny'
           AND dt.territory_code=rgt.territory_code
       );
+    CREATE VIEW retail_product_availability AS
+      SELECT DISTINCT product_id,territory_code FROM retail_product_availability_rows;
   `);
   const product = db.prepare("INSERT INTO products VALUES (?,?,?,?)");
   const edition = db.prepare("INSERT INTO editions VALUES (?,?)");
