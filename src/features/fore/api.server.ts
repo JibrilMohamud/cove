@@ -3030,19 +3030,20 @@ async function handleCoveRequest(
     }
     const currentIdentity = identity(request);
     const firstPaint = request.method === "GET" && path === "/storefront/bootstrap";
-    // D1 read replication is configured on Cove's DB, but enabled only when
-    // accessed through a per-request session. Start storefront *configuration*
-    // at the primary, obtaining a bookmark that prevents later reads in this
-    // session from observing an older database version. This context is NOT
-    // allowed to authorize a book, purchase, subscription or EPUB delivery:
-    // those continue using the original primary-bound env.DB.
-    // Local SQLite fixtures and non-Worker providers retain the same path.
+    // D1 replicas may serve *anonymous first-paint presentation metadata*
+    // close to ingress. Locale/market labels are hints, NEVER purchase or
+    // territorial authorization. Country-scoped book shelf, checkout, account
+    // entitlements and EPUB access use the original authoritative env.DB.
+    // Authenticated visitors instead start their configuration session at the
+    // primary, ensuring saved preferences cannot appear to roll backwards.
+    // No process/global context cache or legal rights snapshot is introduced.
     const configDb = machineDb as typeof machineDb & {
-      withSession?: (constraint: "first-primary") => typeof machineDb;
+      withSession?: (constraint: "first-primary" | "first-unconstrained") => typeof machineDb;
     };
+    const configConstraint = currentIdentity?.id ? "first-primary" : "first-unconstrained";
     const dbForContext =
       firstPaint && typeof configDb.withSession === "function"
-        ? configDb.withSession("first-primary")
+        ? configDb.withSession(configConstraint)
         : machineDb;
     const phases: Record<string, number> = {};
     async function timed<T>(name: string, promise: Promise<T>): Promise<T> {
@@ -3070,13 +3071,13 @@ async function handleCoveRequest(
       ),
       firstPaint
         ? Promise.all([
-            // Do not share one D1 session across independent concurrent
-            // queries: each request must establish its own primary bookmark.
+            // Do not share one session across concurrent reads: independent
+            // sessions make the replica/primary routing and bookmarks explicit.
             timed(
               "markets",
               storefrontMarkets(
                 firstPaint && typeof configDb.withSession === "function"
-                  ? configDb.withSession("first-primary")
+                  ? configDb.withSession(configConstraint)
                   : machineDb,
               ),
             ),
