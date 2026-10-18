@@ -160,13 +160,11 @@ function chooseSupportedLocale(rows: any[], requested: string[]) {
   return rows[0];
 }
 
-async function loadMessages(db: StorefrontDB, locale: string) {
+function messageStatement(db: StorefrontDB, locale: string) {
   // One D1 round trip instead of recursively loading each locale and each
   // bundle's messages in series. Follow up to five configured fallbacks,
   // detect cycles, then merge English first and the requested locale last.
-  const rows = (
-    await db
-      .prepare(
+  return db.prepare(
         `WITH RECURSIVE locale_chain(locale,depth,seen) AS (
           SELECT ? AS locale,0 AS depth,','||lower(?)||',' AS seen
           UNION ALL
@@ -188,10 +186,10 @@ async function loadMessages(db: StorefrontDB, locale: string) {
         )
         JOIN ui_translation_messages m ON m.bundle_id=b.id
         ORDER BY o.precedence DESC`,
-      )
-      .bind(locale, locale)
-      .all<{ message_key: string; message_value: string }>()
-  ).results;
+      ).bind(locale, locale);
+}
+
+function mergeMessages(rows: { message_key: string; message_value: string }[]) {
   const messages: Record<string, string> = {};
   for (const row of rows) messages[String(row.message_key)] = String(row.message_value);
   return messages;
@@ -263,16 +261,22 @@ export async function resolveStorefrontContext(
     }
   }
 
-  const [paymentMethods, messages] = await Promise.all([
-    db
-      .prepare(
-        `SELECT payment_method,provider,currency,availability,priority FROM storefront_payment_methods
+  // Both queries depend on resolved locale/currency, but not on each
+  // other. D1.batch sends them in ONE database service round trip instead
+  // of two independent session requests; SQL executes sequentially under
+  // one consistent D1 session. This read-only batch cannot grant rights.
+  const [paymentMethods, translationRows] = (await db.batch([
+    db.prepare(
+`SELECT payment_method,provider,currency,availability,priority FROM storefront_payment_methods
     WHERE country_code=? AND availability='available' AND (currency IS NULL OR currency=?) ORDER BY priority,payment_method`,
-      )
-      .bind(effectiveCountry, currency)
-      .all<any>(),
-    loadMessages(db, String(loc.locale)),
-  ]);
+
+    ).bind(effectiveCountry, currency),
+    messageStatement(db, String(loc.locale)),
+  ])) as [
+    { results: { payment_method: string; provider: string; currency: string | null; availability: string; priority: number }[] },
+    { results: { message_key: string; message_value: string }[] },
+  ];
+  const messages = mergeMessages(translationRows.results);
   const methods = paymentMethods.results;
   return {
     storefrontCountry: effectiveCountry,
