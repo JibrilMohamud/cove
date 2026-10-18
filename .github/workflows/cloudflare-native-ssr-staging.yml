@@ -138,6 +138,11 @@ jobs:
             echo "::add-mask::$COVE_SSR_STAGING_GATE_KEY"
             export COVE_SSR_STAGING_GATE_KEY
             printf '%s' "$COVE_SSR_STAGING_GATE_KEY" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.frontend.staging.toml
+            # Cloudflare secret versions propagate asynchronously worldwide.
+            # Give the control plane time to install the new secret BEFORE
+            # sending the FIRST HTTP request. This is not prewarming: no
+            # fetch/SSR/Worker traffic is sent or discounted while waiting.
+            sleep 10
             rm -f artifacts/cloudflare-ssr-staging-performance.json
             if ! node scripts/check-cloudflare-ssr-staging.mjs; then
               echo "::error::Cold deployment $trial failed the strict 20/20 gate"
