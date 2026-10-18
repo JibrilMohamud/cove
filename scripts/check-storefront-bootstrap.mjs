@@ -207,6 +207,11 @@ try {
                 /SELECT default_currency FROM storefront_markets WHERE country_code=upper\(\?\)/i,
                 "Anonymous currency must resolve inside the authoritative D1 query",
               );
+              assert.match(
+                sql,
+                /currency_probe INDEXED BY idx_search_price/i,
+                "Anonymous D1 must probe the existing currency index before the popular-rights scan",
+              );
               authoritativeRights++;
             }
             return target.prepare(sql);
