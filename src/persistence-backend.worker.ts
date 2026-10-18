@@ -197,40 +197,10 @@ async function catalogBatch(request: Request, env: BackendEnv) {
   );
   const deadline = Date.now() + maxMillis;
   const results: unknown[] = [];
-  const probeBudgetMs = catalogAdmissionBudget(env.FORE_CATALOG_ADMISSION_MAX_MS);
-  const checkPrimaryBeforeBulkWork = async (phase: string): Promise<Response | null> => {
-    const admission = await admitCatalogBatch(env.DB, probeBudgetMs);
-    if (admission.allowed) return null;
-    // Defer only retryable ingestion; rights checks, revocations, checkout,
-    // customer reads and account deletion are never routed through this gate.
-    // Durable ingestion cursor remains at the last successfully committed page.
-    console.warn(
-      JSON.stringify({
-        event: "catalog_background_deferred",
-        phase,
-        reason: admission.reason,
-        probeMs: admission.probeMs,
-        budgetMs: probeBudgetMs,
-      }),
-    );
-    return json({
-      ok: true,
-      skipped: "primary_busy",
-      phase,
-      admission,
-      pagesAttempted: results.length,
-      results,
-      regional: { skipped: "primary_busy" },
-      epubs: { skipped: "primary_busy" },
-      searchSync: { skipped: "primary_busy" },
-    });
-  };
   // Index metadata first. Regional scraping and EPUB transfers share the remaining
   // deadline, but cannot consume a page's asset allowance or stop later pages.
   const metadataDeadline = deadline - Math.min(30_000, maxMillis * 0.2);
   for (let i = 0; i < maxPages && Date.now() < metadataDeadline; i++) {
-    const deferred = await checkPrimaryBeforeBulkWork("metadata");
-    if (deferred) return deferred;
     const result = await runCatalogIngestion(env, 0, {
       deadlineMs: metadataDeadline,
       includeRegional: false,
@@ -238,10 +208,6 @@ async function catalogBatch(request: Request, env: BackendEnv) {
     });
     results.push(result);
     if (terminalIngestionResult(result)) break;
-  }
-  if (Date.now() < deadline) {
-    const deferred = await checkPrimaryBeforeBulkWork("regional");
-    if (deferred) return deferred;
   }
   const regional =
     Date.now() < deadline
@@ -252,17 +218,35 @@ async function catalogBatch(request: Request, env: BackendEnv) {
           }),
         )
       : { skipped: "deadline" };
-  if (epubLimit > 0 && Date.now() < deadline) {
-    const deferred = await checkPrimaryBeforeBulkWork("epubs");
-    if (deferred) return deferred;
-  }
   const epubs = await runCatalogAssetMaintenance(env, epubLimit, deadline);
+  // Defer only the nonauthoritative, retryable search-index projection.
+  // Catalog metadata and regional rights/evidence MUST always be processed,
+  // including urgent withdrawals or changed commercial-use determinations.
+  // The next scheduled tick resumes the unsynchronized index backlog.
+  let searchSync: { skipped: string; reason: string; probeMs: number } | undefined;
   if (Date.now() < deadline) {
-    const deferred = await checkPrimaryBeforeBulkWork("search");
-    if (deferred) return deferred;
-    await syncSearchIndex(env, 500).catch((error) =>
-      console.warn("Catalog search sync failed", error),
+    const admission = await admitCatalogBatch(
+      env.DB,
+      catalogAdmissionBudget(env.FORE_CATALOG_ADMISSION_MAX_MS),
     );
+    if (admission.allowed) {
+      await syncSearchIndex(env, 500).catch((error) =>
+        console.warn("Catalog search sync failed", error),
+      );
+    } else {
+      searchSync = {
+        skipped: "primary_busy",
+        reason: admission.reason,
+        probeMs: admission.probeMs,
+      };
+      console.warn(
+        JSON.stringify({
+          event: "catalog_search_index_deferred",
+          reason: admission.reason,
+          probeMs: admission.probeMs,
+        }),
+      );
+    }
   }
   return json({
     ok: !results.some(
@@ -272,6 +256,7 @@ async function catalogBatch(request: Request, env: BackendEnv) {
     results,
     regional,
     epubs,
+    ...(searchSync ? { searchSync } : {}),
   });
 }
 
