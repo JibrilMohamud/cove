@@ -125,7 +125,10 @@ export async function presentationTaxonomyCounts(
       if (!counts || expiresAt - now <= REFRESH_EARLY_MS) {
         defer(
           refreshPresentationCounts(db, key, refreshKey, queryLive, nowMs).catch((error) => {
-            console.warn("Presentation taxonomy refresh unavailable", error instanceof Error ? error.message : "unknown");
+            console.warn(
+              "Presentation taxonomy refresh unavailable",
+              error instanceof Error ? error.message : "unknown",
+            );
           }),
         );
       }
