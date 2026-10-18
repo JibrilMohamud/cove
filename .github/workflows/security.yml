@@ -63,7 +63,9 @@ jobs:
       - name: Customer support, status and recovery regressions
         run: npm run test:commercial-experience
       - name: Search, updater and public caching regressions
-        run: npm run test:search-updater-cache
+        run: |
+          npm run test:search-updater-cache
+          npm run test:recommendations
       - name: Reader, sharing privacy and offline authorization regressions
         run: npm run test:reader-sharing-offline
       - name: Direct sharing, group discussions and account erasure
