@@ -13,6 +13,8 @@ on:
       - "src/features/fore/storefront-read-rate-limit.server.ts"
       - "scripts/check-storefront-firstpaint-rate-limit.mjs"
       - "src/features/fore/search.server.ts"
+      - "src/features/fore/search-counts-cache.server.ts"
+      - "scripts/check-public-search-count-scope.mjs"
       - "src/features/fore/taxonomy.server.ts"
       - "src/features/fore/taxonomy-counts-cache.server.ts"
       - "src/features/fore/taxonomy-count-query.ts"
@@ -67,6 +69,8 @@ on:
       - "src/features/fore/storefront-read-rate-limit.server.ts"
       - "scripts/check-storefront-firstpaint-rate-limit.mjs"
       - "src/features/fore/search.server.ts"
+      - "src/features/fore/search-counts-cache.server.ts"
+      - "scripts/check-public-search-count-scope.mjs"
       - "src/features/fore/taxonomy.server.ts"
       - "src/features/fore/taxonomy-counts-cache.server.ts"
       - "src/features/fore/taxonomy-count-query.ts"
@@ -152,6 +156,7 @@ jobs:
           node scripts/check-rights.mjs
           python3 scripts/check-fts-trigger-lookup.py
           node scripts/check-catalog-added-sort-index.mjs
+          node scripts/check-public-search-count-scope.mjs
           node scripts/check-taxonomy-presentation-count-cache.mjs
           node scripts/check-sparse-taxonomy-rights-counts.mjs
           node scripts/check-secondary-channel-index.mjs

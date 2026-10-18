@@ -8,6 +8,7 @@ import {
 import { ApiError } from "./service";
 import { normalizeTerritoryCode } from "./rights.server";
 import { writeCatalogCache } from "./catalog-cache.server";
+import { presentationSearchCount } from "./search-counts-cache.server";
 import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
 
 type SearchEnv = {
@@ -1003,12 +1004,25 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
       .bind(...orderedBinds)
       .all<any>();
   };
-  const runCount = () =>
-    env.DB.prepare(
-      `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
-    )
-      .bind(...part.binds)
-      .first<{ count: number }>();
+  const runCount = async () => {
+    const countLive = async () => {
+      const row = await env.DB.prepare(
+        `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
+      )
+        .bind(...part.binds)
+        .first<{ count: number }>();
+      return Number(row?.count || 0);
+    };
+    // Browsing totals are presentation metadata already cached in each
+    // search page; reuse the same count across ranking/pagination choices.
+    // Text search/typo correction continues to use a fresh scoped total.
+    // Every returned book still goes through live primary-D1 legal filtering.
+    const count =
+      !input.query && !part.hasFts
+        ? await presentationSearchCount(env.DB, input, expression, countLive)
+        : await countLive();
+    return { count };
+  };
   let [rows, count] = await Promise.all([runIds(), runCount()]);
   if (!count?.count && input.query) {
     const correction = await typoCorrection(env.DB, input.query);

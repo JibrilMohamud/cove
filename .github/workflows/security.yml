@@ -65,6 +65,7 @@ jobs:
       - name: Search, updater and public caching regressions
         run: |
           npm run test:search-updater-cache
+          node scripts/check-public-search-count-scope.mjs
           node scripts/check-catalog-ingestion-backpressure.mjs
           node scripts/check-catalog-added-sort-index.mjs
           node scripts/check-taxonomy-presentation-count-cache.mjs
