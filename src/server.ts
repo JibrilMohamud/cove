@@ -14,7 +14,10 @@ import {
 } from "./lib/cloudflare-ssr-stage-gate.server";
 import { renderErrorPage } from "./lib/error-page";
 import { cachePublicDocument } from "./lib/public-document-cache";
-import { isPublicSeoDocumentPath, isSeoDocumentDispatchCandidate } from "./lib/public-seo-document-path";
+import {
+  isPublicSeoDocumentPath,
+  isSeoDocumentDispatchCandidate,
+} from "./lib/public-seo-document-path";
 import { applySecurityHeaders, securityTxt } from "./lib/security-headers";
 
 
@@ -157,10 +160,7 @@ export default {
       const securityDocument = securityTxt(request, foreEnv);
       if (securityDocument)
         return stageNoStore(applySecurityHeaders(request, securityDocument, foreEnv), staging);
-      if (
-        foreEnv.DB &&
-        isSeoDocumentDispatchCandidate(request.method, requestPath)
-      ) {
+      if (foreEnv.DB && isSeoDocumentDispatchCandidate(request.method, requestPath)) {
         const { handleSeoDocumentRequest } = await import("./features/fore/seo.server");
         const seo = await handleSeoDocumentRequest(request, foreEnv.DB, foreEnv.FORE_PUBLIC_URL);
         if (seo) return stageNoStore(applySecurityHeaders(request, seo, foreEnv), staging);
