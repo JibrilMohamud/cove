@@ -30,6 +30,7 @@ try {
   // refactor must not silently bring large live taxonomy scans back into
   // the render-blocking bootstrap.
   let joinedMarketLocaleReads = 0;
+  let atomicRightsShelfQueries = 0;
   const fastFirstPaintEnv = {
     ...env,
     DB: new Proxy(env.DB, {
@@ -46,6 +47,11 @@ try {
             );
             if (/FROM storefront_markets m\s+LEFT JOIN storefront_market_locales ml/i.test(sql))
               joinedMarketLocaleReads += 1;
+            if (/WITH eligible AS MATERIALIZED/i.test(sql)) {
+              assert.match(sql, /JOIN eligible selected ON selected\.product_id=p\.id/);
+              assert.match(sql, /retail_product_availability_rows/i);
+              atomicRightsShelfQueries += 1;
+            }
             return target.prepare(sql);
           };
         const value = Reflect.get(target, property);
@@ -141,6 +147,10 @@ try {
     );
   }
   assert.ok(joinedMarketLocaleReads >= 4, "One live joined market/locale read per bootstrap");
+  assert.ok(
+    atomicRightsShelfQueries >= 4,
+    "Every tested territory must select eligible candidates and hydrate in one D1 statement",
+  );
   // Guard against accidentally using unknown channel eligibility in the
   // server-rendered BookCard. Any future visible channel badge must receive
   // a fresh authoritative answer, not a default-false preview.
