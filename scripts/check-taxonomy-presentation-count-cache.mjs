@@ -20,7 +20,9 @@ const { presentationTaxonomyCounts } = await import(
 );
 
 const sql = new DatabaseSync(":memory:");
-sql.exec("CREATE TABLE api_cache(key TEXT PRIMARY KEY, body TEXT NOT NULL, expires_at INTEGER NOT NULL)");
+sql.exec(
+  "CREATE TABLE api_cache(key TEXT PRIMARY KEY, body TEXT NOT NULL, expires_at INTEGER NOT NULL)",
+);
 const calls = [];
 const db = {
   prepare(query) {
@@ -54,7 +56,11 @@ try {
   let result = await presentationTaxonomyCounts(db, "US", "", query("US", "", 12), clock);
   assert.deepEqual(result, [{ node_id: "fantasy", product_count: 12 }]);
   result = await presentationTaxonomyCounts(db, "us", "", query("US", "", 77), clock);
-  assert.equal(result[0].product_count, 12, "Identical rights country must reuse presentation only");
+  assert.equal(
+    result[0].product_count,
+    12,
+    "Identical rights country must reuse presentation only",
+  );
   assert.equal(calls.length, 1);
   result = await presentationTaxonomyCounts(db, "CA", "", query("CA", "", 0), clock);
   assert.deepEqual(result, [{ node_id: "fantasy", product_count: 0 }]);
@@ -69,24 +75,35 @@ try {
   assert.equal(result[0].product_count, 3, "Expired presentation count must recompute");
   assert.equal(calls.length, 4);
 
-  const key = sql.prepare("SELECT key FROM api_cache WHERE body LIKE '%fantasy%' LIMIT 1").get()?.key;
+  const key = sql
+    .prepare("SELECT key FROM api_cache WHERE body LIKE '%fantasy%' LIMIT 1")
+    .get()?.key;
   assert.ok(key);
   assert.ok(String(key).startsWith("taxonomy-counts:v1:"));
   assert.equal(String(key).includes("US"), false, "Market keys should be normalized hash only");
   const cachedRows = sql.prepare("SELECT key,body FROM api_cache").all();
   assert.ok(cachedRows.every((x) => !x.body.includes("product_id")));
-  sql.prepare("UPDATE api_cache SET body='{\"not\":\"valid\"}' WHERE key=?").run(key);
+  sql.prepare('UPDATE api_cache SET body=\'{"not":"valid"}\' WHERE key=?').run(key);
   // Invalid cache data forces live recount on its particular key.
   const identity = async () => [{ node_id: "fallback", product_count: 99 }];
   const first = await presentationTaxonomyCounts(db, "US", "", identity, clock);
   assert.ok(first.length > 0, "Corrupted presentation cache must never break rendering");
-  const fakeDb = { prepare() { throw Error("cache unavailable"); }, async batch() { throw Error("cache unavailable"); } };
+  const fakeDb = {
+    prepare() {
+      throw Error("cache unavailable");
+    },
+    async batch() {
+      throw Error("cache unavailable");
+    },
+  };
   assert.deepEqual(
     await presentationTaxonomyCounts(fakeDb, "GB", "en", identity, clock),
     [{ node_id: "fallback", product_count: 99 }],
     "Cache failures must never turn into authorization or storefront failures",
   );
-  console.log("Taxonomy presentation-only cache: locality, TTL, live miss, corrupt cache, missing cache PASS");
+  console.log(
+    "Taxonomy presentation-only cache: locality, TTL, live miss, corrupt cache, missing cache PASS",
+  );
 } finally {
   sql.close();
 }
