@@ -1,7 +1,6 @@
 import { z } from "zod";
 import type { CatalogDB } from "./catalog-model.server";
 import { ApiError, now } from "./service";
-import { canonicalEntitySlug, resolveEntityId } from "./discovery.server";
 
 export type TaxonomyNode = {
   id: string;
@@ -302,6 +301,7 @@ export async function resolveStorefrontPage(
     };
   }
   if (path.startsWith("/author/")) {
+    const { canonicalEntitySlug, resolveEntityId } = await import("./discovery.server");
     const ref = decodeURIComponent(path.slice("/author/".length));
     const id = await resolveEntityId(db, "author", ref);
     const contributor = await db
@@ -349,6 +349,7 @@ export async function resolveStorefrontPage(
     };
   }
   if (path.startsWith("/series/")) {
+    const { canonicalEntitySlug, resolveEntityId } = await import("./discovery.server");
     const ref = decodeURIComponent(path.slice("/series/".length));
     const id = await resolveEntityId(db, "series", ref);
     const series = await db
@@ -387,6 +388,7 @@ export async function resolveStorefrontPage(
     };
   }
   if (path.startsWith("/publisher/")) {
+    const { canonicalEntitySlug, resolveEntityId } = await import("./discovery.server");
     const ref = decodeURIComponent(path.slice("/publisher/".length));
     const id = await resolveEntityId(db, "publisher", ref);
     const publisher = await db
@@ -447,6 +449,7 @@ export async function resolveStorefrontPage(
     };
   }
   if (path.startsWith("/imprint/")) {
+    const { canonicalEntitySlug, resolveEntityId } = await import("./discovery.server");
     const ref = decodeURIComponent(path.slice("/imprint/".length));
     const id = await resolveEntityId(db, "imprint", ref);
     const imprint = await db
