@@ -97,22 +97,16 @@ export async function serveLeanAnonymousBootstrap(
       ),
     ),
   );
-  const [context, availableMarkets, catalog, page] = await Promise.all([
+  const [context, availableMarkets, , catalog, page] = await Promise.all([
     contextPromise,
     timed("markets", storefrontMarkets(readMetadata())),
-    timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)).then(
-      () => null,
-    ),
-    // The primary determines current default currency in this exact SQL
-    // snapshot; presentation replicas never decide authorized book access.
+    timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
+    // The primary determines the current market currency in the same
+    // legal-rights SQL statement. Replica-backed presentation never
+    // authorizes any edition.
     timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry)),
     pagePromise,
-  ]).then(([resolved, markets, , firstPage, landing]) => [
-    resolved,
-    markets,
-    firstPage,
-    landing,
-  ] as const);
+  ]);
   if (context.rightsCountry !== trustedCountry)
     throw new Error("Anonymous network rights mismatch; fail closed.");
   const query = new URLSearchParams({
