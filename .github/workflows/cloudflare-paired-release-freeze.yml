@@ -1,0 +1,90 @@
+# Read-only comparison of two pinned Cove revisions. The workflow file is
+# deliberately the ONLY push trigger: routine code cannot silently swap the
+# baseline, alter production routing, or change the experimental code cohort.
+name: cloudflare-paired-release-freeze
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cloudflare-paired-release-freeze.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  # Do NOT overlap the existing protected stage's secret rotation or another
+  # paired test. Two additional scripts, NEVER the production Worker.
+  group: cove-paired-release-freeze
+  cancel-in-progress: false
+
+jobs:
+  immutable-paired-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    env:
+      VERCEL: "0"
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+      COVE_PAIR_RELEASE_FREEZE: "1"
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - name: Checkout exact earlier benchmark revision
+        uses: actions/checkout@v6
+        with:
+          ref: 2ae0431c02da435797e749b9d46201583d47ea91
+          path: baseline
+          persist-credentials: false
+      - name: Checkout exact frozen current revision and benchmark harness
+        uses: actions/checkout@v6
+        with:
+          ref: 6c1e78041708e1d00883beb14565a96d631246e9
+          path: candidate
+          persist-credentials: false
+      - name: Checkout benchmark-only harness, not application code
+        uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - name: Use Node 22 consistently
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Require isolated staging credentials and pinned revisions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test "$(git -C baseline rev-parse HEAD)" = "2ae0431c02da435797e749b9d46201583d47ea91"
+          test "$(git -C candidate rev-parse HEAD)" = "6c1e78041708e1d00883beb14565a96d631246e9"
+          node --check harness/scripts/performance/cloudflare-paired-regression.mjs
+          grep -q 'COVE_SSR_STAGING = "1"' candidate/wrangler.frontend.staging.toml
+      - name: Independently install and build earlier revision
+        working-directory: baseline
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          test -s .output/server/index.mjs
+      - name: Independently install and build frozen current revision
+        working-directory: candidate
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          test -s .output/server/index.mjs
+      - name: Run matched three-cold, four-concurrency, browser, D1 comparison
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Harness checkout is benchmark-only, not part of either Worker
+          # application build. No production cutover, live rights unchanged.
+          node ../harness/scripts/performance/cloudflare-paired-regression.mjs
+      - name: Upload immutable paired diagnostics, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cove-frozen-ssr-paired-performance
+          path: paired-evidence/
+          retention-days: 14
+          if-no-files-found: warn
