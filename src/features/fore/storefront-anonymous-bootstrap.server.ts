@@ -87,6 +87,7 @@ export async function serveLeanAnonymousBootstrap(
     page: "1",
     currency: context.currency,
   }).toString();
+  const d1Metrics: { sqlDurationMs?: number; rowsRead?: number; attempts?: number } = {};
   const [page, catalog] = await Promise.all([
     timed(
       "page",
@@ -100,8 +101,15 @@ export async function serveLeanAnonymousBootstrap(
     ),
     // IMPORTANT: no replica/session here. Legal filtering stays in the
     // original D1 binding, enforcing revocations on every SSR request.
-    timed("catalog", firstPaintStorefrontShelf(env, context.currency, context.rightsCountry)),
+    timed(
+      "catalog",
+      firstPaintStorefrontShelf(env, context.currency, context.rightsCountry, d1Metrics),
+    ),
   ]);
+  // Numbers only; a slow catalog SQL phase vs a slow D1 service/transport
+  // round trip can now be distinguished without logging rights details.
+  if (d1Metrics.sqlDurationMs !== undefined) timings.catalog_sql = d1Metrics.sqlDurationMs;
+
   timings.bootstrap = performance.now() - started;
   timings.lean = 0;
   return new Response(
@@ -117,9 +125,17 @@ export async function serveLeanAnonymousBootstrap(
         "Content-Type": "application/json; charset=utf-8",
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff",
-        "Server-Timing": Object.entries(timings)
-          .map(([name, ms]) => `cove_${name};dur=${ms.toFixed(1)}`)
-          .join(", "),
+        "Server-Timing": [
+          ...Object.entries(timings).map(([name, ms]) => `cove_${name};dur=${ms.toFixed(1)}`),
+          // These are counts, not milliseconds. Expose as numeric descriptions
+          // so browser tooling never mistakes rows read for elapsed time.
+          ...(d1Metrics.rowsRead !== undefined
+            ? [`cove_catalog_rows;desc="${Math.round(d1Metrics.rowsRead)}"`]
+            : []),
+          ...(d1Metrics.attempts !== undefined
+            ? [`cove_catalog_attempts;desc="${Math.round(d1Metrics.attempts)}"`]
+            : []),
+        ].join(", "),
       },
     },
   );

@@ -14,6 +14,7 @@ export function sanitizedStorefrontBackendTiming(value: string | null): string[]
     "context",
     "page",
     "catalog",
+    "catalog_sql",
     "markets",
     "limit",
     "lean",
@@ -21,13 +22,18 @@ export function sanitizedStorefrontBackendTiming(value: string | null): string[]
     "log_queued",
     "api",
   ]);
-  return (value || "")
-    .split(",")
-    .map((part) => part.trim().match(/^cove_([a-z_]+);dur=([0-9]+(?:\.[0-9]+)?)$/))
+  const parts = (value || "").split(",").map((part) => part.trim());
+  const durations = parts
+    .map((part) => part.match(/^cove_([a-z_]+);dur=([0-9]+(?:\.[0-9]+)?)$/))
     .filter((match): match is RegExpMatchArray => !!match)
     .filter((match) => known.has(match[1]) && Number(match[2]) <= 12_000)
-    .map((match) => `cove_backend_${match[1]};dur=${match[2]}`)
-    .slice(0, 10);
+    .map((match) => `cove_backend_${match[1]};dur=${match[2]}`);
+  const counters = parts
+    .map((part) => part.match(/^cove_(catalog_rows|catalog_attempts);desc="([0-9]{1,9})"$/))
+    .filter((match): match is RegExpMatchArray => !!match)
+    .filter((match) => Number(match[2]) <= (match[1] === "catalog_attempts" ? 50 : 100_000_000))
+    .map((match) => `cove_backend_${match[1]};desc="${match[2]}"`);
+  return [...durations, ...counters].slice(0, 13);
 }
 
 /**

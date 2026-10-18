@@ -3,6 +3,7 @@ import {
   canonicalBooksByProductIds,
   canonicalFirstPaintShelfByRightsQuery,
   type CatalogDB,
+  type FirstPaintD1QueryMetrics,
 } from "./catalog-model.server";
 import { ApiError } from "./service";
 import { normalizeTerritoryCode } from "./rights.server";
@@ -1521,6 +1522,7 @@ export async function firstPaintStorefrontShelf(
   env: SearchEnv,
   currency: string,
   territory: string,
+  diagnostics?: FirstPaintD1QueryMetrics,
 ) {
   const started = performance.now();
   const url = new URL("https://internal.invalid/api/fore/catalog");
@@ -1535,13 +1537,17 @@ export async function firstPaintStorefrontShelf(
   // The same live, country-filtered candidate SQL now selects and hydrates
   // books inside one atomic D1 read, rather than two serial primary-region
   // trips. No shelf cache or stale legal rights snapshot is introduced.
-  const { books, hasMore } = await canonicalFirstPaintShelfByRightsQuery(env.DB, {
-    from: part.from,
-    where: part.where.join(" AND "),
-    order: d1Sort(input, false),
-    binds: part.binds,
-    limit: input.limit,
-  });
+  const { books, hasMore } = await canonicalFirstPaintShelfByRightsQuery(
+    env.DB,
+    {
+      from: part.from,
+      where: part.where.join(" AND "),
+      order: d1Sort(input, false),
+      binds: part.binds,
+      limit: input.limit,
+    },
+    diagnostics,
+  );
   // The first-paint BookCard displays titles, covers, retail offers and
   // genres, but NEVER the subscription/library access flags. Computing those
   // flags materializes the full legal channel view on every anonymous
