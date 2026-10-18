@@ -1,4 +1,4 @@
-import { resolveStorefrontContext, storefrontMarkets } from "./localization.server";
+import { networkCountry, resolveStorefrontContext, storefrontMarkets } from "./localization.server";
 import { resolveStorefrontPage } from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
@@ -72,23 +72,18 @@ export async function serveLeanAnonymousBootstrap(
       ? configDb.withSession("first-unconstrained")
       : rawDb;
   const ip = request.headers.get("cf-connecting-ip")!.trim();
-  // Exactly the canonical search:catalog:ip:<cf-connecting-ip> limiter key.
-  const [context, availableMarkets] = await Promise.all([
-    timed(
-      "context",
-      resolveStorefrontContext(readMetadata(), request, null, env.FORE_DEFAULT_TERRITORY || "US"),
-    ),
-    timed("markets", storefrontMarkets(readMetadata())),
-    timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
-  ]);
-  const query = new URLSearchParams({
-    search: "",
-    sort: "popular",
-    page: "1",
-    currency: context.currency,
-  }).toString();
+  // No cookie/account data is present. This same canonical resolver also
+  // drives resolveStorefrontContext's country for anonymous visitors.
+  const trustedCountry = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country;
   const d1Metrics: { sqlDurationMs?: number; rowsRead?: number; attempts?: number } = {};
-  const [page, catalog] = await Promise.all([
+  // Launch the authoritative primary-rights query *before* waiting for
+  // independent replica presentation reads. No book leaves the Worker until
+  // the rate limiter, markets, context, page and rights checks ALL succeed.
+  const contextPromise = timed(
+    "context",
+    resolveStorefrontContext(readMetadata(), request, null, env.FORE_DEFAULT_TERRITORY || "US"),
+  );
+  const pagePromise = contextPromise.then((context) =>
     timed(
       "page",
       resolveStorefrontPage(
@@ -99,15 +94,31 @@ export async function serveLeanAnonymousBootstrap(
         context.locale,
       ),
     ),
-    // IMPORTANT: no replica/session here. Legal filtering stays in the
-    // original D1 binding, enforcing revocations on every SSR request.
-    timed(
-      "catalog",
-      firstPaintStorefrontShelf(env, context.currency, context.rightsCountry, d1Metrics),
-    ),
+  );
+  const [context, availableMarkets, , catalog, page] = await Promise.all([
+    contextPromise,
+    timed("markets", storefrontMarkets(readMetadata())),
+    timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
+    // NULL currency means active-market currency is looked up in this SAME
+    // live primary D1 statement with the full retail-grant view.
+    timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics)),
+    pagePromise,
   ]);
-  // Numbers only; a slow catalog SQL phase vs a slow D1 service/transport
-  // round trip can now be distinguished without logging rights details.
+  if (context.rightsCountry !== trustedCountry)
+    throw new Error("Anonymous country mismatch; refuse to render a legal-rights shelf.");
+  const query = new URLSearchParams({
+    search: "",
+    sort: "popular",
+    page: "1",
+    currency: context.currency,
+  }).toString();
+  if (catalog.next) {
+    const nextQuery = new URLSearchParams(query);
+    nextQuery.set("page", "2");
+    catalog.next = `/api/fore/catalog?${nextQuery}`;
+  }
+  // Keep measured actual primary SQL duration, rows read and retries separate
+  // from the full D1 service/network request duration.
   if (d1Metrics.sqlDurationMs !== undefined) timings.catalog_sql = d1Metrics.sqlDurationMs;
 
   timings.bootstrap = performance.now() - started;
