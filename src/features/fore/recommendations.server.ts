@@ -377,7 +377,7 @@ async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400)
     const shortlist = Math.min(1000, Math.max(wanted + 100, Math.ceil(wanted * 1.375)));
     const fast = await db
       .prepare(
-      `WITH ranked AS MATERIALIZED (
+        `WITH ranked AS MATERIALIZED (
         SELECT p.id,
           COALESCE(rm.trend_score,m.trend_score,d.sales_velocity,0) trend_rank,
           COALESCE(rm.popularity_score,m.popularity_score,d.download_count,0) popularity_rank,
