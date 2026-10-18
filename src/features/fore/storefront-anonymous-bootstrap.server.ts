@@ -87,6 +87,7 @@ export async function serveLeanAnonymousBootstrap(
     page: "1",
     currency: context.currency,
   }).toString();
+  const d1Metrics: { sqlDurationMs?: number; rowsRead?: number; attempts?: number } = {};
   const [page, catalog] = await Promise.all([
     timed(
       "page",
@@ -100,8 +101,13 @@ export async function serveLeanAnonymousBootstrap(
     ),
     // IMPORTANT: no replica/session here. Legal filtering stays in the
     // original D1 binding, enforcing revocations on every SSR request.
-    timed("catalog", firstPaintStorefrontShelf(env, context.currency, context.rightsCountry)),
+    timed("catalog", firstPaintStorefrontShelf(env, context.currency, context.rightsCountry, d1Metrics)),
   ]);
+  // Numbers only; a slow catalog SQL phase vs a slow D1 service/transport
+  // round trip can now be distinguished without logging rights details.
+  if (d1Metrics.sqlDurationMs !== undefined) timings.catalog_sql = d1Metrics.sqlDurationMs;
+  if (d1Metrics.rowsRead !== undefined) timings.catalog_rows = d1Metrics.rowsRead;
+  if (d1Metrics.attempts !== undefined) timings.catalog_attempts = d1Metrics.attempts;
   timings.bootstrap = performance.now() - started;
   timings.lean = 0;
   return new Response(
