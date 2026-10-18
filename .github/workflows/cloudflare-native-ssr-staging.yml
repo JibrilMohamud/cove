@@ -180,6 +180,10 @@ jobs:
         if: always()
         with:
           name: cloudflare-native-ssr-staging-performance
-          path: artifacts/cloudflare-ssr-staging-performance.json
+          path: |
+            artifacts/cloudflare-ssr-staging-performance.json
+            artifacts/cloudflare-ssr-staging-performance-1.json
+            artifacts/cloudflare-ssr-staging-performance-2.json
+            artifacts/cloudflare-ssr-staging-performance-3.json
           if-no-files-found: ignore
           retention-days: 14
