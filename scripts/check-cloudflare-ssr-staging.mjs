@@ -231,9 +231,13 @@ async function probe(language, sample, sequence) {
     ]
       .filter((name) => new RegExp(`(?:^|, )${name};dur=[0-9.]+`).test(timing))
       .join(",");
-    const duration = safeProbeTelemetry(response.headers, ttfbMs, totalMs).timing
-      .split(", ")
-      .filter((part) => /^(cove_ssr_bootstrap|cove_ssr_primary_failure|cove_ssr_deadline|cove_backend_catalog|cove_backend_context|cove_backend_lean);/.test(part))
+    const duration = safeProbeTelemetry(response.headers, ttfbMs, totalMs)
+      .timing.split(", ")
+      .filter((part) =>
+        /^(cove_ssr_bootstrap|cove_ssr_primary_failure|cove_ssr_deadline|cove_backend_catalog|cove_backend_context|cove_backend_lean);/.test(
+          part,
+        ),
+      )
       .slice(0, 6)
       .join(",");
     throw new Error(
