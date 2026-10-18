@@ -14,6 +14,16 @@ assert.match(config, /^binding\s*=\s*"BUCKET"$/m);
 assert.ok(fs.existsSync(workerFile), "Cloudflare module server entry must exist");
 assert.ok(fs.statSync(workerFile).size > 0, "Cloudflare module must not be empty");
 assert.ok(fs.existsSync(assets) && fs.statSync(assets).isDirectory(), "SSR public assets required");
+for (const file of [
+  "wrangler.frontend.pilot.toml",
+  "wrangler.frontend.staging.toml",
+  "wrangler.frontend.production.toml",
+])
+  assert.match(
+    fs.readFileSync(file, "utf8"),
+    /^minify\s*=\s*true$/m,
+    "Final Wrangler upload must preserve minification",
+  );
 // Inspect the actual generated graph: a harmless global polyfill can merge
 // with a reader chunk and silently make it eager before cove_total begins.
 const graph = new Map();
