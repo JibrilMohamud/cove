@@ -15,6 +15,8 @@ on:
       - "src/features/fore/search.server.ts"
       - "src/features/fore/taxonomy.server.ts"
       - "src/features/fore/taxonomy-counts-cache.server.ts"
+      - "src/features/fore/taxonomy-count-query.ts"
+      - "scripts/check-sparse-taxonomy-rights-counts.mjs"
       - "scripts/check-taxonomy-presentation-count-cache.mjs"
       - "src/features/fore/rights-scoped-cache-page.ts"
       - "scripts/check-bounded-cached-rights-recheck.mjs"
@@ -67,6 +69,8 @@ on:
       - "src/features/fore/search.server.ts"
       - "src/features/fore/taxonomy.server.ts"
       - "src/features/fore/taxonomy-counts-cache.server.ts"
+      - "src/features/fore/taxonomy-count-query.ts"
+      - "scripts/check-sparse-taxonomy-rights-counts.mjs"
       - "scripts/check-taxonomy-presentation-count-cache.mjs"
       - "src/features/fore/rights-scoped-cache-page.ts"
       - "scripts/check-bounded-cached-rights-recheck.mjs"
@@ -149,6 +153,7 @@ jobs:
           python3 scripts/check-fts-trigger-lookup.py
           node scripts/check-catalog-added-sort-index.mjs
           node scripts/check-taxonomy-presentation-count-cache.mjs
+          node scripts/check-sparse-taxonomy-rights-counts.mjs
           node scripts/check-secondary-channel-index.mjs
           node scripts/check-external-identifier-index.mjs
           node scripts/check-live-channel-zero-grant-gate.mjs
