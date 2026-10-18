@@ -35,9 +35,14 @@ export function localBindings(root) {
         return { results: s.all(...values) };
       },
       async run() {
+        // D1 .run() and .batch() return rows for SELECT statements. The local
+        // SQLite shim previously used StatementSync.run() for every batch
+        // item, silently dropping all SELECT rows. Use columns() to detect
+        // read-returning statements (including WITH RECURSIVE SELECT), while
+        // preserving transaction/mutation metadata for write statements.
+        if (s.columns().length)
+          return { results: s.all(...values), success: true, meta: { changes: 0, last_row_id: 0 } };
         const result = s.run(...values);
-        // Match D1's mutation result as well as SQLite's top-level fields. The
-        // production delivery guards rely on meta.changes for atomic claims.
         return {
           ...result,
           success: true,
