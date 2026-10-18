@@ -74,16 +74,24 @@ const parallel = await Promise.all(
     return presentationTaxonomyCounts(db, "US", "en", expensive, clock, defer, state);
   }),
 );
-assert.ok(parallel.every((x) => x.length === 0), "Cold reads must not block on multi-second UI aggregation");
-assert.ok(states.every((s) => s.pending), "Temporary missing labels must be marked");
+assert.ok(
+  parallel.every((x) => x.length === 0),
+  "Cold reads must not block on multi-second UI aggregation",
+);
+assert.ok(
+  states.every((s) => s.pending),
+  "Temporary missing labels must be marked",
+);
 unblock();
 await Promise.all(jobs.splice(0));
-assert.equal(expensiveCalls, 1, "All 16 independent requests must share only one D1-leased refresh");
+assert.equal(
+  expensiveCalls,
+  1,
+  "All 16 independent requests must share only one D1-leased refresh",
+);
 assert.ok(writes >= 1);
 let state = { pending: false };
-const live = await presentationTaxonomyCounts(
-  db, "US", "en", expensive, clock, defer, state,
-);
+const live = await presentationTaxonomyCounts(db, "US", "en", expensive, clock, defer, state);
 assert.equal(live[0]?.product_count, 25);
 assert.equal(state.pending, false);
 assert.equal(expensiveCalls, 1, "Fresh counts never trigger a second expensive query");
@@ -127,15 +135,21 @@ assert.equal(staleCalls, 1);
 // The public cache must never store the zero-count temporary response.
 state = { pending: false };
 const coldCountry = await presentationTaxonomyCounts(
-  db, "GB", "fr", async () => [{ node_id: "fiction", product_count: 2 }],
-  clock, defer, state,
+  db,
+  "GB",
+  "fr",
+  async () => [{ node_id: "fiction", product_count: 2 }],
+  clock,
+  defer,
+  state,
 );
 assert.deepEqual(coldCountry, []);
 assert.equal(state.pending, true);
 await Promise.all(jobs.splice(0));
 state.pending = false;
 assert.equal(
-  (await presentationTaxonomyCounts(db, "GB", "fr", async () => [], clock, defer, state))[0]?.product_count,
+  (await presentationTaxonomyCounts(db, "GB", "fr", async () => [], clock, defer, state))[0]
+    ?.product_count,
   2,
 );
 assert.equal(state.pending, false);
@@ -143,26 +157,43 @@ assert.equal(state.pending, false);
 // A rejected aggregation releases the lease, so the next request can retry.
 state = { pending: false };
 assert.deepEqual(
-  await presentationTaxonomyCounts(db, "CA", "es", async () => {
-    throw Error("replica temporarily unavailable");
-  }, clock, defer, state),
+  await presentationTaxonomyCounts(
+    db,
+    "CA",
+    "es",
+    async () => {
+      throw Error("replica temporarily unavailable");
+    },
+    clock,
+    defer,
+    state,
+  ),
   [],
 );
 await Promise.all(jobs.splice(0));
 const retried = await presentationTaxonomyCounts(
-  db, "CA", "es", async () => [{ node_id: "fiction", product_count: 7 }],
-  clock, defer,
+  db,
+  "CA",
+  "es",
+  async () => [{ node_id: "fiction", product_count: 7 }],
+  clock,
+  defer,
 );
 assert.deepEqual(retried, []);
 await Promise.all(jobs.splice(0));
 assert.equal(
-  (await presentationTaxonomyCounts(db, "CA", "es", async () => [], clock, defer))[0]?.product_count,
+  (await presentationTaxonomyCounts(db, "CA", "es", async () => [], clock, defer))[0]
+    ?.product_count,
   7,
 );
 
 // No caller lacking a waitUntil gets the async/possibly stale path.
 const legacy = await presentationTaxonomyCounts(
-  db, "AU", "", async () => [{ node_id: "fiction", product_count: 9 }], clock,
+  db,
+  "AU",
+  "",
+  async () => [{ node_id: "fiction", product_count: 9 }],
+  clock,
 );
 assert.deepEqual(legacy, [{ node_id: "fiction", product_count: 9 }]);
 const caches = sqlite.prepare("SELECT key,body FROM api_cache").all();
