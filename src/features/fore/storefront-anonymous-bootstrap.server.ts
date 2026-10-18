@@ -88,9 +88,10 @@ export async function serveLeanAnonymousBootstrap(
     },
     {
       execution: currentCoveRequestExecutionContext(),
-      // Same edge limiter, separate shared key: at most 180 extra primary
-      // reads per minute per colo, regardless of visitor/IP count. Each
-      // bootstrap can issue at most one, and all normal limits still apply.
+      // Separate shared admission key targets 180 extra reads/minute/colo,
+      // regardless of IP count. The platform counter is eventually consistent,
+      // not exact accounting. The strict bound is ONE extra per bootstrap;
+      // all normal request limits still apply.
       allowDuplicate: async () => {
         try {
           if (request.signal.aborted) return false;
