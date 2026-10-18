@@ -358,7 +358,7 @@ async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400)
     .prepare(
       `SELECT p.id FROM products p JOIN editions e ON e.id=p.edition_id LEFT JOIN recommendation_item_metrics m ON m.product_id=p.id LEFT JOIN recommendation_regional_item_metrics rm ON rm.product_id=p.id AND rm.territory_code=upper(?) LEFT JOIN catalog_search_documents d ON d.product_id=p.id
     WHERE p.storefront_status='active' AND e.release_status IN ('available','preorder') AND p.source_name<>'upload'
-      AND EXISTS(SELECT 1 FROM retail_product_availability_rows rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))
+      AND EXISTS(SELECT 1 FROM retail_product_availability rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))
     ORDER BY COALESCE(rm.trend_score,m.trend_score,d.sales_velocity,0) DESC,COALESCE(rm.popularity_score,m.popularity_score,d.download_count,0) DESC,p.updated_at DESC LIMIT ?`,
     )
     .bind(territory, territory, Math.min(MAX_CANDIDATES, limit))
