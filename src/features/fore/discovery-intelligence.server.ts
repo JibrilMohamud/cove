@@ -146,6 +146,72 @@ export async function buildLiteraryTaste(
     }
   return taste;
 }
+/**
+ * An exact, live-rights ranking of the first 60 taxonomy candidates.
+ *
+ * First choose the <=110 lexicographically earliest taxonomy matches, then
+ * run the authoritative current retail rights view on that shortlist. It
+ * cannot yield an approximate result: if fewer than 60 survive, the complete
+ * territory-seeded query runs instead. In markets with <=1000 live grant rows,
+ * skip global ranking entirely. This avoids O(catalog) correlated rights scans
+ * during popular genre browsing without caching revoked licenses.
+ */
+async function rightsExactTaxonomyCandidates(
+  db: CatalogDB,
+  nodeIds: string[],
+  territory: string,
+): Promise<string[]> {
+  if (!nodeIds.length) return [];
+  const marks = nodeIds.map(() => "?").join(",");
+  const threshold = await db
+    .prepare(
+      "SELECT COUNT(*) grants FROM (SELECT 1 FROM rights_grant_territories WHERE territory_code=upper(?) LIMIT 1001)",
+    )
+    .bind(territory)
+    .first<{ grants: number }>();
+  if (Number(threshold?.grants || 0) > 1000) {
+    const fast = await db
+      .prepare(
+        `WITH ranked AS MATERIALIZED (
+          SELECT DISTINCT p.id FROM edition_taxonomy_nodes e
+          JOIN products p ON p.edition_id=e.edition_id
+          WHERE e.taxonomy_node_id IN (${marks}) AND e.confidence>=0.25
+            AND p.storefront_status='active'
+          ORDER BY p.id LIMIT 110
+        )
+        SELECT ranked.id FROM ranked
+        WHERE EXISTS(
+          SELECT 1 FROM retail_product_availability_rows live
+          WHERE live.product_id=ranked.id AND live.territory_code=upper(?)
+        ) ORDER BY ranked.id LIMIT 60`,
+      )
+      .bind(...nodeIds, territory)
+      .all<{ id: string }>();
+    if (fast.results.length === 60) return fast.results.map((r) => r.id);
+  }
+
+  // Grant rows are a superset for the territory, never authorization.
+  // All contract dates/languages, format, status, revocation and evidence
+  // restrictions are still enforced by the live view before release.
+  const complete = await db
+    .prepare(
+      `SELECT DISTINCT p.id FROM rights_grant_territories rgt
+      JOIN rights_grants rg ON rg.id=rgt.grant_id
+      JOIN products p ON p.edition_id=rg.edition_id
+      JOIN edition_taxonomy_nodes e ON e.edition_id=p.edition_id
+      WHERE rgt.territory_code=upper(?) AND rg.sales_channel='retail'
+        AND e.taxonomy_node_id IN (${marks}) AND e.confidence>=0.25
+        AND p.storefront_status='active'
+        AND EXISTS(
+          SELECT 1 FROM retail_product_availability_rows live
+          WHERE live.product_id=p.id AND live.territory_code=upper(?)
+        ) ORDER BY p.id LIMIT 60`,
+    )
+    .bind(territory, ...nodeIds, territory)
+    .all<{ id: string }>();
+  return complete.results.map((r) => r.id);
+}
+
 export async function retrieveLiteraryCandidates(
   db: CatalogDB,
   terms: LiteraryFeature[],
@@ -171,13 +237,12 @@ export async function retrieveLiteraryCandidates(
         )
         .slice(0, 20);
       if (nodes.length) {
-        const rows = await db
-          .prepare(
-            `SELECT DISTINCT p.id FROM edition_taxonomy_nodes e JOIN products p ON p.edition_id=e.edition_id WHERE e.taxonomy_node_id IN (${nodes.map(() => "?").join(",")}) AND e.confidence>=0.25 AND p.storefront_status='active' AND EXISTS(SELECT 1 FROM retail_product_availability a WHERE a.product_id=p.id AND a.territory_code=upper(?)) ORDER BY p.id LIMIT 60`,
-          )
-          .bind(...nodes.map((n) => n.id), territory)
-          .all<{ id: string }>();
-        rows.results.forEach((r) => ids.add(r.id));
+        const candidates = await rightsExactTaxonomyCandidates(
+          db,
+          nodes.map((n) => n.id),
+          territory,
+        );
+        candidates.forEach((id) => ids.add(id));
       }
       continue;
     }
