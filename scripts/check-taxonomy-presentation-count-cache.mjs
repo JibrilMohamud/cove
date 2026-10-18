@@ -15,9 +15,26 @@ const output = await build({
   format: "esm",
   write: false,
 });
-const { presentationTaxonomyCounts } = await import(
+const { presentationTaxonomyCounts, taxonomyPresentationReadDb } = await import(
   "data:text/javascript;base64," + Buffer.from(output.outputFiles[0].text).toString("base64")
 );
+
+// A fresh replica session is allowed ONLY for queryLive's presentation
+// aggregation. This must not change the write DB or legal-rights calls.
+assert.match(taxonomy, /const countDb = taxonomyPresentationReadDb\(db\)/);
+assert.match(taxonomy, /const current = await countDb/);
+let sessions = 0;
+const replicaSource = {
+  withSession(mode) {
+    assert.equal(mode, "first-unconstrained");
+    sessions++;
+    return { session: sessions };
+  },
+};
+assert.deepEqual(taxonomyPresentationReadDb(replicaSource), { session: 1 });
+assert.deepEqual(taxonomyPresentationReadDb(replicaSource), { session: 2 });
+const localDb = { prepare: () => undefined };
+assert.equal(taxonomyPresentationReadDb(localDb), localDb);
 
 const sql = new DatabaseSync(":memory:");
 sql.exec(
