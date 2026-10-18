@@ -6,7 +6,9 @@
 # Deploying with workers_dev=false cannot expose public customers.
 name = "cove"
 main = ".output/server/index.mjs"
-minify = true
+# Keep Nitro bundle minification, but avoid a second Wrangler transform
+# until the Cloudflare SSR/D1 runtime is proven compatible.
+minify = false
 compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = false
