@@ -21,6 +21,8 @@ on:
       - "src/features/fore/storefront-anonymous-bootstrap.server.ts"
       - "src/features/fore/primary-read-hedge.server.ts"
       - "scripts/check-primary-read-hedge.mjs"
+      - "scripts/check-production-storefront-performance.mjs"
+      - "scripts/check-production-storefront-performance.test.mjs"
       - "src/features/fore/storefront-hedged-fetch.ts"
       - "vite.config.ts"
       - "wrangler.frontend.staging.toml"
@@ -55,6 +57,8 @@ on:
       - "src/features/fore/storefront-anonymous-bootstrap.server.ts"
       - "src/features/fore/primary-read-hedge.server.ts"
       - "scripts/check-primary-read-hedge.mjs"
+      - "scripts/check-production-storefront-performance.mjs"
+      - "scripts/check-production-storefront-performance.test.mjs"
       - "src/features/fore/storefront-hedged-fetch.ts"
       - "vite.config.ts"
       - "wrangler.frontend.staging.toml"
@@ -106,6 +110,7 @@ jobs:
           node scripts/check-storefront-firstpaint-rate-limit.mjs
           node scripts/check-storefront-bootstrap.mjs
           node scripts/check-primary-read-hedge.mjs
+          node --test scripts/check-production-storefront-performance.test.mjs
           node scripts/check-cove-request-context.mjs
           node scripts/check-storefront-hedged.mjs
       - name: Build Cloudflare-native frontend
