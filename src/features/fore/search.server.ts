@@ -1460,7 +1460,14 @@ async function loadChannelEligibility(db: CatalogDB, productIds: string[], terri
   const rows = await db
     .prepare(
       `SELECT product_id,sales_channel FROM product_channel_availability
-    WHERE territory_code=upper(?) AND sales_channel IN ('subscription','library')
+    WHERE EXISTS (
+      SELECT 1 FROM rights_grants INDEXED BY idx_rights_secondary_channel_potential
+      WHERE status='active' AND (
+        sales_channel IN ('subscription','library')
+        OR (sales_channel='retail' AND (subscription_permitted=1 OR library_permitted=1))
+      ) LIMIT 1
+    )
+      AND territory_code=upper(?) AND sales_channel IN ('subscription','library')
       AND product_id IN (${unique.map(() => "?").join(",")})`,
     )
     .bind(territory, ...unique)
