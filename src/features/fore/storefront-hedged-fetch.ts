@@ -15,6 +15,7 @@ export function sanitizedStorefrontBackendTiming(value: string | null): string[]
     "page",
     "catalog",
     "catalog_sql",
+    "catalog_duplicated",
     "markets",
     "limit",
     "lean",
