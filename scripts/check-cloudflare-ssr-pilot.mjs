@@ -21,8 +21,8 @@ for (const file of [
 ])
   assert.match(
     fs.readFileSync(file, "utf8"),
-    /^minify\s*=\s*true$/m,
-    "Final Wrangler upload must preserve minification",
+    /^minify\s*=\s*false$/m,
+    "Never double-minify the native SSR/D1 entry before compatibility validation",
   );
 // Inspect the actual generated graph: a harmless global polyfill can merge
 // with a reader chunk and silently make it eager before cove_total begins.
