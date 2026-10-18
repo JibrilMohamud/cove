@@ -76,7 +76,8 @@ try {
       for (const query of queries) await query.run();
     },
   };
-  let time = 10_000;
+  // Use a wall-clock epoch: writeCatalogCache intentionally uses Date.now() for pruning.
+  let time = Date.now();
   const clock = () => time;
   let liveCalls = 0;
   const live = (result) => async () => {
