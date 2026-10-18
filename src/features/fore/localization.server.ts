@@ -161,12 +161,12 @@ function chooseSupportedLocale(rows: any[], requested: string[]) {
 }
 
 function messageStatement(db: StorefrontDB, locale: string) {
-  // One D1 round trip instead of recursively loading each locale and each
-  // bundle's messages in series. Follow up to five configured fallbacks,
+  // One recursive SQL read, now bundled with payment metadata through
+  // db.batch. Follow up to five configured locale fallbacks,
   // detect cycles, then merge English first and the requested locale last.
   return db
     .prepare(
-        `WITH RECURSIVE locale_chain(locale,depth,seen) AS (
+      `WITH RECURSIVE locale_chain(locale,depth,seen) AS (
           SELECT ? AS locale,0 AS depth,','||lower(?)||',' AS seen
           UNION ALL
           SELECT l.fallback_locale,c.depth+1,c.seen||lower(l.fallback_locale)||','
