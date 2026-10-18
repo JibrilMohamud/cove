@@ -88,3 +88,15 @@ jobs:
           path: paired-evidence/
           retention-days: 14
           if-no-files-found: warn
+      - name: Remove only isolated paired staging Workers
+        if: always()
+        shell: bash
+        run: |
+          # The exact allowlist prevents deleting main staging or production.
+          # Missing workers are harmless when a build failed before deploy.
+          for script in cove-perf-baseline-staging cove-perf-current-staging; do
+            curl -sS --max-time 20 -X DELETE \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$script?force=true" \
+              >/dev/null || true
+          done
