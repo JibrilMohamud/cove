@@ -15,7 +15,7 @@ import {
 import { renderErrorPage } from "./lib/error-page";
 import { cachePublicDocument } from "./lib/public-document-cache";
 import { applySecurityHeaders, securityTxt } from "./lib/security-headers";
-import { isPublicSeoDocumentPath } from "./lib/public-seo-document-path";
+import { isPersistenceGatewayRoute } from "./lib/public-seo-document-path";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -134,7 +134,7 @@ export default {
       // This reuses the gateway's exact public-crawler path predicate, so
       // API proxying, ingestion controls and SEO documents remain unchanged.
       const gatewayPath = new URL(request.url).pathname;
-      if (gatewayPath.startsWith("/api/fore/") || isPublicSeoDocumentPath(gatewayPath)) {
+      if (isPersistenceGatewayRoute(gatewayPath)) {
         const { handleVercelIngestionControl, proxyPersistenceApi } =
           await import("./lib/persistence-backend");
         const ingestionControl = await handleVercelIngestionControl(request, foreEnv);
