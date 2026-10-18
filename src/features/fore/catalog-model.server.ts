@@ -690,6 +690,12 @@ export async function canonicalFirstPaintBooksByProductIds(db: DB, productIds: s
  * prevents the hydration query from adding an extra D1 network round trip.
  * Both selection and books are from one live SQLite read snapshot.
  */
+export type FirstPaintD1QueryMetrics = {
+  sqlDurationMs?: number;
+  rowsRead?: number;
+  attempts?: number;
+};
+
 export async function canonicalFirstPaintShelfByRightsQuery(
   db: DB,
   selection: {
@@ -699,6 +705,7 @@ export async function canonicalFirstPaintShelfByRightsQuery(
     binds: unknown[];
     limit: number;
   },
+  diagnostics?: FirstPaintD1QueryMetrics,
 ): Promise<{ books: CatalogBook[]; hasMore: boolean }> {
   if (!Number.isInteger(selection.limit) || selection.limit < 1 || selection.limit > 100)
     throw new ApiError(400, "Invalid storefront shelf limit.");
@@ -717,6 +724,24 @@ export async function canonicalFirstPaintShelfByRightsQuery(
     )
     .bind(...selection.binds, selection.limit + 1)
     .all<Record<string, unknown>>();
+  if (diagnostics) {
+    // D1's SQL time excludes service dispatch, queueing and Worker/D1
+    // transport. Do not record SQL text, rights values, visitor or product IDs.
+    const meta = (rows as typeof rows & {
+      meta?: {
+        timings?: { sql_duration_ms?: number };
+        rows_read?: number;
+        total_attempts?: number;
+      };
+    }).meta;
+    const add = (key: keyof FirstPaintD1QueryMetrics, value: unknown) => {
+      if (typeof value === "number" && Number.isFinite(value) && value >= 0)
+        diagnostics[key] = value;
+    };
+    add("sqlDurationMs", meta?.timings?.sql_duration_ms);
+    add("rowsRead", meta?.rows_read);
+    add("attempts", meta?.total_attempts);
+  }
   const distinct = new Map<string, CatalogBook>();
   for (const row of rows.results) {
     const id = String(row.product_id);
