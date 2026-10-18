@@ -78,11 +78,27 @@ export async function serveLeanAnonymousBootstrap(
   const trustedCountry = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country;
   // All three checks plus the primary D1 legal read start together.
   // No preview leaves the Worker until all four have succeeded.
-  const [context, availableMarkets, catalog] = await Promise.all([
+  const contextPromise = timed(
+    "context",
+    resolveStorefrontContext(readMetadata(), request, null, env.FORE_DEFAULT_TERRITORY || "US"),
+  );
+  // Page metadata needs the localized context, but no catalog or markets.
+  // Chain it immediately onto context so the page read overlaps the primary
+  // rights query even if the latter is temporarily queued.
+  const pagePromise = contextPromise.then((context) =>
     timed(
-      "context",
-      resolveStorefrontContext(readMetadata(), request, null, env.FORE_DEFAULT_TERRITORY || "US"),
+      "page",
+      resolveStorefrontPage(
+        readMetadata(),
+        "/",
+        context.rightsCountry,
+        context.language,
+        context.locale,
+      ),
     ),
+  );
+  const [context, availableMarkets, catalog, page] = await Promise.all([
+    contextPromise,
     timed("markets", storefrontMarkets(readMetadata())),
     timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)).then(
       () => null,
@@ -90,7 +106,13 @@ export async function serveLeanAnonymousBootstrap(
     // The primary determines current default currency in this exact SQL
     // snapshot; presentation replicas never decide authorized book access.
     timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry)),
-  ]).then(([resolved, markets, , firstPage]) => [resolved, markets, firstPage] as const);
+    pagePromise,
+  ]).then(([resolved, markets, , firstPage, landing]) => [
+    resolved,
+    markets,
+    firstPage,
+    landing,
+  ] as const);
   if (context.rightsCountry !== trustedCountry)
     throw new Error("Anonymous network rights mismatch; fail closed.");
   const query = new URLSearchParams({
@@ -104,16 +126,6 @@ export async function serveLeanAnonymousBootstrap(
     nextQuery.set("page", "2");
     catalog.next = `/api/fore/catalog?${nextQuery}`;
   }
-  const page = await timed(
-    "page",
-    resolveStorefrontPage(
-      readMetadata(),
-      "/",
-      context.rightsCountry,
-      context.language,
-      context.locale,
-    ),
-  );
   timings.bootstrap = performance.now() - started;
   timings.lean = 0;
   return new Response(
