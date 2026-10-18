@@ -353,7 +353,7 @@ async function productMeta(db: CatalogDB, productIds: string[]): Promise<Map<str
   return map;
 }
 
-/** Ranked candidate selection preserves exact current rights, with bounded work. 
+/** Ranked candidate selection preserves exact current rights, with bounded work.
  * The pre-rights shortlist may be used ONLY when it contains a full page of
  * rights-approved books. Otherwise the complete live-rights query runs, so an
  * out-of-territory, revoked or unlicensed item can never displace a valid one.
