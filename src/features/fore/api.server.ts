@@ -3028,9 +3028,22 @@ async function handleCoveRequest(
       }
       throw new ApiError(404, "Unknown machine endpoint.");
     }
-    const dbForContext = machineDb;
     const currentIdentity = identity(request);
     const firstPaint = request.method === "GET" && path === "/storefront/bootstrap";
+    // D1 read replication is configured on Cove's DB, but enabled only when
+    // accessed through a per-request session. Start storefront *configuration*
+    // at the primary, obtaining a bookmark that prevents later reads in this
+    // session from observing an older database version. This context is NOT
+    // allowed to authorize a book, purchase, subscription or EPUB delivery:
+    // those continue using the original primary-bound env.DB.
+    // Local SQLite fixtures and non-Worker providers retain the same path.
+    const configDb = machineDb as typeof machineDb & {
+      withSession?: (constraint: "first-primary") => typeof machineDb;
+    };
+    const dbForContext =
+      firstPaint && typeof configDb.withSession === "function"
+        ? configDb.withSession("first-primary")
+        : machineDb;
     const phases: Record<string, number> = {};
     async function timed<T>(name: string, promise: Promise<T>): Promise<T> {
       const started = performance.now();
@@ -3057,7 +3070,16 @@ async function handleCoveRequest(
       ),
       firstPaint
         ? Promise.all([
-            timed("markets", storefrontMarkets(dbForContext)),
+            // Do not share one D1 session across independent concurrent
+            // queries: each request must establish its own primary bookmark.
+            timed(
+              "markets",
+              storefrontMarkets(
+                firstPaint && typeof configDb.withSession === "function"
+                  ? configDb.withSession("first-primary")
+                  : machineDb,
+              ),
+            ),
             timed("limit", rateLimitFirstPaint(request, env, currentIdentity?.id || null)),
           ])
         : Promise.resolve(null),
