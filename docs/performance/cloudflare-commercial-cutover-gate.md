@@ -35,7 +35,7 @@ is `cove`, yielding
 `https://cove.cove-jibrilmohamud.workers.dev/`.
 
 Its separate `wrangler.frontend.production.toml` production **candidate**
-has `workers_dev=false` and no routes, deliberately preventing an
+has `workers_dev=false`, `preview_urls=false` and no routes, deliberately preventing an
 unverified app from going public. The file and static release assertion can
 be built/dry-run-tested, but **do not deploy/publicly enable it until**
 all of the following independent gates pass: production runtime secrets,
