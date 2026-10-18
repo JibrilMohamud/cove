@@ -54,7 +54,9 @@ function elapsed(ended, started) {
     : null;
 }
 function workerDuration(headers) {
-  const match = (headers.get("server-timing") || "").match(/(?:^|,)\\s*cove_total;dur=(\\d+(?:\\.\\d+)?)/);
+  const match = (headers.get("server-timing") || "").match(
+    /(?:^|,)\s*cove_total;dur=(\d+(?:\.\d+)?)/,
+  );
   return match ? Number(match[1]) : null;
 }
 
@@ -69,17 +71,19 @@ async function fetchOne(concurrency) {
   let httpStatus = 0;
   const span = {};
   try {
-    const response = await probeContext.run(span, () => fetch(origin + "/", {
-      method: "GET",
-      redirect: "manual",
-      headers: {
-        Authorization: "Bearer " + token,
-        Accept: "text/html",
-        "Accept-Language": languages[(sequence - 1) % languages.length],
-        "Cache-Control": "no-store",
-      },
-      signal: AbortSignal.timeout(15000),
-    }));
+    const response = await probeContext.run(span, () =>
+      fetch(origin + "/", {
+        method: "GET",
+        redirect: "manual",
+        headers: {
+          Authorization: "Bearer " + token,
+          Accept: "text/html",
+          "Accept-Language": languages[(sequence - 1) % languages.length],
+          "Cache-Control": "no-store",
+        },
+        signal: AbortSignal.timeout(15000),
+      }),
+    );
     httpStatus = response.status;
     const ttfbMs = Math.round(performance.now() - begin);
     const html = await response.text();
@@ -97,8 +101,7 @@ async function fetchOne(concurrency) {
     const workerMs = workerDuration(response.headers);
     const clientQueueMs = elapsed(span.sentAt, span.createdAt);
     const sentToHeadersMs = elapsed(span.headersAt, span.sentAt);
-    const residualMs =
-      workerMs === null ? null : Math.max(0, Math.round(ttfbMs - workerMs));
+    const residualMs = workerMs === null ? null : Math.max(0, Math.round(ttfbMs - workerMs));
     const cfColo = (response.headers.get("cf-ray") || "").match(/-([A-Z]{3})$/)?.[1] || "unknown";
     return {
       sequence,
