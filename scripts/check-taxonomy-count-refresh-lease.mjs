@@ -4,13 +4,15 @@ import { DatabaseSync } from "node:sqlite";
 import { build } from "esbuild";
 
 const source = fs.readFileSync("src/features/fore/taxonomy-counts-cache.server.ts", "utf8");
+const cacheUtility = fs.readFileSync("src/features/fore/catalog-cache.server.ts", "utf8");
 const caller = fs.readFileSync("src/features/fore/taxonomy.server.ts", "utf8");
 const api = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
 const publicCache = fs.readFileSync("src/features/fore/public-api-cache.server.ts", "utf8");
 const storefront = fs.readFileSync("src/features/fore/Store.tsx", "utf8");
 assert.match(source, /ON CONFLICT\(key\) DO UPDATE SET\s+body=excluded.body/);
 assert.match(source, /RETURNING body/);
-assert.match(source, /WHERE key=\? AND body=\? AND expires_at>\?/);
+assert.match(cacheUtility, /WHERE key=\? AND body=\? AND expires_at>\?/);
+assert.match(cacheUtility, /ON CONFLICT\(key\) DO UPDATE/);
 assert.match(source, /DELETE FROM api_cache WHERE key=\? AND body=\?/);
 assert.match(source, /MAX_STALE_MS = 3_600_000/);
 assert.match(caller, /countsPending: countState.pending/);
