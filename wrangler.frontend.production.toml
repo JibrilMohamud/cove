@@ -9,6 +9,8 @@ main = ".output/server/index.mjs"
 compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = false
+# Unlike workers_dev, Version URLs can be separately routable; disable both.
+preview_urls = false
 
 [assets]
 directory = "./.output/public"
