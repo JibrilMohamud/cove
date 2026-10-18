@@ -229,9 +229,26 @@ market and country/locale context D1 reads. For instance sample 14 took
 the overlapping markets request, while the catalog SQL took only 60 ms.
 [Protected production-source staging test](https://github.com/JibrilMohamud/cove/actions/runs/39085551768).
 
+Two later **fresh, independent redeployments of the same PR #136 commit**
+each then passed the genuine cold-first 20-request matrix (24 licensed
+books on every response):
+
+| Deployment (same Worker commit) | Cloudflare colo | <800 ms | p95 | Maximum |
+| --- | --- | ---: | ---: | ---: |
+| Initial cold deployment | ORD | 10/20 | 2,356 ms | 2,956 ms |
+| Independent cold redeploy | IAD | **20/20** | 411 ms | 418 ms |
+| Independent cold redeploy | ORD | **20/20** | 372 ms | 453 ms |
+
+Proof: [the staging workflow with three independently rotated staging-secret
+deployments](https://github.com/JibrilMohamud/cove/actions/runs/39085551768).
+The two later passes are **40/40**, and the first probe ran before API/D1
+preflights on every deployment. This is real improvement with rights intact,
+but the initial severe ORD misses disprove repeatable 20/20 across all
+cold deployments. Do not cherry-pick the green samples to certify an SLO.
+
 Thus the remaining cold-tail latency is **not resolved** by fewer serial
-catalog queries. The hard <800 ms gate must remain blocking, across repeated
-deployment and geography trials, with full territorial rights. Next
+catalog queries. The hard <800 ms gate must remain blocking across every
+cold deployment/geography trial, with full territorial rights. Next
 experiments should profile/request-optimize the primary-region market/context
 D1 operations and measure true Worker-to-D1 request latency; never substitute
 stale rights or prewarm away cold samples. **Do not cut over production.**
