@@ -215,7 +215,7 @@ async function probe(language, sample, sequence) {
   }
   const html = await response.text();
   const totalMs = Math.round(performance.now() - started);
-  let cards: number;
+  let cards;
   try {
     cards = validateHtml(response.status, response.headers.get("content-type") || "", html);
   } catch (error) {
