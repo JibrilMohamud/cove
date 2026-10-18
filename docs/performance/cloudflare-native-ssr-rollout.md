@@ -193,6 +193,25 @@ adds a numeric `cove_limit` phase to track the impact. This optimization
 removes unnecessary ordering, not strong geographic read latency, and needs
 independent cold-deployment proof before any release claim.
 
+### October 18 single-statement first-paint rights selection experiment
+
+The first independent cold staging deployment following PR #135's parallel
+context/markets/edge-limit preflight failed **12/20** (p95 3,067 ms;
+max 5,464 ms) through LAX, with all 24 rights-cleared book cards retained.
+The limiter accounted for approximately zero milliseconds and even parallelized
+D1 context and catalog calls suffered independent 0.7–5 s outliers.
+[Protected CI benchmark](https://github.com/JibrilMohamud/cove/actions/runs/39084662498).
+
+The next trial replaces the homepage's two sequential reads (rights-filtered
+candidate IDs, then product hydration) with **one SQL statement**:
+a materialized 25-item eligibility CTE is joined to the same lean book-card
+projection. Candidate selection still uses the original live D1
+`retail_product_availability_rows` filter scoped to trusted network territory.
+The one-statement query observes consistent rights and product data in a
+single authoritative database snapshot, with no regional/rights cache.
+Existing multi-territory fixture comparisons must remain identical to
+the regular live catalog API, or the change cannot ship.
+
 ### Remaining customer-facing blocker
 
 The existing Vercel homepage remains the actual public product. The most
