@@ -212,6 +212,30 @@ single authoritative database snapshot, with no regional/rights cache.
 Existing multi-territory fixture comparisons must remain identical to
 the regular live catalog API, or the change cannot ship.
 
+### One-statement live rights shelf: cold staging result (October 18 UTC)
+
+Merged PR #136 replaces sequential live D1 retail eligibility and book-card
+hydration with a single atomic SQL statement. US/CA/SA/JP fixture comparisons,
+security, persistence, screen-reader and all six browser checks passed.
+The catalog phase in protected staging was typically **20–60 ms** with 24
+authorized SSR books on every request, demonstrating that the change retained
+live geographic rights and shortened catalog execution.
+
+However, the first independent cold deployment still **failed 10/20**
+strict TTFB samples (p75 1,112 ms, p95 2,356 ms, maximum 2,956 ms)
+through ORD. Its slowest samples predominantly involved independent live
+market and country/locale context D1 reads. For instance sample 14 took
+2,356 ms end to end, with 1,968 ms inside context and 1,847 ms in
+the overlapping markets request, while the catalog SQL took only 60 ms.
+[Protected production-source staging test](https://github.com/JibrilMohamud/cove/actions/runs/39085551768).
+
+Thus the remaining cold-tail latency is **not resolved** by fewer serial
+catalog queries. The hard <800 ms gate must remain blocking, across repeated
+deployment and geography trials, with full territorial rights. Next
+experiments should profile/request-optimize the primary-region market/context
+D1 operations and measure true Worker-to-D1 request latency; never substitute
+stale rights or prewarm away cold samples. **Do not cut over production.**
+
 ### Remaining customer-facing blocker
 
 The existing Vercel homepage remains the actual public product. The most
