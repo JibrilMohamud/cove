@@ -33,7 +33,9 @@ sql.exec(`
   CREATE VIEW retail_product_availability AS
     SELECT DISTINCT product_id,territory_code FROM retail_product_availability_rows;
 `);
-const putProduct = sql.prepare("INSERT INTO products VALUES (?,?, 'active','gutenberg','2026-10-18')");
+const putProduct = sql.prepare(
+  "INSERT INTO products VALUES (?,?, 'active','gutenberg','2026-10-18')",
+);
 const putEdition = sql.prepare("INSERT INTO editions VALUES (?,'available')");
 const putMetric = sql.prepare("INSERT INTO recommendation_item_metrics VALUES (?,?,?)");
 const putGrant = sql.prepare("INSERT INTO rights_grants VALUES (?,?,'retail',?)");
@@ -87,12 +89,14 @@ for (const territory of ["US", "CA", "GB"]) {
   for (const limit of [0, 5, 50, 160, 500]) {
     const calls = [];
     const actual = await activeCandidateIds(adapter(calls), territory, limit);
-    const expected = reference
-      .all(territory, territory, Math.min(500, limit))
-      .map((row) => row.id);
+    const expected = reference.all(territory, territory, Math.min(500, limit)).map((row) => row.id);
     assert.deepEqual(actual, expected, `Exact sorted live rights differ for ${territory}/${limit}`);
     if (territory === "US" && limit === 5)
-      assert.equal(calls.length, 2, "Large market must use grant-count preflight and bounded exact shortlist");
+      assert.equal(
+        calls.length,
+        2,
+        "Large market must use grant-count preflight and bounded exact shortlist",
+      );
     if ((territory === "CA" || territory === "GB") && limit === 5)
       assert.equal(calls.length, 2, "Sparse rights must force exact complete fallback");
     if (limit === 0) assert.equal(calls.length, 0, "Empty request must not call D1");
