@@ -38,7 +38,10 @@ assert.doesNotMatch(
 // Execute the exact production planner (not a test-only approximation) to
 // prove routing and bound the extra plan-selection database read.
 const compiledPlanner = await transform(
-  selector.replace("async function rankedCandidatePlan(", "export async function rankedCandidatePlan("),
+  selector.replace(
+    "async function rankedCandidatePlan(",
+    "export async function rankedCandidatePlan(",
+  ),
   { loader: "ts", format: "esm" },
 );
 const { rankedCandidatePlan } = await import(
@@ -52,7 +55,11 @@ const preflightDb = {
     return {
       bind(country) {
         probes.push(country);
-        return { async first() { return { grants: markets[country] || 0 }; } };
+        return {
+          async first() {
+            return { grants: markets[country] || 0 };
+          },
+        };
       },
     };
   },
@@ -81,10 +88,16 @@ assert.equal(
   originalPart.from,
 );
 assert.equal(
-  (await rankedCandidatePlan(preflightDb, { sort: "added", territory: "US" }, {
-    ...originalPart,
-    hasFts: true,
-  })).from,
+  (
+    await rankedCandidatePlan(
+      preflightDb,
+      { sort: "added", territory: "US" },
+      {
+        ...originalPart,
+        hasFts: true,
+      },
+    )
+  ).from,
   originalPart.from,
 );
 assert.equal(probes.length, 3, "Other sorts and FTS must not add D1 preflight reads");
