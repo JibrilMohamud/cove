@@ -125,6 +125,7 @@ jobs:
       - name: Search, updater and public caching
         run: |
           npm run test:search-updater-cache
+          node scripts/check-persistence-gateway-lazy-load.mjs
           node scripts/check-catalog-added-sort-index.mjs
           node scripts/check-facet-cache-identity.mjs
           npm run test:recommendations
