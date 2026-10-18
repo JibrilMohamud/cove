@@ -106,8 +106,7 @@ export async function serveLeanAnonymousBootstrap(
   // Numbers only; a slow catalog SQL phase vs a slow D1 service/transport
   // round trip can now be distinguished without logging rights details.
   if (d1Metrics.sqlDurationMs !== undefined) timings.catalog_sql = d1Metrics.sqlDurationMs;
-  if (d1Metrics.rowsRead !== undefined) timings.catalog_rows = d1Metrics.rowsRead;
-  if (d1Metrics.attempts !== undefined) timings.catalog_attempts = d1Metrics.attempts;
+
   timings.bootstrap = performance.now() - started;
   timings.lean = 0;
   return new Response(
@@ -123,9 +122,17 @@ export async function serveLeanAnonymousBootstrap(
         "Content-Type": "application/json; charset=utf-8",
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff",
-        "Server-Timing": Object.entries(timings)
-          .map(([name, ms]) => `cove_${name};dur=${ms.toFixed(1)}`)
-          .join(", "),
+        "Server-Timing": [
+          ...Object.entries(timings).map(([name, ms]) => `cove_${name};dur=${ms.toFixed(1)}`),
+          // These are counts, not milliseconds. Expose as numeric descriptions
+          // so browser tooling never mistakes rows read for elapsed time.
+          ...(d1Metrics.rowsRead !== undefined
+            ? [`cove_catalog_rows;desc="${Math.round(d1Metrics.rowsRead)}"`]
+            : []),
+          ...(d1Metrics.attempts !== undefined
+            ? [`cove_catalog_attempts;desc="${Math.round(d1Metrics.attempts)}"`]
+            : []),
+        ].join(", "),
       },
     },
   );
