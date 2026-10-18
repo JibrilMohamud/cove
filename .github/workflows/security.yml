@@ -67,6 +67,7 @@ jobs:
           npm run test:search-updater-cache
           node scripts/check-catalog-ingestion-backpressure.mjs
           node scripts/check-catalog-added-sort-index.mjs
+          node scripts/check-taxonomy-presentation-count-cache.mjs
           node scripts/check-secondary-channel-index.mjs
           node scripts/check-live-channel-zero-grant-gate.mjs
           node scripts/check-bounded-cached-rights-recheck.mjs
