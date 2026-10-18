@@ -992,7 +992,13 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
           input.limit,
           (input.page - 1) * input.limit,
         ]
-      : [...plan.preBinds, ...part.rankBinds, ...part.binds, input.limit, (input.page - 1) * input.limit];
+      : [
+          ...plan.preBinds,
+          ...part.rankBinds,
+          ...part.binds,
+          input.limit,
+          (input.page - 1) * input.limit,
+        ];
     return env.DB.prepare(sql)
       .bind(...orderedBinds)
       .all<any>();
