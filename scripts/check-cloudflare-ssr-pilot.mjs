@@ -30,7 +30,7 @@ function imports(file) {
   function dynamicImports(node) {
     if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
       const specifier = node.arguments[0];
-      if (specifier && ts.isStringLiteral(specifier) && specifier.text.startsWith("."))
+      if (specifier && ts.isStringLiteralLike(specifier) && specifier.text.startsWith("."))
         links.push({ file: path.resolve(path.dirname(file), specifier.text), dynamic: true });
     }
     ts.forEachChild(node, dynamicImports);
@@ -47,6 +47,7 @@ function closure(file, dynamic = false, seen = new Set()) {
 }
 const entry = path.resolve(".output/server/_ssr/ssr.mjs");
 const eager = closure(entry);
+const deployedGraph = closure(workerFile, true);
 const leanEntries = [...closure(entry, true)].filter((file) =>
   path.basename(file).startsWith("storefront-anonymous-bootstrap.server-"),
 );
@@ -68,5 +69,6 @@ console.log(
     eagerEntryModules: eager.size,
     eagerEntryBytes: [...eager].reduce((sum, file) => sum + fs.statSync(file).size, 0),
     anonymousBootstrapBytes: [...lean].reduce((sum, file) => sum + fs.statSync(file).size, 0),
+    reachableWorkerBytes: [...deployedGraph].reduce((sum, file) => sum + fs.statSync(file).size, 0),
   }),
 );
