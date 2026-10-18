@@ -318,6 +318,31 @@ Do not re-enable the parallel legal query or route production until a
 new candidate improves repeated independent results without weakening
 revocation, territorial-rights or checkout behavior.
 
+### Primary D1 SQL/queue diagnostics: next protected staging trial
+
+Cloudflare D1's `.all()` response can include its own SQL runtime
+(`meta.timings.sql_duration_ms`), rows read and query attempts. The
+protected native SSR first paint now separately measures the **wall-clock
+catalog step** and the actual **primary SQLite engine duration**, and
+retains numeric rows-read and attempt counters. These are output only as
+allowlisted Server-Timing diagnostics after the same normal,
+country-authorized/no-store bootstrap. Rows and attempts appear as
+numeric `desc` metadata, never incorrectly labelled millisecond
+durations; no SQL strings, product/user IDs, country/grant evidence,
+credentials or CF-Ray identifiers appear in these headers.
+
+Interpret a multi-second `cove_backend_catalog` paired with a very small
+`cove_backend_catalog_sql` as time **outside the SQL engine**; it may
+include D1 service scheduling, network transport, replication state or
+request dispatch, and alone **does not prove SQLite write locks**.
+A large SQL duration and rows-read count instead justify a query-plan,
+index, or write-contention investigation. Missing D1 metadata is
+reported as unavailable, never fabricated as zero. Normal legal
+eligibility remains a direct live D1 primary read on every request.
+Instrumentation itself is neither a latency fix nor a release-pass
+claim: genuine 3x20 first-HTTP cold deployments and geographic/customer
+QA remain required.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on
