@@ -1520,7 +1520,7 @@ async function logQuery(
  */
 export async function firstPaintStorefrontShelf(
   env: SearchEnv,
-  currency: string,
+  currency: string | null,
   territory: string,
   diagnostics?: FirstPaintD1QueryMetrics,
 ) {
@@ -1530,7 +1530,7 @@ export async function firstPaintStorefrontShelf(
     search: "",
     sort: "popular",
     page: "1",
-    currency,
+    currency: currency || "USD",
   }).toString();
   const input = { ...parseSearchInput(url), territory: normalizeTerritoryCode(territory) };
   const part = candidateParts(input, "");
@@ -1544,7 +1544,31 @@ export async function firstPaintStorefrontShelf(
   // contract/DRM revocations and bestseller ordering remain mandatory.
   // idx_search_price(currency,price_minor) already exists in production and
   // local migrations. Never infer currency availability from cache/replicas.
-  if (input.currency && input.availability === "available") {
+  if (currency === null) {
+    // Only the verified cookie-free Cloudflare homepage enters this branch.
+    // Derive currency and legally eligible books from ONE authoritative
+    // primary-D1 query; replica UI metadata cannot authorize an edition.
+    const index = part.where.indexOf("d.currency=?");
+    if (index !== part.where.length - 1 || part.binds.at(-1) !== input.currency)
+      throw new Error("Unexpected first-paint currency predicate; refuse the fast path.");
+    const liveCurrency = `COALESCE(
+      (SELECT default_currency FROM storefront_markets WHERE country_code=upper(?) AND market_status='active'),
+      (SELECT default_currency FROM storefront_markets WHERE country_code='US' AND market_status='active')
+    )`;
+    part.where[index] = `d.currency=${liveCurrency}`;
+    part.binds[part.binds.length - 1] = input.territory;
+    // The equivalent existence check prevents an all-52k-catalog
+    // popularity scan if no eligible currency catalog docs exist. It
+    // cannot add books or grant rights. The original live rights view
+    // remains evaluated for every selected product.
+    part.where.unshift(`EXISTS(
+      SELECT 1 FROM catalog_search_documents currency_probe INDEXED BY idx_search_price
+      WHERE currency_probe.currency=${liveCurrency}
+        AND currency_probe.availability='available'
+        AND currency_probe.suppressed=0 LIMIT 1
+    )`);
+    part.binds.unshift(input.territory);
+  } else if (input.currency && input.availability === "available") {
     part.where.unshift(`EXISTS(
       SELECT 1 FROM catalog_search_documents currency_probe INDEXED BY idx_search_price
       WHERE currency_probe.currency=? AND currency_probe.availability='available'
