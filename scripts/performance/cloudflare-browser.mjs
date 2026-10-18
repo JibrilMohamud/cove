@@ -97,11 +97,24 @@ try {
       try {
         const response = await page.goto(origin, { waitUntil: "load", timeout: 45000 });
         status = response.status();
-        responseTelemetry = safeProbeTelemetry(new Headers(response.headers()), 0, 0);
-        delete responseTelemetry.ttfbMs;
-        delete responseTelemetry.totalMs;
         assert.equal(status, 200);
         failurePhase = "catalog";
+        // Playwright's flattened response header object is not guaranteed to
+        // round-trip through the WHATWG Headers constructor (which can reject
+        // otherwise accepted wire values). Telemetry must NEVER abort browser
+        // hydration checks; parse only the two numeric allowlisted fields.
+        try {
+          const headerValues = response.headers();
+          responseTelemetry = safeProbeTelemetry(
+            { get: (name) => headerValues[name.toLowerCase()] ?? null },
+            0,
+            0,
+          );
+          delete responseTelemetry.ttfbMs;
+          delete responseTelemetry.totalMs;
+        } catch {
+          responseTelemetry = {};
+        }
         await page.locator(".book-card").first().waitFor({ timeout: 15000 });
         failurePhase = "hydration";
         await page.locator('html[data-cove-client-ready="true"]').waitFor({ timeout: 15000 });
