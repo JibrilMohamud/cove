@@ -1,11 +1,12 @@
 /**
  * Cooperative admission for bulk, retryable catalogue ingestion ONLY.
  *
- * D1 uses a serialized writer. Starting another metadata/indexing batch when
- * even a single read-only primary probe is backed up can amplify the latency
- * of customer-facing legal-rights reads. A busy/unavailable primary defers
- * background work to the next cron tick. No customer-facing reads, license
- * revocations, account erasure, commerce, or delivery ever call this function.
+ * D1 uses a serialized writer. Starting another nonauthoritative search
+ * projection rebuild when its primary service is already backed up can
+ * amplify latency for customer-facing rights reads. A busy/unavailable
+ * primary defers ONLY this derived index to the next cron tick. The catalog
+ * metadata and regional rights/evidence import MUST NOT be gated here.
+ * Customer reads, revocations, erasure, commerce and delivery are unaffected.
  */
 export type CatalogAdmissionDB = {
   prepare(sql: string): { first<T>(): Promise<T | null> };
