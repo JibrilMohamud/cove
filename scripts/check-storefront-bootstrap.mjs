@@ -49,7 +49,7 @@ try {
               joinedMarketLocaleReads += 1;
             if (/WITH eligible AS MATERIALIZED/i.test(sql)) {
               assert.match(sql, /JOIN eligible selected ON selected\.product_id=p\.id/);
-              assert.match(sql, /rights_grants|product_rights|rights_territor|rights_scope/i);
+              assert.match(sql, /retail_product_availability_rows/i);
               atomicRightsShelfQueries += 1;
             }
             return target.prepare(sql);
