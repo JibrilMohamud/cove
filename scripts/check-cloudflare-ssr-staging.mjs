@@ -257,9 +257,19 @@ const measure = async ({ language, sample, sequence: order }) => {
 // actual SSR, before even unauthenticated 401 checks can warm its JS isolate.
 // A not-yet-propagated secret (401/503) fails the cold gate; never discount it.
 await measure(sequence[0]);
-await assertProtected();
-await assertLocalDatabaseReady();
-await assertRightsIsolation();
+try {
+  await assertProtected();
+  await assertLocalDatabaseReady();
+  await assertRightsIsolation();
+} catch {
+  // Preserve the first cold sample even if readiness/correctness fails.
+  // Never serialize headers/tokens or count a failed preflight as a pass.
+  failures.push({
+    sequence: 0,
+    phase: "preflight",
+    error: "Protection, D1 readiness or rights isolation failed",
+  });
+}
 for (const entry of sequence.slice(1)) await measure(entry);
 const allPass =
   failures.length === 0 &&
@@ -268,6 +278,16 @@ const allPass =
 const summary = {
   status: allPass ? "pass" : "fail",
   targetMs: 800,
+  timingCaveat:
+    "Cloudflare performance.now advances only after I/O; residual includes unmeasured CPU, not just network/dispatch.",
+  p50: percentile(
+    results.map((r) => r.ttfbMs),
+    0.5,
+  ),
+  p99: percentile(
+    results.map((r) => r.ttfbMs),
+    0.99,
+  ),
   successes: results.length,
   errors: failures.length,
   slowSamples: results.filter((r) => r.ttfbMs >= 800).length,

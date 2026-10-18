@@ -75,7 +75,7 @@ function capture(prefix, name) {
   fs.renameSync(src, dest);
   return dest;
 }
-async function controlPlane(name) {
+async function controlPlane(name, rotatedAt, previousId) {
   const uri = `https://api.cloudflare.com/client/v4/accounts/${account}/workers/scripts/${name}/deployments`;
   for (let i = 0; i < 24; i++) {
     const r = await fetch(uri, {
@@ -84,8 +84,14 @@ async function controlPlane(name) {
     const j = await r.json();
     if (!r.ok || !j.success) throw Error("Cloudflare control-plane deployment verification failed");
     const latest = j.result?.deployments?.[0];
-    if (latest && latest.versions?.some((v) => Number(v.percentage) === 100))
+    if (
+      latest &&
+      latest.id !== previousId &&
+      Date.parse(latest.created_on) >= rotatedAt &&
+      latest.versions?.some((v) => Number(v.percentage) === 100)
+    )
       return {
+        id: latest.id,
         created_on: latest.created_on,
         versions: latest.versions.map((v) => ({
           version_id: v.version_id,
@@ -143,7 +149,8 @@ async function deployFresh(cohort) {
     90000,
     cohort.key,
   );
-  const state = await controlPlane(cohort.name);
+  const state = await controlPlane(cohort.name, cohort.rotatedAt, cohort.deploymentId);
+  cohort.deploymentId = state.id;
   // Control-plane polling does NOT warm the actual Worker URL.
   await new Promise((done) => setTimeout(done, 2000));
   return state;
@@ -180,6 +187,39 @@ async function d1Snapshot(since, until) {
     }));
   } catch {
     return { warning: "D1 analytics unavailable" };
+  }
+}
+
+async function workerSnapshot(name, since, until) {
+  const query = `query { viewer { accounts(filter:{accountTag:"${account}"}) {
+    workersInvocationsAdaptive(limit:100,filter:{scriptName:"${name}",
+      datetime_geq:"${since}",datetime_leq:"${until}"}) {
+      dimensions { scriptName status }
+      sum { requests errors }
+      quantiles { cpuTimeP50 cpuTimeP99 wallTimeP50 wallTimeP99 }
+    }
+  } } }`;
+  try {
+    const r = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query }),
+    });
+    const j = await r.json();
+    if (!r.ok || j.errors) return { warning: "Platform CPU/wall analytics unavailable" };
+    const rows = j.data?.viewer?.accounts?.[0]?.workersInvocationsAdaptive || [];
+    return rows.length
+      ? {
+          raw: rows,
+          boundary:
+            "Sampled platform invocation quantiles; includes assets, controls and deferred work. Not a per-response CPU attribution.",
+        }
+      : { warning: "Platform CPU/wall analytics not yet ingested; NOT zero CPU" };
+  } catch {
+    return { warning: "Platform CPU/wall analytics unavailable" };
   }
 }
 
@@ -286,6 +326,16 @@ async function main() {
     interval.sql = await d1Snapshot(interval.since, interval.until);
     if (Array.isArray(interval.sql) && !interval.sql.length)
       interval.sql = { warning: "Analytics unavailable or not yet ingested; NOT zero D1 activity" };
+  }
+  manifest.timingCaveat =
+    "Workers performance.now advances only on I/O. cove_total is not complete CPU/wall time; residual includes unmeasured CPU and must not be labeled network-only.";
+  manifest.workerPlatform = {};
+  for (const [name, cohort] of Object.entries(cohorts)) {
+    manifest.workerPlatform[name] = await workerSnapshot(
+      cohort.name,
+      manifest.startedAt,
+      new Date().toISOString(),
+    );
   }
   // Results are paired by the same bounded concurrency wave, not by
   // independent days/regions. If colos fail to overlap the comparison is

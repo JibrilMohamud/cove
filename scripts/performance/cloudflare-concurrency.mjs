@@ -256,6 +256,8 @@ const artifact = {
   total,
   testedConcurrency: waves.map((w) => w.concurrency),
   thresholds,
+  timingCaveat:
+    "Cloudflare performance.now advances only after I/O; cove_total may omit CPU. residualMs is not network-only.",
   elapsedMs: Math.round(performance.now() - started),
   summaries,
   results,

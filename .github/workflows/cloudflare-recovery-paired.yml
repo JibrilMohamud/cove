@@ -1,6 +1,6 @@
-# Read-only comparison of two pinned Cove revisions. The workflow file is
-# deliberately the ONLY push trigger: routine code cannot silently swap the
-# baseline, alter production routing, or change the experimental code cohort.
+# Protected experiment: fixed baseline, immutable candidate push SHA.
+# Only this explicitly named experimental branch may trigger deployments.
+# No production routes; both temporary Workers are removed after evidence upload.
 name: cloudflare-recovery-paired
 on:
   workflow_dispatch:
