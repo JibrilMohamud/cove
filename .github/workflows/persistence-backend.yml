@@ -5,6 +5,8 @@ on:
     paths:
       - "src/lib/persistence-backend.ts"
       - "src/persistence-backend.worker.ts"
+      - "src/lib/catalog-ingestion-backpressure.ts"
+      - "scripts/check-catalog-ingestion-backpressure.mjs"
       - "src/server.ts"
       - "src/features/fore/**"
       - "scripts/check-literary-genre-rights-query.mjs"
@@ -41,6 +43,8 @@ on:
     paths:
       - "src/lib/persistence-backend.ts"
       - "src/persistence-backend.worker.ts"
+      - "src/lib/catalog-ingestion-backpressure.ts"
+      - "scripts/check-catalog-ingestion-backpressure.mjs"
       - "src/server.ts"
       - "src/features/fore/**"
       - "scripts/audio_pipeline/**"
@@ -125,6 +129,7 @@ jobs:
       - name: Search, updater and public caching
         run: |
           npm run test:search-updater-cache
+          node scripts/check-catalog-ingestion-backpressure.mjs
           node scripts/check-catalog-added-sort-index.mjs
           node scripts/check-facet-cache-identity.mjs
           npm run test:recommendations
