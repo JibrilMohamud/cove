@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { DatabaseSync } from "node:sqlite";
+import { transform } from "esbuild";
 
 const migration = fs.readFileSync("drizzle/0076_catalog_added_expression_sort.sql", "utf8");
 assert.match(migration, /CREATE INDEX IF NOT EXISTS idx_search_added_effective_stable/);
@@ -8,6 +9,98 @@ assert.match(
   migration,
   /COALESCE\(product_created_at, first_ingested_at\) DESC,\s*external_book_id DESC,\s*product_id ASC/,
 );
+
+// Assert the real search query uses the bounded plan only for result pages,
+// never for FTS candidate matching, facet aggregation or global counts.
+const source = fs.readFileSync("src/features/fore/search.server.ts", "utf8");
+const selectorStart = source.indexOf("async function rankedCandidatePlan(");
+const selectorEnd = source.indexOf("function withoutFacet(", selectorStart);
+assert.ok(selectorStart >= 0 && selectorEnd > selectorStart);
+const selector = source.slice(selectorStart, selectorEnd);
+assert.match(selector, /input\.sort !== "added" \|\| part\.hasFts/);
+assert.match(selector, /LIMIT 1001/);
+assert.match(selector, /territory_seed AS MATERIALIZED/);
+assert.match(selector, /preBinds: \[input\.territory\]/);
+assert.match(selector, /idx_search_added_effective_stable/);
+assert.match(selector, /CROSS JOIN products p/);
+assert.match(selector, /CROSS JOIN editions e/);
+const idsStart = source.indexOf("const runIds = async () =>");
+const countStart = source.indexOf("const runCount = ()", idsStart);
+assert.ok(idsStart >= 0 && countStart > idsStart);
+assert.match(source.slice(idsStart, countStart), /rankedCandidatePlan\(env\.DB, input, part\)/);
+assert.match(source.slice(idsStart, countStart), /\.\.\.plan\.preBinds/);
+assert.doesNotMatch(
+  source.slice(countStart, countStart + 450),
+  /rankedCandidatePlan/,
+  "Unranked count must not use the forced newest index",
+);
+
+// Execute the exact production planner (not a test-only approximation) to
+// prove routing and bound the extra plan-selection database read.
+const compiledPlanner = await transform(
+  selector.replace(
+    "async function rankedCandidatePlan(",
+    "export async function rankedCandidatePlan(",
+  ),
+  { loader: "ts", format: "esm" },
+);
+const { rankedCandidatePlan } = await import(
+  "data:text/javascript;base64," + Buffer.from(compiledPlanner.code).toString("base64")
+);
+const markets = { US: 1001, CA: 337, GB: 0 };
+const probes = [];
+const preflightDb = {
+  prepare(sql) {
+    assert.match(sql, /LIMIT 1001/);
+    return {
+      bind(country) {
+        probes.push(country);
+        return {
+          async first() {
+            return { grants: markets[country] || 0 };
+          },
+        };
+      },
+    };
+  },
+};
+const originalPart = { prefix: "", from: "original candidate joins", hasFts: false };
+const indexedPlan = await rankedCandidatePlan(
+  preflightDb,
+  { sort: "added", territory: "US" },
+  originalPart,
+);
+assert.match(indexedPlan.from, /INDEXED BY idx_search_added_effective_stable/);
+assert.deepEqual(indexedPlan.preBinds, []);
+for (const country of ["CA", "GB"]) {
+  const sparsePlan = await rankedCandidatePlan(
+    preflightDb,
+    { sort: "added", territory: country },
+    originalPart,
+  );
+  assert.match(sparsePlan.prefix, /territory_seed AS MATERIALIZED/);
+  assert.deepEqual(sparsePlan.preBinds, [country]);
+  assert.match(sparsePlan.from, /territory_seed seed/);
+}
+assert.deepEqual(probes, ["US", "CA", "GB"]);
+assert.equal(
+  (await rankedCandidatePlan(preflightDb, { sort: "popular", territory: "US" }, originalPart)).from,
+  originalPart.from,
+);
+assert.equal(
+  (
+    await rankedCandidatePlan(
+      preflightDb,
+      { sort: "added", territory: "US" },
+      {
+        ...originalPart,
+        hasFts: true,
+      },
+    )
+  ).from,
+  originalPart.from,
+);
+assert.equal(probes.length, 3, "Other sorts and FTS must not add D1 preflight reads");
 
 const db = new DatabaseSync(":memory:");
 try {
@@ -80,6 +173,17 @@ try {
     CROSS JOIN editions e ON e.id=p.edition_id
     LEFT JOIN publishers pub ON pub.id=e.publisher_id`;
   const nextSql = `SELECT d.product_id ${optimizedFrom} WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`;
+  const sparseSql = `WITH territory_seed AS MATERIALIZED (
+    SELECT DISTINCT seeded.id FROM rights_grant_territories rgt
+    JOIN rights_grants rg ON rg.id=rgt.grant_id
+    JOIN products seeded ON seeded.edition_id=rg.edition_id
+    WHERE rgt.territory_code=upper(?) AND rg.sales_channel='retail'
+  ) SELECT d.product_id FROM territory_seed seed
+    CROSS JOIN products p ON p.id=seed.id
+    CROSS JOIN editions e ON e.id=p.edition_id
+    CROSS JOIN catalog_search_documents d ON d.product_id=p.id
+    LEFT JOIN publishers pub ON pub.id=e.publisher_id
+    WHERE ${where} ORDER BY ${order} LIMIT ? OFFSET ?`;
   const plan = db.prepare("EXPLAIN QUERY PLAN " + nextSql).all("available", "US", "USD", 24, 0);
   assert.ok(
     plan.some((row) => String(row.detail).includes("idx_search_added_effective_stable")),
@@ -94,10 +198,16 @@ try {
       const args = ["available", country, "USD", 24, offset];
       const previous = db.prepare(oldSql).all(...args);
       const updated = db.prepare(nextSql).all(...args);
+      const sparse = db.prepare(sparseSql).all(country, ...args);
       assert.deepEqual(
         updated,
         previous,
-        `Live-rights order changed in country ${country}, offset ${offset}`,
+        `Indexed rights order changed in country ${country}, offset ${offset}`,
+      );
+      assert.deepEqual(
+        sparse,
+        previous,
+        `Seeded rights order changed in country ${country}, offset ${offset}`,
       );
     }
   }
@@ -111,7 +221,7 @@ try {
     db.prepare(oldSql).all("available", "US", "USD", 24, 0),
   );
   console.log(
-    "Stable newest/added index: null fallback, ties, revocations, territorial filters and pages PASS",
+    "Newest query plans: index, sparse-rights seed, null fallback, ties, revocations and pages PASS",
   );
 } finally {
   db.close();

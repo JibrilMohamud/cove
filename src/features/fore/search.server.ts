@@ -559,6 +559,58 @@ function candidateParts(input: SearchInput, expression: string) {
   };
 }
 
+/**
+ * Use the live indexed newest scan in dense-rights markets, or seed from live
+ * territorial grants for sparse countries. Territorial grants are a SUPerset,
+ * not authorization: the original retail_product_availability_rows condition
+ * always remains in buildSqlFilters() below.
+ *
+ * This changes only actual result-page SELECTs. FTS, counts, facets, and all
+ * other sorts retain their own existing SQL. A probe reads at most 1001
+ * indexed territorial grant rows, never a 50k-row count.
+ *
+ * Requires D1 migration 0076 to exist before this code is deployed.
+ */
+async function rankedCandidatePlan(
+  db: CatalogDB,
+  input: SearchInput,
+  part: ReturnType<typeof candidateParts>,
+) {
+  if (input.sort !== "added" || part.hasFts || !input.territory)
+    return { prefix: part.prefix, from: part.from, preBinds: [] as unknown[] };
+
+  const count = await db
+    .prepare(
+      "SELECT COUNT(*) grants FROM (SELECT 1 FROM rights_grant_territories WHERE territory_code=upper(?) LIMIT 1001)",
+    )
+    .bind(input.territory)
+    .first<{ grants: number }>();
+  if (Number(count?.grants || 0) > 1000) {
+    return {
+      prefix: part.prefix,
+      from: `catalog_search_documents d INDEXED BY idx_search_added_effective_stable
+        CROSS JOIN products p ON p.id=d.product_id
+        CROSS JOIN editions e ON e.id=p.edition_id
+        LEFT JOIN publishers pub ON pub.id=e.publisher_id`,
+      preBinds: [] as unknown[],
+    };
+  }
+  return {
+    prefix: `WITH territory_seed AS MATERIALIZED (
+      SELECT DISTINCT seeded.id FROM rights_grant_territories rgt
+      JOIN rights_grants rg ON rg.id=rgt.grant_id
+      JOIN products seeded ON seeded.edition_id=rg.edition_id
+      WHERE rgt.territory_code=upper(?) AND rg.sales_channel='retail'
+    )`,
+    from: `territory_seed seed
+      CROSS JOIN products p ON p.id=seed.id
+      CROSS JOIN editions e ON e.id=p.edition_id
+      CROSS JOIN catalog_search_documents d ON d.product_id=p.id
+      LEFT JOIN publishers pub ON pub.id=e.publisher_id`,
+    preBinds: [input.territory],
+  };
+}
+
 function withoutFacet(
   input: SearchInput,
   facet: "categories" | "languages" | "formats" | "publishers" | "series" | "price",
@@ -930,7 +982,8 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
   let part = candidateParts(input, expression);
   const runIds = async () => {
     const clause = part.where.join(" AND ");
-    const sql = `${part.prefix} SELECT d.product_id,${part.rank} FROM ${part.from} WHERE ${clause} ORDER BY ${d1Sort(input, part.hasFts)},d.product_id ASC LIMIT ? OFFSET ?`;
+    const plan = await rankedCandidatePlan(env.DB, input, part);
+    const sql = `${plan.prefix} SELECT d.product_id,${part.rank} FROM ${plan.from} WHERE ${clause} ORDER BY ${d1Sort(input, part.hasFts)},d.product_id ASC LIMIT ? OFFSET ?`;
     const orderedBinds = part.hasFts
       ? [
           part.binds[0],
@@ -939,7 +992,13 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
           input.limit,
           (input.page - 1) * input.limit,
         ]
-      : [...part.rankBinds, ...part.binds, input.limit, (input.page - 1) * input.limit];
+      : [
+          ...plan.preBinds,
+          ...part.rankBinds,
+          ...part.binds,
+          input.limit,
+          (input.page - 1) * input.limit,
+        ];
     return env.DB.prepare(sql)
       .bind(...orderedBinds)
       .all<any>();
