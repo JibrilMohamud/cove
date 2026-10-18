@@ -21,10 +21,7 @@ assert.equal(
   latestSecretDeploymentStatus({ result: { deployments: [] } }, started, started).ready,
   false,
 );
-assert.equal(
-  status({ ...deployment, versions: [{ percentage: 90 }] }).ready,
-  false,
-);
+assert.equal(status({ ...deployment, versions: [{ percentage: 90 }] }).ready, false);
 assert.equal(
   status({
     ...deployment,
