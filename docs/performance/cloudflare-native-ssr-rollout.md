@@ -378,6 +378,43 @@ six-browser QA, and **three independent truly cold deployments, each
 This improvement alone cannot guarantee global transport or Cloudflare
 D1 service-queue latency. Any red cold-run blocks production.
 
+### Indexed empty-currency guard on protected primary D1: fresh stage results
+
+PR #150 merged after security, persistence, accessibility, Cloudflare
+build and all six browser configurations passed. It uses the existing
+primary `idx_search_price` index to fail an empty-currency candidate
+**inside the current authoritative first-paint SQL statement**, retaining
+the current legal rights and revocation view and the known-safer
+serial read scheduling. This is a real improvement for CAD/SAR/JPY
+with no catalog items, not a general solution for cold service queues.
+
+The first independent three-version cold validation on merged commit
+`4e88b4898eb2c386c4213879e4ae6cf71538146e` **failed**:
+
+| Worker version | Strictly under 800 ms | p95 | Maximum | Entry colo |
+| --- | ---: | ---: | ---: | --- |
+| #1 | **14/20** | 1,384 ms | 1,474 ms | ORD |
+| #2 | **19/20** | 316 ms | 1,112 ms | ORD |
+| #3 | **20/20** | 236 ms | 535 ms | ORD |
+
+The 60/60 authorized-card and no-store checks still succeeded. Across
+all 60, Cloudflare D1's actual **primary rights SQL engine** time
+remained <=25.4 ms. The largest catalog D1 operation took **734 ms**,
+while SQL took **8.9 ms**. Context/market-list operations simultaneously
+took 996/983 ms on one response and 705/680 ms on another. A separate
+first-request miss took **1,112 ms**, with just **106 ms** timed Worker
+execution and **1,006 ms** outside Worker time. The user-visible hard
+SLO therefore fails, even though the underlying catalog SQL plan is
+fast and all books remain legally filtered. This is not evidence that
+SQLite write locks dominate; Cloudflare D1 service/transport variability
+and first-hop routing remain unisolated. Preserve both failures and
+every independent repeat.
+
+[Protected cold run](https://github.com/JibrilMohamud/cove/actions/runs/39097396203).
+Production still remains on Vercel; the Cloudflare production candidate
+is unroutable. Do not prewarm/discount the first request, omit live
+rights or relax <800 ms to manufacture a pass.
+
 ## Staging mechanics
 
 - Separate `cove-storefront-ssr-staging` Worker; no routes or domains on
