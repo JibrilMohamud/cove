@@ -3030,44 +3030,58 @@ async function handleCoveRequest(
     }
     const dbForContext = machineDb;
     const currentIdentity = identity(request);
+    const firstPaint = request.method === "GET" && path === "/storefront/bootstrap";
+    const phases: Record<string, number> = {};
+    async function timed<T>(name: string, promise: Promise<T>): Promise<T> {
+      const started = performance.now();
+      try {
+        return await promise;
+      } finally {
+        phases[name] = performance.now() - started;
+      }
+    }
+    // These are independent, live per-request operations: the edge read limit
+    // and active-market list never rely on the resolved locale/rights context.
+    // All must finish before any catalog data can be returned. This removes
+    // two serial network round trips for geographically distant D1 visitors.
     const contextStarted = performance.now();
-    const storefront = await resolveStorefrontContext(
-      dbForContext,
-      request,
-      currentIdentity?.id || null,
-      env.FORE_DEFAULT_TERRITORY || "US",
-    );
-    const contextMs = performance.now() - contextStarted;
+    const [storefront, bootstrapPreflight] = await Promise.all([
+      timed(
+        "context",
+        resolveStorefrontContext(
+          dbForContext,
+          request,
+          currentIdentity?.id || null,
+          env.FORE_DEFAULT_TERRITORY || "US",
+        ),
+      ),
+      firstPaint
+        ? Promise.all([
+            timed("markets", storefrontMarkets(dbForContext)),
+            timed("limit", rateLimitFirstPaint(request, env, currentIdentity?.id || null)),
+          ])
+        : Promise.resolve(null),
+    ]);
+    const contextMs = phases.context ?? performance.now() - contextStarted;
     timings.context = contextMs;
     const storefrontTerritory = storefront.rightsCountry;
-    if (request.method === "GET" && path === "/storefront/bootstrap") {
+    if (firstPaint) {
       const bootstrapStarted = performance.now();
       // Production ingestion runs independently. Local fixtures still require
       // the same development-only catalog seeding as /catalog before a shelf read.
       if (env.FORE_ENVIRONMENT !== "production") await seedCatalog(env);
-      // First-paint bootstrap resolves only the book shelf, landing metadata and
-      // market context. Category counts are expensive and can load through the
-      // existing rights-filtered /taxonomy query after the shelf has rendered.
-      // Only public catalog data goes into the SSR document.
-      await rateLimitFirstPaint(request, env, currentIdentity?.id || null);
+      // No book can be disclosed before BOTH live territorial context
+      // and the independent rate-limit preflight have succeeded.
+      const [availableMarkets] = bootstrapPreflight!;
       const catalogQuery = new URLSearchParams({
         search: "",
         sort: "popular",
         page: "1",
         currency: storefront.currency,
       }).toString();
-      // Timing-only diagnostics reveal which public D1 operation makes an
-      // uncached initial page slow; never include reader or catalog data.
-      const phases: Record<string, number> = {};
-      async function timed<T>(name: string, promise: Promise<T>): Promise<T> {
-        const started = performance.now();
-        try {
-          return await promise;
-        } finally {
-          phases[name] = performance.now() - started;
-        }
-      }
-      const [page, firstPage, availableMarkets] = await Promise.all([
+      // Timing-only diagnostics reveal D1, edge limiter, and SSR phases.
+      // No request/user/country data is logged or surfaced in headers.
+      const [page, firstPage] = await Promise.all([
         timed(
           "page",
           resolveStorefrontPage(
@@ -3079,7 +3093,6 @@ async function handleCoveRequest(
           ),
         ),
         timed("catalog", firstPaintStorefrontShelf(env, storefront.currency, storefrontTerritory)),
-        timed("markets", storefrontMarkets(dbForContext)),
       ]);
       const response = json({
         context: { ...storefront, availableMarkets },

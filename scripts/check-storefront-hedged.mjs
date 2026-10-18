@@ -30,7 +30,7 @@ try {
   assert.deepEqual(sanitizedStorefrontBackendTiming("cove_catalog;dur=0;desc=secret"), []);
   assert.deepEqual(
     sanitizedStorefrontBackendTiming(
-      "cove_auth;dur=1, cove_context;dur=25, cove_page;dur=10, cove_catalog;dur=30, cove_markets;dur=9, cove_bootstrap;dur=40, cove_log_queued;dur=0.3, cove_api;dur=57, cove_trace;dur=777, Authorization;desc=private",
+      "cove_auth;dur=1, cove_context;dur=25, cove_page;dur=10, cove_catalog;dur=30, cove_markets;dur=9, cove_limit;dur=7, cove_bootstrap;dur=40, cove_log_queued;dur=0.3, cove_api;dur=57, cove_trace;dur=777, Authorization;desc=private",
     ),
     [
       "cove_backend_auth;dur=1",
@@ -38,6 +38,7 @@ try {
       "cove_backend_page;dur=10",
       "cove_backend_catalog;dur=30",
       "cove_backend_markets;dur=9",
+      "cove_backend_limit;dur=7",
       "cove_backend_bootstrap;dur=40",
       "cove_backend_log_queued;dur=0.3",
       "cove_backend_api;dur=57",
