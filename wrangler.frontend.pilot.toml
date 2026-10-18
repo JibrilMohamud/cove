@@ -3,7 +3,9 @@
 # The existing Vercel storefront and persistence backend remain unchanged.
 name = "cove-storefront-ssr-pilot"
 main = ".output/server/index.mjs"
-minify = true
+# Keep Nitro bundle minification, but avoid a second Wrangler transform
+# until the Cloudflare SSR/D1 runtime is proven compatible.
+minify = false
 compatibility_date = "2026-10-17"
 workers_dev = false
 
