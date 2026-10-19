@@ -1838,7 +1838,7 @@ export function StorePage({
 
       {/* The following content is below the first-page catalog. Prepare its
           optional feeds only when approaching this position. */}
-      {home && <div ref={discoverySentinel} aria-hidden="true" />}
+      {home && <div ref={discoverySentinel} aria-hidden="true" data-testid="discovery-feed-sentinel" />}
       {/* Optional discovery modules follow the stable first-page catalog. */}
       {home && heroBook && hero && (
         <div className="discovery-row">
