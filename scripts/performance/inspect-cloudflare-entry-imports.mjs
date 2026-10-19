@@ -4,9 +4,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { init, parse } from "es-module-lexer";
-
-await init;
+import ts from "typescript";
 
 const root = path.resolve(".output/server");
 const entry = path.join(root, "index.mjs");
@@ -36,14 +34,29 @@ function walk(file) {
     dynamicImports: 0,
   });
   const current = detail.at(-1);
-  // es-module-lexer handles compact Rollup output, re-exports and
-  // side-effect imports without undercounting module initialization.
+  // Reuse the project's compiler parser: transformed bundles may remove all
+  // whitespace between import bindings and "from", defeating text regex.
   const staticPaths = new Set();
-  const [imports] = parse(content);
-  for (const found of imports) {
-    if (found.d >= 0) current.dynamicImports++;
-    else if (found.n) staticPaths.add(found.n);
+  const ast = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, false, ts.ScriptKind.JS);
+  for (const statement of ast.statements) {
+    if (
+      (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
+      statement.moduleSpecifier &&
+      ts.isStringLiteral(statement.moduleSpecifier)
+    ) {
+      staticPaths.add(statement.moduleSpecifier.text);
+    }
   }
+  const visit = (node) => {
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword
+    ) {
+      current.dynamicImports++;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(ast);
   for (const target of staticPaths) {
     current.staticImports++;
     if (!target.startsWith(".")) {
