@@ -15,10 +15,10 @@ assert.match(secret || "", /^[a-f0-9]{64}$/);
 assert.match(origin, /-staging\.[a-z0-9.-]+\.workers\.dev$/);
 const allowed = { Authorization: "Bearer " + secret, "Cache-Control": "no-store" };
 const variants = [
-  "",
   "newRelease=false",
   "minPrice=0",
   "maxPrice=0",
+  "", // Unavoidably shared ordinary catalog key: give it to CONTROL, not candidate.
   "minPrice=0&maxPrice=0",
   "newRelease=false&minPrice=0",
   "newRelease=false&maxPrice=0",
