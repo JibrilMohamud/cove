@@ -122,16 +122,15 @@ test("initial bookstore serves books without JavaScript and refreshes full catal
     await page.goto("/");
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
-    await expect.poll(() => calls.filter((url) => new URL(url).pathname === "/api/fore/taxonomy").length)
+    await expect
+      .poll(() => calls.filter((url) => new URL(url).pathname === "/api/fore/taxonomy").length)
       .toBeGreaterThanOrEqual(1);
     const beforeFilter = calls.map((url) => new URL(url).pathname);
     expect(beforeFilter).not.toContain("/api/fore/catalog");
     expect(beforeFilter.every((path) => path === "/api/fore/taxonomy")).toBe(true);
     await page.getByRole("combobox", { name: "Book language" }).focus();
     await expect
-      .poll(
-        () => calls.filter((url) => new URL(url).pathname === "/api/fore/catalog").length,
-      )
+      .poll(() => calls.filter((url) => new URL(url).pathname === "/api/fore/catalog").length)
       .toBeGreaterThanOrEqual(1);
     const catalogFetches = calls.filter(
       (url) => new URL(url).pathname === "/api/fore/catalog",
@@ -145,9 +144,7 @@ test("initial bookstore serves books without JavaScript and refreshes full catal
     await page.getByRole("combobox", { name: "Sort books" }).click();
     await page.getByRole("option", { name: "Title A–Z" }).click();
     await expect
-      .poll(
-        () => calls.filter((url) => new URL(url).pathname === "/api/fore/catalog").length,
-      )
+      .poll(() => calls.filter((url) => new URL(url).pathname === "/api/fore/catalog").length)
       .toBeGreaterThan(catalogFetches);
   } finally {
     await context.close();
