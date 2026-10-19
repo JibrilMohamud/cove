@@ -22,6 +22,7 @@ import type { CatalogBook } from "./client";
 import { canonicalBooksByProductIds, type CatalogDB } from "./catalog-model.server";
 import { ApiError, now } from "./service";
 import { setWishlistItem } from "./retail.server";
+import { indexedRecommendationPrefixComplete } from "./recommendation-shortlist-proof.server";
 
 export type RecommendationEnv = {
   DB: CatalogDB;
@@ -372,6 +373,78 @@ async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400)
     .bind(territory)
     .first<{ grant_count: number }>();
   if (Number(grantCount?.grant_count || 0) > 1000) {
+    // The corpus has a populated B-tree on catalog_search_documents.download_count,
+    // while COALESCE(metric, metric, document) across 58k products cannot use
+    // it. Only take this shortcut if a fresh DB read proves every document's
+    // base velocity is zero. Any nonzero velocity takes the original exact
+    // full-ranking path, without relying on a stale cached assertion.
+    const hasNonzeroVelocity = await db
+      .prepare("SELECT 1 value FROM catalog_search_documents WHERE sales_velocity<>0 LIMIT 1")
+      .first<{ value: number }>();
+    if (!hasNonzeroVelocity) {
+      const indexedLimit = Math.min(1600, Math.max(700, wanted * 2));
+      // The last item of the prefix is an upper bound for every ordinary
+      // unselected book, as the base trend is independently verified zero.
+      const boundary = await db
+        .prepare(
+          "SELECT download_count FROM catalog_search_documents ORDER BY download_count DESC LIMIT 1 OFFSET ?",
+        )
+        .bind(indexedLimit - 1)
+        .first<{ download_count: number }>();
+      if (boundary) {
+        // All rows that could override the document score are included, even
+        // when those products rank outside the indexed prefix. This handles
+        // future global/regional recommendation metrics without approximating
+        // them or trusting stale rights.
+        const ranked = await db
+          .prepare(
+            `WITH popular AS MATERIALIZED (
+              SELECT product_id FROM catalog_search_documents
+              ORDER BY download_count DESC LIMIT ?
+            ),
+            override_ids AS MATERIALIZED (
+              SELECT product_id FROM recommendation_item_metrics
+              UNION
+              SELECT product_id FROM recommendation_regional_item_metrics
+                WHERE territory_code=upper(?)
+            ),
+            candidates AS MATERIALIZED (
+              SELECT product_id FROM popular
+              UNION
+              SELECT product_id FROM override_ids
+            )
+            SELECT p.id,
+              COALESCE(rm.trend_score,m.trend_score,d.sales_velocity,0) trend_rank,
+              COALESCE(rm.popularity_score,m.popularity_score,d.download_count,0) popularity_rank
+            FROM candidates cand
+              JOIN products p ON p.id=cand.product_id
+              JOIN editions e ON e.id=p.edition_id
+              LEFT JOIN recommendation_item_metrics m ON m.product_id=p.id
+              LEFT JOIN recommendation_regional_item_metrics rm
+                ON rm.product_id=p.id AND rm.territory_code=upper(?)
+              LEFT JOIN catalog_search_documents d ON d.product_id=p.id
+            WHERE p.storefront_status='active'
+              AND e.release_status IN ('available','preorder')
+              AND p.source_name<>'upload'
+              AND EXISTS(
+                SELECT 1 FROM retail_product_availability_rows rpa
+                WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?)
+              )
+            ORDER BY trend_rank DESC,popularity_rank DESC,p.updated_at DESC,p.id ASC
+            LIMIT ?`,
+          )
+          .bind(indexedLimit, territory, territory, territory, wanted)
+          .all<{ id: string; trend_rank: number; popularity_rank: number }>();
+        if (
+          indexedRecommendationPrefixComplete(
+            ranked.results,
+            wanted,
+            Number(boundary.download_count || 0),
+          )
+        )
+          return ranked.results.map((row) => String(row.id));
+      }
+    }
     // The extra headroom is never authorization; insufficient live-rights
     // results always force the exact full-catalog fallback.
     const shortlist = Math.min(1000, Math.max(wanted + 100, Math.ceil(wanted * 1.375)));
