@@ -9,7 +9,7 @@ import { performance } from "node:perf_hooks";
 import { PERFORMANCE_D1, isolatedD1Config, verifySyntheticD1 } from "./isolated-d1-gate.mjs";
 
 const root = process.cwd();
-const baselineSha = "6d197e48b7255eb02e689674575287dba54a37a5";
+const baselineSha = "8a5353e78b228b4c7f8672e4ec3310c01d569401";
 const candidateSha = process.env.COVE_RECOVERY_CANDIDATE_SHA;
 assert.match(candidateSha || "", /^[a-f0-9]{40}$/);
 const configName = "wrangler.paired.toml";
@@ -128,7 +128,7 @@ function benchScript(label, cohort, script, outputName, run) {
     COVE_SSR_STAGING_GATE_KEY: cohort.key,
     COVE_EXPECT_PRESTART: "0",
     COVE_EXPECT_DISCOVERY_DEFER: "1",
-    COVE_EXPECT_CATALOG_DEFER: cohort.name.includes("candidate") ? "1" : "0",
+    COVE_EXPECT_CATALOG_DEFER: "1",
     // Keep timestamp of secret change numeric only, not a token.
     COVE_STAGE_SECRET_ROTATION_EPOCH_MS: String(cohort.rotatedAt),
   };
