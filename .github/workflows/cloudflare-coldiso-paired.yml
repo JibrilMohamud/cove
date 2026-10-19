@@ -1,0 +1,117 @@
+# Protected experiment: fixed baseline, immutable candidate push SHA.
+# Only this explicitly named experimental branch may trigger deployments.
+# No production routes; both temporary Workers are removed after evidence upload.
+name: cloudflare-coldiso-paired
+on:
+  workflow_dispatch:
+  push:
+    branches: [perf/auth-dialog-lazy-cold-residual-20261019]
+
+permissions:
+  contents: read
+
+concurrency:
+  # Do NOT overlap the existing protected stage's secret rotation or another
+  # paired test. Two additional scripts, NEVER the production Worker.
+  group: cove-literary-paired
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  immutable-paired-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    env:
+      VERCEL: "0"
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+      COVE_PAIR_RELEASE_FREEZE: "1"
+      COVE_RECOVERY_CANDIDATE_SHA: ${{ github.sha }}
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - name: Checkout exact earlier benchmark revision
+        uses: actions/checkout@v6
+        with:
+          ref: 16dfba51169088d0ab93a3c1ee46bf57163849ce
+          path: baseline
+          persist-credentials: false
+      - name: Checkout exact frozen current revision and benchmark harness
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Checkout benchmark-only harness, not application code
+        uses: actions/checkout@v6
+        with:
+          path: harness
+          persist-credentials: false
+      - name: Use Node 22 consistently
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Require isolated staging credentials and pinned revisions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test "$(git -C baseline rev-parse HEAD)" = "16dfba51169088d0ab93a3c1ee46bf57163849ce"
+          test "$(git -C candidate rev-parse HEAD)" = "$COVE_RECOVERY_CANDIDATE_SHA"
+          node --check candidate/scripts/performance/cloudflare-coldiso-paired.mjs
+          grep -q 'COVE_SSR_STAGING = "1"' candidate/wrangler.frontend.staging.toml
+      - name: Independently install and build earlier revision
+        working-directory: baseline
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          test -s .output/server/index.mjs
+      - name: Independently install and build homepage candidate
+        working-directory: candidate
+        run: |
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          node scripts/check-literary-discovery.mjs
+          node scripts/check-rights.mjs
+          npm run build
+          test -s .output/server/index.mjs
+      - name: Compare immutable SSR module graph before measuring TTFB
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p coldiso-paired-evidence
+          (cd baseline && node scripts/performance/inspect-cloudflare-entry-imports.mjs)
+          cp baseline/artifacts/cloudflare-entry-import-graph.json coldiso-paired-evidence/baseline-entry-graph.json
+          (cd candidate && node scripts/performance/inspect-cloudflare-entry-imports.mjs)
+          cp candidate/artifacts/cloudflare-entry-import-graph.json coldiso-paired-evidence/candidate-entry-graph.json
+      - name: Install Chromium for actual fresh-browser LCP
+        working-directory: candidate
+        run: npx playwright install --with-deps chromium
+      - name: Run matched three-cold, five-concurrency, browser, D1 comparison
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Harness checkout is benchmark-only, not part of either Worker
+          # application build. No production cutover, live rights unchanged.
+          node scripts/performance/cloudflare-coldiso-paired.mjs
+      - name: Upload immutable paired diagnostics, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cove-coldiso-ssr-paired-performance-${{ github.run_attempt }}
+          path: coldiso-paired-evidence/
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Remove only isolated paired staging Workers
+        if: always()
+        shell: bash
+        run: |
+          # The exact allowlist prevents deleting main staging or production.
+          # Missing workers are harmless when a build failed before deploy.
+          for script in cove-coldiso-control-staging cove-coldiso-candidate-staging; do
+            curl -sS --max-time 20 -X DELETE \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$script?force=true" \
+              >/dev/null || true
+          done
