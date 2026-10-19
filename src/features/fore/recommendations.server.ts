@@ -375,9 +375,67 @@ async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400)
     // The extra headroom is never authorization; insufficient live-rights
     // results always force the exact full-catalog fallback.
     const shortlist = Math.min(1000, Math.max(wanted + 100, Math.ceil(wanted * 1.375)));
-    const fast = await db
-      .prepare(
-        `WITH ranked AS MATERIALIZED (
+    const sessions = db as CatalogDB & {
+      withSession?: (constraint: "first-unconstrained") => CatalogDB;
+    };
+    let needsPrimarySort = true;
+    if (typeof sessions.withSession === "function") {
+      // Ranking scores are public recommendation hints, never authorization.
+      // Keep this full-catalog sort off the primary's live-rights request queue.
+      // Only resolved rows cross the boundary; each call owns its own session.
+      let ranked: { id: string }[] | null = null;
+      try {
+        ranked = (
+          await sessions
+            .withSession("first-unconstrained")
+            .prepare(
+              `SELECT p.id
+            FROM products p JOIN editions e ON e.id=p.edition_id
+            LEFT JOIN recommendation_item_metrics m ON m.product_id=p.id
+            LEFT JOIN recommendation_regional_item_metrics rm
+              ON rm.product_id=p.id AND rm.territory_code=upper(?)
+            LEFT JOIN catalog_search_documents d ON d.product_id=p.id
+            WHERE p.storefront_status='active'
+              AND e.release_status IN ('available','preorder') AND p.source_name<>'upload'
+            ORDER BY COALESCE(rm.trend_score,m.trend_score,d.sales_velocity,0) DESC,
+              COALESCE(rm.popularity_score,m.popularity_score,d.download_count,0) DESC,
+              p.updated_at DESC,p.id ASC LIMIT ?`,
+            )
+            .bind(territory, shortlist)
+            .all<{ id: string }>()
+        ).results;
+      } catch {
+        // An unavailable replica cannot authorize or publish partial candidates.
+        // Fall through to the original primary query for recovery.
+      }
+      if (ranked) {
+        needsPrimarySort = false;
+        // One JSON parameter stays below D1's bind limit for up to 1000 IDs.
+        // Read primary product state AND the complete live retail rights view.
+        // The replica is never consulted for a grant, denial or entitlement.
+        const verified = await db
+          .prepare(
+            `SELECT p.id FROM json_each(?) ranked
+          CROSS JOIN products p ON p.id=ranked.value
+          CROSS JOIN editions e ON e.id=p.edition_id
+          WHERE p.storefront_status='active'
+            AND e.release_status IN ('available','preorder') AND p.source_name<>'upload'
+            AND EXISTS(SELECT 1 FROM retail_product_availability_rows rpa
+              WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))
+          ORDER BY CAST(ranked.key AS INTEGER) LIMIT ?`,
+          )
+          .bind(JSON.stringify(ranked.map((row) => String(row.id))), territory, wanted)
+          .all<{ id: string }>();
+        if (verified.results.length === wanted)
+          return verified.results.map((row) => String(row.id));
+        // A stale or sparse shortlist must use the complete authoritative
+        // fallback below; never return an underfilled or unverified result.
+      }
+    }
+    if (needsPrimarySort) {
+      const fast = await db
+        .prepare(
+          `WITH ranked AS MATERIALIZED (
         SELECT p.id,
           COALESCE(rm.trend_score,m.trend_score,d.sales_velocity,0) trend_rank,
           COALESCE(rm.popularity_score,m.popularity_score,d.download_count,0) popularity_rank,
@@ -398,12 +456,13 @@ async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400)
       )
       ORDER BY ranked.trend_rank DESC,ranked.popularity_rank DESC,
         ranked.rank_updated DESC,ranked.id ASC LIMIT ?`,
-      )
-      .bind(territory, shortlist, territory, wanted)
-      .all<{ id: string }>();
-    // If the top N eligible works fit in the shortlist, they are exactly
-    // the complete catalogue's top N.
-    if (fast.results.length === wanted) return fast.results.map((x) => String(x.id));
+        )
+        .bind(territory, shortlist, territory, wanted)
+        .all<{ id: string }>();
+      // If the top N eligible works fit in the shortlist, they are exactly
+      // the complete catalogue's top N.
+      if (fast.results.length === wanted) return fast.results.map((x) => String(x.id));
+    }
   }
 
   // No truncation when a market has sparse live grants. The territory/grant
