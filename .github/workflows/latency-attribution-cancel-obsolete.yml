@@ -1,0 +1,34 @@
+# Temporary queue hygiene: canceled runs are older than this exact branch
+# SHA and belong solely to the diagnostic workflow. No production workflows
+# or other branches are touched. Remove after the experiment.
+name: latency-attribution-cancel-obsolete
+on:
+  push:
+    branches: [perf/latency-attribution-ladder-20261019]
+permissions:
+  actions: write
+  contents: read
+jobs:
+  cancel-obsolete-diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Cancel old synthetic-only diagnostic runs without touching latest run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          THIS_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?branch=perf%2Flatency-attribution-ladder-20261019&per_page=100" |
+            jq -r --arg sha "$THIS_SHA" '
+              .workflow_runs[] |
+              select(.name == "cloudflare-isolated-attribution-ladder") |
+              select(.head_sha != $sha) |
+              select(.status != "completed") | .id
+            ' |
+            while read -r id; do
+              echo "Cancelling superseded isolated diagnostic run $id"
+              gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$id/cancel" || true
+            done
