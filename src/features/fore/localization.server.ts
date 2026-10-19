@@ -340,12 +340,17 @@ export async function resolveStorefrontContext(
     // batch. Only used after provable anonymity; its territory remains
     // anchored to the trusted network market (never spoofable preferences).
     ...(includeHomepagePage
-      ? [db.prepare(`SELECT * FROM storefront_pages WHERE path='/' AND status='published'
+      ? [
+          db
+            .prepare(
+              `SELECT * FROM storefront_pages WHERE path='/' AND status='published'
           AND (territory_code IS NULL OR territory_code=?)
           AND (language_code IS NULL OR lower(language_code)=lower(?))
           AND (starts_at IS NULL OR starts_at<=datetime('now'))
-          AND (ends_at IS NULL OR ends_at>datetime('now')) LIMIT 1`)
-          .bind(network.country, String(loc.language_code))]
+          AND (ends_at IS NULL OR ends_at>datetime('now')) LIMIT 1`,
+            )
+            .bind(network.country, String(loc.language_code)),
+        ]
       : []),
   ])) as [
     {
