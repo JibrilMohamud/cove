@@ -500,7 +500,16 @@ async function main() {
   });
   manifest.comparison.geographicWaveMatches = overlaps;
   manifest.comparison.matchedColos =
-    overlaps.length === 5 && overlaps.every((v) => v.sharedColos.length > 0);
+    overlaps.length === 5 &&
+    overlaps.every((v) => {
+      const old = oldWaves.find((row) => row.concurrency === v.concurrency);
+      const current = newWaves.find((row) => row.concurrency === v.concurrency);
+      return (
+        old?.colos?.length === 1 &&
+        current?.colos?.length === 1 &&
+        old.colos[0] === current.colos[0]
+      );
+    });
   if (!manifest.comparison.matchedColos) {
     manifest.comparison.decision =
       "INCONCLUSIVE geographic comparison; never infer a code regression from unmatched colos";

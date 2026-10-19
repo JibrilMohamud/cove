@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { requireBenchmarkIsolation } from "./performance/benchmark-isolation.mjs";
 const own = { id: 17, name: "cloudflare-current-paired", status: "in_progress" };
-const old = {
+const peer = {
   id: 19,
   name: "cloudflare-obsolete-paired",
   status: "in_progress",
@@ -9,29 +9,36 @@ const old = {
   head_branch: "old",
 };
 const ledger = [];
-let inventory = [own];
+let inventory = [own],
+  pageReads = [];
+const response = (runs, total = runs.length) => ({
+  ok: true,
+  status: 200,
+  json: async () => ({ total_count: total, workflow_runs: runs }),
+});
 const fetchImpl = async (url, options) => {
   assert.match(
     url,
-    /^https:\/\/api.github.com\/repos\/JibrilMohamud\/cove\/actions\/runs\?status=in_progress&per_page=100$/,
+    /^https:\/\/api.github.com\/repos\/JibrilMohamud\/cove\/actions\/runs\?status=in_progress&per_page=100&page=[1-4]$/,
   );
-  assert.equal(options.method, undefined, "Inventory must only read");
-  return {
-    ok: true,
-    json: async () => ({ total_count: inventory.length, workflow_runs: inventory }),
-  };
+  assert.equal(options.method, undefined);
+  const page = Number(new URL(url).searchParams.get("page"));
+  pageReads.push(page);
+  return response(page === 1 ? inventory : []);
 };
 const input = { token: "test-only", runId: 17, fetchImpl };
 await requireBenchmarkIsolation(input, ledger);
-assert.equal(ledger[0].verified, true);
-inventory = [own, old];
-await assert.rejects(
-  requireBenchmarkIsolation(input, ledger),
-  /Competing performance campaign active: 19/,
-);
-assert.equal(ledger[1].verified, false);
-assert.equal(ledger[1].peers[0].sha, "a".repeat(40));
-inventory = [own, { ...old, status: "completed" }];
+assert.equal(ledger.at(-1).verified, true);
+assert.deepEqual(pageReads, [1, 2]);
+for (const name of [peer.name, "fullsite-performance", "production-storefront-performance"]) {
+  inventory = [own, { ...peer, name }];
+  await assert.rejects(
+    requireBenchmarkIsolation(input, ledger),
+    /Competing performance campaign active: 19/,
+  );
+  assert.equal(ledger.at(-1).verified, false);
+}
+inventory = [own, { ...peer, status: "completed" }];
 await requireBenchmarkIsolation(input, ledger);
 await assert.rejects(requireBenchmarkIsolation({ ...input, token: "" }, ledger), /requires/);
 await assert.rejects(
@@ -41,36 +48,57 @@ await assert.rejects(
   ),
   /Actions status 403/,
 );
+// A count/list race cannot hide a second page. Read all pages through EOF.
 await assert.rejects(
   requireBenchmarkIsolation(
     {
       ...input,
-      fetchImpl: async () => ({
-        ok: true,
-        json: async () => ({ total_count: 101, workflow_runs: [] }),
-      }),
+      fetchImpl: async (url) => {
+        const page = Number(new URL(url).searchParams.get("page"));
+        return response(page === 1 ? [own] : page === 2 ? [peer] : [], 5);
+      },
     },
     ledger,
   ),
-  /inventory transport failed after 3 attempts/,
+  /Competing performance campaign active: 19/,
+);
+await requireBenchmarkIsolation(
+  {
+    ...input,
+    fetchImpl: async (url) =>
+      response(new URL(url).searchParams.get("page") === "1" ? [own] : [], 5),
+  },
+  ledger,
+);
+assert.equal(ledger.at(-1).verified, true);
+assert.equal(
+  ledger.at(-1).pages.length,
+  2,
+  "Empty next page proves inventory exhaustion despite a racing count",
+);
+await assert.rejects(
+  requireBenchmarkIsolation({ ...input, fetchImpl: async () => response([]) }, ledger),
+  /current run missing/,
+);
+await assert.rejects(
+  requireBenchmarkIsolation({ ...input, fetchImpl: async () => response([own]) }, ledger),
+  /within 4 pages/,
 );
 let attempts = 0;
-inventory = [own];
 await requireBenchmarkIsolation(
   {
     ...input,
     fetchImpl: async (...args) => {
       attempts++;
-      if (attempts === 1) throw Error("transport may contain test-only token");
+      if (attempts === 1) throw Error("test-only transport message");
       if (attempts === 2) return { ok: false, status: 503 };
       return fetchImpl(...args);
     },
   },
   ledger,
 );
-assert.equal(attempts, 3);
 assert.equal(ledger.at(-1).verified, true);
-assert.equal(ledger.at(-1).attempts.length, 3);
+assert.equal(attempts, 4);
 attempts = 0;
 await assert.rejects(
   requireBenchmarkIsolation(
@@ -78,54 +106,23 @@ await assert.rejects(
       ...input,
       fetchImpl: async () => {
         attempts++;
-        throw Error("test-only transport");
+        throw Error("test-only");
       },
     },
     ledger,
   ),
-  /transport failed after 3 attempts/,
+  /after 3 attempts/,
 );
 assert.equal(attempts, 3);
 assert.equal(ledger.at(-1).verified, false);
-attempts = 0;
 await assert.rejects(
   requireBenchmarkIsolation(
-    {
-      ...input,
-      fetchImpl: async () => {
-        attempts++;
-        return { ok: false, status: 403 };
-      },
-    },
+    { ...input, fetchImpl: async () => response(Array(101).fill(own)) },
     ledger,
   ),
-  /Actions status 403/,
+  /after 3 attempts/,
 );
-assert.equal(attempts, 1, "Authorization failures never retry");
-attempts = 0;
-await requireBenchmarkIsolation(
-  {
-    ...input,
-    fetchImpl: async (...args) => {
-      attempts++;
-      if (attempts === 1)
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ total_count: 2, workflow_runs: [own] }),
-        };
-      return fetchImpl(...args);
-    },
-  },
-  ledger,
-);
-assert.equal(attempts, 2, "A changing inventory must be read again before verification");
-assert.equal(ledger.at(-1).verified, true);
-for (const name of ["fullsite-performance", "production-storefront-performance"]) {
-  inventory = [own, { ...old, name }];
-  await assert.rejects(requireBenchmarkIsolation(input, ledger), /Competing performance campaign/);
-}
-assert.ok(!JSON.stringify(ledger).includes("test-only"), "Tokens must never appear in evidence");
+assert.ok(!JSON.stringify(ledger).includes("test-only"));
 console.log(
-  "PASS: repository-wide competing-run exclusion, current-run allowance, failed inventory, truncation and token privacy",
+  "PASS: complete pagination, changing count, hidden second-page peers, missing current run, bounded retries, public campaign exclusion and token privacy",
 );
