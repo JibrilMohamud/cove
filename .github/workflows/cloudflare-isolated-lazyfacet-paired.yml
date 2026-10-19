@@ -54,6 +54,7 @@ jobs:
           node --check scripts/performance/cloudflare-lazyfacet-paired.mjs
           node --check scripts/performance/cloudflare-attribution-ladder.mjs
           node --check scripts/performance/analyze-attribution.mjs
+          node --check scripts/performance/capture-worker-cpu.mjs
           node scripts/check-latency-attribution.mjs
           node --check scripts/performance/generate-synthetic-d1-fixture.mjs
           node scripts/performance/write-isolated-d1-configs.mjs
