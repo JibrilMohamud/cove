@@ -1963,10 +1963,7 @@ export function StorePage({
             pageViewId={pageViewId}
           />
         ))}
-      {/* This form is below the live-rights shelf. Mount only once the
-          existing observer indicates proximity, reducing anonymous SSR work
-          without changing the 24-book first paint or any rights check. */}
-      {home && discoveryNearby && <LiteraryDiscoveryPanel visitor={visitor} />}
+      {home && <LiteraryDiscoveryPanel visitor={visitor} />}
       {home &&
         (recommendations.data?.rails || []).map((rail) => (
           <RecommendationRailView
