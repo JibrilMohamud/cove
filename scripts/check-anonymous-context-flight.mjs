@@ -12,6 +12,8 @@ const js = ts.transpileModule(source, {
 let calls = 0;
 let tick = 1000;
 let rejectNext = false;
+let holdNext = false;
+let releaseHeld = null;
 const FakeDate = class extends Date {
   static now() {
     return tick;
@@ -32,6 +34,12 @@ const context = {
       }),
       resolveAnonymousHomepageContext: async (_db, request) => {
         calls++;
+        if (holdNext) {
+          holdNext = false;
+          return new Promise((resolve) => {
+            releaseHeld = resolve;
+          });
+        }
         if (rejectNext) {
           rejectNext = false;
           throw Error("temporary read failure");
@@ -77,4 +85,15 @@ const oversizeLanguage = "a".repeat(257);
 await shared(db, make("US", oversizeLanguage), "US");
 await shared(db, make("US", oversizeLanguage), "US");
 assert.equal(calls, 10, "Overlong locale preferences must bypass the cache");
-console.log("Public metadata flight tests passed; every actual rights shelf remains outside cache");
+holdNext = true;
+const blocked = make("DE");
+const stuck = shared(db, blocked, "US");
+assert.equal(shared(db, blocked, "US"), stuck, "Pending calls should coalesce");
+assert.equal(calls, 11);
+tick += 3001;
+const retried = shared(db, blocked, "US");
+assert.notEqual(retried, stuck, "Pending metadata sessions must expire");
+assert.equal(calls, 12, "A stale pending flight must not block subsequent guests");
+releaseHeld({ rightsCountry: "DE", locale: "en-US" });
+await Promise.all([stuck, retried]);
+console.log("Public metadata flight tests passed; all book rights remain individually rechecked");
