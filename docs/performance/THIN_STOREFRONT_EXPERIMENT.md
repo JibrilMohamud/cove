@@ -10,7 +10,7 @@ The serving bundle excludes TanStack, React, account, reader, EPUB and recommend
 
 ## Measurement
 
-`cloudflare-thin-storefront-paired.yml` shares the existing serialized synthetic-D1 benchmark queue. It cannot bind production D1 or R2. Two already provisioned, verified 50,000-item artificial catalogs have allow/deny/revoked and US/CA-distinct rights. No fixture import or production mutation occurs. Control and thin runtime/placement match (2026-10-19, nodejs_compat, ingress edge). The full service behind thin uses the same candidate synthetic D1.
+`cloudflare-thin-storefront-paired.yml` shares the existing serialized synthetic-D1 benchmark queue. It cannot bind production D1 or R2. Two already provisioned, verified 50,000-item artificial catalogs have allow/deny/revoked and US/CA-distinct rights. No fixture import or production mutation occurs. Control and thin runtime/placement match (2026-10-19, nodejs_compat, ingress edge). Both renderers and the service behind thin use the same candidate synthetic D1, measured sequentially. This removes independently provisioned D1 service/placement variability as a confounder; the second fixture is verified for consistency but is not a different serving backend.
 
 Three fresh control-plane-confirmed deployments per renderer each receive twenty new-connection HTML requests before warm measurements. Repeat 1/4/8/16/32-request waves alternate renderer order. Only HTTP 200, no-store HTML containing all 24 edition links counts as valid. Raw status, TTFB, full-response time, response size, edition links, colo and bootstrap SQL/service telemetry are retained, including failures. Maxima must be <=650 ms for cold and 1–16, <=750 ms for 32, with no valid sample >=800 ms. Different colos invalidate the comparison.
 
@@ -22,7 +22,7 @@ Chromium Pixel 5, 1.6-Mbps/150-ms mobile networking and 4x CPU slowing measure f
 
 ## Correctness and release boundary
 
-`node scripts/check-thin-storefront.mjs` exercises real SQLite with the repository migrations and canonical bootstrap: ordered US/CA/SA/JP shelf parity, real grant revocation and product withdrawal, identity fallback, forged geographic headers, unavailable primary, rate-limit denial, safe HTML/URL rendering. Existing rights and bootstrap tests are additional gates.
+`node scripts/check-thin-storefront.mjs` exercises real SQLite with the repository migrations and canonical bootstrap: ordered US/CA/SA/JP shelf parity, real grant revocation and product withdrawal, identity fallback, forged geographic headers, unavailable primary, rate-limit denial, safe HTML/URL rendering. Existing rights and bootstrap tests are additional gates. The deployed test also temporarily revokes a grant for a displayed product in the allowlisted artificial candidate D1, verifies its immediate removal from HTML, restores only the originally active grant, and verifies recovery. No production data is mutated.
 
 This is an **architectural prototype**, not a drop-in visual/interaction replacement: literary discovery links to the existing full store; market controls, in-place save buttons, merchandising and offline installation are not duplicated on the prototype homepage. Those differences are explicit release blockers even if TTFB improves. The runner always sets `releaseApproved=false`. No merge or production migration is warranted from this test alone.
 

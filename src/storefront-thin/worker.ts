@@ -1,15 +1,23 @@
 import { syntheticClient } from "./synthetic-client";
 import type { ThinStorefrontEnv } from "./env";
 import { isolateWorkerCountry } from "../lib/cloudflare-country.server";
-import { rejectUnauthenticatedStagingRequest, stageNoStore } from "../lib/cloudflare-ssr-stage-gate.server";
+import {
+  rejectUnauthenticatedStagingRequest,
+  stageNoStore,
+} from "../lib/cloudflare-ssr-stage-gate.server";
 import { applySecurityHeaders } from "../lib/security-headers";
-import { canUseLeanAnonymousBootstrap, serveLeanAnonymousBootstrap } from "../features/fore/storefront-anonymous-bootstrap.server";
+import {
+  canUseLeanAnonymousBootstrap,
+  serveLeanAnonymousBootstrap,
+} from "../features/fore/storefront-anonymous-bootstrap.server";
 import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap";
 import { renderThinStorefront } from "./render";
 
 // The shared app uses DOM Request/Response types. Adapt only Fetcher's
 // structural web signature; generated configuration still owns every binding.
-type ThinRuntimeEnv = Omit<ThinStorefrontEnv, "CORE"> & { CORE: { fetch(request: Request): Promise<Response> } };
+type ThinRuntimeEnv = Omit<ThinStorefrontEnv, "CORE"> & {
+  CORE: { fetch(request: Request): Promise<Response> };
+};
 
 export default {
   async fetch(request: Request, env: ThinRuntimeEnv): Promise<Response> {
@@ -18,7 +26,8 @@ export default {
       return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
     const rejected = await rejectUnauthenticatedStagingRequest(request, env);
     if (rejected) return rejected;
-    const finish = (response: Response) => stageNoStore(applySecurityHeaders(request, response, env), true);
+    const finish = (response: Response) =>
+      stageNoStore(applySecurityHeaders(request, response, env), true);
     try {
       const url = new URL(request.url);
       // Service binding preserves all existing auth, account, reader, API and
@@ -26,24 +35,39 @@ export default {
       if (request.method !== "GET" || url.pathname !== "/" || url.search)
         return await env.CORE.fetch(request);
       const safe = isolateWorkerCountry(syntheticClient(request, env));
-      if (!safe) return finish(new Response("Unable to verify storefront territory.", { status: 503 }));
+      if (!safe)
+        return finish(new Response("Unable to verify storefront territory.", { status: 503 }));
       const headers = new Headers(safe.headers);
       headers.delete("authorization"); // staging gate credential is never an app identity
-      const bootstrapRequest = new Request(new URL("/api/fore/storefront/bootstrap", request.url), { headers, signal: request.signal });
+      const bootstrapRequest = new Request(new URL("/api/fore/storefront/bootstrap", request.url), {
+        headers,
+        signal: request.signal,
+      });
       // Any cookie/identity hint uses the established application; preferences
       // and account state cannot leak into an anonymous response.
-      if (!canUseLeanAnonymousBootstrap(bootstrapRequest, env)) return await env.CORE.fetch(request);
+      if (!canUseLeanAnonymousBootstrap(bootstrapRequest, env))
+        return await env.CORE.fetch(request);
       const response = await serveLeanAnonymousBootstrap(bootstrapRequest, env);
       if (!response.ok) return finish(new Response(null, { status: response.status }));
-      const bootstrap = await response.json() as StorefrontBootstrap;
+      const bootstrap = (await response.json()) as StorefrontBootstrap;
       if (bootstrap.context.rightsCountry !== headers.get("x-cove-client-country"))
         throw new Error("Thin storefront territorial mismatch");
-      return finish(new Response(renderThinStorefront(bootstrap, env.FORE_PUBLIC_URL || url.origin), {
-        headers: { "content-type": "text/html; charset=utf-8", "cache-control": "private, no-store", "x-cove-renderer": "thin-prototype", "server-timing": response.headers.get("server-timing") || "" },
-      }));
+      return finish(
+        new Response(renderThinStorefront(bootstrap, env.FORE_PUBLIC_URL || url.origin), {
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "private, no-store",
+            "x-cove-renderer": "thin-prototype",
+            "server-timing": response.headers.get("server-timing") || "",
+          },
+        }),
+      );
     } catch (error) {
       // A failed live-rights read never becomes a cached offer or success page.
-      const status = typeof error === "object" && error !== null && "status" in error && error.status === 429 ? 429 : 503;
+      const status =
+        typeof error === "object" && error !== null && "status" in error && error.status === 429
+          ? 429
+          : 503;
       console.error(JSON.stringify({ event: "thin_storefront_failed", status }));
       return finish(new Response("Storefront temporarily unavailable.", { status }));
     }
