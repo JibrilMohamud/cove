@@ -99,6 +99,12 @@ Artifacts under `lazyfacet-paired-evidence/`:
 - `latency-attribution.json` — every valid/invalid stage sample, queue and
   connect metadata, CF colos, SQL cost and alternate arm summaries.
 - `latency-attribution.csv` — concise stage-level maxima and tail percentiles.
+- `latency-cpu-cove-lazyfacet-*.pprof` (or `.pprof.gz`) — optional
+  actual Cloudflare CPU profiles captured **after** all measured latency
+  cohorts, under separate bounded 32-request, rights-checked synthetic load.
+  A missing profile is an explicit unsupported-token/platform status, not a
+  zero-CPU result. Use `go tool pprof` or the Cloudflare profile viewer to
+  find functions, never to infer uncaptured isolate startup delays.
 - `latency-attribution.md` — hypotheses and ranked diagnostic gaps; states
   `rootCauseProven=false` unless a future independently validated mechanism
   establishes causality.
