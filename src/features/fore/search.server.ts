@@ -9,6 +9,7 @@ import { ApiError } from "./service";
 import { normalizeTerritoryCode } from "./rights.server";
 import { writeCatalogCache } from "./catalog-cache.server";
 import { presentationSearchCount } from "./search-counts-cache.server";
+import { catalogPresentationReadDb } from "./catalog-presentation-read.server";
 import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
 
 type SearchEnv = {
@@ -660,6 +661,38 @@ function facetCacheIdentity(input: SearchInput, expression: string) {
   return { ...filters, page: 1, limit: 1, expression };
 }
 
+type FacetProjection = Record<
+  "categories" | "languages" | "formats" | "publishers" | "series" | "availability" | "price",
+  string
+>;
+
+async function aggregateFacetCandidates(
+  db: CatalogDB,
+  candidate: { cte: string; binds: unknown[] },
+): Promise<FacetProjection> {
+  const projection = `    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name LIMIT 40)) categories,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code LIMIT 30)) languages,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value LIMIT 20)) formats,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name LIMIT 30)) publishers,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name LIMIT 30)) series,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value LIMIT 10)) availability,
+    (SELECT json_object('min_price',MIN(price_minor),'max_price',MAX(price_minor),'currency',MAX(currency)) FROM candidate) price`;
+  const row = await db
+    .prepare(
+      `${candidate.cte.replace("candidate AS (", "candidate AS MATERIALIZED (")} SELECT ${projection}`,
+    )
+    .bind(...candidate.binds)
+    .first<FacetProjection>();
+  if (!row) throw new Error("Facet aggregation returned no projection");
+  return row;
+}
+
 async function d1Facets(
   db: CatalogDB,
   input: SearchInput,
@@ -700,6 +733,7 @@ async function d1Facets(
   } catch {
     /* Cache availability never decides search availability. */
   }
+  const statisticsDb = catalogPresentationReadDb(db);
   // Disjunctive facets intentionally omit their own active filter so shoppers can switch/add
   // facet values without first clearing the current selection. Other filters remain applied.
   const categoryCandidate = d1FacetCandidate(input, expression, "categories");
@@ -711,109 +745,52 @@ async function d1Facets(
   const base = candidateParts(input, expression);
   const baseClause = base.where.join(" AND ");
   const baseCte = `${base.prefix}${base.prefix ? "," : "WITH "}candidate AS (SELECT d.product_id,e.id edition_id,p.format,pub.name publisher_name,d.currency,d.price_minor,d.availability FROM ${base.from} WHERE ${baseClause})`;
-  // With no active facet filters (including the home page), all seven facets
-  // have the same candidate set. Materialize its expensive rights scan once.
-  const commonCandidates = [
-    categoryCandidate,
-    languageCandidate,
-    formatCandidate,
-    publisherCandidate,
-    seriesCandidate,
-    priceCandidate,
-  ].every(
-    (part) => part.cte === baseCte && JSON.stringify(part.binds) === JSON.stringify(base.binds),
+  // Disjunctive facets often differ in only ONE candidate population (for
+  // example a price filter). Previously any difference caused seven separate
+  // legal catalog scans. Materialize each distinct SQL + bindings population
+  // once and use the matching projection for each facet. This Map belongs to
+  // THIS request; no pending I/O is ever shared across Worker invocations.
+  const candidates = {
+    categories: categoryCandidate,
+    languages: languageCandidate,
+    formats: formatCandidate,
+    publishers: publisherCandidate,
+    series: seriesCandidate,
+    availability: {
+      cte: baseCte,
+      binds: base.binds,
+    },
+    price: priceCandidate,
+  };
+  const projections = new Map<string, Promise<FacetProjection>>();
+  const projected = await Promise.all(
+    Object.entries(candidates).map(async ([facet, candidate]) => {
+      const identity = JSON.stringify([candidate.cte, candidate.binds]);
+      let projection = projections.get(identity);
+      if (!projection) {
+        projection = aggregateFacetCandidates(statisticsDb, candidate);
+        projections.set(identity, projection);
+      }
+      return [facet, (await projection)[facet as keyof FacetProjection]] as const;
+    }),
   );
-  const shared = commonCandidates
-    ? await db
-        .prepare(
-          `${baseCte.replace("candidate AS (", "candidate AS MATERIALIZED (")}
-    SELECT
-    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
-      (SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name LIMIT 40)) categories,
-    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
-      (SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code LIMIT 30)) languages,
-    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
-      (SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value LIMIT 20)) formats,
-    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
-      (SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name LIMIT 30)) publishers,
-    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
-      (SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name LIMIT 30)) series,
-    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
-      (SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value LIMIT 10)) availability,
-    (SELECT json_object('min_price',MIN(price_minor),'max_price',MAX(price_minor),'currency',MAX(currency)) FROM candidate) price`,
-        )
-        .bind(...base.binds)
-        .first<{
-          categories: string;
-          languages: string;
-          formats: string;
-          publishers: string;
-          series: string;
-          availability: string;
-          price: string;
-        }>()
-    : null;
-  const group = (facet: Exclude<keyof NonNullable<typeof shared>, "price">) => ({
-    results: JSON.parse(shared?.[facet] || "[]") as FacetValue[],
+  const byFacet = Object.fromEntries(projected) as FacetProjection;
+  const group = (facet: Exclude<keyof FacetProjection, "price">) => ({
+    results: JSON.parse(byFacet[facet]) as FacetValue[],
   });
-  const [categories, languages, formats, publishers, series, availability, price] = shared
-    ? [
-        group("categories"),
-        group("languages"),
-        group("formats"),
-        group("publishers"),
-        group("series"),
-        group("availability"),
-        JSON.parse(shared.price) as {
-          min_price: number | null;
-          max_price: number | null;
-          currency: string | null;
-        },
-      ]
-    : await Promise.all([
-        db
-          .prepare(
-            `${categoryCandidate.cte} SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name LIMIT 40`,
-          )
-          .bind(...categoryCandidate.binds)
-          .all<any>(),
-        db
-          .prepare(
-            `${languageCandidate.cte} SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code LIMIT 30`,
-          )
-          .bind(...languageCandidate.binds)
-          .all<any>(),
-        db
-          .prepare(
-            `${formatCandidate.cte} SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value LIMIT 20`,
-          )
-          .bind(...formatCandidate.binds)
-          .all<any>(),
-        db
-          .prepare(
-            `${publisherCandidate.cte} SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name LIMIT 30`,
-          )
-          .bind(...publisherCandidate.binds)
-          .all<any>(),
-        db
-          .prepare(
-            `${seriesCandidate.cte} SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name LIMIT 30`,
-          )
-          .bind(...seriesCandidate.binds)
-          .all<any>(),
-        db
-          .prepare(
-            `${baseCte} SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value LIMIT 10`,
-          )
-          .bind(...base.binds)
-          .all<any>(),
-        db
-          .prepare(
-            `${priceCandidate.cte} SELECT MIN(price_minor) min_price,MAX(price_minor) max_price,MAX(currency) currency FROM candidate`,
-          )
-          .bind(...priceCandidate.binds)
-          .first<any>(),
-      ]);
+  const [categories, languages, formats, publishers, series, availability] = [
+    group("categories"),
+    group("languages"),
+    group("formats"),
+    group("publishers"),
+    group("series"),
+    group("availability"),
+  ];
+  const price = JSON.parse(byFacet.price) as {
+    min_price: number | null;
+    max_price: number | null;
+    currency: string | null;
+  };
   const values = (rows: any[]) =>
     rows
       .map((r) => ({ value: String(r.value), count: Number(r.count || 0) }))
@@ -1006,9 +983,14 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
   };
   const runCount = async () => {
     const countLive = async () => {
-      const row = await env.DB.prepare(
-        `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
-      )
+      // Only cached browse totals are display metadata. FTS counts drive
+      // typo-correction control flow, so they remain primary-authoritative.
+      const statisticsDb =
+        !input.query && !part.hasFts ? catalogPresentationReadDb(env.DB) : env.DB;
+      const row = await statisticsDb
+        .prepare(
+          `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
+        )
         .bind(...part.binds)
         .first<{ count: number }>();
       return Number(row?.count || 0);
