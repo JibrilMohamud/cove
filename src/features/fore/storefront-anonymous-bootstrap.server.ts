@@ -1,4 +1,5 @@
-import { networkCountry, resolveAnonymousHomepageContext } from "./localization.server";
+import { networkCountry } from "./localization.server";
+import { sharedAnonymousHomepageContext } from "./anonymous-context-flight.server";
 import { formatGenericStorefrontPageRecord } from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
@@ -81,7 +82,7 @@ export async function serveLeanAnonymousBootstrap(
   // the rate limiter, markets, context, page and rights checks ALL succeed.
   const contextPromise = timed(
     "context",
-    resolveAnonymousHomepageContext(readMetadata(), request, env.FORE_DEFAULT_TERRITORY || "US"),
+    sharedAnonymousHomepageContext(readMetadata(), request, env.FORE_DEFAULT_TERRITORY || "US"),
   );
   // The read-only metadata batch now also performs the active market/locale
   // lookup. No second dependent D1 service call is needed for anonymous SSR.
