@@ -84,8 +84,8 @@ function number(v) {
 function table(role, evidence) {
   const rows = evidence.summaries[role];
   return [
-    "| Stage | Concurrency | Valid | p50 | p95 | Max | cfWorker p95 | D1 SQL p95 | Colos |",
-    "|---|---:|---:|---:|---:|---:|---:|---:|---|",
+    "| Stage | Concurrency | Valid | p50 | p95 | Max | cfWorker p95 | D1 SQL p95 | Serial handshake p95* | Colos |",
+    "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|",
     ...rows.map((r) =>
       [
         label[r.stage],
@@ -96,6 +96,7 @@ function table(role, evidence) {
         number(r.latencyMs?.max),
         number(r.cfWorkerMs?.p95),
         number(r.sqlMs?.p95),
+        number(r.serialHandshakeMs?.p95),
         (r.colos || []).join(", "),
       ]
         .join(" | ")
@@ -138,7 +139,8 @@ export function writeAttributionReport(evidence, { root, workerPlatform, revisio
     "- Cloudflare Worker JavaScript timers can pause during CPU work; cove_total is NOT full Worker CPU/wall time.",
     "- cfWorker is an independent platform timing when available; missing means unknown, not zero.",
     "- SQL duration excludes D1 dispatch, service queue, transport, and Worker code.",
-    "- Undici create/send/headers provides client queue and wait-to-headers samples; socket connect / DNS / TLS cannot be attributed under concurrent pooled fetches without a dedicated per-connection transport instrument.",
+    "- *Combined DNS+TCP+TLS connection duration is recorded only for a sole in-flight request with corresponding Undici connect events; under concurrent pooled fetches, handshake attribution is unavailable (shown n/a).",
+    "- Undici create/send/headers separately measures client queue and time from headers sent to first response headers; neither is Worker-only latency.",
     "- Comparisons of p95 from separate requests cannot be subtracted to prove per-stage duration or root cause.",
     "- Platform Workers CPU/wall quantiles are sampled per script and include controls; do not assert per-homepage attribution.",
     "- The full SSR release gate and live territory rights remain independent and mandatory.",
@@ -155,7 +157,7 @@ export function writeAttributionReport(evidence, { root, workerPlatform, revisio
   fs.writeFileSync(jsonFile, JSON.stringify({ evidence, diagnostic, revision }, null, 2) + "\n");
   fs.writeFileSync(mdFile, md + "\n");
   const records = [
-    "cohort,stage,concurrency,requested,valid,p50_ms,p95_ms,max_ms,cfworker_p95_ms,sql_p95_ms,colo",
+    "cohort,stage,concurrency,requested,valid,p50_ms,p95_ms,max_ms,cfworker_p95_ms,sql_p95_ms,serial_handshake_p95_ms,colo",
   ];
   for (const role of ["baseline", "current"])
     for (const row of evidence.summaries[role])
@@ -171,6 +173,7 @@ export function writeAttributionReport(evidence, { root, workerPlatform, revisio
           row.latencyMs?.max ?? "",
           row.cfWorkerMs?.p95 ?? "",
           row.sqlMs?.p95 ?? "",
+          row.serialHandshakeMs?.p95 ?? "",
           row.colos?.join(" ") || "",
         ].join(","),
       );
