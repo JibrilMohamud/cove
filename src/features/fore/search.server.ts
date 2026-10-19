@@ -9,6 +9,11 @@ import { ApiError } from "./service";
 import { normalizeTerritoryCode } from "./rights.server";
 import { writeCatalogCache } from "./catalog-cache.server";
 import { presentationSearchCount } from "./search-counts-cache.server";
+import {
+  readCandidateWindows,
+  windowedCandidateCount,
+  type WindowCandidate,
+} from "./candidate-windows.server";
 import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
 
 type SearchEnv = {
@@ -645,7 +650,13 @@ function d1FacetCandidate(
   const part = candidateParts(withoutFacet(input, facet), expression);
   const clause = part.where.join(" AND ");
   const cte = `${part.prefix}${part.prefix ? "," : "WITH "}candidate AS (SELECT d.product_id,e.id edition_id,p.format,pub.name publisher_name,d.currency,d.price_minor,d.availability FROM ${part.from} WHERE ${clause})`;
-  return { cte, binds: part.binds };
+  return {
+    cte,
+    binds: part.binds,
+    window: part.hasFts
+      ? undefined
+      : { where: clause, binds: part.binds, currency: input.currency },
+  };
 }
 
 /**
@@ -658,6 +669,132 @@ function d1FacetCandidate(
 function facetCacheIdentity(input: SearchInput, expression: string) {
   const { sort: _rankingOnly, ...filters } = input;
   return { ...filters, page: 1, limit: 1, expression };
+}
+
+type FacetProjection = Record<
+  "categories" | "languages" | "formats" | "publishers" | "series" | "availability" | "price",
+  string
+>;
+
+// SQLite's default BINARY ordering compares UTF-8 code points. JavaScript's
+// default UTF-16 ordering differs for supplementary characters.
+function binaryTextOrder(a: string, b: string) {
+  const left = [...a],
+    right = [...b];
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
+    const delta = left[i].codePointAt(0)! - right[i].codePointAt(0)!;
+    if (delta) return delta;
+  }
+  return left.length - right.length;
+}
+
+async function aggregateFacetCandidates(
+  db: CatalogDB,
+  candidate: { cte: string; binds: unknown[]; window?: WindowCandidate },
+  cancellation: { failed: boolean },
+): Promise<FacetProjection> {
+  const projection = `    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name LIMIT 40)) categories,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code LIMIT 30)) languages,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value LIMIT 20)) formats,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name LIMIT 30)) publishers,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name LIMIT 30)) series,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value LIMIT 10)) availability,
+    (SELECT json_object('min_price',MIN(price_minor),'max_price',MAX(price_minor),'currency',MAX(currency)) FROM candidate) price`;
+  if (candidate.window) {
+    const facets = [
+      "categories",
+      "languages",
+      "formats",
+      "publishers",
+      "series",
+      "availability",
+    ] as const;
+    const limits = {
+      categories: 40,
+      languages: 30,
+      formats: 20,
+      publishers: 30,
+      series: 30,
+      availability: 10,
+    };
+    const totals = Object.fromEntries(
+      facets.map((facet) => [facet, new Map<string, number>()]),
+    ) as Record<(typeof facets)[number], Map<string, number>>;
+    let price: { min_price: number | null; max_price: number | null; currency: string | null } = {
+      min_price: null,
+      max_price: null,
+      currency: null,
+    };
+    await readCandidateWindows<FacetProjection>(
+      db,
+      candidate.window,
+      "d.product_id,e.id edition_id,p.format,pub.name publisher_name,d.currency,d.price_minor,d.availability",
+      `    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name)) categories,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code)) languages,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value)) formats,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name)) publishers,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name)) series,
+    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
+      (SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value)) availability,
+    (SELECT json_object('min_price',MIN(price_minor),'max_price',MAX(price_minor),'currency',MAX(currency)) FROM candidate) price`,
+      (row) => {
+        for (const facet of facets) {
+          const values = JSON.parse(row[facet]) as FacetValue[];
+          for (const bucket of values)
+            totals[facet].set(bucket.value, (totals[facet].get(bucket.value) || 0) + bucket.count);
+        }
+        const current = JSON.parse(row.price) as typeof price;
+        if (current.min_price !== null) {
+          price.min_price =
+            price.min_price === null
+              ? current.min_price
+              : Math.min(price.min_price, current.min_price);
+          price.max_price =
+            price.max_price === null
+              ? current.max_price
+              : Math.max(price.max_price, current.max_price!);
+          if (
+            current.currency !== null &&
+            (price.currency === null || current.currency > price.currency)
+          )
+            price.currency = current.currency;
+        }
+      },
+      () => cancellation.failed,
+    );
+    const result = Object.fromEntries(
+      facets.map((facet) => [
+        facet,
+        JSON.stringify(
+          [...totals[facet]]
+            .map(([value, count]) => ({ value, count }))
+            .sort((a, b) => b.count - a.count || binaryTextOrder(a.value, b.value))
+            .slice(0, limits[facet]),
+        ),
+      ]),
+    ) as FacetProjection;
+    result.price = JSON.stringify(price);
+    return result;
+  }
+  const row = await db
+    .prepare(
+      `${candidate.cte.replace("candidate AS (", "candidate AS MATERIALIZED (")} SELECT ${projection}`,
+    )
+    .bind(...candidate.binds)
+    .first<FacetProjection>();
+  if (!row) throw new Error("Facet aggregation returned no projection");
+  return row;
 }
 
 async function d1Facets(
@@ -711,109 +848,61 @@ async function d1Facets(
   const base = candidateParts(input, expression);
   const baseClause = base.where.join(" AND ");
   const baseCte = `${base.prefix}${base.prefix ? "," : "WITH "}candidate AS (SELECT d.product_id,e.id edition_id,p.format,pub.name publisher_name,d.currency,d.price_minor,d.availability FROM ${base.from} WHERE ${baseClause})`;
-  // With no active facet filters (including the home page), all seven facets
-  // have the same candidate set. Materialize its expensive rights scan once.
-  const commonCandidates = [
-    categoryCandidate,
-    languageCandidate,
-    formatCandidate,
-    publisherCandidate,
-    seriesCandidate,
-    priceCandidate,
-  ].every(
-    (part) => part.cte === baseCte && JSON.stringify(part.binds) === JSON.stringify(base.binds),
+  // Disjunctive facets often differ in only ONE candidate population (for
+  // example a price filter). Previously any difference caused seven separate
+  // legal catalog scans. Materialize each distinct SQL + bindings population
+  // once and use the matching projection for each facet. This Map belongs to
+  // THIS request; no pending I/O is ever shared across Worker invocations.
+  const candidates = {
+    categories: categoryCandidate,
+    languages: languageCandidate,
+    formats: formatCandidate,
+    publishers: publisherCandidate,
+    series: seriesCandidate,
+    availability: {
+      cte: baseCte,
+      binds: base.binds,
+      window: base.hasFts
+        ? undefined
+        : { where: baseClause, binds: base.binds, currency: input.currency },
+    },
+    price: priceCandidate,
+  };
+  const projections = new Map<string, Promise<FacetProjection>>();
+  const cancellation = { failed: false };
+  const projected = await Promise.all(
+    Object.entries(candidates).map(async ([facet, candidate]) => {
+      const identity = JSON.stringify([candidate.cte, candidate.binds]);
+      let projection = projections.get(identity);
+      if (!projection) {
+        projection = aggregateFacetCandidates(db, candidate, cancellation).catch(
+          (error: unknown) => {
+            cancellation.failed = true;
+            throw error;
+          },
+        );
+        projections.set(identity, projection);
+      }
+      return [facet, (await projection)[facet as keyof FacetProjection]] as const;
+    }),
   );
-  const shared = commonCandidates
-    ? await db
-        .prepare(
-          `${baseCte.replace("candidate AS (", "candidate AS MATERIALIZED (")}
-    SELECT
-    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
-      (SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name LIMIT 40)) categories,
-    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
-      (SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code LIMIT 30)) languages,
-    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
-      (SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value LIMIT 20)) formats,
-    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
-      (SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name LIMIT 30)) publishers,
-    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
-      (SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name LIMIT 30)) series,
-    (SELECT json_group_array(json_object('value',value,'count',count)) FROM
-      (SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value LIMIT 10)) availability,
-    (SELECT json_object('min_price',MIN(price_minor),'max_price',MAX(price_minor),'currency',MAX(currency)) FROM candidate) price`,
-        )
-        .bind(...base.binds)
-        .first<{
-          categories: string;
-          languages: string;
-          formats: string;
-          publishers: string;
-          series: string;
-          availability: string;
-          price: string;
-        }>()
-    : null;
-  const group = (facet: Exclude<keyof NonNullable<typeof shared>, "price">) => ({
-    results: JSON.parse(shared?.[facet] || "[]") as FacetValue[],
+  const byFacet = Object.fromEntries(projected) as FacetProjection;
+  const group = (facet: Exclude<keyof FacetProjection, "price">) => ({
+    results: JSON.parse(byFacet[facet]) as FacetValue[],
   });
-  const [categories, languages, formats, publishers, series, availability, price] = shared
-    ? [
-        group("categories"),
-        group("languages"),
-        group("formats"),
-        group("publishers"),
-        group("series"),
-        group("availability"),
-        JSON.parse(shared.price) as {
-          min_price: number | null;
-          max_price: number | null;
-          currency: string | null;
-        },
-      ]
-    : await Promise.all([
-        db
-          .prepare(
-            `${categoryCandidate.cte} SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name LIMIT 40`,
-          )
-          .bind(...categoryCandidate.binds)
-          .all<any>(),
-        db
-          .prepare(
-            `${languageCandidate.cte} SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code LIMIT 30`,
-          )
-          .bind(...languageCandidate.binds)
-          .all<any>(),
-        db
-          .prepare(
-            `${formatCandidate.cte} SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value LIMIT 20`,
-          )
-          .bind(...formatCandidate.binds)
-          .all<any>(),
-        db
-          .prepare(
-            `${publisherCandidate.cte} SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name LIMIT 30`,
-          )
-          .bind(...publisherCandidate.binds)
-          .all<any>(),
-        db
-          .prepare(
-            `${seriesCandidate.cte} SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name LIMIT 30`,
-          )
-          .bind(...seriesCandidate.binds)
-          .all<any>(),
-        db
-          .prepare(
-            `${baseCte} SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value LIMIT 10`,
-          )
-          .bind(...base.binds)
-          .all<any>(),
-        db
-          .prepare(
-            `${priceCandidate.cte} SELECT MIN(price_minor) min_price,MAX(price_minor) max_price,MAX(currency) currency FROM candidate`,
-          )
-          .bind(...priceCandidate.binds)
-          .first<any>(),
-      ]);
+  const [categories, languages, formats, publishers, series, availability] = [
+    group("categories"),
+    group("languages"),
+    group("formats"),
+    group("publishers"),
+    group("series"),
+    group("availability"),
+  ];
+  const price = JSON.parse(byFacet.price) as {
+    min_price: number | null;
+    max_price: number | null;
+    currency: string | null;
+  };
   const values = (rows: any[]) =>
     rows
       .map((r) => ({ value: String(r.value), count: Number(r.count || 0) }))
@@ -1006,6 +1095,12 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
   };
   const runCount = async () => {
     const countLive = async () => {
+      if (!part.hasFts)
+        return windowedCandidateCount(env.DB, {
+          where: part.where.join(" AND "),
+          binds: part.binds,
+          currency: input.currency,
+        });
       const row = await env.DB.prepare(
         `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
       )
