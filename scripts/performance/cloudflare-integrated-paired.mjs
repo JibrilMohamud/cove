@@ -331,6 +331,27 @@ async function main() {
     });
     if (!manifest.outcomes.at(-1).pass) anyFailures = true;
   }
+  // Product-detail reads are another real source of shared D1 pressure:
+  // measure the indexed secondary-rights gate against the original view,
+  // interleaved with the SAME authoritative homepage SSR.
+  for (const name of ["baseline", "current"]) {
+    if (!cohorts[name].key) continue;
+    const began = Date.now();
+    benchScript(
+      `detail-${name}`,
+      cohorts[name],
+      "scripts/performance/cloudflare-product-detail-mixed.mjs",
+      "cloudflare-product-detail-mixed-performance.json",
+      manifest.outcomes,
+    );
+    manifest.d1Intervals.push({
+      name: `detail-${name}`,
+      since: new Date(began).toISOString(),
+      until: new Date().toISOString(),
+      sql: await d1Snapshot(began, Date.now()),
+    });
+    if (!manifest.outcomes.at(-1).pass) anyFailures = true;
+  }
   for (const name of ["baseline", "current"]) {
     if (!cohorts[name].key) continue;
     benchScript(
@@ -410,9 +431,15 @@ async function main() {
         })) ?? [],
       protectedEdgeControl: conc?.controlSummaries ?? null,
       mixed: byName(`mixed-${name}`)?.summary ?? null,
+      detail: byName(`detail-${name}`)?.summary ?? null,
       browserLcp: browser?.profiles ?? null,
     };
   }
+  const baselineProductSet = byName("detail-baseline")?.cohortProductsSha256;
+  const currentProductSet = byName("detail-current")?.cohortProductsSha256;
+  manifest.comparison.productDetailInputsMatch =
+    !!baselineProductSet && baselineProductSet === currentProductSet;
+  if (!manifest.comparison.productDetailInputsMatch) anyFailures = true;
   const oldWaves = manifest.comparison.baseline.waves;
   const newWaves = manifest.comparison.current.waves;
   const overlaps = oldWaves.map((old) => {
