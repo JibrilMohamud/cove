@@ -6,7 +6,7 @@ const TTL_MS = 600_000;
 const MAX_ENTRIES = 128;
 
 /**
- * Search result ranking and page number do not change the eligible population
+ * Ranking-only sorts and page number do not change the eligible population
  * counted by the UI's total. The key preserves every other public filter and
  * the FTS expression (including the rights territory/currency/language).
  * It contains no account ID, entitlement or book ID.
@@ -15,7 +15,12 @@ export function publicSearchCountIdentity<
   T extends { sort?: unknown; page?: unknown; limit?: unknown },
 >(input: T, expression: string) {
   const { sort: _sort, page: _page, limit: _limit, ...scope } = input;
-  return JSON.stringify([scope, expression]);
+  // These sorts add date/release predicates in buildSqlFilters. All other
+  // supported sorts change ordering only and can still reuse the count.
+  const population = ["coming_soon", "released", "published"].includes(String(_sort))
+    ? _sort
+    : "all";
+  return JSON.stringify([scope, expression, population]);
 }
 
 /**

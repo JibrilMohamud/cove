@@ -649,15 +649,17 @@ function d1FacetCandidate(
 }
 
 /**
- * Sort order affects product ranking, not the eligible population counted by
+ * Ranking-only sort order does not change the eligible population counted by
  * facets. Share the existing 10-minute *counts-only* cache between popular,
- * newest, rating, and title orderings without changing territory, currency,
+ * added, rating, and title orderings without changing territory, currency,
  * filters, query, or selected legal-rights scope. Full product results
  * ALWAYS independently revalidate current primary-D1 retail authorization.
  */
 function facetCacheIdentity(input: SearchInput, expression: string) {
-  const { sort: _rankingOnly, ...filters } = input;
-  return { ...filters, page: 1, limit: 1, expression };
+  const { sort, ...filters } = input;
+  // Date/release sorts also filter candidates; never reuse another population.
+  const population = ["coming_soon", "released", "published"].includes(sort) ? sort : "all";
+  return { ...filters, population, page: 1, limit: 1, expression };
 }
 
 async function d1Facets(
@@ -920,7 +922,10 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
   const started = Date.now();
   const cacheId = [
     ...new Uint8Array(
-      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(input))),
+      await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(JSON.stringify({ ...input, populationCacheVersion: 2 })),
+      ),
     ),
   ]
     .map((byte) => byte.toString(16).padStart(2, "0"))

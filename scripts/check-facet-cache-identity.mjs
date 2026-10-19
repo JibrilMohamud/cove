@@ -28,13 +28,19 @@ const filters = {
 function key(input = filters, expression = "") {
   return JSON.stringify(facetCacheIdentity(input, expression));
 }
-for (const sort of ["popular", "bestselling", "newest", "title", "rating"]) {
+for (const sort of ["popular", "bestselling", "added", "title", "rating"]) {
   assert.equal(
     key({ ...filters, sort, page: 9, limit: 72 }),
     key(),
     "Facet counts cannot vary with ranking or pagination",
   );
 }
+const populations = ["coming_soon", "released", "published"];
+assert.equal(
+  new Set([key(), ...populations.map((sort) => key({ ...filters, sort }))]).size,
+  4,
+  "Eligibility-changing sorts need distinct facet populations",
+);
 for (const change of [
   { territory: "CA" },
   { currency: "CAD" },
@@ -51,6 +57,11 @@ assert.match(facetSource, /facetCacheIdentity\(input, expression\)/);
 assert.match(facetSource, /writeCatalogCache/);
 assert.doesNotMatch(facetSource, /canonicalBooksByProductIds/);
 assert.match(src, /retail_product_availability_rows/);
+assert.match(
+  src,
+  /populationCacheVersion: 2/,
+  "Invalidate full-page cached totals/facets from old scope",
+);
 console.log(
   "Facets: sorting/pagination reuse, country/currency/filter isolation, counts-only caching PASS",
 );

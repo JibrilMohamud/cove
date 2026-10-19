@@ -35,11 +35,17 @@ const scope = {
   limit: 24,
 };
 const id = (input = scope, expression = "") => publicSearchCountIdentity(input, expression);
-for (const sort of ["popular", "newest", "rating", "title"]) {
+for (const sort of ["popular", "added", "rating", "title"]) {
   for (const page of [1, 2, 99]) {
     assert.equal(id({ ...scope, sort, page, limit: 120 }), id());
   }
 }
+const populations = ["coming_soon", "released", "published"];
+assert.equal(
+  new Set([id(), ...populations.map((sort) => id({ ...scope, sort }))]).size,
+  4,
+  "Eligibility-changing sorts must not share the ordinary browse count",
+);
 for (const change of [
   { territory: "CA" },
   { currency: "CAD" },
@@ -88,7 +94,7 @@ try {
   };
   assert.equal(await presentationSearchCount(db, scope, "", live(45000), clock), 45000);
   assert.equal(
-    await presentationSearchCount(db, { ...scope, sort: "newest", page: 6 }, "", live(2), clock),
+    await presentationSearchCount(db, { ...scope, sort: "added", page: 6 }, "", live(2), clock),
     45000,
   );
   assert.equal(liveCalls, 1, "Sort and pagination must reuse only the public count");
@@ -97,18 +103,31 @@ try {
     0,
   );
   assert.equal(liveCalls, 2, "A different market must independently compute");
+  // Warm ordinary browsing, then request all three distinct release views.
+  // A wrong cross-sort hit returns 45000 here without calling live().
+  for (const [sort, expected] of [
+    ["coming_soon", 2],
+    ["released", 44998],
+    ["published", 40000],
+  ]) {
+    assert.equal(
+      await presentationSearchCount(db, { ...scope, sort }, "", live(expected), clock),
+      expected,
+    );
+  }
+  assert.equal(liveCalls, 5, "Each release population computes its own number");
   const rows = sql.prepare("SELECT key,body FROM api_cache").all();
-  assert.equal(rows.length, 2);
+  assert.equal(rows.length, 5);
   assert.ok(rows.every((r) => r.key.startsWith("search-counts:v1:")));
   assert.ok(rows.every((r) => /^\d+$/.test(r.body)));
   assert.ok(rows.every((r) => !r.body.includes("product_id") && !r.body.includes("user_id")));
   time += 600_001;
   assert.equal(await presentationSearchCount(db, scope, "", live(45001), clock), 45001);
-  assert.equal(liveCalls, 3, "Expired presentation number recomputes the live scoped count");
+  assert.equal(liveCalls, 6, "Expired presentation number recomputes the live scoped count");
 
   sql.prepare("UPDATE api_cache SET body=?").run('{"not":"a-number"}');
   assert.equal(await presentationSearchCount(db, scope, "", live(45002), clock), 45002);
-  assert.equal(liveCalls, 4, "Corrupt cache cannot grant access or suppress live counts");
+  assert.equal(liveCalls, 7, "Corrupt cache cannot grant access or suppress live counts");
 
   const brokenDb = {
     prepare() {
@@ -119,7 +138,7 @@ try {
     },
   };
   assert.equal(await presentationSearchCount(brokenDb, scope, "", live(40000), clock), 40000);
-  assert.equal(liveCalls, 5, "Missing cache recomputes on primary");
+  assert.equal(liveCalls, 8, "Missing cache recomputes on primary");
   await assert.rejects(
     presentationSearchCount(brokenDb, scope, "", live(-5), clock),
     /Invalid public search count/,
