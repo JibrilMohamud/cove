@@ -36,10 +36,18 @@ channel("undici:request:headers").subscribe(({ request }) => {
   const s = spans.get(request);
   if (s) s.headersAt = performance.now();
 });
-// Connection events are not reliably request-correlated under multiplexing;
-// no beforeConnect/connected samples will be assigned to a specific request.
-// First connection vs reused transport is diagnosed by separate runner
-// processes (fresh) vs sequential samples (reuse), never by fake DNS numbers.
+// Instrument DNS+TCP+TLS *combined* only for exactly one active request.
+// Under concurrency, connection events are not request-correlatable; record
+// null instead of assigning some other request's handshake to this sample.
+let serialConnection = null;
+channel("undici:client:beforeConnect").subscribe(({ connectParams }) => {
+  if (serialConnection && connectParams?.hostname === serialConnection.hostname)
+    serialConnection.span.connectBeginAt = performance.now();
+});
+channel("undici:client:connected").subscribe(({ connectParams }) => {
+  if (serialConnection && connectParams?.hostname === serialConnection.hostname)
+    serialConnection.span.connectEndAt = performance.now();
+});
 
 function delta(a, b) {
   return Number.isFinite(a) && Number.isFinite(b) ? Math.round(Math.max(0, a - b)) : null;
@@ -74,6 +82,8 @@ async function one(cohort, stage, concurrency) {
   let status = 0;
   try {
     const origin = `https://${cohort.name}.cove-jibrilmohamud.workers.dev`;
+    if (concurrency === 1)
+      serialConnection = { hostname: new URL(origin).hostname, span };
     const response = await store.run(span, () => fetch(
       origin + (stage === "ssr" ? "/" : "/__cove_perf/" + stage),
       {
@@ -118,7 +128,8 @@ async function one(cohort, stage, concurrency) {
       ttfbMs, totalMs, colo: colo(response.headers),
       clientQueueMs: delta(span.sentAt, span.createdAt),
       sentToHeadersMs: delta(span.headersAt, span.sentAt),
-      connectTiming: "not-request-attributable",
+      connectMs: concurrency === 1 ? delta(span.connectEndAt, span.connectBeginAt) : null,
+      connectionAttribution: concurrency === 1 ? "serial-handshake-only-when-observed" : "unattributable-under-concurrency",
       ...timingNumbers(response.headers),
       sqlMs, rowsRead, books,
     };
@@ -128,9 +139,12 @@ async function one(cohort, stage, concurrency) {
       ttfbMs: delta(performance.now(), begin),
       clientQueueMs: delta(span.sentAt, span.createdAt),
       sentToHeadersMs: delta(span.headersAt, span.sentAt),
+      connectMs: concurrency === 1 ? delta(span.connectEndAt, span.connectBeginAt) : null,
       error: "request-or-authorization-or-content-invalid",
       colo: "unknown",
     };
+  } finally {
+    if (concurrency === 1 && serialConnection?.span === span) serialConnection = null;
   }
 }
 async function wave(cohort, stage, concurrency, count) {
@@ -211,7 +225,7 @@ export async function runAttributionLadder(cohorts, { coolOffMs = 65000 } = {}) 
     timingWarning:
       "JS Worker clocks omit CPU. cfWorker missing is unknown, not zero. D1 sqlMs omits service queue/transport. Sample-set percentiles and stage deltas are not additive or per-request causal attribution.",
     runnerConnections:
-      "same Node runner pooled fetches; connection establishment is not reliably attributable per request under concurrency. Compare fresh runner process and pooled request stages separately.",
+      "same Node runner uses pooled fetches; when and only when a sole serial request observes Undici beforeConnect/connected, connectMs measures combined DNS+TCP+TLS. No separate DNS/TLS breakdown; parallel connect metrics are null.",
     byRole: results,
     summaries: summary,
     overlap,
