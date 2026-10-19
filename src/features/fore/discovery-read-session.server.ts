@@ -16,7 +16,5 @@ export function presentationReadSession(db: CatalogDB, enabled?: string): Catalo
   const source = db as CatalogDB & {
     withSession?: (constraint: "first-unconstrained") => CatalogDB;
   };
-  return typeof source.withSession === "function"
-    ? source.withSession("first-unconstrained")
-    : db;
+  return typeof source.withSession === "function" ? source.withSession("first-unconstrained") : db;
 }
