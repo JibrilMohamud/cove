@@ -6,6 +6,7 @@ import {
   type CoveRequestExecution,
 } from "./lib/cove-request-env.server";
 import { isolateWorkerCountry } from "./lib/cloudflare-country.server";
+import { canRunAnonymousHomepageBootstrap } from "./features/fore/anonymous-bootstrap-eligibility.server";
 import { resolveNativeWorkerBindings } from "./lib/cloudflare-native-bindings.server";
 import {
   isStagingStaticAsset,
@@ -199,24 +200,11 @@ export default {
       // live D1 bootstrap are independent. Start both without serializing them.
       // Never prestart for signed-in visitors, filtered pages, untrusted country,
       // missing rate limiter, or Vercel: the established loader handles those.
-      const bootstrapUrl = new URL(routedRequest.url);
-      const mayPrestartAnonymousBootstrap =
-        routedRequest.method === "GET" &&
-        bootstrapUrl.pathname === "/" &&
-        !bootstrapUrl.search &&
-        !!foreEnv.DB &&
-        typeof foreEnv.DB.prepare === "function" &&
-        typeof (runtimeEnv as { COVE_STOREFRONT_READ_LIMITER?: { limit?: unknown } })
-          .COVE_STOREFRONT_READ_LIMITER?.limit === "function" &&
-        /^[A-Z]{2}$/.test(routedRequest.headers.get("x-cove-client-country") || "") &&
-        !!routedRequest.headers.get("cf-connecting-ip")?.trim() &&
-        ![
-          "authorization",
-          "cookie",
-          "oai-authenticated-user-id",
-          "oai-authenticated-user-email",
-          "x-fore-authenticated-user-id",
-        ].some((header) => routedRequest.headers.has(header));
+      const mayPrestartAnonymousBootstrap = canRunAnonymousHomepageBootstrap(
+        routedRequest,
+        runtimeEnv,
+        "/",
+      );
       let prefetchedBootstrap: Promise<Response> | undefined;
       if (mayPrestartAnonymousBootstrap) {
         const source = new Request(new URL("/api/fore/storefront/bootstrap", routedRequest.url), {
