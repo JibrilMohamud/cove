@@ -1,6 +1,6 @@
 import { networkCountry, resolveAnonymousHomepageContext } from "./localization.server";
 import { createAnonymousPresentationSingleflight } from "./anonymous-presentation-singleflight.server";
-import { formatGenericStorefrontPageRecord } from "./taxonomy.server";
+import { formatHomepageFirstPaintPage } from "./homepage-first-paint-format.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
 import type { CoveEnv } from "./api.server";
@@ -123,7 +123,7 @@ export async function serveLeanAnonymousBootstrap(
   const { availableMarkets, homepagePageRow, ...publicContext } = context;
   if (!Array.isArray(availableMarkets))
     throw new Error("Anonymous market projection is unavailable.");
-  const page = formatGenericStorefrontPageRecord("/", homepagePageRow ?? null);
+  const page = formatHomepageFirstPaintPage(homepagePageRow ?? null);
   const query = new URLSearchParams({
     search: "",
     sort: "popular",
