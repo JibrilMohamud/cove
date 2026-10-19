@@ -16,7 +16,8 @@ concurrency:
   # secret or production routing. Record external D1 contention in evidence.
   # Only one clean-overlap experiment may run at once.
   group: cove-cleanoverlap-recovery-20261019
-  queue: max
+  # Keep the active evidence run; replace obsolete pending experiments.
+  queue: single
   cancel-in-progress: false
 
 jobs:
