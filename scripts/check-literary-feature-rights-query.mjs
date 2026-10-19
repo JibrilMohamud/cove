@@ -18,9 +18,8 @@ const isolated = source
     "export async function rightsExactLiteraryFeatureCandidates(",
   );
 const compiled = await transform(isolated, { loader: "ts", format: "esm" });
-const { rightsExactLiteraryFeatureCandidates: select, retrieveLiteraryCandidates: retrieve } = await import(
-  "data:text/javascript;base64," + Buffer.from(compiled.code).toString("base64")
-);
+const { rightsExactLiteraryFeatureCandidates: select, retrieveLiteraryCandidates: retrieve } =
+  await import("data:text/javascript;base64," + Buffer.from(compiled.code).toString("base64"));
 
 const db = new DatabaseSync(":memory:");
 try {
@@ -117,13 +116,15 @@ try {
     const result = await retrieve(adapter(log), terms, country);
     const style = reference.all("literaryStyle", ...features, country).map((r) => r.product_id);
     const mood = db
-      .prepare(`SELECT f.product_id FROM recommendation_book_features f
+      .prepare(
+        `SELECT f.product_id FROM recommendation_book_features f
           JOIN products p ON p.id=f.product_id
           WHERE f.dimension='moods' AND f.feature='reflective'
             AND p.storefront_status='active'
             AND EXISTS(SELECT 1 FROM retail_product_availability_rows a
                 WHERE a.product_id=f.product_id AND a.territory_code=upper(?))
-          ORDER BY f.confidence DESC,f.product_id LIMIT 40`)
+          ORDER BY f.confidence DESC,f.product_id LIMIT 40`,
+      )
       .all(country)
       .map((r) => r.product_id);
     const exact = [...new Set([...style, ...mood])];
@@ -135,7 +136,8 @@ try {
     );
     assert.ok(
       log.every(
-        (sql) => sql.includes("SELECT COUNT(*) grants") ||
+        (sql) =>
+          sql.includes("SELECT COUNT(*) grants") ||
           sql.includes("retail_product_availability_rows"),
       ),
       "Every actual candidate query must enforce live retail rights",
@@ -143,7 +145,6 @@ try {
   }
   await checkSharedTerritoryProbe("US");
   await checkSharedTerritoryProbe("CA");
-
 
   // Force a hard rights-withdrawal case: the top 170 feature-ranked US
   // candidates are now revoked, so returning only the 120-item shortlist
