@@ -106,11 +106,15 @@ async function profile(cohort, outputDir) {
     record.warning = "CPU capture includes failed or invalid synthetic HTML; no causal attribution";
   // pprof is supplemental: the binary remains useful if Go tooling is absent
   // or the Cloudflare capture uses an unsupported protobuf profile format.
-  const top = spawnSync("go", ["tool", "pprof", "-top", "-nodecount=20", path.join(outputDir, name)], {
-    timeout: 30000,
-    encoding: "utf8",
-    maxBuffer: 1024 * 1024,
-  });
+  const top = spawnSync(
+    "go",
+    ["tool", "pprof", "-top", "-nodecount=20", path.join(outputDir, name)],
+    {
+      timeout: 30000,
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024,
+    },
+  );
   if (!top.error && top.status === 0 && top.stdout.trim()) {
     const summaryName = `latency-cpu-top-${cohort.name}.txt`;
     fs.writeFileSync(path.join(outputDir, summaryName), top.stdout.slice(0, 24000));
