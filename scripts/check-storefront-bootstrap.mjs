@@ -185,6 +185,7 @@ try {
     const req = new Request("https://cove.test/api/fore/storefront/bootstrap", {
       headers: visitorHeaders,
     });
+    let failPrimary = false;
     let limitCalls = 0,
       authoritativeRights = 0,
       anonymousPresentationBatches = 0;
@@ -223,6 +224,7 @@ try {
         if (property === "prepare")
           return (sql) => {
             if (/\beligible AS MATERIALIZED/i.test(sql)) {
+              if (failPrimary) throw new Error("Primary rights authority unavailable");
               assert.match(sql, /retail_product_availability_rows/i);
               assert.match(
                 sql,
@@ -314,6 +316,75 @@ try {
       ["first-unconstrained"],
       "Exactly one replica presentation session combines market, locale, messages and page",
     );
+    // Keep public metadata warm while changing the real SQLite rights state.
+    // Cached presentation must never cache an allow or hide a failed primary.
+    const actualNow = Date.now;
+    const fixedNow = actualNow();
+    Date.now = () => fixedNow;
+    try {
+      const warm = await (await serveLeanAnonymousBootstrap(req, liveEnv)).json();
+      const batchesBefore = anonymousPresentationBatches;
+      const rightsBefore = authoritativeRights;
+      const again = await (await serveLeanAnonymousBootstrap(req, liveEnv)).json();
+      assert.equal(
+        anonymousPresentationBatches,
+        batchesBefore,
+        "Completed public metadata is reused",
+      );
+      assert.equal(
+        authoritativeRights,
+        rightsBefore + 1,
+        "Every cache hit still checks live primary rights",
+      );
+      assert.deepEqual(again.context, warm.context);
+      if (country === "US") {
+        const productId = warm.catalog.results[0]?.productId;
+        assert.ok(productId, "Revocation fixture needs a displayed product");
+        const grants = await env.DB.prepare(
+          "SELECT id,status FROM rights_grants WHERE edition_id=(SELECT edition_id FROM products WHERE id=?)",
+        )
+          .bind(productId)
+          .all();
+        assert.ok(grants.results.length);
+        await env.DB.prepare(
+          "UPDATE rights_grants SET status='revoked' WHERE edition_id=(SELECT edition_id FROM products WHERE id=?)",
+        )
+          .bind(productId)
+          .run();
+        try {
+          const revoked = await (await serveLeanAnonymousBootstrap(req, liveEnv)).json();
+          assert.ok(
+            !revoked.catalog.results.some((book) => book.productId === productId),
+            "Revocation applies immediately while metadata stays warm",
+          );
+          assert.equal(anonymousPresentationBatches, batchesBefore);
+        } finally {
+          for (const grant of grants.results)
+            await env.DB.prepare("UPDATE rights_grants SET status=? WHERE id=?")
+              .bind(grant.status, grant.id)
+              .run();
+        }
+      }
+      failPrimary = true;
+      await assert.rejects(
+        serveLeanAnonymousBootstrap(req, liveEnv),
+        /Primary rights authority unavailable/,
+      );
+      failPrimary = false;
+      await assert.rejects(
+        serveLeanAnonymousBootstrap(req, {
+          ...liveEnv,
+          COVE_STOREFRONT_READ_LIMITER: {
+            async limit() {
+              return { success: false };
+            },
+          },
+        }),
+      );
+    } finally {
+      failPrimary = false;
+      Date.now = actualNow;
+    }
   }
   assert.ok(joinedMarketLocaleReads >= 4, "One live joined market/locale read per bootstrap");
   assert.ok(

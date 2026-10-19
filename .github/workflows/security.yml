@@ -53,6 +53,7 @@ jobs:
         run: |
           npm run test:ui-localization
           npm run test:content-coverage
+          node scripts/check-anonymous-presentation-cache.mjs
           npm run test:storefront-bootstrap
           npm run test:social-reading
           npm run test:stripe-webhooks
