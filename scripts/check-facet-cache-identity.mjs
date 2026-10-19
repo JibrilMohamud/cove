@@ -28,7 +28,7 @@ const filters = {
 function key(input = filters, expression = "") {
   return JSON.stringify(facetCacheIdentity(input, expression));
 }
-for (const sort of ["popular", "bestselling", "newest", "title", "rating"]) {
+for (const sort of ["popular", "bestselling", "added", "title", "rating"]) {
   assert.equal(
     key({ ...filters, sort, page: 9, limit: 72 }),
     key(),

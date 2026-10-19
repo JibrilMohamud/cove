@@ -35,7 +35,7 @@ const scope = {
   limit: 24,
 };
 const id = (input = scope, expression = "") => publicSearchCountIdentity(input, expression);
-for (const sort of ["popular", "newest", "rating", "title"]) {
+for (const sort of ["popular", "added", "rating", "title"]) {
   for (const page of [1, 2, 99]) {
     assert.equal(id({ ...scope, sort, page, limit: 120 }), id());
   }
@@ -94,7 +94,7 @@ try {
   };
   assert.equal(await presentationSearchCount(db, scope, "", live(45000), clock), 45000);
   assert.equal(
-    await presentationSearchCount(db, { ...scope, sort: "newest", page: 6 }, "", live(2), clock),
+    await presentationSearchCount(db, { ...scope, sort: "added", page: 6 }, "", live(2), clock),
     45000,
   );
   assert.equal(liveCalls, 1, "Sort and pagination must reuse only the public count");

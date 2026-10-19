@@ -651,7 +651,7 @@ function d1FacetCandidate(
 /**
  * Ranking-only sort order does not change the eligible population counted by
  * facets. Share the existing 10-minute *counts-only* cache between popular,
- * newest, rating, and title orderings without changing territory, currency,
+ * added, rating, and title orderings without changing territory, currency,
  * filters, query, or selected legal-rights scope. Full product results
  * ALWAYS independently revalidate current primary-D1 retail authorization.
  */

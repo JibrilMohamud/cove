@@ -85,6 +85,52 @@ try {
     });
   const imported = await api.runCatalogIngestion({ ...env, BUCKET: undefined });
   assert.equal(imported.inserted, 28);
+  // Exercise real parsed aliases and real rights-filtered queries, not only
+  // cache-key helpers. Newest is normalized to released (a FILTER, not just order).
+  assert.equal(input("sort=newest").sort, "released");
+  const releaseFixture = await env.DB.prepare(
+    "SELECT id,release_date,publication_date,release_status FROM editions WHERE id=(SELECT edition_id FROM products WHERE id=(SELECT product_id FROM catalog_search_documents WHERE external_book_id='900001' LIMIT 1))",
+  ).first();
+  assert.ok(releaseFixture);
+  await env.DB.prepare(
+    "UPDATE editions SET release_date='2099-01-01',publication_date=NULL,release_status='preorder' WHERE id=?",
+  )
+    .bind(releaseFixture.id)
+    .run();
+  const clearSearchCaches = () =>
+    env.DB.prepare("DELETE FROM api_cache WHERE key LIKE 'search-%'").run();
+  try {
+    const populations = ["popular", "newest", "published", "coming_soon"];
+    const expected = new Map();
+    for (const sort of populations) {
+      await clearSearchCaches();
+      const result = await search.searchCatalog(env, input(`sort=${sort}`), null);
+      expected.set(sort, { count: result.count, facets: result.facets });
+    }
+    assert.ok(expected.get("popular").count > expected.get("newest").count);
+    assert.ok(expected.get("coming_soon").count > 0);
+    await clearSearchCaches();
+    for (const sort of populations) {
+      const actual = await search.searchCatalog(env, input(`sort=${sort}`), null);
+      assert.deepEqual(
+        { count: actual.count, facets: actual.facets },
+        expected.get(sort),
+        `Warm browsing must not change ${sort} release-population totals or facets`,
+      );
+    }
+  } finally {
+    await env.DB.prepare(
+      "UPDATE editions SET release_date=?,publication_date=?,release_status=? WHERE id=?",
+    )
+      .bind(
+        releaseFixture.release_date,
+        releaseFixture.publication_date,
+        releaseFixture.release_status,
+        releaseFixture.id,
+      )
+      .run();
+    await clearSearchCaches();
+  }
   const first = await search.searchCatalog(env, input("q=adventurre&limit=24&page=1"), null);
   const second = await search.searchCatalog(env, input("q=adventurre&limit=24&page=2"), null);
   assert.ok(first.correctedQuery);
