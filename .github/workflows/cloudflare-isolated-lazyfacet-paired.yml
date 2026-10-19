@@ -56,7 +56,21 @@ jobs:
           node scripts/performance/write-isolated-d1-configs.mjs
           node scripts/performance/generate-synthetic-d1-fixture.mjs
           test "$(git rev-parse HEAD)" = "$COVE_RECOVERY_CANDIDATE_SHA"
+      # Repeated A/B campaigns share the same two dedicated synthetic D1s.
+      # Require the complete live-rights SQL oracle before skipping a reload;
+      # incomplete imports still take the idempotent migration/import path.
+      - name: Reuse verified 50k synthetic fixtures when already complete
+        id: fixture_ready
+        working-directory: candidate
+        shell: bash
+        run: |
+          if node scripts/performance/verify-isolated-d1-fixtures.mjs; then
+            echo "already_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_ready=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Apply migrations and public synthetic fixture only to isolated control D1
+        if: steps.fixture_ready.outputs.already_ready != 'true'
         working-directory: candidate
         shell: bash
         run: |
@@ -66,6 +80,7 @@ jobs:
             npx --yes wrangler@4.151.0 d1 execute DB --remote --config wrangler.perf-baseline.toml --file "$file" --yes
           done
       - name: Apply same migrations and fixture only to isolated candidate D1
+        if: steps.fixture_ready.outputs.already_ready != 'true'
         working-directory: candidate
         shell: bash
         run: |
