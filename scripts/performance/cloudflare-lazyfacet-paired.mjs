@@ -9,7 +9,7 @@ import { performance } from "node:perf_hooks";
 import { PERFORMANCE_D1, isolatedD1Config, verifySyntheticD1 } from "./isolated-d1-gate.mjs";
 
 const root = process.cwd();
-const baselineSha = "6d197e48b7255eb02e689674575287dba54a37a5";
+const baselineSha = "8a5353e78b228b4c7f8672e4ec3310c01d569401";
 const candidateSha = process.env.COVE_RECOVERY_CANDIDATE_SHA;
 assert.match(candidateSha || "", /^[a-f0-9]{40}$/);
 const configName = "wrangler.paired.toml";
@@ -23,7 +23,7 @@ const cohorts = {
 };
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 // Every real load trial must use isolated, synthetic databases; never production D1.
-const outDir = path.resolve(root, "../lazyfacet-paired-evidence");
+const outDir = path.resolve(root, "../coldloader-paired-evidence");
 fs.mkdirSync(outDir, { recursive: true });
 
 function command(cwd, exe, args, env = {}, timeout = 200000, input) {
@@ -128,7 +128,7 @@ function benchScript(label, cohort, script, outputName, run) {
     COVE_SSR_STAGING_GATE_KEY: cohort.key,
     COVE_EXPECT_PRESTART: "0",
     COVE_EXPECT_DISCOVERY_DEFER: "1",
-    COVE_EXPECT_CATALOG_DEFER: cohort.name.includes("candidate") ? "1" : "0",
+    COVE_EXPECT_CATALOG_DEFER: "1",
     // Keep timestamp of secret change numeric only, not a token.
     COVE_STAGE_SECRET_ROTATION_EPOCH_MS: String(cohort.rotatedAt),
   };
@@ -455,7 +455,7 @@ async function main() {
     JSON.stringify(manifest, null, 2),
   );
   process.stdout.write(
-    `Baseline ${baselineSha}, current ${candidateSha}. Evidence stored under lazyfacet-paired-evidence/.\n`,
+    `Baseline ${baselineSha}, current ${candidateSha}. Evidence stored under coldloader-paired-evidence/.\n`,
   );
   process.stdout.write(
     `Validated steps: ${manifest.outcomes.filter((x) => x.pass).length}/${manifest.outcomes.length}.\n`,
