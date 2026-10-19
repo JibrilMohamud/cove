@@ -404,6 +404,204 @@ export async function resolveStorefrontContext(
   };
 }
 
+
+/**
+ * Anonymous first-paint metadata, without a dependent second D1 service call.
+ *
+ * All four presentation reads use ONE first-unconstrained D1.batch response.
+ * No account/cookie preferences are accepted, and the actual catalog/legal
+ * decisions still run on the separate authoritative primary D1 binding.
+ *
+ * A published root page can have overlapping territorial/language rows. For
+ * that uncommon case we deliberately issue the ORIGINAL exact page statement
+ * rather than approximate SQL's unspecified LIMIT 1 ordering in JavaScript.
+ */
+export async function resolveAnonymousHomepageContext(
+  db: StorefrontDB,
+  request: Request,
+  fallbackCountry = "US",
+): Promise<StorefrontContext> {
+  if (request.headers.has("cookie") || request.headers.has("authorization"))
+    throw new Error("Anonymous presentation batch rejects identity or preference headers.");
+  const network = networkCountry(request, fallbackCountry);
+  const country = network.country;
+  const chosenCountrySql = `CASE WHEN EXISTS(
+    SELECT 1 FROM storefront_markets
+    WHERE country_code=? AND market_status='active'
+  ) THEN ? ELSE 'US' END`;
+  const [marketResult, translationsResult, paymentResult, pageResult] = (await db.batch([
+    db
+      .prepare(
+        `SELECT m.*,l.locale active_locale,l.language_code active_language_code,
+        l.direction active_direction,ml.priority active_priority,
+        (SELECT json_group_array(json_object(
+          'countryCode', country_code,
+          'displayName', display_name,
+          'defaultLocale', default_locale,
+          'defaultCurrency', default_currency,
+          'taxInclusive', tax_inclusive_default,
+          'checkoutEnabled', checkout_enabled,
+          'locales', locales
+        )) FROM (
+          SELECT sm.country_code,sm.display_name,sm.default_locale,
+            sm.default_currency,sm.tax_inclusive_default,sm.checkout_enabled,
+            (SELECT GROUP_CONCAT(ml2.locale,',')
+              FROM storefront_market_locales ml2
+              WHERE ml2.country_code=sm.country_code AND ml2.active=1) locales
+          FROM storefront_markets sm
+          WHERE sm.market_status='active' ORDER BY sm.display_name
+        )) available_markets_json
+        FROM storefront_markets m
+        LEFT JOIN storefront_market_locales ml
+          ON ml.country_code=m.country_code AND ml.active=1
+        LEFT JOIN storefront_locales l
+          ON l.locale=ml.locale AND l.status='active'
+        WHERE m.country_code=${chosenCountrySql} AND m.market_status='active'
+        ORDER BY ml.priority,l.locale`,
+      )
+      .bind(country, country),
+    // Prefetch the small, active latest-version translation registry so locale
+    // negotiation can occur after the SAME D1.batch call. Avoid repeated
+    // session round-trips for every incoming Accept-Language preference.
+    db.prepare(
+      `SELECT l.locale,l.fallback_locale,t.message_key,t.message_value
+      FROM storefront_locales l
+      LEFT JOIN ui_translation_bundles b ON b.id=(
+        SELECT id FROM ui_translation_bundles
+        WHERE locale=l.locale AND status='active'
+        ORDER BY version DESC LIMIT 1
+      )
+      LEFT JOIN ui_translation_messages t ON t.bundle_id=b.id
+      WHERE l.status='active'
+      ORDER BY l.locale,t.message_key`,
+    ),
+    db
+      .prepare(
+        `WITH market AS (
+          SELECT country_code,default_currency FROM storefront_markets
+          WHERE country_code=${chosenCountrySql} AND market_status='active'
+        )
+        SELECT pm.payment_method,pm.provider,pm.currency,pm.availability,pm.priority
+        FROM storefront_payment_methods pm JOIN market m
+          ON pm.country_code=m.country_code
+        WHERE pm.availability='available'
+          AND (pm.currency IS NULL OR pm.currency=m.default_currency)
+        ORDER BY pm.priority,pm.payment_method`,
+      )
+      .bind(country, country),
+    db
+      .prepare(
+        `SELECT * FROM storefront_pages WHERE path='/' AND status='published'
+        AND (territory_code IS NULL OR territory_code=?)
+        AND (starts_at IS NULL OR starts_at<=datetime('now'))
+        AND (ends_at IS NULL OR ends_at>datetime('now'))`,
+      )
+      .bind(country),
+  ])) as [
+    { results: any[] },
+    { results: { locale: string; fallback_locale: string | null; message_key: string | null; message_value: string | null }[] },
+    { results: { payment_method: string; provider: string; currency: string | null; availability: string; priority: number }[] },
+    { results: Record<string, unknown>[] },
+  ];
+  const selectedMarket = marketResult.results[0];
+  if (!selectedMarket)
+    throw new ApiError(503, "No active Cove storefront market is configured.");
+  const localeRows = marketResult.results
+    .filter((row) => row.active_locale)
+    .map((row) => ({
+      locale: row.active_locale,
+      language_code: row.active_language_code,
+      direction: row.active_direction,
+      priority: row.active_priority,
+    }));
+  const requestedLocales = parseAcceptLanguage(request.headers.get("accept-language") || "");
+  requestedLocales.push(String(selectedMarket.default_locale));
+  const loc = chooseSupportedLocale(localeRows, requestedLocales);
+  if (!loc) throw new ApiError(503, "This storefront has no active locale configured.");
+
+  const messagesByLocale = new Map<string, Record<string, string>>();
+  const fallbackLocales = new Map<string, string>();
+  for (const row of translationsResult.results) {
+    const key = String(row.locale).toLowerCase();
+    if (!messagesByLocale.has(key)) messagesByLocale.set(key, {});
+    if (row.message_key !== null)
+      messagesByLocale.get(key)![String(row.message_key)] = String(row.message_value);
+    if (row.fallback_locale) fallbackLocales.set(key, String(row.fallback_locale));
+  }
+  const chain = [String(loc.locale)];
+  const visited = new Set([chain[0].toLowerCase()]);
+  for (let depth = 0; depth < 4; depth++) {
+    const fallback = fallbackLocales.get(chain.at(-1)!.toLowerCase());
+    if (!fallback || visited.has(fallback.toLowerCase())) break;
+    visited.add(fallback.toLowerCase());
+    chain.push(fallback);
+  }
+  // Match messageStatement's precedence: en-US (if missing), then fallback
+  // locales farthest-first, then the chosen locale's active latest bundle.
+  if (!visited.has("en-us")) chain.push("en-US");
+  const messages: Record<string, string> = {};
+  for (const locale of [...chain].reverse())
+    Object.assign(messages, messagesByLocale.get(locale.toLowerCase()) || {});
+
+  const markets = JSON.parse(String(selectedMarket.available_markets_json || "[]")) as any[];
+  const availableMarkets = markets.map((row) => ({
+    countryCode: String(row.countryCode),
+    displayName: String(row.displayName),
+    defaultLocale: String(row.defaultLocale),
+    defaultCurrency: String(row.defaultCurrency),
+    taxInclusive: !!row.taxInclusive,
+    checkoutEnabled: !!row.checkoutEnabled,
+    locales: String(row.locales || "").split(",").filter(Boolean),
+  }));
+  const effectiveCountry = String(selectedMarket.country_code);
+  const currency = String(selectedMarket.default_currency).toUpperCase();
+  // With no published root page, this remains exactly one D1.batch request.
+  // With a published page, preserve the legacy exact locale-dependent query.
+  let homepagePageRow: Record<string, unknown> | null = null;
+  if (pageResult.results.length)
+    homepagePageRow = await db
+      .prepare(
+        `SELECT * FROM storefront_pages WHERE path='/' AND status='published'
+        AND (territory_code IS NULL OR territory_code=?)
+        AND (language_code IS NULL OR lower(language_code)=lower(?))
+        AND (starts_at IS NULL OR starts_at<=datetime('now'))
+        AND (ends_at IS NULL OR ends_at>datetime('now')) LIMIT 1`,
+      )
+      .bind(country, String(loc.language_code))
+      .first<Record<string, unknown>>();
+
+  return {
+    storefrontCountry: effectiveCountry,
+    rightsCountry: country,
+    networkCountry: network.source === "network" ? country : null,
+    locale: String(loc.locale),
+    language: String(loc.language_code),
+    currency,
+    direction: String(loc.direction) === "rtl" ? "rtl" : "ltr",
+    taxInclusive: !!selectedMarket.tax_inclusive_default,
+    recommendationRegion: String(selectedMarket.recommendation_region || "global"),
+    merchandisingRegion: String(selectedMarket.merchandising_region || "global"),
+    checkoutEnabled: !!selectedMarket.checkout_enabled,
+    source: {
+      country: effectiveCountry === country ? network.source : "default",
+      locale: "negotiated",
+      currency: "market",
+    },
+    paymentMethods: paymentResult.results.map((m) => ({
+      paymentMethod: String(m.payment_method),
+      provider: String(m.provider),
+      currency: m.currency ? String(m.currency) : null,
+      availability: String(m.availability),
+      priority: Number(m.priority || 100),
+    })),
+    messages,
+    uiMessages: selectedUiCatalog(String(loc.locale)),
+    requestedCountry: null,
+    availableMarkets,
+    homepagePageRow,
+  };
+}
+
 export async function saveStorefrontPreferences(
   db: StorefrontDB,
   userId: string | null,
