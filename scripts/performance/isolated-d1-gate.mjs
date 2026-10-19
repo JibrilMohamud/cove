@@ -28,10 +28,7 @@ export function isolatedD1Config(template, role, workerName, namespace) {
     .replace(/^name = "cove-storefront-ssr-staging"$/m, `name = "${workerName}"`)
     .replace(/^namespace_id = "731903"$/m, `namespace_id = "${namespace}"`)
     .replace(/^database_name = "cove-production"$/m, `database_name = "${db.name}"`)
-    .replace(
-      /^database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"$/m,
-      `database_id = "${db.id}"`,
-    );
+    .replace(/^database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"$/m, `database_id = "${db.id}"`);
   assert.doesNotMatch(replaced, new RegExp(PRODUCTION_D1_ID, "i"));
   assert.doesNotMatch(replaced, /^database_name = "cove-production"$/m);
   assert.match(replaced, new RegExp(`^database_id = "${db.id}"$`, "m"));
@@ -62,9 +59,17 @@ export async function verifySyntheticD1(dbId, api, { minDocuments = 40000 } = {}
   const data = response.results?.[0];
   assert.ok(data, "Synthetic D1 readiness row missing");
   for (const key of [
-    "documents","active_grants","revoked_grants","denied_grants",
-    "active_products","live_us","live_ca","synthetic_documents","nonsynthetic_products",
-  ]) assert.ok(Number.isSafeInteger(Number(data[key])), "Invalid synthetic fixture metric "+key);
+    "documents",
+    "active_grants",
+    "revoked_grants",
+    "denied_grants",
+    "active_products",
+    "live_us",
+    "live_ca",
+    "synthetic_documents",
+    "nonsynthetic_products",
+  ])
+    assert.ok(Number.isSafeInteger(Number(data[key])), "Invalid synthetic fixture metric " + key);
   assert.ok(data.documents >= minDocuments, "Synthetic catalog is not representative");
   assert.equal(data.synthetic_documents, data.documents, "Non-synthetic catalog detected");
   assert.equal(data.nonsynthetic_products, 0, "Live/private products detected");

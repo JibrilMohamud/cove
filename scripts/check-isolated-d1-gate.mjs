@@ -20,28 +20,32 @@ database_id = "${PRODUCTION_D1_ID}"
 [vars]
 COVE_SSR_STAGING = "1"`;
 for (const [role, id] of Object.entries(PERFORMANCE_D1)) {
-  const name = role === "baseline"
-    ? "cove-lazyfacet-control-staging"
-    : "cove-lazyfacet-candidate-staging";
+  const name =
+    role === "baseline" ? "cove-lazyfacet-control-staging" : "cove-lazyfacet-candidate-staging";
   const body = isolatedD1Config(template, role, name, role === "baseline" ? "732010" : "732011");
   assert.ok(body.includes('database_id = "' + id.id + '"'));
   assert.ok(body.includes('database_name = "' + id.name + '"'));
   assert.ok(!body.includes(PRODUCTION_D1_ID));
   assert.ok(!body.includes('database_name = "cove-production"'));
-  assert.ok(!body.includes('[placement]'));
+  assert.ok(!body.includes("[placement]"));
   assert.ok(body.includes('COVE_SSR_STAGING = "1"'));
 }
 assert.notEqual(PERFORMANCE_D1.baseline.id, PERFORMANCE_D1.current.id);
 for (const [templateOverride, role, name] of [
-  [template.replace('COVE_SSR_STAGING = "1"', 'COVE_SSR_STAGING = "0"'), "baseline", "cove-lazyfacet-control-staging"],
-  [template.replace(PRODUCTION_D1_ID, PERFORMANCE_D1.baseline.id), "baseline", "cove-lazyfacet-control-staging"],
+  [
+    template.replace('COVE_SSR_STAGING = "1"', 'COVE_SSR_STAGING = "0"'),
+    "baseline",
+    "cove-lazyfacet-control-staging",
+  ],
+  [
+    template.replace(PRODUCTION_D1_ID, PERFORMANCE_D1.baseline.id),
+    "baseline",
+    "cove-lazyfacet-control-staging",
+  ],
   [template, "unknown", "cove-lazyfacet-control-staging"],
   [template, "baseline", "cove-production"],
 ]) {
-  assert.throws(
-    () => isolatedD1Config(templateOverride, role, name, "732010"),
-    /./,
-  );
+  assert.throws(() => isolatedD1Config(templateOverride, role, name, "732010"), /./);
 }
 const valid = {
   documents: 50000,
@@ -71,14 +75,16 @@ for (const modification of [
   { synthetic_documents: 49999 },
 ]) {
   await assert.rejects(
-    verifySyntheticD1(
-      PERFORMANCE_D1.baseline.id,
-      async () => ({ success: true, results: [{ ...valid, ...modification }] }),
-    ),
+    verifySyntheticD1(PERFORMANCE_D1.baseline.id, async () => ({
+      success: true,
+      results: [{ ...valid, ...modification }],
+    })),
   );
 }
 await assert.rejects(verifySyntheticD1(PRODUCTION_D1_ID, probe));
 await assert.rejects(
   verifySyntheticD1(PERFORMANCE_D1.baseline.id, async () => ({ success: false, results: [valid] })),
 );
-console.log("PASS: paired stages cannot bind primary production D1 or accept missing/mixed/rightsless synthetic fixtures");
+console.log(
+  "PASS: paired stages cannot bind primary production D1 or accept missing/mixed/rightsless synthetic fixtures",
+);

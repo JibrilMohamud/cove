@@ -77,7 +77,11 @@ async function assertSyntheticReadiness() {
   };
   const control = await verifySyntheticD1(PERFORMANCE_D1.baseline.id, query);
   const candidate = await verifySyntheticD1(PERFORMANCE_D1.current.id, query);
-  assert.deepEqual(candidate, control, "Benchmark cohorts must use identical synthetic fixture inventories");
+  assert.deepEqual(
+    candidate,
+    control,
+    "Benchmark cohorts must use identical synthetic fixture inventories",
+  );
   return { control, candidate, syntheticOnly: true };
 }
 function artifact(name) {
@@ -258,7 +262,8 @@ async function main() {
   const manifest = {
     revision,
     placement: "same-ingress-edge",
-    config: "identical protected staging config, entirely synthetic isolated D1 (production D1 prohibited)",
+    config:
+      "identical protected staging config, entirely synthetic isolated D1 (production D1 prohibited)",
     syntheticFixture,
     orderedTrials: [],
     outcomes: [],
@@ -353,7 +358,7 @@ async function main() {
     interval.sql = await d1Snapshot(
       interval.since,
       interval.until,
-      cohorts[interval.name.includes('-baseline') ? 'baseline' : 'current'].databaseId,
+      cohorts[interval.name.includes("-baseline") ? "baseline" : "current"].databaseId,
     );
     if (Array.isArray(interval.sql) && !interval.sql.length)
       interval.sql = { warning: "Analytics unavailable or not yet ingested; NOT zero D1 activity" };
