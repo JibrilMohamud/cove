@@ -6,6 +6,7 @@ import {
   type CoveRequestExecution,
 } from "./lib/cove-request-env.server";
 import { isolateWorkerCountry } from "./lib/cloudflare-country.server";
+import { canRunAnonymousHomepageBootstrap } from "./features/fore/anonymous-bootstrap-eligibility.server";
 import { resolveNativeWorkerBindings } from "./lib/cloudflare-native-bindings.server";
 import {
   isStagingStaticAsset,
@@ -195,6 +196,34 @@ export default {
         routedInit.duplex = "half";
       }
       const routedRequest = new Request(request.url, routedInit);
+      // The SSR framework's cold dynamic import and the anonymous storefront's
+      // live D1 bootstrap are independent. Start both without serializing them.
+      // Never prestart for signed-in visitors, filtered pages, untrusted country,
+      // missing rate limiter, or Vercel: the established loader handles those.
+      const mayPrestartAnonymousBootstrap = canRunAnonymousHomepageBootstrap(
+        routedRequest,
+        runtimeEnv,
+        "/",
+      );
+      let prefetchedBootstrap: Promise<Response> | undefined;
+      if (mayPrestartAnonymousBootstrap) {
+        const source = new Request(new URL("/api/fore/storefront/bootstrap", routedRequest.url), {
+          headers: routedRequest.headers,
+          signal: routedRequest.signal,
+        });
+        prefetchedBootstrap = import("./features/fore/storefront-anonymous-bootstrap.server").then(
+          ({ canUseLeanAnonymousBootstrap, serveLeanAnonymousBootstrap }) => {
+            const verifiedEnv = runtimeEnv as Parameters<typeof serveLeanAnonymousBootstrap>[1];
+            if (!canUseLeanAnonymousBootstrap(source, verifiedEnv))
+              throw new Error("Anonymous preflight authorization mismatch");
+            return serveLeanAnonymousBootstrap(source, verifiedEnv);
+          },
+        );
+        // SSR may fail or reject before consuming its preflight. Keep the
+        // preflight's rejection visible to the authorized loader, but prevent
+        // an unhandled rejection when the framework never gets to that loader.
+        void prefetchedBootstrap.catch(() => {});
+      }
       const entryStarted = performance.now();
       const handler = await getServerEntry();
       const entryDurationMs = performance.now() - entryStarted;
@@ -203,6 +232,7 @@ export default {
         runtimeEnv,
         () => handler.fetch(routedRequest, runtimeEnv, ctx),
         execution,
+        prefetchedBootstrap,
       );
       const renderDurationMs = performance.now() - renderStarted;
       const secured = applySecurityHeaders(

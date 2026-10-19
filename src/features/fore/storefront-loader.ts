@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   currentCoveRequestEnvironment,
   currentCoveRequestExecutionContext,
+  currentCoveRequestAnonymousBootstrap,
 } from "@/lib/cove-request-env.server";
 import { hedgedStorefrontBootstrap } from "./storefront-hedged-fetch";
 
@@ -24,6 +25,7 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
     const localEnvironment = currentCoveRequestEnvironment();
     const localDatabase = localEnvironment?.DB as { prepare?: unknown } | undefined;
     const localRightsAuthority = typeof localDatabase?.prepare === "function";
+    let usedRequestLocalPrestart = false;
     const primary = async (forwarded: Request): Promise<Response> => {
       if (localRightsAuthority) {
         // A public, cookie-free Worker homepage can use the much smaller
@@ -44,11 +46,21 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
               forwarded,
               localEnvironment as Parameters<typeof canUseLeanAnonymousBootstrap>[1],
             )
-          )
-            return serveLeanAnonymousBootstrap(
-              forwarded,
-              localEnvironment as Parameters<typeof serveLeanAnonymousBootstrap>[1],
+          ) {
+            // The entrypoint may start this same live primary-rights bootstrap
+            // while the SSR framework loads. Reuse it only inside the exact
+            // request-local scope and only AFTER the same anonymous guard.
+            // No HTML/book IDs are returned until validation completes.
+            const early = currentCoveRequestAnonymousBootstrap();
+            if (early) usedRequestLocalPrestart = true;
+            return (
+              early ??
+              serveLeanAnonymousBootstrap(
+                forwarded,
+                localEnvironment as Parameters<typeof serveLeanAnonymousBootstrap>[1],
+              )
             );
+          }
         }
         // Cloudflare SSR and the live rights database share one Worker invocation.
         // Authenticated and fallback paths always retain their full adapter.
@@ -112,6 +124,7 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
     });
     const timing = [`cove_ssr_bootstrap;dur=${(performance.now() - started).toFixed(1)}`];
     if (localRightsAuthority) timing.push("cove_ssr_local_rights;dur=0");
+    if (usedRequestLocalPrestart) timing.push("cove_ssr_prestarted;dur=0");
     if (phase.primaryFailureMs !== null)
       timing.push(`cove_ssr_primary_failure;dur=${phase.primaryFailureMs.toFixed(1)}`);
     if (phase.alternateMs !== null) {

@@ -98,6 +98,13 @@ async function fetchOne(concurrency) {
       /cove_ssr_local_rights;dur=0(?:\.0)?(?:,|$)/,
       "Must query live primary D1 territorial rights; no cached rights/fallback",
     );
+    if (process.env.COVE_EXPECT_PRESTART === "1") {
+      assert.match(
+        response.headers.get("server-timing") || "",
+        /cove_ssr_prestarted;dur=0(?:\.0)?(?:,|$)/,
+        "All anonymous concurrent SSR requests must consume the prestarted rights read",
+      );
+    }
     const timing = safeProbeTelemetry(response.headers, ttfbMs, totalMs);
     const workerMs = workerDuration(response.headers);
     const clientQueueMs = elapsed(span.sentAt, span.createdAt);

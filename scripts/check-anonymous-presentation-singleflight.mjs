@@ -83,7 +83,12 @@ const bootstrap = fs.readFileSync(
   "utf8",
 );
 assert.match(bootstrap, /canUseLeanAnonymousBootstrap\(request, env\)/);
-assert.match(bootstrap, /request\.headers\.has\(header\)/);
+const eligibility = fs.readFileSync(
+  "src/features/fore/anonymous-bootstrap-eligibility.server.ts",
+  "utf8",
+);
+assert.match(bootstrap, /canRunAnonymousHomepageBootstrap\(request, env,/);
+assert.match(eligibility, /request\.headers\.has\(name\)/);
 assert.match(bootstrap, /pendingAnonymousPresentation\(presentationKey/);
 assert.match(bootstrap, /firstPaintStorefrontShelf\(env, null, trustedCountry, d1Metrics\)/);
 assert.match(bootstrap, /Promise\.all\(\[/);
