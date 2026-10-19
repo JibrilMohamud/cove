@@ -53,9 +53,15 @@ try {
         });
       }
       await page.addInitScript(() => {
-        window.__covePaint = { lcp: null };
+        window.__covePaint = { lcp: null, kind: null, loadMs: null, renderMs: null, size: null };
         new PerformanceObserver((list) => {
-          for (const entry of list.getEntries()) window.__covePaint.lcp = entry.startTime;
+          for (const entry of list.getEntries()) {
+            window.__covePaint.lcp = entry.startTime;
+            window.__covePaint.kind = entry.element?.tagName === "IMG" ? "image" : "text";
+            window.__covePaint.loadMs = entry.loadTime || null;
+            window.__covePaint.renderMs = entry.renderTime || null;
+            window.__covePaint.size = entry.size || null;
+          }
         }).observe({ type: "largest-contentful-paint", buffered: true });
       });
       let failure = null;
@@ -66,6 +72,19 @@ try {
       let consoleErrors = 0;
       let failedScriptRequests = 0;
       let failedStylesheetRequests = 0;
+      // Fixed allowlist of endpoint classes; no visitor IDs, URLs, tokens or
+      // search terms appear in diagnostics. Distinguish hydration's optional
+      // D1 work from the initial mandatory first-paint rights request.
+      const backgroundRequests = { catalog: 0, taxonomy: 0, merchandising: 0, recommendations: 0 };
+      page.on("request", (request) => {
+        const uri = new URL(request.url());
+        if (uri.origin !== origin) return;
+        const path = uri.pathname;
+        if (path === "/api/fore/catalog") backgroundRequests.catalog++;
+        else if (path === "/api/fore/taxonomy") backgroundRequests.taxonomy++;
+        else if (path === "/api/fore/merchandising") backgroundRequests.merchandising++;
+        else if (path === "/api/fore/recommendations/home") backgroundRequests.recommendations++;
+      });
       const scripts = {
         ok: 0,
         redirects: 0,
@@ -132,6 +151,13 @@ try {
           return {
             ttfbMs: nav?.responseStart ?? null,
             lcpMs: window.__covePaint?.lcp ?? null,
+            lcpKind: window.__covePaint?.kind ?? null,
+            lcpLoadMs: window.__covePaint?.loadMs ?? null,
+            lcpRenderMs: window.__covePaint?.renderMs ?? null,
+            lcpSize: window.__covePaint?.size ?? null,
+            fcpMs: performance.getEntriesByName("first-contentful-paint")[0]?.startTime ?? null,
+            responseEndMs: nav?.responseEnd ?? null,
+            loadEventEndMs: nav?.loadEventEnd ?? null,
             cards: document.querySelectorAll(".book-card").length,
             hydrated: document.documentElement.dataset.coveClientReady === "true",
             scriptTags: document.querySelectorAll("script[src]").length,
@@ -163,6 +189,7 @@ try {
         failedScriptRequests,
         failedStylesheetRequests,
         scripts,
+        backgroundRequests,
         interceptionErrors,
         ...responseTelemetry,
         ...metrics,
