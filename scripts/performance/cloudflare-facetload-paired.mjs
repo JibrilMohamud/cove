@@ -476,15 +476,14 @@ async function main() {
       return !!wave && wave.valid === wave.count && wave.maxTtfbMs < 800;
     }),
     mobileLcpP75Under2200:
-      !!mobileLcp && mobileLcp.pass && Number.isFinite(mobileLcp.lcpP75Ms) &&
+      !!mobileLcp &&
+      mobileLcp.pass &&
+      Number.isFinite(mobileLcp.lcpP75Ms) &&
       mobileLcp.lcpP75Ms <= 2200,
     geographicallyComparable: manifest.comparison.matchedColos,
-    actualFacetLoadPassed: manifest.outcomes
-      .filter((v) => v.name.startsWith("mixed-facets-"))
-      .length === 2 &&
-      manifest.outcomes
-        .filter((v) => v.name.startsWith("mixed-facets-"))
-        .every((v) => v.pass),
+    actualFacetLoadPassed:
+      manifest.outcomes.filter((v) => v.name.startsWith("mixed-facets-")).length === 2 &&
+      manifest.outcomes.filter((v) => v.name.startsWith("mixed-facets-")).every((v) => v.pass),
   };
   const gate = manifest.comparison.commercialHeadroom;
   manifest.comparison.commercialHeadroomPassed = Object.entries(gate)
