@@ -9,7 +9,7 @@ import { performance } from "node:perf_hooks";
 import { PERFORMANCE_D1, isolatedD1Config, verifySyntheticD1 } from "./isolated-d1-gate.mjs";
 
 const root = process.cwd();
-const baselineSha = "6d197e48b7255eb02e689674575287dba54a37a5";
+const baselineSha = "8a5353e78b228b4c7f8672e4ec3310c01d569401";
 const candidateSha = process.env.COVE_RECOVERY_CANDIDATE_SHA;
 assert.match(candidateSha || "", /^[a-f0-9]{40}$/);
 const configName = "wrangler.paired.toml";
@@ -49,7 +49,12 @@ function prepareConfigs() {
   for (const [role, cohort] of Object.entries(cohorts)) {
     const namespace = role === "baseline" ? "732010" : "732011";
     const config = isolatedD1Config(template, role, cohort.name, namespace);
-    fs.writeFileSync(path.join(cohort.dir, configName), config);
+    // Only the synthetic candidate opts in. The isolated control remains
+    // the exact previous revision and its unchanged primary-only query path.
+    // The allowlist above replaces all production bindings BEFORE this flag.
+    const trialConfig =
+      role === "current" ? config + '\nFORE_DISCOVERY_READ_REPLICAS = "1"\n' : config;
+    fs.writeFileSync(path.join(cohort.dir, configName), trialConfig);
     // This exact SHA cohort may read only its own wholly synthetic database.
     cohort.databaseId = PERFORMANCE_D1[role].id;
   }
@@ -128,7 +133,7 @@ function benchScript(label, cohort, script, outputName, run) {
     COVE_SSR_STAGING_GATE_KEY: cohort.key,
     COVE_EXPECT_PRESTART: "0",
     COVE_EXPECT_DISCOVERY_DEFER: "1",
-    COVE_EXPECT_CATALOG_DEFER: cohort.name.includes("candidate") ? "1" : "0",
+    COVE_EXPECT_CATALOG_DEFER: "1",
     // Keep timestamp of secret change numeric only, not a token.
     COVE_STAGE_SECRET_ROTATION_EPOCH_MS: String(cohort.rotatedAt),
   };
