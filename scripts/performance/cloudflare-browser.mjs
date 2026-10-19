@@ -196,6 +196,21 @@ try {
           failurePhase = "auth-dialog";
         }
       }
+      // An otherwise unopened drawer must remain absent from cold SSR, but
+      // still load and navigate correctly after a deliberate mobile tap.
+      let mobileNavOk = null;
+      if (profile === "mobile-4g" && sample === 1 && !failure) {
+        mobileNavOk = false;
+        try {
+          await page.locator(".topbar button.mobile-only").first().click();
+          await page.locator(".mobile-sidebar .main-nav").first().waitFor({ timeout: 12000 });
+          mobileNavOk = true;
+          await page.keyboard.press("Escape");
+        } catch {
+          failure = "Mobile navigation did not load after deliberate tap";
+          failurePhase = "mobile-navigation";
+        }
+      }
       rows.push({
         profile,
         sample,
@@ -208,6 +223,7 @@ try {
         failedStylesheetRequests,
         scripts,
         authDialogOk,
+        mobileNavOk,
         backgroundRequests,
         interceptionErrors,
         ...responseTelemetry,
