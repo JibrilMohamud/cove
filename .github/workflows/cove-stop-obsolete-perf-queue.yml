@@ -1,0 +1,60 @@
+name: cove-stop-obsolete-perf-queue
+on:
+  push:
+    branches: [ops/stop-obsolete-perf-queue-20261019]
+    paths: [".github/workflows/cove-stop-obsolete-perf-queue.yml"]
+permissions:
+  contents: read
+  actions: write
+jobs:
+  stop-exact-obsolete-runs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: Stop only two explicitly superseded isolated performance runs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          if (process.env.GITHUB_REPOSITORY !== 'JibrilMohamud/cove') throw Error('Repository mismatch');
+          const targets = [
+            { id:39202488961, sha:'9e0f07018dd13219bfe5fe800db2b8d53f25a9a0' },
+            { id:39202525018, sha:'a4c277c489af0d59023c3be823eed4f35ac714a9' }
+          ];
+          const headers = {Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};
+          const api='https://api.github.com/repos/JibrilMohamud/cove/actions/runs/';
+          const evidence={reason:'Obsolete duplicate queue overlaps the current protected performance campaign under a different concurrency group',targets:[]};
+          const read=async id => {const r=await fetch(api+id,{headers});if(!r.ok)throw Error('Run read failed '+r.status);return r.json()};
+          for(const target of targets) {
+            const run=await read(target.id);
+            if(run.name!=='cloudflare-facetload-paired'||run.head_sha!==target.sha||run.head_branch!=='perf/clean-overlap-with-facet-replica-20261019'||run.event!=='push')throw Error('Immutable run allowlist mismatch');
+            const item={id:target.id,sha:target.sha,before:run.status,beforeConclusion:run.conclusion};
+            evidence.targets.push(item);
+            if(['in_progress','queued','pending','waiting','requested'].includes(run.status)){
+              const r=await fetch(api+target.id+'/cancel',{method:'POST',headers});
+              if(![202,409].includes(r.status))throw Error('Cancel rejected '+r.status);
+              item.cancelStatus=r.status;
+            }
+          }
+          for(let attempt=0;attempt<12;attempt++){
+            let done=true;
+            for(const item of evidence.targets){const run=await read(item.id);item.after=run.status;item.conclusion=run.conclusion;done&&=run.status==='completed'}
+            if(done)break;
+            await new Promise(resolve=>setTimeout(resolve,5000));
+          }
+          evidence.finishedAt=new Date().toISOString();
+          fs.writeFileSync('obsolete-perf-queue-cleanup.json',JSON.stringify(evidence,null,2)+'\n');
+          console.log(JSON.stringify(evidence,null,2));
+          if(evidence.targets.some(item=>item.after!=='completed'))throw Error('Obsolete run is still active; current campaign must not claim isolation');
+          JS
+      - name: Preserve exact queue operation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: obsolete-perf-queue-cleanup
+          path: obsolete-perf-queue-cleanup.json
+          retention-days: 30
