@@ -28,7 +28,9 @@ assert.equal(initial.status, 200);
 assert.match(initial.headers.get("content-type") || "", /application\/json/);
 const start = await initial.json();
 assert.ok(Array.isArray(start.catalog?.results) && start.catalog.results.length >= 3);
-const ids = [...new Set(start.catalog.results.map((r) => String(r.productId || "")).filter(Boolean))].slice(0, 3);
+const ids = [
+  ...new Set(start.catalog.results.map((r) => String(r.productId || "")).filter(Boolean)),
+].slice(0, 3);
 assert.equal(ids.length, 3, "Must test exactly three distinct rights-cleared products");
 const cohortProductsSha256 = createHash("sha256").update(ids.join(",")).digest("hex");
 const waves = [
@@ -45,7 +47,10 @@ async function probe(kind, concurrency) {
   const url =
     kind === "home"
       ? origin + "/"
-      : origin + "/api/fore/products/" + encodeURIComponent(ids[(seq - 1) % ids.length]) + "/detail";
+      : origin +
+        "/api/fore/products/" +
+        encodeURIComponent(ids[(seq - 1) % ids.length]) +
+        "/detail";
   let status = 0;
   let colo = "unknown";
   try {
