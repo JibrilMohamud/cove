@@ -178,7 +178,7 @@ jobs:
           node scripts/check-storefront-hedged.mjs
       - name: Build Cloudflare-native frontend
         run: npm run build
-      - name: Inspect cold-start ESM module graph (no runtime changes)
+      - name: Inspect static and nested dynamic SSR module graph (no runtime changes)
         run: node scripts/performance/inspect-cloudflare-entry-imports.mjs
       - name: Archive cold-start import closure evidence
         if: always()
