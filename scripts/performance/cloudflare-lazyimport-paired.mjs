@@ -465,14 +465,30 @@ async function main() {
           trial.maxTtfbMs <= 700,
       ),
     allFirst1to16Max700P95600: [1, 4, 8, 16].every((level) =>
-      hasHeadroom(waves.find((x) => x.concurrency === level), 700, 600),
+      hasHeadroom(
+        waves.find((x) => x.concurrency === level),
+        700,
+        600,
+      ),
     ),
     allRepeat1to16Max700P95600: [1, 4, 8, 16].every((level) =>
-      hasHeadroom(repeated.find((x) => x.concurrency === level), 700, 600),
+      hasHeadroom(
+        repeated.find((x) => x.concurrency === level),
+        700,
+        600,
+      ),
     ),
     both32MaxUnder800:
-      hasHeadroom(waves.find((x) => x.concurrency === 32), 799, 650) &&
-      hasHeadroom(repeated.find((x) => x.concurrency === 32), 799, 650),
+      hasHeadroom(
+        waves.find((x) => x.concurrency === 32),
+        799,
+        650,
+      ) &&
+      hasHeadroom(
+        repeated.find((x) => x.concurrency === 32),
+        799,
+        650,
+      ),
     mobileP75LcpUnder2200:
       !!p75Mobile &&
       p75Mobile.pass &&
