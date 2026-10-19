@@ -660,6 +660,22 @@ function facetCacheIdentity(input: SearchInput, expression: string) {
   return { ...filters, page: 1, limit: 1, expression };
 }
 
+/**
+ * Facet counts are presentation-only, never licenses or book IDs. Keep the
+ * primary D1 binding for page selection and cache maintenance; on a cache
+ * miss, execute ONLY the numerical aggregation in a fresh unconstrained
+ * D1 session, allowing Cloudflare to place the read on a replica.
+ * Fallback to the existing binding when replication is unavailable.
+ */
+function presentationFacetReadDb(db: CatalogDB): CatalogDB {
+  const replicaCapable = db as CatalogDB & {
+    withSession?: (consistency: "first-unconstrained") => CatalogDB;
+  };
+  return typeof replicaCapable.withSession === "function"
+    ? replicaCapable.withSession("first-unconstrained")
+    : db;
+}
+
 async function d1Facets(
   db: CatalogDB,
   input: SearchInput,
@@ -713,6 +729,7 @@ async function d1Facets(
   const baseCte = `${base.prefix}${base.prefix ? "," : "WITH "}candidate AS (SELECT d.product_id,e.id edition_id,p.format,pub.name publisher_name,d.currency,d.price_minor,d.availability FROM ${base.from} WHERE ${baseClause})`;
   // With no active facet filters (including the home page), all seven facets
   // have the same candidate set. Materialize its expensive rights scan once.
+  const facetReadDb = presentationFacetReadDb(db);
   const commonCandidates = [
     categoryCandidate,
     languageCandidate,
@@ -724,7 +741,7 @@ async function d1Facets(
     (part) => part.cte === baseCte && JSON.stringify(part.binds) === JSON.stringify(base.binds),
   );
   const shared = commonCandidates
-    ? await db
+    ? await facetReadDb
         .prepare(
           `${baseCte.replace("candidate AS (", "candidate AS MATERIALIZED (")}
     SELECT
@@ -771,43 +788,43 @@ async function d1Facets(
         },
       ]
     : await Promise.all([
-        db
+        facetReadDb
           .prepare(
             `${categoryCandidate.cte} SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name LIMIT 40`,
           )
           .bind(...categoryCandidate.binds)
           .all<any>(),
-        db
+        facetReadDb
           .prepare(
             `${languageCandidate.cte} SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code LIMIT 30`,
           )
           .bind(...languageCandidate.binds)
           .all<any>(),
-        db
+        facetReadDb
           .prepare(
             `${formatCandidate.cte} SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value LIMIT 20`,
           )
           .bind(...formatCandidate.binds)
           .all<any>(),
-        db
+        facetReadDb
           .prepare(
             `${publisherCandidate.cte} SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name LIMIT 30`,
           )
           .bind(...publisherCandidate.binds)
           .all<any>(),
-        db
+        facetReadDb
           .prepare(
             `${seriesCandidate.cte} SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name LIMIT 30`,
           )
           .bind(...seriesCandidate.binds)
           .all<any>(),
-        db
+        facetReadDb
           .prepare(
             `${baseCte} SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value LIMIT 10`,
           )
           .bind(...base.binds)
           .all<any>(),
-        db
+        facetReadDb
           .prepare(
             `${priceCandidate.cte} SELECT MIN(price_minor) min_price,MAX(price_minor) max_price,MAX(currency) currency FROM candidate`,
           )
