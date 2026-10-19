@@ -13,7 +13,7 @@ permissions:
 concurrency:
   # Do NOT overlap the existing protected stage's secret rotation or another
   # paired test. Two additional scripts, NEVER the production Worker.
-  group: cove-homepage-paired
+  group: cove-literary-paired
   cancel-in-progress: false
 
 jobs:
