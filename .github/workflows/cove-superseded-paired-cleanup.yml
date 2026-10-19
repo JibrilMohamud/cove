@@ -43,11 +43,13 @@ jobs:
           const allowedNames = new Set(["cloudflare-integrated-paired", "cloudflare-supabase-paired"]);
           const canceled = [];
           for (const branch of branches) {
-            const url = api + "/actions/runs?branch=" + encodeURIComponent(branch) + "&per_page=100";
-            const response = await fetch(url, { headers });
-            if (!response.ok) throw Error("GitHub Actions listing failed: " + response.status);
-            const { workflow_runs: runs } = await response.json();
-            for (const run of runs) {
+            for (let page = 1; page <= 6; page++) {
+              const url = api + "/actions/runs?branch=" + encodeURIComponent(branch) +
+                "&per_page=100&page=" + page;
+              const response = await fetch(url, { headers });
+              if (!response.ok) throw Error("GitHub Actions listing failed: " + response.status);
+              const { workflow_runs: runs } = await response.json();
+              for (const run of runs) {
               if (!allowedNames.has(run.name) || run.head_branch !== branch || run.head_sha === sha)
                 continue;
               if (!["queued", "pending", "waiting", "requested"].includes(run.status))
@@ -59,7 +61,9 @@ jobs:
               if (![202, 409].includes(cancel.status))
                 throw Error("Failed to stop superseded queued benchmark " + run.id +
                   ", status " + cancel.status);
-              canceled.push({ run_id: run.id, branch, status: cancel.status });
+                canceled.push({ run_id: run.id, branch, status: cancel.status });
+              }
+              if (runs.length < 100) break;
             }
           }
           process.stdout.write(JSON.stringify({
