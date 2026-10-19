@@ -11,9 +11,11 @@ permissions:
   contents: read
 
 concurrency:
-  # Do NOT overlap the existing protected stage's secret rotation or another
-  # paired test. Two additional scripts, NEVER the production Worker.
-  group: cove-literary-paired
+  # Dedicated strict cold-start experiment. Distinct temporary Worker names,
+  # credentials, and rate-limit namespaces; never changes the existing stage
+  # secret or production routing. Record external D1 contention in evidence.
+  # Only one clean-overlap experiment may run at once.
+  group: cove-cleanoverlap-recovery-20261019
   queue: max
   cancel-in-progress: false
 
