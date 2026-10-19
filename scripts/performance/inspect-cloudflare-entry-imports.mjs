@@ -167,6 +167,13 @@ for (const entrypoint of dynamicEntrypoints) {
     secondLevel.push({ importedFrom: entrypoint.imported, imported, staticClosure: closure });
   }
 }
+const thirdLevel = [];
+for (const parent of secondLevel) {
+  for (const imported of parent.staticClosure.nestedDynamic) {
+    const closure = scanStaticClosure(path.join(root, imported));
+    thirdLevel.push({ importedFrom: parent.imported, imported, staticClosure: closure });
+  }
+}
 const staticBytes = detail.reduce((n, d) => n + d.bytes, 0);
 const allBytes = allFiles.reduce((n, file) => n + fs.statSync(file).size, 0);
 const report = {
@@ -185,6 +192,7 @@ const report = {
   heaviestStaticModules: detail.sort((a, b) => b.bytes - a.bytes).slice(0, 25),
   dynamicEntrypoints,
   secondLevel,
+  thirdLevel,
 };
 fs.mkdirSync("artifacts", { recursive: true });
 fs.writeFileSync("artifacts/cloudflare-entry-import-graph.json", JSON.stringify(report, null, 2));
