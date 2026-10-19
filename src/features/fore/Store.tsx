@@ -1154,6 +1154,20 @@ export function StorePage({
   if (publishedAfter) params.set("publishedAfter", publishedAfter);
   if (publishedBefore) params.set("publishedBefore", publishedBefore);
 
+  // SSR already supplied a freshly licensed, currency/territory-checked
+  // first shelf. The unauthenticated, unfiltered homepage must not immediately
+  // trigger a 50k-book COUNT + eight expensive presentation-only facets just
+  // because the SSR result is intentionally marked "preview". Fetch those
+  // dynamic counts when the reader actually opens a data-backed filter.
+  // Account, filtered/search, route presets and pages 2+ retain live queries;
+  // purchase/download/reader rights ALWAYS recheck the primary database.
+  const [catalogFacetsRequested, setCatalogFacetsRequested] = useState(false);
+  const anonymousLicensedPreview =
+    !data.user &&
+    ["/", "/store"].includes(landingPath) &&
+    matchingInitial?.catalog.preview === true &&
+    matchingInitial.catalogQuery === params.toString();
+  const requestCatalogFacets = () => setCatalogFacetsRequested(true);
   const result = useQuery<CatalogResponse>({
     queryKey: [
       "catalog",
@@ -1164,6 +1178,7 @@ export function StorePage({
       data.user?.id || "guest",
     ],
     queryFn: ({ signal }) => api("/catalog?" + params, "GET", undefined, { signal }),
+    enabled: !anonymousLicensedPreview || catalogFacetsRequested,
     staleTime: 5 * 60_000,
     gcTime: typeof window === "undefined" ? Infinity : 60 * 60_000,
     refetchOnWindowFocus: false,
@@ -1547,7 +1562,11 @@ export function StorePage({
               value={language}
               onValueChange={(v) => setFilter("language", v === "all" ? null : v)}
             >
-              <SelectTrigger aria-label="Book language">
+              <SelectTrigger
+                aria-label="Book language"
+                onPointerDown={requestCatalogFacets}
+                onFocus={requestCatalogFacets}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1563,7 +1582,11 @@ export function StorePage({
               value={format}
               onValueChange={(v) => setFilter("format", v === "all" ? null : v)}
             >
-              <SelectTrigger aria-label="Book format">
+              <SelectTrigger
+                aria-label="Book format"
+                onPointerDown={requestCatalogFacets}
+                onFocus={requestCatalogFacets}
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1623,7 +1646,11 @@ export function StorePage({
           value={publisher}
           onValueChange={(v) => setFilter("publisher", v === "all" ? null : v)}
         >
-          <SelectTrigger aria-label="Publisher">
+          <SelectTrigger
+                aria-label="Publisher"
+                onPointerDown={requestCatalogFacets}
+                onFocus={requestCatalogFacets}
+              >
             <SelectValue placeholder="Publisher" />
           </SelectTrigger>
           <SelectContent>
@@ -1636,7 +1663,11 @@ export function StorePage({
           </SelectContent>
         </Select>
         <Select value={series} onValueChange={(v) => setFilter("series", v === "all" ? null : v)}>
-          <SelectTrigger aria-label="Series">
+          <SelectTrigger
+                aria-label="Series"
+                onPointerDown={requestCatalogFacets}
+                onFocus={requestCatalogFacets}
+              >
             <SelectValue placeholder="Series" />
           </SelectTrigger>
           <SelectContent>
