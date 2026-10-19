@@ -195,6 +195,46 @@ export default {
         routedInit.duplex = "half";
       }
       const routedRequest = new Request(request.url, routedInit);
+      // The SSR framework's cold dynamic import and the anonymous storefront's
+      // live D1 bootstrap are independent. Start both without serializing them.
+      // Never prestart for signed-in visitors, filtered pages, untrusted country,
+      // missing rate limiter, or Vercel: the established loader handles those.
+      const bootstrapUrl = new URL(routedRequest.url);
+      const mayPrestartAnonymousBootstrap =
+        routedRequest.method === "GET" &&
+        bootstrapUrl.pathname === "/" &&
+        !bootstrapUrl.search &&
+        !!foreEnv.DB &&
+        typeof foreEnv.DB.prepare === "function" &&
+        typeof (runtimeEnv as { COVE_STOREFRONT_READ_LIMITER?: { limit?: unknown } })
+          .COVE_STOREFRONT_READ_LIMITER?.limit === "function" &&
+        /^[A-Z]{2}$/.test(routedRequest.headers.get("x-cove-client-country") || "") &&
+        !!routedRequest.headers.get("cf-connecting-ip")?.trim() &&
+        ![
+          "authorization",
+          "cookie",
+          "oai-authenticated-user-id",
+          "oai-authenticated-user-email",
+          "x-fore-authenticated-user-id",
+        ].some((header) => routedRequest.headers.has(header));
+      let prefetchedBootstrap: Promise<Response> | undefined;
+      if (mayPrestartAnonymousBootstrap) {
+        const source = new Request(new URL("/api/fore/storefront/bootstrap", routedRequest.url), {
+          headers: routedRequest.headers,
+          signal: routedRequest.signal,
+        });
+        prefetchedBootstrap = import("./features/fore/storefront-anonymous-bootstrap.server").then(
+          ({ canUseLeanAnonymousBootstrap, serveLeanAnonymousBootstrap }) => {
+            if (!canUseLeanAnonymousBootstrap(source, runtimeEnv as any))
+              throw new Error("Anonymous preflight authorization mismatch");
+            return serveLeanAnonymousBootstrap(source, runtimeEnv as any);
+          },
+        );
+        // SSR may fail or reject before consuming its preflight. Keep the
+        // preflight's rejection visible to the authorized loader, but prevent
+        // an unhandled rejection when the framework never gets to that loader.
+        void prefetchedBootstrap.catch(() => {});
+      }
       const entryStarted = performance.now();
       const handler = await getServerEntry();
       const entryDurationMs = performance.now() - entryStarted;
@@ -203,6 +243,7 @@ export default {
         runtimeEnv,
         () => handler.fetch(routedRequest, runtimeEnv, ctx),
         execution,
+        prefetchedBootstrap,
       );
       const renderDurationMs = performance.now() - renderStarted;
       const secured = applySecurityHeaders(
