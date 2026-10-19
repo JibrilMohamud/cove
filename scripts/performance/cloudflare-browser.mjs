@@ -206,7 +206,8 @@ try {
             await Promise.all([merchandiseResponse, recommendationResponse]);
             lazyDiscoveryVerified = true;
           } catch {
-            failure = "Optional discovery feed did not load with a rights-checked HTTP 200 after scroll";
+            failure =
+              "Optional discovery feed did not load with a rights-checked HTTP 200 after scroll";
             failurePhase = "discovery-scroll-load";
           }
         }
