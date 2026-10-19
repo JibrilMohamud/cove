@@ -99,6 +99,29 @@ const scanStaticClosure = (initial) => {
     }
   };
   visitStatic(initial);
+  const nestedDynamic = new Set();
+  for (const file of modules) {
+    const ast = ts.createSourceFile(
+      file,
+      fs.readFileSync(file, "utf8"),
+      ts.ScriptTarget.Latest,
+      false,
+      ts.ScriptKind.JS,
+    );
+    const inspect = (node) => {
+      if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+        const argument = node.arguments[0];
+        if (argument && ts.isStringLiteral(argument) && argument.text.startsWith(".")) {
+          const resolved = path.resolve(path.dirname(file), argument.text);
+          if (resolved.startsWith(root + path.sep) && fs.existsSync(resolved)) {
+            nestedDynamic.add(path.relative(root, resolved));
+          }
+        }
+      }
+      ts.forEachChild(node, inspect);
+    };
+    inspect(ast);
+  }
   const bySize = [...modules]
     .map((file) => ({ file: path.relative(root, file), bytes: fs.statSync(file).size }))
     .sort((a, b) => b.bytes - a.bytes);
@@ -106,6 +129,7 @@ const scanStaticClosure = (initial) => {
     modules: modules.size,
     bytes: bySize.reduce((n, item) => n + item.bytes, 0),
     heaviest: bySize.slice(0, 12),
+    nestedDynamic: [...nestedDynamic].sort(),
   };
 };
 for (const file of seen) {
@@ -134,6 +158,15 @@ for (const file of seen) {
   };
   inspect(ast);
 }
+// Two additional import levels reveal the route initialization dependencies.
+// These are *potential* load targets, not claims about runtime evaluation.
+const secondLevel = [];
+for (const entrypoint of dynamicEntrypoints) {
+  for (const imported of entrypoint.staticClosure.nestedDynamic) {
+    const closure = scanStaticClosure(path.join(root, imported));
+    secondLevel.push({ importedFrom: entrypoint.imported, imported, staticClosure: closure });
+  }
+}
 const staticBytes = detail.reduce((n, d) => n + d.bytes, 0);
 const allBytes = allFiles.reduce((n, file) => n + fs.statSync(file).size, 0);
 const report = {
@@ -151,6 +184,7 @@ const report = {
   externalBuiltins: [...external].sort(),
   heaviestStaticModules: detail.sort((a, b) => b.bytes - a.bytes).slice(0, 25),
   dynamicEntrypoints,
+  secondLevel,
 };
 fs.mkdirSync("artifacts", { recursive: true });
 fs.writeFileSync("artifacts/cloudflare-entry-import-graph.json", JSON.stringify(report, null, 2));
