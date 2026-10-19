@@ -148,9 +148,8 @@ export default {
       ) {
         if (!foreEnv.DB || typeof foreEnv.DB.prepare !== "function")
           return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
-        const { serveStagingLiteraryCandidates } = await import(
-          "./features/fore/staging-literary-benchmark.server"
-        );
+        const { serveStagingLiteraryCandidates } =
+          await import("./features/fore/staging-literary-benchmark.server");
         const literary = await serveStagingLiteraryCandidates(request, foreEnv.DB);
         return stageNoStore(applySecurityHeaders(request, literary, foreEnv), true);
       }
