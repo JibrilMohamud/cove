@@ -121,6 +121,10 @@ await requireBenchmarkIsolation(
 );
 assert.equal(attempts, 2, "A changing inventory must be read again before verification");
 assert.equal(ledger.at(-1).verified, true);
+for (const name of ["fullsite-performance", "production-storefront-performance"]) {
+  inventory = [own, { ...old, name }];
+  await assert.rejects(requireBenchmarkIsolation(input, ledger), /Competing performance campaign/);
+}
 assert.ok(!JSON.stringify(ledger).includes("test-only"), "Tokens must never appear in evidence");
 console.log(
   "PASS: repository-wide competing-run exclusion, current-run allowance, failed inventory, truncation and token privacy",

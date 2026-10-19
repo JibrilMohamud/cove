@@ -73,7 +73,8 @@ export async function requireBenchmarkIsolation(
       (run) =>
         String(run.id) !== String(runId) &&
         run.status === "in_progress" &&
-        /^cloudflare-.*-paired$/.test(run.name || ""),
+        (/^cloudflare-.*-paired$/.test(run.name || "") ||
+          /^(fullsite-performance|production-storefront-performance)$/.test(run.name || "")),
     )
     .map((run) => ({ id: run.id, name: run.name, sha: run.head_sha, branch: run.head_branch }));
   if (entry.peers.length)
