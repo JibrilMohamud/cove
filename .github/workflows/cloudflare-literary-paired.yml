@@ -59,6 +59,12 @@ jobs:
           test "$(git -C candidate rev-parse HEAD)" = "$COVE_RECOVERY_CANDIDATE_SHA"
           node --check harness/scripts/performance/cloudflare-literary-paired.mjs
           grep -q 'COVE_SSR_STAGING = "1"' candidate/wrangler.frontend.staging.toml
+      - name: Apply identical temporary read-only discovery adapter to both builds
+        working-directory: candidate
+        run: |
+          node ../harness/scripts/performance/overlay-literary-read-probe.mjs
+          grep -q 'STAGING_ONLY_LITERARY_READ_PROBE' ../baseline/src/server.ts
+          grep -q 'STAGING_ONLY_LITERARY_READ_PROBE' src/server.ts
       - name: Independently install and build earlier revision
         working-directory: baseline
         run: |
