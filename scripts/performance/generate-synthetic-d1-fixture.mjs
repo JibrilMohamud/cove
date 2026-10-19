@@ -37,15 +37,15 @@ for (let from = 1; from <= total; from += chunk) {
   const numberRange = Array.from({length:to-from+1}, (_, k)=>k+from);
   const work = numberRange.map(n=>[id(n), "Synthetic Performance Book " + n, ts, ts]);
   const ed = numberRange.map(n=>[id(n),id(n),"perf-publisher","Synthetic Performance Book "+n,"none","available",ts,ts]);
-  const prod = numberRange.map(n=>[id(n),id(n),"PERF-"+n,"ebook",n%97===0?"draft":"active","gutenberg",id(n),ts,ts]);
+  const prod = numberRange.map(n=>[id(n),id(n),"PERF-"+n,"ebook",n%113===0?"draft":"active","gutenberg",id(n),ts,ts]);
   const asset = numberRange.map(n=>["perf-asset-"+n,id(n),"epub","none",ts,ts]);
   const lang = numberRange.map(n=>[id(n),n%9===0?"fr":"en","content"]);
-  const grants = numberRange.map(n=>["perf-grant-"+n,id(n),"perf-publisher","perf-party","US","ebook","retail","synthetic",n%103===0?"deny":"allow",n%97===0?"revoked":"active",ts,ts]);
-  const ca = numberRange.filter(n=>n%31===0).map(n=>["perf-ca-"+n,id(n),"perf-publisher","perf-party","CA","ebook","retail","synthetic","allow","active",ts,ts]);
+  const grants = numberRange.map(n=>["perf-grant-"+n,id(n),"perf-publisher","perf-party","US","ebook","retail","licensed",n%103===0?"deny":"allow",n%97===0?"revoked":"active",ts,ts]);
+  const ca = numberRange.filter(n=>n%31===0).map(n=>["perf-ca-"+n,id(n),"perf-publisher","perf-party","CA","ebook","retail","licensed","allow","active",ts,ts]);
   // A separate negative grant overrules an otherwise live allow; never
   // collapse deny/revoke into a stale or preapproved authorization snapshot.
-  const deny = numberRange.filter(n=>n%107===0).map(n=>["perf-deny-"+n,id(n),"perf-publisher","perf-party","US","ebook","retail","synthetic","deny","active",ts,ts]);
-  const docs = numberRange.map(n=>[id(n),id(n),"Synthetic Performance Book "+n,ts,ts,(n*17)%300,n%9===0?"fr":"en","USD",0,"available",0]);
+  const deny = numberRange.filter(n=>n%107===0).map(n=>["perf-deny-"+n,id(n),"perf-publisher","perf-party","US","ebook","retail","licensed","deny","active",ts,ts]);
+  const docs = numberRange.map(n=>[id(n),id(n),"Synthetic Performance Book "+n,ts,ts,(n*17)%300,n%9===0?"fr":"en",n%31===0?"CAD":"USD",0,"available",0]);
   const lines=[
     rows("works",["id","title","created_at","updated_at"],work),
     rows("editions",["id","work_id","publisher_id","title","drm_status","release_status","created_at","updated_at"],ed),
