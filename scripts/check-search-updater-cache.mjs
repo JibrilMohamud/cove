@@ -223,7 +223,7 @@ try {
     "the expensive facet candidate scan should run on a read replica",
   );
   assert.ok(
-    primaryQueries.some((sql) => sql.includes("SELECT d.product_id,")),
+    primaryQueries.some((sql) => sql.includes(" exact_rank")),
     "ranked product IDs must continue to be queried on primary D1",
   );
   assert.ok(
@@ -231,7 +231,7 @@ try {
     "primary rights predicates must remain on the authoritative result query",
   );
   assert.equal(
-    replicaQueries.some((sql) => sql.includes("SELECT d.product_id,")),
+    replicaQueries.some((sql) => sql.includes(" exact_rank")),
     false,
     "result ID selection may never use the presentation-only replica",
   );
