@@ -109,6 +109,7 @@ function benchScript(label, cohort, script, outputName, run) {
     COVE_EXPECT_PRESTART: "0",
     COVE_EXPECT_DISCOVERY_DEFER: "1",
     COVE_EXPECT_CATALOG_DEFER: "1",
+    COVE_FACET_VARIANT_OFFSET: cohort.name.includes("candidate") ? "4" : "0",
     // Keep timestamp of secret change numeric only, not a token.
     COVE_STAGE_SECRET_ROTATION_EPOCH_MS: String(cohort.rotatedAt),
   };
@@ -328,6 +329,22 @@ async function main() {
     );
     if (!manifest.outcomes.at(-1).pass) anyFailures = true;
   }
+  // Run REAL catalog facet aggregation concurrently with licensed SSR. This
+  // measures primary-D1 interference, not just isolated synthetic home loads.
+  // Browse counts are presentation-only, but every catalog result and SSR
+  // shelf continues to enforce live primary-D1 territorial rights.
+  for (const name of ["baseline", "current"]) {
+    const cohort = cohorts[name];
+    if (!cohort.key) continue;
+    benchScript(
+      "mixed-facets-" + name,
+      cohort,
+      "scripts/performance/cloudflare-facet-home-mixed.mjs",
+      "cloudflare-facet-home-mixed.json",
+      manifest.outcomes,
+    );
+    if (!manifest.outcomes.at(-1).pass) anyFailures = true;
+  }
   // Immediate analytics were empty in both frozen runs. Query the historical
   // intervals again after browser work, and label absent data as unavailable.
   for (const interval of manifest.d1Intervals) {
@@ -417,6 +434,72 @@ async function main() {
   if (!manifest.comparison.matchedColos) {
     manifest.comparison.decision =
       "INCONCLUSIVE geographic comparison; never infer a code regression from unmatched colos";
+  }
+  // Do not quietly downgrade to the old <800ms threshold. Full commercial
+  // headroom requires ALL live licensed requests, BOTH separate concurrency
+  // sweeps, genuine cold 20/20 deployments, and real mixed traffic.
+  const candidate = manifest.comparison.current;
+  const waves = candidate.waves;
+  const repeated = byName("concurrency-current-repeat")?.summaries ?? [];
+  const hasHeadroom = (wave, maxLimit, p95Limit) =>
+    !!wave &&
+    Number(wave.valid ?? wave.successes) === Number(wave.count ?? wave.requests) &&
+    Number.isFinite(wave.maxTtfbMs ?? wave.maxMs) &&
+    (wave.maxTtfbMs ?? wave.maxMs) <= maxLimit &&
+    Number.isFinite(wave.p95TtfbMs ?? wave.p95Ms) &&
+    (wave.p95TtfbMs ?? wave.p95Ms) <= p95Limit;
+  const p75Mobile = candidate.browserLcp?.find((row) => row.profile === "mobile-4g");
+  const mixed = ["baseline", "current"].map((name) => ({
+    name,
+    outcome: manifest.outcomes.find((x) => x.name === "mixed-facets-" + name),
+    evidence: byName("mixed-facets-" + name),
+  }));
+  manifest.comparison.commercialHeadroom = {
+    threeFullyColdRoundsUnder700:
+      candidate.cold.length === 3 &&
+      candidate.cold.every(
+        (trial) =>
+          trial.valid &&
+          trial.failures === 0 &&
+          Number.isFinite(trial.maxTtfbMs) &&
+          trial.maxTtfbMs <= 700,
+      ),
+    allFirst1to16Max700P95600: [1, 4, 8, 16].every((level) =>
+      hasHeadroom(waves.find((x) => x.concurrency === level), 700, 600),
+    ),
+    allRepeat1to16Max700P95600: [1, 4, 8, 16].every((level) =>
+      hasHeadroom(repeated.find((x) => x.concurrency === level), 700, 600),
+    ),
+    both32MaxUnder800:
+      hasHeadroom(waves.find((x) => x.concurrency === 32), 799, 650) &&
+      hasHeadroom(repeated.find((x) => x.concurrency === 32), 799, 650),
+    mobileP75LcpUnder2200:
+      !!p75Mobile &&
+      p75Mobile.pass &&
+      Number.isFinite(p75Mobile.lcpP75Ms) &&
+      p75Mobile.lcpP75Ms <= 2200,
+    matchedCloudflareColos: manifest.comparison.matchedColos,
+    realMixedRightsTraffic: mixed.every(
+      ({ outcome, evidence }) =>
+        !!outcome?.pass &&
+        evidence?.status === "pass" &&
+        evidence.summaries?.length === 4 &&
+        evidence.summaries.every(
+          (row) =>
+            row.facetValidated &&
+            row.httpRequestsOverlapped &&
+            row.homepageMaxMs !== null &&
+            row.homepageMaxMs <= 700,
+        ),
+    ),
+  };
+  manifest.comparison.commercialHeadroomPassed = Object.values(
+    manifest.comparison.commercialHeadroom,
+  ).every((pass) => pass === true);
+  if (!manifest.comparison.commercialHeadroomPassed) {
+    anyFailures = true;
+    manifest.comparison.decision =
+      "REJECT: live rights, actual mixed facet/home loads, fresh cold, repeated concurrency, matched region or mobile LCP headroom failed";
   }
   manifest.finishedAt = new Date().toISOString();
   manifest.wallMs = Date.now() - first;
