@@ -13,7 +13,8 @@ const fixture = {
   clientRegionVerified: false,
   byRole: { baseline: [], current: [] },
   summaries: {
-    baseline: [], current: [],
+    baseline: [],
+    current: [],
   },
   overlap: [],
 };
@@ -21,14 +22,36 @@ for (const stage of ["edge", "d1", "rights", "bootstrap", "ssr"]) {
   for (const role of ["baseline", "current"]) {
     fixture.summaries[role].push({
       stage,
-      concurrency: 8, requested: 8, valid: 8,
+      concurrency: 8,
+      requested: 8,
+      valid: 8,
       latencyMs: {
-        p50: stage === "edge" ? 190 : stage === "d1" ? 240 : stage === "rights" ? 590 : stage === "bootstrap" ? 640 : 1020,
-        p95: stage === "edge" ? 220 : stage === "d1" ? 270 : stage === "rights" ? 660 : stage === "bootstrap" ? 700 : 1110,
+        p50:
+          stage === "edge"
+            ? 190
+            : stage === "d1"
+              ? 240
+              : stage === "rights"
+                ? 590
+                : stage === "bootstrap"
+                  ? 640
+                  : 1020,
+        p95:
+          stage === "edge"
+            ? 220
+            : stage === "d1"
+              ? 270
+              : stage === "rights"
+                ? 660
+                : stage === "bootstrap"
+                  ? 700
+                  : 1110,
         max: 1210,
       },
-      cfWorkerMs: null, workerMetricCoverage: 0,
-      sqlMs: null, colos: ["IAD"],
+      cfWorkerMs: null,
+      workerMetricCoverage: 0,
+      sqlMs: null,
+      colos: ["IAD"],
     });
   }
   fixture.overlap.push({ stage, concurrency: 8, sharedColos: ["IAD"] });
@@ -42,7 +65,8 @@ assert.equal(diagnostic.verifiedClientRegion, false);
 const target = fs.mkdtempSync(path.join(os.tmpdir(), "cove-attribution-"));
 try {
   const { jsonFile, csvFile, mdFile } = writeAttributionReport(fixture, {
-    root: target, revision: { baseline: "same", current: "same" },
+    root: target,
+    revision: { baseline: "same", current: "same" },
     workerPlatform: {},
   });
   assert.equal(JSON.parse(fs.readFileSync(jsonFile)).diagnostic.rootCauseProven, false);
@@ -53,19 +77,27 @@ try {
   fs.rmSync(target, { recursive: true, force: true });
 }
 const template = fs.readFileSync("wrangler.frontend.staging.toml", "utf8");
-const generated = isolatedD1Config(
-  template, "current", "cove-lazyfacet-candidate-staging", "732011",
-) + '\nCOVE_SSR_DIAGNOSTICS = "1"\n';
+const generated =
+  isolatedD1Config(template, "current", "cove-lazyfacet-candidate-staging", "732011") +
+  '\nCOVE_SSR_DIAGNOSTICS = "1"\n';
 assert.doesNotMatch(generated, new RegExp(PRODUCTION_D1_ID));
 assert.match(generated, /COVE_SSR_STAGING = "1"/);
 assert.match(generated, /COVE_SSR_DIAGNOSTICS = "1"/);
 assert.doesNotMatch(template, /COVE_SSR_DIAGNOSTICS/);
-assert.doesNotMatch(fs.readFileSync("wrangler.frontend.production.toml", "utf8"), /COVE_SSR_DIAGNOSTICS/);
+assert.doesNotMatch(
+  fs.readFileSync("wrangler.frontend.production.toml", "utf8"),
+  /COVE_SSR_DIAGNOSTICS/,
+);
 const server = fs.readFileSync("src/server.ts", "utf8");
-assert.match(server, /if \(!staging \|\| foreEnv\.COVE_SSR_DIAGNOSTICS !== "1" \|\| !foreEnv\.DB\)/);
+assert.match(
+  server,
+  /if \(!staging \|\| foreEnv\.COVE_SSR_DIAGNOSTICS !== "1" \|\| !foreEnv\.DB\)/,
+);
 assert.ok(
   server.indexOf("rejectUnauthenticatedStagingRequest(request, foreEnv)") <
-  server.indexOf('new URL(request.url).pathname.startsWith("/__cove_perf/")'),
+    server.indexOf('new URL(request.url).pathname.startsWith("/__cove_perf/")'),
   "Diagnostic routes must run AFTER fail-closed bearer authorization",
 );
-console.log("PASS: honest attribution hypotheses, synthetic-only config and stage authorization ordering.");
+console.log(
+  "PASS: honest attribution hypotheses, synthetic-only config and stage authorization ordering.",
+);

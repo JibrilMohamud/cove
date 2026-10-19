@@ -40,7 +40,9 @@ export async function serveSyntheticLatencyDiagnostic(request: Request, env: Dia
   if (stage === "edge") return diagnosticResponse(stage, { ok: true });
 
   if (stage === "d1") {
-    const row = await env.DB.prepare("SELECT 1 AS diagnostic_ok").first<{ diagnostic_ok: number }>();
+    const row = await env.DB.prepare("SELECT 1 AS diagnostic_ok").first<{
+      diagnostic_ok: number;
+    }>();
     if (row?.diagnostic_ok !== 1) throw new Error("Isolated D1 probe failed closed");
     return diagnosticResponse(stage, { ok: true });
   }
@@ -68,10 +70,11 @@ export async function serveSyntheticLatencyDiagnostic(request: Request, env: Dia
 
   const { serveLeanAnonymousBootstrap } =
     await import("../features/fore/storefront-anonymous-bootstrap.server");
-  const forwarded = new Request(
-    new URL("/api/fore/storefront/bootstrap", request.url),
-    { method: "GET", headers: request.headers, signal: request.signal },
-  );
+  const forwarded = new Request(new URL("/api/fore/storefront/bootstrap", request.url), {
+    method: "GET",
+    headers: request.headers,
+    signal: request.signal,
+  });
   const response = await serveLeanAnonymousBootstrap(
     forwarded,
     env as unknown as Parameters<typeof serveLeanAnonymousBootstrap>[1],
@@ -86,7 +89,8 @@ export async function serveSyntheticLatencyDiagnostic(request: Request, env: Dia
     !Array.isArray(body.catalog?.results) ||
     !body.catalog.results.length ||
     !Array.isArray(body.context.availableMarkets)
-  ) throw new Error("Territorial bootstrap invariant failed");
+  )
+    throw new Error("Territorial bootstrap invariant failed");
   return diagnosticResponse(stage, {
     ok: true,
     books: body.catalog.results.length,

@@ -11,7 +11,7 @@ const label = {
   bootstrap: "D: complete anonymous bootstrap",
   ssr: "E: production-equivalent full homepage SSR",
 };
-const asNumber = (v) => typeof v === "number" && Number.isFinite(v) ? v : null;
+const asNumber = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 export function diagnoseAttribution(evidence, workerPlatform = {}) {
   const rows = evidence.summaries?.current || [];
   const find = (stage, concurrency = 8) =>
@@ -25,47 +25,83 @@ export function diagnoseAttribution(evidence, workerPlatform = {}) {
   const hypotheses = [];
   if ([edge, d1, rights, bootstrap, ssr].every((x) => x !== null)) {
     if (edge >= 650)
-      hypotheses.push("Minimal gated Worker requests also exceed 650 ms: investigate runner transport, edge routing, Worker initialization, and gate CPU before SQL.");
+      hypotheses.push(
+        "Minimal gated Worker requests also exceed 650 ms: investigate runner transport, edge routing, Worker initialization, and gate CPU before SQL.",
+      );
     if (d1 - edge >= 150)
-      hypotheses.push("Minimal primary-D1 stage adds at least 150 ms at p95: investigate D1 service dispatch and connection to the primary (not necessarily SQL execution).");
+      hypotheses.push(
+        "Minimal primary-D1 stage adds at least 150 ms at p95: investigate D1 service dispatch and connection to the primary (not necessarily SQL execution).",
+      );
     if (rights - d1 >= 150)
-      hypotheses.push("Rights-bearing shelf is materially slower than a minimal D1 read: profile indexed legal candidate SQL, hydration, CPU, and D1 queue time.");
+      hypotheses.push(
+        "Rights-bearing shelf is materially slower than a minimal D1 read: profile indexed legal candidate SQL, hydration, CPU, and D1 queue time.",
+      );
     if (bootstrap - rights >= 150)
-      hypotheses.push("Bootstrap is materially slower than rights-only shelf: profile locale/market reads, limit checks and JSON processing.");
+      hypotheses.push(
+        "Bootstrap is materially slower than rights-only shelf: profile locale/market reads, limit checks and JSON processing.",
+      );
     if (ssr - bootstrap >= 150)
-      hypotheses.push("Full SSR is materially slower than bootstrap: profile cold module initialization, TanStack rendering, serialization, and response handling.");
+      hypotheses.push(
+        "Full SSR is materially slower than bootstrap: profile cold module initialization, TanStack rendering, serialization, and response handling.",
+      );
   }
   const availableCfWorker = rows.some((r) => r.workerMetricCoverage > 0);
   const observedColos = [...new Set(rows.flatMap((r) => r.colos || []))];
-  let nextAction = "insufficient evidence: repeat the diagnostic ladder with platform CPU/wall telemetry and a verified client-region probe";
+  let nextAction =
+    "insufficient evidence: repeat the diagnostic ladder with platform CPU/wall telemetry and a verified client-region probe";
   if (hypotheses.length)
-    nextAction = "profile the flagged stages using Cloudflare platform CPU/wall traces and CPU profiling; do not infer causation by subtracting independent p95s";
+    nextAction =
+      "profile the flagged stages using Cloudflare platform CPU/wall traces and CPU profiling; do not infer causation by subtracting independent p95s";
   return {
-    confidence: availableCfWorker ? "hypotheses-only; cfWorker partly available" : "hypotheses-only; cfWorker absent",
-    status: evidence.allValid ? "diagnostic-complete-not-release-approved" : "diagnostic-invalid-retry-required",
+    confidence: availableCfWorker
+      ? "hypotheses-only; cfWorker partly available"
+      : "hypotheses-only; cfWorker absent",
+    status: evidence.allValid
+      ? "diagnostic-complete-not-release-approved"
+      : "diagnostic-invalid-retry-required",
     verifiedClientRegion: Boolean(evidence.clientRegionVerified),
     matchedColos: Boolean(evidence.matchedColos),
     observedColos,
     cfWorkerPresent: availableCfWorker,
-    platformTelemetry: Object.fromEntries(Object.entries(workerPlatform).map(([role, row]) => [
-      role, "warning" in (row || {}) ? row.warning : "sampled invocations, not per-response attribution",
-    ])),
-    hypotheses: hypotheses.length ? hypotheses : ["No unique bottleneck identified from available sampled stage timings."],
+    platformTelemetry: Object.fromEntries(
+      Object.entries(workerPlatform).map(([role, row]) => [
+        role,
+        "warning" in (row || {})
+          ? row.warning
+          : "sampled invocations, not per-response attribution",
+      ]),
+    ),
+    hypotheses: hypotheses.length
+      ? hypotheses
+      : ["No unique bottleneck identified from available sampled stage timings."],
     nextAction,
     rootCauseProven: false,
   };
 }
-function number(v) { return v === null || v === undefined ? "n/a" : Math.round(v) + " ms"; }
+function number(v) {
+  return v === null || v === undefined ? "n/a" : Math.round(v) + " ms";
+}
 function table(role, evidence) {
   const rows = evidence.summaries[role];
   return [
     "| Stage | Concurrency | Valid | p50 | p95 | Max | cfWorker p95 | D1 SQL p95 | Colos |",
     "|---|---:|---:|---:|---:|---:|---:|---:|---|",
-    ...rows.map((r) => [
-      label[r.stage], r.concurrency, `${r.valid}/${r.requested}`,
-      number(r.latencyMs?.p50), number(r.latencyMs?.p95), number(r.latencyMs?.max),
-      number(r.cfWorkerMs?.p95), number(r.sqlMs?.p95), (r.colos || []).join(", "),
-    ].join(" | ").replace(/^/, "| ").replace(/$/, " |")),
+    ...rows.map((r) =>
+      [
+        label[r.stage],
+        r.concurrency,
+        `${r.valid}/${r.requested}`,
+        number(r.latencyMs?.p50),
+        number(r.latencyMs?.p95),
+        number(r.latencyMs?.max),
+        number(r.cfWorkerMs?.p95),
+        number(r.sqlMs?.p95),
+        (r.colos || []).join(", "),
+      ]
+        .join(" | ")
+        .replace(/^/, "| ")
+        .replace(/$/, " |"),
+    ),
   ].join("\n");
 }
 export function writeAttributionReport(evidence, { root, workerPlatform, revision } = {}) {
@@ -108,7 +144,9 @@ export function writeAttributionReport(evidence, { root, workerPlatform, revisio
     "- The full SSR release gate and live territory rights remain independent and mandatory.",
     "",
     "## Paired colo overlaps",
-    ...evidence.overlap.map((r) => `- ${r.stage}/${r.concurrency}: ${r.sharedColos.join(", ") || "UNMATCHED"}`),
+    ...evidence.overlap.map(
+      (r) => `- ${r.stage}/${r.concurrency}: ${r.sharedColos.join(", ") || "UNMATCHED"}`,
+    ),
     "",
   ].join("\n");
   const jsonFile = path.join(outDir, "latency-attribution.json");
@@ -116,14 +154,26 @@ export function writeAttributionReport(evidence, { root, workerPlatform, revisio
   const csvFile = path.join(outDir, "latency-attribution.csv");
   fs.writeFileSync(jsonFile, JSON.stringify({ evidence, diagnostic, revision }, null, 2) + "\n");
   fs.writeFileSync(mdFile, md + "\n");
-  const records = ["cohort,stage,concurrency,requested,valid,p50_ms,p95_ms,max_ms,cfworker_p95_ms,sql_p95_ms,colo"];
-  for (const role of ["baseline", "current"]) for (const row of evidence.summaries[role])
-    records.push([
-      role, row.stage, row.concurrency, row.requested, row.valid,
-      row.latencyMs?.p50 ?? "", row.latencyMs?.p95 ?? "", row.latencyMs?.max ?? "",
-      row.cfWorkerMs?.p95 ?? "", row.sqlMs?.p95 ?? "",
-      row.colos?.join(" ") || "",
-    ].join(","));
+  const records = [
+    "cohort,stage,concurrency,requested,valid,p50_ms,p95_ms,max_ms,cfworker_p95_ms,sql_p95_ms,colo",
+  ];
+  for (const role of ["baseline", "current"])
+    for (const row of evidence.summaries[role])
+      records.push(
+        [
+          role,
+          row.stage,
+          row.concurrency,
+          row.requested,
+          row.valid,
+          row.latencyMs?.p50 ?? "",
+          row.latencyMs?.p95 ?? "",
+          row.latencyMs?.max ?? "",
+          row.cfWorkerMs?.p95 ?? "",
+          row.sqlMs?.p95 ?? "",
+          row.colos?.join(" ") || "",
+        ].join(","),
+      );
   fs.writeFileSync(csvFile, records.join("\n") + "\n");
   return { jsonFile, mdFile, csvFile, diagnostic };
 }

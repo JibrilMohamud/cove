@@ -387,7 +387,9 @@ async function main() {
     manifest.attributionD1Intervals = {};
     for (const role of ["baseline", "current"]) {
       manifest.attributionD1Intervals[role] = await d1Snapshot(
-        attributionStart, Date.now(), cohorts[role].databaseId,
+        attributionStart,
+        Date.now(),
+        cohorts[role].databaseId,
       );
     }
   }

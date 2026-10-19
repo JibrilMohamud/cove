@@ -53,7 +53,9 @@ function delta(a, b) {
   return Number.isFinite(a) && Number.isFinite(b) ? Math.round(Math.max(0, a - b)) : null;
 }
 function metric(header, key) {
-  const found = (header || "").split(",").map((x) => x.trim())
+  const found = (header || "")
+    .split(",")
+    .map((x) => x.trim())
     .map((s) => s.match(new RegExp("^" + key + ";\\s*dur=(\\d+(?:\\.\\d+)?)", "i")))
     .find(Boolean);
   return found ? Number(found[1]) : null;
@@ -82,11 +84,9 @@ async function one(cohort, stage, concurrency) {
   let status = 0;
   try {
     const origin = `https://${cohort.name}.cove-jibrilmohamud.workers.dev`;
-    if (concurrency === 1)
-      serialConnection = { hostname: new URL(origin).hostname, span };
-    const response = await store.run(span, () => fetch(
-      origin + (stage === "ssr" ? "/" : "/__cove_perf/" + stage),
-      {
+    if (concurrency === 1) serialConnection = { hostname: new URL(origin).hostname, span };
+    const response = await store.run(span, () =>
+      fetch(origin + (stage === "ssr" ? "/" : "/__cove_perf/" + stage), {
         method: "GET",
         redirect: "manual",
         headers: {
@@ -96,15 +96,17 @@ async function one(cohort, stage, concurrency) {
           "Cache-Control": "no-store",
         },
         signal: AbortSignal.timeout(15000),
-      },
-    ));
+      }),
+    );
     status = response.status;
     const ttfbMs = delta(performance.now(), begin);
     const body = await response.text();
     const totalMs = delta(performance.now(), begin);
     assert.equal(status, 200);
     assert.match(response.headers.get("cache-control") || "", /no-store/);
-    let books = null, sqlMs = null, rowsRead = null;
+    let books = null,
+      sqlMs = null,
+      rowsRead = null;
     if (stage === "ssr") {
       books = validateHtml(status, response.headers.get("content-type") || "", body);
       assert.ok(books > 0, "Full rights-eligible HTML shelf missing");
@@ -124,18 +126,33 @@ async function one(cohort, stage, concurrency) {
       }
     }
     return {
-      sequence, stage, concurrency, status, valid: true,
-      ttfbMs, totalMs, colo: colo(response.headers),
+      sequence,
+      stage,
+      concurrency,
+      status,
+      valid: true,
+      ttfbMs,
+      totalMs,
+      colo: colo(response.headers),
       clientQueueMs: delta(span.sentAt, span.createdAt),
       sentToHeadersMs: delta(span.headersAt, span.sentAt),
       connectMs: concurrency === 1 ? delta(span.connectEndAt, span.connectBeginAt) : null,
-      connectionAttribution: concurrency === 1 ? "serial-handshake-only-when-observed" : "unattributable-under-concurrency",
+      connectionAttribution:
+        concurrency === 1
+          ? "serial-handshake-only-when-observed"
+          : "unattributable-under-concurrency",
       ...timingNumbers(response.headers),
-      sqlMs, rowsRead, books,
+      sqlMs,
+      rowsRead,
+      books,
     };
   } catch {
     return {
-      sequence, stage, concurrency, status, valid: false,
+      sequence,
+      stage,
+      concurrency,
+      status,
+      valid: false,
       ttfbMs: delta(performance.now(), begin),
       clientQueueMs: delta(span.sentAt, span.createdAt),
       sentToHeadersMs: delta(span.headersAt, span.sentAt),
@@ -150,12 +167,14 @@ async function one(cohort, stage, concurrency) {
 async function wave(cohort, stage, concurrency, count) {
   const rows = [];
   let next = 0;
-  await Promise.all(Array.from({ length: concurrency }, async () => {
-    while (next < count) {
-      next++;
-      rows.push(await one(cohort, stage, concurrency));
-    }
-  }));
+  await Promise.all(
+    Array.from({ length: concurrency }, async () => {
+      while (next < count) {
+        next++;
+        rows.push(await one(cohort, stage, concurrency));
+      }
+    }),
+  );
   return rows;
 }
 function summarize(rows, stage, concurrency) {
@@ -163,12 +182,20 @@ function summarize(rows, stage, concurrency) {
   const valid = subset.filter((v) => v.valid);
   const times = valid.map((x) => x.ttfbMs);
   const numeric = (k) => valid.map((x) => x[k]).filter(Number.isFinite);
-  const describe = (values) => values.length ? {
-    p50: percentile(values, .5), p95: percentile(values, .95),
-    p99: percentile(values, .99), max: Math.max(...values),
-  } : null;
+  const describe = (values) =>
+    values.length
+      ? {
+          p50: percentile(values, 0.5),
+          p95: percentile(values, 0.95),
+          p99: percentile(values, 0.99),
+          max: Math.max(...values),
+        }
+      : null;
   return {
-    stage, concurrency, requested: subset.length, valid: valid.length,
+    stage,
+    concurrency,
+    requested: subset.length,
+    valid: valid.length,
     latencyMs: describe(times),
     cfWorkerMs: describe(numeric("cfWorkerMs")),
     workerMetricCoverage: numeric("cfWorkerMs").length,
@@ -182,8 +209,11 @@ function summarize(rows, stage, concurrency) {
 
 export async function runAttributionLadder(cohorts, { coolOffMs = 65000 } = {}) {
   assert.equal(process.env.COVE_PAIR_RELEASE_FREEZE, "1");
-  assert.equal(cohorts.baseline?.sha, cohorts.current?.sha,
-    "Diagnostic comparison must run identical binary on both arms");
+  assert.equal(
+    cohorts.baseline?.sha,
+    cohorts.current?.sha,
+    "Diagnostic comparison must run identical binary on both arms",
+  );
   for (const c of Object.values(cohorts)) {
     assert.match(c.key || "", /^[a-f0-9]{64}$/);
     assert.match(c.name, /^cove-lazyfacet-(control|candidate)-staging$/);
@@ -195,19 +225,23 @@ export async function runAttributionLadder(cohorts, { coolOffMs = 65000 } = {}) 
     for (const { concurrency, requests: count } of requests) {
       const order = index % 2 ? ["current", "baseline"] : ["baseline", "current"];
       for (const role of order)
-        results[role].push(...await wave(cohorts[role], stage, concurrency, count));
+        results[role].push(...(await wave(cohorts[role], stage, concurrency, count)));
     }
   }
   for (const [index, spec] of extra.entries()) {
     const order = index % 2 ? ["current", "baseline"] : ["baseline", "current"];
     for (const role of order)
-      results[role].push(...await wave(cohorts[role], spec.stage, spec.concurrency, spec.requests));
+      results[role].push(
+        ...(await wave(cohorts[role], spec.stage, spec.concurrency, spec.requests)),
+      );
   }
   const summary = {};
   for (const role of ["baseline", "current"]) {
     summary[role] = [
-      ...stages.flatMap(stage => requests.map(w => summarize(results[role], stage, w.concurrency))),
-      ...extra.map(w => summarize(results[role], w.stage, w.concurrency)),
+      ...stages.flatMap((stage) =>
+        requests.map((w) => summarize(results[role], stage, w.concurrency)),
+      ),
+      ...extra.map((w) => summarize(results[role], w.stage, w.concurrency)),
     ];
   }
   const overlap = summary.baseline.map((row, i) => ({
