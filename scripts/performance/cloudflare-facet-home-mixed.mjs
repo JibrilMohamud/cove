@@ -131,8 +131,11 @@ fs.writeFileSync(
   JSON.stringify(artifact, null, 2) + "\n",
 );
 console.log(
-  summaries.map((s) =>
-    `mixed ${s.concurrency} home max=${s.homepageMaxMs}ms facet=${s.facetMs}ms valid=${s.facetValidated} overlapColo=${s.sharedColos} pass=${s.pass}`,
-  ).join("\n"),
+  summaries
+    .map(
+      (s) =>
+        `mixed ${s.concurrency} home max=${s.homepageMaxMs}ms facet=${s.facetMs}ms valid=${s.facetValidated} overlapColo=${s.sharedColos} pass=${s.pass}`,
+    )
+    .join("\n"),
 );
 if (!pass) process.exitCode = 1;
