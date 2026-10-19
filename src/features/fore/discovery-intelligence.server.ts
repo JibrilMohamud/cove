@@ -160,16 +160,22 @@ async function rightsExactTaxonomyCandidates(
   db: CatalogDB,
   nodeIds: string[],
   territory: string,
+  denseMarket?: boolean,
 ): Promise<string[]> {
   if (!nodeIds.length) return [];
   const marks = nodeIds.map(() => "?").join(",");
-  const threshold = await db
-    .prepare(
-      "SELECT COUNT(*) grants FROM (SELECT 1 FROM rights_grant_territories WHERE territory_code=upper(?) LIMIT 1001)",
-    )
-    .bind(territory)
-    .first<{ grants: number }>();
-  if (Number(threshold?.grants || 0) > 1000) {
+  // The caller reuses ONE live density probe for every dimension of this
+  // recommendation request. Standalone callers still read the current DB.
+  if (denseMarket === undefined) {
+    const threshold = await db
+      .prepare(
+        "SELECT COUNT(*) grants FROM (SELECT 1 FROM rights_grant_territories WHERE territory_code=upper(?) LIMIT 1001)",
+      )
+      .bind(territory)
+      .first<{ grants: number }>();
+    denseMarket = Number(threshold?.grants || 0) > 1000;
+  }
+  if (denseMarket) {
     const fast = await db
       .prepare(
         `WITH ranked AS MATERIALIZED (
@@ -230,17 +236,21 @@ async function rightsExactLiteraryFeatureCandidates(
   dimension: string,
   features: string[],
   territory: string,
+  denseMarket?: boolean,
 ): Promise<string[]> {
   if (!features.length) return [];
   const marks = features.map(() => "?").join(",");
-  const grantRows = await db
-    .prepare(
-      "SELECT COUNT(*) grants FROM (SELECT 1 FROM rights_grant_territories WHERE territory_code=upper(?) LIMIT 1001)",
-    )
-    .bind(territory)
-    .first<{ grants: number }>();
+  if (denseMarket === undefined) {
+    const grantRows = await db
+      .prepare(
+        "SELECT COUNT(*) grants FROM (SELECT 1 FROM rights_grant_territories WHERE territory_code=upper(?) LIMIT 1001)",
+      )
+      .bind(territory)
+      .first<{ grants: number }>();
+    denseMarket = Number(grantRows?.grants || 0) > 1000;
+  }
 
-  if (Number(grantRows?.grants || 0) > 1000) {
+  if (denseMarket) {
     const shortlist = await db
       .prepare(
         `WITH ranked AS MATERIALIZED (
@@ -322,6 +332,21 @@ export async function retrieveLiteraryCandidates(
   const ids = new Set<string>();
   // Each lookup uses the inverted index, rather than scanning catalog JSON at serve time.
   const dimensions = [...new Set(terms.map((t) => t.dimension))].slice(0, 6);
+  // Do not spend one extra primary-D1 service round-trip per dimension
+  // repeating the SAME bounded territory density probe under load.
+  // This optimization choice is never an authorization: every candidate is
+  // still checked against the fresh primary retail rights view below.
+  // For a single dimension, the existing helper executes its own probe.
+  let denseMarket: boolean | undefined;
+  if (dimensions.length > 1) {
+    const threshold = await db
+      .prepare(
+        "SELECT COUNT(*) grants FROM (SELECT 1 FROM rights_grant_territories WHERE territory_code=upper(?) LIMIT 1001)",
+      )
+      .bind(territory)
+      .first<{ grants: number }>();
+    denseMarket = Number(threshold?.grants || 0) > 1000;
+  }
   for (const dimension of dimensions) {
     if (dimension === "genres") {
       const tags = terms
@@ -343,6 +368,7 @@ export async function retrieveLiteraryCandidates(
           db,
           nodes.map((n) => n.id),
           territory,
+          denseMarket,
         );
         candidates.forEach((id) => ids.add(id));
       }
@@ -356,6 +382,7 @@ export async function retrieveLiteraryCandidates(
       dimension,
       features,
       territory,
+      denseMarket,
     );
     for (const productId of candidates) ids.add(productId);
   }
