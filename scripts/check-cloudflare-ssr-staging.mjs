@@ -220,6 +220,13 @@ async function probe(language, sample, sequence) {
     throw new Error("Stage homepage must never be cached.");
   if (!/cove_ssr_local_rights;dur=0/.test(response.headers.get("server-timing") || ""))
     throw new Error("No evidence of in-Worker D1 rights authority.");
+  if (process.env.COVE_EXPECT_PRESTART === "1") {
+    assert.match(
+      response.headers.get("server-timing") || "",
+      /cove_ssr_prestarted;dur=0(?:\.0)?(?:,|$)/,
+      "SSR must consume the in-flight, request-scoped D1 prestart",
+    );
+  }
   // Stage anonymous SSR is an exact expected use of the lightweight Worker
   // reader. Fail rather than unknowingly measuring a heavyweight API fallback.
   if (!/cove_backend_lean;dur=0(?:\.0)?(?:,|$)/.test(response.headers.get("server-timing") || ""))
