@@ -1647,10 +1647,10 @@ export function StorePage({
           onValueChange={(v) => setFilter("publisher", v === "all" ? null : v)}
         >
           <SelectTrigger
-                aria-label="Publisher"
-                onPointerDown={requestCatalogFacets}
-                onFocus={requestCatalogFacets}
-              >
+            aria-label="Publisher"
+            onPointerDown={requestCatalogFacets}
+            onFocus={requestCatalogFacets}
+          >
             <SelectValue placeholder="Publisher" />
           </SelectTrigger>
           <SelectContent>
@@ -1664,10 +1664,10 @@ export function StorePage({
         </Select>
         <Select value={series} onValueChange={(v) => setFilter("series", v === "all" ? null : v)}>
           <SelectTrigger
-                aria-label="Series"
-                onPointerDown={requestCatalogFacets}
-                onFocus={requestCatalogFacets}
-              >
+            aria-label="Series"
+            onPointerDown={requestCatalogFacets}
+            onFocus={requestCatalogFacets}
+          >
             <SelectValue placeholder="Series" />
           </SelectTrigger>
           <SelectContent>
