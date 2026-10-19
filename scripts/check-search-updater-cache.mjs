@@ -174,6 +174,77 @@ try {
     "pagination must reuse public facets instead of re-running the candidate aggregation",
   );
 
+  // A real SQLite rights fixture verifies the read-replica boundary: only
+  // numeric public count/facet cache misses may use the unconstrained session.
+  // The ranked IDs, current rights, metadata and cache writes stay primary.
+  await clearSearchCaches();
+  const referenceBrowse = await search.searchCatalog(env, input("sort=popular"), null);
+  await clearSearchCaches();
+  const replicaQueries = [];
+  const primaryQueries = [];
+  let replicaSessions = 0;
+  const observedPrimary = {
+    ...env.DB,
+    prepare(sql) {
+      primaryQueries.push(sql);
+      return env.DB.prepare(sql);
+    },
+    withSession(constraint) {
+      assert.equal(constraint, "first-unconstrained");
+      replicaSessions++;
+      return {
+        ...env.DB,
+        prepare(sql) {
+          replicaQueries.push(sql);
+          return env.DB.prepare(sql);
+        },
+      };
+    },
+  };
+  const isolatedBrowse = await search.searchCatalog(
+    { ...env, DB: observedPrimary, FORE_DISCOVERY_READ_REPLICAS: "1" },
+    input("sort=popular"),
+    null,
+  );
+  assert.deepEqual(
+    isolatedBrowse.books.map((book) => book.productId),
+    referenceBrowse.books.map((book) => book.productId),
+    "replica-side presentation reads must not change authoritative book IDs",
+  );
+  assert.deepEqual(isolatedBrowse.facets, referenceBrowse.facets);
+  assert.equal(isolatedBrowse.count, referenceBrowse.count);
+  assert.ok(replicaSessions >= 2, "COUNT and facets must get fresh, independent sessions");
+  assert.ok(
+    replicaQueries.some((sql) => sql.includes("SELECT COUNT(*) count FROM")),
+    "the expensive presentation COUNT should run on a read replica",
+  );
+  assert.ok(
+    replicaQueries.some((sql) => sql.includes("candidate AS MATERIALIZED")),
+    "the expensive facet candidate scan should run on a read replica",
+  );
+  assert.ok(
+    primaryQueries.some((sql) => /SELECT d\\.product_id,/.test(sql)),
+    "ranked product IDs must continue to be queried on primary D1",
+  );
+  assert.ok(
+    primaryQueries.some((sql) => sql.includes("retail_product_availability_rows")),
+    "primary rights predicates must remain on the authoritative result query",
+  );
+  assert.equal(
+    replicaQueries.some((sql) => /SELECT d\\.product_id,/.test(sql)),
+    false,
+    "result ID selection may never use the presentation-only replica",
+  );
+  const beforeDisabled = replicaSessions;
+  await clearSearchCaches();
+  await search.searchCatalog(
+    { ...env, DB: observedPrimary, FORE_DISCOVERY_READ_REPLICAS: "0" },
+    input("sort=popular"),
+    null,
+  );
+  assert.equal(replicaSessions, beforeDisabled, "disabled flag must preserve the old primary path");
+
+
   let fullCounts = 0;
   const countTracked = {
     ...env,
