@@ -280,7 +280,10 @@ export function SiteShell({
           <div className="breadcrumb">
             <button
               className="icon-button mobile-only"
-              onClick={() => { setDrawerMounted(true); setOpen(true); }}
+              onClick={() => {
+                setDrawerMounted(true);
+                setOpen(true);
+              }}
               aria-label={store.t("shell.openNav", "Open navigation")}
             >
               <Menu size={22} />
