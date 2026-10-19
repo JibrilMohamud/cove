@@ -1020,12 +1020,12 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
     const countLive = async () => {
       // Unfiltered browse totals are presentation metadata. Text-query totals
       // stay on primary to preserve typo-correction semantics on a fresh view.
-      const countDb = !input.query && !part.hasFts
-        ? presentationReadSession(env.DB, env.FORE_DISCOVERY_READ_REPLICAS)
-        : env.DB;
-      const row = await countDb.prepare(
-        `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
-      )
+      const countDb =
+        !input.query && !part.hasFts
+          ? presentationReadSession(env.DB, env.FORE_DISCOVERY_READ_REPLICAS)
+          : env.DB;
+      const row = await countDb
+        .prepare(`${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")`)
         .bind(...part.binds)
         .first<{ count: number }>();
       return Number(row?.count || 0);
