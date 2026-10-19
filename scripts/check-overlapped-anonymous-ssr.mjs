@@ -47,28 +47,47 @@ for (const test of [
   valid("/", "GET", { "x-fore-authenticated-user-id": "user" }),
   valid("/", "GET", { "x-cove-client-country": "invalid" }),
   valid("/", "GET", { "cf-connecting-ip": "" }),
-]) assert.equal(canRunAnonymousHomepageBootstrap(test, env, "/"), false);
+]) {
+  assert.equal(canRunAnonymousHomepageBootstrap(test, env, "/"), false);
+}
 assert.equal(canRunAnonymousHomepageBootstrap(valid(), { DB: env.DB }, "/"), false);
-assert.equal(canRunAnonymousHomepageBootstrap(valid(), { COVE_STOREFRONT_READ_LIMITER: env.COVE_STOREFRONT_READ_LIMITER }, "/"), false);
+assert.equal(
+  canRunAnonymousHomepageBootstrap(
+    valid(),
+    { COVE_STOREFRONT_READ_LIMITER: env.COVE_STOREFRONT_READ_LIMITER },
+    "/",
+  ),
+  false,
+);
 
 // Two interleaved visitors must never receive one another's prestarted
 // rights response or environment even if the first request waits longer.
 const alice = Promise.resolve(new Response("alice-rights"));
 const bob = Promise.resolve(new Response("bob-rights"));
 const tasks = [
-  withCoveRequestEnvironment({ requestId: "alice" }, async () => {
-    await Promise.resolve();
-    assert.equal(currentCoveRequestEnvironment()?.requestId, "alice");
-    assert.strictEqual(currentCoveRequestAnonymousBootstrap(), alice);
-    assert.equal(await (await currentCoveRequestAnonymousBootstrap()).text(), "alice-rights");
-  }, undefined, alice),
-  withCoveRequestEnvironment({ requestId: "bob" }, async () => {
-    assert.equal(currentCoveRequestEnvironment()?.requestId, "bob");
-    assert.strictEqual(currentCoveRequestAnonymousBootstrap(), bob);
-    await Promise.resolve();
-    assert.equal(currentCoveRequestEnvironment()?.requestId, "bob");
-    assert.equal(await (await currentCoveRequestAnonymousBootstrap()).text(), "bob-rights");
-  }, undefined, bob),
+  withCoveRequestEnvironment(
+    { requestId: "alice" },
+    async () => {
+      await Promise.resolve();
+      assert.equal(currentCoveRequestEnvironment()?.requestId, "alice");
+      assert.strictEqual(currentCoveRequestAnonymousBootstrap(), alice);
+      assert.equal(await (await currentCoveRequestAnonymousBootstrap()).text(), "alice-rights");
+    },
+    undefined,
+    alice,
+  ),
+  withCoveRequestEnvironment(
+    { requestId: "bob" },
+    async () => {
+      assert.equal(currentCoveRequestEnvironment()?.requestId, "bob");
+      assert.strictEqual(currentCoveRequestAnonymousBootstrap(), bob);
+      await Promise.resolve();
+      assert.equal(currentCoveRequestEnvironment()?.requestId, "bob");
+      assert.equal(await (await currentCoveRequestAnonymousBootstrap()).text(), "bob-rights");
+    },
+    undefined,
+    bob,
+  ),
 ];
 await Promise.all(tasks);
 assert.equal(currentCoveRequestAnonymousBootstrap(), undefined);
@@ -78,10 +97,15 @@ assert.equal(currentCoveRequestEnvironment(), undefined);
 // HTML on an error, nor shared with a subsequent request.
 const failure = Promise.reject(new Error("D1 rights query unavailable"));
 void failure.catch(() => {});
-await withCoveRequestEnvironment({}, async () => {
-  assert.strictEqual(currentCoveRequestAnonymousBootstrap(), failure);
-  await assert.rejects(currentCoveRequestAnonymousBootstrap(), /D1 rights query unavailable/);
-}, undefined, failure);
+await withCoveRequestEnvironment(
+  {},
+  async () => {
+    assert.strictEqual(currentCoveRequestAnonymousBootstrap(), failure);
+    await assert.rejects(currentCoveRequestAnonymousBootstrap(), /D1 rights query unavailable/);
+  },
+  undefined,
+  failure,
+);
 assert.equal(currentCoveRequestAnonymousBootstrap(), undefined);
 
 const entry = fs.readFileSync("src/server.ts", "utf8");
@@ -91,7 +115,8 @@ assert.match(entry, /canRunAnonymousHomepageBootstrap\(/);
 assert.match(entry, /prefetchedBootstrap\s*=\s*import\(/);
 assert.match(entry, /const handler = await getServerEntry\(\)/);
 assert.ok(
-  entry.indexOf("prefetchedBootstrap = import(") < entry.indexOf("const handler = await getServerEntry()"),
+  entry.indexOf("prefetchedBootstrap = import(") <
+    entry.indexOf("const handler = await getServerEntry()"),
   "D1 must start ahead of the SSR framework entry",
 );
 assert.match(entry, /void prefetchedBootstrap\.catch\(\(\) => \{\}\)/);
