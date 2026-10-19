@@ -1,4 +1,4 @@
-import { networkCountry, resolveStorefrontContext } from "./localization.server";
+import { networkCountry, resolveAnonymousHomepageContext } from "./localization.server";
 import { formatGenericStorefrontPageRecord } from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
@@ -81,17 +81,14 @@ export async function serveLeanAnonymousBootstrap(
   // the rate limiter, markets, context, page and rights checks ALL succeed.
   const contextPromise = timed(
     "context",
-    resolveStorefrontContext(
+    resolveAnonymousHomepageContext(
       readMetadata(),
       request,
-      null,
       env.FORE_DEFAULT_TERRITORY || "US",
-      true,
-      true,
     ),
   );
-  // The published page row now accompanies payment/translation metadata in
-  // the same read-only D1 batch. This removes a serial edge-to-D1 round trip.
+  // The read-only metadata batch now also performs the active market/locale
+  // lookup. No second dependent D1 service call is needed for anonymous SSR.
   const [context, , catalog] = await Promise.all([
     contextPromise,
     timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
