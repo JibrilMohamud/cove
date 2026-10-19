@@ -178,6 +178,39 @@ try {
           };
         })
         .catch(() => ({ ttfbMs: null, lcpMs: null, cards: 0 }));
+      // Inspect first-viewport network behavior BEFORE scrolling, after the
+      // complete LCP sample. This never changes the benchmarked paint timing.
+      let lazyDiscoveryVerified = null;
+      if (process.env.COVE_EXPECT_DISCOVERY_DEFER === "1" && !failure) {
+        if (backgroundRequests.merchandising !== 0 || backgroundRequests.recommendations !== 0) {
+          failure = "Below-fold discovery fetched before a reader approached it";
+          failurePhase = "discovery-eager-load";
+        } else if (sample === 1) {
+          lazyDiscoveryVerified = false;
+          try {
+            const merchandiseResponse = page.waitForResponse(
+              (response) =>
+                new URL(response.url()).pathname === "/api/fore/merchandising" &&
+                response.status() === 200,
+              { timeout: 20000 },
+            );
+            const recommendationResponse = page.waitForResponse(
+              (response) =>
+                new URL(response.url()).pathname === "/api/fore/recommendations/home" &&
+                response.status() === 200,
+              { timeout: 20000 },
+            );
+            await page.locator('[data-testid="discovery-feed-sentinel"]').evaluate((element) => {
+              element.scrollIntoView({ block: "center" });
+            });
+            await Promise.all([merchandiseResponse, recommendationResponse]);
+            lazyDiscoveryVerified = true;
+          } catch {
+            failure = "Optional discovery feed did not load with a rights-checked HTTP 200 after scroll";
+            failurePhase = "discovery-scroll-load";
+          }
+        }
+      }
       rows.push({
         profile,
         sample,
@@ -190,6 +223,7 @@ try {
         failedStylesheetRequests,
         scripts,
         backgroundRequests,
+        lazyDiscoveryVerified,
         interceptionErrors,
         ...responseTelemetry,
         ...metrics,
