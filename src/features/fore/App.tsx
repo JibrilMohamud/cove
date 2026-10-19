@@ -1,4 +1,4 @@
-import { AuthDialog, type AuthMode } from "./Auth";
+import type { AuthMode } from "./Auth";
 import type { StorefrontBootstrap } from "./storefront-bootstrap";
 import { ConnectionNotice } from "./ConnectionNotice";
 import { CoveRequestError } from "./api-transport";
@@ -19,7 +19,7 @@ import {
 import { flushSessions } from "./reading-activity";
 import { flushReaderMutations } from "./offline-reader-mutations";
 import { setOfflineAccount } from "./offline-account";
-import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { lazy, Suspense, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import {
   BookOpen,
   Library,
@@ -34,8 +34,6 @@ import {
   X,
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { AccountContext, api, type AccountData } from "./client";
 import "./fore.css";
 import "./legal.css";
@@ -46,6 +44,12 @@ import {
   useStorefrontLocale,
 } from "./localization";
 import { useUiText } from "./ui-text";
+// The auth modal is never visible during anonymous homepage SSR. Loading
+// its form, provider SDK, and dialog dependencies here unnecessarily widens
+// every cold render's module graph. Only fetch it upon deliberate sign-in or
+// an authentication callback; never defer the existing auth-state decision.
+const AuthDialog = lazy(() => import("./Auth").then((module) => ({ default: module.AuthDialog })));
+const MobileNavDrawer = lazy(() => import("./MobileNavDrawer"));
 const nav = [
   ["/", "nav.bookstore", "Bookstore", BookOpen],
   ["/audiobooks", "nav.audiobooks", "Audiobooks", Headphones],
@@ -189,7 +193,11 @@ export function CoveProvider({
     >
       <StorefrontLocaleProvider key={data.user?.id || "guest"} initialContext={initialStorefront}>
         {children}
-        <AuthDialog mode={auth} onChange={setAuth} onSuccess={reload} />
+        {auth !== null ? (
+          <Suspense fallback={null}>
+            <AuthDialog mode={auth} onChange={setAuth} onSuccess={reload} />
+          </Suspense>
+        ) : null}
         <Toaster theme="dark" position="bottom-right" richColors />
       </StorefrontLocaleProvider>
     </AccountContext.Provider>
@@ -205,6 +213,7 @@ export function SiteShell({
   title?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [drawerMounted, setDrawerMounted] = useState(false);
   const store = useStorefrontLocale();
   const ui = useUiText();
   const links = (
@@ -254,21 +263,27 @@ export function SiteShell({
       <aside className="sidebar" aria-label={ui("Desktop navigation")}>
         {links}
       </aside>
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent
-          side={store.direction === "rtl" ? "right" : "left"}
-          className="mobile-sidebar"
-        >
-          <SheetTitle className="sr-only">{ui("Navigation")}</SheetTitle>
-          {links}
-        </SheetContent>
-      </Sheet>
+      {drawerMounted ? (
+        <Suspense fallback={null}>
+          <MobileNavDrawer
+            open={open}
+            onOpenChange={setOpen}
+            side={store.direction === "rtl" ? "right" : "left"}
+            title={ui("Navigation")}
+          >
+            {links}
+          </MobileNavDrawer>
+        </Suspense>
+      ) : null}
       <div className="main-shell">
         <header className="topbar">
           <div className="breadcrumb">
             <button
               className="icon-button mobile-only"
-              onClick={() => setOpen(true)}
+              onClick={() => {
+                setDrawerMounted(true);
+                setOpen(true);
+              }}
               aria-label={store.t("shell.openNav", "Open navigation")}
             >
               <Menu size={22} />

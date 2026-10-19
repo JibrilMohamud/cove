@@ -138,6 +138,21 @@ export default {
         headers.delete("authorization");
         request = new Request(request, { headers });
       }
+      // Staging-only test surface: runs the EXACT production candidate SQL on
+      // primary D1, but exists only after the protected 256-bit staging gate.
+      // Never add this to the ordinary anonymous production API or SSR path.
+      if (
+        staging &&
+        request.method === "GET" &&
+        new URL(request.url).pathname === "/api/fore/benchmark/literary-candidates"
+      ) {
+        if (!foreEnv.DB || typeof foreEnv.DB.prepare !== "function")
+          return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
+        const { serveStagingLiteraryCandidates } =
+          await import("./features/fore/staging-literary-benchmark.server");
+        const literary = await serveStagingLiteraryCandidates(request, foreEnv.DB);
+        return stageNoStore(applySecurityHeaders(request, literary, foreEnv), true);
+      }
       const ingestionControl = await handleVercelIngestionControl(request, foreEnv);
       if (ingestionControl)
         return stageNoStore(applySecurityHeaders(request, ingestionControl, foreEnv), staging);
