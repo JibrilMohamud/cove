@@ -18,6 +18,7 @@ type Entry = { promise: Promise<Context>; expiresAt: number };
 const entries = new Map<string, Entry>();
 const maxEntries = 32;
 const successTtlMs = 2000;
+const pendingTtlMs = 3000;
 
 export function sharedAnonymousHomepageContext(
   db: ContextDb,
@@ -50,7 +51,10 @@ export function sharedAnonymousHomepageContext(
   // anonymous request in this isolate. No primary rights promise is shared.
   const entry: Entry = {
     promise: resolveAnonymousHomepageContext(db, request, fallbackCountry),
-    expiresAt: Infinity,
+    // Do not pin all future guests to a hung metadata session indefinitely.
+    // Later requests may retry after three seconds while the old promise
+    // finishes normally for its original waiters.
+    expiresAt: Date.now() + pendingTtlMs,
   };
   entries.set(key, entry);
   void entry.promise.then(
