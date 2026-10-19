@@ -29,7 +29,12 @@ function walk(file) {
   seen.add(file);
   const content = fs.readFileSync(file, "utf8");
   const relative = path.relative(root, file);
-  detail.push({ file: relative, bytes: Buffer.byteLength(content), staticImports: 0, dynamicImports: 0 });
+  detail.push({
+    file: relative,
+    bytes: Buffer.byteLength(content),
+    staticImports: 0,
+    dynamicImports: 0,
+  });
   const current = detail.at(-1);
   // es-module-lexer handles compact Rollup output, re-exports and
   // side-effect imports without undercounting module initialization.
@@ -59,7 +64,8 @@ const allBytes = allFiles.reduce((n, file) => n + fs.statSync(file).size, 0);
 const report = {
   entry: "index.mjs",
   checkedAt: new Date().toISOString(),
-  boundary: "Static ESM import graph only; dynamic modules may be needed for homepage SSR. Total bytes are not initialization CPU time.",
+  boundary:
+    "Static ESM import graph only; dynamic modules may be needed for homepage SSR. Total bytes are not initialization CPU time.",
   entryBytes: fs.statSync(entry).size,
   entryClosureBytes: staticBytes,
   entryClosureModules: detail.length,
