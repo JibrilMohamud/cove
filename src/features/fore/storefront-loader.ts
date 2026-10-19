@@ -25,6 +25,7 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
     const localEnvironment = currentCoveRequestEnvironment();
     const localDatabase = localEnvironment?.DB as { prepare?: unknown } | undefined;
     const localRightsAuthority = typeof localDatabase?.prepare === "function";
+    let usedRequestLocalPrestart = false;
     const primary = async (forwarded: Request): Promise<Response> => {
       if (localRightsAuthority) {
         // A public, cookie-free Worker homepage can use the much smaller
@@ -50,8 +51,10 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
             // while the SSR framework loads. Reuse it only inside the exact
             // request-local scope and only AFTER the same anonymous guard.
             // No HTML/book IDs are returned until validation completes.
+            const early = currentCoveRequestAnonymousBootstrap();
+            if (early) usedRequestLocalPrestart = true;
             return (
-              currentCoveRequestAnonymousBootstrap() ??
+              early ??
               serveLeanAnonymousBootstrap(
                 forwarded,
                 localEnvironment as Parameters<typeof serveLeanAnonymousBootstrap>[1],
@@ -121,6 +124,7 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
     });
     const timing = [`cove_ssr_bootstrap;dur=${(performance.now() - started).toFixed(1)}`];
     if (localRightsAuthority) timing.push("cove_ssr_local_rights;dur=0");
+    if (usedRequestLocalPrestart) timing.push("cove_ssr_prestarted;dur=0");
     if (phase.primaryFailureMs !== null)
       timing.push(`cove_ssr_primary_failure;dur=${phase.primaryFailureMs.toFixed(1)}`);
     if (phase.alternateMs !== null) {
