@@ -1,9 +1,8 @@
 // Protected, bounded 50:50 discovery and licensed-homepage load test.
-// Synthetic anonymous requests only; do not retain headers, URL or visitor key.
+// Read-only, IDENTICAL stage probe of real literary candidate SQL in BOTH builds.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { performance } from "node:perf_hooks";
-import { randomUUID, createHash } from "node:crypto";
 import {
   percentile,
   productionOrigin,
@@ -20,15 +19,9 @@ const waves = [
   { concurrency: 8, requests: 16 },
   { concurrency: 16, requests: 24 },
 ];
-const visitor = randomUUID();
 const intents = ["reflective", "friendship", "mystery"];
 const rows = [];
 let ordinal = 0;
-
-function responseDigest(payload) {
-  const ids = payload.rails.flatMap((rail) => rail.items.map((item) => item.productId));
-  return createHash("sha256").update(JSON.stringify(ids)).digest("hex").slice(0, 16);
-}
 
 async function requestOne(kind, concurrency) {
   const sequence = ++ordinal;
@@ -36,21 +29,19 @@ async function requestOne(kind, concurrency) {
   const intent = intents[(sequence - 1) % intents.length];
   const discovery = kind === "discovery";
   const url = discovery
-    ? origin + "/api/fore/recommendations/discover?visitor=" + visitor
+    ? origin + "/api/fore/benchmark/literary-candidates?term=" + intent
     : origin + "/";
   let status = 0;
   let colo = "unknown";
   try {
     const options = {
-      method: discovery ? "POST" : "GET",
+      method: "GET",
       redirect: "manual",
       headers: {
         Authorization: "Bearer " + token,
         "Cache-Control": "no-store",
         Accept: discovery ? "application/json" : "text/html",
-        ...(discovery ? { "Content-Type": "application/json", Origin: origin } : {}),
       },
-      ...(discovery ? { body: JSON.stringify({ query: intent, limit: 12 }) } : {}),
       signal: AbortSignal.timeout(20000),
     };
     const response = await fetch(url, options);
@@ -59,19 +50,15 @@ async function requestOne(kind, concurrency) {
     colo = (response.headers.get("cf-ray") || "").match(/-([A-Z]{3})$/)?.[1] || "unknown";
     const raw = await response.text();
     let count = 0;
-    let digest = null;
     if (discovery) {
       assert.equal(status, 200, "Discovery HTTP failure");
       assert.match(response.headers.get("content-type") || "", /application\/json/);
       const payload = JSON.parse(raw);
-      assert.equal(payload.version, "cove-discovery-v1");
-      assert.ok(Array.isArray(payload.rails));
-      assert.ok(
-        payload.rails.every((rail) => Array.isArray(rail.books) && Array.isArray(rail.items)),
-      );
-      assert.ok(payload.rails.length > 0 || typeof payload.emptyReason === "string");
-      count = payload.rails.reduce((n, rail) => n + rail.books.length, 0);
-      digest = responseDigest(payload);
+      assert.equal(payload.schema, "cove-stage-literary-rights-read-v1");
+      assert.equal(payload.rightsSource, "primary-d1-live");
+      assert.ok(Number.isInteger(payload.count) && payload.count >= 0);
+      assert.match(response.headers.get("server-timing") || "", /cove_literary_read;dur=/);
+      count = payload.count;
     } else {
       count = validateHtml(status, response.headers.get("content-type") || "", raw);
       assert.ok(count >= 1, "No rights-cleared books");
@@ -90,7 +77,6 @@ async function requestOne(kind, concurrency) {
       ttfbMs,
       totalMs: Math.round(performance.now() - before),
       count,
-      digest,
       colo,
       error: null,
     };
@@ -104,7 +90,6 @@ async function requestOne(kind, concurrency) {
       ttfbMs: Math.round(performance.now() - before),
       totalMs: null,
       count: 0,
-      digest: null,
       colo,
       error: status !== 200 ? "http-failure" : "validation-or-request-failure",
     };
@@ -152,7 +137,8 @@ const summary = waves.map((w) => ({
   discovery: summarize(w.concurrency, "discovery", w.requests / 2),
 }));
 const report = {
-  test: "protected-mixed-literary-home-v1",
+  test: "protected-mixed-read-only-literary-home-v2",
+  scope: "actual rights-filtered candidate query, not the POST endpoint or full recommendation logging",
   waves,
   summary,
   results: rows.sort((a, b) => a.sequence - b.sequence),
