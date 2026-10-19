@@ -80,6 +80,7 @@ export default {
         ASSETS?: { fetch: (request: Request) => Promise<Response> };
         COVE_SSR_STAGING?: string;
         COVE_SSR_STAGING_GATE_KEY?: string;
+        COVE_SSR_DIAGNOSTICS?: string;
         FORE_PUBLIC_URL?: string;
         FORE_ENVIRONMENT?: string;
         FORE_CSP_REPORT_URI?: string;
@@ -137,6 +138,17 @@ export default {
         const headers = new Headers(request.headers);
         headers.delete("authorization");
         request = new Request(request, { headers });
+      }
+      // Private latency ladder never exists on public/prod routes. The
+      // stage bearer gate has already run, and synthetic Wrangler config
+      // explicitly opts into this endpoint. These reads are never cacheable.
+      if (new URL(request.url).pathname.startsWith("/__cove_perf/")) {
+        if (!staging || foreEnv.COVE_SSR_DIAGNOSTICS !== "1" || !foreEnv.DB)
+          return new Response(null, { status: 404, headers: { "cache-control": "no-store" } });
+        const { serveSyntheticLatencyDiagnostic } =
+          await import("./lib/cloudflare-latency-diagnostic.server");
+        const diagnostic = await serveSyntheticLatencyDiagnostic(request, foreEnv as any);
+        return stageNoStore(applySecurityHeaders(request, diagnostic, foreEnv), true);
       }
       const ingestionControl = await handleVercelIngestionControl(request, foreEnv);
       if (ingestionControl)

@@ -7,10 +7,15 @@ import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { PERFORMANCE_D1, isolatedD1Config, verifySyntheticD1 } from "./isolated-d1-gate.mjs";
+import { runAttributionLadder } from "./cloudflare-attribution-ladder.mjs";
+import { writeAttributionReport } from "./analyze-attribution.mjs";
+import { captureIsolatedCpuProfiles } from "./capture-worker-cpu.mjs";
 
 const root = process.cwd();
-const baselineSha = "6d197e48b7255eb02e689674575287dba54a37a5";
 const candidateSha = process.env.COVE_RECOVERY_CANDIDATE_SHA;
+// This is a REPRODUCIBILITY test: both protected Workers run identical code.
+// Only separate, independently verified synthetic databases differ.
+const baselineSha = candidateSha;
 assert.match(candidateSha || "", /^[a-f0-9]{40}$/);
 const configName = "wrangler.paired.toml";
 const cohorts = {
@@ -49,7 +54,9 @@ function prepareConfigs() {
   for (const [role, cohort] of Object.entries(cohorts)) {
     const namespace = role === "baseline" ? "732010" : "732011";
     const config = isolatedD1Config(template, role, cohort.name, namespace);
-    fs.writeFileSync(path.join(cohort.dir, configName), config);
+    // Explicitly stage-only and injected after the isolated-D1 allowlist.
+    // Neither the production configuration nor normal staging gains these routes.
+    fs.writeFileSync(path.join(cohort.dir, configName), config + '\nCOVE_SSR_DIAGNOSTICS = "1"\n');
     // This exact SHA cohort may read only its own wholly synthetic database.
     cohort.databaseId = PERFORMANCE_D1[role].id;
   }
@@ -128,7 +135,7 @@ function benchScript(label, cohort, script, outputName, run) {
     COVE_SSR_STAGING_GATE_KEY: cohort.key,
     COVE_EXPECT_PRESTART: "0",
     COVE_EXPECT_DISCOVERY_DEFER: "1",
-    COVE_EXPECT_CATALOG_DEFER: cohort.name.includes("candidate") ? "1" : "0",
+    COVE_EXPECT_CATALOG_DEFER: "1",
     // Keep timestamp of secret change numeric only, not a token.
     COVE_STAGE_SECRET_ROTATION_EPOCH_MS: String(cohort.rotatedAt),
   };
@@ -258,7 +265,7 @@ async function main() {
   assert.equal(revision.current, candidateSha);
   prepareConfigs();
   const syntheticFixture = await assertSyntheticReadiness();
-  assert.notEqual(cohorts.baseline.sha, cohorts.current.sha);
+  assert.equal(cohorts.baseline.sha, cohorts.current.sha);
   const manifest = {
     revision,
     placement: "same-ingress-edge",
@@ -364,6 +371,29 @@ async function main() {
     if (Array.isArray(interval.sql) && !interval.sql.length)
       interval.sql = { warning: "Analytics unavailable or not yet ingested; NOT zero D1 activity" };
   }
+  // Run the paired A–E ladder only AFTER three cold campaigns, licensed
+  // concurrency waves, and real-browser LCP. This never prewarms cold SSR.
+  // A failed diagnostic still leaves the release result marked failed, while
+  // artifacts remain available for the root-cause investigation.
+  let attributionEvidence = null;
+  const attributionStart = Date.now();
+  try {
+    attributionEvidence = await runAttributionLadder(cohorts);
+    if (!attributionEvidence.allValid) anyFailures = true;
+  } catch {
+    anyFailures = true;
+    manifest.attributionError = "attribution-probe-failed; no release approval";
+  }
+  if (attributionEvidence) {
+    manifest.attributionD1Intervals = {};
+    for (const role of ["baseline", "current"]) {
+      manifest.attributionD1Intervals[role] = await d1Snapshot(
+        attributionStart,
+        Date.now(),
+        cohorts[role].databaseId,
+      );
+    }
+  }
   manifest.timingCaveat =
     "Workers performance.now advances only on I/O. cove_total is not complete CPU/wall time; residual includes unmeasured CPU and must not be labeled network-only.";
   manifest.workerPlatform = {};
@@ -373,6 +403,32 @@ async function main() {
       manifest.startedAt,
       new Date().toISOString(),
     );
+  }
+  if (attributionEvidence) {
+    const report = writeAttributionReport(attributionEvidence, {
+      root: outDir,
+      workerPlatform: manifest.workerPlatform,
+      revision,
+    });
+    manifest.attribution = {
+      allValid: attributionEvidence.allValid,
+      matchedColos: attributionEvidence.matchedColos,
+      rootCauseProven: report.diagnostic.rootCauseProven,
+      diagnostic: report.diagnostic,
+      report: "latency-attribution.md",
+      raw: "latency-attribution.json",
+      csv: "latency-attribution.csv",
+    };
+  }
+  // CPU flamegraphs run AFTER all measured request cohorts and after
+  // platform timing snapshots so profiling overhead never biases TTFB/LCP.
+  try {
+    manifest.cpuProfiles = await captureIsolatedCpuProfiles(cohorts, outDir);
+  } catch {
+    manifest.cpuProfiles = {
+      isolatedOnly: true,
+      warning: "CPU capture unavailable; performance gates unchanged",
+    };
   }
   // Results are paired by the same bounded concurrency wave, not by
   // independent days/regions. If colos fail to overlap the comparison is
