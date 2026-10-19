@@ -8,6 +8,7 @@ import { performance } from "node:perf_hooks";
 import { Agent, fetch as httpFetch } from "undici";
 import { chromium, devices } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { parseThinConfig } from "./thin-config.mjs";
 import { PERFORMANCE_D1, isolatedD1Config, verifySyntheticD1 } from "./isolated-d1-gate.mjs";
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const token = process.env.CLOUDFLARE_API_TOKEN;
@@ -91,9 +92,10 @@ for (const role of ["baseline", "core"]) {
   config = config.replace(/\[\[r2_buckets\]\][\s\S]*?(?=\[vars\])/, "");
   config += `\nCOVE_PERF_DATABASE_ID = "${PERFORMANCE_D1[dbrole].id}"\n`;
   assert.ok(!config.includes("4bd657ac-8789-403e-a28c-93aba8d0a989"));
+  config += "\n[observability]\nenabled = true\nhead_sampling_rate = 1\n";
   fs.writeFileSync(`wrangler.thin-${role}.toml`, config);
 }
-const thinConfig = JSON.parse(fs.readFileSync("wrangler.storefront-thin.jsonc", "utf8"));
+const thinConfig = parseThinConfig(fs.readFileSync("wrangler.storefront-thin.jsonc", "utf8"));
 assert.equal(thinConfig.d1_databases.length, 1);
 assert.equal(thinConfig.d1_databases[0].database_id, PERFORMANCE_D1.current.id);
 assert.equal(thinConfig.services[0].service, workers.core);
@@ -423,7 +425,9 @@ try {
       }
   const a = await sample("baseline"),
     b = await sample("thin");
-  assert.ok(a.valid && b.valid);
+  evidence.paritySamples = { baseline: a, thin: b };
+  save();
+  assert.ok(a.valid && b.valid, "Both parity responses must be valid; raw responses retained");
   assert.deepEqual(a.links, b.links, "Exact 24 ordered canonical edition URLs must match");
   evidence.contentParity = true;
   await verifyRemoteRevocation(b);

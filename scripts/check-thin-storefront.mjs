@@ -3,7 +3,19 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { build } from "esbuild";
+import { parseThinConfig } from "./performance/thin-config.mjs";
 import { localBindings } from "./local-api.mjs";
+const configSource = fs.readFileSync("wrangler.storefront-thin.jsonc", "utf8");
+parseThinConfig(configSource);
+assert.throws(() =>
+  parseThinConfig(
+    configSource.replace(
+      "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+      "4bd657ac-8789-403e-a28c-93aba8d0a989",
+    ),
+  ),
+);
+assert.throws(() => parseThinConfig(configSource.replace('"synthetic-only"', '"production"')));
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "cove-thin-"));
 try {
   fs.cpSync("drizzle", path.join(root, "drizzle"), { recursive: true });
