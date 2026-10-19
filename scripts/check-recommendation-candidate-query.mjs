@@ -68,7 +68,7 @@ ORDER BY COALESCE(rm.trend_score,m.trend_score,d.sales_velocity,0) DESC,
          COALESCE(rm.popularity_score,m.popularity_score,d.download_count,0) DESC,
          p.updated_at DESC,p.id ASC LIMIT ?
 `);
-function adapter(calls) {
+function adapter(calls, database = sql) {
   return {
     prepare(statement) {
       return {
@@ -76,11 +76,11 @@ function adapter(calls) {
           return {
             async all() {
               calls.push(statement);
-              return { results: sql.prepare(statement).all(...params) };
+              return { results: database.prepare(statement).all(...params) };
             },
             async first() {
               calls.push(statement);
-              return sql.prepare(statement).get(...params);
+              return database.prepare(statement).get(...params);
             },
           };
         },
@@ -104,6 +104,105 @@ for (const territory of ["US", "CA", "GB"]) {
       assert.equal(calls.length, 2, "Sparse rights must force exact complete fallback");
     if (limit === 0) assert.equal(calls.length, 0, "Empty request must not call D1");
   }
+}
+// A separate ranking snapshot deliberately does not follow later primary
+// product state or rights revocations. It must never authorize any result.
+const replica = new DatabaseSync(":memory:");
+try {
+  for (const table of [
+    "products",
+    "editions",
+    "recommendation_item_metrics",
+    "recommendation_regional_item_metrics",
+    "catalog_search_documents",
+  ]) {
+    replica.exec(
+      sql.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table).sql,
+    );
+    const rows = sql.prepare(`SELECT * FROM ${table}`).all();
+    if (rows.length) {
+      const keys = Object.keys(rows[0]);
+      const insert = replica.prepare(
+        `INSERT INTO ${table} (${keys.join(",")}) VALUES (${keys.map(() => "?").join(",")})`,
+      );
+      for (const row of rows) insert.run(...keys.map((key) => row[key]));
+    }
+  }
+  const primaryCalls = [],
+    replicaCalls = [];
+  let sessions = 0;
+  const primary = adapter(primaryCalls);
+  const routed = {
+    ...primary,
+    withSession(constraint) {
+      assert.equal(constraint, "first-unconstrained");
+      sessions++;
+      return adapter(replicaCalls, replica);
+    },
+  };
+  for (const limit of [5, 50, 160, 500]) {
+    assert.deepEqual(
+      await activeCandidateIds(routed, "US", limit),
+      reference.all("US", "US", limit).map((row) => row.id),
+    );
+  }
+  assert.ok(
+    replicaCalls.every((q) => !/rights_grant|retail_product_availability/.test(q)),
+    "Replica reads must be ranking hints only",
+  );
+  assert.ok(
+    primaryCalls.every((q) => !/WITH ranked AS MATERIALIZED/.test(q)),
+    "Dense primary reads must not sort the full catalog",
+  );
+  assert.equal(sessions, 4, "Each request owns a new ranking session");
+  // Replica still ranks these highly, but current primary denies both.
+  sql.exec("UPDATE rights_grants SET status='revoked' WHERE edition_id='book-004'");
+  sql.exec("UPDATE products SET storefront_status='inactive' WHERE id='book-005'");
+  assert.equal(
+    replica.prepare("SELECT storefront_status FROM products WHERE id='book-005'").get()
+      .storefront_status,
+    "active",
+  );
+  const revoked = await activeCandidateIds(routed, "US", 5);
+  assert.deepEqual(
+    revoked,
+    reference.all("US", "US", 5).map((row) => row.id),
+  );
+  assert.ok(!revoked.includes("book-004") && !revoked.includes("book-005"));
+  // Sparse/empty markets must retain the complete primary oracle.
+  const beforeSessions = sessions;
+  for (const territory of ["CA", "GB"])
+    assert.deepEqual(
+      await activeCandidateIds(routed, territory, 50),
+      reference.all(territory, territory, 50).map((row) => row.id),
+    );
+  assert.equal(sessions, beforeSessions);
+  const unavailable = {
+    ...primary,
+    withSession() {
+      throw Error("replica unavailable");
+    },
+  };
+  assert.deepEqual(await activeCandidateIds(unavailable, "US", 5), revoked);
+  // A lagging/empty shortlist is repaired using the complete live primary path.
+  replica.exec("UPDATE products SET storefront_status='inactive'");
+  assert.deepEqual(await activeCandidateIds(routed, "US", 5), revoked);
+  replica.exec("UPDATE products SET storefront_status='active'");
+  const failedPrimary = {
+    ...routed,
+    prepare(q) {
+      if (/json_each/.test(q)) throw Error("primary rights unavailable");
+      return primary.prepare(q);
+    },
+  };
+  await assert.rejects(activeCandidateIds(failedPrimary, "US", 5), /primary rights unavailable/);
+  assert.deepEqual(
+    await activeCandidateIds(routed, "US", 5),
+    revoked,
+    "Failure must not poison recovery",
+  );
+} finally {
+  replica.close();
 }
 assert.match(source.slice(start, end), /retail_product_availability_rows/);
 assert.match(source.slice(start, end), /rights_grant_territories/);
