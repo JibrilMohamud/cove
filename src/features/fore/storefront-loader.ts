@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   currentCoveRequestEnvironment,
   currentCoveRequestExecutionContext,
+  currentCoveRequestAnonymousBootstrap,
 } from "@/lib/cove-request-env.server";
 import { hedgedStorefrontBootstrap } from "./storefront-hedged-fetch";
 
@@ -44,11 +45,19 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
               forwarded,
               localEnvironment as Parameters<typeof canUseLeanAnonymousBootstrap>[1],
             )
-          )
-            return serveLeanAnonymousBootstrap(
-              forwarded,
-              localEnvironment as Parameters<typeof serveLeanAnonymousBootstrap>[1],
+          ) {
+            // The entrypoint may start this same live primary-rights bootstrap
+            // while the SSR framework loads. Reuse it only inside the exact
+            // request-local scope and only AFTER the same anonymous guard.
+            // No HTML/book IDs are returned until validation completes.
+            return (
+              currentCoveRequestAnonymousBootstrap() ??
+              serveLeanAnonymousBootstrap(
+                forwarded,
+                localEnvironment as Parameters<typeof serveLeanAnonymousBootstrap>[1],
+              )
             );
+          }
         }
         // Cloudflare SSR and the live rights database share one Worker invocation.
         // Authenticated and fallback paths always retain their full adapter.
