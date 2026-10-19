@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   # Dedicated strict cold-start experiment. Distinct temporary Worker names,
@@ -28,6 +29,7 @@ jobs:
       VERCEL: "0"
       COVE_CLOUDFLARE_SSR_PILOT: "1"
       COVE_PAIR_RELEASE_FREEZE: "1"
+      COVE_GITHUB_READ_TOKEN: ${{ github.token }}
       COVE_RECOVERY_CANDIDATE_SHA: ${{ github.sha }}
       CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -74,6 +76,7 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm run typecheck
+          node scripts/check-benchmark-isolation.mjs
           node scripts/check-search-stat-replicas.mjs
           node scripts/check-grouped-catalog-facets.mjs
           node scripts/check-storefront-bootstrap.mjs

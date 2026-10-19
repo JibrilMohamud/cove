@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { requireBenchmarkIsolation } from "./benchmark-isolation.mjs";
 import { performance } from "node:perf_hooks";
 
 const root = process.cwd();
@@ -24,6 +25,21 @@ const account = "d26430caa63ec55f6612e32f36aca5e9";
 const databaseId = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const outDir = path.resolve(root, "../statistics-paired-evidence");
 fs.mkdirSync(outDir, { recursive: true });
+
+const isolationLedger = [];
+async function verifyIsolation() {
+  try {
+    await requireBenchmarkIsolation(
+      { token: process.env.COVE_GITHUB_READ_TOKEN, runId: process.env.GITHUB_RUN_ID },
+      isolationLedger,
+    );
+  } finally {
+    fs.writeFileSync(
+      path.join(outDir, "benchmark-isolation.json"),
+      JSON.stringify(isolationLedger, null, 2) + "\n",
+    );
+  }
+}
 
 function command(cwd, exe, args, env = {}, timeout = 200000, input) {
   const r = spawnSync(exe, args, {
@@ -107,7 +123,8 @@ async function controlPlane(name, rotatedAt, previousId) {
   }
   throw Error("No confirmed 100% control-plane deployment");
 }
-function benchScript(label, cohort, script, outputName, run) {
+async function benchScript(label, cohort, script, outputName, run) {
+  await verifyIsolation();
   const env = {
     COVE_SSR_STAGING_ORIGIN: `https://${cohort.name}.cove-jibrilmohamud.workers.dev`,
     COVE_SSR_STAGING_GATE_KEY: cohort.key,
@@ -170,6 +187,7 @@ async function catalogPriceBounds() {
 }
 
 async function deployFresh(cohort) {
+  await verifyIsolation();
   const arg = ["exec", "--yes", "--package=wrangler@4.151.0", "--", "wrangler"];
   command(cohort.dir, "npm", [...arg, "deploy", "--config", configName], {}, 180000);
   cohort.key = randomBytes(32).toString("hex");
@@ -270,6 +288,7 @@ async function main() {
   assert.notEqual(cohorts.baseline.sha, cohorts.current.sha);
   const manifest = {
     revision,
+    benchmarkIsolation: isolationLedger,
     placement: "same-ingress-edge",
     config: "identical protected staging config, live production D1/R2",
     orderedTrials: [],
@@ -293,7 +312,7 @@ async function main() {
           begin: new Date(began).toISOString(),
           deployment,
         });
-        benchScript(
+        await benchScript(
           label,
           cohort,
           "scripts/check-cloudflare-ssr-staging.mjs",
@@ -328,7 +347,7 @@ async function main() {
     // with the production limiter and all background jobs left unchanged.
     if (repeat) await new Promise((done) => setTimeout(done, 61_000));
     const began = Date.now();
-    benchScript(
+    await benchScript(
       `concurrency-${name}${repeat ? "-repeat" : ""}`,
       cohorts[name],
       "scripts/performance/cloudflare-concurrency.mjs",
@@ -350,7 +369,7 @@ async function main() {
   // Optional below-fold network work should remain dormant until observed.
   for (const name of ["baseline", "current"]) {
     if (!cohorts[name].key) continue;
-    benchScript(
+    await benchScript(
       `browser-${name}`,
       cohorts[name],
       "scripts/performance/cloudflare-browser.mjs",
@@ -372,7 +391,7 @@ async function main() {
   for (const name of ["baseline", "current"]) {
     const cohort = cohorts[name];
     if (!cohort.key) continue;
-    benchScript(
+    await benchScript(
       "mixed-facets-" + name,
       cohort,
       "scripts/performance/cloudflare-facet-home-mixed.mjs",
@@ -490,7 +509,11 @@ async function main() {
     outcome: manifest.outcomes.find((x) => x.name === "mixed-facets-" + name),
     evidence: byName("mixed-facets-" + name),
   }));
+  await verifyIsolation();
   manifest.comparison.commercialHeadroom = {
+    exclusiveBenchmarkCampaign:
+      isolationLedger.length >= 20 &&
+      isolationLedger.every((entry) => entry.verified && entry.peers.length === 0),
     threeFullyColdRoundsUnder700:
       candidate.cold.length === 3 &&
       candidate.cold.every(
