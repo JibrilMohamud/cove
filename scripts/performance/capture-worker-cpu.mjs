@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { validateHtml } from "../check-production-storefront-performance.mjs";
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -16,6 +17,33 @@ async function profile(cohort, outputDir) {
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/${account}/workers/workers/${cohort.name}/versions/latest-deployed/profile`;
   const stageOrigin = `https://${cohort.name}.cove-jibrilmohamud.workers.dev`;
   const record = { worker: cohort.name, requested: 32, valid: 0, profileAvailable: false };
+  // Cloudflare profiles an already-loaded isolate. The 65-second quiet window
+  // used for rate limiting may have evicted it. Warm only after *all* TTFB
+  // and LCP samples are saved; enforce the same live-rights HTML invariant.
+  let warmed = false;
+  try {
+    const ready = await fetch(stageOrigin + "/", {
+      headers: {
+        Authorization: "Bearer " + cohort.key,
+        Accept: "text/html",
+        "Cache-Control": "no-store",
+      },
+      redirect: "manual",
+      signal: AbortSignal.timeout(15000),
+    });
+    const html = await ready.text();
+    warmed =
+      ready.status === 200 &&
+      validateHtml(ready.status, ready.headers.get("content-type") || "", html) > 0 &&
+      /cove_ssr_local_rights;dur=0/.test(ready.headers.get("server-timing") || "");
+  } catch {
+    // A warm-up failure is recorded; do not fetch a profile of unknown traffic.
+  }
+  if (!warmed) {
+    record.warning = "Rights-authorized CPU profile warm-up unavailable";
+    return record;
+  }
+  record.warmupRightsValid = true;
   const pending = fetch(endpoint, {
     method: "POST",
     headers: {
@@ -73,6 +101,23 @@ async function profile(cohort, outputDir) {
   record.profileAvailable = true;
   record.file = name;
   record.bytes = bytes.length;
+  record.validProfileTraffic = record.valid === record.requested;
+  if (!record.validProfileTraffic)
+    record.warning = "CPU capture includes failed or invalid synthetic HTML; no causal attribution";
+  // pprof is supplemental: the binary remains useful if Go tooling is absent
+  // or the Cloudflare capture uses an unsupported protobuf profile format.
+  const top = spawnSync("go", ["tool", "pprof", "-top", "-nodecount=20", path.join(outputDir, name)], {
+    timeout: 30000,
+    encoding: "utf8",
+    maxBuffer: 1024 * 1024,
+  });
+  if (!top.error && top.status === 0 && top.stdout.trim()) {
+    const summaryName = `latency-cpu-top-${cohort.name}.txt`;
+    fs.writeFileSync(path.join(outputDir, summaryName), top.stdout.slice(0, 24000));
+    record.topFile = summaryName;
+  } else {
+    record.topWarning = "pprof text conversion unavailable; binary profile retained";
+  }
   return record;
 }
 
