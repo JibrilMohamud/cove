@@ -202,6 +202,8 @@ function summarize(rows, stage, concurrency) {
     sqlMs: describe(numeric("sqlMs")),
     rowsRead: describe(numeric("rowsRead")),
     queueMs: describe(numeric("clientQueueMs")),
+    serialHandshakeMs: describe(numeric("connectMs")),
+    handshakesObserved: numeric("connectMs").length,
     colos: [...new Set(valid.map((x) => x.colo))].sort(),
     pass: subset.length > 0 && valid.length === subset.length,
   };
