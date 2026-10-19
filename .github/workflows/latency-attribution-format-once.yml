@@ -1,0 +1,31 @@
+# One-time mechanical formatting of the diagnostic PR branch.
+# This workflow is intentionally restricted to this exact nonproduction branch.
+name: latency-attribution-format-once
+on:
+  push:
+    branches: [perf/latency-attribution-ladder-20261019]
+permissions:
+  contents: write
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - name: Format only diagnostic files with repository Prettier
+        run: |
+          npx prettier --write src/server.ts src/lib/cloudflare-latency-diagnostic.server.ts scripts/check-latency-attribution.mjs scripts/performance/analyze-attribution.mjs scripts/performance/cloudflare-attribution-ladder.mjs scripts/performance/cloudflare-lazyfacet-paired.mjs
+          git add src/server.ts src/lib/cloudflare-latency-diagnostic.server.ts scripts/check-latency-attribution.mjs scripts/performance/analyze-attribution.mjs scripts/performance/cloudflare-attribution-ladder.mjs scripts/performance/cloudflare-lazyfacet-paired.mjs
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'style(perf): format diagnostic implementation'
+            git push origin HEAD:perf/latency-attribution-ladder-20261019
+          fi
