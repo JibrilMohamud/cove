@@ -186,7 +186,8 @@ try {
       headers: visitorHeaders,
     });
     let limitCalls = 0,
-      authoritativeRights = 0;
+      authoritativeRights = 0,
+      anonymousPresentationBatches = 0;
     const sessionModes = [];
     const proxyDb = new Proxy(env.DB, {
       get(target, property) {
@@ -195,6 +196,16 @@ try {
             sessionModes.push(mode);
             return new Proxy(target, {
               get(reader, key) {
+                if (key === "batch")
+                  return (statements) => {
+                    anonymousPresentationBatches++;
+                    assert.equal(
+                      statements.length,
+                      4,
+                      "Guest first paint must collect market, locale, payments and page in one D1 batch",
+                    );
+                    return reader.batch(statements);
+                  };
                 if (key === "prepare")
                   return (sql) => {
                     assert.doesNotMatch(
@@ -275,6 +286,11 @@ try {
     assert.equal(value.context.locale, expected.context.locale);
     assert.equal(value.context.currency, expected.context.currency);
     assert.deepEqual(
+      value.context,
+      expected.context,
+      "Guest single-batch metadata must preserve every canonical locale, translation and payment field",
+    );
+    assert.deepEqual(
       value.context.availableMarkets,
       expected.context.availableMarkets,
       "One combined D1 read must preserve the exact country/locale market list",
@@ -288,6 +304,11 @@ try {
     assert.equal(value.catalogQuery, expected.catalogQuery);
     assert.equal(authoritativeRights, 1, "Exactly one primary rights query");
     assert.equal(limitCalls, 1, "Exactly one enforced Cloudflare edge limit");
+    assert.equal(
+      anonymousPresentationBatches,
+      1,
+      "Guest context must use exactly one combined presentation D1 service call",
+    );
     assert.deepEqual(
       sessionModes,
       ["first-unconstrained"],
