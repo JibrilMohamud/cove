@@ -4,6 +4,9 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { init, parse } from "es-module-lexer";
+
+await init;
 
 const root = path.resolve(".output/server");
 const entry = path.join(root, "index.mjs");
@@ -28,17 +31,13 @@ function walk(file) {
   const relative = path.relative(root, file);
   detail.push({ file: relative, bytes: Buffer.byteLength(content), staticImports: 0, dynamicImports: 0 });
   const current = detail.at(-1);
-  // Built Nitro modules use normal static import and re-export syntax.
-  const staticPatterns = [
-    /(?:^|[\n;])\s*import\s*(?:[\s\S]*?\sfrom\s*)?["']([^"']+)["']/gm,
-    /(?:^|[\n;])\s*export\s*[^;\n]*?\sfrom\s*["']([^"']+)["']/gm,
-  ];
+  // es-module-lexer handles compact Rollup output, re-exports and
+  // side-effect imports without undercounting module initialization.
   const staticPaths = new Set();
-  for (const pattern of staticPatterns) {
-    for (const match of content.matchAll(pattern)) staticPaths.add(match[1]);
-  }
-  for (const match of content.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g)) {
-    current.dynamicImports++;
+  const [imports] = parse(content);
+  for (const found of imports) {
+    if (found.d >= 0) current.dynamicImports++;
+    else if (found.n) staticPaths.add(found.n);
   }
   for (const target of staticPaths) {
     current.staticImports++;
