@@ -742,12 +742,25 @@ try {
     receipt = JSON.parse(options.body);
     return Response.json({ deleted: true, providerId: provider });
   };
-  await erasure.eraseProviderIdentity(
-    { ...privateEnv, FORE_INGESTION_SIGNING_KEY: JSON.stringify(privateKey) },
-    provider,
-    user,
-    job,
-  );
+  // Force the clock across a millisecond boundary between consecutive reads.
+  // The strict bridge rejects a proof longer than 120000 ms even by 1 ms.
+  const originalNow = Date.now;
+  const issuedAt = originalNow();
+  let clockReads = 0;
+  Date.now = () => issuedAt + clockReads++;
+  try {
+    await erasure.eraseProviderIdentity(
+      { ...privateEnv, FORE_INGESTION_SIGNING_KEY: JSON.stringify(privateKey) },
+      provider,
+      user,
+      job,
+    );
+  } finally {
+    Date.now = originalNow;
+  }
+  const proofClaims = JSON.parse(Buffer.from(receipt.payload, "base64url").toString("utf8"));
+  assert.equal(proofClaims.issuedAt, issuedAt);
+  assert.equal(proofClaims.expiresAt - proofClaims.issuedAt, 120000);
   let calls = 0;
   const bridgeRequest = (proof) =>
     new Request("https://edge.test", { method: "POST", body: JSON.stringify(proof) });
