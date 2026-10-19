@@ -58,6 +58,15 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
+// The dynamic SEO module has no handler for ordinary SSR documents. Avoid
+// loading/parsing it on the first homepage render, while keeping ALL sitemap
+// and robots routes under the same existing authoritative handler.
+function isSeoDocumentRequest(request: Request) {
+  if (request.method !== "GET" && request.method !== "HEAD") return false;
+  const path = new URL(request.url).pathname;
+  return path === "/robots.txt" || path === "/sitemap.xml" || path.startsWith("/sitemaps/");
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     const requestStarted = performance.now();
@@ -148,7 +157,7 @@ export default {
       const securityDocument = securityTxt(request, foreEnv);
       if (securityDocument)
         return stageNoStore(applySecurityHeaders(request, securityDocument, foreEnv), staging);
-      if (foreEnv.DB) {
+      if (foreEnv.DB && isSeoDocumentRequest(request)) {
         const { handleSeoDocumentRequest } = await import("./features/fore/seo.server");
         const seo = await handleSeoDocumentRequest(request, foreEnv.DB, foreEnv.FORE_PUBLIC_URL);
         if (seo) return stageNoStore(applySecurityHeaders(request, seo, foreEnv), staging);

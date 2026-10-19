@@ -232,6 +232,45 @@ export async function taxonomyTree(
   };
 }
 
+/** Format an already-read generic page. Also used by the anonymous homepage's
+ * read-only D1 localization batch; never a catalog or rights authorization.
+ */
+export function formatGenericStorefrontPageRecord(pathValue: string, record: any | null) {
+  const path = normalizePath(pathValue);
+  const row = record;
+  if (!row) {
+    if (["/", "/store", "/search"].includes(path)) {
+      return {
+        path,
+        pageType: path === "/search" ? "search" : "home",
+        title: "Bookstore",
+        heading: path === "/search" ? "Search the bookstore" : "Find your next great read.",
+        eyebrow: "THE BOOKSTORE",
+        description: "Stories to get lost in. Ideas to carry with you.",
+        seoTitle: path === "/search" ? "Search eBooks | Cove" : "Cove — Bookstore & Reading Room",
+        seoDescription: "Discover ebooks, read online, and build your reading life.",
+        noindex: path === "/search",
+        canonical: path === "/store" ? "/" : path,
+        query: {},
+      };
+    }
+    throw new ApiError(404, "This bookstore page does not exist.");
+  }
+  return {
+    path: String(row.path),
+    pageType: String(row.page_type),
+    title: String(row.title),
+    heading: String(row.heading),
+    eyebrow: String(row.eyebrow || "THE BOOKSTORE"),
+    description: String(row.description || ""),
+    seoTitle: String(row.seo_title || row.title),
+    seoDescription: String(row.seo_description || row.description || ""),
+    noindex: !!row.noindex,
+    canonical: String(row.path),
+    query: parseObject(row.query_json),
+  };
+}
+
 export async function resolveStorefrontPage(
   db: CatalogDB,
   pathValue: string,
@@ -535,37 +574,7 @@ export async function resolveStorefrontPage(
     )
     .bind(path, territory, language)
     .first<any>();
-  if (!row) {
-    if (["/", "/store", "/search"].includes(path)) {
-      return {
-        path,
-        pageType: path === "/search" ? "search" : "home",
-        title: "Bookstore",
-        heading: path === "/search" ? "Search the bookstore" : "Find your next great read.",
-        eyebrow: "THE BOOKSTORE",
-        description: "Stories to get lost in. Ideas to carry with you.",
-        seoTitle: path === "/search" ? "Search eBooks | Cove" : "Cove — Bookstore & Reading Room",
-        seoDescription: "Discover ebooks, read online, and build your reading life.",
-        noindex: path === "/search",
-        canonical: path === "/store" ? "/" : path,
-        query: {},
-      };
-    }
-    throw new ApiError(404, "This bookstore page does not exist.");
-  }
-  return {
-    path: String(row.path),
-    pageType: String(row.page_type),
-    title: String(row.title),
-    heading: String(row.heading),
-    eyebrow: String(row.eyebrow || "THE BOOKSTORE"),
-    description: String(row.description || ""),
-    seoTitle: String(row.seo_title || row.title),
-    seoDescription: String(row.seo_description || row.description || ""),
-    noindex: !!row.noindex,
-    canonical: String(row.path),
-    query: parseObject(row.query_json),
-  };
+  return formatGenericStorefrontPageRecord(path, row);
 }
 
 const taxonomyNodeInput = z.object({

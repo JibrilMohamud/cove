@@ -1,5 +1,5 @@
 import { networkCountry, resolveStorefrontContext } from "./localization.server";
-import { resolveStorefrontPage } from "./taxonomy.server";
+import { formatGenericStorefrontPageRecord } from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
 import type { CoveEnv } from "./api.server";
@@ -87,35 +87,26 @@ export async function serveLeanAnonymousBootstrap(
       null,
       env.FORE_DEFAULT_TERRITORY || "US",
       true,
+      true,
     ),
   );
-  const pagePromise = contextPromise.then((context) =>
-    timed(
-      "page",
-      resolveStorefrontPage(
-        readMetadata(),
-        "/",
-        context.rightsCountry,
-        context.language,
-        context.locale,
-      ),
-    ),
-  );
-  const [context, , catalog, page] = await Promise.all([
+  // The published page row now accompanies payment/translation metadata in
+  // the same read-only D1 batch. This removes a serial edge-to-D1 round trip.
+  const [context, , catalog] = await Promise.all([
     contextPromise,
     timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
     // NULL currency means active-market currency is looked up in this SAME
     // live primary D1 statement with the full retail-grant view.
     timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics)),
-    pagePromise,
   ]);
   if (context.rightsCountry !== trustedCountry)
     throw new Error("Anonymous country mismatch; refuse to render a legal-rights shelf.");
   // Only the presentation projection is combined. No entitlement data comes
   // from the market list, and the primary D1 rights query above must finish.
-  const { availableMarkets, ...publicContext } = context;
+  const { availableMarkets, homepagePageRow, ...publicContext } = context;
   if (!Array.isArray(availableMarkets))
     throw new Error("Anonymous market projection is unavailable.");
+  const page = formatGenericStorefrontPageRecord("/", homepagePageRow ?? null);
   const query = new URLSearchParams({
     search: "",
     sort: "popular",

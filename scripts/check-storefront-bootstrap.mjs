@@ -290,8 +290,8 @@ try {
     assert.equal(limitCalls, 1, "Exactly one enforced Cloudflare edge limit");
     assert.deepEqual(
       sessionModes,
-      ["first-unconstrained", "first-unconstrained"],
-      "Exactly two replica presentation reads: combined market/locale/menu and page",
+      ["first-unconstrained"],
+      "Exactly one replica presentation session combines market, locale, messages and page",
     );
   }
   assert.ok(joinedMarketLocaleReads >= 4, "One live joined market/locale read per bootstrap");
