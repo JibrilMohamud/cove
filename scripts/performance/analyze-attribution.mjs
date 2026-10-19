@@ -45,6 +45,22 @@ export function diagnoseAttribution(evidence, workerPlatform = {}) {
         "Full SSR is materially slower than bootstrap: profile cold module initialization, TanStack rendering, serialization, and response handling.",
       );
   }
+  // Do not discard the most revealing concurrency cohort just because the
+  // 8-in-flight sample behaved differently. The 32-wave SSR-to-rights
+  // contrast is a hypothesis from independent requests, never an additive
+  // CPU/wall-time decomposition or a causal proof.
+  const rights32 = find("rights", 32);
+  const ssr32 = find("ssr", 32);
+  if (
+    rights32?.pass &&
+    ssr32?.pass &&
+    Number.isFinite(rights32.latencyMs?.p95) &&
+    Number.isFinite(ssr32.latencyMs?.p95) &&
+    ssr32.latencyMs.p95 - rights32.latencyMs.p95 >= 250
+  )
+    hypotheses.unshift(
+      "At 32 concurrent requests, full SSR p95 materially exceeds the separately sampled primary-rights shelf p95: prioritize SSR module initialization, rendering, transport and contention profiling. Independent stage quantiles are not additive or a proven CPU cost.",
+    );
   const availableCfWorker = rows.some((r) => r.workerMetricCoverage > 0);
   const observedColos = [...new Set(rows.flatMap((r) => r.colos || []))];
   let nextAction =
