@@ -1,0 +1,135 @@
+# Cold/concurrency recovery: staging Workers must NEVER bind production D1.
+# Synthetic-only datasets; no production personal/catalog data export.
+name: cloudflare-isolated-coldloader-paired
+on:
+  push:
+    branches: [perf/isolated-cold-persistence-import-20261019]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-cleanoverlap-recovery-20261019
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  isolated-rights-paired:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      CI: "1"
+      VERCEL: "0"
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+      COVE_PAIR_RELEASE_FREEZE: "1"
+      COVE_RECOVERY_CANDIDATE_SHA: ${{ github.sha }}
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - name: Checkout exact isolated synthetic PR221 comparator
+        uses: actions/checkout@v6
+        with:
+          ref: 8a5353e78b228b4c7f8672e4ec3310c01d569401
+          path: baseline
+          persist-credentials: false
+      - name: Checkout immutable cold persistence-loader candidate
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Validate synthetic database gate before any deployment
+        working-directory: candidate
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          npm ci --no-audit --no-fund
+          node scripts/check-isolated-d1-gate.mjs
+          node --check scripts/performance/cloudflare-lazyfacet-paired.mjs
+          node --check scripts/performance/generate-synthetic-d1-fixture.mjs
+          node scripts/performance/write-isolated-d1-configs.mjs
+          node scripts/performance/generate-synthetic-d1-fixture.mjs
+          test "$(git rev-parse HEAD)" = "$COVE_RECOVERY_CANDIDATE_SHA"
+      # Repeated A/B campaigns share the same two dedicated synthetic D1s.
+      # Require the complete live-rights SQL oracle before skipping a reload;
+      # incomplete imports still take the idempotent migration/import path.
+      - name: Reuse verified 50k synthetic fixtures when already complete
+        id: fixture_ready
+        working-directory: candidate
+        shell: bash
+        run: |
+          if node scripts/performance/verify-isolated-d1-fixtures.mjs; then
+            echo "already_ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_ready=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Apply migrations and public synthetic fixture only to isolated control D1
+        if: steps.fixture_ready.outputs.already_ready != 'true'
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.151.0 d1 migrations apply DB --remote --config wrangler.perf-baseline.toml
+          for file in artifacts/perf-synthetic-fixture/*.sql; do
+            npx --yes wrangler@4.151.0 d1 execute DB --remote --config wrangler.perf-baseline.toml --file "$file" --yes
+          done
+      - name: Apply same migrations and fixture only to isolated candidate D1
+        if: steps.fixture_ready.outputs.already_ready != 'true'
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.151.0 d1 migrations apply DB --remote --config wrangler.perf-current.toml
+          for file in artifacts/perf-synthetic-fixture/*.sql; do
+            npx --yes wrangler@4.151.0 d1 execute DB --remote --config wrangler.perf-current.toml --file "$file" --yes
+          done
+      - name: Require identical 50k synthetic documents and real negative territorial rights
+        working-directory: candidate
+        run: node scripts/performance/verify-isolated-d1-fixtures.mjs
+      - name: Independently build unchanged frozen comparator
+        working-directory: baseline
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          test -s .output/server/index.mjs
+      - name: Build candidate and validate all legal-rights invariants
+        working-directory: candidate
+        run: |
+          npm run typecheck
+          node scripts/check-rights.mjs
+          node scripts/check-literary-discovery.mjs
+          npm run build
+          test -s .output/server/index.mjs
+      - name: Install Chromium for actual mobile-4G LCP
+        working-directory: candidate
+        run: npx playwright install --with-deps chromium
+      - name: Test three fresh cold deployments, repeat 1/4/8/16/32, rights and LCP
+        working-directory: candidate
+        shell: bash
+        run: node scripts/performance/cloudflare-lazyfacet-paired.mjs
+      - name: Retain immutable evidence even on failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cove-isolated-coldloader-paired-${{ github.run_attempt }}
+          path: |
+            candidate/artifacts/perf-synthetic-fixture/manifest.json
+            coldloader-paired-evidence/
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Delete ONLY isolated ephemeral Workers; keep fixture databases for retrials
+        if: always()
+        shell: bash
+        run: |
+          for script in cove-lazyfacet-control-staging cove-lazyfacet-candidate-staging; do
+            curl -sS --max-time 20 -X DELETE \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$script?force=true" \
+              >/dev/null || true
+          done
