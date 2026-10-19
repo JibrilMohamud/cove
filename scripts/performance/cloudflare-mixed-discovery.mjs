@@ -50,6 +50,7 @@ async function requestOne(kind, concurrency) {
     colo = (response.headers.get("cf-ray") || "").match(/-([A-Z]{3})$/)?.[1] || "unknown";
     const raw = await response.text();
     let count = 0;
+    let fingerprint = null;
     if (discovery) {
       assert.equal(status, 200, "Discovery HTTP failure");
       assert.match(response.headers.get("content-type") || "", /application\/json/);
@@ -59,6 +60,8 @@ async function requestOne(kind, concurrency) {
       assert.ok(Number.isInteger(payload.count) && payload.count >= 0);
       assert.match(response.headers.get("server-timing") || "", /cove_literary_read;dur=/);
       count = payload.count;
+      assert.match(payload.fingerprint, /^[a-f0-9]{64}$/);
+      fingerprint = payload.fingerprint;
     } else {
       count = validateHtml(status, response.headers.get("content-type") || "", raw);
       assert.ok(count >= 1, "No rights-cleared books");
@@ -77,6 +80,7 @@ async function requestOne(kind, concurrency) {
       ttfbMs,
       totalMs: Math.round(performance.now() - before),
       count,
+      fingerprint,
       colo,
       error: null,
     };
@@ -90,6 +94,7 @@ async function requestOne(kind, concurrency) {
       ttfbMs: Math.round(performance.now() - before),
       totalMs: null,
       count: 0,
+      fingerprint: null,
       colo,
       error: status !== 200 ? "http-failure" : "validation-or-request-failure",
     };
