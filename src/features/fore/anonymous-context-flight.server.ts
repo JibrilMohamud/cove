@@ -27,22 +27,20 @@ export function sharedAnonymousHomepageContext(
   // The calling bootstrap already enforces identity absence; fail closed here
   // too so no future caller can accidentally cache personalized presentation.
   if (
-    ["authorization", "cookie", "oai-authenticated-user-id", "oai-authenticated-user-email", "x-fore-authenticated-user-id"].some(
-      (header) => request.headers.has(header),
-    )
+    [
+      "authorization",
+      "cookie",
+      "oai-authenticated-user-id",
+      "oai-authenticated-user-email",
+      "x-fore-authenticated-user-id",
+    ].some((header) => request.headers.has(header))
   )
     return resolveAnonymousHomepageContext(db, request, fallbackCountry);
   const language = request.headers.get("accept-language") || "";
   // Never truncate: that could alias two distinct locale negotiations.
-  if (language.length > 256)
-    return resolveAnonymousHomepageContext(db, request, fallbackCountry);
+  if (language.length > 256) return resolveAnonymousHomepageContext(db, request, fallbackCountry);
   const network = networkCountry(request, fallbackCountry);
-  const key = JSON.stringify([
-    network.country,
-    network.source,
-    fallbackCountry,
-    language,
-  ]);
+  const key = JSON.stringify([network.country, network.source, fallbackCountry, language]);
   const previous = entries.get(key);
   if (previous && previous.expiresAt > Date.now()) return previous.promise;
   if (previous) entries.delete(key);
