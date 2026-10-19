@@ -213,9 +213,10 @@ export default {
         });
         prefetchedBootstrap = import("./features/fore/storefront-anonymous-bootstrap.server").then(
           ({ canUseLeanAnonymousBootstrap, serveLeanAnonymousBootstrap }) => {
-            if (!canUseLeanAnonymousBootstrap(source, runtimeEnv as any))
+            const verifiedEnv = runtimeEnv as Parameters<typeof serveLeanAnonymousBootstrap>[1];
+            if (!canUseLeanAnonymousBootstrap(source, verifiedEnv))
               throw new Error("Anonymous preflight authorization mismatch");
-            return serveLeanAnonymousBootstrap(source, runtimeEnv as any);
+            return serveLeanAnonymousBootstrap(source, verifiedEnv);
           },
         );
         // SSR may fail or reject before consuming its preflight. Keep the
