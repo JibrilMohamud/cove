@@ -501,9 +501,7 @@ async function main() {
   // The remaining client-to-server timing is UNATTRIBUTED rather than
   // mislabeled as network, CPU, or database waiting.
   const phaseDuration = (timing, name) => {
-    const hit = String(timing || "").match(
-      new RegExp(`(?:^|,)\\s*${name};dur=(\\d+(?:\\.\\d+)?)`),
-    );
+    const hit = String(timing || "").match(new RegExp(`(?:^|,)\\s*${name};dur=(\\d+(?:\\.\\d+)?)`));
     return hit ? Number(hit[1]) : null;
   };
   manifest.comparison.tailAttribution = {};
