@@ -26,6 +26,7 @@ const variants = [
 ];
 const waves = [1, 4, 8, 16];
 const data = [];
+const homeWaveIssuedAt = new Map();
 let next = 0;
 async function home(concurrency) {
   const start = performance.now();
@@ -74,6 +75,7 @@ async function facets(concurrency, variant) {
     const colo = (res.headers.get("cf-ray") || "").match(/-([A-Z]{3})$/)?.[1] || "unknown";
     return {
       type: "facets",
+      completedAt: performance.now(),
       concurrency,
       variant,
       ttfb,
@@ -86,6 +88,7 @@ async function facets(concurrency, variant) {
   } catch {
     return {
       type: "facets",
+      completedAt: performance.now(),
       concurrency,
       variant,
       ttfb: Math.round(performance.now() - start),
@@ -106,6 +109,7 @@ for (const concurrency of waves) {
   // aggregation is in flight. An already-complete facet is still recorded,
   // never silently represented as evidence of concurrent primary contention.
   await new Promise((resolve) => setTimeout(resolve, 250));
+  homeWaveIssuedAt.set(concurrency, performance.now());
   const homepage = Array.from({ length: concurrency }, () => home(concurrency));
   data.push(...(await Promise.all([...homepage, searches])));
 }
@@ -122,9 +126,17 @@ const summaries = waves.map((concurrency) => {
     homepageP95Ms: percentile(t, 0.95),
     facetMs: f?.ttfb ?? null,
     facetValidated: f?.valid === true,
+    // Prevent a pre-cached or already finished catalog response being counted
+    // as a search request competing with homepage reads.
+    httpRequestsOverlapped: Number(f?.completedAt) >= homeWaveIssuedAt.get(concurrency),
     facetCategories: f?.facetCategories ?? null,
     sharedColos: h.filter((v) => v.valid).some((v) => v.colo === f?.colo),
-    pass: t.length === concurrency && max !== null && max < 800 && f?.valid === true,
+    pass:
+      t.length === concurrency &&
+      max !== null &&
+      max < 800 &&
+      f?.valid === true &&
+      Number(f.completedAt) >= homeWaveIssuedAt.get(concurrency),
   };
 });
 const pass = summaries.every((v) => v.pass);
