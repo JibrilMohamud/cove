@@ -442,6 +442,59 @@ async function main() {
     manifest.comparison.decision =
       "INCONCLUSIVE geographic comparison; never infer a code regression from unmatched colos";
   }
+  // A hard <800ms gate is necessary but not sufficient for commercial-grade
+  // headroom. Require every fully licensed cold read and 1/4/8/16 request
+  // comfortably below 800ms, rather than counting a 799ms edge as a win.
+  const candidate = manifest.comparison.current;
+  const required = [1, 4, 8, 16, 32];
+  const waves = candidate.waves;
+  const mobileLcp = candidate.browserLcp?.find((p) => p.profile === "mobile-4g");
+  manifest.comparison.commercialHeadroom = {
+    coldDeployments: candidate.cold.length,
+    allColdUnder700:
+      candidate.cold.length === 3 &&
+      candidate.cold.every(
+        (trial) =>
+          trial.valid &&
+          trial.failures === 0 &&
+          Number.isFinite(trial.maxTtfbMs) &&
+          trial.maxTtfbMs <= 700,
+      ),
+    concurrent1to16Under700: [1, 4, 8, 16].every((level) => {
+      const wave = waves.find((w) => w.concurrency === level);
+      return (
+        !!wave &&
+        wave.valid === wave.count &&
+        Number.isFinite(wave.maxTtfbMs) &&
+        wave.maxTtfbMs <= 700 &&
+        Number.isFinite(wave.p95TtfbMs) &&
+        wave.p95TtfbMs <= 600
+      );
+    }),
+    concurrent32Under800: required.every((level) => {
+      const wave = waves.find((w) => w.concurrency === level);
+      return !!wave && wave.valid === wave.count && wave.maxTtfbMs < 800;
+    }),
+    mobileLcpP75Under2200:
+      !!mobileLcp && mobileLcp.pass && Number.isFinite(mobileLcp.lcpP75Ms) &&
+      mobileLcp.lcpP75Ms <= 2200,
+    geographicallyComparable: manifest.comparison.matchedColos,
+    actualFacetLoadPassed: manifest.outcomes
+      .filter((v) => v.name.startsWith("mixed-facets-"))
+      .length === 2 &&
+      manifest.outcomes
+        .filter((v) => v.name.startsWith("mixed-facets-"))
+        .every((v) => v.pass),
+  };
+  const gate = manifest.comparison.commercialHeadroom;
+  manifest.comparison.commercialHeadroomPassed = Object.entries(gate)
+    .filter(([key]) => key !== "coldDeployments")
+    .every(([, value]) => value === true);
+  if (!manifest.comparison.commercialHeadroomPassed) {
+    anyFailures = true;
+    manifest.comparison.decision =
+      "REJECT: cold or concurrent max TTFB, p95, mobile LCP, mixed-rights catalog or same-colo headroom unproven";
+  }
   manifest.finishedAt = new Date().toISOString();
   manifest.wallMs = Date.now() - first;
   // Importantly, the cohort secret keys are not part of manifest or files.
