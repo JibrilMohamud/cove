@@ -5,10 +5,7 @@ import ts from "typescript";
 
 // Exercise the actual TypeScript implementation, but replace only the two
 // injected Cloudflare data sources. No live database, grant cache or key leak.
-const source = fs.readFileSync(
-  "src/features/fore/anonymous-context-flight.server.ts",
-  "utf8",
-);
+const source = fs.readFileSync("src/features/fore/anonymous-context-flight.server.ts", "utf8");
 const js = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
 }).outputText;
