@@ -156,6 +156,7 @@ jobs:
           node scripts/check-storefront-firstpaint-rate-limit.mjs
           node scripts/check-storefront-bootstrap.mjs
           node scripts/check-rights.mjs
+          node scripts/check-search-updater-cache.mjs
           python3 scripts/check-fts-trigger-lookup.py
           node scripts/check-catalog-added-sort-index.mjs
           node scripts/check-public-search-count-scope.mjs
