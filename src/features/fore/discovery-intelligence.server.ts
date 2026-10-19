@@ -225,7 +225,7 @@ async function rightsExactTaxonomyCandidates(
  * validates every returned work. Never cache an entitlement or bypass deny,
  * contract, DRM, format, language or date constraints.
  */
-async function rightsExactLiteraryFeatureCandidates(
+export async function rightsExactLiteraryFeatureCandidates(
   db: CatalogDB,
   dimension: string,
   features: string[],
