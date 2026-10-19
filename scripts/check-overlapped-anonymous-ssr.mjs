@@ -120,7 +120,8 @@ assert.ok(
   "D1 must start ahead of the SSR framework entry",
 );
 assert.match(entry, /void prefetchedBootstrap\.catch\(\(\) => \{\}\)/);
-assert.match(loader, /currentCoveRequestAnonymousBootstrap\(\) \?\?/);
+assert.match(loader, /const early = currentCoveRequestAnonymousBootstrap\(\)/);
+assert.match(loader, /cove_ssr_prestarted;dur=0/);
 assert.match(loader, /canUseLeanAnonymousBootstrap\(/);
 assert.match(lean, /firstPaintStorefrontShelf\(env, null, trustedCountry, d1Metrics\)/);
 assert.doesNotMatch(entry, /(?:catalog|rights)Cache\.set\(/);
