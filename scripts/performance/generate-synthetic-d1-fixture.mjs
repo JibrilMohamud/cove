@@ -12,10 +12,23 @@ const outDir = process.argv[2] || "artifacts/perf-synthetic-fixture";
 fs.mkdirSync(outDir, { recursive: true });
 const ts = "2026-10-01T00:00:00.000Z";
 const str = (v) => "'" + String(v).replaceAll("'", "''") + "'";
-const rows = (table, fields, values) =>
-  `INSERT OR IGNORE INTO ${table}(${fields.join(",")}) VALUES ${values.map((v) => "(" + v.map(str).join(",") + ")").join(",")};\n`;
-const numericRows = (table, fields, values) =>
-  `INSERT OR IGNORE INTO ${table}(${fields.join(",")}) VALUES ${values.map((v) => "(" + v.map((x) => typeof x === "number" ? x : str(x)).join(",") + ")").join(",")};\n`;
+// Cloudflare D1 rejects a single 1,000-row literal INSERT as SQLITE_TOOBIG.
+ // Bound each statement separately while retaining restart-safe 1k-row files.
+const INSERT_ROWS_PER_STATEMENT = 65;
+const emitRows = (table, fields, values, numeric = false) => {
+  const chunks = [];
+  for (let i = 0; i < values.length; i += INSERT_ROWS_PER_STATEMENT) {
+    const part = values.slice(i, i + INSERT_ROWS_PER_STATEMENT);
+    chunks.push(
+      `INSERT OR IGNORE INTO ${table}(${fields.join(",")}) VALUES ${part.map((v) =>
+        "(" + v.map((x) => numeric && typeof x === "number" ? String(x) : str(x)).join(",") + ")",
+      ).join(",")};\n`,
+    );
+  }
+  return chunks.join("");
+};
+const rows = (table, fields, values) => emitRows(table, fields, values);
+const numericRows = (table, fields, values) => emitRows(table, fields, values, true);
 const id = (n) => "perf-synth-" + String(n).padStart(6, "0");
 const inserts = [];
 const seed = [
