@@ -53,9 +53,15 @@ try {
         });
       }
       await page.addInitScript(() => {
-        window.__covePaint = { lcp: null };
+        window.__covePaint = { lcp: null, kind: null, loadMs: null, renderMs: null, size: null };
         new PerformanceObserver((list) => {
-          for (const entry of list.getEntries()) window.__covePaint.lcp = entry.startTime;
+          for (const entry of list.getEntries()) {
+            window.__covePaint.lcp = entry.startTime;
+            window.__covePaint.kind = entry.element?.tagName === "IMG" ? "image" : "text";
+            window.__covePaint.loadMs = entry.loadTime || null;
+            window.__covePaint.renderMs = entry.renderTime || null;
+            window.__covePaint.size = entry.size || null;
+          }
         }).observe({ type: "largest-contentful-paint", buffered: true });
       });
       let failure = null;
@@ -66,6 +72,19 @@ try {
       let consoleErrors = 0;
       let failedScriptRequests = 0;
       let failedStylesheetRequests = 0;
+      // Fixed allowlist of endpoint classes; no visitor IDs, URLs, tokens or
+      // search terms appear in diagnostics. Distinguish hydration's optional
+      // D1 work from the initial mandatory first-paint rights request.
+      const backgroundRequests = { catalog: 0, taxonomy: 0, merchandising: 0, recommendations: 0 };
+      page.on("request", (request) => {
+        const uri = new URL(request.url());
+        if (uri.origin !== origin) return;
+        const path = uri.pathname;
+        if (path === "/api/fore/catalog") backgroundRequests.catalog++;
+        else if (path === "/api/fore/taxonomy") backgroundRequests.taxonomy++;
+        else if (path === "/api/fore/merchandising") backgroundRequests.merchandising++;
+        else if (path === "/api/fore/recommendations/home") backgroundRequests.recommendations++;
+      });
       const scripts = {
         ok: 0,
         redirects: 0,
@@ -132,6 +151,13 @@ try {
           return {
             ttfbMs: nav?.responseStart ?? null,
             lcpMs: window.__covePaint?.lcp ?? null,
+            lcpKind: window.__covePaint?.kind ?? null,
+            lcpLoadMs: window.__covePaint?.loadMs ?? null,
+            lcpRenderMs: window.__covePaint?.renderMs ?? null,
+            lcpSize: window.__covePaint?.size ?? null,
+            fcpMs: performance.getEntriesByName("first-contentful-paint")[0]?.startTime ?? null,
+            responseEndMs: nav?.responseEnd ?? null,
+            loadEventEndMs: nav?.loadEventEnd ?? null,
             cards: document.querySelectorAll(".book-card").length,
             hydrated: document.documentElement.dataset.coveClientReady === "true",
             scriptTags: document.querySelectorAll("script[src]").length,
@@ -152,6 +178,40 @@ try {
           };
         })
         .catch(() => ({ ttfbMs: null, lcpMs: null, cards: 0 }));
+      // Inspect first-viewport network behavior BEFORE scrolling, after the
+      // complete LCP sample. This never changes the benchmarked paint timing.
+      let lazyDiscoveryVerified = null;
+      if (process.env.COVE_EXPECT_DISCOVERY_DEFER === "1" && !failure) {
+        if (backgroundRequests.merchandising !== 0 || backgroundRequests.recommendations !== 0) {
+          failure = "Below-fold discovery fetched before a reader approached it";
+          failurePhase = "discovery-eager-load";
+        } else if (sample === 1) {
+          lazyDiscoveryVerified = false;
+          try {
+            const merchandiseResponse = page.waitForResponse(
+              (response) =>
+                new URL(response.url()).pathname === "/api/fore/merchandising" &&
+                response.status() === 200,
+              { timeout: 20000 },
+            );
+            const recommendationResponse = page.waitForResponse(
+              (response) =>
+                new URL(response.url()).pathname === "/api/fore/recommendations/home" &&
+                response.status() === 200,
+              { timeout: 20000 },
+            );
+            await page.locator('[data-testid="discovery-feed-sentinel"]').evaluate((element) => {
+              element.scrollIntoView({ block: "center" });
+            });
+            await Promise.all([merchandiseResponse, recommendationResponse]);
+            lazyDiscoveryVerified = true;
+          } catch {
+            failure =
+              "Optional discovery feed did not load with a rights-checked HTTP 200 after scroll";
+            failurePhase = "discovery-scroll-load";
+          }
+        }
+      }
       rows.push({
         profile,
         sample,
@@ -163,6 +223,8 @@ try {
         failedScriptRequests,
         failedStylesheetRequests,
         scripts,
+        backgroundRequests,
+        lazyDiscoveryVerified,
         interceptionErrors,
         ...responseTelemetry,
         ...metrics,
