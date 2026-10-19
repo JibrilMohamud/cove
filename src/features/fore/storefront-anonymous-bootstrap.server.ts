@@ -27,7 +27,9 @@ export function canUseLeanAnonymousBootstrap(
 // requests never reach this function. All book IDs still require the independent
 // primary-D1 rights SELECT, even when metadata work was shared.
 const pendingAnonymousPresentation =
-  createAnonymousPresentationSingleflight<Awaited<ReturnType<typeof resolveAnonymousHomepageContext>>>();
+  createAnonymousPresentationSingleflight<
+    Awaited<ReturnType<typeof resolveAnonymousHomepageContext>>
+  >();
 
 /**
  * All three independent checks complete before returning any data. An
