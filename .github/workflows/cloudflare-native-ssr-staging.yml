@@ -26,6 +26,8 @@ on:
       - "src/features/fore/catalog-model.server.ts"
       - "src/features/fore/localization.server.ts"
       - "src/features/fore/recommendations.server.ts"
+      - "src/features/fore/discovery-intelligence.server.ts"
+      - "scripts/check-literary-feature-rights-query.mjs"
       - "src/features/fore/taxonomy.server.ts"
       - "src/features/fore/merchandising.server.ts"
       - "scripts/check-rights.mjs"
@@ -83,6 +85,8 @@ on:
       - "src/features/fore/catalog-model.server.ts"
       - "src/features/fore/localization.server.ts"
       - "src/features/fore/recommendations.server.ts"
+      - "src/features/fore/discovery-intelligence.server.ts"
+      - "scripts/check-literary-feature-rights-query.mjs"
       - "src/features/fore/taxonomy.server.ts"
       - "src/features/fore/merchandising.server.ts"
       - "scripts/check-rights.mjs"
@@ -165,6 +169,7 @@ jobs:
           node scripts/check-secondary-channel-index.mjs
           node scripts/check-external-identifier-index.mjs
           node scripts/check-live-channel-zero-grant-gate.mjs
+          node scripts/check-literary-feature-rights-query.mjs
           node scripts/check-bounded-cached-rights-recheck.mjs
           node --test scripts/check-production-storefront-performance.test.mjs
           node scripts/check-cove-request-context.mjs
