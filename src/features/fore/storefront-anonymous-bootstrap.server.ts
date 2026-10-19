@@ -1,4 +1,5 @@
 import { networkCountry, resolveAnonymousHomepageContext } from "./localization.server";
+import { canRunAnonymousHomepageBootstrap } from "./anonymous-bootstrap-eligibility.server";
 import { createAnonymousPresentationSingleflight } from "./anonymous-presentation-singleflight.server";
 import { formatHomepageFirstPaintPage } from "./homepage-first-paint-format.server";
 import { firstPaintStorefrontShelf } from "./search.server";
@@ -18,28 +19,7 @@ export function canUseLeanAnonymousBootstrap(
   request: Request,
   env: Pick<CoveEnv, "DB" | "COVE_STOREFRONT_READ_LIMITER">,
 ): boolean {
-  if (request.method !== "GET") return false;
-  if (new URL(request.url).pathname !== "/api/fore/storefront/bootstrap") return false;
-  if (new URL(request.url).search) return false;
-  // A cookie or any provider identity hint forces the complete authenticated
-  // adapter; never guess whether the browser might have a session.
-  for (const header of [
-    "authorization",
-    "cookie",
-    "oai-authenticated-user-id",
-    "oai-authenticated-user-email",
-    "x-fore-authenticated-user-id",
-  ])
-    if (request.headers.has(header)) return false;
-  if (!/^[A-Z]{2}$/.test(request.headers.get("x-cove-client-country") || "")) return false;
-  // server.ts replaces x-cove-client-country from immutable request.cf.
-  // It also removes spoofable client-IP headers, leaving cf-connecting-ip.
-  if (!request.headers.get("cf-connecting-ip")?.trim()) return false;
-  return (
-    !!env.DB &&
-    typeof env.DB.prepare === "function" &&
-    typeof env.COVE_STOREFRONT_READ_LIMITER?.limit === "function"
-  );
+  return canRunAnonymousHomepageBootstrap(request, env, "/api/fore/storefront/bootstrap");
 }
 
 // Only pending, public country+language presentation projections can be
