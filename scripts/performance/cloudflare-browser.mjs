@@ -178,6 +178,24 @@ try {
           };
         })
         .catch(() => ({ ttfbMs: null, lcpMs: null, cards: 0 }));
+      // Check auth module resolution ONLY AFTER natural LCP is captured.
+      // A read-only sign-in dialog open/close verifies the dynamic import
+      // without sending credentials or counting modal interaction as LCP.
+      let authDialogOk = null;
+      if (profile === "desktop" && sample === 1 && !failure) {
+        authDialogOk = false;
+        try {
+          await page.locator(".account-actions button").first().click();
+          await page.locator('[role="dialog"] input[autocomplete="username"]').first().waitFor({
+            timeout: 10000,
+          });
+          authDialogOk = true;
+          await page.keyboard.press("Escape");
+        } catch {
+          failure = "Sign-in dialog failed to resolve after first paint";
+          failurePhase = "auth-dialog";
+        }
+      }
       rows.push({
         profile,
         sample,
@@ -189,6 +207,7 @@ try {
         failedScriptRequests,
         failedStylesheetRequests,
         scripts,
+        authDialogOk,
         backgroundRequests,
         interceptionErrors,
         ...responseTelemetry,
