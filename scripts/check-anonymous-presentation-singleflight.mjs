@@ -49,20 +49,26 @@ assert.equal(work, 3, "Every new post-settle request rechecks presentation metad
 // Saturation cannot block distinct visitors; fallback starts independently.
 // Error must be visible to all waiters and immediately evicted for retry.
 let release = () => {};
-const stuck = new Promise((resolve) => { release = resolve; });
+const stuck = new Promise((resolve) => {
+  release = resolve;
+});
 const first = singleflight("full-a", async () => stuck);
 const second = singleflight("full-b", async () => stuck);
 let saturated = 0;
-await singleflight("full-c", async () => { saturated++; return 1; });
+await singleflight("full-c", async () => {
+  saturated++;
+  return 1;
+});
 assert.equal(saturated, 1);
 release(1);
 await Promise.all([first, second]);
 
 let failures = 0;
-const fail = () => singleflight("fail", async () => {
-  failures++;
-  throw Error("transient D1");
-});
+const fail = () =>
+  singleflight("fail", async () => {
+    failures++;
+    throw Error("transient D1");
+  });
 const [rejectedA, rejectedB] = await Promise.allSettled([fail(), fail()]);
 assert.equal(rejectedA.status, "rejected");
 assert.equal(rejectedB.status, "rejected");
