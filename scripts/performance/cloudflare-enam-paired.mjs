@@ -54,7 +54,7 @@ function prepareConfigs() {
     // Placement's traffic-training period; do not change production routing.
     let config = template.replace(
       /\[placement\]\s*mode\s*=\s*"smart"/m,
-      '[placement]\nregion = "aws:us-east-1"',
+      '[placement]\nregion = "aws:us-east-2"',
     );
     config = config.replace(/^name = "cove-storefront-ssr-staging"$/m, `name = "${cohort.name}"`);
     // Cloudflare shares rate counters between scripts with the same namespace.
@@ -62,7 +62,7 @@ function prepareConfigs() {
     // policy; neither cohort shares counters with the ordinary staging Worker.
     const namespace = cohort.name.includes("control") ? "731910" : "731911";
     config = config.replace('namespace_id = "731903"', `namespace_id = "${namespace}"`);
-    assert.match(config, /\[placement\]\nregion = "aws:us-east-1"/);
+    assert.match(config, /\[placement\]\nregion = "aws:us-east-2"/);
     assert.match(config, new RegExp(`name = "${cohort.name}"`));
     assert.match(config, new RegExp(`namespace_id = "${namespace}"`));
     fs.writeFileSync(path.join(cohort.dir, configName), config);
@@ -240,7 +240,7 @@ async function main() {
   assert.notEqual(cohorts.baseline.sha, cohorts.current.sha);
   const manifest = {
     revision,
-    placement: "explicit ENAM proximity via aws:us-east-1",
+    placement: "explicit ENAM proximity via aws:us-east-2",
     config: "identical protected staging config, live production D1/R2",
     orderedTrials: [],
     outcomes: [],
