@@ -726,7 +726,7 @@ async function aggregateFacetCandidates(
     const totals = Object.fromEntries(
       facets.map((facet) => [facet, new Map<string, number>()]),
     ) as Record<(typeof facets)[number], Map<string, number>>;
-    let price: { min_price: number | null; max_price: number | null; currency: string | null } = {
+    const price: { min_price: number | null; max_price: number | null; currency: string | null } = {
       min_price: null,
       max_price: null,
       currency: null,
