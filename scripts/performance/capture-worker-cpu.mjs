@@ -13,8 +13,7 @@ async function profile(cohort, outputDir) {
   const token = process.env.CLOUDFLARE_API_TOKEN;
   assert.match(account || "", /^[a-f0-9]{32}$/);
   assert.ok(token?.trim(), "Scoped Cloudflare CI token required");
-  const endpoint =
-    `https://api.cloudflare.com/client/v4/accounts/${account}/workers/workers/${cohort.name}/versions/latest-deployed/profile`;
+  const endpoint = `https://api.cloudflare.com/client/v4/accounts/${account}/workers/workers/${cohort.name}/versions/latest-deployed/profile`;
   const stageOrigin = `https://${cohort.name}.cove-jibrilmohamud.workers.dev`;
   const record = { worker: cohort.name, requested: 32, valid: 0, profileAvailable: false };
   const pending = fetch(endpoint, {
@@ -91,7 +90,8 @@ export async function captureIsolatedCpuProfiles(cohorts, outputDir) {
   }
   return {
     isolatedOnly: true,
-    timingNote: "Post-benchmark capture; sampled warm isolate CPU, not cold-start wall-time. Not part of SLO metrics.",
+    timingNote:
+      "Post-benchmark capture; sampled warm isolate CPU, not cold-start wall-time. Not part of SLO metrics.",
     profiles: records,
   };
 }
