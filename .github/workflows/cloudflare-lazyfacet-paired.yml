@@ -32,10 +32,10 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_SEND_METRICS: "false"
     steps:
-      - name: Checkout exact earlier benchmark revision
+      - name: Checkout exact PR207 cold-preserving comparison revision
         uses: actions/checkout@v6
         with:
-          ref: c91f00e8fc9144d0f44b3d4fa2176c644398ed4f
+          ref: 6d197e48b7255eb02e689674575287dba54a37a5
           path: baseline
           persist-credentials: false
       - name: Checkout exact frozen current revision and benchmark harness
@@ -58,11 +58,11 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN"
-          test "$(git -C baseline rev-parse HEAD)" = "c91f00e8fc9144d0f44b3d4fa2176c644398ed4f"
+          test "$(git -C baseline rev-parse HEAD)" = "6d197e48b7255eb02e689674575287dba54a37a5"
           test "$(git -C candidate rev-parse HEAD)" = "$COVE_RECOVERY_CANDIDATE_SHA"
           node --check candidate/scripts/performance/cloudflare-lazyfacet-paired.mjs
           grep -q 'COVE_SSR_STAGING = "1"' candidate/wrangler.frontend.staging.toml
-      - name: Independently install and build earlier revision
+      - name: Independently install and build PR207 comparison revision
         working-directory: baseline
         run: |
           npm ci --no-audit --no-fund
