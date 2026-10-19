@@ -8,16 +8,18 @@ const source = fs.readFileSync("src/features/fore/discovery-intelligence.server.
 const begin = source.indexOf("async function rightsExactLiteraryFeatureCandidates(");
 const end = source.indexOf("export async function retrieveLiteraryCandidates(", begin);
 assert.ok(begin >= 0 && end > begin, "Production feature selector not found");
+const retrieveBegin = source.indexOf("export async function retrieveLiteraryCandidates(", end);
+const retrieveEnd = source.indexOf("export async function literaryDiscoveryStatus(", retrieveBegin);
+assert.ok(retrieveBegin === end && retrieveEnd > retrieveBegin);
 const isolated = source
-  .slice(begin, end)
+  .slice(begin, retrieveEnd)
   .replace(
     "async function rightsExactLiteraryFeatureCandidates(",
     "export async function rightsExactLiteraryFeatureCandidates(",
   );
 const compiled = await transform(isolated, { loader: "ts", format: "esm" });
-const { rightsExactLiteraryFeatureCandidates: select } = await import(
-  "data:text/javascript;base64," + Buffer.from(compiled.code).toString("base64")
-);
+const { rightsExactLiteraryFeatureCandidates: select, retrieveLiteraryCandidates: retrieve } =
+  await import("data:text/javascript;base64," + Buffer.from(compiled.code).toString("base64"));
 
 const db = new DatabaseSync(":memory:");
 try {
@@ -53,6 +55,7 @@ try {
     const id = "book-" + String(n).padStart(4, "0");
     product.run(id, id);
     feat.run(id, "literaryStyle", "epistolary", (1501 - n) / 1501);
+    feat.run(id, "moods", "reflective", (1501 - n) / 1501);
     if (n % 2 === 0) feat.run(id, "literaryStyle", "essays", (1501 - n) / 1501 + 0.0001);
     grant.run("grant-" + id, id, "active");
     region.run("grant-" + id, "US");
@@ -101,6 +104,47 @@ try {
   await check("US", 2, /WITH ranked AS MATERIALIZED/);
   await check("CA", 2, /WITH territory_seed AS MATERIALIZED/);
   await check("GB", 2, /WITH territory_seed AS MATERIALIZED/);
+  // Multiple literary facets must share exactly ONE primary-D1 territory
+  // probe for the whole request while preserving the same exact rights sets.
+  // This bounds service-side queue pressure without caching or authorizing.
+  async function checkSharedTerritoryProbe(country) {
+    const log = [];
+    const terms = [
+      { dimension: "literaryStyle", feature: "epistolary", confidence: 1 },
+      { dimension: "moods", feature: "reflective", confidence: 1 },
+    ];
+    const result = await retrieve(adapter(log), terms, country);
+    const style = reference.all("literaryStyle", ...features, country).map((r) => r.product_id);
+    const mood = db
+      .prepare(
+        `SELECT f.product_id FROM recommendation_book_features f
+          JOIN products p ON p.id=f.product_id
+          WHERE f.dimension='moods' AND f.feature='reflective'
+            AND p.storefront_status='active'
+            AND EXISTS(SELECT 1 FROM retail_product_availability_rows a
+                WHERE a.product_id=f.product_id AND a.territory_code=upper(?))
+          ORDER BY f.confidence DESC,f.product_id LIMIT 40`,
+      )
+      .all(country)
+      .map((r) => r.product_id);
+    const exact = [...new Set([...style, ...mood])];
+    assert.deepEqual(result, exact, "Shared probe must preserve exact multi-facet rights");
+    assert.equal(
+      log.filter((sql) => sql.includes("SELECT COUNT(*) grants")).length,
+      1,
+      "Only one live grant density probe may run per multi-facet request",
+    );
+    assert.ok(
+      log.every(
+        (sql) =>
+          sql.includes("SELECT COUNT(*) grants") ||
+          sql.includes("retail_product_availability_rows"),
+      ),
+      "Every actual candidate query must enforce live retail rights",
+    );
+  }
+  await checkSharedTerritoryProbe("US");
+  await checkSharedTerritoryProbe("CA");
 
   // Force a hard rights-withdrawal case: the top 170 feature-ranked US
   // candidates are now revoked, so returning only the 120-item shortlist
@@ -118,6 +162,7 @@ try {
   region.run("deny-book-0190", "US");
   await check("US", 3, /WITH ranked AS MATERIALIZED/);
 
+  await checkSharedTerritoryProbe("US");
   assert.deepEqual(await select(adapter([]), "literaryStyle", [], "US"), []);
   assert.match(isolated, /idx_rec_literary_lookup/);
   assert.match(isolated, /retail_product_availability_rows/);
