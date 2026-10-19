@@ -1,5 +1,5 @@
 -- Preserve author URL/alias behavior while using the existing partial index.
--- No stored data is rewritten. Local validation only; not applied remotely.
+-- No stored data is rewritten; future inserts retain identical alias semantics.
 DROP TRIGGER trg_contributors_auto_slug;
 CREATE TRIGGER trg_contributors_auto_slug AFTER INSERT ON contributors
 WHEN NEW.slug=''
