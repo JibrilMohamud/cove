@@ -6,6 +6,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { performance } from "node:perf_hooks";
+import { PERFORMANCE_D1, isolatedD1Config, verifySyntheticD1 } from "./isolated-d1-gate.mjs";
 
 const root = process.cwd();
 const baselineSha = "6d197e48b7255eb02e689674575287dba54a37a5";
@@ -21,7 +22,7 @@ const cohorts = {
   current: { dir: root, name: "cove-lazyfacet-candidate-staging", sha: candidateSha },
 };
 const account = "d26430caa63ec55f6612e32f36aca5e9";
-const databaseId = "4bd657ac-8789-403e-a28c-93aba8d0a989";
+// Every real load trial must use isolated, synthetic databases; never production D1.
 const outDir = path.resolve(root, "../lazyfacet-paired-evidence");
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -45,24 +46,43 @@ function command(cwd, exe, args, env = {}, timeout = 200000, input) {
 
 function prepareConfigs() {
   const template = fs.readFileSync(path.join(root, "wrangler.frontend.staging.toml"), "utf8");
-  assert.match(template, /COVE_SSR_STAGING = "1"/);
-  assert.match(template, /run_worker_first = true/);
-  assert.match(template, /database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"/);
-  for (const cohort of Object.values(cohorts)) {
-    // Force IDENTICAL ingress-edge placement in BOTH cohorts, independent of
-    // current Smart Placement experiments. Test placement separately later.
-    let config = template.replace(/\[placement\]\s*mode\s*=\s*"smart"\s*/m, "");
-    config = config.replace(/^name = "cove-storefront-ssr-staging"$/m, `name = "${cohort.name}"`);
-    // Cloudflare shares rate counters between scripts with the same namespace.
-    // Each cohort has a different identifier, but the EXACT same limit/key
-    // policy; neither cohort shares counters with the ordinary staging Worker.
-    const namespace = cohort.name.includes("control") ? "732010" : "732011";
-    config = config.replace('namespace_id = "731903"', `namespace_id = "${namespace}"`);
-    assert.doesNotMatch(config, /^\[placement\]/m);
-    assert.match(config, new RegExp(`name = "${cohort.name}"`));
-    assert.match(config, new RegExp(`namespace_id = "${namespace}"`));
+  for (const [role, cohort] of Object.entries(cohorts)) {
+    const namespace = role === "baseline" ? "732010" : "732011";
+    const config = isolatedD1Config(template, role, cohort.name, namespace);
     fs.writeFileSync(path.join(cohort.dir, configName), config);
+    // This exact SHA cohort may read only its own wholly synthetic database.
+    cohort.databaseId = PERFORMANCE_D1[role].id;
   }
+}
+async function assertSyntheticReadiness() {
+  const query = async (id, sql) => {
+    const r = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${account}/d1/database/${id}/query`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ sql }),
+        signal: AbortSignal.timeout(60000),
+      },
+    );
+    if (!r.ok) throw Error("Isolated D1 fixture probe HTTP failed");
+    const body = await r.json();
+    return {
+      success: body.success && body.result?.[0]?.success,
+      results: body.result?.[0]?.results,
+    };
+  };
+  const control = await verifySyntheticD1(PERFORMANCE_D1.baseline.id, query);
+  const candidate = await verifySyntheticD1(PERFORMANCE_D1.current.id, query);
+  assert.deepEqual(
+    candidate,
+    control,
+    "Benchmark cohorts must use identical synthetic fixture inventories",
+  );
+  return { control, candidate, syntheticOnly: true };
 }
 function artifact(name) {
   const file = path.join(root, "artifacts", name);
@@ -158,10 +178,11 @@ async function deployFresh(cohort) {
   await new Promise((done) => setTimeout(done, 2000));
   return state;
 }
-async function d1Snapshot(since, until) {
+async function d1Snapshot(since, until, dbId) {
+  assert.ok(Object.values(PERFORMANCE_D1).some((x) => x.id === dbId));
   const time = (v) => new Date(v).toISOString().replace(/\.\d{3}Z$/, "Z");
   const q = `query { viewer { accounts(filter:{accountTag:"${account}"}) {
-    d1QueriesAdaptiveGroups(limit:15,filter:{databaseId:"${databaseId}",
+    d1QueriesAdaptiveGroups(limit:15,filter:{databaseId:"${dbId}",
       datetime_geq:"${time(since)}",datetime_leq:"${time(until)}"},
       orderBy:[sum_queryDurationMs_DESC]) {
         count dimensions { query databaseRole } avg { queryDurationMs }
@@ -236,11 +257,14 @@ async function main() {
   assert.equal(revision.baseline, baselineSha);
   assert.equal(revision.current, candidateSha);
   prepareConfigs();
+  const syntheticFixture = await assertSyntheticReadiness();
   assert.notEqual(cohorts.baseline.sha, cohorts.current.sha);
   const manifest = {
     revision,
     placement: "same-ingress-edge",
-    config: "identical protected staging config, live production D1/R2",
+    config:
+      "identical protected staging config, entirely synthetic isolated D1 (production D1 prohibited)",
+    syntheticFixture,
     orderedTrials: [],
     outcomes: [],
     d1Intervals: [],
@@ -283,7 +307,7 @@ async function main() {
         name: label,
         since: new Date(began).toISOString(),
         until: new Date().toISOString(),
-        sql: await d1Snapshot(began, Date.now()),
+        sql: await d1Snapshot(began, Date.now(), cohort.databaseId),
       });
     }
   }
@@ -291,7 +315,8 @@ async function main() {
   // or errors for validated rights-authoritative HTML responses.
   // Reverse the previous trial order to detect time-correlated D1 contention.
   for (const name of ["baseline", "current", "current", "baseline"]) {
-    if (!cohorts[name].key) continue;
+    const cohort = cohorts[name];
+    if (!cohort.key) continue;
     const repeat = manifest.outcomes.some((v) => v.name === `concurrency-${name}`);
     // Keep independently repeated sweeps in separate rate-limit periods,
     // with the production limiter and all background jobs left unchanged.
@@ -308,7 +333,7 @@ async function main() {
       name: `concurrency-${name}${repeat ? "-repeat" : ""}`,
       since: new Date(began).toISOString(),
       until: new Date().toISOString(),
-      sql: await d1Snapshot(began, Date.now()),
+      sql: await d1Snapshot(began, Date.now(), cohort.databaseId),
     });
     if (!manifest.outcomes.at(-1).pass) anyFailures = true;
   }
@@ -331,7 +356,11 @@ async function main() {
   // Immediate analytics were empty in both frozen runs. Query the historical
   // intervals again after browser work, and label absent data as unavailable.
   for (const interval of manifest.d1Intervals) {
-    interval.sql = await d1Snapshot(interval.since, interval.until);
+    interval.sql = await d1Snapshot(
+      interval.since,
+      interval.until,
+      cohorts[interval.name.includes("-baseline") ? "baseline" : "current"].databaseId,
+    );
     if (Array.isArray(interval.sql) && !interval.sql.length)
       interval.sql = { warning: "Analytics unavailable or not yet ingested; NOT zero D1 activity" };
   }
