@@ -212,6 +212,36 @@ try {
           }
         }
       }
+      // The SSR shelf remains immediately visible. Anonymous home may defer
+      // ONLY presentation-only facet totals, and interacting with a filter
+      // must still return live catalog results through the existing rights API.
+      let lazyCatalogVerified = null;
+      if (process.env.COVE_EXPECT_CATALOG_DEFER === "1" && !failure) {
+        if (backgroundRequests.catalog !== 0) {
+          failure = "Anonymous preview eagerly refetched the entire 50k-book facet catalog";
+          failurePhase = "catalog-eager-facets";
+        } else if (sample === 1) {
+          lazyCatalogVerified = false;
+          try {
+            const liveCatalog = page.waitForResponse(
+              (response) =>
+                new URL(response.url()).pathname === "/api/fore/catalog" &&
+                response.status() === 200,
+              { timeout: 30000 },
+            );
+            await page.getByRole("combobox", { name: "Book language" }).focus();
+            const response = await liveCatalog;
+            const payload = await response.json();
+            assert.ok(Array.isArray(payload?.results) && payload.results.length > 0);
+            assert.ok(Array.isArray(payload?.facets?.languages));
+            assert.ok(typeof payload.count === "number" && payload.count > 0);
+            lazyCatalogVerified = true;
+          } catch {
+            failure = "Opening the language filter failed to fetch real licensed catalog facets";
+            failurePhase = "catalog-filter-interaction";
+          }
+        }
+      }
       rows.push({
         profile,
         sample,
@@ -225,6 +255,7 @@ try {
         scripts,
         backgroundRequests,
         lazyDiscoveryVerified,
+        lazyCatalogVerified,
         interceptionErrors,
         ...responseTelemetry,
         ...metrics,

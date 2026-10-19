@@ -114,33 +114,38 @@ test("initial bookstore serves books without JavaScript and refreshes full catal
       )
         calls.push(request.url());
     });
-    // The shelf must survive failed follow-up requests. Exact catalog totals
-    // and taxonomy deliberately load after hydration; context/page must not.
+    // The anonymous shelf is authorized at SSR. A 50k-catalog facet count
+    // must NOT load merely because hydration completed. The existing catalog
+    // endpoint remains mandatory when a reader opens a filter.
     await page.route("**/api/fore/catalog?**", (route) => route.abort());
     await page.route("**/api/fore/taxonomy", (route) => route.abort());
     await page.goto("/");
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
     await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
     await expect
-      .poll(
-        () =>
-          calls.filter((requestUrl) => new URL(requestUrl).pathname === "/api/fore/catalog").length,
-      )
+      .poll(() => calls.filter((url) => new URL(url).pathname === "/api/fore/taxonomy").length)
       .toBeGreaterThanOrEqual(1);
-    const paths = calls.map((requestUrl) => new URL(requestUrl).pathname);
-    const catalogFetches = paths.filter((path) => path === "/api/fore/catalog").length;
-    // Safari may repeat an explicitly aborted transport request while the
-    // React query is mounting. Bound that recovery without requiring a
-    // browser-specific network retry policy.
-    expect(catalogFetches).toBeGreaterThanOrEqual(1);
+    const beforeFilter = calls.map((url) => new URL(url).pathname);
+    expect(beforeFilter).not.toContain("/api/fore/catalog");
+    expect(beforeFilter.every((path) => path === "/api/fore/taxonomy")).toBe(true);
+    await page.getByRole("combobox", { name: "Book language" }).focus();
+    await expect
+      .poll(() => calls.filter((url) => new URL(url).pathname === "/api/fore/catalog").length)
+      .toBeGreaterThanOrEqual(1);
+    const catalogFetches = calls.filter(
+      (url) => new URL(url).pathname === "/api/fore/catalog",
+    ).length;
     expect(catalogFetches).toBeLessThanOrEqual(2);
-    const onlyDeferredRequests = paths.every((path) =>
-      ["/api/fore/catalog", "/api/fore/taxonomy"].includes(path),
-    );
-    expect(onlyDeferredRequests).toBe(true);
-    // The fresh server-rendered shelf remains readable even when the full
-    // count/facet refresh cannot reach the backend.
+    // The recently licensed shelf stays readable despite aborting all
+    // follow-up count/facet and taxonomy fetches (no fake fallback HTML).
     await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible();
+    // Prove a real filtered route still calls the live licensed catalog API.
+    await page.unroute("**/api/fore/catalog?**");
+    await page.getByRole("combobox", { name: "Sort books" }).click();
+    await page.getByRole("option", { name: "Title A–Z" }).click();
+    await expect
+      .poll(() => calls.filter((url) => new URL(url).pathname === "/api/fore/catalog").length)
+      .toBeGreaterThan(catalogFetches);
   } finally {
     await context.close();
   }
