@@ -309,6 +309,28 @@ async function main() {
     });
     if (!manifest.outcomes.at(-1).pass) anyFailures = true;
   }
+  // The original homepage-only sweeps do not exercise the literary SQL fix.
+  // Follow them with the same bounded 50:50 JSON discovery + HTML workload
+  // for each immutable, independently deployed revision. Both endpoints
+  // must succeed and every homepage card must pass the live rights path.
+  for (const name of ["baseline", "current"]) {
+    if (!cohorts[name].key) continue;
+    const began = Date.now();
+    benchScript(
+      `mixed-${name}`,
+      cohorts[name],
+      "scripts/performance/cloudflare-mixed-discovery.mjs",
+      "cloudflare-mixed-discovery-performance.json",
+      manifest.outcomes,
+    );
+    manifest.d1Intervals.push({
+      name: `mixed-${name}`,
+      since: new Date(began).toISOString(),
+      until: new Date().toISOString(),
+      sql: await d1Snapshot(began, Date.now()),
+    });
+    if (!manifest.outcomes.at(-1).pass) anyFailures = true;
+  }
   for (const name of ["baseline", "current"]) {
     if (!cohorts[name].key) continue;
     benchScript(
@@ -387,6 +409,7 @@ async function main() {
           pass: v.pass,
         })) ?? [],
       protectedEdgeControl: conc?.controlSummaries ?? null,
+      mixed: byName(`mixed-${name}`)?.summary ?? null,
       browserLcp: browser?.profiles ?? null,
     };
   }
