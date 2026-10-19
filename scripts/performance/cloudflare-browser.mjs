@@ -152,12 +152,43 @@ try {
           };
         })
         .catch(() => ({ ttfbMs: null, lcpMs: null, cards: 0 }));
+      // Check the lazy modal *after* observing natural LCP, so user
+      // interaction cannot prematurely end the paint observation. This is
+      // a read-only auth journey: no passwords, accounts or POST requests.
+      let authDialogOk = null;
+      if (profile === "desktop" && sample === 1 && !failure) {
+        authDialogOk = false;
+        try {
+          await page.locator(".account-actions button").first().click();
+          await page.locator('[role="dialog"] input[autocomplete="username"]').first().waitFor({
+            timeout: 10000,
+          });
+          await page.keyboard.press("Escape");
+          await page.locator('[role="dialog"]').waitFor({ state: "hidden", timeout: 10000 });
+          await page.locator(".account-actions button").nth(1).click();
+          await page.locator('[role="dialog"] input[type="email"]').first().waitFor({
+            timeout: 10000,
+          });
+          await page.keyboard.press("Escape");
+          await page.goto(origin + "/?auth=new-password", {
+            waitUntil: "load",
+            timeout: 45000,
+          });
+          await page.locator('[role="dialog"] input[autocomplete="new-password"]').first().waitFor({
+            timeout: 10000,
+          });
+          authDialogOk = true;
+        } catch {
+          authDialogOk = false;
+        }
+      }
       rows.push({
         profile,
         sample,
         status,
         failure,
         failurePhase: failure ? failurePhase : null,
+        authDialogOk,
         pageErrors,
         consoleErrors,
         failedScriptRequests,
@@ -179,6 +210,7 @@ const profiles = ["desktop", "mobile-4g"].map((profile) => {
     (r) =>
       !r.failure &&
       !r.pageErrors &&
+      r.authDialogOk !== false &&
       !r.interceptionErrors &&
       r.cards > 0 &&
       Number.isFinite(r.lcpMs) &&
