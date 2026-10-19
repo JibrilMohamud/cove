@@ -20,6 +20,9 @@ export async function eraseProviderIdentity(
       false,
       ["sign"],
     );
+    // Bind both claims to one instant; two clock reads can create a proof
+    // longer than the bridge's strict 120-second maximum.
+    const issuedAt = Date.now();
     const payload = base64Url(
       new TextEncoder().encode(
         JSON.stringify({
@@ -29,8 +32,8 @@ export async function eraseProviderIdentity(
           providerId,
           userId,
           requestId,
-          issuedAt: Date.now(),
-          expiresAt: Date.now() + 120000,
+          issuedAt,
+          expiresAt: issuedAt + 120000,
         }),
       ),
     );
