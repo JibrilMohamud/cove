@@ -463,18 +463,35 @@ export async function resolveAnonymousHomepageContext(
     // Prefetch the small, active latest-version translation registry so locale
     // negotiation can occur after the SAME D1.batch call. Avoid repeated
     // session round-trips for every incoming Accept-Language preference.
-    db.prepare(
-      `SELECT l.locale,l.fallback_locale,t.message_key,t.message_value
-      FROM storefront_locales l
-      LEFT JOIN ui_translation_bundles b ON b.id=(
-        SELECT id FROM ui_translation_bundles
-        WHERE locale=l.locale AND status='active'
-        ORDER BY version DESC LIMIT 1
+    db
+      .prepare(
+        `WITH RECURSIVE chain(locale,depth,seen) AS (
+          SELECT ml.locale,0,','||lower(ml.locale)||','
+          FROM storefront_market_locales ml
+          WHERE ml.country_code=${chosenCountrySql} AND ml.active=1
+          UNION ALL
+          SELECT l.fallback_locale,c.depth+1,c.seen||lower(l.fallback_locale)||','
+          FROM chain c JOIN storefront_locales l
+            ON l.locale=c.locale AND l.status='active'
+          WHERE l.fallback_locale IS NOT NULL AND c.depth<4
+            AND instr(c.seen,','||lower(l.fallback_locale)||',')=0
+        ), wanted(locale) AS (
+          SELECT DISTINCT locale FROM chain
+          UNION SELECT 'en-US'
+        )
+        SELECT w.locale,l.fallback_locale,l.status,
+          t.message_key,t.message_value
+        FROM wanted w
+        LEFT JOIN storefront_locales l ON l.locale=w.locale
+        LEFT JOIN ui_translation_bundles b ON b.id=(
+          SELECT id FROM ui_translation_bundles
+          WHERE locale=w.locale AND status='active'
+          ORDER BY version DESC LIMIT 1
+        )
+        LEFT JOIN ui_translation_messages t ON t.bundle_id=b.id
+        ORDER BY w.locale,t.message_key`,
       )
-      LEFT JOIN ui_translation_messages t ON t.bundle_id=b.id
-      WHERE l.status='active'
-      ORDER BY l.locale,t.message_key`,
-    ),
+      .bind(country, country),
     db
       .prepare(
         `WITH market AS (
@@ -499,7 +516,7 @@ export async function resolveAnonymousHomepageContext(
       .bind(country),
   ])) as [
     { results: any[] },
-    { results: { locale: string; fallback_locale: string | null; message_key: string | null; message_value: string | null }[] },
+    { results: { locale: string; fallback_locale: string | null; status: string | null; message_key: string | null; message_value: string | null }[] },
     { results: { payment_method: string; provider: string; currency: string | null; availability: string; priority: number }[] },
     { results: Record<string, unknown>[] },
   ];
@@ -526,7 +543,8 @@ export async function resolveAnonymousHomepageContext(
     if (!messagesByLocale.has(key)) messagesByLocale.set(key, {});
     if (row.message_key !== null)
       messagesByLocale.get(key)![String(row.message_key)] = String(row.message_value);
-    if (row.fallback_locale) fallbackLocales.set(key, String(row.fallback_locale));
+    if (row.status === "active" && row.fallback_locale)
+      fallbackLocales.set(key, String(row.fallback_locale));
   }
   const chain = [String(loc.locale)];
   const visited = new Set([chain[0].toLowerCase()]);
