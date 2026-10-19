@@ -309,6 +309,27 @@ async function main() {
     });
     if (!manifest.outcomes.at(-1).pass) anyFailures = true;
   }
+  // Mixed literary discovery uses real primary-D1 legal-rights selection and
+  // exposes interference with concurrent homepage SSR. The candidate's facet
+  // read-replica change must not degrade that authoritative work.
+  for (const name of ["baseline", "current"]) {
+    if (!cohorts[name].key) continue;
+    const began = Date.now();
+    benchScript(
+      `mixed-literary-${name}`,
+      cohorts[name],
+      "scripts/performance/cloudflare-mixed-discovery.mjs",
+      "cloudflare-mixed-discovery-performance.json",
+      manifest.outcomes,
+    );
+    manifest.d1Intervals.push({
+      name: `mixed-literary-${name}`,
+      since: new Date(began).toISOString(),
+      until: new Date().toISOString(),
+      sql: await d1Snapshot(began, Date.now()),
+    });
+    if (!manifest.outcomes.at(-1).pass) anyFailures = true;
+  }
   // The browser captures initial hydration D1 traffic and LCP element phase.
   // Optional below-fold network work should remain dormant until observed.
   for (const name of ["baseline", "current"]) {
