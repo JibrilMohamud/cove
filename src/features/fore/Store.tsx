@@ -1,4 +1,4 @@
-import { tasteControlsSchema, type TasteControls } from "./discovery-engine";
+import type { TasteControls } from "./discovery-engine";
 import { useUiText } from "./ui-text";
 import { formatMinorCurrency } from "./currency";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -321,8 +321,10 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
     setAdventure(controls?.adventurousness ?? 0.3);
     setResponse(null);
   }, [saved.data, data.user?.id]);
-  const controls = () =>
-    tasteControlsSchema.parse({
+  // Parse the optional literary taste schema only when the user submits.
+  // The homepage first paint does not need to evaluate this module.
+  const controls = async () =>
+    (await import("./discovery-engine")).tasteControlsSchema.parse({
       likes: likes
         .split(",")
         .map((s) => s.trim())
@@ -353,7 +355,7 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
               await api(
                 `/recommendations/discover?visitor=${encodeURIComponent(visitor)}`,
                 "POST",
-                { query, controls: controls() },
+                { query, controls: await controls() },
               ),
             );
           } catch {
@@ -453,7 +455,7 @@ function LiteraryDiscoveryPanel({ visitor }: { visitor: string }) {
               type="button"
               onClick={async () => {
                 try {
-                  await api("/recommendations/taste", "POST", controls());
+                  await api("/recommendations/taste", "POST", await controls());
                   setMessage(
                     "Taste preferences saved. Search wording applies only to this search.",
                   );
@@ -1961,7 +1963,10 @@ export function StorePage({
             pageViewId={pageViewId}
           />
         ))}
-      {home && <LiteraryDiscoveryPanel visitor={visitor} />}
+      {/* This form is below the live-rights shelf. Mount only once the
+          existing observer indicates proximity, reducing anonymous SSR work
+          without changing the 24-book first paint or any rights check. */}
+      {home && discoveryNearby && <LiteraryDiscoveryPanel visitor={visitor} />}
       {home &&
         (recommendations.data?.rails || []).map((rail) => (
           <RecommendationRailView
