@@ -16,7 +16,6 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
       headers: request.headers,
       signal: request.signal,
     });
-    const { proxyPersistenceApi } = await import("@/lib/persistence-backend");
     const env: Record<string, string | undefined> =
       typeof process === "undefined" ? {} : process.env;
     const remoteRequired =
@@ -62,6 +61,10 @@ export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
         );
         return response ?? new Response(null, { status: 503 });
       }
+      // Cloudflare-native homepage uses its local primary D1. Avoid loading
+      // remote persistence modules on the cold SSR path unless remote access
+      // is actually required; authorization and request routing are unchanged.
+      const { proxyPersistenceApi } = await import("@/lib/persistence-backend");
       const response = await proxyPersistenceApi(forwarded, env);
       if (response) return response;
       // Never use an unverified seed when Vercel-to-D1 is unreachable.
