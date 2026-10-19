@@ -76,6 +76,9 @@ jobs:
           node scripts/check-live-channel-zero-grant-gate.mjs
           node scripts/check-bounded-cached-rights-recheck.mjs
           node scripts/check-facet-cache-identity.mjs
+          node scripts/check-benchmark-isolation.mjs
+          node scripts/check-search-stat-replicas.mjs
+          node scripts/check-grouped-catalog-facets.mjs
           npm run test:recommendations
           node scripts/check-literary-genre-rights-query.mjs
           node scripts/check-literary-feature-rights-query.mjs
