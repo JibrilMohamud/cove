@@ -1025,7 +1025,7 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
           ? presentationReadSession(env.DB, env.FORE_DISCOVERY_READ_REPLICAS)
           : env.DB;
       const row = await countDb
-        .prepare(`${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")`)
+        .prepare(`${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`)
         .bind(...part.binds)
         .first<{ count: number }>();
       return Number(row?.count || 0);
