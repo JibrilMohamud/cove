@@ -14,7 +14,7 @@ import {
 const origin = productionOrigin(process.env.COVE_SSR_STAGING_ORIGIN);
 const token = process.env.COVE_SSR_STAGING_GATE_KEY;
 assert.match(token || "", /^[a-f0-9]{64}$/);
-assert.match(origin, /-staging\\.[a-z0-9.-]+\\.workers\\.dev$/);
+assert.match(origin, /-staging\.[a-z0-9.-]+\.workers\.dev$/);
 const headers = {
   Authorization: "Bearer " + token,
   "Cache-Control": "no-store",
@@ -25,7 +25,7 @@ const initial = await fetch(origin + "/api/fore/storefront/bootstrap", {
   signal: AbortSignal.timeout(20000),
 });
 assert.equal(initial.status, 200);
-assert.match(initial.headers.get("content-type") || "", /application\\/json/);
+assert.match(initial.headers.get("content-type") || "", /application\/json/);
 const start = await initial.json();
 assert.ok(Array.isArray(start.catalog?.results) && start.catalog.results.length >= 3);
 const ids = [...new Set(start.catalog.results.map((r) => String(r.productId || "")).filter(Boolean))].slice(0, 3);
@@ -62,11 +62,11 @@ async function probe(kind, concurrency) {
       assert.ok(validateHtml(status, response.headers.get("content-type") || "", body) >= 1);
       assert.match(
         response.headers.get("server-timing") || "",
-        /cove_ssr_local_rights;dur=0(?:\\.0)?(?:,|$)/,
+        /cove_ssr_local_rights;dur=0(?:\.0)?(?:,|$)/,
       );
     } else {
       assert.equal(status, 200);
-      assert.match(response.headers.get("content-type") || "", /application\\/json/);
+      assert.match(response.headers.get("content-type") || "", /application\/json/);
       const payload = JSON.parse(body);
       assert.ok(payload.book?.productId);
       assert.equal(typeof payload.book.subscriptionEligible, "boolean");
@@ -132,5 +132,5 @@ fs.writeFileSync(
   "artifacts/cloudflare-product-detail-mixed-performance.json",
   JSON.stringify(report, null, 2),
 );
-for (const wave of summary) process.stdout.write(JSON.stringify(wave) + "\\n");
+for (const wave of summary) process.stdout.write(JSON.stringify(wave) + "\n");
 if (!report.pass) process.exitCode = 1;
