@@ -1,4 +1,4 @@
-import { AuthDialog, type AuthMode } from "./Auth";
+import type { AuthMode } from "./Auth";
 import type { StorefrontBootstrap } from "./storefront-bootstrap";
 import { ConnectionNotice } from "./ConnectionNotice";
 import { CoveRequestError } from "./api-transport";
@@ -19,7 +19,7 @@ import {
 import { flushSessions } from "./reading-activity";
 import { flushReaderMutations } from "./offline-reader-mutations";
 import { setOfflineAccount } from "./offline-account";
-import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { lazy, Suspense, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import {
   BookOpen,
   Library,
@@ -46,6 +46,12 @@ import {
   useStorefrontLocale,
 } from "./localization";
 import { useUiText } from "./ui-text";
+// The auth modal is never visible during anonymous homepage SSR. Loading
+// its form, provider SDK, and dialog dependencies here unnecessarily widens
+// every cold render's module graph. Only fetch it upon deliberate sign-in or
+// an authentication callback; never defer the existing auth-state decision.
+const AuthDialog = lazy(() => import("./Auth").then((module) => ({ default: module.AuthDialog })));
+
 const nav = [
   ["/", "nav.bookstore", "Bookstore", BookOpen],
   ["/audiobooks", "nav.audiobooks", "Audiobooks", Headphones],
@@ -189,7 +195,11 @@ export function CoveProvider({
     >
       <StorefrontLocaleProvider key={data.user?.id || "guest"} initialContext={initialStorefront}>
         {children}
-        <AuthDialog mode={auth} onChange={setAuth} onSuccess={reload} />
+        {auth !== null ? (
+          <Suspense fallback={null}>
+            <AuthDialog mode={auth} onChange={setAuth} onSuccess={reload} />
+          </Suspense>
+        ) : null}
         <Toaster theme="dark" position="bottom-right" richColors />
       </StorefrontLocaleProvider>
     </AccountContext.Provider>
