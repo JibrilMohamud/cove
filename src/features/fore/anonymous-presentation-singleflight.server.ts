@@ -12,8 +12,7 @@
 export function createAnonymousPresentationSingleflight<T>(capacity = 64) {
   const pending = new Map<string, Promise<T>>();
   return (key: string, load: () => Promise<T>): Promise<T> => {
-    if (!key || key.length > 512 || (pending.size >= capacity && !pending.has(key)))
-      return load();
+    if (!key || key.length > 512 || (pending.size >= capacity && !pending.has(key))) return load();
     const current = pending.get(key);
     if (current) return current;
     const promise = Promise.resolve().then(load);
