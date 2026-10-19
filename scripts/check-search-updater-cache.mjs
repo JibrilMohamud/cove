@@ -243,7 +243,9 @@ try {
     null,
   );
   assert.equal(replicaSessions, beforeDisabled, "disabled flag must preserve the old primary path");
-
+  // The normal test below expects a previously warm, rights-scoped search page.
+  // Our isolation exercise deliberately evicted pages; restore its precise fixture.
+  await search.searchCatalog(env, input("q=adventure&page=1"), null);
 
   let fullCounts = 0;
   const countTracked = {
