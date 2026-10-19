@@ -81,7 +81,9 @@ async function profile(cohort, outputDir) {
       }),
     );
     record.valid += settled.filter(Boolean).length;
-    await wait(150);
+    // Keep real homepage CPU work distributed through the capture window;
+    // a single initial burst may produce an idle-only 10-second pprof.
+    await wait(1500);
   }
   const response = await pending;
   if (!response || !response.ok) {
@@ -119,7 +121,17 @@ async function profile(cohort, outputDir) {
     const summaryName = `latency-cpu-top-${cohort.name}.txt`;
     fs.writeFileSync(path.join(outputDir, summaryName), top.stdout.slice(0, 24000));
     record.topFile = summaryName;
+    // A Cloudflare API 200 can return a tiny, parseable pprof containing
+    // only (root)/(idle). An idle profile is NOT evidence that SSR uses no CPU.
+    const sampledFunctions = top.stdout
+      .split("\\n")
+      .filter((line) => /^\\s*[\\d.]+(?:ns|us|ms|s)\\s+/.test(line))
+      .filter((line) => !/\\((?:idle|root)\\)\\s*$/.test(line));
+    record.profileUsable = record.validProfileTraffic && sampledFunctions.length > 0;
+    if (!record.profileUsable)
+      record.topWarning = "CPU profile is idle-only or lacks representative rights-valid samples";
   } else {
+    record.profileUsable = false;
     record.topWarning = "pprof text conversion unavailable; binary profile retained";
   }
   return record;
