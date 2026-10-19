@@ -72,7 +72,12 @@ assert.equal(presentationFacetReadDb(primary), replica);
 assert.deepEqual(constraints, ["first-unconstrained"]);
 assert.equal(presentationFacetReadDb({ name: "no-replication" }).name, "no-replication");
 assert.throws(
-  () => presentationFacetReadDb({ withSession: () => { throw Error("session failed"); } }),
+  () =>
+    presentationFacetReadDb({
+      withSession: () => {
+        throw Error("session failed");
+      },
+    }),
   /session failed/,
   "Do not silently send a failed replica read to the primary under contention",
 );
