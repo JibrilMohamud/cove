@@ -315,7 +315,8 @@ async function main() {
   // or errors for validated rights-authoritative HTML responses.
   // Reverse the previous trial order to detect time-correlated D1 contention.
   for (const name of ["baseline", "current", "current", "baseline"]) {
-    if (!cohorts[name].key) continue;
+    const cohort = cohorts[name];
+    if (!cohort.key) continue;
     const repeat = manifest.outcomes.some((v) => v.name === `concurrency-${name}`);
     // Keep independently repeated sweeps in separate rate-limit periods,
     // with the production limiter and all background jobs left unchanged.
