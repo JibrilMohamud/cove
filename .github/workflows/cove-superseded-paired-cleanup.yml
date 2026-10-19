@@ -1,0 +1,76 @@
+# One-off branch-scoped queue hygiene: stop obsolete NOT STARTED performance
+# comparisons only. Never touch active runs, production or unrelated workflows.
+name: cove-superseded-paired-cleanup
+on:
+  push:
+    branches: [perf/browser-supabase-auth-lazy-20261019]
+    paths:
+      - ".github/workflows/cove-superseded-paired-cleanup.yml"
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  cancel-superseded-pending-benchmarks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      HEAD_SHA: ${{ github.sha }}
+    steps:
+      - name: Cancel only old queued or pending PR196/197 paired benchmarks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          const repo = process.env.GITHUB_REPOSITORY;
+          const sha = process.env.HEAD_SHA;
+          const token = process.env.GH_TOKEN;
+          if (repo !== "JibrilMohamud/cove" || !/^[a-f0-9]{40}$/.test(sha) || !token)
+            throw Error("Repository or immutable revision mismatch; no cancellations");
+          const api = "https://api.github.com/repos/" + repo;
+          const headers = {
+            Authorization: "Bearer " + token,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+          };
+          const branches = [
+            "perf/integrated-primary-d1-release-20261019",
+            "perf/browser-supabase-auth-lazy-20261019",
+          ];
+          const allowedNames = new Set(["cloudflare-integrated-paired", "cloudflare-supabase-paired"]);
+          const canceled = [];
+          for (const branch of branches) {
+            for (let page = 1; page <= 6; page++) {
+              const url = api + "/actions/runs?branch=" + encodeURIComponent(branch) +
+                "&per_page=100&page=" + page;
+              const response = await fetch(url, { headers });
+              if (!response.ok) throw Error("GitHub Actions listing failed: " + response.status);
+              const { workflow_runs: runs } = await response.json();
+              for (const run of runs) {
+              if (!allowedNames.has(run.name) || run.head_branch !== branch || run.head_sha === sha)
+                continue;
+              if (!["queued", "pending", "waiting", "requested"].includes(run.status))
+                continue;
+              const cancel = await fetch(api + "/actions/runs/" + run.id + "/cancel", {
+                method: "POST",
+                headers,
+              });
+              if (![202, 409].includes(cancel.status))
+                throw Error("Failed to stop superseded queued benchmark " + run.id +
+                  ", status " + cancel.status);
+                canceled.push({ run_id: run.id, branch, status: cancel.status });
+              }
+              if (runs.length < 100) break;
+            }
+          }
+          process.stdout.write(JSON.stringify({
+            reason: "Superseded, not-yet-started isolated performance experiments",
+            retained_head_sha: sha,
+            in_progress_runs_untouched: true,
+            production_runs_untouched: true,
+            canceled,
+          }, null, 2) + "\n");
+          JS

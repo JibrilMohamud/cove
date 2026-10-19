@@ -174,6 +174,16 @@ for (const parent of secondLevel) {
     thirdLevel.push({ importedFrom: parent.imported, imported, staticClosure: closure });
   }
 }
+// Explicitly gate the new client-only auth boundary when requested by CI.
+// Earlier production revisions are measured but do not have this budget.
+if (process.env.COVE_ENFORCE_CLIENT_AUTH_SPLIT === "1") {
+  const start = thirdLevel.find((item) => item.imported.startsWith("_ssr/start-"));
+  assert.ok(start, "Cannot verify the built SSR Start module");
+  assert.ok(
+    start.staticClosure.bytes < 150_000,
+    "SSR Start must not eagerly import the browser Supabase authentication SDK",
+  );
+}
 const staticBytes = detail.reduce((n, d) => n + d.bytes, 0);
 const allBytes = allFiles.reduce((n, file) => n + fs.statSync(file).size, 0);
 const report = {
