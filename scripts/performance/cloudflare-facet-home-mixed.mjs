@@ -101,7 +101,11 @@ for (const concurrency of waves) {
   const variant = variants[(next + Number(process.env.COVE_FACET_VARIANT_OFFSET || 0)) % 8];
   next += 1;
   const searches = facets(concurrency, variant);
-  // Start in the same wave as the expensive facet aggregation.
+  // Give the real catalog endpoint a short head start to reach D1 after its
+  // initial application handler, then issue the homepage wave while facet
+  // aggregation is in flight. An already-complete facet is still recorded,
+  // never silently represented as evidence of concurrent primary contention.
+  await new Promise((resolve) => setTimeout(resolve, 250));
   const homepage = Array.from({ length: concurrency }, () => home(concurrency));
   data.push(...(await Promise.all([...homepage, searches])));
 }
