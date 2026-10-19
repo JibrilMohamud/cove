@@ -124,9 +124,9 @@ async function profile(cohort, outputDir) {
     // A Cloudflare API 200 can return a tiny, parseable pprof containing
     // only (root)/(idle). An idle profile is NOT evidence that SSR uses no CPU.
     const sampledFunctions = top.stdout
-      .split("\\n")
-      .filter((line) => /^\\s*[\\d.]+(?:ns|us|ms|s)\\s+/.test(line))
-      .filter((line) => !/\\((?:idle|root)\\)\\s*$/.test(line));
+      .split("\n")
+      .filter((line) => /^\s*[\d.]+(?:ns|us|ms|s)\s+/.test(line))
+      .filter((line) => !/\((?:idle|root)\)\s*$/.test(line));
     record.profileUsable = record.validProfileTraffic && sampledFunctions.length > 0;
     if (!record.profileUsable)
       record.topWarning = "CPU profile is idle-only or lacks representative rights-valid samples";
