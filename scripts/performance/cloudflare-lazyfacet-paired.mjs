@@ -9,6 +9,7 @@ import { performance } from "node:perf_hooks";
 import { PERFORMANCE_D1, isolatedD1Config, verifySyntheticD1 } from "./isolated-d1-gate.mjs";
 import { runAttributionLadder } from "./cloudflare-attribution-ladder.mjs";
 import { writeAttributionReport } from "./analyze-attribution.mjs";
+import { captureIsolatedCpuProfiles } from "./capture-worker-cpu.mjs";
 
 const root = process.cwd();
 const candidateSha = process.env.COVE_RECOVERY_CANDIDATE_SHA;
@@ -417,6 +418,16 @@ async function main() {
       report: "latency-attribution.md",
       raw: "latency-attribution.json",
       csv: "latency-attribution.csv",
+    };
+  }
+  // CPU flamegraphs run AFTER all measured request cohorts and after
+  // platform timing snapshots so profiling overhead never biases TTFB/LCP.
+  try {
+    manifest.cpuProfiles = await captureIsolatedCpuProfiles(cohorts, outDir);
+  } catch {
+    manifest.cpuProfiles = {
+      isolatedOnly: true,
+      warning: "CPU capture unavailable; performance gates unchanged",
     };
   }
   // Results are paired by the same bounded concurrency wave, not by
