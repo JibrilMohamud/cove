@@ -9,15 +9,37 @@ const headers = {
   "User-Agent":
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
 };
-const bookResponse = await fetch(origin + "/api/fore/books/1342", {
+// Choose a *currently rights-cleared* book in the public market instead of
+// pinning the entire route matrix to Gutenberg #1342. Still fail closed when
+// books are advertised but none can actually be opened by a guest.
+const bootstrapResponse = await fetch(origin + "/api/fore/storefront/bootstrap", {
   headers,
   signal: AbortSignal.timeout(25000),
 });
-if (!bookResponse.ok) throw Error("Cannot resolve an actual public book fixture");
-const book = await bookResponse.json();
+if (!bootstrapResponse.ok) throw Error("Public catalog bootstrap cannot resolve rights-cleared books");
+const bootstrap = await bootstrapResponse.json();
+const candidates = (bootstrap.catalog?.results || []).slice(0, 8);
+if (!candidates.length) throw Error("No real rights-cleared catalog fixture");
+let book = null;
+let bookId = null;
+for (const item of candidates) {
+  if (!item.id) continue;
+  const response = await fetch(origin + "/api/fore/books/" + encodeURIComponent(item.id), {
+    headers,
+    signal: AbortSignal.timeout(25000),
+  });
+  if (!response.ok) continue;
+  const resolved = await response.json();
+  if (!resolved?.publicProductId || !resolved?.id) continue;
+  book = resolved;
+  bookId = String(item.id);
+  break;
+}
+if (!book || !bookId)
+  throw Error("Rights-cleared books were advertised but none resolved for guest reading");
 const dynamic = {
-  "/book/$id": "/book/1342",
-  "/read/$id": "/read/1342",
+  "/book/$id": "/book/" + encodeURIComponent(bookId),
+  "/read/$id": "/read/" + encodeURIComponent(bookId),
   "/books/$id": "/books/" + encodeURIComponent(book.publicProductId),
   "/edition/$id": "/edition/" + encodeURIComponent(book.publicEditionId || book.editionId),
   "/work/$id": "/work/" + encodeURIComponent(book.publicWorkId || book.workId),
