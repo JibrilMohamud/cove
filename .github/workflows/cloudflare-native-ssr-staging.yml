@@ -180,7 +180,9 @@ jobs:
           node scripts/check-storefront-hedged.mjs
       - name: Build Cloudflare-native frontend
         run: npm run build
-      - name: Inspect static and nested dynamic SSR module graph (no runtime changes)
+      - name: Enforce browser-only Supabase SDK is excluded from cold SSR startup
+        env:
+          COVE_ENFORCE_CLIENT_AUTH_SPLIT: "1"
         run: node scripts/performance/inspect-cloudflare-entry-imports.mjs
       - name: Archive cold-start import closure evidence
         if: always()
