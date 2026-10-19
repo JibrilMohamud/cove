@@ -1227,17 +1227,45 @@ export function StorePage({
     publishedBefore
   );
   const home = ["/", "/store"].includes(landingPath) && !filtered && page === 1;
+  // The 24-book shelf is already rendered by the live-rights SSR bootstrap.
+  // Merchandising and personalized recommendations appear *after* that shelf;
+  // requesting their expensive D1 ranking before the visitor approaches them
+  // competes with other visitors' mandatory primary-D1 first-paint rights.
+  // Once reached, load the normal endpoints without caching authorization or
+  // changing their behavior. No global promises or delayed server-side jobs.
+  const [discoveryNearby, setDiscoveryNearby] = useState(false);
+  const discoverySentinel = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!home || discoveryNearby) return;
+    const element = discoverySentinel.current;
+    if (!element) return;
+    if (typeof IntersectionObserver === "undefined") {
+      setDiscoveryNearby(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setDiscoveryNearby(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "600px 0px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [home, discoveryNearby]);
   const merch = useQuery<MerchResponse>({
     queryKey: ["merchandising", visitor, !!data.user],
     queryFn: () => api(`/merchandising?visitor=${encodeURIComponent(visitor)}`),
-    enabled: home && !!visitor,
+    enabled: home && !!visitor && discoveryNearby,
     staleTime: 60_000,
     retry: 1,
   });
   const recommendations = useQuery<RecommendationResponse>({
     queryKey: ["recommendations-home", visitor, data.user?.id || "anonymous"],
     queryFn: () => api(`/recommendations/home?visitor=${encodeURIComponent(visitor)}&limit=12`),
-    enabled: home && !!visitor,
+    enabled: home && !!visitor && discoveryNearby,
     staleTime: 5 * 60_000,
     retry: 1,
   });
@@ -1808,6 +1836,9 @@ export function StorePage({
         </div>
       )}
 
+      {/* The following content is below the first-page catalog. Prepare its
+          optional feeds only when approaching this position. */}
+      {home && <div ref={discoverySentinel} aria-hidden="true" />}
       {/* Optional discovery modules follow the stable first-page catalog. */}
       {home && heroBook && hero && (
         <div className="discovery-row">
