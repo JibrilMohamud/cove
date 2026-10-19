@@ -138,7 +138,8 @@ const summary = waves.map((w) => ({
 }));
 const report = {
   test: "protected-mixed-read-only-literary-home-v2",
-  scope: "actual rights-filtered candidate query, not the POST endpoint or full recommendation logging",
+  scope:
+    "actual rights-filtered candidate query, not the POST endpoint or full recommendation logging",
   waves,
   summary,
   results: rows.sort((a, b) => a.sequence - b.sequence),
