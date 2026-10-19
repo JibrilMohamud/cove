@@ -16,7 +16,8 @@ const bootstrapResponse = await fetch(origin + "/api/fore/storefront/bootstrap",
   headers,
   signal: AbortSignal.timeout(25000),
 });
-if (!bootstrapResponse.ok) throw Error("Public catalog bootstrap cannot resolve rights-cleared books");
+if (!bootstrapResponse.ok)
+  throw Error("Public catalog bootstrap cannot resolve rights-cleared books");
 const bootstrap = await bootstrapResponse.json();
 const candidates = (bootstrap.catalog?.results || []).slice(0, 8);
 if (!candidates.length) throw Error("No real rights-cleared catalog fixture");
