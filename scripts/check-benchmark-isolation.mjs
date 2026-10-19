@@ -54,6 +54,54 @@ await assert.rejects(
   ),
   /complete benchmark/,
 );
+let attempts = 0;
+inventory = [own];
+await requireBenchmarkIsolation(
+  {
+    ...input,
+    fetchImpl: async (...args) => {
+      attempts++;
+      if (attempts === 1) throw Error("transport may contain test-only token");
+      if (attempts === 2) return { ok: false, status: 503 };
+      return fetchImpl(...args);
+    },
+  },
+  ledger,
+);
+assert.equal(attempts, 3);
+assert.equal(ledger.at(-1).verified, true);
+assert.equal(ledger.at(-1).attempts.length, 3);
+attempts = 0;
+await assert.rejects(
+  requireBenchmarkIsolation(
+    {
+      ...input,
+      fetchImpl: async () => {
+        attempts++;
+        throw Error("test-only transport");
+      },
+    },
+    ledger,
+  ),
+  /transport failed after 3 attempts/,
+);
+assert.equal(attempts, 3);
+assert.equal(ledger.at(-1).verified, false);
+attempts = 0;
+await assert.rejects(
+  requireBenchmarkIsolation(
+    {
+      ...input,
+      fetchImpl: async () => {
+        attempts++;
+        return { ok: false, status: 403 };
+      },
+    },
+    ledger,
+  ),
+  /Actions status 403/,
+);
+assert.equal(attempts, 1, "Authorization failures never retry");
 assert.ok(!JSON.stringify(ledger).includes("test-only"), "Tokens must never appear in evidence");
 console.log(
   "PASS: repository-wide competing-run exclusion, current-run allowance, failed inventory, truncation and token privacy",

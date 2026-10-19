@@ -7,19 +7,43 @@ export async function requireBenchmarkIsolation(
     throw Error("Benchmark isolation requires an Actions read token and run ID");
   const entry = { at: now(), runId: String(runId), verified: false, peers: [] };
   ledger.push(entry);
-  const response = await fetchImpl(
-    "https://api.github.com/repos/JibrilMohamud/cove/actions/runs?status=in_progress&per_page=100",
-    {
-      headers: {
-        Authorization: "Bearer " + token,
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    },
-  );
-  if (!response.ok)
-    throw Error("Cannot verify benchmark isolation: Actions status " + response.status);
-  const body = await response.json();
+  // Retry only inventory transport/temporary service failures, never a peer,
+  // authorization denial or incomplete inventory. No benchmark starts until a
+  // complete successful inventory has been verified.
+  let body;
+  entry.attempts = [];
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    let response;
+    try {
+      response = await fetchImpl(
+        "https://api.github.com/repos/JibrilMohamud/cove/actions/runs?status=in_progress&per_page=100",
+        {
+          headers: {
+            Authorization: "Bearer " + token,
+            Accept: "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+          },
+          signal: AbortSignal.timeout(10000),
+        },
+      );
+      if (response.ok) {
+        body = await response.json();
+        entry.attempts.push({ attempt, status: response.status ?? 200 });
+        break;
+      }
+    } catch {
+      // Do not log arbitrary transport messages: they may contain headers.
+      entry.attempts.push({ attempt, error: "inventory transport failure" });
+      if (attempt === 3)
+        throw Error(
+          "Cannot verify benchmark isolation: inventory transport failed after 3 attempts",
+        );
+      continue;
+    }
+    entry.attempts.push({ attempt, status: response.status });
+    if (![502, 503, 504].includes(response.status) || attempt === 3)
+      throw Error("Cannot verify benchmark isolation: Actions status " + response.status);
+  }
   if (
     !Number.isSafeInteger(body.total_count) ||
     body.total_count > 100 ||
