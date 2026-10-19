@@ -1,4 +1,5 @@
 import { networkCountry, resolveAnonymousHomepageContext } from "./localization.server";
+import { createAnonymousPresentationSingleflight } from "./anonymous-presentation-singleflight.server";
 import { formatGenericStorefrontPageRecord } from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
@@ -41,6 +42,14 @@ export function canUseLeanAnonymousBootstrap(
   );
 }
 
+// Only pending, public country+language presentation projections can be
+// shared. Entries expire on settle, not at a time-based TTL. Authenticated
+// requests never reach this function. All book IDs still require the independent
+// primary-D1 rights SELECT, even when metadata work was shared.
+const pendingAnonymousPresentation = createAnonymousPresentationSingleflight<
+  Awaited<ReturnType<typeof resolveAnonymousHomepageContext>>
+>();
+
 /**
  * All three independent checks complete before returning any data. An
  * edge-side locale/market read may be a replica, but authoritative
@@ -79,9 +88,24 @@ export async function serveLeanAnonymousBootstrap(
   // Launch the authoritative primary-rights query *before* waiting for
   // independent replica presentation reads. No book leaves the Worker until
   // the rate limiter, markets, context, page and rights checks ALL succeed.
+  const language = request.headers.get("accept-language") || "";
+  // Bound the public cache key. Long or malformed headers bypass coalescing.
+  // Include the trusted country and its resolver source: never reuse market or
+  // fallback-country presentation data across differing user geographies.
+  const presentationKey =
+    language.length <= 256
+      ? JSON.stringify([
+          trustedCountry,
+          networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").source,
+          env.FORE_DEFAULT_TERRITORY || "US",
+          language,
+        ])
+      : "";
   const contextPromise = timed(
     "context",
-    resolveAnonymousHomepageContext(readMetadata(), request, env.FORE_DEFAULT_TERRITORY || "US"),
+    pendingAnonymousPresentation(presentationKey, () =>
+      resolveAnonymousHomepageContext(readMetadata(), request, env.FORE_DEFAULT_TERRITORY || "US"),
+    ),
   );
   // The read-only metadata batch now also performs the active market/locale
   // lookup. No second dependent D1 service call is needed for anonymous SSR.
