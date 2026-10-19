@@ -26,13 +26,8 @@ const rows = [];
 let ordinal = 0;
 
 function responseDigest(payload) {
-  const ids = payload.rails.flatMap((rail) =>
-    rail.items.map((item) => item.productId),
-  );
-  return createHash("sha256")
-    .update(JSON.stringify(ids))
-    .digest("hex")
-    .slice(0, 16);
+  const ids = payload.rails.flatMap((rail) => rail.items.map((item) => item.productId));
+  return createHash("sha256").update(JSON.stringify(ids)).digest("hex").slice(0, 16);
 }
 
 async function requestOne(kind, concurrency) {
@@ -148,8 +143,7 @@ function summarize(concurrency, kind, expected) {
     valid: successful,
     pass:
       successful &&
-      (kind === "discovery" ||
-        (maxMs !== null && maxMs < 800 && p95Ms !== null && p95Ms <= 650)),
+      (kind === "discovery" || (maxMs !== null && maxMs < 800 && p95Ms !== null && p95Ms <= 650)),
   };
 }
 const summary = waves.map((w) => ({
