@@ -13,9 +13,9 @@ fs.mkdirSync(outDir, { recursive: true });
 const ts = "2026-10-01T00:00:00.000Z";
 const str = (v) => "'" + String(v).replaceAll("'", "''") + "'";
 const rows = (table, fields, values) =>
-  `INSERT INTO ${table}(${fields.join(",")}) VALUES ${values.map((v) => "(" + v.map(str).join(",") + ")").join(",")};\n`;
+  `INSERT OR IGNORE INTO ${table}(${fields.join(",")}) VALUES ${values.map((v) => "(" + v.map(str).join(",") + ")").join(",")};\n`;
 const numericRows = (table, fields, values) =>
-  `INSERT INTO ${table}(${fields.join(",")}) VALUES ${values.map((v) => "(" + v.map((x) => typeof x === "number" ? x : str(x)).join(",") + ")").join(",")};\n`;
+  `INSERT OR IGNORE INTO ${table}(${fields.join(",")}) VALUES ${values.map((v) => "(" + v.map((x) => typeof x === "number" ? x : str(x)).join(",") + ")").join(",")};\n`;
 const id = (n) => "perf-synth-" + String(n).padStart(6, "0");
 const inserts = [];
 const seed = [
