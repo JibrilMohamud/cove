@@ -48,10 +48,7 @@ function walk(file) {
     }
   }
   const visit = (node) => {
-    if (
-      ts.isCallExpression(node) &&
-      node.expression.kind === ts.SyntaxKind.ImportKeyword
-    ) {
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
       current.dynamicImports++;
     }
     ts.forEachChild(node, visit);
@@ -72,6 +69,71 @@ function walk(file) {
   }
 }
 walk(entry);
+
+// For the actual first request, the Nitro/TanStack server entry is imported
+// dynamically. Report each entry-triggered dynamic graph separately from the
+// warm Worker bootstrap, without assuming all route bundles load.
+const dynamicEntrypoints = [];
+const scanStaticClosure = (initial) => {
+  const modules = new Set();
+  const visitStatic = (file) => {
+    if (modules.has(file)) return;
+    modules.add(file);
+    const ast = ts.createSourceFile(
+      file,
+      fs.readFileSync(file, "utf8"),
+      ts.ScriptTarget.Latest,
+      false,
+      ts.ScriptKind.JS,
+    );
+    for (const statement of ast.statements) {
+      if (
+        (ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) &&
+        statement.moduleSpecifier &&
+        ts.isStringLiteral(statement.moduleSpecifier) &&
+        statement.moduleSpecifier.text.startsWith(".")
+      ) {
+        const target = path.resolve(path.dirname(file), statement.moduleSpecifier.text);
+        if (target.startsWith(root + path.sep) && fs.existsSync(target)) visitStatic(target);
+      }
+    }
+  };
+  visitStatic(initial);
+  const bySize = [...modules]
+    .map((file) => ({ file: path.relative(root, file), bytes: fs.statSync(file).size }))
+    .sort((a, b) => b.bytes - a.bytes);
+  return {
+    modules: modules.size,
+    bytes: bySize.reduce((n, item) => n + item.bytes, 0),
+    heaviest: bySize.slice(0, 12),
+  };
+};
+for (const file of seen) {
+  const ast = ts.createSourceFile(
+    file,
+    fs.readFileSync(file, "utf8"),
+    ts.ScriptTarget.Latest,
+    false,
+    ts.ScriptKind.JS,
+  );
+  const inspect = (node) => {
+    if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      const argument = node.arguments[0];
+      if (argument && ts.isStringLiteral(argument) && argument.text.startsWith(".")) {
+        const resolved = path.resolve(path.dirname(file), argument.text);
+        if (resolved.startsWith(root + path.sep) && fs.existsSync(resolved)) {
+          dynamicEntrypoints.push({
+            importer: path.relative(root, file),
+            imported: path.relative(root, resolved),
+            staticClosure: scanStaticClosure(resolved),
+          });
+        }
+      }
+    }
+    ts.forEachChild(node, inspect);
+  };
+  inspect(ast);
+}
 const staticBytes = detail.reduce((n, d) => n + d.bytes, 0);
 const allBytes = allFiles.reduce((n, file) => n + fs.statSync(file).size, 0);
 const report = {
@@ -88,6 +150,7 @@ const report = {
   staticImportsUnresolved: errors,
   externalBuiltins: [...external].sort(),
   heaviestStaticModules: detail.sort((a, b) => b.bytes - a.bytes).slice(0, 25),
+  dynamicEntrypoints,
 };
 fs.mkdirSync("artifacts", { recursive: true });
 fs.writeFileSync("artifacts/cloudflare-entry-import-graph.json", JSON.stringify(report, null, 2));
