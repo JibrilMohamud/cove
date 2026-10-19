@@ -273,6 +273,11 @@ const profiles = ["desktop", "mobile-4g"].map((profile) => {
       !r.failure &&
       !r.pageErrors &&
       !r.interceptionErrors &&
+      !r.failedScriptRequests &&
+      !r.failedStylesheetRequests &&
+      r.scripts.unauthorized === 0 &&
+      r.scripts.missing === 0 &&
+      r.scripts.server5xx === 0 &&
       r.cards > 0 &&
       Number.isFinite(r.lcpMs) &&
       Number.isFinite(r.ttfbMs) &&

@@ -1,0 +1,56 @@
+# Nonproduction, authenticated read-only SSR trial. NEVER assign a custom
+# route or disable COVE_SSR_STAGING until geo-rights and rollout are approved.
+name = "cove-minify-candidate-staging"
+main = ".output/server/index.mjs"
+# Isolated Wrangler/esbuild minification candidate only. Nitro minify remains
+# disabled. Do not promote until real fresh deploys and all browser gates pass.
+minify = true
+compatibility_date = "2026-10-17"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# Protected staging-only experiment. Cloudflare Smart Placement considers
+# D1 bindings and can move Worker compute closer to the database, reducing
+# expensive cross-region service trips. Compare it against prior ingress-edge
+# 3x20 cold and 1/4/8/16 concurrent trials before choosing production mode.
+# Original live PRIMARY-D1 territorial checks, fail-closed staging auth,
+# max <800 ms and hard p95 headroom gates remain strictly unchanged.
+# This is NOT a production DNS/Worker routing migration.
+[placement]
+mode = "smart"
+
+[assets]
+directory = "./.output/public"
+binding = "ASSETS"
+# A user must authenticate before any asset is served. The Worker then
+# delegates accepted static asset requests to ASSETS.fetch.
+run_worker_first = true
+
+# Per-colo public storefront SSR abuse limit. All authenticated/account,
+# commerce and other search endpoints retain their durable D1 controls.
+[[ratelimits]]
+name = "COVE_STOREFRONT_READ_LIMITER"
+namespace_id = "732071"
+
+[ratelimits.simple]
+limit = 180
+period = 60
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cove-production"
+database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"
+migrations_dir = "drizzle"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "cove-production-media"
+
+[vars]
+FORE_PUBLIC_URL = "https://cove-puce-theta.vercel.app"
+FORE_ENVIRONMENT = "production"
+FORE_DEFAULT_TERRITORY = "US"
+COVE_SSR_STAGING = "1"
+
+# Secret COVE_SSR_STAGING_GATE_KEY is created by the deploy action, never
+# present here. Missing/invalid secret causes every request to fail closed.
