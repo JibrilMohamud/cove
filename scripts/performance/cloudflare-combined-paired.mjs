@@ -495,6 +495,45 @@ async function main() {
     manifest.comparison.decision =
       "REJECT: cold or concurrent max TTFB, p95, mobile LCP, mixed-rights catalog or same-colo headroom unproven";
   }
+  // Decompose the slowest REAL licensed responses without inventing queue
+  // metrics. cove_backend_catalog includes D1 service transit/queue and SQL;
+  // the catalog SQL portion is the measured authoritative execution time.
+  // The remaining client-to-server timing is UNATTRIBUTED rather than
+  // mislabeled as network, CPU, or database waiting.
+  const phaseDuration = (timing, name) => {
+    const hit = String(timing || "").match(
+      new RegExp(`(?:^|,)\\s*${name};dur=(\\d+(?:\\.\\d+)?)`),
+    );
+    return hit ? Number(hit[1]) : null;
+  };
+  manifest.comparison.tailAttribution = {};
+  for (const name of ["baseline", "current"]) {
+    const samples = [
+      ...(byName(`concurrency-${name}`)?.results || []),
+      ...(byName(`concurrency-${name}-repeat`)?.results || []),
+    ]
+      .filter((row) => !row.error && [16, 32].includes(row.concurrency))
+      .sort((a, b) => b.ttfbMs - a.ttfbMs)
+      .slice(0, 8);
+    manifest.comparison.tailAttribution[name] = samples.map((row) => {
+      const catalogWall = phaseDuration(row.timing, "cove_backend_catalog");
+      const catalogSql = phaseDuration(row.timing, "cove_backend_catalog_sql");
+      return {
+        concurrency: row.concurrency,
+        ttfbMs: row.ttfbMs,
+        workerMeasuredMs: row.workerMs,
+        unaccountedMs: row.residualMs,
+        runnerQueueMs: row.clientQueueMs,
+        catalogPhaseMs: catalogWall,
+        catalogSqlMs: catalogSql,
+        catalogNonSqlPhaseMs:
+          catalogWall !== null && catalogSql !== null
+            ? Math.max(0, Math.round(catalogWall - catalogSql))
+            : null,
+        note: "Non-SQL phase can include D1 scheduling/transit and JS work; unaccounted TTFB can include Worker CPU/edge dispatch. Neither is an exact queue-time measurement.",
+      };
+    });
+  }
   manifest.finishedAt = new Date().toISOString();
   manifest.wallMs = Date.now() - first;
   // Importantly, the cohort secret keys are not part of manifest or files.
