@@ -1,8 +1,12 @@
 import { createMiddleware } from "@tanstack/react-start";
-import { getSupabaseClient } from "./client";
 
 export const attachSupabaseAuth = createMiddleware({ type: "function" }).client(
   async ({ next }) => {
+    // This middleware runs in the browser; server-side SSR must not eagerly
+    // initialize Supabase session, websocket and HTTP client dependencies.
+    // Await the client *before* every server-function request so bearer token
+    // attachment and fail-closed authentication semantics are unchanged.
+    const { getSupabaseClient } = await import("./client");
     const client = getSupabaseClient();
     if (!client) return next({ headers: {} });
     const { data } = await client.auth.getSession();
