@@ -189,8 +189,10 @@ const summaries = waves.map(({ concurrency, requests }) => {
 // Run *after* licensed tests to avoid prewarming the truly cold SSR trials.
 // A missing staging bearer must terminate at the route authorization gate
 // before D1, server entry, catalog, rights or SSR rendering is invoked.
-// These 32 bounded responses provide a same-runner/colo edge dispatch
-// baseline; they are NOT counted as successful licensed homepage requests.
+// These 64 bounded 401 responses include a 32-in-flight edge-only control.
+// They isolate edge/client congestion from primary-D1 rights request latency.
+// The 92 licensed + 64 denied samples remain below the 180/minute edge cap.
+// They are NEVER counted as successful licensed homepage requests.
 async function deniedControl(concurrency) {
   const begin = performance.now();
   try {
@@ -223,6 +225,7 @@ async function deniedControl(concurrency) {
 const controlWaves = [
   { concurrency: 8, requests: 16 },
   { concurrency: 16, requests: 16 },
+  { concurrency: 32, requests: 32 },
 ];
 const deniedControls = [];
 for (const { concurrency, requests } of controlWaves) {
@@ -249,7 +252,7 @@ const controlSummaries = controlWaves.map(({ concurrency, requests }) => {
     colo: [...new Set(rows.map((x) => x.colo))].sort(),
   };
 });
-const controlsSecure = deniedControls.length === 32 && deniedControls.every((x) => x.denied);
+const controlsSecure = deniedControls.length === 64 && deniedControls.every((x) => x.denied);
 const passed = summaries.every((s) => s.pass) && controlsSecure;
 const artifact = {
   status: passed ? "pass" : "fail",
@@ -293,7 +296,7 @@ const report = [
     (s) =>
       `| ${s.concurrency} | ${s.requests} | ${s.denied401} | ${s.p50Ms} ms | ${s.p95Ms} ms | ${s.maxMs} ms | ${s.colo.join(",")} |`,
   ),
-  `Edge control protection **${controlsSecure ? "pass" : "FAIL"}** — no authorization bypass; not included in 60 licensed samples.`,
+  `Edge control protection **${controlsSecure ? "pass" : "FAIL"}** — no authorization bypass; not included in 92 licensed samples.`,
   "",
   "Slowest five samples (numeric-only edge vs client diagnostics):",
   ...results
