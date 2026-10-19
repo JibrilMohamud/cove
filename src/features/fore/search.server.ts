@@ -9,10 +9,12 @@ import { ApiError } from "./service";
 import { normalizeTerritoryCode } from "./rights.server";
 import { writeCatalogCache } from "./catalog-cache.server";
 import { presentationSearchCount } from "./search-counts-cache.server";
+import { presentationReadSession } from "./discovery-read-session.server";
 import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
 
 type SearchEnv = {
   DB: CatalogDB;
+  FORE_DISCOVERY_READ_REPLICAS?: string;
   FORE_SEARCH_BACKEND?: string;
   FORE_SEARCH_URL?: string;
   FORE_SEARCH_SEARCH_KEY?: string;
@@ -666,6 +668,7 @@ async function d1Facets(
   db: CatalogDB,
   input: SearchInput,
   expression: string,
+  discoveryReplicaFlag?: string,
 ): Promise<SearchFacets> {
   // Facets are independent of pagination and personalization. Cache their
   // public projection briefly while every result page still checks live rights.
@@ -702,6 +705,10 @@ async function d1Facets(
   } catch {
     /* Cache availability never decides search availability. */
   }
+  // Cache reads and writes remain on the primary; only costly cache-miss
+  // aggregations use independent presentation-only read sessions.
+  // A replica is never permitted to authorize an actual product ID.
+  const readPresentation = () => presentationReadSession(db, discoveryReplicaFlag);
   // Disjunctive facets intentionally omit their own active filter so shoppers can switch/add
   // facet values without first clearing the current selection. Other filters remain applied.
   const categoryCandidate = d1FacetCandidate(input, expression, "categories");
@@ -726,7 +733,7 @@ async function d1Facets(
     (part) => part.cte === baseCte && JSON.stringify(part.binds) === JSON.stringify(base.binds),
   );
   const shared = commonCandidates
-    ? await db
+    ? await readPresentation()
         .prepare(
           `${baseCte.replace("candidate AS (", "candidate AS MATERIALIZED (")}
     SELECT
@@ -773,43 +780,43 @@ async function d1Facets(
         },
       ]
     : await Promise.all([
-        db
+        readPresentation()
           .prepare(
             `${categoryCandidate.cte} SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name LIMIT 40`,
           )
           .bind(...categoryCandidate.binds)
           .all<any>(),
-        db
+        readPresentation()
           .prepare(
             `${languageCandidate.cte} SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code LIMIT 30`,
           )
           .bind(...languageCandidate.binds)
           .all<any>(),
-        db
+        readPresentation()
           .prepare(
             `${formatCandidate.cte} SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value LIMIT 20`,
           )
           .bind(...formatCandidate.binds)
           .all<any>(),
-        db
+        readPresentation()
           .prepare(
             `${publisherCandidate.cte} SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name LIMIT 30`,
           )
           .bind(...publisherCandidate.binds)
           .all<any>(),
-        db
+        readPresentation()
           .prepare(
             `${seriesCandidate.cte} SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name LIMIT 30`,
           )
           .bind(...seriesCandidate.binds)
           .all<any>(),
-        db
+        readPresentation()
           .prepare(
             `${baseCte} SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value LIMIT 10`,
           )
           .bind(...base.binds)
           .all<any>(),
-        db
+        readPresentation()
           .prepare(
             `${priceCandidate.cte} SELECT MIN(price_minor) min_price,MAX(price_minor) max_price,MAX(currency) currency FROM candidate`,
           )
@@ -1011,7 +1018,12 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
   };
   const runCount = async () => {
     const countLive = async () => {
-      const row = await env.DB.prepare(
+      // Unfiltered browse totals are presentation metadata. Text-query totals
+      // stay on primary to preserve typo-correction semantics on a fresh view.
+      const countDb = !input.query && !part.hasFts
+        ? presentationReadSession(env.DB, env.FORE_DISCOVERY_READ_REPLICAS)
+        : env.DB;
+      const row = await countDb.prepare(
         `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
       )
         .bind(...part.binds)
@@ -1041,7 +1053,7 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
   const ids = rows.results.map((r: any) => String(r.product_id));
   const [books, facets] = await Promise.all([
     canonicalBooksByProductIds(env.DB, ids),
-    d1Facets(env.DB, input, expression),
+    d1Facets(env.DB, input, expression, env.FORE_DISCOVERY_READ_REPLICAS),
   ]);
   try {
     await writeCatalogCache(
