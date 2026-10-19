@@ -1,4 +1,4 @@
-import { AuthDialog, type AuthMode } from "./Auth";
+import type { AuthMode } from "./Auth";
 import type { StorefrontBootstrap } from "./storefront-bootstrap";
 import { ConnectionNotice } from "./ConnectionNotice";
 import { CoveRequestError } from "./api-transport";
@@ -19,7 +19,7 @@ import {
 import { flushSessions } from "./reading-activity";
 import { flushReaderMutations } from "./offline-reader-mutations";
 import { setOfflineAccount } from "./offline-account";
-import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { lazy, Suspense, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import {
   BookOpen,
   Library,
@@ -46,6 +46,9 @@ import {
   useStorefrontLocale,
 } from "./localization";
 import { useUiText } from "./ui-text";
+// A closed sign-in dialog need not initialize passkey/password forms during anonymous SSR.
+const AuthDialog = lazy(() => import("./Auth").then((m) => ({ default: m.AuthDialog })));
+
 const nav = [
   ["/", "nav.bookstore", "Bookstore", BookOpen],
   ["/audiobooks", "nav.audiobooks", "Audiobooks", Headphones],
@@ -189,7 +192,11 @@ export function CoveProvider({
     >
       <StorefrontLocaleProvider key={data.user?.id || "guest"} initialContext={initialStorefront}>
         {children}
-        <AuthDialog mode={auth} onChange={setAuth} onSuccess={reload} />
+        {auth !== null && (
+          <Suspense fallback={null}>
+            <AuthDialog mode={auth} onChange={setAuth} onSuccess={reload} />
+          </Suspense>
+        )}
         <Toaster theme="dark" position="bottom-right" richColors />
       </StorefrontLocaleProvider>
     </AccountContext.Provider>
