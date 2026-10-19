@@ -489,6 +489,18 @@ async function main() {
         799,
         650,
       ),
+    allBrowserJourneysPassed:
+      manifest.outcomes.find((entry) => entry.name === "browser-current")?.pass === true &&
+      candidate.browserLcp?.length === 2 &&
+      candidate.browserLcp.every((profile) => profile.pass),
+    desktopP75LcpUnder1800:
+      candidate.browserLcp?.some(
+        (profile) =>
+          profile.profile === "desktop" &&
+          profile.pass &&
+          Number.isFinite(profile.lcpP75Ms) &&
+          profile.lcpP75Ms < 1800,
+      ) === true,
     mobileP75LcpPreserved:
       !!p75Mobile &&
       p75Mobile.pass &&
