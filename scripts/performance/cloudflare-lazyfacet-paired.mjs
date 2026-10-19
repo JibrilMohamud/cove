@@ -134,7 +134,7 @@ function benchScript(label, cohort, script, outputName, run) {
     COVE_SSR_STAGING_GATE_KEY: cohort.key,
     COVE_EXPECT_PRESTART: "0",
     COVE_EXPECT_DISCOVERY_DEFER: "1",
-    COVE_EXPECT_CATALOG_DEFER: cohort.name.includes("candidate") ? "1" : "0",
+    COVE_EXPECT_CATALOG_DEFER: "1",
     // Keep timestamp of secret change numeric only, not a token.
     COVE_STAGE_SECRET_ROTATION_EPOCH_MS: String(cohort.rotatedAt),
   };
