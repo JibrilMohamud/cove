@@ -404,7 +404,6 @@ export async function resolveStorefrontContext(
   };
 }
 
-
 /**
  * Anonymous first-paint metadata, without a dependent second D1 service call.
  *
@@ -516,13 +515,28 @@ export async function resolveAnonymousHomepageContext(
       .bind(country),
   ])) as [
     { results: any[] },
-    { results: { locale: string; fallback_locale: string | null; status: string | null; message_key: string | null; message_value: string | null }[] },
-    { results: { payment_method: string; provider: string; currency: string | null; availability: string; priority: number }[] },
+    {
+      results: {
+        locale: string;
+        fallback_locale: string | null;
+        status: string | null;
+        message_key: string | null;
+        message_value: string | null;
+      }[];
+    },
+    {
+      results: {
+        payment_method: string;
+        provider: string;
+        currency: string | null;
+        availability: string;
+        priority: number;
+      }[];
+    },
     { results: Record<string, unknown>[] },
   ];
   const selectedMarket = marketResult.results[0];
-  if (!selectedMarket)
-    throw new ApiError(503, "No active Cove storefront market is configured.");
+  if (!selectedMarket) throw new ApiError(503, "No active Cove storefront market is configured.");
   const localeRows = marketResult.results
     .filter((row) => row.active_locale)
     .map((row) => ({
@@ -569,7 +583,9 @@ export async function resolveAnonymousHomepageContext(
     defaultCurrency: String(row.defaultCurrency),
     taxInclusive: !!row.taxInclusive,
     checkoutEnabled: !!row.checkoutEnabled,
-    locales: String(row.locales || "").split(",").filter(Boolean),
+    locales: String(row.locales || "")
+      .split(",")
+      .filter(Boolean),
   }));
   const effectiveCountry = String(selectedMarket.country_code);
   const currency = String(selectedMarket.default_currency).toUpperCase();
