@@ -106,6 +106,7 @@ function benchScript(label, cohort, script, outputName, run) {
   const env = {
     COVE_SSR_STAGING_ORIGIN: `https://${cohort.name}.cove-jibrilmohamud.workers.dev`,
     COVE_SSR_STAGING_GATE_KEY: cohort.key,
+    COVE_EXPECT_PRESTART: cohort.name.includes("candidate") ? "1" : "0",
     // Keep timestamp of secret change numeric only, not a token.
     COVE_STAGE_SECRET_ROTATION_EPOCH_MS: String(cohort.rotatedAt),
   };
