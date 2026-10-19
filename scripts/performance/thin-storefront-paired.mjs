@@ -114,15 +114,38 @@ async function readiness() {
   evidence.fixtures = { baseline: a, thin: b };
   save();
 }
+const lastDeployments = {};
 async function deploy(role) {
   const config = role === "thin" ? "wrangler.storefront-thin.jsonc" : `wrangler.thin-${role}.toml`;
   command(["deploy", "--config", config]);
+  // An identical upload alone may reuse a loaded environment. Rotate the
+  // binding on EVERY round to force a distinct Worker environment. Thin and
+  // its delegated core must receive the same fresh key.
+  keys[role] = role === "thin" ? keys.core : randomBytes(32).toString("hex");
+  if (role === "core") keys.thin = keys.core;
+  const rotatedAt = Date.now();
   command(["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", config], keys[role]);
   // Control-plane reads do not touch or prewarm the Worker URL.
-  const r = await api("GET", `/accounts/${account}/workers/scripts/${workers[role]}/deployments`);
-  const d = r.deployments[0];
-  assert.ok(d.versions.some((v) => v.percentage === 100));
-  return { id: d.id, created_on: d.created_on, versions: d.versions };
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const r = await api("GET", `/accounts/${account}/workers/scripts/${workers[role]}/deployments`);
+    const d = r.deployments[0];
+    if (
+      d.id !== lastDeployments[role] &&
+      Date.parse(d.created_on) >= rotatedAt &&
+      d.versions.some((v) => v.percentage === 100)
+    ) {
+      lastDeployments[role] = d.id;
+      await new Promise((done) => setTimeout(done, 2000));
+      return {
+        id: d.id,
+        created_on: d.created_on,
+        versions: d.versions,
+        secretRotationEpochMs: rotatedAt,
+      };
+    }
+    await new Promise((done) => setTimeout(done, 1800));
+  }
+  throw new Error("Fresh fully active deployment was not confirmed");
 }
 function pct(values, p) {
   const a = [...values].sort((a, b) => a - b);
