@@ -11,9 +11,10 @@ permissions:
   contents: read
 
 concurrency:
-  # Do NOT overlap the existing protected stage's secret rotation or another
-  # paired test. Two additional scripts, NEVER the production Worker.
-  group: cove-literary-paired
+  # Queue behind the clean PR205 cold-start A/B on dedicated recovery group;
+  # do NOT overlap two release experiments on the shared production D1.
+  # Temporary Worker names and secret namespaces remain isolated.
+  group: cove-cleanoverlap-recovery-20261019
   queue: max
   cancel-in-progress: false
 
