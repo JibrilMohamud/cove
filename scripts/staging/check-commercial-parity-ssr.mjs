@@ -113,6 +113,8 @@ for(const wave of waves){
         limitMs:serverDuration(response.timings,"cove_backend_limit"),
         edgeBootstrapMs:serverDuration(response.timings,"cove_backend_bootstrap"),
         authorized:!!cards&&response.status===200&&/no-store/i.test(response.cacheControl)&&/cove_ssr_local_rights;dur=0/.test(response.timings),
+        hasRightsTiming:/cove_ssr_local_rights;dur=0/.test(response.timings),
+        hasNoStore:/no-store/i.test(response.cacheControl),
       });
     }
   }));
@@ -120,6 +122,12 @@ for(const wave of waves){
   const valid=rows.filter(x=>x.authorized).length;
   const summary={concurrency:wave.concurrency,offered:wave.requests,
     valid,failed:wave.requests-valid,
+    statusCounts:Object.fromEntries([...new Set(rows.map(x=>x.status))].map(status=>[
+      String(status),rows.filter(x=>x.status===status).length,
+    ])),
+    invalidWithoutCards:rows.filter(x=>!x.cards).length,
+    invalidWithoutRightsTiming:rows.filter(x=>!x.hasRightsTiming).length,
+    invalidWithoutNoStore:rows.filter(x=>!x.hasNoStore).length,
     p50Ms:percentile(times,0.5),p95Ms:percentile(times,0.95),
     maxMs:Math.max(...times),
     colocations:[...new Set(rows.map(x=>x.colo))].sort(),
