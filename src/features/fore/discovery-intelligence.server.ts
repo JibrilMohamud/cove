@@ -1,3 +1,4 @@
+import { engagementDatabase } from "./recommendation-engagement.server";
 import type { CatalogDB } from "./catalog-model.server";
 import {
   tasteControlsSchema,
@@ -69,11 +70,15 @@ export async function buildLiteraryTaste(
 ) {
   const taste: ReaderTaste = new Map();
   if (!userId) return taste;
-  const rows = await db
-    .prepare(
-      `SELECT product_id,event_type,value,occurred_at FROM recommendation_events WHERE user_id=? AND occurred_at>=datetime('now','-365 days') AND occurred_at>COALESCE((SELECT reset_at FROM recommendation_learning_boundaries WHERE user_id=recommendation_events.user_id),'') ORDER BY occurred_at DESC LIMIT 1000`,
-    )
+  const boundary = await db
+    .prepare("SELECT reset_at FROM recommendation_learning_boundaries WHERE user_id=?")
     .bind(userId)
+    .first<{ reset_at: string }>();
+  const rows = await engagementDatabase(db)
+    .prepare(
+      `SELECT product_id,event_type,value,occurred_at FROM recommendation_events WHERE user_id=? AND occurred_at>=datetime('now','-365 days') AND occurred_at>? ORDER BY occurred_at DESC LIMIT 1000`,
+    )
+    .bind(userId, boundary?.reset_at || "")
     .all<{ product_id: string; event_type: string; value: number | null; occurred_at: string }>();
   const states = await db
     .prepare(
@@ -374,7 +379,7 @@ export async function literaryDiscoveryStatus(db: CatalogDB) {
         "SELECT COUNT(DISTINCT product_id) books,COUNT(*) features FROM recommendation_book_features",
       )
       .first(),
-    db
+    engagementDatabase(db)
       .prepare(
         "SELECT event_type,COUNT(*) count FROM recommendation_events WHERE occurred_at>=datetime('now','-30 days') AND event_type IN ('rating','loved','not_for_me','abandon','recommend','completion') GROUP BY event_type",
       )

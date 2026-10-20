@@ -1,0 +1,35 @@
+name: meilisearch-acceptance
+on:
+  push:
+    branches: [perf/discovery-workload-separation-20261020]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Download pinned official Meilisearch and verify release digest
+        run: |
+          curl --fail --silent --show-error --location --max-time 120 --output "$RUNNER_TEMP/meilisearch" https://github.com/meilisearch/meilisearch/releases/download/v1.55.0/meilisearch-linux-amd64
+          echo "7e33f5889235f14290074a19a6d3574bd9b10fb2ee8731eabb7dafd0714b0513  $RUNNER_TEMP/meilisearch" | sha256sum --check
+          chmod 700 "$RUNNER_TEMP/meilisearch"
+      - name: Actual application indexing and search acceptance on 50k synthetic books
+        env:
+          COVE_MEILISEARCH_BINARY: ${{ runner.temp }}/meilisearch
+        run: node scripts/check-real-meilisearch.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-meilisearch-${{ github.sha }}
+          path: artifacts/real-meilisearch/results.json
+          retention-days: 30

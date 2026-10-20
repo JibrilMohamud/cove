@@ -4,6 +4,11 @@ import { ApiError, now } from "./service";
 import { emitNotification } from "./notifications.server";
 import { eraseProviderIdentity } from "./account-erasure.server";
 import { exportCustomerSupport } from "./customer-support.server";
+import {
+  engagementDatabase,
+  eraseEngagementUser,
+  scopeEngagementEnv,
+} from "./recommendation-engagement.server";
 
 export type AccountDB = CoveEnv["DB"];
 const id = (p: string) => `${p}_${crypto.randomUUID()}`;
@@ -730,7 +735,7 @@ export async function accountDataExport(db: AccountDB, userId: string) {
         await db.prepare("SELECT * FROM recommendation_feedback WHERE user_id=?").bind(userId).all()
       ).results,
       events: (
-        await db
+        await engagementDatabase(db)
           .prepare("SELECT * FROM recommendation_events WHERE user_id=? ORDER BY occurred_at")
           .bind(userId)
           .all()
@@ -827,6 +832,7 @@ async function maintainErasureLease(db: AccountDB, requestId: string, token: str
   if (!renewed) throw new ApiError(409, "erasure_lease_lost");
 }
 export async function processAccountDeletionQueue(env: CoveEnv, limit = 25) {
+  env = scopeEngagementEnv(env);
   const db = env.DB,
     current = now();
   const rows = (
@@ -991,6 +997,9 @@ export async function processAccountDeletionQueue(env: CoveEnv, limit = 25) {
             )
             .bind(at, at, id)
             .run();
+        // A retryable cross-domain erasure step. Never mark the account erased
+        // until the independent ledger has fenced late writers and removed its data.
+        await eraseEngagementUser(db, r.user_id);
         await db.batch([
           db.prepare("DELETE FROM notification_inbox WHERE user_id=?").bind(r.user_id),
           db.prepare("DELETE FROM notification_delivery_jobs WHERE user_id=?").bind(r.user_id),

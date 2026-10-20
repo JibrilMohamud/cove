@@ -69,7 +69,11 @@
     "test:music-profiles": "node scripts/check-music-profiles.mjs",
     "test:matching": "node scripts/check-matching-engine.mjs",
     "test:literary-discovery": "node scripts/check-literary-discovery.mjs",
-    "test:reading-reliability": "node scripts/check-reading-reliability.mjs && node scripts/check-offline-shell.mjs"
+    "test:reading-reliability": "node scripts/check-reading-reliability.mjs && node scripts/check-offline-shell.mjs",
+    "test:discovery-read-models": "node scripts/check-discovery-read-models.mjs && node scripts/check-offered-load.mjs",
+    "test:discovery-scale": "node scripts/check-discovery-scale.mjs",
+    "test:engagement-separation": "node scripts/check-engagement-separation.mjs",
+    "test:real-meilisearch": "node scripts/check-real-meilisearch.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

@@ -1,0 +1,46 @@
+{
+  "name": "cove-discovery-read-model-staging",
+  "main": "artifacts/discovery-benchmark/worker.mjs",
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "placement": { "region": "aws:us-east-1" },
+  "limits": { "cpu_ms": 30000 },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cove-perf-isolated-candidate-20261019",
+      "database_id": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+    },
+    {
+      "binding": "ENGAGEMENT_DB",
+      "database_name": "cove-engagement-generator-local-20261020",
+      "database_id": "41315f96-7e9f-4e0e-9447-bca71003a7db",
+      "migrations_dir": "engagement-migrations",
+    },
+  ],
+  "r2_buckets": [
+    { "binding": "DISCOVERY_MODELS", "bucket_name": "cove-discovery-models-benchmark" },
+  ],
+  "ratelimits": [
+    {
+      "name": "COVE_STOREFRONT_READ_LIMITER",
+      "namespace_id": "732041",
+      "simple": { "limit": 180, "period": 60 },
+    },
+    {
+      "name": "COVE_DISCOVERY_READ_LIMITER_240",
+      "namespace_id": "732042",
+      "simple": { "limit": 240, "period": 60 },
+    },
+  ],
+  "vars": {
+    "FORE_ENVIRONMENT": "production",
+    "FORE_DEFAULT_TERRITORY": "US",
+    "COVE_SSR_STAGING": "1",
+    "COVE_PERF_DATABASE_ID": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+    "COVE_PERF_ENGAGEMENT_DATABASE_ID": "41315f96-7e9f-4e0e-9447-bca71003a7db",
+    "COVE_PERF_TELEMETRY_MODE": "durable",
+  },
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+}

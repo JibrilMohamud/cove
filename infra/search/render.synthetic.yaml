@@ -1,0 +1,33 @@
+# Synthetic acceptance service only. This single disk is not a production HA topology.
+# Blueprint path: infra/search/render.synthetic.yaml
+services:
+  - type: web
+    name: cove-search-synthetic-20261020
+    runtime: image
+    image:
+      url: docker.io/getmeili/meilisearch:v1.55.0
+    region: virginia
+    plan: 1c-2g
+    numInstances: 1
+    healthCheckPath: /health
+    disk:
+      name: search-data
+      mountPath: /var/lib/meilisearch
+      sizeGB: 10
+    envVars:
+      - key: MEILI_MASTER_KEY
+        generateValue: true
+      - key: MEILI_ENV
+        value: production
+      - key: MEILI_HTTP_ADDR
+        value: 0.0.0.0:7700
+      - key: MEILI_DB_PATH
+        value: /var/lib/meilisearch/data.ms
+      - key: MEILI_DUMP_DIR
+        value: /var/lib/meilisearch/dumps
+      - key: MEILI_NO_ANALYTICS
+        value: "true"
+      - key: MEILI_MAX_INDEXING_MEMORY
+        value: 1GiB
+      - key: MEILI_MAX_INDEXING_THREADS
+        value: "1"
