@@ -13,6 +13,7 @@ import {
 import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap";
 import { renderThinStorefront } from "./render";
 import { bootstrapFailureKind } from "./failure";
+import { loadThinPresentationContext } from "./presentation-cache";
 
 // The shared app uses DOM Request/Response types. Adapt only Fetcher's
 // structural web signature; generated configuration still owns every binding.
@@ -51,9 +52,12 @@ export default {
       if (!canUseLeanAnonymousBootstrap(bootstrapRequest, env))
         return await env.CORE.fetch(request);
       failurePhase = "bootstrap";
-      const response = await serveLeanAnonymousBootstrap(bootstrapRequest, env, (phase) => {
-        failurePhase = phase;
-      });
+      const response = await serveLeanAnonymousBootstrap(
+        bootstrapRequest,
+        env,
+        (phase) => { failurePhase = phase; },
+        (read) => loadThinPresentationContext(bootstrapRequest, env, read),
+      );
       if (!response.ok) return finish(new Response(null, { status: response.status }));
       const bootstrap = (await response.json()) as StorefrontBootstrap;
       if (bootstrap.context.rightsCountry !== headers.get("x-cove-client-country"))
