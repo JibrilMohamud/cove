@@ -75,12 +75,33 @@ try {
     )
       .bind("prd_gutenberg_" + id, edition, "sku_" + id, id, at, at)
       .run();
+    // Keep the real database's source-evidence triggers enabled in tests.
+    // A synthetic grant is valid only with matching approved AU evidence.
+    const evidenceId = "evidence_" + id;
+    await env.DB.prepare(
+      "INSERT INTO gutenberg_rights_evidence(id,source_id,cache_id,source_item_id," +
+        "determination,territory_code,evidence_url,evidence_type,evidence_hash," +
+        "parser_version,status,checked_at,created_at)" +
+        " VALUES(?,'pg_au',?,?,'public-domain','AU',?,'operator-review',?," +
+        "'test-fixture-v1','approved',?,?)",
+    )
+      .bind(
+        evidenceId,
+        id,
+        id,
+        "https://example.invalid/rights/" + id,
+        hash,
+        at,
+        at,
+      )
+      .run();
     await env.DB.prepare(
       "INSERT INTO rights_grants(id,edition_id,territory_code,format,license_type,created_at," +
-        "source,sales_channel,status,decision) VALUES(?,?,'AU','ebook','public-domain',?," +
-        "'gutenberg-pg_au-public-domain','retail',?,'allow')",
+        "source,sales_channel,status,decision,source_evidence_id)" +
+        " VALUES(?,?,'AU','ebook','public-domain',?," +
+        "'gutenberg-pg_au-public-domain','retail',?,'allow',?)",
     )
-      .bind("rg_test_" + id, edition, at, options.grantStatus ?? "active")
+      .bind("rg_test_" + id, edition, at, options.grantStatus ?? "active", evidenceId)
       .run();
     return edition;
   }
