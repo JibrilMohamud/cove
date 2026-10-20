@@ -8,6 +8,9 @@ on:
       - "scripts/staging/check-commercial-parity-rps.mjs"
       - "scripts/staging/check-anonymous-homepage-prefetch.mjs"
       - "src/features/fore/storefront-anonymous-bootstrap.server.ts"
+      - "src/features/fore/api.server.ts"
+      - "src/features/fore/anonymous-context-singleflight.server.ts"
+      - "scripts/staging/check-anonymous-context-singleflight.mjs"
       - "src/features/fore/taxonomy.server.ts"
       - "wrangler.commercial-parity.stage.toml"
       - ".github/workflows/commercial-parity-ssr-smoke.yml"
@@ -37,6 +40,8 @@ jobs:
       - run: npm ci
       - name: Guard merchandising and locale parity of parallel page read
         run: node scripts/staging/check-anonymous-homepage-prefetch.mjs
+      - name: Verify strict in-flight only presentation deduplication
+        run: node scripts/staging/check-anonymous-context-singleflight.mjs
       - name: Assert isolated fixture and immutable cloud bindings
         shell: bash
         run: |
