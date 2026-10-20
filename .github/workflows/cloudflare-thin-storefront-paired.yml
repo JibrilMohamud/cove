@@ -1,7 +1,7 @@
 name: cloudflare-thin-storefront-paired
 on:
   push:
-    branches: [perf/thin-storefront-20261019, perf/thin-metadata-completed-cache-20261020]
+    branches: [perf/thin-storefront-20261019, perf/thin-metadata-completed-cache-20261020, perf/thin-d1-queue-attribution-20261020]
     paths:
       - "src/**"
       - "scripts/**"

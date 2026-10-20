@@ -28,6 +28,8 @@ const evidence = {
   bursts: [],
   capacity: [],
   bootstrap: [],
+  phaseDiagnosis: [],
+  mixed: [],
   browser: [],
   errors: [],
   releaseApproved: false,
@@ -204,22 +206,45 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
     );
     const home = route === "/";
     let diagnosticValid = true;
-    if (route === "/__cove_perf/bootstrap") {
+    if (route.startsWith("/__cove_perf/")) {
       try {
         const data = JSON.parse(body);
-        diagnosticValid = data.stage === "bootstrap" && data.ok === true && data.books === 24;
+        const expected = route.split("/").at(-1);
+        diagnosticValid =
+          data.stage === expected &&
+          data.ok === true &&
+          (expected === "bootstrap" || expected === "rights" ? data.books === 24 : true) &&
+          (expected?.startsWith("context") ? data.markets > 0 : true);
       } catch {
         diagnosticValid = false;
+      }
+    }
+    let apiValid = true;
+    if (route.startsWith("/api/fore/")) {
+      try {
+        const payload = JSON.parse(body);
+        const pathname = new URL(route, "https://synthetic.invalid").pathname;
+        if (pathname === "/api/fore/catalog")
+          apiValid = Array.isArray(payload.results) && payload.results.length > 0;
+        else if (pathname === "/api/fore/recommendations/home")
+          apiValid = Array.isArray(payload.rails);
+        else if (pathname === "/api/fore/merchandising")
+          apiValid = !!payload.slots && typeof payload.slots === "object";
+        else apiValid = false;
+      } catch {
+        apiValid = false;
       }
     }
     const valid =
       r.status === 200 &&
       diagnosticValid &&
+      apiValid &&
       (!home ||
         (links.length === 24 &&
           r.headers.get("content-type")?.includes("text/html") &&
           /no-store/.test(r.headers.get("cache-control") || "")));
     return {
+      route,
       ttfb,
       total: performance.now() - started,
       status: r.status,
@@ -237,6 +262,7 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
     };
   } catch (e) {
     return {
+      route,
       valid: false,
       status: 0,
       error: String(e).slice(0, 250),
@@ -357,9 +383,8 @@ async function browserCheck(role) {
     await browser.close();
   }
 }
-async function capacity(role, rate) {
-  const duration = 20_000,
-    interval = 1000 / rate,
+async function capacity(role, rate, { route = "/", duration = 20_000 } = {}) {
+  const interval = 1000 / rate,
     start = performance.now(),
     rows = [],
     pending = new Set();
@@ -378,7 +403,7 @@ async function capacity(role, rate) {
       dropped++;
       continue;
     }
-    const task = sample(role)
+    const task = sample(role, { route })
       .then((r) => {
         rows.push(r);
         if (!r.valid) stop = true;
@@ -391,6 +416,7 @@ async function capacity(role, rate) {
     s = summary(rows);
   return {
     role,
+    route,
     offeredRps: rate,
     durationMs: elapsed,
     completedRps: rows.length / (elapsed / 1000),
@@ -400,6 +426,75 @@ async function capacity(role, rate) {
     late,
     summary: s,
     pass: !stop && !dropped && !late && !s.errors && s.p95 <= 600 && s.p99 <= 750 && s.max < 800,
+    rows,
+  };
+}
+async function mixedCapacity(rate) {
+  const duration = 20_000;
+  const visitor = "00000000-0000-4000-8000-000000000001";
+  const routes = [
+    ...Array(11).fill("/"),
+    ...Array(4).fill("/api/fore/catalog?search=Synthetic&sort=popular&page=1&currency=USD"),
+    ...Array(3).fill("/api/fore/recommendations/home?visitor=" + visitor + "&limit=12"),
+    ...Array(2).fill("/api/fore/merchandising?visitor=" + visitor),
+  ];
+  const began = performance.now();
+  const tasks = new Set();
+  const rows = [];
+  let scheduled = 0;
+  let dropped = 0;
+  let late = 0;
+  let invalid = false;
+  const requested = (rate * duration) / 1000;
+  for (let i = 0; i < requested; i++) {
+    const due = began + (1000 * i) / rate;
+    const delay = due - performance.now();
+    if (delay > 0) await new Promise((done) => setTimeout(done, delay));
+    if (invalid) break;
+    scheduled++;
+    if (performance.now() - due > 100) late++;
+    if (tasks.size >= 128) {
+      dropped++;
+      continue;
+    }
+    const route = routes[i % routes.length];
+    const task = sample("thin", { route })
+      .then((result) => {
+        rows.push(result);
+        if (!result.valid) invalid = true;
+      })
+      .finally(() => tasks.delete(task));
+    tasks.add(task);
+  }
+  await Promise.all(tasks);
+  const elapsed = performance.now() - began;
+  const result = summary(rows);
+  return {
+    offeredRps: rate,
+    durationMs: elapsed,
+    requested,
+    scheduled,
+    unscheduled: requested - scheduled,
+    dropped,
+    late,
+    summary: result,
+    routes: Object.fromEntries(
+      routes
+        .filter((route, i) => routes.indexOf(route) === i)
+        .map((route) => {
+          const samples = rows.filter((row) => row.route === route);
+          return [route, summary(samples)];
+        }),
+    ),
+    pass:
+      !invalid &&
+      scheduled === requested &&
+      !dropped &&
+      !late &&
+      result.valid === requested &&
+      result.p95 <= 600 &&
+      result.p99 <= 750 &&
+      result.max < 800,
     rows,
   };
 }
@@ -587,6 +682,34 @@ try {
     }
     if (unsafe || !active.size) break;
   }
+  // Short, isolated diagnostic phases reveal whether transport, read-only
+  // presentation, or the mandatory primary-rights D1 call stalls first.
+  // Probes carry no offers, hit only the synthetic D1, and never replace the
+  // 20-second complete-HTML evidence. A failure stops that diagnostic phase.
+  for (const stage of ["edge", "context-uncached", "context-cached", "rights"]) {
+    for (const rate of [25, 100]) {
+      await new Promise((done) => setTimeout(done, 2_000));
+      const result = await capacity("thin", rate, {
+        route: "/__cove_perf/" + stage,
+        duration: 8_000,
+      });
+      evidence.phaseDiagnosis.push({ stage, ...result });
+      save();
+      console.log("phase-diagnosis", stage, rate, JSON.stringify(result.summary));
+      if (!result.pass) break;
+    }
+  }
+  // Customer-like reads run concurrently against the SAME synthetic D1:
+  // homepage, filtered catalog, personalized recommendations and campaigns.
+  // These GET journeys cannot certify cart, checkout, reading or account POST.
+  for (const rate of [50, 100]) {
+    await new Promise((done) => setTimeout(done, 3_000));
+    const result = await mixedCapacity(rate);
+    evidence.mixed.push(result);
+    save();
+    console.log("synthetic-mixed", rate, JSON.stringify(result.summary));
+    if (!result.pass) break;
+  }
   const mobile = evidence.browser.find((x) => x.role === "thin"),
     controlMobile = evidence.browser.find((x) => x.role === "baseline");
   evidence.mobileGate =
@@ -605,6 +728,24 @@ try {
   evidence.tailReductionMs = tails("baseline").map((x, i) => x - tails("thin")[i]);
   evidence.tailReductionGate =
     evidence.tailReductionMs.length === 2 && evidence.tailReductionMs.every((x) => x >= 200);
+  const productionLike50 = evidence.capacity.find(
+    (x) => x.role === "thin" && x.route === "/" && x.offeredRps === 50,
+  );
+  const productionLike100 = evidence.capacity.find(
+    (x) => x.role === "thin" && x.route === "/" && x.offeredRps === 100,
+  );
+  evidence.mixedLoadGate = evidence.mixed.some(
+    (x) => x.offeredRps === 100 && x.pass && x.unscheduled === 0,
+  );
+  evidence.sustained100RpsGate =
+    !!productionLike50?.pass &&
+    !!productionLike100?.pass &&
+    productionLike100.unscheduled === 0 &&
+    productionLike100.dropped === 0 &&
+    productionLike100.late === 0 &&
+    productionLike100.summary.valid === 2000;
+  // Never equate a passing low-concurrency architectural experiment with
+  // a commercial capacity gate after the 100-RPS stage has failed.
   evidence.architecturalGate =
     evidence.mobileGate &&
     evidence.tailReductionGate &&
@@ -617,7 +758,8 @@ try {
     evidence.contentParity &&
     evidence.remoteRevocation?.pass &&
     evidence.matchedColo;
-  if (!evidence.architecturalGate) failed = true;
+  if (!evidence.architecturalGate || !evidence.sustained100RpsGate || !evidence.mixedLoadGate)
+    failed = true;
   evidence.finishedAt = new Date().toISOString();
   evidence.workerPlatform = {};
   for (const role of ["baseline", "thin", "core"])
