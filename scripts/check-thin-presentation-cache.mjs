@@ -22,10 +22,11 @@ try {
     COVE_PERF_DATABASE_ID: "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
     FORE_DEFAULT_TERRITORY: "US",
   };
-  const request = (language, country = "US", extra = {}) =>
-    new Request("https://synthetic.example/api/fore/storefront/bootstrap", {
-      headers: { "x-cove-client-country": country, "accept-language": language, ...extra },
-    });
+  const request =
+    (language, country = "US", extra = {}) =>
+      new Request("https://synthetic.example/api/fore/storefront/bootstrap", {
+        headers: { "x-cove-client-country": country, "accept-language": language, ...extra },
+      });
   const value = (country = "US") => ({
     rightsCountry: country,
     locale: "en-US",
@@ -44,8 +45,18 @@ try {
   await cache(request("off"), off, read(), clock(100));
   await cache(request("off"), off, read(), clock(100));
   assert.equal(reads, 2);
-  await cache(request("prod-id"), { ...env, COVE_PERF_DATABASE_ID: "production" }, read(), clock(100));
-  await cache(request("prod-id"), { ...env, COVE_PERF_DATABASE_ID: "production" }, read(), clock(100));
+  await cache(
+    request("prod-id"),
+    { ...env, COVE_PERF_DATABASE_ID: "production" },
+    read(),
+    clock(100),
+  );
+  await cache(
+    request("prod-id"),
+    { ...env, COVE_PERF_DATABASE_ID: "production" },
+    read(),
+    clock(100),
+  );
   assert.equal(reads, 4);
 
   const anonymous = request("cache-only");
@@ -67,7 +78,12 @@ try {
 
   // Cookie-bearing and other identity-bearing visits cannot reuse a snapshot.
   await cache(request("cache-only", "US", { cookie: "session=yes" }), env, read(), clock(1001));
-  await cache(request("cache-only", "US", { authorization: "Bearer auth" }), env, read(), clock(1001));
+  await cache(
+    request("cache-only", "US", { authorization: "Bearer auth" }),
+    env,
+    read(),
+    clock(1001),
+  );
   assert.equal(reads, 10);
 
   // No retained pending promise and no singleflight across separate requests.
@@ -83,7 +99,13 @@ try {
   assert.equal(reads, 10, "successfully completed result is reusable");
 
   await assert.rejects(
-    () => cache(request("db-outage"), env, () => Promise.reject(new Error("D1 unavailable")), clock(7000)),
+    () =>
+      cache(
+        request("db-outage"),
+        env,
+        () => Promise.reject(new Error("D1 unavailable")),
+        clock(7000),
+      ),
     /D1 unavailable/,
   );
   await cache(request("db-outage"), env, read(), clock(7000));
@@ -99,7 +121,9 @@ try {
   await cache(request("x".repeat(257)), env, read(), clock(8000));
   assert.equal(reads, 15, "oversized user-input keys bypass the cache");
 
-  console.log("PASS: staging-only completed-value presentation cache; TTL, isolation, credentials, no pending I/O sharing, fail-closed.");
+  console.log(
+    "PASS: staging-only completed-value presentation cache; TTL, isolation, credentials, no pending I/O sharing, fail-closed.",
+  );
 } finally {
   fs.rmSync(dir, { recursive: true, force: true });
 }
