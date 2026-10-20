@@ -9,7 +9,7 @@ async function execute(sql) {
     `https://api.cloudflare.com/client/v4/accounts/${account}/d1/database/${database}/query`,
     {
       method: "POST",
-      headers: { Authorization: `*** "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ sql }),
       signal: AbortSignal.timeout(45000),
     },
