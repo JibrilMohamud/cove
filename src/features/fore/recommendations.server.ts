@@ -1407,9 +1407,22 @@ async function eligibleRecommendationIds(
   // This is an authoritative, per-request primary-D1 rights read. The
   // edition ID comes from the same row, so anonymous callers do not need
   // a second heavyweight product metadata hydration just for series gates.
+  // For an anonymous visitor no prior series volume has ever been
+  // completed. Apply the exact original series gate in the SAME fresh
+  // authoritative D1 statement instead of sending a second query for each
+  // 80-item chunk. An authenticated reader retains the personalized gate.
+  const anonymousSeriesGate = userId
+    ? ""
+    : ` AND NOT EXISTS(
+        SELECT 1 FROM series_memberships sm
+        WHERE sm.edition_id=e.id AND sm.position>1 AND EXISTS(
+          SELECT 1 FROM series_memberships previous
+          WHERE previous.series_id=sm.series_id AND previous.position<sm.position
+        )
+      )`;
   const rows = await db
     .prepare(
-      `SELECT p.id,e.id edition_id FROM products p JOIN editions e ON e.id=p.edition_id WHERE p.id IN (${ph}) AND p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder') AND EXISTS(SELECT 1 FROM retail_product_availability_rows rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))`,
+      `SELECT p.id,e.id edition_id FROM products p JOIN editions e ON e.id=p.edition_id WHERE p.id IN (${ph}) AND p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder') AND EXISTS(SELECT 1 FROM retail_product_availability_rows rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))${anonymousSeriesGate}`,
     )
     .bind(...unique, territory)
     .all<{ id: string; edition_id: string }>();
@@ -1428,6 +1441,7 @@ async function eligibleRecommendationIds(
         allowed.delete(id);
     }
   }
+  if (!userId) return allowed;
   const series = await db
     .prepare(
       `SELECT sm.edition_id FROM series_memberships sm JOIN products p ON p.edition_id=sm.edition_id WHERE p.id IN (${ph}) AND sm.position>1 AND EXISTS(SELECT 1 FROM series_memberships previous WHERE previous.series_id=sm.series_id AND previous.position<sm.position AND NOT EXISTS(SELECT 1 FROM reading_states rs JOIN products rp ON rp.id=rs.product_id WHERE rs.user_id=? AND rp.edition_id=previous.edition_id AND rs.status='finished'))`,
@@ -1681,10 +1695,16 @@ async function editorialCandidates(db: CatalogDB, limit = 24) {
 }
 
 async function augmentMeta(db: CatalogDB, candidates: Candidate[]) {
-  const metas = await productMeta(
-    db,
-    candidates.map((x) => x.productId),
-  );
+  // The candidate pool already hydrates each neutral product once. The
+  // anonymous home rails share it, so querying the same 450 metadata rows
+  // again for each rail only adds D1 contention without improving freshness.
+  // Auth and editorial candidates still hydrate missing metadata normally.
+  const metas = candidates.every((candidate) => candidate.meta !== undefined)
+    ? new Map(candidates.map((candidate) => [candidate.productId, candidate.meta!]))
+    : await productMeta(
+        db,
+        candidates.map((x) => x.productId),
+      );
   return candidates
     .filter((x) => metas.has(x.productId))
     .map((x) => ({
