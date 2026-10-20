@@ -206,7 +206,10 @@ try {
       "same ordered live primary rights shelf",
     );
     assert.match(html, /role="search"/);
-    assert.doesNotMatch(html, /<script/);
+    const scripts = [...html.matchAll(/<script\\b[^>]*>/g)].map((match) => match[0]);
+    assert.deepEqual(scripts, ['<script type="module">']);
+    assert.match(html, /id="thin-discovery-form"/);
+    assert.match(html, /id="thin-locale"/);
   }
   const initial = await (
     await serveLeanAnonymousBootstrap(

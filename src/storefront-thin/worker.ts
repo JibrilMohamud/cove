@@ -91,16 +91,18 @@ export default {
           renderThinStorefront(
             bootstrap,
             env.FORE_PUBLIC_URL || url.origin,
-            (env as ThinRuntimeEnv & { COVE_THIN_EXPERIENCE?: string }).COVE_THIN_EXPERIENCE === "1",
+            (env as ThinRuntimeEnv & { COVE_THIN_EXPERIENCE?: string }).COVE_THIN_EXPERIENCE ===
+              "1",
           ),
           {
-          headers: {
-            "content-type": "text/html; charset=utf-8",
-            "cache-control": "private, no-store",
-            "x-cove-renderer": "thin-prototype",
-            "server-timing": response.headers.get("server-timing") || "",
+            headers: {
+              "content-type": "text/html; charset=utf-8",
+              "cache-control": "private, no-store",
+              "x-cove-renderer": "thin-prototype",
+              "server-timing": response.headers.get("server-timing") || "",
+            },
           },
-        }),
+        ),
       );
     } catch (error) {
       // A failed live-rights read never becomes a cached offer or success page.
