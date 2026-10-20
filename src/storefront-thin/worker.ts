@@ -14,6 +14,7 @@ import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap"
 import { renderThinStorefront } from "./render";
 import { bootstrapFailureKind } from "./failure";
 import { loadThinPresentationContext } from "./presentation-cache";
+import { runThinDiagnostic, thinDiagnosticRoutes } from "./diagnostic";
 
 // The shared app uses DOM Request/Response types. Adapt only Fetcher's
 // structural web signature; generated configuration still owns every binding.
@@ -34,9 +35,13 @@ export default {
     try {
       const url = new URL(request.url);
       const diagnostic = url.pathname === "/__cove_perf/bootstrap" && !url.search;
+      const phaseDiagnostic = !url.search && thinDiagnosticRoutes.has(url.pathname);
       // Service binding preserves all existing auth, account, reader, API and
       // filtered navigation. No public HTTP hop or recursive homepage fetch.
-      if (request.method !== "GET" || (!diagnostic && (url.pathname !== "/" || url.search)))
+      if (
+        request.method !== "GET" ||
+        (!diagnostic && !phaseDiagnostic && (url.pathname !== "/" || url.search))
+      )
         return await env.CORE.fetch(request);
       const safe = isolateWorkerCountry(syntheticClient(request, env));
       if (!safe)
@@ -51,6 +56,10 @@ export default {
       // and account state cannot leak into an anonymous response.
       if (!canUseLeanAnonymousBootstrap(bootstrapRequest, env))
         return await env.CORE.fetch(request);
+      if (phaseDiagnostic) {
+        failurePhase = "diagnostic";
+        return finish(await runThinDiagnostic(bootstrapRequest, env, url.pathname));
+      }
       failurePhase = "bootstrap";
       const response = await serveLeanAnonymousBootstrap(
         bootstrapRequest,

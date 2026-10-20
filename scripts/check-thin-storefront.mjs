@@ -42,6 +42,7 @@ try {
       render: "src/storefront-thin/render.ts",
       ingress: "src/storefront-thin/benchmark-ingress.ts",
       failure: "src/storefront-thin/failure.ts",
+      diagnostic: "src/storefront-thin/diagnostic.ts",
       "storefront-anonymous-bootstrap.server":
         "src/features/fore/storefront-anonymous-bootstrap.server.ts",
     },
@@ -151,6 +152,23 @@ try {
   const probe = await diagnostic.json();
   assert.equal(probe.renderer, "thin");
   assert.equal(probe.stage, "bootstrap");
+  for (const stage of ["edge", "context-uncached", "context-cached", "rights"]) {
+    const result = await worker.fetch(request("US", {}, "/__cove_perf/" + stage), env);
+    assert.equal(result.status, 200, stage);
+    const data = await result.json();
+    assert.equal(data.stage, stage);
+    assert.equal(data.ok, true);
+    assert.equal(result.headers.get("cache-control")?.includes("no-store"), true);
+    assert.equal(result.headers.has("set-cookie"), false);
+    assert.equal("results" in data, false, "diagnostics cannot expose offers");
+    if (stage === "rights") assert.equal(data.books, 24);
+    if (stage.startsWith("context")) assert.ok(data.markets > 0);
+  }
+  assert.equal(
+    (await worker.fetch(request("US", {}, "/__cove_perf/rights?debug=1"), env)).status,
+    200,
+    "unsupported URL is delegated to unchanged core",
+  );
   assert.ok(probe.ok && probe.books > 0 && probe.markets > 0);
   assert.equal(
     (await worker.fetch(request(), { ...env, COVE_THIN_STOREFRONT: "production" })).status,

@@ -28,6 +28,7 @@ const evidence = {
   bursts: [],
   capacity: [],
   bootstrap: [],
+  phaseDiagnosis: [],
   browser: [],
   errors: [],
   releaseApproved: false,
@@ -204,10 +205,15 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
     );
     const home = route === "/";
     let diagnosticValid = true;
-    if (route === "/__cove_perf/bootstrap") {
+    if (route.startsWith("/__cove_perf/")) {
       try {
         const data = JSON.parse(body);
-        diagnosticValid = data.stage === "bootstrap" && data.ok === true && data.books === 24;
+        const expected = route.split("/").at(-1);
+        diagnosticValid =
+          data.stage === expected &&
+          data.ok === true &&
+          (expected === "bootstrap" || expected === "rights" ? data.books === 24 : true) &&
+          (expected?.startsWith("context") ? data.markets > 0 : true);
       } catch {
         diagnosticValid = false;
       }
@@ -357,8 +363,8 @@ async function browserCheck(role) {
     await browser.close();
   }
 }
-async function capacity(role, rate) {
-  const duration = 20_000,
+async function capacity(role, rate, { route = "/", duration = 20_000 } = {}) {
+  const
     interval = 1000 / rate,
     start = performance.now(),
     rows = [],
@@ -378,7 +384,7 @@ async function capacity(role, rate) {
       dropped++;
       continue;
     }
-    const task = sample(role)
+    const task = sample(role, { route })
       .then((r) => {
         rows.push(r);
         if (!r.valid) stop = true;
@@ -391,6 +397,7 @@ async function capacity(role, rate) {
     s = summary(rows);
   return {
     role,
+    route,
     offeredRps: rate,
     durationMs: elapsed,
     completedRps: rows.length / (elapsed / 1000),
@@ -587,6 +594,23 @@ try {
     }
     if (unsafe || !active.size) break;
   }
+  // Short, isolated diagnostic phases reveal whether transport, read-only
+  // presentation, or the mandatory primary-rights D1 call stalls first.
+  // Probes carry no offers, hit only the synthetic D1, and never replace the
+  // 20-second complete-HTML evidence. A failure stops that diagnostic phase.
+  for (const stage of ["edge", "context-uncached", "context-cached", "rights"]) {
+    for (const rate of [25, 100]) {
+      await new Promise((done) => setTimeout(done, 2_000));
+      const result = await capacity("thin", rate, {
+        route: "/__cove_perf/" + stage,
+        duration: 8_000,
+      });
+      evidence.phaseDiagnosis.push({ stage, ...result });
+      save();
+      console.log("phase-diagnosis", stage, rate, JSON.stringify(result.summary));
+      if (!result.pass) break;
+    }
+  }
   const mobile = evidence.browser.find((x) => x.role === "thin"),
     controlMobile = evidence.browser.find((x) => x.role === "baseline");
   evidence.mobileGate =
@@ -605,6 +629,21 @@ try {
   evidence.tailReductionMs = tails("baseline").map((x, i) => x - tails("thin")[i]);
   evidence.tailReductionGate =
     evidence.tailReductionMs.length === 2 && evidence.tailReductionMs.every((x) => x >= 200);
+  const productionLike50 = evidence.capacity.find(
+    (x) => x.role === "thin" && x.route === "/" && x.offeredRps === 50,
+  );
+  const productionLike100 = evidence.capacity.find(
+    (x) => x.role === "thin" && x.route === "/" && x.offeredRps === 100,
+  );
+  evidence.sustained100RpsGate =
+    !!productionLike50?.pass &&
+    !!productionLike100?.pass &&
+    productionLike100.unscheduled === 0 &&
+    productionLike100.dropped === 0 &&
+    productionLike100.late === 0 &&
+    productionLike100.summary.valid === 2000;
+  // Never equate a passing low-concurrency architectural experiment with
+  // a commercial capacity gate after the 100-RPS stage has failed.
   evidence.architecturalGate =
     evidence.mobileGate &&
     evidence.tailReductionGate &&
@@ -617,7 +656,7 @@ try {
     evidence.contentParity &&
     evidence.remoteRevocation?.pass &&
     evidence.matchedColo;
-  if (!evidence.architecturalGate) failed = true;
+  if (!evidence.architecturalGate || !evidence.sustained100RpsGate) failed = true;
   evidence.finishedAt = new Date().toISOString();
   evidence.workerPlatform = {};
   for (const role of ["baseline", "thin", "core"])
