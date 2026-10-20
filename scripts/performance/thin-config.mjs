@@ -21,3 +21,31 @@ export function parseThinConfig(source) {
     assert.ok(!config[key], "Unexpected public/production resource in thin experiment: " + key);
   return config;
 }
+
+/** No data or public-route binding is allowed on the measurement ingress. */
+export function parseBenchmarkConfig(source) {
+  const parsed = ts.parseConfigFileTextToJson("wrangler.storefront-benchmark.jsonc", source);
+  assert.ok(!parsed.error, "Benchmark config must be valid JSONC");
+  const config = parsed.config;
+  assert.equal(config.name, "cove-thin-ingress-staging");
+  assert.equal(config.main, "src/storefront-thin/benchmark-ingress.ts");
+  assert.equal(config.workers_dev, true);
+  assert.deepEqual(config.services, [
+    { binding: "BASELINE", service: "cove-thin-control-staging" },
+    { binding: "THIN", service: "cove-thin-pilot-staging" },
+  ]);
+  for (const key of Object.keys(config))
+    assert.ok(
+      [
+        "$schema",
+        "name",
+        "main",
+        "compatibility_date",
+        "workers_dev",
+        "services",
+        "observability",
+      ].includes(key),
+      "Unexpected benchmark ingress resource: " + key,
+    );
+  return config;
+}

@@ -8,7 +8,7 @@ import { performance } from "node:perf_hooks";
 import { Agent, fetch as httpFetch } from "undici";
 import { chromium, devices } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { parseThinConfig } from "./thin-config.mjs";
+import { parseThinConfig, parseBenchmarkConfig } from "./thin-config.mjs";
 import { PERFORMANCE_D1, isolatedD1Config, verifySyntheticD1 } from "./isolated-d1-gate.mjs";
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const token = process.env.CLOUDFLARE_API_TOKEN;
@@ -119,20 +119,7 @@ async function readiness() {
   evidence.fixtures = { baseline: a, thin: b };
   save();
 }
-fs.writeFileSync(
-  "wrangler.thin-ingress.json",
-  JSON.stringify({
-    name: workers.ingress,
-    main: "src/storefront-thin/benchmark-ingress.ts",
-    compatibility_date: "2026-10-19",
-    workers_dev: true,
-    services: [
-      { binding: "BASELINE", service: workers.baseline },
-      { binding: "THIN", service: workers.thin },
-    ],
-    observability: { enabled: true, head_sampling_rate: 1 },
-  }),
-);
+parseBenchmarkConfig(fs.readFileSync("wrangler.storefront-benchmark.jsonc", "utf8"));
 const lastDeployments = {};
 async function deploy(role) {
   const config = role === "thin" ? "wrangler.storefront-thin.jsonc" : `wrangler.thin-${role}.toml`;
@@ -485,6 +472,35 @@ async function platformSnapshot(role) {
   }
 }
 
+async function failureSnapshot() {
+  try {
+    const result = await api("POST", `/accounts/${account}/workers/observability/telemetry/query`, {
+      queryId: "cove-thin-benchmark-failures",
+      dry: true,
+      view: "events",
+      limit: 100,
+      timeframe: { from: Date.parse(evidence.startedAt), to: Date.parse(evidence.finishedAt) },
+      parameters: { needle: { value: "thin_storefront_failed" }, limit: 100 },
+    });
+    return {
+      // Logs may arrive late. An empty result never substitutes for the
+      // status/error count in the client observations.
+      boundary: "Available Worker failure logs; not an absence-of-errors assertion.",
+      events: (result.events?.events || [])
+        .filter((event) => event.$workers?.scriptName === workers.thin)
+        .map((event) => ({
+          at: event.timestamp,
+          phase: event.source?.phase,
+          kind: event.source?.kind,
+          status: event.source?.status,
+          rayId: event.$metadata?.rayId,
+        })),
+    };
+  } catch {
+    return { unavailable: true };
+  }
+}
+
 evidence.startedAt = new Date().toISOString();
 let failed = false;
 try {
@@ -492,7 +508,7 @@ try {
   await deploy("core");
   await deploy("baseline");
   await deploy("thin");
-  command(["deploy", "--config", "wrangler.thin-ingress.json"]);
+  command(["deploy", "--config", "wrangler.storefront-benchmark.jsonc"]);
   for (let round = 1; round <= 3; round++) {
     await deploy("core");
     for (const role of round % 2 ? ["baseline", "thin"] : ["thin", "baseline"]) {
@@ -606,6 +622,7 @@ try {
   evidence.workerPlatform = {};
   for (const role of ["baseline", "thin", "core"])
     evidence.workerPlatform[role] = await platformSnapshot(role);
+  evidence.workerFailures = await failureSnapshot();
   // Prototype has different visual/interaction design. Passing these measurements
   // NEVER certifies existing-customer-journey equivalence or production readiness.
   evidence.releaseApproved = false;

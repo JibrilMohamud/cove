@@ -3,10 +3,25 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { build } from "esbuild";
-import { parseThinConfig } from "./performance/thin-config.mjs";
+import { parseThinConfig, parseBenchmarkConfig } from "./performance/thin-config.mjs";
 import { localBindings } from "./local-api.mjs";
 const configSource = fs.readFileSync("wrangler.storefront-thin.jsonc", "utf8");
 parseThinConfig(configSource);
+const ingressSource = fs.readFileSync("wrangler.storefront-benchmark.jsonc", "utf8");
+parseBenchmarkConfig(ingressSource);
+assert.throws(() =>
+  parseBenchmarkConfig(
+    ingressSource.replace(
+      '"workers_dev": true',
+      '"workers_dev": true, "routes": ["cove.example/*"]',
+    ),
+  ),
+);
+assert.throws(() =>
+  parseBenchmarkConfig(
+    ingressSource.replace('"workers_dev": true', '"workers_dev": true, "d1_databases": []'),
+  ),
+);
 assert.throws(() =>
   parseThinConfig(
     configSource.replace(

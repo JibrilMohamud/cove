@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "cove-thin-ingress-staging",
+  "main": "src/storefront-thin/benchmark-ingress.ts",
+  "compatibility_date": "2026-10-19",
+  "workers_dev": true,
+  "services": [
+    { "binding": "BASELINE", "service": "cove-thin-control-staging" },
+    { "binding": "THIN", "service": "cove-thin-pilot-staging" },
+  ],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+}

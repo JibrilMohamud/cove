@@ -2,6 +2,14 @@ name: cloudflare-thin-storefront-paired
 on:
   push:
     branches: [perf/thin-storefront-20261019]
+    paths:
+      - "src/**"
+      - "scripts/**"
+      - "drizzle/**"
+      - "wrangler*"
+      - "package*.json"
+      - "*config*"
+      - ".github/workflows/cloudflare-thin-storefront-paired.yml"
   workflow_dispatch:
 permissions:
   contents: read
