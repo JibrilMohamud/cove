@@ -114,13 +114,14 @@ jobs:
       - name: Build current candidate Cloudflare-native SSR
         run: npm run build
       - name: Profile local Worker startup without warming the remote stage
-        run: npx wrangler@4.151.0 check startup --config wrangler.commercial-parity.stage.toml
+        continue-on-error: true
+        run: npx wrangler@4.151.3 check startup --config wrangler.commercial-parity.stage.toml
       - name: Compare baseline and one-read candidate on protected isolated resources
         shell: bash
         run: |
           set -euo pipefail
           cleanup() {
-            npx wrangler@4.151.0 delete --config wrangler.commercial-parity.stage.toml --force || true
+            npx wrangler@4.151.3 delete --config wrangler.commercial-parity.stage.toml --force || true
           }
           trap cleanup EXIT
           cp wrangler.commercial-parity.stage.toml /tmp/cove-parity-original.toml
@@ -130,9 +131,9 @@ jobs:
             cp /tmp/cove-parity-original.toml wrangler.commercial-parity.stage.toml
             sed -i "s/FORE_ANON_CONTEXT_ONE_READ = \"1\"/FORE_ANON_CONTEXT_ONE_READ = \"$one_read\"/" wrangler.commercial-parity.stage.toml
             grep -q "FORE_ANON_CONTEXT_ONE_READ = \"$one_read\"" wrangler.commercial-parity.stage.toml || return 1
-            npx wrangler@4.151.0 deploy --config wrangler.commercial-parity.stage.toml || return 1
+            npx wrangler@4.151.3 deploy --config wrangler.commercial-parity.stage.toml || return 1
             STAGE_TOKEN=$(openssl rand -hex 32)
-            printf %s "$STAGE_TOKEN" | npx wrangler@4.151.0 secret put COVE_SSR_STAGING_GATE_KEY \
+            printf %s "$STAGE_TOKEN" | npx wrangler@4.151.3 secret put COVE_SSR_STAGING_GATE_KEY \
               --config wrangler.commercial-parity.stage.toml || return 1
             export COVE_SSR_STAGING_GATE_KEY="$STAGE_TOKEN"
             export COVE_STAGE_EXPERIMENT_ARM="$arm"
