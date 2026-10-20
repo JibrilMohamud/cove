@@ -113,7 +113,9 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Build current candidate Cloudflare-native SSR
         run: npm run build
-      - name: Deploy protected ephemeral stage and run strict rights/TTFB probes
+      - name: Profile local Worker startup without warming the remote stage
+        run: npx wrangler@4.151.0 check startup --config wrangler.commercial-parity.stage.toml
+      - name: Compare baseline and one-read candidate on protected isolated resources
         shell: bash
         run: |
           set -euo pipefail
@@ -121,41 +123,77 @@ jobs:
             npx wrangler@4.151.0 delete --config wrangler.commercial-parity.stage.toml --force || true
           }
           trap cleanup EXIT
-          npx wrangler@4.151.0 deploy --config wrangler.commercial-parity.stage.toml
-          STAGE_TOKEN=$(openssl rand -hex 32)
-          printf %s "$STAGE_TOKEN" | npx wrangler@4.151.0 secret put COVE_SSR_STAGING_GATE_KEY \
-            --config wrangler.commercial-parity.stage.toml
-          export COVE_SSR_STAGING_GATE_KEY="$STAGE_TOKEN"
-          # Both measurements must run on the SAME protected isolated
-          # deployment, even if the strict burst SLO fails. Report failures
-          # without concealing one test by aborting the other prematurely.
+          cp wrangler.commercial-parity.stage.toml /tmp/cove-parity-original.toml
+          run_arm() {
+            local arm="$1"
+            local one_read="$2"
+            cp /tmp/cove-parity-original.toml wrangler.commercial-parity.stage.toml
+            sed -i "s/FORE_ANON_CONTEXT_ONE_READ = \"1\"/FORE_ANON_CONTEXT_ONE_READ = \"$one_read\"/" wrangler.commercial-parity.stage.toml
+            grep -q "FORE_ANON_CONTEXT_ONE_READ = \"$one_read\"" wrangler.commercial-parity.stage.toml || return 1
+            npx wrangler@4.151.0 deploy --config wrangler.commercial-parity.stage.toml || return 1
+            STAGE_TOKEN=$(openssl rand -hex 32)
+            printf %s "$STAGE_TOKEN" | npx wrangler@4.151.0 secret put COVE_SSR_STAGING_GATE_KEY \
+              --config wrangler.commercial-parity.stage.toml || return 1
+            export COVE_SSR_STAGING_GATE_KEY="$STAGE_TOKEN"
+            export COVE_STAGE_EXPERIMENT_ARM="$arm"
+            # Every arm validates real responses and keeps the same hard SLO.
+            # This is a warm A/B experiment, never a cold certification.
+            node scripts/staging/check-commercial-parity-ssr.mjs
+            local burst_status=$?
+            node scripts/staging/check-commercial-parity-rps.mjs
+            local mixed_status=$?
+            COVE_STAGE_HTTP2=1 node scripts/staging/check-commercial-parity-ssr.mjs
+            local h2_burst_status=$?
+            COVE_STAGE_HTTP2=1 node scripts/staging/check-commercial-parity-rps.mjs
+            local h2_mixed_status=$?
+            COVE_SSR_STAGING_ORIGIN="https://cove-commercial-parity-ssr-staging-20261020.cove-jibrilmohamud.workers.dev" \
+              node scripts/performance/cloudflare-browser.mjs
+            local browser_status=$?
+            local rights_status=0
+            if [ "$arm" = "one-read" ]; then
+              node scripts/staging/check-commercial-parity-live-rights.mjs
+              rights_status=$?
+            fi
+            node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const arm = process.env.COVE_STAGE_EXPERIMENT_ARM;
+          if (!["baseline", "one-read"].includes(arm)) throw Error("Unknown stage arm");
+          fs.mkdirSync("artifacts/" + arm, { recursive: true });
+          for (const name of fs.readdirSync("artifacts")) {
+            if (!/^(?:commercial-parity|cloudflare-browser).*\.json$/.test(name)) continue;
+            const source = "artifacts/" + name;
+            const result = JSON.parse(fs.readFileSync(source, "utf8"));
+            result.experiment = {
+              arm, oneRead: arm === "one-read", sha: process.env.GITHUB_SHA,
+              boundary: "Warm sequential A/B, same code/schema/resources; no background writers or accounts"
+            };
+            fs.writeFileSync(source, JSON.stringify(result, null, 2));
+            fs.renameSync(source, "artifacts/" + arm + "/" + name);
+          }
+          NODE
+            local artifact_status=$?
+            if [ "$burst_status" -ne 0 ] || [ "$mixed_status" -ne 0 ] || \
+               [ "$h2_burst_status" -ne 0 ] || [ "$h2_mixed_status" -ne 0 ] || \
+               [ "$rights_status" -ne 0 ] || [ "$browser_status" -ne 0 ] || \
+               [ "$artifact_status" -ne 0 ]; then return 1; fi
+          }
           set +e
-          node scripts/staging/check-commercial-parity-ssr.mjs
-          burst_status=$?
-          node scripts/staging/check-commercial-parity-rps.mjs
-          mixed_status=$?
-          COVE_STAGE_HTTP2=1 node scripts/staging/check-commercial-parity-ssr.mjs
-          h2_burst_status=$?
-          COVE_STAGE_HTTP2=1 node scripts/staging/check-commercial-parity-rps.mjs
-          h2_mixed_status=$?
-          node scripts/staging/check-commercial-parity-live-rights.mjs
-          rights_status=$?
-          COVE_SSR_STAGING_ORIGIN="https://cove-commercial-parity-ssr-staging-20261020.cove-jibrilmohamud.workers.dev" \
-            node scripts/performance/cloudflare-browser.mjs
-          browser_status=$?
+          run_arm baseline 0
+          baseline_status=$?
+          run_arm one-read 1
+          candidate_status=$?
           set -e
-          if [ "$burst_status" -ne 0 ] || [ "$mixed_status" -ne 0 ] || \
-             [ "$h2_burst_status" -ne 0 ] || [ "$h2_mixed_status" -ne 0 ] || \
-             [ "$rights_status" -ne 0 ] || [ "$browser_status" -ne 0 ]; then exit 1; fi
+          cp /tmp/cove-parity-original.toml wrangler.commercial-parity.stage.toml
+          echo "Baseline gate status: $baseline_status; one-read gate status: $candidate_status"
+          exit "$candidate_status"
       - name: Retain sanitized aggregate results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: isolated-commercial-parity-ssr
           path: |
-            artifacts/commercial-parity-ssr-smoke*.json
-            artifacts/commercial-parity-mixed-rps*.json
-            artifacts/commercial-parity-live-rights.json
-            artifacts/cloudflare-browser-performance.json
+            artifacts/baseline/*.json
+            artifacts/one-read/*.json
+            worker-startup.cpuprofile
           if-no-files-found: warn
           retention-days: 14

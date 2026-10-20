@@ -257,7 +257,7 @@ async function runStage(rate, seconds) {
     rps: rate,
     offeringElapsedMs: Math.round(offeringElapsedMs),
     completionElapsedMs: Math.round(completionElapsedMs),
-    achievedCompletionRps: Number((rows.length * 1000 / completionElapsedMs).toFixed(2)),
+    achievedCompletionRps: Number(((rows.length * 1000) / completionElapsedMs).toFixed(2)),
     diagnostics: routeDiagnostics,
     slowest: [...rows].sort((a, b) => b.ttfbMs - a.ttfbMs).slice(0, 8),
     seconds,

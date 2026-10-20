@@ -41,22 +41,26 @@ async function read(path) {
 }
 const metadata = await control("");
 assert.equal(metadata.name, "cove-commercial-parity-stage-20261020");
-const state = (await query(
-  "SELECT (SELECT count(*) FROM auth_accounts) accounts," +
-  "(SELECT count(*) FROM commerce_orders) orders," +
-  "(SELECT count(*) FROM products WHERE id NOT LIKE 'p_stage_%') foreign_products," +
-  "(SELECT count(*) FROM rights_grants WHERE id NOT LIKE 'rg_stage_%') foreign_grants",
-))[0];
+const state = (
+  await query(
+    "SELECT (SELECT count(*) FROM auth_accounts) accounts," +
+      "(SELECT count(*) FROM commerce_orders) orders," +
+      "(SELECT count(*) FROM products WHERE id NOT LIKE 'p_stage_%') foreign_products," +
+      "(SELECT count(*) FROM rights_grants WHERE id NOT LIKE 'rg_stage_%') foreign_grants",
+  )
+)[0];
 assert.deepEqual(state, { accounts: 0, orders: 0, foreign_products: 0, foreign_grants: 0 });
 const bootstrap = "/api/fore/storefront/bootstrap";
 const catalog = "/api/fore/catalog?search=&sort=popular&page=1&currency=USD";
 const selected = (await read(bootstrap))[0].productId;
 const grantId = "rg_stage_" + selected.slice("p_stage_".length);
-const grant = (await query(
-  "SELECT rg.id,rg.decision,rg.status FROM rights_grants rg JOIN products p " +
-  "ON p.edition_id=rg.edition_id WHERE rg.id=? AND p.id=? AND rg.source='operator-test-fixture'",
-  [grantId, selected],
-))[0];
+const grant = (
+  await query(
+    "SELECT rg.id,rg.decision,rg.status FROM rights_grants rg JOIN products p " +
+      "ON p.edition_id=rg.edition_id WHERE rg.id=? AND p.id=? AND rg.source='operator-test-fixture'",
+    [grantId, selected],
+  )
+)[0];
 assert.deepEqual(grant, { id: grantId, decision: "allow", status: "active" });
 const report = {
   scope: "Two actual stage API routes; dedicated synthetic D1 only; no customer or production data",
@@ -68,22 +72,22 @@ const report = {
 try {
   const changed = await query(
     "UPDATE rights_grants SET decision='deny' WHERE id=? AND decision='allow' " +
-    "AND status='active' AND source='operator-test-fixture' RETURNING id",
+      "AND status='active' AND source='operator-test-fixture' RETURNING id",
     [grantId],
   );
   assert.equal(changed.length, 1);
   // Every read starts after the committed deny. Already-warm public candidate
   // caches must never override live primary territorial-rights enforcement.
-  const pages = await Promise.all(Array.from({ length: 32 }, (_, index) =>
-    read(index % 2 ? catalog : bootstrap),
-  ));
+  const pages = await Promise.all(
+    Array.from({ length: 32 }, (_, index) => read(index % 2 ? catalog : bootstrap)),
+  );
   assert.ok(pages.every((books) => books.every((book) => book.productId !== selected)));
   report.denied = true;
 } finally {
   // Restore only this known synthetic row; keep its append-only audit history.
   await query(
     "UPDATE rights_grants SET decision='allow' WHERE id=? AND decision='deny' " +
-    "AND source='operator-test-fixture'",
+      "AND source='operator-test-fixture'",
     [grantId],
   );
   const finalGrant = (await query("SELECT decision FROM rights_grants WHERE id=?", [grantId]))[0];

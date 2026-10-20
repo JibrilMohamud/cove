@@ -190,7 +190,7 @@ const profiles = ["desktop", "mobile-4g"].map((profile) => {
 });
 const report = {
   boundary:
-    "Synthetic Chromium, four fresh browser contexts per profile, after cold HTTP tests. Not cold-server or field p75 proof. Mobile: 4x CPU, 150ms latency, 1.6Mbps. Browser cache disabled and service workers blocked for both profiles.",
+    "Synthetic Chromium, four fresh browser contexts per profile, after HTTP probes. Not cold-server or field p75 proof. Mobile: 4x CPU, 150ms latency, 1.6Mbps. Browser cache disabled and service workers blocked for both profiles.",
   targets: { everyTtfbBelowMs: 800, labLcpP75BelowMs: 2000 },
   profiles,
   rows,
