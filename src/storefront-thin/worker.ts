@@ -55,7 +55,9 @@ export default {
       const response = await serveLeanAnonymousBootstrap(
         bootstrapRequest,
         env,
-        (phase) => { failurePhase = phase; },
+        (phase) => {
+          failurePhase = phase;
+        },
         (read) => loadThinPresentationContext(bootstrapRequest, env, read),
       );
       if (!response.ok) return finish(new Response(null, { status: response.status }));
