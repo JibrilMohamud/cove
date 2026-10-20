@@ -1,0 +1,35 @@
+# Never route customers or reuse prod DB/R2. This staging deployment has no cron.
+# Gate must be installed before use. Do not associate a custom domain.
+name = "cove-commercial-parity-ssr-staging-20261020"
+main = ".output/server/index.mjs"
+compatibility_date = "2026-10-17"
+compatibility_flags = ["nodejs_compat"]
+minify = false
+workers_dev = true
+[assets]
+directory = "./.output/public"
+binding = "ASSETS"
+run_worker_first = true
+[[ratelimits]]
+name = "COVE_STOREFRONT_READ_LIMITER"
+namespace_id = "731906"
+[ratelimits.simple]
+limit = 180
+period = 60
+[[d1_databases]]
+binding = "DB"
+database_name = "cove-commercial-parity-stage-20261020"
+database_id = "ce0e67b7-692d-44c6-94dc-7f324e7c5421"
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "cove-commercial-parity-media-20261020"
+[vars]
+FORE_PUBLIC_URL = "https://cove-commercial-parity-ssr-staging-20261020.cove-jibrilmohamud.workers.dev"
+FORE_ENVIRONMENT = "staging"
+FORE_DEFAULT_TERRITORY = "US"
+COVE_SSR_STAGING = "1"
+FORE_CONTENT_PROCESSOR_ENABLED = "0"
+FORE_CONTENT_PREPARE_ENABLED = "0"
+FORE_CONTENT_HANDOFF_ENABLED = "0"
+FORE_LITERARY_PREPARED_IMPORT_ENABLED = "0"
+FORE_CONTENT_BUDGET_MODE = "primary"
