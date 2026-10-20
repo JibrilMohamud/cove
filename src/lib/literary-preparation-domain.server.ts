@@ -10,6 +10,7 @@ export type PreparationEnv = {
   FORE_CONTENT_PROCESSOR_ENABLED?: string;
   FORE_CONTENT_PROCESSOR_ROLE?: string;
   FORE_CONTENT_PREPARE_ENABLED?: string;
+  FORE_CONTENT_HANDOFF_ENABLED?: string;
 };
 type EligibleSource = {
   product_id: string;
@@ -73,7 +74,9 @@ async function requireIsolatedDomain(env: PreparationEnv): Promise<D1> {
   if (
     env.FORE_CONTENT_PROCESSOR_ENABLED !== "1" ||
     env.FORE_CONTENT_PREPARE_ENABLED !== "1" ||
-    env.FORE_CONTENT_PROCESSOR_ROLE !== "literary-prepare" ||
+    (env.FORE_CONTENT_PROCESSOR_ROLE !== "literary-prepare" &&
+      !(env.FORE_CONTENT_PROCESSOR_ROLE === "literary-handoff" &&
+        env.FORE_CONTENT_HANDOFF_ENABLED === "1")) ||
     !env.CONTENT_DB ||
     env.CONTENT_DB === env.DB
   )
@@ -104,12 +107,18 @@ export async function enqueueIsolatedLiteraryPreparation(
   env: PreparationEnv,
   productId: string,
   editionId: string,
+  expected?: { sourceId: string; contentHash: string },
 ) {
   const queue = await requireIsolatedDomain(env);
   if (!/^[\w:-]{1,150}$/.test(productId) || !/^[\w:-]{1,150}$/.test(editionId))
     throw new Error("Invalid preparation product");
   const book = await eligible(env, productId, editionId);
   if (!book) return { skipped: "source_or_rights_ineligible" };
+  // A late-changing edition may not silently switch an outbox intent to
+  // another EPUB; independent queue keys are pinned to the primary event.
+  if (expected &&
+      (book.source_id !== expected.sourceId || book.content_hash !== expected.contentHash))
+    return { skipped: "source_changed" };
   const id = await digest(
     [book.product_id, book.edition_id, book.source_id, book.content_hash].join(":"),
   );
@@ -127,6 +136,8 @@ export async function enqueueIsolatedLiteraryPreparation(
 
 /** One leased metadata/evidence preparation per tick. No primary D1 writes. */
 export async function runIsolatedLiteraryPreparationTick(env: PreparationEnv) {
+  if (env.FORE_CONTENT_PROCESSOR_ROLE !== "literary-prepare")
+    throw new Error("literary_prepare_execution_role_required");
   const queue = await requireIsolatedDomain(env);
   const token = crypto.randomUUID();
   const now = new Date().toISOString();
