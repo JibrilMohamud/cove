@@ -1,0 +1,29 @@
+name: commercial-parity-synthetic-seed
+on:
+  push:
+    branches:
+      - perf/commercial-parity-isolated-stage-20261020
+    paths:
+      - "scripts/staging/seed-commercial-parity.mjs"
+      - ".github/workflows/commercial-parity-synthetic-seed.yml"
+permissions:
+  contents: read
+concurrency:
+  group: cove-commercial-parity-synthetic-seed
+  cancel-in-progress: false
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Seed synthetic books only in isolated schema-parity database
+        run: node scripts/staging/seed-commercial-parity.mjs
