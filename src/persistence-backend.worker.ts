@@ -50,6 +50,7 @@ type BackendEnv = CoveEnv &
     FORE_CATALOG_ADMISSION_MAX_MS?: string;
     FORE_ASSETS_PER_MINUTE?: string;
     FORE_REGIONAL_EPUB_REPAIR_ENABLED?: string;
+    FORE_REGIONAL_EPUB_REPAIR_PROBE_MS?: string;
     FORE_INGESTION_TRIGGER_TOKEN?: string;
     FORE_INGESTION_SIGNING_KEY?: string;
     AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
@@ -941,6 +942,17 @@ export default {
         limit === undefined ||
         (Number.isSafeInteger(limit) && Number(limit) >= 1 && Number(limit) <= 16);
       if (!validLimit) return json({ error: "Invalid repair cursor or batch limit." }, 400);
+      // A bulk repair is deferrable: never initiate it while the shared
+      // primary D1 is unavailable or already showing substantial queue delay.
+      const admission = await admitCatalogBatch(
+        env.DB,
+        catalogAdmissionBudget(env.FORE_REGIONAL_EPUB_REPAIR_PROBE_MS),
+      );
+      if (!admission.allowed)
+        return json(
+          { skipped: admission.reason, probeMs: admission.probeMs },
+          503,
+        );
       try {
         const result = await repairRegionalEpubAssets(env, {
           after: after as string | undefined,
