@@ -4085,8 +4085,12 @@ async function handleCoveRequest(
     if (extended) return extended;
     if (request.method === "GET" && path === "/catalog") {
       const searchUserId = identity(request)?.id || null;
+      const limitStarted = performance.now();
       await rateLimitSearchRequest(request, env, searchUserId, "catalog", 180);
+      timings.catalog_rate_limit = performance.now() - limitStarted;
+      const queryStarted = performance.now();
       const result = await catalog(env, url, searchUserId, storefrontTerritory);
+      timings.catalog_query = performance.now() - queryStarted;
       return json(result);
     }
     if (request.method === "GET" && path === "/search/suggest") {
