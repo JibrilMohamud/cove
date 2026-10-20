@@ -11,6 +11,12 @@
       "database_name": "cove-perf-isolated-candidate-20261019",
       "database_id": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
     },
+    {
+      "binding": "ENGAGEMENT_DB",
+      "database_name": "cove-engagement-isolated-20261020",
+      "database_id": "86915082-bfa5-478e-a8c4-90d05f01e62c",
+      "migrations_dir": "engagement-migrations",
+    },
   ],
   "r2_buckets": [
     { "binding": "DISCOVERY_MODELS", "bucket_name": "cove-discovery-models-benchmark" },
@@ -27,7 +33,8 @@
     "FORE_DEFAULT_TERRITORY": "US",
     "COVE_SSR_STAGING": "1",
     "COVE_PERF_DATABASE_ID": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
-    "COVE_PERF_TELEMETRY_MODE": "console-only",
+    "COVE_PERF_ENGAGEMENT_DATABASE_ID": "86915082-bfa5-478e-a8c4-90d05f01e62c",
+    "COVE_PERF_TELEMETRY_MODE": "durable",
   },
   "observability": { "enabled": true, "head_sampling_rate": 1 },
 }

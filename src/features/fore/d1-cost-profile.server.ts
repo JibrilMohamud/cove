@@ -20,6 +20,8 @@ function fingerprint(sql: string) {
 export function profileD1(db: CatalogDB) {
   const samples: Sample[] = [];
   let dropped = 0;
+  let startedStatements = 0,
+    completedStatements = 0;
   const sources = new WeakMap<object, { raw: object; sql: string }>();
   const numeric = (v: unknown) =>
     typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
@@ -30,6 +32,7 @@ export function profileD1(db: CatalogDB) {
     value: unknown,
     success: boolean,
   ) {
+    completedStatements++;
     const wallMs = performance.now() - started;
     const meta = (
       value as {
@@ -66,6 +69,7 @@ export function profileD1(db: CatalogDB) {
         if (["all", "run", "first", "raw"].includes(String(property)))
           return async (...args: unknown[]) => {
             const started = performance.now();
+            startedStatements++;
             try {
               const result = await value.apply(target, args);
               record(sql, String(property), started, result, true);
@@ -92,6 +96,7 @@ export function profileD1(db: CatalogDB) {
         if (property === "batch")
           return async (statements: object[]) => {
             const entries = statements.map((s) => sources.get(s));
+            startedStatements += statements.length;
             const started = performance.now();
             try {
               const result = await value.call(
@@ -116,6 +121,11 @@ export function profileD1(db: CatalogDB) {
   return {
     db: wrapDB(db),
     samples,
-    snapshot: () => ({ statements: samples.length + dropped, dropped, samples: [...samples] }),
+    snapshot: () => ({
+      statements: startedStatements,
+      pendingStatements: startedStatements - completedStatements,
+      dropped,
+      samples: [...samples],
+    }),
   };
 }

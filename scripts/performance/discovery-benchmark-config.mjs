@@ -9,7 +9,12 @@ export function parseDiscoveryBenchmarkConfig(source) {
   const config = parsed.config;
   assert.equal(config.name, "cove-discovery-read-model-staging");
   assert.equal(config.main, "artifacts/discovery-benchmark/worker.mjs");
-  assert.equal(config.d1_databases.length, 1);
+  assert.equal(config.d1_databases.length, 2);
+  assert.equal(config.d1_databases[0].binding, "DB");
+  assert.equal(config.d1_databases[1].binding, "ENGAGEMENT_DB");
+  assert.equal(config.d1_databases[1].database_id, "86915082-bfa5-478e-a8c4-90d05f01e62c");
+  assert.equal(config.d1_databases[1].migrations_dir, "engagement-migrations");
+  assert.equal(config.vars.COVE_PERF_ENGAGEMENT_DATABASE_ID, config.d1_databases[1].database_id);
   assert.equal(config.d1_databases[0].database_id, PERFORMANCE_D1.current.id);
   assert.ok(!source.includes(PRODUCTION_D1_ID));
   assert.equal(config.r2_buckets.length, 1);

@@ -29,6 +29,7 @@ jobs:
       - name: Type, projection, legal authority and load-accounting gates
         run: |
           npm run typecheck
+          node scripts/check-engagement-separation.mjs
           node scripts/check-discovery-read-models.mjs
           node scripts/check-discovery-benchmark-config.mjs
           node scripts/check-discovery-response.mjs
@@ -39,8 +40,12 @@ jobs:
           node scripts/check-thin-storefront.mjs
       - name: Build private synthetic diagnostic
         run: npx esbuild src/discovery-benchmark.worker.ts --bundle --format=esm --platform=neutral --main-fields=browser,module,main --conditions=workerd,worker,browser,import,default --alias:jszip=jszip/dist/jszip.min.js --external:node:* --external:cloudflare:* --minify --outfile=artifacts/discovery-benchmark/worker.mjs
+      - name: Generate binding types from the actual isolated configuration
+        run: npx --yes wrangler@4.151.0 types artifacts/discovery-benchmark/bindings.d.ts --config wrangler.discovery-benchmark.jsonc
       - name: Apply covering indexes only to the isolated synthetic candidate
         run: npx --yes wrangler@4.151.0 d1 execute DB --remote --config wrangler.discovery-benchmark.jsonc --file drizzle/0079_bounded_discovery_series_gates.sql
+      - name: Migrate only the independent synthetic engagement database
+        run: npx --yes wrangler@4.151.0 d1 migrations apply ENGAGEMENT_DB --remote --config wrangler.discovery-benchmark.jsonc
       - name: Run complete 50k discovery trial with drops and failures in gate
         run: node scripts/performance/discovery-read-model-trial.mjs
       - name: Preserve exact-commit evidence on all outcomes

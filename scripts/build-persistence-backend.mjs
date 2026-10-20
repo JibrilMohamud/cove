@@ -20,6 +20,7 @@ await build({
 });
 
 await cp("drizzle", "backend-dist/migrations", { recursive: true });
+await cp("engagement-migrations", "backend-dist/engagement-migrations", { recursive: true });
 await writeFile(
   "backend-dist/README.txt",
   [

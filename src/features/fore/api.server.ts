@@ -1,4 +1,5 @@
 import { profileD1 } from "./d1-cost-profile.server";
+import { scopeEngagementEnv, type EngagementEnv } from "./recommendation-engagement.server";
 import type { DiscoveryReadEnv } from "./discovery-read-model.server";
 import { saveTasteControls, loadTasteControls } from "./discovery-intelligence.server";
 import { validateStoredEpub } from "./stored-epub.server";
@@ -467,84 +468,85 @@ type Statement = {
   all<T = any>(): Promise<{ results: T[] }>;
   run(): Promise<unknown>;
 };
-export type CoveEnv = DiscoveryReadEnv & {
-  FORE_D1_COST_PROFILE?: string;
-  AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
-  DB: { prepare(sql: string): Statement; batch(s: Statement[]): Promise<unknown> };
-  COVE_STOREFRONT_READ_LIMITER?: {
-    limit(input: { key: string }): Promise<{ success: boolean }>;
+export type CoveEnv = DiscoveryReadEnv &
+  EngagementEnv & {
+    FORE_D1_COST_PROFILE?: string;
+    AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
+    DB: { prepare(sql: string): Statement; batch(s: Statement[]): Promise<unknown> };
+    COVE_STOREFRONT_READ_LIMITER?: {
+      limit(input: { key: string }): Promise<{ success: boolean }>;
+    };
+    COVE_SSR_STAGING?: string;
+    COVE_PERF_DATABASE_ID?: string;
+    COVE_PERF_TELEMETRY_MODE?: string;
+    COVE_SSR_STAGING_GATE_KEY?: string;
+    BUCKET?: {
+      get(key: string, options?: any): Promise<any>;
+      head?(key: string): Promise<any>;
+      list?(options: {
+        prefix: string;
+        cursor?: string;
+      }): Promise<{ objects: { key: string }[]; truncated: boolean; cursor?: string }>;
+      put(key: string, value: any, opts?: any): Promise<any>;
+      delete(key: string): Promise<void>;
+    };
+    GUTENDEX_BASE_URL?: string;
+    GUTENBERG_MIRROR_BASE_URL?: string;
+    FORE_GUTENBERG_CANADA_CATALOG_URL?: string;
+    FORE_GUTENBERG_AUSTRALIA_CATALOG_URL?: string;
+    FORE_GUTENBERG_EUROPE_FEED_URL?: string;
+    FORE_GUTENBERG_EUROPE_TRUSTED_ORIGINS?: string;
+    FORE_SEARCH_BACKEND?: string;
+    FORE_SEARCH_FALLBACK?: string;
+    FORE_SEARCH_URL?: string;
+    FORE_SEARCH_SEARCH_KEY?: string;
+    FORE_SEARCH_ADMIN_KEY?: string;
+    FORE_SEARCH_INDEX?: string;
+    FORE_SEARCH_EMBEDDER?: string;
+    FORE_RECOMMENDER_URL?: string;
+    FORE_RECOMMENDER_API_KEY?: string;
+    FORE_RECOMMENDER_MODEL?: string;
+    FORE_RECOMMENDER_TIMEOUT_MS?: string;
+    FORE_STAFF_BOOTSTRAP_TOKEN?: string;
+    FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK?: string;
+    FORE_PARTNER_WEBHOOK_MASTER_SECRET?: string;
+    SUPABASE_URL?: string;
+    SUPABASE_PUBLISHABLE_KEY?: string;
+    SUPABASE_SECRET_KEY?: string;
+    FORE_OFFLINE_AUDIO_SIGNING_JWK?: string;
+    FORE_INGESTION_SIGNING_KEY?: string;
+    FORE_AUTH_MODE?: string;
+    FORE_GOOGLE_ENABLED?: string;
+    FORE_PUBLIC_URL?: string;
+    FORE_DEFAULT_TERRITORY?: string;
+    FORE_DMCA_AGENT_NAME?: string;
+    FORE_DMCA_AGENT_EMAIL?: string;
+    FORE_DMCA_AGENT_ADDRESS?: string;
+    FORE_DMCA_AGENT_PHONE?: string;
+    STRIPE_PUBLISHABLE_KEY?: string;
+    STRIPE_SECRET_KEY?: string;
+    STRIPE_WEBHOOK_SECRET?: string;
+    STRIPE_API_VERSION?: string;
+    STRIPE_TAX_ENABLED?: string;
+    FORE_TAX_WEBHOOK_SECRET?: string;
+    STRIPE_CAPTURE_METHOD?: string;
+    STRIPE_MINIMUM_CHARGE_MINOR?: string;
+    STRIPE_LIVEMODE?: string;
+    FORE_EMAIL_API_URL?: string;
+    FORE_EMAIL_API_KEY?: string;
+    FORE_WEB_PUSH_API_URL?: string;
+    FORE_WEB_PUSH_PUBLIC_KEY?: string;
+    FORE_MOBILE_PUSH_API_URL?: string;
+    FORE_PUSH_API_KEY?: string;
+    FORE_ERROR_REPORTING_URL?: string;
+    FORE_ERROR_REPORTING_TOKEN?: string;
+    FORE_ALERT_WEBHOOK_URL?: string;
+    FORE_ALERT_WEBHOOK_TOKEN?: string;
+    FORE_ENVIRONMENT?: string;
+    FORE_CSP_REPORT_URI?: string;
+    FORE_SECURITY_CONTACT_EMAIL?: string;
+    FORE_SECURITY_POLICY_URL?: string;
   };
-  COVE_SSR_STAGING?: string;
-  COVE_PERF_DATABASE_ID?: string;
-  COVE_PERF_TELEMETRY_MODE?: string;
-  COVE_SSR_STAGING_GATE_KEY?: string;
-  BUCKET?: {
-    get(key: string, options?: any): Promise<any>;
-    head?(key: string): Promise<any>;
-    list?(options: {
-      prefix: string;
-      cursor?: string;
-    }): Promise<{ objects: { key: string }[]; truncated: boolean; cursor?: string }>;
-    put(key: string, value: any, opts?: any): Promise<any>;
-    delete(key: string): Promise<void>;
-  };
-  GUTENDEX_BASE_URL?: string;
-  GUTENBERG_MIRROR_BASE_URL?: string;
-  FORE_GUTENBERG_CANADA_CATALOG_URL?: string;
-  FORE_GUTENBERG_AUSTRALIA_CATALOG_URL?: string;
-  FORE_GUTENBERG_EUROPE_FEED_URL?: string;
-  FORE_GUTENBERG_EUROPE_TRUSTED_ORIGINS?: string;
-  FORE_SEARCH_BACKEND?: string;
-  FORE_SEARCH_FALLBACK?: string;
-  FORE_SEARCH_URL?: string;
-  FORE_SEARCH_SEARCH_KEY?: string;
-  FORE_SEARCH_ADMIN_KEY?: string;
-  FORE_SEARCH_INDEX?: string;
-  FORE_SEARCH_EMBEDDER?: string;
-  FORE_RECOMMENDER_URL?: string;
-  FORE_RECOMMENDER_API_KEY?: string;
-  FORE_RECOMMENDER_MODEL?: string;
-  FORE_RECOMMENDER_TIMEOUT_MS?: string;
-  FORE_STAFF_BOOTSTRAP_TOKEN?: string;
-  FORE_PUBLISHING_AUTO_APPROVE_LOW_RISK?: string;
-  FORE_PARTNER_WEBHOOK_MASTER_SECRET?: string;
-  SUPABASE_URL?: string;
-  SUPABASE_PUBLISHABLE_KEY?: string;
-  SUPABASE_SECRET_KEY?: string;
-  FORE_OFFLINE_AUDIO_SIGNING_JWK?: string;
-  FORE_INGESTION_SIGNING_KEY?: string;
-  FORE_AUTH_MODE?: string;
-  FORE_GOOGLE_ENABLED?: string;
-  FORE_PUBLIC_URL?: string;
-  FORE_DEFAULT_TERRITORY?: string;
-  FORE_DMCA_AGENT_NAME?: string;
-  FORE_DMCA_AGENT_EMAIL?: string;
-  FORE_DMCA_AGENT_ADDRESS?: string;
-  FORE_DMCA_AGENT_PHONE?: string;
-  STRIPE_PUBLISHABLE_KEY?: string;
-  STRIPE_SECRET_KEY?: string;
-  STRIPE_WEBHOOK_SECRET?: string;
-  STRIPE_API_VERSION?: string;
-  STRIPE_TAX_ENABLED?: string;
-  FORE_TAX_WEBHOOK_SECRET?: string;
-  STRIPE_CAPTURE_METHOD?: string;
-  STRIPE_MINIMUM_CHARGE_MINOR?: string;
-  STRIPE_LIVEMODE?: string;
-  FORE_EMAIL_API_URL?: string;
-  FORE_EMAIL_API_KEY?: string;
-  FORE_WEB_PUSH_API_URL?: string;
-  FORE_WEB_PUSH_PUBLIC_KEY?: string;
-  FORE_MOBILE_PUSH_API_URL?: string;
-  FORE_PUSH_API_KEY?: string;
-  FORE_ERROR_REPORTING_URL?: string;
-  FORE_ERROR_REPORTING_TOKEN?: string;
-  FORE_ALERT_WEBHOOK_URL?: string;
-  FORE_ALERT_WEBHOOK_TOKEN?: string;
-  FORE_ENVIRONMENT?: string;
-  FORE_CSP_REPORT_URI?: string;
-  FORE_SECURITY_CONTACT_EMAIL?: string;
-  FORE_SECURITY_POLICY_URL?: string;
-};
 const now = () => new Date().toISOString();
 async function requireStorefrontAdmin(
   request: Request,
@@ -2679,6 +2681,7 @@ async function rateLimitFirstPaint(request: Request, env: CoveEnv, userId: strin
 }
 
 export async function runRecommendationMaintenance(env: CoveEnv) {
+  env = scopeEngagementEnv(env);
   const db = database(env);
   const [recommendations, wishlistAlerts] = await Promise.all([
     maintainRecommendations(db),
@@ -2767,6 +2770,7 @@ export async function handleCoveApi(
   execution?: ApiExecutionContext,
 ): Promise<Response | null> {
   if (!new URL(request.url).pathname.startsWith("/api/fore/")) return null;
+  env = scopeEngagementEnv(env);
   const cost = env.FORE_D1_COST_PROFILE === "1" && env.DB ? profileD1(env.DB) : null;
   if (cost) env = { ...env, DB: cost.db };
   const started = performance.now(),

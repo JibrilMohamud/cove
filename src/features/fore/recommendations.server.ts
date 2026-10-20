@@ -1,4 +1,9 @@
 import {
+  engagementDatabase,
+  scopeEngagementEnv,
+  type EngagementEnv,
+} from "./recommendation-engagement.server";
+import {
   authorizeDiscoveryCandidates,
   contextualizeDiscoveryChannels,
 } from "./discovery-rights.server";
@@ -34,13 +39,14 @@ import { canonicalBooksByProductIds, type CatalogDB } from "./catalog-model.serv
 import { ApiError, now } from "./service";
 import { setWishlistItem } from "./retail.server";
 
-export type RecommendationEnv = DiscoveryReadEnv & {
-  DB: CatalogDB;
-  FORE_RECOMMENDER_URL?: string;
-  FORE_RECOMMENDER_API_KEY?: string;
-  FORE_RECOMMENDER_MODEL?: string;
-  FORE_RECOMMENDER_TIMEOUT_MS?: string;
-};
+export type RecommendationEnv = DiscoveryReadEnv &
+  EngagementEnv & {
+    DB: CatalogDB;
+    FORE_RECOMMENDER_URL?: string;
+    FORE_RECOMMENDER_API_KEY?: string;
+    FORE_RECOMMENDER_MODEL?: string;
+    FORE_RECOMMENDER_TIMEOUT_MS?: string;
+  };
 
 type Privacy = {
   personalizationEnabled: boolean;
@@ -267,10 +273,17 @@ export async function resetRecommendationProfile(db: CatalogDB, userId: string, 
     )
     .bind(userId, now())
     .run();
-  await db.prepare("DELETE FROM recommendation_events WHERE user_id=?").bind(userId).run();
+  const ledger = engagementDatabase(db);
+  await ledger.batch([
+    ledger
+      .prepare(
+        "DELETE FROM recommendation_events WHERE user_id=? OR recommendation_request_id IN (SELECT id FROM recommendation_requests WHERE user_id=?)",
+      )
+      .bind(userId, userId),
+    ledger.prepare("DELETE FROM recommendation_requests WHERE user_id=?").bind(userId),
+  ]);
   await db.prepare("DELETE FROM recommendation_user_features WHERE user_id=?").bind(userId).run();
   await db.prepare("DELETE FROM recommendation_feedback WHERE user_id=?").bind(userId).run();
-  await db.prepare("DELETE FROM recommendation_requests WHERE user_id=?").bind(userId).run();
   if (scope === "all") {
     await db
       .prepare("DELETE FROM recommendation_taste_controls WHERE user_id=?")
@@ -283,8 +296,9 @@ export async function resetRecommendationProfile(db: CatalogDB, userId: string, 
 }
 
 async function queueRecommendationJob(db: CatalogDB, jobType: string, entityId?: string | null) {
+  const ledger = engagementDatabase(db);
   const entity = entityId || null,
-    existing = await db
+    existing = await ledger
       .prepare(
         "SELECT id FROM recommendation_jobs WHERE job_type=? AND COALESCE(entity_id,'')=COALESCE(?,'') AND status='pending' LIMIT 1",
       )
@@ -293,11 +307,11 @@ async function queueRecommendationJob(db: CatalogDB, jobType: string, entityId?:
   if (existing) return String(existing.id);
   const id = crypto.randomUUID(),
     at = now();
-  await db
+  await ledger
     .prepare(
-      "INSERT INTO recommendation_jobs(id,job_type,entity_id,status,attempts,max_attempts,last_error,queued_at,available_at) VALUES(?,?,?,'pending',0,5,'',?,?)",
+      `INSERT INTO recommendation_jobs(id,job_type,entity_id,status,attempts,max_attempts,last_error,queued_at,available_at) SELECT ?,?,?,'pending',0,5,'',?,?${ledger === db ? "" : " WHERE NOT EXISTS(SELECT 1 FROM engagement_erased_users WHERE user_id=? AND ?='user-features')"}`,
     )
-    .bind(id, jobType, entity, at, at)
+    .bind(id, jobType, entity, at, at, ...(ledger === db ? [] : [entity, jobType]))
     .run();
   return id;
 }
@@ -499,11 +513,15 @@ export async function rebuildUserFeatures(db: CatalogDB, userId: string) {
     )
     .bind(userId)
     .all<any>();
-  const events = await db
-    .prepare(
-      "SELECT product_id,event_type,value,occurred_at FROM recommendation_events WHERE user_id=? AND occurred_at>=datetime('now','-365 days') AND occurred_at>COALESCE((SELECT reset_at FROM recommendation_learning_boundaries WHERE user_id=recommendation_events.user_id),'') ORDER BY occurred_at DESC LIMIT 1500",
-    )
+  const boundary = await db
+    .prepare("SELECT reset_at FROM recommendation_learning_boundaries WHERE user_id=?")
     .bind(userId)
+    .first<{ reset_at: string }>();
+  const events = await engagementDatabase(db)
+    .prepare(
+      "SELECT product_id,event_type,value,occurred_at FROM recommendation_events WHERE user_id=? AND occurred_at>=datetime('now','-365 days') AND occurred_at>? ORDER BY occurred_at DESC LIMIT 1500",
+    )
+    .bind(userId, boundary?.reset_at || "")
     .all<any>();
   const feedback = await db
     .prepare(
@@ -1259,6 +1277,9 @@ async function activeRecommendationExperiment(db: CatalogDB, surface: string, id
     )
     .bind(surface)
     .first<any>();
+  return assignRecommendationExperiment(row, identity);
+}
+function assignRecommendationExperiment(row: any, identity: string) {
   if (!row) return null;
   let parsed: any[];
   try {
@@ -1303,6 +1324,23 @@ async function activeRecommendationExperiment(db: CatalogDB, surface: string, id
   };
 }
 
+async function anonymousHomeExperiments(db: CatalogDB, identity: string) {
+  const rows = await db
+    .prepare(
+      `SELECT * FROM recommendation_experiments
+    WHERE surface IN (SELECT value FROM json_each(?)) AND status='published'
+      AND (starts_at IS NULL OR starts_at<=datetime('now'))
+      AND (ends_at IS NULL OR ends_at>datetime('now')) ORDER BY updated_at DESC`,
+    )
+    .bind(JSON.stringify(["home:recommended", "home:trending", "home:editorial"]))
+    .all<any>();
+  const result = new Map<string, ReturnType<typeof assignRecommendationExperiment>>();
+  for (const row of rows.results)
+    if (!result.has(row.surface))
+      result.set(row.surface, assignRecommendationExperiment(row, identity));
+  return result;
+}
+
 async function requestRecord(
   db: CatalogDB,
   opts: {
@@ -1343,9 +1381,10 @@ async function requestRecord(
     scorerMode: "local",
     fallbackReason: "",
   };
-  const requestWrite = db
+  const ledger = engagementDatabase(db);
+  const requestWrite = ledger
     .prepare(
-      "INSERT INTO recommendation_requests(id,user_id,visitor_id,surface,anchor_product_id,model_key,model_version,experiment_id,experiment_variant,algorithm,consent_mode,territory_code,context_json,candidate_count,latency_ms,scorer_mode,fallback_reason,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      `INSERT INTO recommendation_requests(id,user_id,visitor_id,surface,anchor_product_id,model_key,model_version,experiment_id,experiment_variant,algorithm,consent_mode,territory_code,context_json,candidate_count,latency_ms,scorer_mode,fallback_reason,created_at) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?${ledger === db ? "" : " WHERE NOT EXISTS(SELECT 1 FROM engagement_erased_users WHERE user_id=?)"}`,
     )
     .bind(
       id,
@@ -1370,6 +1409,7 @@ async function requestRecord(
       telemetry.scorerMode,
       telemetry.fallbackReason,
       at,
+      ...(ledger === db ? [] : [opts.userId]),
     );
   // D1 permits at most 100 bound parameters in each statement, including batched
   // statements. Twelve 8-field impressions use 96; a 20-book rail needs two inserts.
@@ -1378,7 +1418,7 @@ async function requestRecord(
   for (let offset = 0; offset < candidates.length; offset += 12) {
     const chunk = candidates.slice(offset, offset + 12);
     impressionsWrites.push(
-      db
+      ledger
         .prepare(
           `INSERT INTO recommendation_impressions(request_id,product_id,position,score,reason_code,reason_text,candidate_sources_json,feature_snapshot_json) VALUES ${chunk.map(() => "(?,?,?,?,?,?,?,?)").join(",")}`,
         )
@@ -1396,7 +1436,7 @@ async function requestRecord(
         ),
     );
   }
-  await db.batch([requestWrite, ...impressionsWrites]);
+  await ledger.batch([requestWrite, ...impressionsWrites]);
   return id;
 }
 
@@ -1497,8 +1537,10 @@ async function makeRail(
     explorationRate?: number;
     /** Request-scoped, primary-D1-validated anonymous IDs; never cached. */
     prevalidatedAnonymousIds?: Set<string>;
+    anonymousExperiments?: Awaited<ReturnType<typeof anonymousHomeExperiments>>;
   },
 ): Promise<RecommendationRail | null> {
+  env = scopeEngagementEnv(env);
   const model = opts.model || (await activeModel(env.DB)),
     filtered = opts.excludeProductIds?.size
       ? opts.candidates.filter((x) => !opts.excludeProductIds!.has(x.productId))
@@ -1520,11 +1562,13 @@ async function makeRail(
     env.DB,
     filtered.filter((x) => allowed.has(x.productId)),
   );
-  const experiment = await activeRecommendationExperiment(
-    env.DB,
-    opts.surface,
-    opts.userId || opts.visitorId || crypto.randomUUID(),
-  );
+  const experiment = opts.anonymousExperiments
+    ? opts.anonymousExperiments.get(opts.surface) || null
+    : await activeRecommendationExperiment(
+        env.DB,
+        opts.surface,
+        opts.userId || opts.visitorId || crypto.randomUUID(),
+      );
   const modelControls: RankingControls = {
     explorationRate: modelNumber(model, "explorationRate", 0.08, 0, 0.5),
     diversityStrength: modelNumber(model, "diversityStrength", 1, 0, 3),
@@ -1547,26 +1591,28 @@ async function makeRail(
     controls,
   );
   if (!selected.length) return null;
-  const requestId = await requestRecord(
-    env.DB,
-    {
-      userId: opts.userId,
-      visitorId: opts.visitorId,
-      surface: opts.surface,
-      anchorProductId: opts.anchorProductId,
-      territory: opts.territory,
-      personalized: opts.personalized,
-      context: { rail: opts.key, discoveryVersion: DISCOVERY_VERSION },
-      experiment,
-      model,
-      telemetry: opts.telemetry,
-    },
-    selected,
-  );
-  const books = await canonicalBooksByProductIds(
-    env.DB,
-    selected.map((x) => x.productId),
-  );
+  const [requestId, books] = await Promise.all([
+    requestRecord(
+      env.DB,
+      {
+        userId: opts.userId,
+        visitorId: opts.visitorId,
+        surface: opts.surface,
+        anchorProductId: opts.anchorProductId,
+        territory: opts.territory,
+        personalized: opts.personalized,
+        context: { rail: opts.key, discoveryVersion: DISCOVERY_VERSION },
+        experiment,
+        model,
+        telemetry: opts.telemetry,
+      },
+      selected,
+    ),
+    canonicalBooksByProductIds(
+      env.DB,
+      selected.map((x) => x.productId),
+    ),
+  ]);
   const byId = new Map(books.map((b) => [String(b.productId), b]));
   const ordered = selected.map((c) => byId.get(c.productId)).filter(Boolean) as CatalogBook[];
   return {
@@ -1872,14 +1918,17 @@ export async function homeRecommendations(
   const editorial = projection
     ? projection.editorial.map(restoreNeutralCandidate)
     : await augmentMeta(env.DB, await editorialCandidates(env.DB));
-  const anonymousAllowed = !opts.userId
-    ? await eligibleRecommendationIds(
-        env.DB,
-        [...new Set([...base.candidates, ...editorial].map((c) => c.productId))],
-        opts.territory,
-        null,
-      )
-    : undefined;
+  const [anonymousAllowed, anonymousExperiments] = await Promise.all([
+    !opts.userId
+      ? eligibleRecommendationIds(
+          env.DB,
+          [...new Set([...base.candidates, ...editorial].map((c) => c.productId))],
+          opts.territory,
+          null,
+        )
+      : undefined,
+    !opts.userId ? anonymousHomeExperiments(env.DB, opts.visitorId) : undefined,
+  ]);
   const add = async (promise: Promise<RecommendationRail | null>) => {
     const rail = await promise;
     if (!rail) return;
@@ -1904,6 +1953,7 @@ export async function homeRecommendations(
       telemetry: base.telemetry,
       excludeProductIds: used,
       prevalidatedAnonymousIds: anonymousAllowed,
+      anonymousExperiments,
     }),
   );
   const anchor = personalized ? await recentAnchor(env.DB, opts.userId) : null;
@@ -2077,6 +2127,7 @@ export async function homeRecommendations(
       telemetry: base.telemetry,
       excludeProductIds: used,
       prevalidatedAnonymousIds: anonymousAllowed,
+      anonymousExperiments,
     }),
   );
   await add(
@@ -2093,6 +2144,7 @@ export async function homeRecommendations(
       model,
       excludeProductIds: used,
       prevalidatedAnonymousIds: anonymousAllowed,
+      anonymousExperiments,
       excludeOwned: true,
     }),
   );
@@ -2293,6 +2345,7 @@ export async function recordRecommendationEvent(
   raw: unknown,
 ) {
   const x = interactionInput.parse(raw);
+  const ledger = engagementDatabase(db);
   if (x.type === "rating" && (x.value == null || x.value < 1 || x.value > 5))
     throw new ApiError(400, "Ratings must be between 1 and 5.");
   if (!allowedEvents.has(x.type)) throw new ApiError(400, "Unsupported recommendation event.");
@@ -2303,7 +2356,7 @@ export async function recordRecommendationEvent(
   if (!product) throw new ApiError(400, "Unknown storefront product.");
   if (x.requestId || x.type === "recommendation_impression" || x.type === "recommendation_click") {
     if (!x.requestId) throw new ApiError(400, "Recommendation attribution requires a request ID.");
-    const imp = await db
+    const imp = await ledger
       .prepare(
         `SELECT i.*,r.user_id,r.visitor_id,r.created_at FROM recommendation_impressions i JOIN recommendation_requests r ON r.id=i.request_id WHERE i.request_id=? AND i.product_id=? AND r.created_at>=datetime('now','-30 days')`,
       )
@@ -2317,7 +2370,7 @@ export async function recordRecommendationEvent(
     if (x.type === "recommendation_click" && !imp.impressed_at)
       throw new ApiError(409, "A recommendation click requires a preceding visible impression.");
     if (x.type === "recommendation_impression" || x.type === "recommendation_click")
-      await db
+      await ledger
         .prepare(
           `UPDATE recommendation_impressions SET ${x.type === "recommendation_impression" ? "impressed_at=COALESCE(impressed_at,?)" : "clicked_at=COALESCE(clicked_at,?)"} WHERE request_id=? AND product_id=?`,
         )
@@ -2327,9 +2380,9 @@ export async function recordRecommendationEvent(
   const privacy = await recommendationPrivacy(db, userId),
     learnedUser = userId && privacy.activityPersonalizationEnabled ? userId : null,
     eventKey = recommendationEventKey(userId, x);
-  const inserted = await db
+  const inserted = await ledger
     .prepare(
-      "INSERT OR IGNORE INTO recommendation_events(id,user_id,visitor_id,session_id,product_id,event_type,source_surface,recommendation_request_id,position,value,metadata_json,occurred_at,event_key) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      `INSERT OR IGNORE INTO recommendation_events(id,user_id,visitor_id,session_id,product_id,event_type,source_surface,recommendation_request_id,position,value,metadata_json,occurred_at,event_key) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?${ledger === db ? "" : " WHERE NOT EXISTS(SELECT 1 FROM engagement_erased_users WHERE user_id=?)"}`,
     )
     .bind(
       crypto.randomUUID(),
@@ -2345,6 +2398,7 @@ export async function recordRecommendationEvent(
       JSON.stringify(x.metadata).slice(0, 4000),
       now(),
       eventKey,
+      ...(ledger === db ? [] : [userId]),
     )
     .run();
   const changed = Number((inserted as any)?.meta?.changes ?? 1) > 0;
@@ -2475,20 +2529,36 @@ export async function personalizeSearchBooks(
 }
 
 async function refreshRecommendationMetricForProduct(db: CatalogDB, id: string) {
-  const m = await db
-    .prepare(
-      `SELECT
-    (SELECT COUNT(*) FROM recommendation_events WHERE product_id=? AND event_type='book_view' AND occurred_at>=datetime('now','-7 days')) views,
-    (SELECT COUNT(*) FROM recommendation_events WHERE product_id=? AND event_type IN ('recommendation_click','search_click') AND occurred_at>=datetime('now','-7 days')) clicks,
-    (SELECT COUNT(*) FROM recommendation_events WHERE product_id=? AND event_type='library_add' AND occurred_at>=datetime('now','-30 days')) adds,
-    (SELECT COUNT(*) FROM completion_events WHERE product_id=? AND finished_at>=datetime('now','-90 days')) completions,
-    (SELECT COUNT(*) FROM wishlist_items WHERE product_id=?) wishlists,
-    COALESCE((SELECT average_rating FROM catalog_search_documents WHERE product_id=?),0) avg_rating,
-    COALESCE((SELECT review_count FROM catalog_search_documents WHERE product_id=?),0) rating_count,
-    COALESCE((SELECT download_count FROM catalog_search_documents WHERE product_id=?),0) legacy_pop`,
-    )
-    .bind(id, id, id, id, id, id, id, id)
-    .first<any>();
+  const [events, canonical] = await Promise.all([
+    engagementDatabase(db)
+      .prepare(
+        `SELECT
+      SUM(CASE WHEN event_type='book_view' AND occurred_at>=datetime('now','-7 days') THEN 1 ELSE 0 END) views,
+      SUM(CASE WHEN event_type IN ('recommendation_click','search_click') AND occurred_at>=datetime('now','-7 days') THEN 1 ELSE 0 END) clicks,
+      SUM(CASE WHEN event_type='library_add' THEN 1 ELSE 0 END) adds
+      FROM recommendation_events WHERE product_id=? AND occurred_at>=datetime('now','-30 days')`,
+      )
+      .bind(id)
+      .first<{ views: number; clicks: number; adds: number }>(),
+    db
+      .prepare(
+        `SELECT
+      (SELECT COUNT(*) FROM completion_events WHERE product_id=? AND finished_at>=datetime('now','-90 days')) completions,
+      (SELECT COUNT(*) FROM wishlist_items WHERE product_id=?) wishlists,
+      COALESCE((SELECT average_rating FROM catalog_search_documents WHERE product_id=?),0) avg_rating,
+      COALESCE((SELECT review_count FROM catalog_search_documents WHERE product_id=?),0) rating_count,
+      COALESCE((SELECT download_count FROM catalog_search_documents WHERE product_id=?),0) legacy_pop`,
+      )
+      .bind(id, id, id, id, id)
+      .first<{
+        completions: number;
+        wishlists: number;
+        avg_rating: number;
+        rating_count: number;
+        legacy_pop: number;
+      }>(),
+  ]);
+  const m = { ...canonical, ...events };
   const trend =
     Number(m?.views || 0) * 0.15 +
     Number(m?.clicks || 0) * 1.1 +
@@ -2520,11 +2590,19 @@ async function refreshRecommendationMetricForProduct(db: CatalogDB, id: string) 
     )
     .run();
 }
-export async function refreshRecommendationMetrics(db: CatalogDB) {
+export async function refreshRecommendationMetrics(
+  db: CatalogDB,
+  limit = 100,
+  afterProductId = "",
+) {
+  const pageSize = Math.max(1, Math.min(100, Math.floor(limit)));
   const at = now(),
     ids = await db
-      .prepare("SELECT id FROM products WHERE storefront_status='active' AND source_name<>'upload'")
-      .all<any>();
+      .prepare(
+        "SELECT id FROM products WHERE storefront_status='active' AND source_name<>'upload' AND id>? ORDER BY id LIMIT ?",
+      )
+      .bind(afterProductId, pageSize)
+      .all<{ id: string }>();
   for (const row of ids.results) await refreshRecommendationMetricForProduct(db, String(row.id));
   await db
     .prepare(
@@ -2537,12 +2615,22 @@ export async function refreshRecommendationMetrics(db: CatalogDB) {
       SUM(CASE WHEN r.event_type='book_finished' AND r.occurred_at>=datetime('now','-90 days') THEN 1 ELSE 0 END),
       SUM(CASE WHEN r.ranking_eligible=1 THEN r.ranking_weight*(CASE r.event_type WHEN 'product_viewed' THEN .15 WHEN 'search_result_clicked' THEN 1.1 WHEN 'wishlist_added' THEN 2.5 WHEN 'purchase_completed' THEN 5 WHEN 'book_finished' THEN 4 ELSE 0 END) ELSE 0 END),
       SUM(CASE WHEN r.ranking_eligible=1 THEN r.ranking_weight*(CASE r.event_type WHEN 'product_viewed' THEN .05 WHEN 'search_result_clicked' THEN .5 WHEN 'wishlist_added' THEN 1.2 WHEN 'purchase_completed' THEN 3 WHEN 'book_finished' THEN 2 ELSE 0 END) ELSE 0 END),?
-    FROM retail_events r WHERE r.product_id IS NOT NULL AND r.occurred_at>=datetime('now','-90 days') GROUP BY upper(r.territory_code),r.product_id
+    FROM retail_events r WHERE r.product_id IN (SELECT value FROM json_each(?)) AND r.occurred_at>=datetime('now','-90 days') GROUP BY upper(r.territory_code),r.product_id
     ON CONFLICT(territory_code,product_id) DO UPDATE SET views_7d=excluded.views_7d,clicks_7d=excluded.clicks_7d,library_adds_30d=excluded.library_adds_30d,purchases_30d=excluded.purchases_30d,completions_90d=excluded.completions_90d,trend_score=excluded.trend_score,popularity_score=excluded.popularity_score,updated_at=excluded.updated_at`,
     )
-    .bind(at)
+    .bind(at, JSON.stringify(ids.results.map((row) => row.id)))
     .run();
-  return { products: ids.results.length, updatedAt: at, regional: true };
+  const done = ids.results.length < pageSize;
+  const nextAfter = ids.results.at(-1)?.id || null;
+  if (!done && nextAfter) await queueRecommendationJob(db, "metrics", nextAfter);
+  return {
+    products: ids.results.length,
+    updatedAt: at,
+    regional: true,
+    done,
+    nextAfter,
+    queuedContinuation: !done,
+  };
 }
 
 async function neighborCandidateIds(db: CatalogDB, productId: string) {
@@ -2651,13 +2739,13 @@ export async function rebuildItemNeighbors(db: CatalogDB, limit = 100, afterProd
 export async function processRecommendationJobs(db: CatalogDB, limit = 25) {
   const batch = Math.min(100, Math.max(1, limit)),
     at = now();
-  await db
+  await engagementDatabase(db)
     .prepare(
       "UPDATE recommendation_jobs SET status='pending',locked_at=NULL,lease_until=NULL,available_at=? WHERE status='running' AND lease_until IS NOT NULL AND lease_until<=?",
     )
     .bind(at, at)
     .run();
-  const jobs = await db
+  const jobs = await engagementDatabase(db)
     .prepare(
       "SELECT * FROM recommendation_jobs WHERE status='pending' AND available_at<=? ORDER BY available_at,queued_at LIMIT ?",
     )
@@ -2669,7 +2757,7 @@ export async function processRecommendationJobs(db: CatalogDB, limit = 25) {
   for (const job of jobs.results) {
     const started = now(),
       lease = new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-      claim = await db
+      claim = await engagementDatabase(db)
         .prepare(
           "UPDATE recommendation_jobs SET status='running',started_at=?,locked_at=?,lease_until=?,attempts=attempts+1 WHERE id=? AND status='pending'",
         )
@@ -2681,9 +2769,10 @@ export async function processRecommendationJobs(db: CatalogDB, limit = 25) {
         await rebuildUserFeatures(db, String(job.entity_id));
       else if (job.job_type === "product-metrics" && job.entity_id)
         await refreshRecommendationMetricForProduct(db, String(job.entity_id));
-      else if (job.job_type === "metrics") await refreshRecommendationMetrics(db);
+      else if (job.job_type === "metrics")
+        await refreshRecommendationMetrics(db, 100, String(job.entity_id || ""));
       else throw new Error(`Unsupported recommendation job: ${String(job.job_type)}`);
-      await db
+      await engagementDatabase(db)
         .prepare(
           "UPDATE recommendation_jobs SET status='done',finished_at=?,locked_at=NULL,lease_until=NULL,last_error='' WHERE id=?",
         )
@@ -2696,7 +2785,7 @@ export async function processRecommendationJobs(db: CatalogDB, limit = 25) {
         isDead = attempts >= maxAttempts,
         backoffMinutes = Math.min(60, Math.pow(2, Math.max(0, attempts - 1)));
       const available = new Date(Date.now() + backoffMinutes * 60 * 1000).toISOString();
-      await db
+      await engagementDatabase(db)
         .prepare(
           "UPDATE recommendation_jobs SET status=?,available_at=?,locked_at=NULL,lease_until=NULL,last_error=? WHERE id=?",
         )
@@ -2721,13 +2810,13 @@ export async function refreshRecommendationEvaluations(db: CatalogDB, windowDays
       )
       .first<any>(),
     catalogProducts = Number(catalog?.count || 0);
-  const rows = await db
+  const rows = await engagementDatabase(db)
     .prepare(
       `SELECT r.model_key,r.model_version,r.surface,COUNT(DISTINCT r.id) requests,SUM(CASE WHEN i.impressed_at IS NOT NULL THEN 1 ELSE 0 END) impressions,SUM(CASE WHEN i.clicked_at IS NOT NULL THEN 1 ELSE 0 END) clicks,COUNT(DISTINCT CASE WHEN i.impressed_at IS NOT NULL THEN i.product_id END) unique_products,AVG(CASE WHEN i.clicked_at IS NOT NULL THEN i.position END) mean_position_clicked FROM recommendation_requests r LEFT JOIN recommendation_impressions i ON i.request_id=r.id WHERE r.created_at>=datetime('now',?) GROUP BY r.model_key,r.model_version,r.surface`,
     )
     .bind(`-${days} days`)
     .all<any>();
-  const sourceRows = await db
+  const sourceRows = await engagementDatabase(db)
     .prepare(
       `SELECT r.model_key,r.model_version,r.surface,j.value source,COUNT(*) count FROM recommendation_requests r JOIN recommendation_impressions i ON i.request_id=r.id JOIN json_each(i.candidate_sources_json) j WHERE r.created_at>=datetime('now',?) AND i.impressed_at IS NOT NULL GROUP BY r.model_key,r.model_version,r.surface,j.value`,
     )
@@ -2795,13 +2884,13 @@ export async function runRecommendationMaintenance(db: CatalogDB) {
   )
     evaluation = await refreshRecommendationEvaluations(db, 30);
   await db.prepare("DELETE FROM recommendation_cache WHERE expires_at<=?").bind(at).run();
-  await db
+  await engagementDatabase(db)
     .prepare("DELETE FROM recommendation_events WHERE occurred_at<datetime('now','-365 days')")
     .run();
-  await db
+  await engagementDatabase(db)
     .prepare("DELETE FROM recommendation_requests WHERE created_at<datetime('now','-180 days')")
     .run();
-  await db
+  await engagementDatabase(db)
     .prepare(
       "DELETE FROM recommendation_jobs WHERE status IN ('done','dead') AND COALESCE(finished_at,queued_at)<datetime('now','-30 days')",
     )
@@ -2833,20 +2922,22 @@ export async function recommendationStatus(db: CatalogDB) {
         "SELECT * FROM recommendation_models ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END,created_at DESC",
       )
       .all<any>(),
-    db
+    engagementDatabase(db)
       .prepare(
         "SELECT COUNT(*) count FROM recommendation_events WHERE occurred_at>=datetime('now','-24 hours')",
       )
       .first<any>(),
     db.prepare("SELECT COUNT(*) count FROM recommendation_user_features").first<any>(),
     db.prepare("SELECT COUNT(*) count FROM recommendation_item_neighbors").first<any>(),
-    db
+    engagementDatabase(db)
       .prepare(
         "SELECT COUNT(*) count FROM recommendation_requests WHERE created_at>=datetime('now','-24 hours')",
       )
       .first<any>(),
-    db.prepare("SELECT status,COUNT(*) count FROM recommendation_jobs GROUP BY status").all<any>(),
-    db
+    engagementDatabase(db)
+      .prepare("SELECT status,COUNT(*) count FROM recommendation_jobs GROUP BY status")
+      .all<any>(),
+    engagementDatabase(db)
       .prepare(
         `SELECT r.surface,COUNT(i.impressed_at) impressions,COUNT(i.clicked_at) clicks,AVG(CASE WHEN i.clicked_at IS NOT NULL THEN 1.0 ELSE 0.0 END) ctr,AVG(r.latency_ms) avg_latency_ms,AVG(r.candidate_count) avg_candidates FROM recommendation_requests r JOIN recommendation_impressions i ON i.request_id=r.id WHERE r.created_at>=datetime('now','-30 days') GROUP BY r.surface ORDER BY impressions DESC`,
       )
@@ -2857,7 +2948,7 @@ export async function recommendationStatus(db: CatalogDB) {
         "SELECT * FROM recommendation_model_evaluations ORDER BY generated_at DESC,surface LIMIT 100",
       )
       .all<any>(),
-    db
+    engagementDatabase(db)
       .prepare(
         "SELECT scorer_mode,COUNT(*) count,AVG(latency_ms) avg_latency_ms FROM recommendation_requests WHERE created_at>=datetime('now','-24 hours') GROUP BY scorer_mode",
       )
@@ -2867,7 +2958,9 @@ export async function recommendationStatus(db: CatalogDB) {
         "SELECT COUNT(DISTINCT user_id) count FROM recommendation_user_features WHERE updated_at<datetime('now','-24 hours')",
       )
       .first<any>(),
-    db.prepare("SELECT COUNT(*) count FROM recommendation_jobs WHERE status='dead'").first<any>(),
+    engagementDatabase(db)
+      .prepare("SELECT COUNT(*) count FROM recommendation_jobs WHERE status='dead'")
+      .first<any>(),
     db
       .prepare("SELECT * FROM recommendation_model_audit ORDER BY created_at DESC LIMIT 50")
       .all<any>(),
@@ -3160,9 +3253,9 @@ export async function literaryDiscovery(
 }
 
 export async function discoveryTrainingDataset(db: CatalogDB, limit = 5000) {
-  const rows = await db
+  const rows = await engagementDatabase(db)
     .prepare(
-      `SELECT r.id request_id,r.user_id,i.product_id,r.created_at served_at,i.feature_snapshot_json,e.event_type,e.value,e.occurred_at observed_at FROM recommendation_requests r JOIN recommendation_impressions i ON i.request_id=r.id JOIN recommendation_events e ON e.recommendation_request_id=r.id AND e.product_id=i.product_id AND e.user_id=r.user_id LEFT JOIN recommendation_privacy p ON p.user_id=r.user_id WHERE r.user_id IS NOT NULL AND i.impressed_at IS NOT NULL AND COALESCE(p.activity_personalization_enabled,1)=1 AND COALESCE(p.personalization_enabled,1)=1 AND e.occurred_at>r.created_at AND e.event_type IN ('rating','loved','not_for_me','recommend') AND json_array_length(i.feature_snapshot_json)=6 ORDER BY r.created_at DESC,e.occurred_at DESC LIMIT ?`,
+      `SELECT r.id request_id,r.user_id,i.product_id,r.created_at served_at,i.feature_snapshot_json,e.event_type,e.value,e.occurred_at observed_at FROM recommendation_requests r JOIN recommendation_impressions i ON i.request_id=r.id JOIN recommendation_events e ON e.recommendation_request_id=r.id AND e.product_id=i.product_id AND e.user_id=r.user_id WHERE r.user_id IS NOT NULL AND i.impressed_at IS NOT NULL AND e.occurred_at>r.created_at AND e.event_type IN ('rating','loved','not_for_me','recommend') AND json_array_length(i.feature_snapshot_json)=6 ORDER BY r.created_at DESC,e.occurred_at DESC LIMIT ?`,
     )
     .bind(Math.min(10000, Math.max(1, limit)))
     .all<{
@@ -3175,10 +3268,18 @@ export async function discoveryTrainingDataset(db: CatalogDB, limit = 5000) {
       value: number | null;
       observed_at: string;
     }>();
+  const denied = await db
+    .prepare(
+      `SELECT user_id FROM recommendation_privacy WHERE user_id IN (SELECT value FROM json_each(?)) AND (activity_personalization_enabled=0 OR personalization_enabled=0)`,
+    )
+    .bind(JSON.stringify([...new Set(rows.results.map((row) => row.user_id))]))
+    .all<{ user_id: string }>();
+  const deniedUsers = new Set(denied.results.map((row) => row.user_id));
   const salt = crypto.randomUUID();
   const readerKeys = new Map<string, string>();
   const result = [];
   for (const row of rows.results) {
+    if (deniedUsers.has(row.user_id)) continue;
     if (!readerKeys.has(row.user_id)) {
       const hash = await crypto.subtle.digest(
         "SHA-256",

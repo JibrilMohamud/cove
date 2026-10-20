@@ -1,3 +1,4 @@
+import { engagementDatabase } from "./recommendation-engagement.server";
 import { authorizeDiscoveryCandidates } from "./discovery-rights.server";
 import type { CatalogBook } from "./client";
 import {
@@ -1586,9 +1587,10 @@ async function logQuery(
     productId,
     position: (input.page - 1) * input.limit + index + 1,
   }));
-  await db
+  const ledger = engagementDatabase(db);
+  await ledger
     .prepare(
-      "INSERT INTO search_query_events(id,user_id,query,normalized_query,filters_json,sort,result_count,backend,duration_ms,corrected_query,result_impressions_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+      `INSERT INTO search_query_events(id,user_id,query,normalized_query,filters_json,sort,result_count,backend,duration_ms,corrected_query,result_impressions_json,created_at) SELECT ?,?,?,?,?,?,?,?,?,?,?,?${ledger === db ? "" : " WHERE NOT EXISTS(SELECT 1 FROM engagement_erased_users WHERE user_id=?)"}`,
     )
     .bind(
       id,
@@ -1603,6 +1605,7 @@ async function logQuery(
       data.correctedQuery || null,
       JSON.stringify(impressions),
       new Date().toISOString(),
+      ...(ledger === db ? [] : [userId]),
     )
     .run();
   return id;
@@ -1859,7 +1862,6 @@ export async function cachedCatalogPageAllowed(
 
 async function searchDocuments(db: CatalogDB, productIds: string[]): Promise<SearchDocument[]> {
   if (!productIds.length) return [];
-  const placeholders = productIds.map(() => "?").join(",");
   const rows = await db
     .prepare(
       `SELECT d.*,p.public_id product_public_id,p.source_name,p.storefront_status,p.format product_format,e.id edition_id,e.release_status,e.preorder_date,e.publication_date,e.publisher_id,e.imprint_id,pub.name publisher_name,imp.name imprint_name,
@@ -1877,9 +1879,9 @@ async function searchDocuments(db: CatalogDB, productIds: string[]): Promise<Sea
     COALESCE((SELECT SUM(m.boost) FROM search_merchandising_rules m WHERE m.product_id=p.id AND m.active=1 AND (m.starts_at IS NULL OR m.starts_at<=datetime('now')) AND (m.ends_at IS NULL OR m.ends_at>datetime('now'))),0) active_boost,
     CASE WHEN EXISTS(SELECT 1 FROM offers deal_offer JOIN promotions deal_promo ON deal_promo.offer_id=deal_offer.id WHERE deal_offer.product_id=p.id AND deal_offer.active=1 AND (deal_offer.starts_at IS NULL OR deal_offer.starts_at<=datetime('now')) AND (deal_offer.ends_at IS NULL OR deal_offer.ends_at>datetime('now')) AND deal_promo.active=1 AND deal_promo.starts_at<=datetime('now') AND deal_promo.ends_at>datetime('now')) THEN 1 ELSE 0 END active_deal
     FROM catalog_search_documents d JOIN products p ON p.id=d.product_id JOIN editions e ON e.id=p.edition_id LEFT JOIN publishers pub ON pub.id=e.publisher_id LEFT JOIN imprints imp ON imp.id=e.imprint_id
-    WHERE d.product_id IN (${placeholders})`,
+    WHERE d.product_id IN (SELECT value FROM json_each(?))`,
     )
-    .bind(...productIds)
+    .bind(JSON.stringify(productIds))
     .all<any>();
   return rows.results.map((r: any) => {
     const release = timestamp(r.release_date || r.publication_date);
@@ -2152,7 +2154,7 @@ export async function recordSearchClick(
   db: CatalogDB,
   input: { queryId: string; productId: string; position: number },
 ) {
-  const impression = await db
+  const impression = await engagementDatabase(db)
     .prepare(
       `SELECT 1 ok FROM search_query_events q
     WHERE q.id=? AND datetime(q.created_at)>=datetime('now','-1 day')
@@ -2162,7 +2164,7 @@ export async function recordSearchClick(
     .bind(input.queryId, input.productId, input.position)
     .first<any>();
   if (!impression) throw new ApiError(404, "Search impression expired or is invalid.");
-  await db
+  await engagementDatabase(db)
     .prepare(
       "INSERT OR IGNORE INTO search_click_events(query_id,product_id,position,created_at) VALUES(?,?,?,?)",
     )

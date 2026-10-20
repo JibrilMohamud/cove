@@ -19,7 +19,11 @@ const output = "artifacts/discovery-benchmark";
 fs.mkdirSync(output, { recursive: true });
 const evidence = {
   sha: process.env.GITHUB_SHA,
-  kind: "isolated-discovery-serving-diagnostic",
+  kind: "isolated-engagement-separation-diagnostic-v2",
+  variants: {
+    control: "R2 projections + primary engagement and durable HTTP telemetry",
+    projection: "R2 projections + independent engagement and durable HTTP telemetry",
+  },
   productionD1: false,
   fullCustomerJourney: false,
   realSearchEngine: false,
@@ -77,6 +81,12 @@ async function probe(route, mode) {
       ttfbMs,
       totalMs: performance.now() - started,
       statements: Number(response.headers.get("x-cove-d1-statements")),
+      primaryPendingStatements: Number(response.headers.get("x-cove-d1-pending-statements")),
+      engagementPendingStatements: Number(
+        response.headers.get("x-cove-engagement-pending-statements"),
+      ),
+      engagementStatements: Number(response.headers.get("x-cove-engagement-statements")),
+      engagementRowsWritten: Number(response.headers.get("x-cove-engagement-rows-written")),
       sqlMsWithMetadata: Number(response.headers.get("x-cove-d1-sql-ms")),
       sqlMetadataStatements: Number(response.headers.get("x-cove-d1-sql-metadata-statements")),
       rowsReadWithMetadata: Number(response.headers.get("x-cove-d1-rows-read")),
@@ -114,6 +124,22 @@ try {
   evidence.fixture = await verifySyntheticD1(
     PERFORMANCE_D1.current.id,
     async (id, sql) => (await api("POST", `/d1/database/${id}/query`, { sql }))[0],
+  );
+  const ledgerRole = await api("POST", `/d1/database/${config.d1_databases[1].database_id}/query`, {
+    sql: "SELECT version FROM engagement_schema",
+  });
+  assert.deepEqual(
+    ledgerRole[0].results,
+    [{ version: 1 }],
+    "Separate database schema must be initialized",
+  );
+  const unrelated = await api("POST", `/d1/database/${config.d1_databases[1].database_id}/query`, {
+    sql: "SELECT name FROM sqlite_master WHERE name IN ('products','rights_grants','commerce_orders')",
+  });
+  assert.equal(
+    unrelated[0].results.length,
+    0,
+    "Engagement resource must not contain transactional tables",
   );
   wrangler(["deploy", "--config", "wrangler.discovery-benchmark.jsonc"]);
   wrangler(

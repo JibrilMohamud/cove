@@ -1,3 +1,4 @@
+import { engagementDatabase } from "./recommendation-engagement.server";
 import { z } from "zod";
 import { ApiError, now } from "./service";
 import { resolvePricingDecision } from "./pricing.server";
@@ -110,9 +111,10 @@ export async function recordHttpRequest(
     duration = Math.max(0, Date.now() - trace.startedMs),
     route = new URL(request.url).pathname.replace(/\b[0-9a-f]{8}-[0-9a-f-]{27,}\b/gi, ":id");
   if (input.persist !== false) {
+    const store = response.status >= 500 ? db : engagementDatabase(db);
     try {
-      await db.batch([
-        db
+      await store.batch([
+        store
           .prepare(
             "INSERT OR IGNORE INTO ops_http_requests(id,request_id,trace_id,span_id,parent_span_id,method,route,status_code,duration_ms,actor_kind,storefront_country,error_class,sampled,occurred_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
           )
@@ -131,7 +133,7 @@ export async function recordHttpRequest(
             input.errorClass || null,
             trace.startedAt,
           ),
-        db
+        store
           .prepare(
             "INSERT INTO ops_trace_spans(id,trace_id,span_id,parent_span_id,span_name,span_kind,status,started_at,ended_at,duration_ms,attributes_json) VALUES(?,?,?,?,?,'server',?,?,?,?,?)",
           )
@@ -152,7 +154,7 @@ export async function recordHttpRequest(
               storefrontCountry: input.storefrontCountry || null,
             }),
           ),
-        db
+        store
           .prepare(
             "INSERT INTO ops_metric_points(id,metric_name,metric_type,value,unit,labels_json,observed_at) VALUES(?, 'http.server.duration','histogram',?,'ms',?,?)",
           )
@@ -167,7 +169,14 @@ export async function recordHttpRequest(
             endedAt,
           ),
       ]);
-    } catch {}
+    } catch {
+      console.warn(
+        JSON.stringify({
+          event: "http_telemetry_persist_failed",
+          domain: store === db ? "primary" : "engagement",
+        }),
+      );
+    }
   }
   console.log(
     JSON.stringify({
@@ -268,7 +277,7 @@ async function dependencySnapshot(db: OpsDB) {
         "SELECT MIN(COALESCE(available_at,created_at)) oldest,COUNT(*) count FROM notification_delivery_jobs WHERE status IN ('pending','retry','processing')",
       ),
       latest(
-        db,
+        engagementDatabase(db),
         "SELECT MIN(available_at) oldest,COUNT(*) count FROM recommendation_jobs WHERE status IN ('pending','retry','processing','leased')",
       ),
       latest(
@@ -718,6 +727,27 @@ export async function probeCdnEdge(db: OpsDB, publicUrl: string) {
   return result;
 }
 
+function httpSources(db: OpsDB) {
+  const ledger = engagementDatabase(db);
+  return ledger === db ? [db] : [db, ledger];
+}
+async function httpSloCounts(db: OpsDB, sql: string, args: unknown[]) {
+  const rows = await Promise.all(
+    httpSources(db).map((source) =>
+      source
+        .prepare(sql)
+        .bind(...args)
+        .first<{ total: number; good: number }>(),
+    ),
+  );
+  return rows.reduce<{ total: number; good: number }>(
+    (sum, row) => ({
+      total: sum.total + Number(row?.total || 0),
+      good: sum.good + Number(row?.good || 0),
+    }),
+    { total: 0, good: 0 },
+  );
+}
 export async function refreshSloMeasurements(db: OpsDB) {
   const slos = (
       await db.prepare("SELECT * FROM ops_slo_definitions WHERE status='active'").all<any>()
@@ -730,21 +760,19 @@ export async function refreshSloMeasurements(db: OpsDB) {
       total = 0,
       details: any = {};
     if (s.indicator_type === "availability") {
-      const r = await db
-        .prepare(
-          "SELECT COUNT(*) total,SUM(CASE WHEN status_code<500 THEN 1 ELSE 0 END) good FROM ops_http_requests WHERE occurred_at>=? AND route LIKE '/api/fore/%'",
-        )
-        .bind(start)
-        .first<any>();
+      const r = await httpSloCounts(
+        db,
+        "SELECT COUNT(*) total,SUM(CASE WHEN status_code<500 THEN 1 ELSE 0 END) good FROM ops_http_requests WHERE occurred_at>=? AND route LIKE '/api/fore/%'",
+        [start],
+      );
       total = Number(r?.total || 0);
       good = Number(r?.good || 0);
     } else if (s.indicator_type === "latency") {
-      const r = await db
-        .prepare(
-          "SELECT COUNT(*) total,SUM(CASE WHEN duration_ms<=? AND status_code<500 THEN 1 ELSE 0 END) good FROM ops_http_requests WHERE occurred_at>=? AND route LIKE '/api/fore/%'",
-        )
-        .bind(Number(s.threshold_ms || 750), start)
-        .first<any>();
+      const r = await httpSloCounts(
+        db,
+        "SELECT COUNT(*) total,SUM(CASE WHEN duration_ms<=? AND status_code<500 THEN 1 ELSE 0 END) good FROM ops_http_requests WHERE occurred_at>=? AND route LIKE '/api/fore/%'",
+        [Number(s.threshold_ms || 750), start],
+      );
       total = Number(r?.total || 0);
       good = Number(r?.good || 0);
     } else if (s.indicator_type === "synthetic_success") {
@@ -922,12 +950,26 @@ export async function operationsSnapshot(db: OpsDB) {
       queues,
       alertDeliveries,
     ] = await Promise.all([
-      db
-        .prepare(
-          "SELECT status_code,duration_ms,route,occurred_at FROM ops_http_requests WHERE occurred_at>=? ORDER BY occurred_at DESC LIMIT 5000",
-        )
-        .bind(since)
-        .all<any>(),
+      Promise.all(
+        httpSources(db).map((source) =>
+          source
+            .prepare(
+              "SELECT status_code,duration_ms,route,occurred_at FROM ops_http_requests WHERE occurred_at>=? ORDER BY occurred_at DESC LIMIT 5000",
+            )
+            .bind(since)
+            .all<{
+              status_code: number;
+              duration_ms: number;
+              route: string;
+              occurred_at: string;
+            }>(),
+        ),
+      ).then((parts) => ({
+        results: parts
+          .flatMap((p) => p.results)
+          .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
+          .slice(0, 5000),
+      })),
       db.prepare("SELECT * FROM ops_error_events ORDER BY occurred_at DESC LIMIT 200").all<any>(),
       db
         .prepare(
