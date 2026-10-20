@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import { validateHtml } from "../check-production-storefront-performance.mjs";
 import { stageFetch, closeStageTransport } from "./stage-http-transport.mjs";
@@ -35,10 +36,15 @@ async function probe() {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 const rows = [];
 let offered = 0;
+let dropped = 0;
 async function drive() {
   const pending = new Set();
   const launch = () => {
     offered++;
+    if (pending.size >= 64) {
+      dropped++;
+      return;
+    }
     const task = probe().then(
       (result) => rows.push(result),
       () => rows.push({ valid: false }),
@@ -47,9 +53,9 @@ async function drive() {
     void task.finally(() => pending.delete(task));
   };
   const started = performance.now();
-  for (let index = 0; index < 144; index++) {
-    await sleep(started + (index * 1000) / 12 - performance.now());
-    if (index === 48) {
+  for (let index = 0; index < 320; index++) {
+    await sleep(started + (index * 1000) / 20 - performance.now());
+    if (index === 80 || index === 200) {
       for (let burst = 0; burst < 32; burst++) launch();
     }
     launch();
@@ -62,7 +68,7 @@ async function capture() {
     {
       method: "POST",
       headers: { Authorization: "Bearer " + admin, "Content-Type": "application/json" },
-      body: JSON.stringify({ duration_ms: 8000, profile_type: "cpu" }),
+      body: JSON.stringify({ duration_ms: 12000, profile_type: "cpu" }),
       redirect: "error",
       signal: AbortSignal.timeout(30000),
     },
@@ -84,7 +90,9 @@ fs.mkdirSync("artifacts", { recursive: true });
 const report = {
   scope: "Actual hosted CPU capture; isolated synthetic stage; no production, customers or writers",
   workerClock: "Cloudflare in-Worker clocks advance on I/O and do not measure CPU-only execution",
-  driver: "12 RPS for 12 seconds plus one 32-request burst; attribution only, not a capacity gate",
+  driver:
+    "20 RPS for 16 seconds plus two 32-request bursts; at most 64 in flight; attribution only",
+  boundary: "Fresh one-read deployment; no preceding browser or asset traffic; not a capacity gate",
   commercialCertified: false,
 };
 try {
@@ -94,12 +102,35 @@ try {
   const results = await Promise.allSettled([capture(), drive()]);
   report.offered = offered;
   report.completed = rows.length;
+  report.dropped = dropped;
   report.valid = rows.filter((row) => row.valid).length;
   report.profileCaptured = results[0].status === "fulfilled";
   if (report.profileCaptured) report.profileBytes = results[0].value;
   else report.profileError = String(results[0].reason?.message || "Capture unavailable");
   assert.equal(report.valid, offered, "Profile traffic must exercise real authorized HTML");
   assert.equal(report.profileCaptured, true, report.profileError);
+  const summary = spawnSync(
+    "go",
+    ["tool", "pprof", "-top", "-nodecount=40", "-unit=ms", "artifacts/commercial-parity-cpu.pprof"],
+    { encoding: "utf8" },
+  );
+  assert.equal(summary.status, 0, "Cannot decode deployed CPU profile");
+  const top = summary.stdout;
+  fs.writeFileSync("artifacts/commercial-parity-cpu-top.txt", top);
+  console.log(top);
+  const frames = top
+    .split("\n")
+    .map((line) =>
+      /^\s*\S+\s+[\d.]+%\s+[\d.]+%\s+\S+\s+[\d.]+%\s+(.+)$/.exec(line)?.[1],
+    )
+    .filter((name) => name && !/^\((?:root|idle|program)\)$/.test(name));
+  report.nonIdleFrames = frames.length;
+  report.profileUseful = frames.length > 0;
+  assert.equal(
+    report.profileUseful,
+    true,
+    "Idle-only profile cannot establish request CPU attribution",
+  );
 } finally {
   closeStageTransport();
   fs.writeFileSync("artifacts/commercial-parity-cpu.json", JSON.stringify(report, null, 2));

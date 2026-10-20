@@ -5,6 +5,7 @@ main = "scripts/staging/observed-ssr-entry.mjs"
 compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 minify = false
+upload_source_maps = true
 workers_dev = true
 # Controlled staging experiment: the isolated D1 primary reports ENAM/IAD.
 # Use an explicit nearby region rather than waiting for Smart Placement training.
