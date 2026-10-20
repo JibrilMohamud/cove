@@ -22,6 +22,7 @@ const evidence = {
     runtime: "2026-10-19/nodejs_compat",
     fixture: "50000 wholly synthetic; identical candidate D1 for both renderers",
     productionD1: false,
+    transport: "shared benchmark ingress hostname, service bindings and connection pool",
   },
   cold: [],
   bursts: [],
@@ -37,8 +38,9 @@ const workers = {
   baseline: "cove-thin-control-staging",
   core: "cove-thin-core-staging",
   thin: "cove-thin-pilot-staging",
+  ingress: "cove-thin-ingress-staging",
 };
-const origin = (role) => `https://${workers[role]}.cove-jibrilmohamud.workers.dev`;
+const origin = () => `https://${workers.ingress}.cove-jibrilmohamud.workers.dev`;
 const keys = { baseline: randomBytes(32).toString("hex"), core: randomBytes(32).toString("hex") };
 keys.thin = keys.core;
 function command(args, input) {
@@ -117,6 +119,20 @@ async function readiness() {
   evidence.fixtures = { baseline: a, thin: b };
   save();
 }
+fs.writeFileSync(
+  "wrangler.thin-ingress.json",
+  JSON.stringify({
+    name: workers.ingress,
+    main: "src/storefront-thin/benchmark-ingress.ts",
+    compatibility_date: "2026-10-19",
+    workers_dev: true,
+    services: [
+      { binding: "BASELINE", service: workers.baseline },
+      { binding: "THIN", service: workers.thin },
+    ],
+    observability: { enabled: true, head_sampling_rate: 1 },
+  }),
+);
 const lastDeployments = {};
 async function deploy(role) {
   const config = role === "thin" ? "wrangler.storefront-thin.jsonc" : `wrangler.thin-${role}.toml`;
@@ -190,6 +206,7 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
       headers: {
         authorization: `Bearer ${keys[role]}`,
         "x-cove-perf-client": String(client++ % 1024),
+        "x-cove-perf-renderer": role,
       },
       signal: AbortSignal.timeout(8000),
     });
@@ -227,6 +244,9 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
       rightsCountry: /data-rights-country="([A-Z]{2})"/.exec(body)?.[1],
       colo: r.headers.get("cf-ray")?.split("-").at(-1),
       serverTiming: r.headers.get("server-timing"),
+      rayId: r.headers.get("cf-ray"),
+      observedAt: new Date().toISOString(),
+      ...(valid ? {} : { failureBody: body.slice(0, 300) }),
     };
   } catch (e) {
     return {
@@ -239,9 +259,8 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
     if (fresh) await dispatcher.close();
   }
 }
-const agents = Object.fromEntries(
-  ["baseline", "thin"].map((x) => [x, new Agent({ connections: 128, pipelining: 1 })]),
-);
+const sharedAgent = new Agent({ connections: 128, pipelining: 1 });
+const agents = { baseline: sharedAgent, thin: sharedAgent };
 async function browserCheck(role) {
   const browser = await chromium.launch();
   const results = [];
@@ -255,6 +274,7 @@ async function browserCheck(role) {
         extraHTTPHeaders: {
           authorization: `Bearer ${keys[role]}`,
           "x-cove-perf-client": String(3000 + i),
+          "x-cove-perf-renderer": role,
         },
       });
       const page = await context.newPage();
@@ -357,18 +377,25 @@ async function capacity(role, rate) {
     rows = [],
     pending = new Set();
   let dropped = 0,
-    late = 0;
+    late = 0,
+    stop = false,
+    scheduled = 0;
   for (let n = 0; n < (rate * duration) / 1000; n++) {
     const due = start + n * interval,
       delay = due - performance.now();
     if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+    if (stop) break;
+    scheduled++;
     if (performance.now() - due > 100) late++;
     if (pending.size >= 128) {
       dropped++;
       continue;
     }
     const task = sample(role)
-      .then((r) => rows.push(r))
+      .then((r) => {
+        rows.push(r);
+        if (!r.valid) stop = true;
+      })
       .finally(() => pending.delete(task));
     pending.add(task);
   }
@@ -380,10 +407,12 @@ async function capacity(role, rate) {
     offeredRps: rate,
     durationMs: elapsed,
     completedRps: rows.length / (elapsed / 1000),
+    scheduled,
+    unscheduled: (rate * duration) / 1000 - scheduled,
     dropped,
     late,
     summary: s,
-    pass: !dropped && !late && !s.errors && s.p95 <= 600 && s.p99 <= 750 && s.max < 800,
+    pass: !stop && !dropped && !late && !s.errors && s.p95 <= 600 && s.p99 <= 750 && s.max < 800,
     rows,
   };
 }
@@ -430,7 +459,7 @@ async function verifyRemoteRevocation(before) {
     restored.valid && restored.products.includes(product),
     "Restored synthetic fixture must reappear",
   );
-  const unauth = await fetch(origin("thin"));
+  const unauth = await fetch(origin("thin"), { headers: { "x-cove-perf-renderer": "thin" } });
   assert.equal(unauth.status, 401);
 }
 async function platformSnapshot(role) {
@@ -460,6 +489,10 @@ evidence.startedAt = new Date().toISOString();
 let failed = false;
 try {
   await readiness();
+  await deploy("core");
+  await deploy("baseline");
+  await deploy("thin");
+  command(["deploy", "--config", "wrangler.thin-ingress.json"]);
   for (let round = 1; round <= 3; round++) {
     await deploy("core");
     for (const role of round % 2 ? ["baseline", "thin"] : ["thin", "baseline"]) {
@@ -472,7 +505,7 @@ try {
       evidence.cold.push({ round, role, deployment, summary: s, pass, rows });
       save();
       console.log("cold", round, role, JSON.stringify(s));
-      if (!pass) failed = true;
+      if (!pass && role === "thin") failed = true;
     }
   }
   for (let wave = 1; wave <= 2; wave++)
@@ -484,16 +517,17 @@ try {
         evidence.bursts.push({ wave, role, concurrency, summary: s, pass, rows });
         save();
         console.log("burst", wave, role, concurrency, JSON.stringify(s));
-        if (!pass) failed = true;
+        if (!pass && role === "thin") failed = true;
       }
   for (const role of ["baseline", "thin"]) {
     const rows = await Promise.all(
       Array.from({ length: 32 }, () => sample(role, { route: "/__cove_perf/bootstrap" })),
     );
     const s = summary(rows);
-    evidence.bootstrap.push({ role, concurrency: 32, summary: s, rows });
+    const pass = s.valid === 32 && s.max <= 750;
+    evidence.bootstrap.push({ role, concurrency: 32, summary: s, pass, rows });
     save();
-    if (s.valid !== 32) failed = true;
+    if (!pass && role === "thin") failed = true;
   }
   const a = await sample("baseline"),
     b = await sample("thin");
@@ -561,7 +595,11 @@ try {
     evidence.errors.length === 0 &&
     evidence.cold.filter((x) => x.role === "thin").every((x) => x.pass) &&
     evidence.bursts.filter((x) => x.role === "thin").every((x) => x.pass) &&
+    evidence.bootstrap.filter((x) => x.role === "thin").every((x) => x.pass) &&
+    evidence.capacity.some((x) => x.role === "thin" && x.pass) &&
+    !evidence.capacity.some((x) => x.role === "thin" && x.summary.errors) &&
     evidence.contentParity &&
+    evidence.remoteRevocation?.pass &&
     evidence.matchedColo;
   if (!evidence.architecturalGate) failed = true;
   evidence.finishedAt = new Date().toISOString();
@@ -577,6 +615,6 @@ try {
   evidence.errors.push({ phase: "campaign", error: String(e).slice(0, 2000) });
   save();
 } finally {
-  for (const a of Object.values(agents)) await a.close();
+  await sharedAgent.close();
 }
 if (failed) process.exitCode = 1;

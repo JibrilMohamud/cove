@@ -25,6 +25,8 @@ try {
       "api.server": "src/features/fore/api.server.ts",
       client: "src/storefront-thin/synthetic-client.ts",
       render: "src/storefront-thin/render.ts",
+      ingress: "src/storefront-thin/benchmark-ingress.ts",
+      failure: "src/storefront-thin/failure.ts",
       "storefront-anonymous-bootstrap.server":
         "src/features/fore/storefront-anonymous-bootstrap.server.ts",
     },
@@ -52,6 +54,14 @@ try {
   assert.equal(modeled.headers.get("cf-connecting-ip"), "198.18.2.0");
   assert.equal(modeled.headers.has("x-cove-perf-client"), false);
   const worker = (await import(path.join(root, "worker.js"))).default;
+  const ingress = (await import(path.join(root, "ingress.js"))).default;
+  const { bootstrapFailureKind } = await import(path.join(root, "failure.js"));
+  assert.equal(bootstrapFailureKind(new Error("D1_ERROR: query failed")), "database");
+  assert.equal(bootstrapFailureKind(new Error("opaque token private user SQL")), "unclassified");
+  assert.equal(
+    bootstrapFailureKind(new Error("outer", { cause: new Error("replica disconnected") })),
+    "transient-service",
+  );
   const { handleCoveApi } = await import(path.join(root, "api.server.js"));
   const { serveLeanAnonymousBootstrap } = await import(
     path.join(root, "storefront-anonymous-bootstrap.server.js")
@@ -94,6 +104,39 @@ try {
     return r;
   }
   assert.equal((await worker.fetch(new Request("https://cove.test"), env)).status, 401);
+  for (const role of ["baseline", "thin"]) {
+    const receive = (req) => {
+      assert.equal(req.headers.has("x-cove-perf-renderer"), false);
+      // Native Workers preserve cf when cloning a Request; Node's DOM shim
+      // has no cf support. Model the platform metadata at the binding edge.
+      Object.defineProperty(req, "cf", { value: { country: "US" } });
+      return worker.fetch(req, env);
+    };
+    const bindings = {
+      BASELINE: { fetch: receive },
+      THIN: { fetch: receive },
+    };
+    assert.equal(
+      (
+        await ingress.fetch(
+          new Request("https://test/", { headers: { "x-cove-perf-renderer": role } }),
+          bindings,
+        )
+      ).status,
+      401,
+    );
+    assert.equal(
+      (await ingress.fetch(request("US", { "x-cove-perf-renderer": role }), bindings)).status,
+      200,
+    );
+  }
+  assert.equal((await ingress.fetch(request(), {})).status, 404);
+  const diagnostic = await worker.fetch(request("US", {}, "/__cove_perf/bootstrap"), env);
+  assert.equal(diagnostic.status, 200);
+  const probe = await diagnostic.json();
+  assert.equal(probe.renderer, "thin");
+  assert.equal(probe.stage, "bootstrap");
+  assert.ok(probe.ok && probe.books > 0 && probe.markets > 0);
   assert.equal(
     (await worker.fetch(request(), { ...env, COVE_THIN_STOREFRONT: "production" })).status,
     503,

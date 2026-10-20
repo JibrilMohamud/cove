@@ -12,6 +12,7 @@ import {
 } from "../features/fore/storefront-anonymous-bootstrap.server";
 import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap";
 import { renderThinStorefront } from "./render";
+import { bootstrapFailureKind } from "./failure";
 
 // The shared app uses DOM Request/Response types. Adapt only Fetcher's
 // structural web signature; generated configuration still owns every binding.
@@ -28,11 +29,13 @@ export default {
     if (rejected) return rejected;
     const finish = (response: Response) =>
       stageNoStore(applySecurityHeaders(request, response, env), true);
+    let failurePhase = "entry";
     try {
       const url = new URL(request.url);
+      const diagnostic = url.pathname === "/__cove_perf/bootstrap" && !url.search;
       // Service binding preserves all existing auth, account, reader, API and
       // filtered navigation. No public HTTP hop or recursive homepage fetch.
-      if (request.method !== "GET" || url.pathname !== "/" || url.search)
+      if (request.method !== "GET" || (!diagnostic && (url.pathname !== "/" || url.search)))
         return await env.CORE.fetch(request);
       const safe = isolateWorkerCountry(syntheticClient(request, env));
       if (!safe)
@@ -47,11 +50,36 @@ export default {
       // and account state cannot leak into an anonymous response.
       if (!canUseLeanAnonymousBootstrap(bootstrapRequest, env))
         return await env.CORE.fetch(request);
-      const response = await serveLeanAnonymousBootstrap(bootstrapRequest, env);
+      failurePhase = "bootstrap";
+      const response = await serveLeanAnonymousBootstrap(bootstrapRequest, env, (phase) => {
+        failurePhase = phase;
+      });
       if (!response.ok) return finish(new Response(null, { status: response.status }));
       const bootstrap = (await response.json()) as StorefrontBootstrap;
       if (bootstrap.context.rightsCountry !== headers.get("x-cove-client-country"))
         throw new Error("Thin storefront territorial mismatch");
+      if (diagnostic) {
+        if (!Array.isArray(bootstrap.context.availableMarkets) || !bootstrap.catalog.results.length)
+          throw new Error("Anonymous market projection is unavailable.");
+        return finish(
+          new Response(
+            JSON.stringify({
+              stage: "bootstrap",
+              ok: true,
+              renderer: "thin",
+              books: bootstrap.catalog.results.length,
+              markets: bootstrap.context.availableMarkets.length,
+            }),
+            {
+              headers: {
+                "content-type": "application/json",
+                "server-timing": response.headers.get("server-timing") || "",
+              },
+            },
+          ),
+        );
+      }
+      failurePhase = "render";
       return finish(
         new Response(renderThinStorefront(bootstrap, env.FORE_PUBLIC_URL || url.origin), {
           headers: {
@@ -68,7 +96,14 @@ export default {
         typeof error === "object" && error !== null && "status" in error && error.status === 429
           ? 429
           : 503;
-      console.error(JSON.stringify({ event: "thin_storefront_failed", status }));
+      console.error(
+        JSON.stringify({
+          event: "thin_storefront_failed",
+          status,
+          phase: failurePhase,
+          kind: bootstrapFailureKind(error),
+        }),
+      );
       return finish(new Response("Storefront temporarily unavailable.", { status }));
     }
   },

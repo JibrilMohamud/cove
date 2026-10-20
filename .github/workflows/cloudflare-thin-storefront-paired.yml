@@ -58,7 +58,7 @@ jobs:
       - name: Clean up only this experiment's Workers
         if: always()
         run: |
-          for script in cove-thin-pilot-staging cove-thin-core-staging cove-thin-control-staging; do
+          for script in cove-thin-pilot-staging cove-thin-core-staging cove-thin-control-staging cove-thin-ingress-staging; do
             curl --fail-with-body -sS --max-time 30 -X DELETE \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
               "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$script?force=true" \

@@ -50,6 +50,7 @@ export function canUseLeanAnonymousBootstrap(
 export async function serveLeanAnonymousBootstrap(
   request: Request,
   env: CoveEnv,
+  onFailure?: (phase: string, error: unknown) => void,
 ): Promise<Response> {
   if (!canUseLeanAnonymousBootstrap(request, env))
     return new Response(null, { status: 403, headers: { "cache-control": "no-store" } });
@@ -59,6 +60,9 @@ export async function serveLeanAnonymousBootstrap(
     const began = performance.now();
     try {
       return await task;
+    } catch (error) {
+      onFailure?.(name, error);
+      throw error;
     } finally {
       timings[name] = performance.now() - began;
     }
