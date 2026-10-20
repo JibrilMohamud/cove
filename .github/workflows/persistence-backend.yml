@@ -154,6 +154,8 @@ jobs:
           npm run test:social-pagination
       - name: Catalog network recovery
         run: node scripts/check-catalog-fetch.mjs
+      - name: Regional canonical EPUB reader-asset and withdrawal repair
+        run: npm run test:regional-epub-repair
       - name: Compute budget and cache privacy
         # Budget/privacy assertions run without paid services or production data.
         run: npm run test:compute-budget
