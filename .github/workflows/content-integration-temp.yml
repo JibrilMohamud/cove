@@ -1,0 +1,34 @@
+name: Temporary content release integration
+on:
+  push:
+    branches:
+      - integration/content-commercial-20261020
+    paths:
+      - ".github/workflows/content-integration-temp.yml"
+permissions:
+  contents: write
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Create isolated three-PR integration candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin fix/regional-epub-asset-repair-20261020 feat/content-processing-isolation-20261020 perf/literary-budget-settlement-20261020
+          git merge --no-ff --no-edit origin/fix/regional-epub-asset-repair-20261020
+          git merge --no-ff --no-edit origin/feat/content-processing-isolation-20261020
+          git merge --no-ff --no-edit origin/perf/literary-budget-settlement-20261020
+          test -f src/features/fore/regional-epub-asset-repair.server.ts
+          test -f src/content-processing.worker.ts
+          test -f src/lib/literary-budget-settlement.ts
+          test -f scripts/check-content-processing-isolation.mjs
+          test -f scripts/check-literary-budget-settlement.mjs
+          test -f scripts/check-regional-epub-asset-repair.mjs
+          git push origin HEAD:integration/content-commercial-20261020
