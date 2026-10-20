@@ -1,3 +1,4 @@
+import type { CoveEnv } from "./features/fore/api.server";
 import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
@@ -148,8 +149,8 @@ export default {
         new URL(request.url).pathname === "/api/fore/storefront/bootstrap"
       ) {
         const lean = await import("./features/fore/storefront-anonymous-bootstrap.server");
-        if (lean.canUseLeanAnonymousBootstrap(request, foreEnv as any)) {
-          const response = await lean.serveLeanAnonymousBootstrap(request, foreEnv as any);
+        if (lean.canUseLeanAnonymousBootstrap(request, foreEnv as CoveEnv)) {
+          const response = await lean.serveLeanAnonymousBootstrap(request, foreEnv as CoveEnv);
           return stageNoStore(applySecurityHeaders(request, response, foreEnv), true);
         }
       }
@@ -162,8 +163,8 @@ export default {
         new URL(request.url).pathname === "/api/fore/catalog"
       ) {
         const lean = await import("./features/fore/storefront-anonymous-catalog.server");
-        if (lean.canUseLeanAnonymousCatalog(request, foreEnv as any)) {
-          const response = await lean.serveLeanAnonymousCatalog(request, foreEnv as any);
+        if (lean.canUseLeanAnonymousCatalog(request, foreEnv as CoveEnv)) {
+          const response = await lean.serveLeanAnonymousCatalog(request, foreEnv as CoveEnv);
           return stageNoStore(applySecurityHeaders(request, response, foreEnv), true);
         }
       }
@@ -172,7 +173,7 @@ export default {
       const apiResponse = new URL(request.url).pathname.startsWith("/api/fore/")
         ? await (
             await import("./features/fore/api.server")
-          ).handleCoveApi(request, foreEnv as any, execution)
+          ).handleCoveApi(request, foreEnv as CoveEnv, execution)
         : null;
       if (apiResponse) {
         return stageNoStore(applySecurityHeaders(request, apiResponse, foreEnv), staging);

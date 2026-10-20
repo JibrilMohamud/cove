@@ -47,18 +47,39 @@ jobs:
           import fs from "node:fs";
           import prettier from "prettier";
           const files = [
-            "src/features/fore/localization.server.ts",
+            "scripts/staging/check-anonymous-context-singleflight.mjs",
+            "scripts/staging/check-anonymous-homepage-prefetch.mjs",
+            "scripts/staging/check-commercial-parity-rps.mjs",
+            "scripts/staging/check-commercial-parity-ssr.mjs",
+            "scripts/staging/check-commercial-parity-state.mjs",
+            "scripts/staging/reconstruct-d1-schema-only.mjs",
+            "scripts/staging/seed-commercial-parity.mjs",
+            "scripts/staging/verify-schema-only-export.mjs",
+            "src/features/fore/anonymous-context-singleflight.server.ts",
+            "src/features/fore/api.server.ts",
+            "src/features/fore/search.server.ts",
+            "src/features/fore/taxonomy.server.ts",
+            "src/server.ts",
             "src/features/fore/storefront-anonymous-bootstrap.server.ts",
-            "src/features/fore/storefront-anonymous-catalog.server.ts",
-            "scripts/staging/check-anonymous-context-one-read.mjs",
-            ".github/workflows/commercial-parity-ssr-smoke.yml",
+            "scripts/check-storefront-bootstrap.mjs",
+            ".github/workflows/commercial-parity-ssr-smoke.yml"
           ];
           for (const path of files) {
             const source = fs.readFileSync(path, "utf8");
             const options = await prettier.resolveConfig(path);
             const formatted = await prettier.format(source, { ...options, filepath: path });
             if (source !== formatted)
-              console.log("COVE_FORMATTED " + JSON.stringify({ path, content: formatted }));
+              {
+                let start = 0;
+                while (start < source.length && source[start] === formatted[start]) start++;
+                let suffix = 0;
+                while (suffix < source.length - start &&
+                  source[source.length - 1 - suffix] === formatted[formatted.length - 1 - suffix]) suffix++;
+                console.log("COVE_FORMAT_DELTA " + JSON.stringify({
+                  path, start, end: source.length - suffix,
+                  content: formatted.slice(start, formatted.length - suffix)
+                }));
+              }
           }
           NODE
       - name: Check canonical localization parity and one-read context

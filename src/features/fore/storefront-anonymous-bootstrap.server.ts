@@ -36,6 +36,7 @@ export function canUseLeanAnonymousBootstrap(
     "oai-authenticated-user-id",
     "oai-authenticated-user-email",
     "x-fore-authenticated-user-id",
+    "x-fore-authenticated-user-email",
   ])
     if (request.headers.has(header)) return false;
   if (!/^[A-Z]{2}$/.test(request.headers.get("x-cove-client-country") || "")) return false;
@@ -114,16 +115,17 @@ export async function serveLeanAnonymousBootstrap(
   // its bounded candidates concurrently with the market and authoritative
   // live catalog queries, then apply the resolved language. Ambiguous
   // overlapping page definitions use the original exact D1 selector.
+  const pageMetadata = readMetadata();
   const homeCandidatesPromise = timed(
     "page_prefetch",
-    prefetchAnonymousHomepageCandidates(readMetadata(), trustedCountry),
+    prefetchAnonymousHomepageCandidates(pageMetadata, trustedCountry),
   );
   const pagePromise = Promise.all([contextPromise, homeCandidatesPromise]).then(
     ([context, candidates]) =>
       timed(
         "page",
         resolvePrefetchedAnonymousHomepage(
-          readMetadata(),
+          pageMetadata,
           candidates,
           context.rightsCountry,
           context.language,
