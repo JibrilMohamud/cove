@@ -709,6 +709,24 @@ try {
   // Customer-like reads run concurrently against the SAME synthetic D1:
   // homepage, filtered catalog, personalized recommendations and campaigns.
   // These GET journeys cannot certify cart, checkout, reading or account POST.
+  // Distinguish an individually expensive catalog/rec/merch path from
+  // aggregate D1 contention. This phase is diagnostic only and never
+  // substitutes for strict homepage or full mixed-load acceptance.
+  evidence.apiLoadDiagnosis = [];
+  for (const route of [
+    "/api/fore/catalog?search=Synthetic&sort=popular&page=1&currency=USD",
+    "/api/fore/recommendations/home?visitor=00000000-0000-4000-8000-000000000001&limit=12",
+    "/api/fore/merchandising?visitor=00000000-0000-4000-8000-000000000001",
+  ]) {
+    for (const rate of [10, 25]) {
+      await new Promise((done) => setTimeout(done, 2000));
+      const run = await capacity("thin", rate, { route, duration: 6000 });
+      evidence.apiLoadDiagnosis.push(run);
+      save();
+      console.log("api-route-diagnosis", route.split("?")[0], rate, JSON.stringify(run.summary));
+      if (run.summary.errors) break;
+    }
+  }
   // A passing HTTP 200 without this marker has NOT activated the
   // nonessential telemetry-write bypass, so cannot prove improvement.
   evidence.telemetryProbes = [];
