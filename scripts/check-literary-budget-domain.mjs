@@ -125,6 +125,16 @@ assert.equal(
 );
 await assert.rejects(resolveLiteraryBudgetDb(external, day), /not_seeded/);
 await assert.rejects(resolveLiteraryBudgetDb(external, "2026-10-21"), /not_seeded/);
+// A secondary binding accidentally routed to a rights/commerce D1 is
+// rejected even if somebody copied the ledger schema to that database.
+isolatedDb.prepare("UPDATE literary_budget_cutover SET status='active' WHERE day=?").run(day);
+isolatedDb.exec("CREATE TABLE rights_grants(id TEXT PRIMARY KEY)");
+await assert.rejects(resolveLiteraryBudgetDb(external, day), /binding_not_isolated/);
+assert.equal(
+  await reserveLiteraryBudget(content, day, 1, 400, true),
+  null,
+  "The actual isolated debit SQL must reject an authority-table-contaminated database",
+);
 await assert.rejects(resolveLiteraryBudgetDb(external, "garbage"), /Invalid/);
 await assert.rejects(reserveLiteraryBudget(content, day, -1, 400, true), /Invalid/);
 
