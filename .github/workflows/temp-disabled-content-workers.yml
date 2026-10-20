@@ -1,0 +1,71 @@
+name: temporary-staging-disabled-content-workers
+on:
+  push:
+    branches:
+      - stage/disabled-content-workers-20261020
+permissions:
+  contents: read
+concurrency:
+  group: cove-content-workers-isolated-disabled-smoke
+  cancel-in-progress: false
+jobs:
+  disabled-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:content-processing-isolation
+      - run: npm run build:content-processing
+      - name: Deploy ephemeral DISABLED content roles, check HTTP closure and clean up
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo "::error::Missing Cloudflare staging token"; exit 1; }
+          function cleanup() {
+            for role in assets literary; do
+              npx wrangler delete --config "smoke-${role}.toml" --force || true
+            done
+          }
+          trap cleanup EXIT
+          for role in assets literary; do
+            cat > "smoke-${role}.toml" <<EOF
+          name = "cove-content-off-${role}-20261020"
+          main = "content-dist/worker.js"
+          compatibility_date = "2026-10-09"
+          workers_dev = true
+          [limits]
+          cpu_ms = 300000
+          [[d1_databases]]
+          binding = "DB"
+          database_name = "cove-content-repair-stage-20261020"
+          database_id = "dbcc0d95-8ca2-4036-ad78-49dbc0ee4b38"
+          [[r2_buckets]]
+          binding = "BUCKET"
+          bucket_name = "cove-content-repair-stage-20261020"
+          [ai]
+          binding = "AI"
+          [vars]
+          FORE_CONTENT_PROCESSOR_ENABLED = "0"
+          FORE_CONTENT_PROCESSOR_ROLE = "${role}"
+          FORE_ASSETS_PER_MINUTE = "1"
+          FORE_CONTENT_D1_ADMISSION_MAX_MS = "100"
+          [triggers]
+          crons = ["* * * * *"]
+          EOF
+            npx wrangler deploy --config "smoke-${role}.toml"
+            URL="https://cove-content-off-${role}-20261020.cove-jibrilmohamud.workers.dev/"
+            HTTP=$(curl --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
+              --max-time 20 -o /dev/null -w "%{http_code}" "$URL")
+            echo "role=${role} unauthenticated_http=${HTTP} enabled=0"
+            [ "$HTTP" = "404" ] || { echo "::error::Unexpected public content Worker behavior"; exit 1; }
+          done
+          # No scheduled content work can run in the disabled-by-default Worker.
+          echo "Both independent Workers deployed, denied HTTP, and will be cleaned up."
