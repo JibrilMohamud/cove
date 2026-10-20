@@ -378,7 +378,9 @@ import {
   uploadPartnerAsset,
   uploadPartnerAssetBatch,
 } from "./traditional-publishing.server";
+import { singleflightAnonymousPresentation } from "./anonymous-context-singleflight.server";
 import {
+  networkCountry,
   localizationAdminSnapshot,
   recordStorefrontContext,
   resolveStorefrontContext,
@@ -3062,12 +3064,30 @@ async function handleCoveRequest(
     const [storefront, bootstrapPreflight] = await Promise.all([
       timed(
         "context",
-        resolveStorefrontContext(
-          dbForContext,
-          request,
-          currentIdentity?.id || null,
-          env.FORE_DEFAULT_TERRITORY || "US",
-        ),
+        (request.method === "GET" &&
+        (path === "/catalog" || firstPaint) &&
+        !currentIdentity?.id &&
+        (env as CoveEnv & { FORE_ANON_CONTEXT_SINGLEFLIGHT?: string })
+          .FORE_ANON_CONTEXT_SINGLEFLIGHT === "1"
+          ? singleflightAnonymousPresentation(
+              machineDb,
+              request,
+              networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country,
+              false,
+              () =>
+                resolveStorefrontContext(
+                  dbForContext,
+                  request,
+                  null,
+                  env.FORE_DEFAULT_TERRITORY || "US",
+                ),
+            )
+          : resolveStorefrontContext(
+              dbForContext,
+              request,
+              currentIdentity?.id || null,
+              env.FORE_DEFAULT_TERRITORY || "US",
+            )),
       ),
       firstPaint
         ? Promise.all([
