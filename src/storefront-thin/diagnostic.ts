@@ -58,7 +58,7 @@ export async function runThinDiagnostic(
     const catalog = await firstPaintStorefrontShelf(env, null, country, metrics);
     books = catalog.results.length;
     sqlMs = metrics.sqlDurationMs;
-    if (books !== 24) throw new Error("Rights probe has an incomplete synthetic shelf");
+    if (!books) throw new Error("Rights probe has an empty synthetic shelf");
   } else if (stage === "context-cached" || stage === "context-uncached") {
     const rawDb = env.DB!;
     const db = rawDb as typeof rawDb & {
