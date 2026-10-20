@@ -4,6 +4,7 @@ on:
     branches:
       - perf/thin-d1-queue-attribution-20261020
       - perf/synthetic-telemetry-isolation-20261020
+      - perf/synthetic-telemetry-gate-recovery-20261020
       - perf/thin-experience-parity-20261020
   workflow_dispatch:
 permissions:

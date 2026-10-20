@@ -1332,7 +1332,7 @@ async function requestRecord(
     scorerMode: "local",
     fallbackReason: "",
   };
-  await db
+  const requestWrite = db
     .prepare(
       "INSERT INTO recommendation_requests(id,user_id,visitor_id,surface,anchor_product_id,model_key,model_version,experiment_id,experiment_variant,algorithm,consent_mode,territory_code,context_json,candidate_count,latency_ms,scorer_mode,fallback_reason,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
     )
@@ -1359,15 +1359,16 @@ async function requestRecord(
       telemetry.scorerMode,
       telemetry.fallbackReason,
       at,
+    );
+  // A rail has at most 20 impressions: 160 bound values, not 20 serial
+  // Worker-to-D1 requests. Keep request and impressions atomic; do not
+  // weaken recommendation evidence or turn a failed write into success.
+  const impressionsWrite = db
+    .prepare(
+      `INSERT INTO recommendation_impressions(request_id,product_id,position,score,reason_code,reason_text,candidate_sources_json,feature_snapshot_json) VALUES ${candidates.map(() => "(?,?,?,?,?,?,?,?)").join(",")}`,
     )
-    .run();
-  for (let i = 0; i < candidates.length; i++) {
-    const c = candidates[i];
-    await db
-      .prepare(
-        "INSERT INTO recommendation_impressions(request_id,product_id,position,score,reason_code,reason_text,candidate_sources_json,feature_snapshot_json) VALUES(?,?,?,?,?,?,?,?)",
-      )
-      .bind(
+    .bind(
+      ...candidates.flatMap((c, i) => [
         id,
         c.productId,
         i + 1,
@@ -1376,9 +1377,9 @@ async function requestRecord(
         c.reasonText,
         JSON.stringify([...c.sources]),
         JSON.stringify(c.rankFeatures || []),
-      )
-      .run();
-  }
+      ]),
+    );
+  await db.batch([requestWrite, impressionsWrite]);
   return id;
 }
 
@@ -1403,24 +1404,44 @@ async function eligibleRecommendationIds(
   }
   const unique = uniq(ids),
     ph = unique.map(() => "?").join(",");
+  // This is an authoritative, per-request primary-D1 rights read. The
+  // edition ID comes from the same row, so anonymous callers do not need
+  // a second heavyweight product metadata hydration just for series gates.
+  // For an anonymous visitor no prior series volume has ever been
+  // completed. Apply the exact original series gate in the SAME fresh
+  // authoritative D1 statement instead of sending a second query for each
+  // 80-item chunk. An authenticated reader retains the personalized gate.
+  const anonymousSeriesGate = userId
+    ? ""
+    : ` AND NOT EXISTS(
+        SELECT 1 FROM series_memberships sm
+        WHERE sm.edition_id=e.id AND sm.position>1 AND EXISTS(
+          SELECT 1 FROM series_memberships previous
+          WHERE previous.series_id=sm.series_id AND previous.position<sm.position
+        )
+      )`;
   const rows = await db
     .prepare(
-      `SELECT p.id FROM products p JOIN editions e ON e.id=p.edition_id WHERE p.id IN (${ph}) AND p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder') AND EXISTS(SELECT 1 FROM retail_product_availability_rows rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))`,
+      `SELECT p.id,e.id edition_id FROM products p JOIN editions e ON e.id=p.edition_id WHERE p.id IN (${ph}) AND p.storefront_status='active' AND p.source_name<>'upload' AND e.release_status IN ('available','preorder') AND EXISTS(SELECT 1 FROM retail_product_availability_rows rpa WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))${anonymousSeriesGate}`,
     )
     .bind(...unique, territory)
-    .all<any>();
+    .all<{ id: string; edition_id: string }>();
   const allowed = new Set<string>(rows.results.map((x) => String(x.id))),
-    hidden = await hiddenSet(db, userId),
-    metas = await productMeta(db, [...allowed]);
-  for (const id of [...allowed]) {
-    const meta = metas.get(id);
-    if (
-      hidden.products.has(id) ||
-      meta?.authorIds.some((x) => hidden.authors.has(x)) ||
-      meta?.seriesIds.some((x) => hidden.series.has(x))
-    )
-      allowed.delete(id);
+    editions = new Map(rows.results.map((x) => [String(x.id), String(x.edition_id)]));
+  if (userId) {
+    const hidden = await hiddenSet(db, userId),
+      metas = await productMeta(db, [...allowed]);
+    for (const id of [...allowed]) {
+      const meta = metas.get(id);
+      if (
+        hidden.products.has(id) ||
+        meta?.authorIds.some((x) => hidden.authors.has(x)) ||
+        meta?.seriesIds.some((x) => hidden.series.has(x))
+      )
+        allowed.delete(id);
+    }
   }
+  if (!userId) return allowed;
   const series = await db
     .prepare(
       `SELECT sm.edition_id FROM series_memberships sm JOIN products p ON p.edition_id=sm.edition_id WHERE p.id IN (${ph}) AND sm.position>1 AND EXISTS(SELECT 1 FROM series_memberships previous WHERE previous.series_id=sm.series_id AND previous.position<sm.position AND NOT EXISTS(SELECT 1 FROM reading_states rs JOIN products rp ON rp.id=rs.product_id WHERE rs.user_id=? AND rp.edition_id=previous.edition_id AND rs.status='finished'))`,
@@ -1428,11 +1449,9 @@ async function eligibleRecommendationIds(
     .bind(...unique, userId || "")
     .all<{ edition_id: string }>();
   const blockedEditions = new Set(series.results.map((r) => r.edition_id));
-  for (const id of allowed)
-    if (blockedEditions.has(metas.get(id)?.editionId || "")) allowed.delete(id);
+  for (const id of allowed) if (blockedEditions.has(editions.get(id) || "")) allowed.delete(id);
   return allowed;
 }
-
 async function makeRail(
   env: RecommendationEnv,
   opts: {
@@ -1458,18 +1477,23 @@ async function makeRail(
     excludeProductIds?: Set<string>;
     excludeOwned?: boolean;
     explorationRate?: number;
+    /** Request-scoped, primary-D1-validated anonymous IDs; never cached. */
+    prevalidatedAnonymousIds?: Set<string>;
   },
 ): Promise<RecommendationRail | null> {
   const model = opts.model || (await activeModel(env.DB)),
     filtered = opts.excludeProductIds?.size
       ? opts.candidates.filter((x) => !opts.excludeProductIds!.has(x.productId))
       : opts.candidates;
-  const allowed = await eligibleRecommendationIds(
-    env.DB,
-    filtered.map((x) => x.productId),
-    opts.territory,
-    opts.userId,
-  );
+  const allowed =
+    !opts.userId && opts.prevalidatedAnonymousIds
+      ? new Set(opts.prevalidatedAnonymousIds)
+      : await eligibleRecommendationIds(
+          env.DB,
+          filtered.map((x) => x.productId),
+          opts.territory,
+          opts.userId,
+        );
   if (opts.excludeOwned && opts.userId) {
     const owned = await ownedSet(env.DB, opts.userId);
     for (const id of owned) allowed.delete(id);
@@ -1671,10 +1695,16 @@ async function editorialCandidates(db: CatalogDB, limit = 24) {
 }
 
 async function augmentMeta(db: CatalogDB, candidates: Candidate[]) {
-  const metas = await productMeta(
-    db,
-    candidates.map((x) => x.productId),
-  );
+  // The candidate pool already hydrates each neutral product once. The
+  // anonymous home rails share it, so querying the same 450 metadata rows
+  // again for each rail only adds D1 contention without improving freshness.
+  // Auth and editorial candidates still hydrate missing metadata normally.
+  const metas = candidates.every((candidate) => candidate.meta !== undefined)
+    ? new Map(candidates.map((candidate) => [candidate.productId, candidate.meta!]))
+    : await productMeta(
+        db,
+        candidates.map((x) => x.productId),
+      );
   return candidates
     .filter((x) => metas.has(x.productId))
     .map((x) => ({
@@ -1706,6 +1736,19 @@ export async function homeRecommendations(
     }),
     rails: RecommendationRail[] = [],
     used = new Set<string>();
+  // All anonymous rails share the SAME fresh rights snapshot for this
+  // request, rather than running identical expensive checks per rail.
+  // Anonymous eligibility is never shared across requests, territories,
+  // users or Worker isolates, and revocations apply on the next request.
+  const editorial = await augmentMeta(env.DB, await editorialCandidates(env.DB));
+  const anonymousAllowed = !opts.userId
+    ? await eligibleRecommendationIds(
+        env.DB,
+        [...new Set([...base.candidates, ...editorial].map((c) => c.productId))],
+        opts.territory,
+        null,
+      )
+    : undefined;
   const add = async (promise: Promise<RecommendationRail | null>) => {
     const rail = await promise;
     if (!rail) return;
@@ -1729,6 +1772,7 @@ export async function homeRecommendations(
       model,
       telemetry: base.telemetry,
       excludeProductIds: used,
+      prevalidatedAnonymousIds: anonymousAllowed,
     }),
   );
   const anchor = personalized ? await recentAnchor(env.DB, opts.userId) : null;
@@ -1901,9 +1945,9 @@ export async function homeRecommendations(
       model,
       telemetry: base.telemetry,
       excludeProductIds: used,
+      prevalidatedAnonymousIds: anonymousAllowed,
     }),
   );
-  const editorial = await augmentMeta(env.DB, await editorialCandidates(env.DB));
   await add(
     makeRail(env, {
       key: "editors-picks",
@@ -1917,6 +1961,7 @@ export async function homeRecommendations(
       personalized: false,
       model,
       excludeProductIds: used,
+      prevalidatedAnonymousIds: anonymousAllowed,
       excludeOwned: true,
     }),
   );

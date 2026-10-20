@@ -19,6 +19,7 @@ import {
 } from "./gutenberg-federation.server";
 import { z } from "zod";
 import { shouldUseConsoleOnlyHttpTelemetry } from "./telemetry-isolation.server";
+import { syntheticDbFailureCategory } from "./synthetic-db-diagnostics.server";
 import {
   addSeriesToCart,
   editionResolve,
@@ -2787,14 +2788,16 @@ export async function handleCoveApi(
   const logStarted = performance.now();
   if (env.DB) {
     const identifiedUser = !!identity(tracedRequest);
+    const consoleOnly = shouldUseConsoleOnlyHttpTelemetry(
+      env,
+      tracedRequest,
+      response.status,
+      identifiedUser,
+    );
+    if (consoleOnly) response.headers.set("x-cove-perf-telemetry", "worker-log");
     const work = recordHttpRequest(env.DB as any, trace, tracedRequest, response, {
       actorKind: identifiedUser ? "user" : "anonymous",
-      persist: !shouldUseConsoleOnlyHttpTelemetry(
-        env,
-        tracedRequest,
-        response.status,
-        identifiedUser,
-      ),
+      persist: !consoleOnly,
     });
     if (execution?.waitUntil) {
       execution.waitUntil(work);
@@ -5956,7 +5959,7 @@ async function handleCoveRequest(
       e instanceof Error ? e.message : "Unknown",
       (e as any)?.cause?.code || "",
     );
-    return json(
+    const failure = json(
       {
         error:
           request.method === "GET"
@@ -5965,5 +5968,11 @@ async function handleCoveRequest(
       },
       503,
     );
+    if (
+      env.COVE_SSR_STAGING === "1" &&
+      env.COVE_PERF_DATABASE_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3"
+    )
+      failure.headers.set("x-cove-perf-error-category", syntheticDbFailureCategory(e));
+    return failure;
   }
 }

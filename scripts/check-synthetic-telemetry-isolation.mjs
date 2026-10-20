@@ -93,7 +93,9 @@ assert.equal(skipD1(fixture, make("/api/fore/catalog", { method: "POST" }), 200,
 import fs from "node:fs";
 const api = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
 const ops = fs.readFileSync("src/features/fore/operations.server.ts", "utf8");
-assert.match(api, /persist: !shouldUseConsoleOnlyHttpTelemetry\(/);
+assert.match(api, /const consoleOnly = shouldUseConsoleOnlyHttpTelemetry\(/);
+assert.match(api, /persist: !consoleOnly/);
+assert.match(api, /x-cove-perf-telemetry/);
 assert.match(ops, /if \(input.persist !== false\)/);
 assert.match(ops, /telemetrySink: "worker-log"/);
 assert.match(ops, /INSERT INTO ops_trace_spans/);
@@ -101,3 +103,25 @@ assert.match(ops, /INSERT INTO ops_metric_points/);
 assert.match(ops, /export async function recordErrorEvent/);
 assert.match(ops, /event: "http_request"/);
 console.log("Synthetic telemetry write isolation and retained security logging: PASS");
+
+const diagnosticOutput = await build({
+  entryPoints: ["src/features/fore/synthetic-db-diagnostics.server.ts"],
+  bundle: true,
+  format: "esm",
+  platform: "node",
+  write: false,
+});
+const diagnosticUrl =
+  "data:text/javascript;base64," +
+  Buffer.from(diagnosticOutput.outputFiles[0].contents).toString("base64");
+const { syntheticDbFailureCategory: classify } = await import(diagnosticUrl);
+assert.equal(
+  classify(new Error("D1_ERROR: D1 DB is overloaded. Requests queued for too long.")),
+  "database-queue-or-overload",
+);
+assert.equal(classify(new Error("SQLITE_BUSY: database is locked")), "database-queue-or-overload");
+assert.equal(
+  classify(new Error("D1_ERROR: no such column: synthetic")),
+  "database-schema-or-statement",
+);
+assert.equal(classify(new Error("D1_ERROR: unknown failure")), "database-other");
