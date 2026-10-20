@@ -74,9 +74,7 @@ async function readLeanAnonymousCatalog(request: Request, env: CoveEnv) {
   };
   // Public configuration, live rights-scoped search and operation metadata
   // are independent. Await ALL of them before releasing any catalog data.
-  const [market, catalog, state] = await Promise.all([
-    resolveContext(),
-    searchCatalog(env, input, null),
+  const readState = async () =>
     env.DB.prepare(
       "SELECT status,page,last_success_at,total_catalog_count FROM catalog_state WHERE id=1",
     ).first<{
@@ -84,7 +82,11 @@ async function readLeanAnonymousCatalog(request: Request, env: CoveEnv) {
       page: number;
       last_success_at: string | null;
       total_catalog_count: number;
-    }>(),
+    }>();
+  const [market, catalog, state] = await Promise.all([
+    resolveContext(),
+    searchCatalog(env, input, null),
+    readState(),
   ]);
   if (market.rightsCountry !== territory)
     throw new Error("Catalog market and trusted territory disagree.");

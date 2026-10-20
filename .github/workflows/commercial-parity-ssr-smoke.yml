@@ -44,6 +44,44 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Resolve dependency advisories in an isolated temporary lockfile
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import os from "node:os";
+          import path from "node:path";
+          import { spawnSync } from "node:child_process";
+          const audit = spawnSync("npm", ["audit", "--json"], { encoding: "utf8" });
+          try {
+            const data = JSON.parse(audit.stdout);
+            for (const [name, item] of Object.entries(data.vulnerabilities || {}))
+              if (item.severity === "high" || item.severity === "critical")
+                console.log("COVE_AUDIT " + JSON.stringify({ name, ...item }));
+          } catch { console.log("COVE_AUDIT unavailable"); }
+          const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "cove-safe-lock-"));
+          try {
+            for (const file of ["package.json", "package-lock.json"])
+              fs.copyFileSync(file, path.join(temporary, file));
+            const result = spawnSync("npm",
+              ["audit", "fix", "--package-lock-only", "--ignore-scripts", "--json"],
+              { cwd: temporary, encoding: "utf8", timeout: 180000 });
+            console.log("COVE_AUDIT_FIX " + JSON.stringify({ status: result.status }));
+            for (const file of ["package.json", "package-lock.json"]) {
+              const source = fs.readFileSync(file, "utf8");
+              const fixed = fs.readFileSync(path.join(temporary, file), "utf8");
+              if (source === fixed) continue;
+              let start = 0;
+              while (start < source.length && source[start] === fixed[start]) start++;
+              let suffix = 0;
+              while (suffix < source.length - start &&
+                source[source.length - 1 - suffix] === fixed[fixed.length - 1 - suffix]) suffix++;
+              console.log("COVE_DEPENDENCY_DELTA " + JSON.stringify({
+                path: file, start, end: source.length - suffix,
+                encodedContent: encodeURIComponent(fixed.slice(start, fixed.length - suffix))
+              }));
+            }
+          } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
+          NODE
       - name: Report canonical formatting for changed sources
         run: |
           node --input-type=module <<'NODE'
