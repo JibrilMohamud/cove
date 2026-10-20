@@ -5,6 +5,7 @@ on:
       - perf/commercial-parity-isolated-stage-20261020
     paths:
       - "scripts/staging/check-commercial-parity-ssr.mjs"
+      - "scripts/staging/check-commercial-parity-rps.mjs"
       - "scripts/staging/check-anonymous-homepage-prefetch.mjs"
       - "src/features/fore/storefront-anonymous-bootstrap.server.ts"
       - "src/features/fore/taxonomy.server.ts"
@@ -60,12 +61,23 @@ jobs:
           printf %s "$STAGE_TOKEN" | npx wrangler@4.151.0 secret put COVE_SSR_STAGING_GATE_KEY \
             --config wrangler.commercial-parity.stage.toml
           export COVE_SSR_STAGING_GATE_KEY="$STAGE_TOKEN"
+          # Both measurements must run on the SAME protected isolated
+          # deployment, even if the strict burst SLO fails. Report failures
+          # without concealing one test by aborting the other prematurely.
+          set +e
           node scripts/staging/check-commercial-parity-ssr.mjs
+          burst_status=$?
+          node scripts/staging/check-commercial-parity-rps.mjs
+          mixed_status=$?
+          set -e
+          if [ "$burst_status" -ne 0 ] || [ "$mixed_status" -ne 0 ]; then exit 1; fi
       - name: Retain sanitized aggregate results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: isolated-commercial-parity-ssr
-          path: artifacts/commercial-parity-ssr-smoke.json
+          path: |
+            artifacts/commercial-parity-ssr-smoke.json
+            artifacts/commercial-parity-mixed-rps.json
           if-no-files-found: warn
           retention-days: 14
