@@ -52,7 +52,9 @@ const sourceSql = `SELECT p.id product_id,p.edition_id,c.id source_id,
 
 const digest = async (bytes: Uint8Array | string) => {
   const material = typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
-  const hash = await crypto.subtle.digest("SHA-256", material);
+  // Create an owned ArrayBuffer: R2 byte arrays can be backed by
+  // ArrayBufferLike, which SubtleCrypto's strict BufferSource excludes.
+  const hash = await crypto.subtle.digest("SHA-256", Uint8Array.from(material).buffer);
   return [...new Uint8Array(hash)].map((x) => x.toString(16).padStart(2, "0")).join("");
 };
 async function requireIsolatedDomain(env: PreparationEnv): Promise<D1> {
