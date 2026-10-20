@@ -30,12 +30,12 @@ async function query(db, sql) {
 }
 const targetTables = await query(
   TARGET,
-  "SELECT count(*) AS n FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+  "SELECT count(*) AS n FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name!='_cf_KV'",
 );
 assert.equal(targetTables[0]?.n, 0, "Must import to a fresh empty nonproduction D1");
 const sourceCount = await query(
   SOURCE,
-  "SELECT count(*) AS n FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+  "SELECT count(*) AS n FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name!='_cf_KV'",
 );
 assert.ok(sourceCount[0]?.n >= 450, "Unexpectedly sparse source database");
 const all = [];
@@ -44,7 +44,7 @@ for (let offset = 0; offset < 5000; offset += 75) {
   const rows = await query(
     SOURCE,
     `SELECT type,name,sql FROM sqlite_master` +
-      ` WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%'` +
+      ` WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name!='_cf_KV'` +
       ` ORDER BY type,name LIMIT 75 OFFSET ${offset}`,
   );
   if (!rows.length) break;
