@@ -814,7 +814,11 @@ export async function runLiteraryProfileTick(env: LiteraryEnv, caps: LiteraryTic
   if (!env.AI) return { seeded, jobs, skipped: "missing_ai" };
   const limit = Math.max(
     0,
-    Math.min(4, await config(env, "jobs_per_tick", 2), boundedLiteraryTickCap(caps.maxInferences, 4)),
+    Math.min(
+      4,
+      await config(env, "jobs_per_tick", 2),
+      boundedLiteraryTickCap(caps.maxInferences, 4),
+    ),
   );
   // Persistent alternation also works when configured to one inference per tick.
   const turn = await env.DB.prepare(
