@@ -13,11 +13,13 @@ mode = "smart"
 directory = "./.output/public"
 binding = "ASSETS"
 run_worker_first = true
+# Dedicated, staging-only rate namespace/cap for bounded 100-RPS synthetic tests.
+# The production 180/min abuse limit and namespace remain unchanged.
 [[ratelimits]]
 name = "COVE_STOREFRONT_READ_LIMITER"
-namespace_id = "731906"
+namespace_id = "731991"
 [ratelimits.simple]
-limit = 180
+limit = 6_000
 period = 60
 [[d1_databases]]
 binding = "DB"
