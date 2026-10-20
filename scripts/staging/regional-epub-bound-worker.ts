@@ -1,4 +1,4 @@
-import { repairRegionalEpubAssets } from "./features/fore/regional-epub-asset-repair.server";
+import { repairRegionalEpubAssets } from "../../src/features/fore/regional-epub-asset-repair.server";
 
 type Env = {
   DB: {
