@@ -6,6 +6,21 @@ const target = "ce0e67b7-692d-44c6-94dc-7f324e7c5421";
 const source = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const token = process.env.CLOUDFLARE_API_TOKEN;
 assert.ok(token?.length > 24, "Staging schema verifier requires Cloudflare credentials");
+const metadataResponse = await fetch(
+  `https://api.cloudflare.com/client/v4/accounts/${account}/d1/database/${target}`,
+  {
+    headers: { Authorization: `Bearer ${token}` },
+    redirect: "error",
+    signal: AbortSignal.timeout(30000),
+  },
+);
+const metadataPayload = await metadataResponse.json();
+assert.ok(metadataResponse.ok && metadataPayload.success, "Staging database metadata unavailable");
+const metadata = metadataPayload.result;
+assert.equal(metadata.uuid, target);
+assert.equal(metadata.name, "cove-commercial-parity-stage-20261020");
+const readReplicationMode = metadata.read_replication?.mode;
+assert.ok(["auto", "disabled"].includes(readReplicationMode), "Unknown staging replica mode");
 
 async function query(db, sql) {
   const res = await fetch(
@@ -72,9 +87,28 @@ else {
 }
 if (process.env.GITHUB_OUTPUT)
   fs.appendFileSync(process.env.GITHUB_OUTPUT, "parity_mode=" + mode + "\n");
+// Persist the control-plane setting with each measured arm; enabled replicas
+// still need data-plane evidence that presentation reads actually used them.
+fs.mkdirSync("artifacts", { recursive: true });
+fs.writeFileSync(
+  "artifacts/commercial-parity-environment.json",
+  JSON.stringify(
+    {
+      databaseId: target,
+      name: metadata.name,
+      readReplicationMode,
+      primaryRegion: metadata.running_in_region || "unknown",
+      recordedAt: new Date().toISOString(),
+      syntheticOnly: true,
+    },
+    null,
+    2,
+  ),
+);
 console.log(
   JSON.stringify({
     mode,
+    readReplicationMode,
     schemaObjects: stageNames.size,
     sourceSchemaObjects: sourceNames.size,
     customerAccounts: 0,

@@ -26,6 +26,7 @@ on:
       - "scripts/staging/check-anonymous-context-one-read.mjs"
       - "scripts/staging/check-commercial-parity-ssr.mjs"
       - "scripts/staging/check-commercial-parity-rps.mjs"
+      - "scripts/staging/check-commercial-parity-state.mjs"
       - "scripts/staging/check-anonymous-homepage-prefetch.mjs"
       - "src/features/fore/storefront-anonymous-bootstrap.server.ts"
       - "src/features/fore/api.server.ts"

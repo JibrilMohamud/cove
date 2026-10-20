@@ -121,13 +121,13 @@ try {
   const frames = top
     .split("\n")
     .map((line) => /^\s*\S+\s+[\d.]+%\s+[\d.]+%\s+\S+\s+[\d.]+%\s+(.+)$/.exec(line)?.[1])
-    .filter((name) => name && !/^\((?:root|idle|program)\)$/.test(name));
-  report.nonIdleFrames = frames.length;
+    .filter((name) => name && !/^\((?:root|idle|program|garbage collector|external)\)$/.test(name));
+  report.callableFrames = frames.length;
   report.profileUseful = frames.length > 0;
   assert.equal(
     report.profileUseful,
     true,
-    "Idle-only profile cannot establish request CPU attribution",
+    "A profile without function stacks cannot establish request CPU attribution",
   );
 } finally {
   closeStageTransport();
