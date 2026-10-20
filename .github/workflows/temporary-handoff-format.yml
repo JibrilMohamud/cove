@@ -1,0 +1,30 @@
+name: Temporary outbox formatter
+on:
+  push:
+    branches:
+      - feat/isolated-literary-outbox-20261020
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/isolated-literary-outbox-20261020
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prettier --write src/lib/literary-prepare-outbox.server.ts src/lib/literary-preparation-domain.server.ts src/content-processing.worker.ts scripts/check-literary-prepare-outbox.mjs
+      - name: Commit scoped format
+        run: |
+          if ! git diff --quiet -- src/lib/literary-prepare-outbox.server.ts src/lib/literary-preparation-domain.server.ts src/content-processing.worker.ts scripts/check-literary-prepare-outbox.mjs; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add src/lib/literary-prepare-outbox.server.ts src/lib/literary-preparation-domain.server.ts src/content-processing.worker.ts scripts/check-literary-prepare-outbox.mjs
+            git commit -m 'style(content): format outbox dispatcher and tests'
+            git push origin HEAD:feat/isolated-literary-outbox-20261020
+          fi
