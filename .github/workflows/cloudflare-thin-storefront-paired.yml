@@ -1,7 +1,7 @@
 name: cloudflare-thin-storefront-paired
 on:
   push:
-    branches: [perf/thin-storefront-20261019, perf/thin-metadata-completed-cache-20261020, perf/thin-d1-queue-attribution-20261020]
+    branches: [perf/thin-storefront-20261019, perf/thin-metadata-completed-cache-20261020, perf/thin-d1-queue-attribution-20261020, perf/synthetic-telemetry-isolation-20261020]
     paths:
       - "src/**"
       - "scripts/**"
@@ -43,6 +43,7 @@ jobs:
         run: |
           npm run typecheck
           node scripts/check-thin-storefront.mjs
+          node scripts/check-synthetic-telemetry-isolation.mjs
           node scripts/check-thin-presentation-cache.mjs
           node scripts/check-rights.mjs
           node scripts/check-storefront-bootstrap.mjs
