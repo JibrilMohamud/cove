@@ -42,16 +42,18 @@ export async function settleLiteraryOutputReservation(
   outputCharacters: number,
   reservedOutputCharacters: number,
 ) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day))
-    throw new Error("Invalid literary budget settlement day");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error("Invalid literary budget settlement day");
   const refunded = literaryOutputReservationRefund(
     promptCharacters,
     outputCharacters,
     reservedOutputCharacters,
   );
   if (refunded === 0) return { refunded: 0 };
-  await db.prepare(
-    "UPDATE literary_profile_budget SET reserved_units=MAX(0,reserved_units-?) WHERE day=?",
-  ).bind(refunded, day).run();
+  await db
+    .prepare(
+      "UPDATE literary_profile_budget SET reserved_units=MAX(0,reserved_units-?) WHERE day=?",
+    )
+    .bind(refunded, day)
+    .run();
   return { refunded };
 }
