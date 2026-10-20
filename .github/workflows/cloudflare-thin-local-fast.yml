@@ -1,0 +1,40 @@
+name: cloudflare-thin-local-fast
+on:
+  push:
+    branches:
+      - perf/thin-d1-queue-attribution-20261020
+      - perf/thin-experience-parity-20261020
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  no-remote-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "1"
+      VERCEL: "0"
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: TypeScript, thin presentation, bootstrap and primary-rights local gates
+        run: |
+          npm run typecheck
+          node scripts/check-thin-storefront.mjs
+          node scripts/check-thin-presentation-cache.mjs
+          node scripts/check-rights.mjs
+          node scripts/check-storefront-bootstrap.mjs
+          node scripts/check-storefront-firstpaint-rate-limit.mjs
+      - name: Reject new lint and formatting errors
+        run: npm run lint
+      - name: Full commerce and independent thin build
+        run: |
+          npm run build
+          node scripts/build-thin-storefront.mjs
