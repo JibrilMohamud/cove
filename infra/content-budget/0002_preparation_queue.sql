@@ -20,5 +20,7 @@ CREATE TABLE IF NOT EXISTS literary_prepare_jobs (
 );
 CREATE INDEX IF NOT EXISTS literary_prepare_queued_frontier
   ON literary_prepare_jobs(status,available_at,id);
+CREATE INDEX IF NOT EXISTS idx_literary_prepare_jobs_expired
+  ON literary_prepare_jobs(status,lease_until,attempts);
 -- Marker is a binding identity, NOT evidence of customer entitlement.
 -- Existing CONTENT_DB schema version 1 identity remains authoritative.
