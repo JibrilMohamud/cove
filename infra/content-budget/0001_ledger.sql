@@ -16,3 +16,10 @@ CREATE TABLE IF NOT EXISTS literary_budget_cutover(
 );
 CREATE INDEX IF NOT EXISTS idx_literary_budget_cutover_status
 ON literary_budget_cutover(status,day);
+CREATE TABLE IF NOT EXISTS literary_budget_domain_identity(
+  id INTEGER PRIMARY KEY CHECK(id=1),
+  domain TEXT NOT NULL CHECK(domain='cove-isolated-literary-budget'),
+  schema_version INTEGER NOT NULL CHECK(schema_version=1)
+);
+INSERT OR IGNORE INTO literary_budget_domain_identity(id,domain,schema_version)
+VALUES(1,'cove-isolated-literary-budget',1);
