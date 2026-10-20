@@ -473,6 +473,7 @@ export type CoveEnv = {
   COVE_SSR_STAGING?: string;
   COVE_PERF_DATABASE_ID?: string;
   COVE_PERF_TELEMETRY_MODE?: string;
+  COVE_SSR_STAGING_GATE_KEY?: string;
   BUCKET?: {
     get(key: string, options?: any): Promise<any>;
     head?(key: string): Promise<any>;

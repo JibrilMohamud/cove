@@ -16,6 +16,7 @@ const fixture = {
   COVE_SSR_STAGING: "1",
   COVE_PERF_DATABASE_ID: "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
   COVE_PERF_TELEMETRY_MODE: "console-only",
+  COVE_SSR_STAGING_GATE_KEY: "a".repeat(64),
 };
 const make = (path, options = {}) => new Request("https://synthetic.invalid" + path, options);
 for (const route of [
@@ -25,10 +26,22 @@ for (const route of [
 ]) {
   assert.equal(skipD1(fixture, make(route), 200, false), true);
   assert.equal(skipD1(fixture, make(route), 200, true), false);
+  assert.equal(
+    skipD1(
+      fixture,
+      make(route, { headers: { authorization: "Bearer " + fixture.COVE_SSR_STAGING_GATE_KEY } }),
+      200,
+      false,
+    ),
+    true,
+  );
+  assert.equal(
+    skipD1(fixture, make(route, { headers: { authorization: "Bearer usertoken" } }), 200, false),
+    false,
+  );
   for (const status of [201, 302, 401, 403, 404, 429, 500, 503])
     assert.equal(skipD1(fixture, make(route), status, false), false);
   for (const header of [
-    "authorization",
     "cookie",
     "oai-authenticated-user-id",
     "oai-authenticated-user-email",
@@ -40,6 +53,12 @@ for (const route of [
     );
   }
   assert.equal(skipD1({ ...fixture, COVE_SSR_STAGING: "0" }, make(route), 200, false), false);
+  assert.equal(
+    skipD1({ ...fixture, COVE_SSR_STAGING_GATE_KEY: undefined }, make(route, {
+      headers: { authorization: "Bearer " + fixture.COVE_SSR_STAGING_GATE_KEY },
+    }), 200, false),
+    false,
+  );
   assert.equal(
     skipD1(
       { ...fixture, COVE_PERF_DATABASE_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989" },

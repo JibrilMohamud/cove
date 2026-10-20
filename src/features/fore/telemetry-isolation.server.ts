@@ -13,6 +13,8 @@ export type SyntheticTelemetryEnv = {
   COVE_SSR_STAGING?: string;
   COVE_PERF_DATABASE_ID?: string;
   COVE_PERF_TELEMETRY_MODE?: string;
+  /** Ephemeral, stage-only 256-bit access gate, not an application user. */
+  COVE_SSR_STAGING_GATE_KEY?: string;
 };
 
 const isolatedFixture = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
@@ -36,10 +38,17 @@ export function shouldUseConsoleOnlyHttpTelemetry(
     return false;
   if (isAuthenticated || request.method !== "GET" || status !== 200) return false;
   if (!publicReadRoutes.has(new URL(request.url).pathname)) return false;
-  // Any existing or potential identity/session hint retains durable audit
-  // telemetry, even if the auth adapter did not recognize that cookie.
+  // The protected synthetic CORE receives the staging bearer header even
+  // though it is not an application identity. Permit ONLY the exact verified
+  // stage gate token, never a user bearer or service credential.
+  const authorization = request.headers.get("authorization");
+  if (authorization !== null) {
+    const gate = env.COVE_SSR_STAGING_GATE_KEY;
+    if (!gate || !/^[a-f0-9]{64}$/.test(gate) || authorization !== `Bearer ${gate}`)
+      return false;
+  }
+  // Any other potential identity/session hint retains durable telemetry.
   for (const header of [
-    "authorization",
     "cookie",
     "oai-authenticated-user-id",
     "oai-authenticated-user-email",

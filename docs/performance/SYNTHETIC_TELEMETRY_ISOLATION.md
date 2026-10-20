@@ -26,7 +26,7 @@ The opt-in requires **all** of:
 - `COVE_SSR_STAGING=1`
 - synthetic staging D1 ID `e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3`
 - `COVE_PERF_TELEMETRY_MODE=console-only` (set only on experiment CORE)
-- no identity or session headers, no authenticated user, GET, and HTTP 200
+- no application identity or session headers, no authenticated user, GET, and HTTP 200; the synthetic stage bearer may be present only when it exactly matches the 64-hex Worker gate secret already verified by CORE
 
 Every request still produces the structured Worker console event with route,
 trace and request IDs, status and measured duration, which remains accessible
