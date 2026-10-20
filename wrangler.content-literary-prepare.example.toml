@@ -1,0 +1,27 @@
+# Independent literary preparation lane: STAGING TEMPLATE ONLY.
+# The primary DB is read-only from this role's business logic. All queue
+# claims and receipts live in CONTENT_DB. No public endpoints.
+name = "cove-literary-prepare-staging"
+main = "content-dist/worker.js"
+compatibility_date = "2026-10-09"
+workers_dev = true
+[limits]
+cpu_ms = 300_000
+[[d1_databases]]
+binding = "DB"
+database_name = "REPLACE_WITH_NONPRODUCTION_CATALOG_DB"
+database_id = "REPLACE_WITH_NONPRODUCTION_CATALOG_UUID"
+[[d1_databases]]
+binding = "CONTENT_DB"
+database_name = "REPLACE_WITH_INDEPENDENT_D1"
+database_id = "REPLACE_WITH_INDEPENDENT_UUID"
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "REPLACE_WITH_NONPRODUCTION_PRIVATE_R2"
+[vars]
+FORE_CONTENT_PROCESSOR_ENABLED = "0"
+FORE_CONTENT_PREPARE_ENABLED = "0"
+FORE_CONTENT_PROCESSOR_ROLE = "literary-prepare"
+FORE_CONTENT_D1_ADMISSION_MAX_MS = "150"
+[triggers]
+crons = ["* * * * *"]
