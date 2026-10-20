@@ -29,15 +29,13 @@ const db = {
     };
   },
 };
-assert.deepEqual(
-  await settleLiteraryOutputReservation(db, "2026-10-20", 6000, 1250, 12000),
-  { refunded: 10750 },
-);
+assert.deepEqual(await settleLiteraryOutputReservation(db, "2026-10-20", 6000, 1250, 12000), {
+  refunded: 10750,
+});
 assert.deepEqual(updates, [{ refund: 10750, day: "2026-10-20" }]);
-assert.deepEqual(
-  await settleLiteraryOutputReservation(db, "2026-10-20", 6000, 20000, 12000),
-  { refunded: 0 },
-);
+assert.deepEqual(await settleLiteraryOutputReservation(db, "2026-10-20", 6000, 20000, 12000), {
+  refunded: 0,
+});
 assert.equal(updates.length, 1);
 await assert.rejects(
   settleLiteraryOutputReservation(db, "today", 6000, 1250, 12000),
@@ -47,7 +45,7 @@ const literarySource = fs.readFileSync("src/features/fore/literary-profiles.serv
 assert.match(literarySource, /FORE_LITERARY_ACTUAL_UNIT_SETTLEMENT === "1"/);
 assert.ok(
   literarySource.indexOf("await env.BUCKET.put(cacheKey") <
-  literarySource.indexOf("await settleLiteraryOutputReservation("),
+    literarySource.indexOf("await settleLiteraryOutputReservation("),
   "R2 must publish verified canonical output before a budget refund",
 );
 assert.match(
