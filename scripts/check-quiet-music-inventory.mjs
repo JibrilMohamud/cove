@@ -52,7 +52,7 @@ try {
         " VALUES(?,?,?,'analyzed',?,?)",
     ).bind(
       id, "sha_" + id, "v1",
-      JSON.stringify({ audioAnalysis: { signal: { energy } }, readingSuitability: { distraction } }),
+      JSON.stringify({ audioAnalysis: { durationSeconds: 120, signal: { energy }, structure: { timeline: [] } }, readingSuitability: { distraction } }),
       date,
     ).run();
   }
