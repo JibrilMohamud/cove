@@ -149,6 +149,18 @@ try {
     .first();
   assert.equal(current?.object_key, "epubs/pgau_9100005.epub");
   assert.equal(current?.source_url, "https://example.invalid/pgau_9100005.html");
+  const workerSource = fs.readFileSync("src/persistence-backend.worker.ts", "utf8");
+  const endpoint = workerSource.slice(
+    workerSource.indexOf('if (path === "/__cove/ingestion/repair-regional-epubs"'),
+    workerSource.indexOf('if (path === "/__cove/ingestion/audio-admission"'),
+  );
+  assert.match(endpoint, /FORE_REGIONAL_EPUB_REPAIR_ENABLED !== "1"/);
+  assert.match(endpoint, /await admitCatalogBatch\(/);
+  assert.ok(
+    endpoint.indexOf("await admitCatalogBatch(") <
+      endpoint.indexOf("await repairRegionalEpubAssets("),
+    "D1 admission must run before any backfill mutation",
+  );
   console.log("Regional EPUB normalization, R2 repair, withdrawal, and cursor gates passed.");
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
