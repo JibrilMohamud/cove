@@ -143,6 +143,7 @@ async function fetchOne(route) {
         [
           "cove_entry",
           "cove_render",
+          "cove_worker_dispatch",
           "cove_total",
           "cove_ssr_bootstrap",
           "cove_catalog",
@@ -235,6 +236,7 @@ async function runStage(rate, seconds) {
           sentToHeaders: asPercentiles(subset.map((r) => r.transportMs)),
           serverTimings: Object.fromEntries(
             [
+              "cove_worker_dispatch",
               "cove_total",
               "cove_ssr_bootstrap",
               "cove_catalog",

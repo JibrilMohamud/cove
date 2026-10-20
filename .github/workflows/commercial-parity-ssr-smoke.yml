@@ -9,6 +9,7 @@ on:
       - "scripts/performance/cloudflare-browser.mjs"
       - "scripts/staging/check-commercial-parity-live-rights.mjs"
       - "scripts/check-storefront-bootstrap.mjs"
+      - "scripts/staging/observed-ssr-entry.mjs"
       - "src/server.ts"
       - "scripts/staging/stage-http-transport.mjs"
       - "src/features/fore/localization.server.ts"
@@ -54,6 +55,7 @@ jobs:
           import fs from "node:fs";
           import prettier from "prettier";
           const files = [
+            "scripts/staging/observed-ssr-entry.mjs",
             "scripts/staging/check-commercial-parity-live-rights.mjs",
             "scripts/performance/cloudflare-browser.mjs",
             "src/features/fore/storefront-anonymous-catalog.server.ts",

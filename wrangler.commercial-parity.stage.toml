@@ -1,7 +1,7 @@
 # Never route customers or reuse prod DB/R2. This staging deployment has no cron.
 # Gate must be installed before use. Do not associate a custom domain.
 name = "cove-commercial-parity-ssr-staging-20261020"
-main = ".output/server/index.mjs"
+main = "scripts/staging/observed-ssr-entry.mjs"
 compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 minify = false
