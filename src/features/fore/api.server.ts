@@ -19,6 +19,10 @@ import {
 } from "./gutenberg-federation.server";
 import { z } from "zod";
 import {
+  syntheticFailureCategory,
+  syntheticPublicReadBucket,
+} from "./synthetic-read-isolation.server";
+import {
   addSeriesToCart,
   editionResolve,
   readingDataExport,
@@ -470,6 +474,8 @@ export type CoveEnv = {
     limit(input: { key: string }): Promise<{ success: boolean }>;
   };
   COVE_SSR_STAGING?: string;
+  COVE_PERF_DATABASE_ID?: string;
+  COVE_PERF_EDGE_PUBLIC_READS?: string;
   BUCKET?: {
     get(key: string, options?: any): Promise<any>;
     head?(key: string): Promise<any>;
@@ -2653,6 +2659,16 @@ export async function rateLimitSearchRequest(
 ) {
   const ip = clientIp(request);
   const actor = userId ? `user:${userId}` : ip ? `ip:${ip}` : null;
+  if (
+    actor &&
+    syntheticPublicReadBucket(env, request.method, new URL(request.url).pathname, !!userId, bucket)
+  ) {
+    // Same existing edge limiter as rights SSR; never skip abuse controls.
+    // Synthetic staging ONLY. This cap of 180/min is stricter than the
+    // former 240/min D1-backed merchandising cap.
+    await enforceFirstPaintRateLimit(env, `search:${bucket}:${actor}`, limit);
+    return;
+  }
   if (actor) await rateLimit(env, `search:${bucket}:${actor}`, limit);
 }
 
@@ -5945,7 +5961,7 @@ async function handleCoveRequest(
       e instanceof Error ? e.message : "Unknown",
       (e as any)?.cause?.code || "",
     );
-    return json(
+    const failure = json(
       {
         error:
           request.method === "GET"
@@ -5954,5 +5970,11 @@ async function handleCoveRequest(
       },
       503,
     );
+    if (
+      env.COVE_SSR_STAGING === "1" &&
+      env.COVE_PERF_DATABASE_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3"
+    )
+      failure.headers.set("x-cove-synthetic-error-category", syntheticFailureCategory(e));
+    return failure;
   }
 }

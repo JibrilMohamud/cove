@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - perf/thin-d1-queue-attribution-20261020
+      - perf/isolated-anonymous-read-load-20261020
       - perf/thin-experience-parity-20261020
   workflow_dispatch:
 permissions:
@@ -28,6 +29,7 @@ jobs:
         run: |
           npm run typecheck
           node scripts/check-thin-storefront.mjs
+          node scripts/check-synthetic-read-isolation.mjs
           node scripts/check-thin-presentation-cache.mjs
           node scripts/check-rights.mjs
           node scripts/check-storefront-bootstrap.mjs

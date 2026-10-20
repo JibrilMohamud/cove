@@ -96,6 +96,7 @@ for (const role of ["baseline", "core"]) {
   // No R2 binding is required for generated fixtures; no production media access.
   config = config.replace(/\[\[r2_buckets\]\][\s\S]*?(?=\[vars\])/, "");
   config += `\nCOVE_PERF_DATABASE_ID = "${PERFORMANCE_D1[dbrole].id}"\nCOVE_SSR_DIAGNOSTICS = "1"\n`;
+  if (role === "core") config += 'COVE_PERF_EDGE_PUBLIC_READS = "1"\n';
   assert.ok(!config.includes("4bd657ac-8789-403e-a28c-93aba8d0a989"));
   config += "\n[observability]\nenabled = true\nhead_sampling_rate = 1\n";
   fs.writeFileSync(`wrangler.thin-${role}.toml`, config);
@@ -256,6 +257,7 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
       rightsCountry: /data-rights-country="([A-Z]{2})"/.exec(body)?.[1],
       colo: r.headers.get("cf-ray")?.split("-").at(-1),
       serverTiming: r.headers.get("server-timing"),
+      syntheticErrorCategory: r.headers.get("x-cove-synthetic-error-category"),
       rayId: r.headers.get("cf-ray"),
       observedAt: new Date().toISOString(),
       ...(valid ? {} : { failureBody: body.slice(0, 300) }),
