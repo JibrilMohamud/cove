@@ -4,6 +4,9 @@ on:
     branches:
       - perf/anonymous-context-one-read-20261020
     paths:
+      - "package-lock.json"
+      - "scripts/performance/cloudflare-browser.mjs"
+      - "scripts/staging/check-commercial-parity-live-rights.mjs"
       - "scripts/check-storefront-bootstrap.mjs"
       - "src/server.ts"
       - "scripts/staging/stage-http-transport.mjs"
@@ -44,50 +47,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Resolve dependency advisories in an isolated temporary lockfile
-        run: |
-          node --input-type=module <<'NODE'
-          import fs from "node:fs";
-          import os from "node:os";
-          import path from "node:path";
-          import { spawnSync } from "node:child_process";
-          const audit = spawnSync("npm", ["audit", "--json"], { encoding: "utf8" });
-          try {
-            const data = JSON.parse(audit.stdout);
-            for (const [name, item] of Object.entries(data.vulnerabilities || {}))
-              if (item.severity === "high" || item.severity === "critical")
-                console.log("COVE_AUDIT " + JSON.stringify({ name, ...item }));
-          } catch { console.log("COVE_AUDIT unavailable"); }
-          const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "cove-safe-lock-"));
-          try {
-            for (const file of ["package.json", "package-lock.json"])
-              fs.copyFileSync(file, path.join(temporary, file));
-            const result = spawnSync("npm",
-              ["audit", "fix", "--package-lock-only", "--ignore-scripts", "--json"],
-              { cwd: temporary, encoding: "utf8", timeout: 180000 });
-            console.log("COVE_AUDIT_FIX " + JSON.stringify({ status: result.status }));
-            for (const file of ["package.json", "package-lock.json"]) {
-              const source = fs.readFileSync(file, "utf8");
-              const fixed = fs.readFileSync(path.join(temporary, file), "utf8");
-              if (source === fixed) continue;
-              let start = 0;
-              while (start < source.length && source[start] === fixed[start]) start++;
-              let suffix = 0;
-              while (suffix < source.length - start &&
-                source[source.length - 1 - suffix] === fixed[fixed.length - 1 - suffix]) suffix++;
-              console.log("COVE_DEPENDENCY_DELTA " + JSON.stringify({
-                path: file, start, end: source.length - suffix,
-                encodedContent: encodeURIComponent(fixed.slice(start, fixed.length - suffix))
-              }));
-            }
-          } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
-          NODE
       - name: Report canonical formatting for changed sources
         run: |
           node --input-type=module <<'NODE'
           import fs from "node:fs";
           import prettier from "prettier";
           const files = [
+            "scripts/staging/check-commercial-parity-live-rights.mjs",
+            "scripts/performance/cloudflare-browser.mjs",
             "src/features/fore/storefront-anonymous-catalog.server.ts",
             "scripts/staging/stage-http-transport.mjs",
             "scripts/staging/check-anonymous-context-singleflight.mjs",
@@ -142,6 +109,8 @@ jobs:
           ! grep -q '4bd657ac-8789-403e-a28c-93aba8d0a989' wrangler.commercial-parity.stage.toml
           grep -q 'bucket_name = "cove-commercial-parity-media-20261020"' wrangler.commercial-parity.stage.toml
           grep -q 'COVE_SSR_STAGING = "1"' wrangler.commercial-parity.stage.toml
+      - name: Install isolated Chromium for browser LCP and hydration
+        run: npx playwright install --with-deps chromium
       - name: Build current candidate Cloudflare-native SSR
         run: npm run build
       - name: Deploy protected ephemeral stage and run strict rights/TTFB probes
@@ -169,9 +138,15 @@ jobs:
           h2_burst_status=$?
           COVE_STAGE_HTTP2=1 node scripts/staging/check-commercial-parity-rps.mjs
           h2_mixed_status=$?
+          node scripts/staging/check-commercial-parity-live-rights.mjs
+          rights_status=$?
+          COVE_SSR_STAGING_ORIGIN="https://cove-commercial-parity-ssr-staging-20261020.cove-jibrilmohamud.workers.dev" \
+            node scripts/performance/cloudflare-browser.mjs
+          browser_status=$?
           set -e
           if [ "$burst_status" -ne 0 ] || [ "$mixed_status" -ne 0 ] || \
-             [ "$h2_burst_status" -ne 0 ] || [ "$h2_mixed_status" -ne 0 ]; then exit 1; fi
+             [ "$h2_burst_status" -ne 0 ] || [ "$h2_mixed_status" -ne 0 ] || \
+             [ "$rights_status" -ne 0 ] || [ "$browser_status" -ne 0 ]; then exit 1; fi
       - name: Retain sanitized aggregate results
         if: always()
         uses: actions/upload-artifact@v4
@@ -180,5 +155,7 @@ jobs:
           path: |
             artifacts/commercial-parity-ssr-smoke*.json
             artifacts/commercial-parity-mixed-rps*.json
+            artifacts/commercial-parity-live-rights.json
+            artifacts/cloudflare-browser-performance.json
           if-no-files-found: warn
           retention-days: 14

@@ -186,7 +186,9 @@ async function runStage(rate, seconds) {
     pending.add(job);
     job.then((v) => rows.push(v)).finally(() => pending.delete(job));
   }
+  const offeringElapsedMs = performance.now() - started;
   await Promise.allSettled([...pending]);
+  const completionElapsedMs = performance.now() - started;
   const valid = rows.filter((x) => x.valid).length;
   const times = rows.map((x) => x.ttfbMs);
   const statusCounts = Object.fromEntries(
@@ -253,6 +255,9 @@ async function runStage(rate, seconds) {
     failed: rows.length - valid,
     dropped,
     rps: rate,
+    offeringElapsedMs: Math.round(offeringElapsedMs),
+    completionElapsedMs: Math.round(completionElapsedMs),
+    achievedCompletionRps: Number((rows.length * 1000 / completionElapsedMs).toFixed(2)),
     diagnostics: routeDiagnostics,
     slowest: [...rows].sort((a, b) => b.ttfbMs - a.ttfbMs).slice(0, 8),
     seconds,

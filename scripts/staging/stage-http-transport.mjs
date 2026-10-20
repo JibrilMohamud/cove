@@ -48,6 +48,7 @@ export async function stageFetch(url, options = {}) {
     };
     const stream = client.request(outgoing);
     const span = { created: started };
+    if (!stream.pending) span.sent = performance.now();
     stream.once("ready", () => {
       span.sent = performance.now();
     });

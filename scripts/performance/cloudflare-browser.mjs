@@ -186,12 +186,12 @@ const profiles = ["desktop", "mobile-4g"].map((profile) => {
       r.ttfbMs < 800,
   );
   const lcpP75Ms = percentile(samples.map((r) => r.lcpMs).filter(Number.isFinite), 0.75);
-  return { profile, lcpP75Ms, pass: valid && lcpP75Ms < 2500 };
+  return { profile, lcpP75Ms, pass: valid && lcpP75Ms <= 2000 };
 });
 const report = {
   boundary:
     "Synthetic Chromium, four fresh browser contexts per profile, after cold HTTP tests. Not cold-server or field p75 proof. Mobile: 4x CPU, 150ms latency, 1.6Mbps. Browser cache disabled and service workers blocked for both profiles.",
-  targets: { everyTtfbBelowMs: 800, labLcpP75BelowMs: 2500 },
+  targets: { everyTtfbBelowMs: 800, labLcpP75BelowMs: 2000 },
   profiles,
   rows,
 };
