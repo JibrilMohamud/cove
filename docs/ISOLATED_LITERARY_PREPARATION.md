@@ -18,9 +18,18 @@ bundle with beginning/middle/end section samples under
 All queue inserts, leases, retries and receipts live on the separate
 CONTENT_DB. There are **no primary-D1 writes** from this path, no
 unauthorized file delivery, and no new library/checkout grants.
-The preparer produces evidence only; the current `literary_profiles`,
+The preparer produces evidence only. A new opt-in, operator-only
+`importIsolatedLiteraryEvidence` function verifies the private R2 byte
+SHA and content-addressed result, then makes **one idempotent import into
+a noncustomer-facing primary D1 projection**, using a SQL INSERT whose
+predicate checks current source hash, active source-matched grants and
+explicit deny precedence **inside the mutation**. This import is disabled
+by default and requires the separately staged primary schema
+`infra/content-budget/0003_prepared_projection_primary.sql`.
+It does **not** replace or publish `literary_profiles`, and it never
+authorizes storefront/reader/checkout access. The current
 `literary_profile_jobs` and customer profile publication paths still
-run in primary D1 until a separate publisher is implemented.
+run in primary D1 until a guarded canonical-profile publisher is ready.
 
 The role is `literary-prepare`, requiring both
 `FORE_CONTENT_PROCESSOR_ENABLED=1` and
@@ -57,13 +66,18 @@ misbound to a catalog or rights-authority D1, execution fails closed.
 3. Run synthetic work and revocation tests on nonproduction D1/R2, then
    measure EPUB extract CPU/R2 bytes, primary eligibility read SQL,
    independent job claim rows/writes and retry behavior.
-4. Implement a durable primary-to-secondary *outbox with verified cursor*
-   and a primary publisher, with atomic rights/current fingerprint checks.
-   Do not dual-write primary and secondary without the handoff ledger.
-5. Run complete mixed storefront, reader, checkout, audio and ingestion
+4. Implement a durable primary-to-secondary *outbox with verified cursor*;
+   this first stage has manual-only job seeding. The independent evidence
+   importer is already rights-gated and one-row/idempotent, but is not
+   the customer-visible literary profile publisher. Do not dual-write
+   primary and secondary without the handoff ledger.
+5. Implement end-to-end canonical literary-profile publication, proving
+   same fingerprint, revisions, chapter sequencing and UI parity with the
+   current profile lifecycle.
+6. Run complete mixed storefront, reader, checkout, audio and ingestion
    load suites over 60 minutes. Establish cold 60/60, 32-concurrency,
    100RPS, mobile LCP and real territory/live revocation headroom.
-6. Explicit release approval and rollback; never merge to main solely
+7. Explicit release approval and rollback; never merge to main solely
    because CI or synthetic D1 staging is green.
 
 No changes to production Worker flags, catalog data, grants, model budgets,
