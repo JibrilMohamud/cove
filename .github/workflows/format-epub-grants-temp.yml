@@ -1,0 +1,30 @@
+name: Temporary live-grant formatter
+on:
+  push:
+    branches:
+      - fix/epub-backfill-live-grants-20261020
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/epub-backfill-live-grants-20261020
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prettier --write src/features/fore/regional-epub-asset-repair.server.ts scripts/check-regional-epub-asset-repair.mjs
+      - name: Commit formatting
+        run: |
+          if ! git diff --quiet -- src/features/fore/regional-epub-asset-repair.server.ts scripts/check-regional-epub-asset-repair.mjs; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add src/features/fore/regional-epub-asset-repair.server.ts scripts/check-regional-epub-asset-repair.mjs
+            git commit -m 'style(rights): normalize EPUB live-grant guard'
+            git push origin HEAD:fix/epub-backfill-live-grants-20261020
+          fi
