@@ -148,6 +148,29 @@ try {
       .flatMap((p) => p.books)
       .some((b) => b.productId === revoked),
   );
+  const deadline = Date.now() + 60_000;
+  await env.DB.prepare(
+    "UPDATE merch_campaigns SET ends_at=? WHERE id=(SELECT id FROM merch_campaigns LIMIT 1)",
+  )
+    .bind(new Date(deadline).toISOString())
+    .run();
+  await merch.publishAnonymousMerchandising(env, { territory: "US", language: "en" });
+  const merchPointer = JSON.parse(objects.get("discovery/v1/merchandising/US_en/current.json"));
+  const merchKey = `discovery/v1/merchandising/US_en/${merchPointer.revision}.json`;
+  const merchVersion = JSON.parse(objects.get(merchKey));
+  assert.ok(
+    Math.abs(merchVersion.data.validUntil - deadline) < 1000,
+    "Projection must stop at the earliest future schedule boundary",
+  );
+  objects.set(
+    merchKey,
+    JSON.stringify({ ...merchVersion, data: { ...merchVersion.data, validUntil: Date.now() - 1 } }),
+  );
+  await assert.rejects(
+    merch.storefrontMerchandising(serving, { ...opts, language: "en" }),
+    (error) => error.status === 503,
+  );
+  objects.set(merchKey, JSON.stringify(merchVersion));
   // External search candidates are untrusted. Index lag drops revoked books without D1 search fallback.
   const externalEnv = {
     ...serving,

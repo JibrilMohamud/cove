@@ -1,3 +1,4 @@
+import { merchandisingScheduleBoundarySql } from "./merchandising-schedule-query";
 import {
   authorizeDiscoveryCandidates,
   contextualizeDiscoveryChannels,
@@ -335,15 +336,9 @@ export async function publishAnonymousMerchandising(
     throw new ApiError(503, "Merchandising candidate budget exceeded.");
   // No precomputed placement may cross a schedule boundary. Invalidation is fail-closed
   // until the scheduled producer publishes the next complete version.
-  const boundary = await env.DB.prepare(
-    `SELECT MIN(unixepoch(at))*1000 at FROM (
-    SELECT starts_at at FROM merch_campaigns UNION ALL SELECT ends_at FROM merch_campaigns
-    UNION ALL SELECT starts_at FROM merch_placements UNION ALL SELECT ends_at FROM merch_placements
-    UNION ALL SELECT starts_at FROM merch_collections UNION ALL SELECT ends_at FROM merch_collections
-    UNION ALL SELECT starts_at FROM merch_collection_items UNION ALL SELECT ends_at FROM merch_collection_items
-    UNION ALL SELECT starts_at FROM merch_experiments UNION ALL SELECT ends_at FROM merch_experiments
-  ) WHERE julianday(at)>julianday('now')`,
-  ).first<{ at: number | null }>();
+  const boundary = await env.DB.prepare(merchandisingScheduleBoundarySql).first<{
+    at: number | null;
+  }>();
   const validUntil = Math.min(Date.now() + 5 * 60_000, boundary?.at ?? Infinity);
   return publishDiscoveryModel(
     env,

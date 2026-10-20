@@ -52,7 +52,33 @@ export default {
     };
     const response = await handleCoveApi(new Request(url, request), bindings, ctx);
     if (!response) return new Response(null, { status: 404 });
-    response.headers.set("x-cove-d1-statements", String(profiled.samples.length));
+    const costs = profiled.snapshot();
+    const knownSql = costs.samples.filter((sample) => sample.sqlMs !== null);
+    response.headers.set("x-cove-d1-statements", String(costs.statements));
+    response.headers.set(
+      "x-cove-d1-sql-ms",
+      String(knownSql.reduce((sum, sample) => sum + sample.sqlMs!, 0)),
+    );
+    response.headers.set("x-cove-d1-sql-metadata-statements", String(knownSql.length));
+    response.headers.set(
+      "x-cove-d1-rows-read",
+      String(costs.samples.reduce((sum, sample) => sum + (sample.rowsRead || 0), 0)),
+    );
+    response.headers.set(
+      "x-cove-d1-rows-written",
+      String(costs.samples.reduce((sum, sample) => sum + (sample.rowsWritten || 0), 0)),
+    );
+    // Retain attributable statement fingerprints without logging SQL, parameters or identities.
+    if (response.status >= 500 || (crypto.getRandomValues(new Uint32Array(1))[0] & 15) === 0)
+      console.info(
+        JSON.stringify({
+          event: "discovery_route_cost",
+          route: url.pathname,
+          mode,
+          requestId: response.headers.get("x-fore-request-id"),
+          ...costs,
+        }),
+      );
     response.headers.set("x-cove-read-model", mode);
     response.headers.set("x-cove-benchmark-epoch", env.COVE_BENCHMARK_EPOCH || "initial");
     return response;
