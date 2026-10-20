@@ -1,5 +1,8 @@
 import { networkCountry, resolveStorefrontContext } from "./localization.server";
-import { resolveStorefrontPage } from "./taxonomy.server";
+import {
+  prefetchAnonymousHomepageCandidates,
+  resolvePrefetchedAnonymousHomepage,
+} from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
 import type { CoveEnv } from "./api.server";
@@ -89,17 +92,26 @@ export async function serveLeanAnonymousBootstrap(
       true,
     ),
   );
-  const pagePromise = contextPromise.then((context) =>
-    timed(
-      "page",
-      resolveStorefrontPage(
-        readMetadata(),
-        "/",
-        context.rightsCountry,
-        context.language,
-        context.locale,
+  // Home-page branding is a presentation read, not a rights grant. Fetch
+  // its bounded candidates concurrently with the market and authoritative
+  // live catalog queries, then apply the resolved language. Ambiguous
+  // overlapping page definitions use the original exact D1 selector.
+  const homeCandidatesPromise = timed(
+    "page_prefetch",
+    prefetchAnonymousHomepageCandidates(readMetadata(), trustedCountry),
+  );
+  const pagePromise = Promise.all([contextPromise, homeCandidatesPromise]).then(
+    ([context, candidates]) =>
+      timed(
+        "page",
+        resolvePrefetchedAnonymousHomepage(
+          readMetadata(),
+          candidates,
+          context.rightsCountry,
+          context.language,
+          context.locale,
+        ),
       ),
-    ),
   );
   const [context, , catalog, page] = await Promise.all([
     contextPromise,
