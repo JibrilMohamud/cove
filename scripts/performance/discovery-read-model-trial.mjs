@@ -1,3 +1,4 @@
+import { discoveryResponse } from "./discovery-response.mjs";
 import { parseDiscoveryBenchmarkConfig } from "./discovery-benchmark-config.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -66,12 +67,8 @@ async function probe(route, mode) {
     });
     const ttfbMs = performance.now() - started;
     const payload = await response.json().catch(() => null);
-    const shape = route.includes("recommendations")
-      ? Array.isArray(payload?.rails) && payload.rails.some((r) => r.books?.length)
-      : route.includes("merchandising")
-        ? !!payload?.slots
-        : Array.isArray(payload?.results) && payload.results.length > 0;
-    const valid = response.ok && !!shape && response.headers.get("x-cove-read-model") === mode;
+    const shape = discoveryResponse(route, payload);
+    const valid = response.ok && shape.valid && response.headers.get("x-cove-read-model") === mode;
     return {
       route,
       mode,
@@ -82,9 +79,7 @@ async function probe(route, mode) {
       statements: Number(response.headers.get("x-cove-d1-statements")),
       epoch: response.headers.get("x-cove-benchmark-epoch"),
       colo: response.headers.get("cf-ray")?.split("-").at(-1),
-      products: (payload?.rails?.flatMap((r) => r.books) || payload?.results || [])
-        .map((b) => b.productId)
-        .filter(Boolean),
+      products: shape.products,
       ...(valid ? {} : { failure: response.ok ? "content" : `http-${response.status}` }),
     };
   } catch (error) {

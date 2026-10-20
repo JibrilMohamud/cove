@@ -31,6 +31,7 @@ jobs:
           npm run typecheck
           node scripts/check-discovery-read-models.mjs
           node scripts/check-discovery-benchmark-config.mjs
+          node scripts/check-discovery-response.mjs
           node scripts/check-offered-load.mjs
           node scripts/check-discovery-scale.mjs
           node scripts/check-rights.mjs
