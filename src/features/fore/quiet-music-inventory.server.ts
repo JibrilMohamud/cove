@@ -27,9 +27,11 @@ WITH eligible AS (
     AND r.quality_status='passed'
     AND r.storage_key IS NOT NULL
     AND r.source_snapshot_key IS NOT NULL
-    AND json_valid(r.allowed_territories_json)
     AND EXISTS (
-      SELECT 1 FROM json_each(r.allowed_territories_json)
+      SELECT 1 FROM json_each(
+        CASE WHEN json_valid(r.allowed_territories_json)
+          THEN r.allowed_territories_json ELSE '[]' END
+      )
       WHERE value=? OR value='*'
     )
 )
