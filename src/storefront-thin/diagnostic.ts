@@ -1,4 +1,7 @@
-import { networkCountry, resolveAnonymousHomepageContext } from "../features/fore/localization.server";
+import {
+  networkCountry,
+  resolveAnonymousHomepageContext,
+} from "../features/fore/localization.server";
 import { firstPaintStorefrontShelf } from "../features/fore/search.server";
 import { enforceFirstPaintRateLimit } from "../features/fore/storefront-read-rate-limit.server";
 import type { CoveEnv } from "../features/fore/api.server";
