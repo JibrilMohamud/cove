@@ -5,6 +5,7 @@ on:
       - perf/commercial-parity-isolated-stage-20261020
     paths:
       - "scripts/staging/check-commercial-parity-ssr.mjs"
+      - "wrangler.commercial-parity.stage.toml"
       - ".github/workflows/commercial-parity-ssr-smoke.yml"
 permissions:
   contents: read
