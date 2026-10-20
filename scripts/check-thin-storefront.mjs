@@ -88,6 +88,7 @@ try {
     FORE_ENVIRONMENT: "production",
     COVE_SSR_STAGING: "1",
     COVE_THIN_STOREFRONT: "synthetic-only",
+    COVE_THIN_EXPERIENCE: "1",
     COVE_SSR_STAGING_GATE_KEY: "a".repeat(64),
     COVE_STOREFRONT_READ_LIMITER: {
       async limit() {
