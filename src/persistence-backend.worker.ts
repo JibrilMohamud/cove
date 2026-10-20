@@ -49,6 +49,7 @@ type BackendEnv = CoveEnv &
     FORE_CATALOG_EPUBS_PER_TICK?: string;
     FORE_CATALOG_ADMISSION_MAX_MS?: string;
     FORE_ASSETS_PER_MINUTE?: string;
+    FORE_CONTENT_PIPELINE_EXTERNAL?: string;
     FORE_REGIONAL_EPUB_REPAIR_ENABLED?: string;
     FORE_REGIONAL_EPUB_REPAIR_PROBE_MS?: string;
     FORE_INGESTION_TRIGGER_TOKEN?: string;
@@ -572,14 +573,20 @@ async function runScheduled(cron: string, env: BackendEnv) {
     if (cron === "* * * * *") {
       // EPUB preparation shares the Worker's memory with asset ingestion.
       // Keep these bounded jobs sequential while isolating individual failures.
-      for (const work of [
-        () => runStoredAssetTick(env),
-        () => verifyAudioStorage(env),
-        () => runLiteraryProfileTick(env),
-        () => seedMusicProfiles(env),
-      ]) {
+      // Opt-in externalization only after both dedicated Workers have been
+      // deployed and verified. Defaults to today's inline scheduling.
+      const external = env.FORE_CONTENT_PIPELINE_EXTERNAL === "1";
+      const work = external
+        ? [() => verifyAudioStorage(env), () => seedMusicProfiles(env)]
+        : [
+            () => runStoredAssetTick(env),
+            () => verifyAudioStorage(env),
+            () => runLiteraryProfileTick(env),
+            () => seedMusicProfiles(env),
+          ];
+      for (const run of work) {
         try {
-          await work();
+          await run();
         } catch (error) {
           console.warn("Cove minute maintenance failed", String(error).slice(0, 200));
         }
