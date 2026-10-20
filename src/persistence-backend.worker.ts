@@ -931,18 +931,22 @@ export default {
     if (path === "/__cove/ingestion/repair-regional-epubs" && request.method === "POST") {
       if (env.FORE_REGIONAL_EPUB_REPAIR_ENABLED !== "1")
         return json({ error: "Regional EPUB repair is disabled." }, 403);
-      const input = await request.json().catch(() => null) as
-        | { after?: unknown; limit?: unknown }
-        | null;
-      if (!input || (input.after !== undefined && typeof input.after !== "string") ||
-          (input.limit !== undefined &&
-            (!Number.isSafeInteger(input.limit) || Number(input.limit) < 1 || Number(input.limit) > 16)))
+      const input = await request.json().catch(() => null);
+      if (!input || typeof input !== "object" || Array.isArray(input))
         return json({ error: "Invalid repair cursor or batch limit." }, 400);
+      const { after, limit } = input as Record<string, unknown>;
+      if (after !== undefined && typeof after !== "string")
+        return json({ error: "Invalid repair cursor or batch limit." }, 400);
+      const validLimit =
+        limit === undefined ||
+        (Number.isSafeInteger(limit) && Number(limit) >= 1 && Number(limit) <= 16);
+      if (!validLimit) return json({ error: "Invalid repair cursor or batch limit." }, 400);
       try {
-        return json(await repairRegionalEpubAssets(env, {
-          after: input.after as string | undefined,
-          limit: input.limit as number | undefined,
-        }));
+        const result = await repairRegionalEpubAssets(env, {
+          after: after as string | undefined,
+          limit: limit as number | undefined,
+        });
+        return json(result);
       } catch (error) {
         console.error("Regional EPUB repair failed", String(error).slice(0, 180));
         return json({ error: "Regional EPUB repair failed." }, 503);
