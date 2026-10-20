@@ -76,6 +76,10 @@ The generator-local resource was created once in [run 39386126054](https://githu
 
 The scoped-key/persistent-restart Meilisearch checks passed in [run 39386125958](https://github.com/JibrilMohamud/cove/actions/runs/39386125958), commit `b06a9c0d`. All 175 offered local engine requests were valid; the distinct serving key could not write documents or manage keys, and the indexer could not manage keys or inspect an unrelated index. The actual 50k engine index and scoped credentials survived a process restart. These checks still do not establish Render disk behavior or remotely hosted capacity.
 
+A repeat bounded-delivery [run 39386126146](https://github.com/JibrilMohamud/cove/actions/runs/39386126146), commit `b06a9c0d`, again served all 3,150 arrivals and passed revocation, but was substantially slower: deployment-first samples 1,738/1,544/957 ms; bounded recommendation 25-RPS p95 1,340 ms, maximum 1,788 ms; mixed p95 1,229 ms, maximum 1,727 ms. Its hard gate failed. Preserve this result alongside the faster run, not just the faster result. Artifact `12247393809`, ZIP SHA256 `5b0917340162b307ee0a8ad75d71473542ceda4355e4eb553b476ae562939f2c`.
+
+The paired-placement experiment deploys identical bounded-delivery code to two protected Workers using the same synthetic databases and R2 models. The control uses default placement; the candidate requests `placement.region=aws:us-east-1`. Both retain normal durable telemetry and independent engagement. Offered-load order is counterbalanced at 10/25 RPS. Raw responses record `cf-ray` ingress separately from `cf-placement`; ingress alone is not execution-location proof. Both private Workers are removed in the CI `always()` cleanup. This isolates placement from the subsequent primary-snapshot code change.
+
 Production remains unchanged.
 
 ## Production migration and release conditions

@@ -23,12 +23,14 @@ export function parseDiscoveryBenchmarkConfig(source) {
   assert.equal(config.vars.COVE_SSR_STAGING, "1");
   assert.equal(config.vars.COVE_PERF_DATABASE_ID, PERFORMANCE_D1.current.id);
   assert.equal(config.workers_dev, true);
+  assert.deepEqual(config.placement, { region: "aws:us-east-1" });
   const allowed = new Set([
     "name",
     "main",
     "compatibility_date",
     "compatibility_flags",
     "workers_dev",
+    "placement",
     "limits",
     "d1_databases",
     "r2_buckets",

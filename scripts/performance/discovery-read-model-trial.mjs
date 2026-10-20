@@ -17,12 +17,28 @@ const account = "d26430caa63ec55f6612e32f36aca5e9",
 const origin = `https://${config.name}.cove-jibrilmohamud.workers.dev`;
 const output = "artifacts/discovery-benchmark";
 fs.mkdirSync(output, { recursive: true });
+const controlName = `${config.name}-control`;
+const controlOrigin = `https://${controlName}.cove-jibrilmohamud.workers.dev`;
+const controlConfig = { ...config, name: controlName };
+delete controlConfig.placement;
+const controlConfigPath = `${output}/control.json`;
+// Wrangler paths are relative to the configuration file, not the repository root.
+controlConfig.main = "worker.mjs";
+controlConfig.d1_databases = controlConfig.d1_databases.map((db) =>
+  db.migrations_dir ? { ...db, migrations_dir: "../../" + db.migrations_dir } : db,
+);
+fs.writeFileSync(controlConfigPath, JSON.stringify(controlConfig, null, 2));
 const evidence = {
   sha: process.env.GITHUB_SHA,
-  kind: "isolated-bounded-delivery-generator-local-v4",
+  kind: "isolated-bounded-delivery-paired-placement-v5",
   variants: {
-    control: "Classic full-pool authorization + independent engagement + durable HTTP telemetry",
-    projection: "Bounded display authorization + independent engagement + durable HTTP telemetry",
+    control: "Bounded display + independent engagement + durable HTTP telemetry; default placement",
+    projection:
+      "Identical bounded display + independent engagement + durable HTTP telemetry; Virginia placement hint",
+  },
+  topology: {
+    control: { worker: controlName, placement: null },
+    projection: { worker: config.name, placement: config.placement },
   },
   productionD1: false,
   fullCustomerJourney: false,
@@ -59,7 +75,7 @@ function wrangler(args, input) {
 }
 let client = 0;
 async function probe(route, mode) {
-  const url = new URL(route, origin);
+  const url = new URL(route, mode === "control" ? controlOrigin : origin);
   url.searchParams.set("mode", mode);
   url.searchParams.set("visitor", randomUUID());
   url.searchParams.set("language", "en");
@@ -95,6 +111,7 @@ async function probe(route, mode) {
       requestId: response.headers.get("x-fore-request-id"),
       epoch: response.headers.get("x-cove-benchmark-epoch"),
       colo: response.headers.get("cf-ray")?.split("-").at(-1),
+      placement: response.headers.get("cf-placement"),
       products: shape.products,
       ...(valid ? {} : { failure: response.ok ? "content" : `http-${response.status}` }),
     };
@@ -145,19 +162,17 @@ try {
     0,
     "Engagement resource must not contain transactional tables",
   );
-  wrangler(["deploy", "--config", "wrangler.discovery-benchmark.jsonc"]);
-  wrangler(
-    [
-      "secret",
-      "put",
-      "COVE_SSR_STAGING_GATE_KEY",
-      "--config",
-      "wrangler.discovery-benchmark.jsonc",
-    ],
-    key,
-  );
+  for (const path of ["wrangler.discovery-benchmark.jsonc", controlConfigPath]) {
+    wrangler(["deploy", "--config", path]);
+    wrangler(["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", path], key);
+  }
   await new Promise((r) => setTimeout(r, 6000));
   assert.equal((await fetch(origin)).status, 401, "Stage gate must reject unauthenticated traffic");
+  assert.equal(
+    (await fetch(controlOrigin)).status,
+    401,
+    "Control gate must reject unauthenticated traffic",
+  );
   await refresh();
   for (let round = 0; round < 3; round++) {
     const epoch = randomUUID();

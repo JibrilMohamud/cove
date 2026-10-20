@@ -54,7 +54,7 @@ export default {
       ENGAGEMENT_DB: engagement.db,
       FORE_DISCOVERY_READ_MODE: "required",
       FORE_ENGAGEMENT_STORAGE: "separate",
-      FORE_ANONYMOUS_DELIVERY: mode === "projection" ? "bounded" : "classic",
+      FORE_ANONYMOUS_DELIVERY: "bounded",
     };
     const background: Promise<unknown>[] = [];
     const execution = {

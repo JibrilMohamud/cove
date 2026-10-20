@@ -4,6 +4,7 @@
   "compatibility_date": "2026-10-19",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "placement": { "region": "aws:us-east-1" },
   "limits": { "cpu_ms": 30000 },
   "d1_databases": [
     {

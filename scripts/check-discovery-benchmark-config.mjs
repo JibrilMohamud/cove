@@ -8,6 +8,7 @@ assert.equal(parseDiscoveryBenchmarkConfig("// private benchmark\n" + source).na
 for (const patch of [
   { routes: ["cove.example/*"] },
   { triggers: { crons: ["* * * * *"] } },
+  { placement: { region: "aws:ap-southeast-1" } },
   { d1_databases: [{ binding: "DB", database_id: "4bd657ac-8789-403e-a28c-93aba8d0a989" }] },
   { r2_buckets: [{ binding: "DISCOVERY_MODELS", bucket_name: "cove-production-media" }] },
   { vars: { ...config.vars, COVE_SSR_STAGING: "0" } },

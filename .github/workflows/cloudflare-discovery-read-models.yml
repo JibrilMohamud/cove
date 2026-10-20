@@ -58,11 +58,13 @@ jobs:
       - name: Remove private diagnostic Worker
         if: always()
         run: |
+          for worker in cove-discovery-read-model-staging cove-discovery-read-model-staging-control; do
           status=$(curl --silent --show-error --max-time 30 -X DELETE \
             --output "$RUNNER_TEMP/discovery-cleanup.json" --write-out '%{http_code}' \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/cove-discovery-read-model-staging?force=true")
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$worker?force=true")
           case "$status" in
             200|204|404) echo "Private diagnostic Worker absent after cleanup." ;;
             *) echo "Diagnostic Worker cleanup failed: HTTP $status"; exit 1 ;;
           esac
+          done
