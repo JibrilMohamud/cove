@@ -38,8 +38,13 @@ export async function loadThinPresentationContext(
   if (
     !allowed ||
     request.method !== "GET" ||
-    ["authorization", "cookie", "oai-authenticated-user-id", "oai-authenticated-user-email",
-     "x-fore-authenticated-user-id"].some((header) => request.headers.has(header))
+    [
+      "authorization",
+      "cookie",
+      "oai-authenticated-user-id",
+      "oai-authenticated-user-email",
+      "x-fore-authenticated-user-id",
+    ].some((header) => request.headers.has(header))
   )
     return load();
 
