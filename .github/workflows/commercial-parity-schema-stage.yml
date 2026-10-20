@@ -1,0 +1,59 @@
+name: commercial-parity-schema-stage
+on:
+  push:
+    branches:
+      - perf/commercial-parity-isolated-stage-20261020
+    paths:
+      - "wrangler.commercial-parity.stage.toml"
+      - "scripts/staging/verify-schema-only-export.mjs"
+      - ".github/workflows/commercial-parity-schema-stage.yml"
+permissions:
+  contents: read
+concurrency:
+  group: cove-commercial-parity-schema-20261020
+  cancel-in-progress: false
+jobs:
+  schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Confirm hard resource separation before exporting anything
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          grep -q 'database_id = "ce0e67b7-692d-44c6-94dc-7f324e7c5421"' wrangler.commercial-parity.stage.toml
+          ! grep -q '4bd657ac-8789-403e-a28c-93aba8d0a989' wrangler.commercial-parity.stage.toml
+          grep -q 'bucket_name = "cove-commercial-parity-media-20261020"' wrangler.commercial-parity.stage.toml
+          ! grep -q 'cove-production-media' wrangler.commercial-parity.stage.toml
+      - name: Export production schema ONLY — no records, secrets or media
+        run: |
+          npx wrangler@4.151.0 d1 export cove-production \
+            --config wrangler.backend.production.toml \
+            --remote --no-data --skip-confirmation \
+            --output ./schema-only-private.sql
+          node scripts/staging/verify-schema-only-export.mjs ./schema-only-private.sql
+      - name: Import into verified EMPTY separate parity D1
+        run: |
+          set -euo pipefail
+          npx wrangler@4.151.0 d1 execute cove-commercial-parity-stage-20261020 \
+            --config wrangler.commercial-parity.stage.toml \
+            --remote --file ./schema-only-private.sql
+          # Never upload the SQL file: only public aggregate table counts.
+          rm -f ./schema-only-private.sql
+      - name: Check stage schema table count (no customer data)
+        run: |
+          npx wrangler@4.151.0 d1 execute cove-commercial-parity-stage-20261020 \
+            --config wrangler.commercial-parity.stage.toml --remote \
+            --command "SELECT count(*) AS tables FROM sqlite_master WHERE type='table'"
