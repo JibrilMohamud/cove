@@ -22,11 +22,11 @@ try {
     COVE_PERF_DATABASE_ID: "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
     FORE_DEFAULT_TERRITORY: "US",
   };
-  const request =
-    (language, country = "US", extra = {}) =>
-      new Request("https://synthetic.example/api/fore/storefront/bootstrap", {
-        headers: { "x-cove-client-country": country, "accept-language": language, ...extra },
-      });
+  function request(language, country = "US", extra = {}) {
+    return new Request("https://synthetic.example/api/fore/storefront/bootstrap", {
+      headers: { "x-cove-client-country": country, "accept-language": language, ...extra },
+    });
+  }
   const value = (country = "US") => ({
     rightsCountry: country,
     locale: "en-US",
@@ -34,10 +34,12 @@ try {
     messages: { hello: "world" },
   });
   let reads = 0;
-  const read = (country = "US") => async () => {
-    reads++;
-    return value(country);
-  };
+  function read(country = "US") {
+    return async function readContext() {
+      reads++;
+      return value(country);
+    };
+  }
   const clock = (t) => () => t;
 
   // Defaults remain OFF, including other databases and anything not staging.
