@@ -23,9 +23,28 @@ type ProcessorRunners = {
   assets: Runner;
   literary: Runner;
 };
+/** Keep per-minute background writes bounded even if dashboard configuration
+ * is accidentally raised. These caps do not affect the original Worker. */
+export const CONTENT_MAX_ASSET_ATTEMPTS_PER_TICK = 4;
+export const CONTENT_LITERARY_TICK_CAPS = Object.freeze({
+  maxSeeds: 8,
+  maxPrepares: 1,
+  maxDeferredSections: 1,
+  maxInferences: 1,
+});
+export function contentAssetAttemptCap(value: unknown): number {
+  const parsed = value === undefined ? 1 : Number(value);
+  return Number.isSafeInteger(parsed)
+    ? Math.max(0, Math.min(CONTENT_MAX_ASSET_ATTEMPTS_PER_TICK, parsed))
+    : 0;
+}
 const defaultRunners: ProcessorRunners = {
-  assets: runStoredAssetTick,
-  literary: runLiteraryProfileTick,
+  assets: (env) =>
+    runStoredAssetTick({
+      ...env,
+      FORE_ASSETS_PER_MINUTE: String(contentAssetAttemptCap(env.FORE_ASSETS_PER_MINUTE)),
+    }),
+  literary: (env) => runLiteraryProfileTick(env, CONTENT_LITERARY_TICK_CAPS),
 };
 
 export async function runContentProcessingTick(
