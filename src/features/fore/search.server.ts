@@ -1730,12 +1730,15 @@ export async function searchCatalog(
     };
   // The primary-rights first-paint shelf also imports this module, but does
   // not use account personalization or its ingestion/ZIP dependencies.
-  const { personalizeSearchBooks, personalizedSearchEnabled } =
-    await import("./recommendations.server");
+  // Skip loading the recommendation/ingestion dependency graph for ordinary
+  // unpersonalized catalog pages. Rights filtering below is still mandatory.
+  const personalizationEligible = !!input.query && input.sort === "relevance";
+  const recommendations = personalizationEligible
+    ? await import("./recommendations.server")
+    : null;
   const personalizeWindow =
-    !!input.query &&
-    input.sort === "relevance" &&
-    (await personalizedSearchEnabled(env.DB, userId));
+    personalizationEligible &&
+    (await recommendations!.personalizedSearchEnabled(env.DB, userId));
   const start = (input.page - 1) * input.limit,
     windowLimit = Math.min(200, Math.max(input.limit * 5, start + input.limit));
   const searchInputForBackend =
@@ -1763,7 +1766,7 @@ export async function searchCatalog(
   const backendName = backend === "meilisearch" ? "meilisearch" : "d1-fts5";
   const personalized =
     input.sort === "relevance" && input.query
-      ? await personalizeSearchBooks(env.DB, userId, result.books)
+      ? await recommendations!.personalizeSearchBooks(env.DB, userId, result.books)
       : { books: result.books, applied: false };
   const pageBooks =
     personalizeWindow && start < 200
