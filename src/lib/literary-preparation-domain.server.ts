@@ -119,11 +119,12 @@ export async function runIsolatedLiteraryPreparationTick(env: PreparationEnv) {
   const lease = new Date(Date.now() + 120_000).toISOString();
   // Expired claims that consumed every attempt must not remain running
   // forever. This is an independent CONTENT_DB-only maintenance write.
-  await queue.prepare(
-    "UPDATE literary_prepare_jobs SET status='failed'," +
-      " last_error='lease_expired_max_attempts',lease_until='',lease_token='',updated_at=?" +
-      " WHERE status='running' AND lease_until<? AND attempts>=3",
-  )
+  await queue
+    .prepare(
+      "UPDATE literary_prepare_jobs SET status='failed'," +
+        " last_error='lease_expired_max_attempts',lease_until='',lease_token='',updated_at=?" +
+        " WHERE status='running' AND lease_until<? AND attempts>=3",
+    )
     .bind(now, now)
     .run();
   const job = await queue
