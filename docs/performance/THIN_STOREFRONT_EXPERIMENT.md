@@ -16,9 +16,11 @@ Three fresh control-plane-confirmed deployments per renderer each receive twenty
 
 The synthetic client adapter is authenticated staging-only and requires an explicitly allowlisted artificial database ID. It models many independent clients with distinct benchmarking-range addresses while preserving the same native 180/min policy. The production app never reads the load-client header. High rate tests do not disable abuse controls. A dedicated local test rejects this adapter outside the allowlist.
 
-A 20-second-per-stage arrival schedule tests 10/25/50/100/250/500 RPS on each renderer. Scheduled, completed, dropped, late arrivals, errors, p50/p75/p95/p99/max are reported. The client caps in-flight work at 128. The campaign stops increasing rates on the first failed stage (including client scheduling or latency failure). This short curve is capacity exploration, not a soak test or certification; it is not a mixed checkout/reader/ingestion load.
+A separate protected 32-request bootstrap measurement validates the complete bootstrap JSON rather than counting arbitrary successful HTML.
 
-Chromium Pixel 5, 1.6-Mbps/150-ms mobile networking and 4x CPU slowing measure five actual LCP samples and p75, plus book count, accessibility and search navigation. The fixture has no production cover distribution. Production LCP requires separate real-catalog/RUM verification.
+A 20-second-per-stage arrival schedule tests 10/25/50/100/250/500 RPS on each renderer. Scheduled, completed, dropped, late arrivals, errors, p50/p75/p95/p99/max are reported. The client caps in-flight work at 128. Each renderer stops increasing rates at its own first failed stage (including client scheduling or latency failure); any HTTP/transport failure aborts the shared-D1 capacity campaign. A slower baseline cannot truncate an otherwise healthy candidate curve. This short curve is capacity exploration, not a soak test or certification; it is not a mixed checkout/reader/ingestion load.
+
+Chromium Pixel 5, 1.6-Mbps/150-ms mobile networking and 4x CPU slowing measure five actual LCP samples and p75, plus book count, accessibility and search navigation. All five LCP samples are saved before the interactive search check; that check requires a real successful filtered catalog response and rendered results after the existing application hydrates. The native form uses the canonical `/search?q=` route. The fixture has no production cover distribution. Production LCP requires separate real-catalog/RUM verification.
 
 ## Correctness and release boundary
 

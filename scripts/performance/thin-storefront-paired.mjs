@@ -26,6 +26,7 @@ const evidence = {
   cold: [],
   bursts: [],
   capacity: [],
+  bootstrap: [],
   browser: [],
   errors: [],
   releaseApproved: false,
@@ -90,7 +91,7 @@ for (const role of ["baseline", "core"]) {
     .replace('compatibility_date = "2026-10-17"', 'compatibility_date = "2026-10-19"');
   // No R2 binding is required for generated fixtures; no production media access.
   config = config.replace(/\[\[r2_buckets\]\][\s\S]*?(?=\[vars\])/, "");
-  config += `\nCOVE_PERF_DATABASE_ID = "${PERFORMANCE_D1[dbrole].id}"\n`;
+  config += `\nCOVE_PERF_DATABASE_ID = "${PERFORMANCE_D1[dbrole].id}"\nCOVE_SSR_DIAGNOSTICS = "1"\n`;
   assert.ok(!config.includes("4bd657ac-8789-403e-a28c-93aba8d0a989"));
   config += "\n[observability]\nenabled = true\nhead_sampling_rate = 1\n";
   fs.writeFileSync(`wrangler.thin-${role}.toml`, config);
@@ -198,8 +199,18 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
       (x) => x[1],
     );
     const home = route === "/";
+    let diagnosticValid = true;
+    if (route === "/__cove_perf/bootstrap") {
+      try {
+        const data = JSON.parse(body);
+        diagnosticValid = data.stage === "bootstrap" && data.ok === true && data.books === 24;
+      } catch {
+        diagnosticValid = false;
+      }
+    }
     const valid =
       r.status === 200 &&
+      diagnosticValid &&
       (!home ||
         (links.length === 24 &&
           r.headers.get("content-type")?.includes("text/html") &&
@@ -234,6 +245,9 @@ const agents = Object.fromEntries(
 async function browserCheck(role) {
   const browser = await chromium.launch();
   const results = [];
+  const record = { role, lcp: results, pass: false, sampleCount: 0 };
+  evidence.browser.push(record);
+  save();
   try {
     for (let i = 0; i < 5; i++) {
       const context = await browser.newContext({
@@ -265,24 +279,73 @@ async function browserCheck(role) {
       const lcp = await page.evaluate(() => window.__lcp);
       assert.ok(lcp > 0);
       results.push(lcp);
-      if (i === 0) {
+      record.sampleCount = results.length;
+      record.p75 = pct(results, 0.75);
+      save();
+      if (i === 4) {
         const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
         assert.deepEqual(
           axe.violations.map((x) => x.id),
           [],
         );
         await page.screenshot({ path: path.join(output, `${role}-mobile.png`), fullPage: true });
-        await page.locator("input[type=search]").first().fill("Synthetic");
-        await page.locator("input[type=search]").first().press("Enter");
-        await page.waitForURL(
-          (url) => url.pathname === "/" && url.searchParams.get("search") === "Synthetic",
-          { timeout: 30000 },
-        );
-        assert.ok((await page.locator("body").innerText()).includes("Synthetic"));
+        try {
+          const catalogResponse = page.waitForResponse(
+            (r) => {
+              const url = new URL(r.url());
+              return (
+                url.pathname === "/api/fore/catalog" &&
+                (url.searchParams.get("search") || url.searchParams.get("q")) === "Synthetic"
+              );
+            },
+            { timeout: 30000 },
+          );
+          void catalogResponse.catch(() => {});
+          const input =
+            role === "thin"
+              ? page.getByRole("searchbox")
+              : page.getByRole("textbox", {
+                  name: "Search books by title, author, series, ISBN, publisher, or catalog ID",
+                });
+          await input.fill("Synthetic");
+          if (role === "thin") await input.press("Enter");
+          const response = await catalogResponse;
+          assert.equal(response.status(), 200, "Delegated catalog request must succeed");
+          const payload = await response.json();
+          assert.ok(
+            payload.results?.length > 0 &&
+              payload.results.every((book) => book.title.includes("Synthetic")),
+          );
+          await page.waitForFunction(
+            () =>
+              Array.from(document.querySelectorAll(".book-card")).some((n) =>
+                n.textContent.includes("Synthetic"),
+              ),
+            undefined,
+            { timeout: 30000 },
+          );
+          assert.equal(new URL(page.url()).pathname, "/search");
+          record.searchPassed = true;
+        } catch (error) {
+          await page.screenshot({
+            path: path.join(output, `${role}-search-failed.png`),
+            fullPage: true,
+          });
+          fs.writeFileSync(
+            path.join(output, `${role}-search-failed.txt`),
+            (await page.locator("body").innerText()).slice(0, 12000),
+          );
+          record.searchPassed = false;
+          record.searchError = String(error);
+          save();
+          throw error;
+        }
       }
       await context.close();
     }
-    return { role, lcp: results, p75: pct(results, 0.75), pass: pct(results, 0.75) <= 2000 };
+    record.pass = results.length === 5 && record.searchPassed && pct(results, 0.75) <= 2000;
+    save();
+    return record;
   } finally {
     await browser.close();
   }
@@ -423,6 +486,15 @@ try {
         console.log("burst", wave, role, concurrency, JSON.stringify(s));
         if (!pass) failed = true;
       }
+  for (const role of ["baseline", "thin"]) {
+    const rows = await Promise.all(
+      Array.from({ length: 32 }, () => sample(role, { route: "/__cove_perf/bootstrap" })),
+    );
+    const s = summary(rows);
+    evidence.bootstrap.push({ role, concurrency: 32, summary: s, rows });
+    save();
+    if (s.valid !== 32) failed = true;
+  }
   const a = await sample("baseline"),
     b = await sample("thin");
   evidence.paritySamples = { baseline: a, thin: b };
@@ -436,32 +508,46 @@ try {
   if (!evidence.matchedColo) failed = true;
   for (const role of ["baseline", "thin"])
     try {
-      evidence.browser.push(await browserCheck(role));
+      await browserCheck(role);
       save();
     } catch (e) {
       evidence.errors.push({ phase: "browser", role, error: String(e) });
       failed = true;
       save();
     }
-  // Measure capacity only on synthetic D1. Circuit stops at the first failed stage.
+  // Retire each renderer independently at its own latency/client ceiling.
+  // Any HTTP/transport error stops the entire shared-D1 campaign immediately.
+  const active = new Set(["baseline", "thin"]);
+  evidence.capacityStoppedByRole = {};
   for (const rate of [10, 25, 50, 100, 250, 500]) {
-    let stop = false;
-    for (const role of ["baseline", "thin"]) {
+    let unsafe = false;
+    for (const role of [...active]) {
       const result = await capacity(role, rate);
       evidence.capacity.push(result);
       save();
       console.log("capacity", role, rate, JSON.stringify(result.summary));
-      if (!result.pass) stop = true;
+      if (!result.pass) {
+        active.delete(role);
+        evidence.capacityStoppedByRole[role] = rate;
+      }
+      if (result.summary.errors) {
+        unsafe = true;
+        break;
+      }
     }
-    if (stop) {
-      evidence.capacityStoppedAt = rate;
-      break;
-    }
+    if (unsafe || !active.size) break;
   }
   const mobile = evidence.browser.find((x) => x.role === "thin"),
     controlMobile = evidence.browser.find((x) => x.role === "baseline");
   evidence.mobileGate =
-    !!mobile && !!controlMobile && mobile.p75 <= 2000 && mobile.p75 <= controlMobile.p75;
+    !!mobile &&
+    !!controlMobile &&
+    mobile.sampleCount === 5 &&
+    controlMobile.sampleCount === 5 &&
+    mobile.pass &&
+    controlMobile.searchPassed &&
+    mobile.p75 <= 2000 &&
+    mobile.p75 <= controlMobile.p75;
   const tails = (role) =>
     evidence.bursts
       .filter((x) => x.role === role && x.concurrency === 32)
