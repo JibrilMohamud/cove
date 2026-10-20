@@ -118,7 +118,7 @@ export async function runIsolatedLiteraryPreparationTick(env: PreparationEnv) {
       " (status='running' AND lease_until<?))" +
       " AND attempts<3 ORDER BY available_at,id LIMIT 1)" +
       " RETURNING id,product_id,edition_id,source_id,content_sha256,attempts",
-  ).bind(token, lease, now, now, now, now).first<PreparationJob>();
+  ).bind(token, lease, now, now, now).first<PreparationJob>();
   if (!job) return { skipped: "no_preparation_jobs" };
   try {
     const current = await eligible(env, job.product_id, job.edition_id);
