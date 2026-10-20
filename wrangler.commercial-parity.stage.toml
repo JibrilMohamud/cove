@@ -39,7 +39,8 @@ FORE_CONTENT_HANDOFF_ENABLED = "0"
 FORE_LITERARY_PREPARED_IMPORT_ENABLED = "0"
 FORE_CONTENT_BUDGET_MODE = "primary"
 # Experiment only: share pending presentation D1 calls, never cache rights.
-FORE_ANON_CONTEXT_SINGLEFLIGHT = "1"
+FORE_ANON_CONTEXT_SINGLEFLIGHT = "0"
+FORE_ANON_CONTEXT_ONE_READ = "1"
 # Stage only; normal/production public API remains on its existing adapter.
 FORE_LEAN_ANON_PUBLIC_API = "1"
 FORE_LEAN_ANON_CATALOG = "1"

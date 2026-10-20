@@ -1,5 +1,5 @@
 import type { CoveEnv } from "./api.server";
-import { networkCountry, resolveStorefrontContext } from "./localization.server";
+import { networkCountry, resolveStorefrontContext, resolveAnonymousStorefrontContext } from "./localization.server";
 import { parseSearchInput, searchCatalog } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
 
@@ -37,22 +37,33 @@ export async function serveLeanAnonymousCatalog(request: Request, env: CoveEnv) 
   const url = new URL(request.url);
   const territory = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country;
   const ip = request.headers.get("cf-connecting-ip")!.trim();
-  const limit = enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180);
-  const context = resolveStorefrontContext(env.DB, request, null, territory);
-  // Must use live primary rights in searchCatalog, not an anonymous cache.
-  const [market] = await Promise.all([context, limit]);
-  if (market.rightsCountry !== territory)
-    throw new Error("Catalog market and trusted territory disagree.");
+  await enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180);
   const input = { ...parseSearchInput(url), territory };
-  if (input.currency !== market.currency)
-    return new Response(JSON.stringify({ error: "Invalid currency for this market" }),
-      { status: 400, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
-  const [catalog, state] = await Promise.all([
+  const startedContext = performance.now();
+  let contextMs = 0;
+  const resolveContext = async () => {
+    try {
+      return (env as CoveEnv & { FORE_ANON_CONTEXT_ONE_READ?: string }).FORE_ANON_CONTEXT_ONE_READ === "1"
+        ? await resolveAnonymousStorefrontContext(env.DB, request, territory)
+        : await resolveStorefrontContext(env.DB, request, null, territory);
+    } finally {
+      contextMs = performance.now() - startedContext;
+    }
+  };
+  // Public configuration, live rights-scoped search and operation metadata
+  // are independent. Await ALL of them before releasing any catalog data.
+  const [market, catalog, state] = await Promise.all([
+    resolveContext(),
     searchCatalog(env, input, null),
     env.DB.prepare(
       "SELECT status,page,last_success_at,total_catalog_count FROM catalog_state WHERE id=1",
     ).first<{ status: string; page: number; last_success_at: string | null; total_catalog_count: number }>(),
   ]);
+  if (market.rightsCountry !== territory)
+    throw new Error("Catalog market and trusted territory disagree.");
+  if (input.currency !== market.currency)
+    return new Response(JSON.stringify({ error: "Invalid currency for this market" }),
+      { status: 400, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
   const next = input.page * catalog.limit < catalog.count
     ? (() => {
       const params = new URLSearchParams(url.searchParams);
@@ -84,7 +95,7 @@ export async function serveLeanAnonymousCatalog(request: Request, env: CoveEnv) 
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
-      "Server-Timing": `cove_lean_catalog;dur=${(performance.now() - started).toFixed(1)}`,
+      "Server-Timing": `cove_lean_catalog;dur=${(performance.now() - started).toFixed(1)}, cove_catalog_context;dur=${contextMs.toFixed(1)}`,
     },
   });
 }

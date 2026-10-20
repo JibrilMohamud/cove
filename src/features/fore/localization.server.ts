@@ -383,6 +383,148 @@ export async function resolveStorefrontContext(
   };
 }
 
+
+/**
+ * Resolve cookie-free anonymous presentation configuration in one D1 read.
+ * Market/locale selection, translation fallback and payment methods share a
+ * statement snapshot. This function never queries or caches legal grants.
+ * Callers must still perform their own primary-D1 rights check per request.
+ */
+export async function resolveAnonymousStorefrontContext(
+  db: StorefrontDB,
+  request: Request,
+  fallbackCountry = "US",
+  includeMarkets = false,
+): Promise<StorefrontContext> {
+  if (
+    request.method !== "GET" ||
+    ["cookie", "authorization", "oai-authenticated-user-id", "oai-authenticated-user-email",
+      "x-fore-authenticated-user-id", "x-fore-authenticated-user-email"]
+      .some((header) => request.headers.has(header))
+  ) throw new ApiError(400, "Anonymous context requires a cookie-free, anonymous GET.");
+  const network = networkCountry(request, fallbackCountry);
+  const requested = JSON.stringify(
+    parseAcceptLanguage(request.headers.get("accept-language") || "")
+      .map((locale) => locale.trim().replace(/_/g, "-").toLowerCase()),
+  );
+  const marketProjection = includeMarkets
+    ? `,(SELECT json_group_array(json_object(
+          'countryCode', country_code, 'displayName', display_name,
+          'defaultLocale', default_locale, 'defaultCurrency', default_currency,
+          'taxInclusive', tax_inclusive_default, 'checkoutEnabled', checkout_enabled,
+          'locales', locales
+        )) FROM (
+          SELECT sm.country_code,sm.display_name,sm.default_locale,sm.default_currency,
+            sm.tax_inclusive_default,sm.checkout_enabled,
+            (SELECT GROUP_CONCAT(ml2.locale,',') FROM storefront_market_locales ml2
+              WHERE ml2.country_code=sm.country_code AND ml2.active=1) locales
+          FROM storefront_markets sm WHERE sm.market_status='active' ORDER BY sm.display_name
+        )) available_markets_json`
+    : "";
+  const row = await db.prepare(`
+    WITH RECURSIVE chosen_market AS (
+      SELECT * FROM storefront_markets
+      WHERE country_code IN (?, 'US') AND market_status='active'
+      ORDER BY CASE WHEN country_code=? THEN 0 ELSE 1 END LIMIT 1
+    ), supported_locales AS (
+      SELECT l.locale,l.language_code,l.direction,ml.priority
+      FROM chosen_market m
+      JOIN storefront_market_locales ml ON ml.country_code=m.country_code AND ml.active=1
+      JOIN storefront_locales l ON l.locale=ml.locale AND l.status='active'
+    ), requested_locales(locale,ordinal) AS (
+      SELECT value,CAST(key AS INTEGER) FROM json_each(?)
+      UNION ALL SELECT lower(replace(default_locale,'_','-')),json_array_length(?) FROM chosen_market
+    ), selected_locale AS (
+      SELECT l.* FROM supported_locales l LEFT JOIN requested_locales r
+        ON lower(l.locale)=r.locale OR lower(l.language_code)=
+          CASE WHEN instr(r.locale,'-')>0 THEN substr(r.locale,1,instr(r.locale,'-')-1) ELSE r.locale END
+      ORDER BY COALESCE(r.ordinal,2147483647),
+        CASE WHEN lower(l.locale)=r.locale THEN 0 ELSE 1 END,l.priority,l.locale LIMIT 1
+    ), locale_chain(locale,depth,seen) AS (
+      SELECT locale,0,','||lower(locale)||',' FROM selected_locale
+      UNION ALL
+      SELECT l.fallback_locale,c.depth+1,c.seen||lower(l.fallback_locale)||','
+      FROM locale_chain c JOIN storefront_locales l ON l.locale=c.locale AND l.status='active'
+      WHERE l.fallback_locale IS NOT NULL AND c.depth<4
+        AND instr(c.seen,','||lower(l.fallback_locale)||',')=0
+    ), ordered_locales AS (
+      SELECT locale,depth AS precedence FROM locale_chain
+      UNION ALL SELECT 'en-US',99
+      WHERE NOT EXISTS(SELECT 1 FROM locale_chain WHERE lower(locale)='en-us')
+    )
+    SELECT m.*,l.locale active_locale,l.language_code active_language_code,
+      l.direction active_direction,
+      (SELECT json_group_array(json_object(
+        'paymentMethod',payment_method,'provider',provider,'currency',currency,
+        'availability',availability,'priority',priority
+      )) FROM (
+        SELECT p.* FROM storefront_payment_methods p WHERE p.country_code=m.country_code
+          AND p.availability='available'
+          AND (p.currency IS NULL OR p.currency=upper(m.default_currency))
+        ORDER BY p.priority,p.payment_method
+      )) payment_methods_json,
+      (SELECT json_group_array(json_object(
+        'message_key',message_key,'message_value',message_value
+      )) FROM (
+        SELECT msg.message_key,msg.message_value FROM ordered_locales o
+        JOIN ui_translation_bundles b ON b.id=(
+          SELECT id FROM ui_translation_bundles WHERE locale=o.locale AND status='active'
+          ORDER BY version DESC LIMIT 1
+        )
+        JOIN ui_translation_messages msg ON msg.bundle_id=b.id
+        ORDER BY o.precedence DESC
+      )) messages_json
+      ${marketProjection}
+    FROM chosen_market m LEFT JOIN selected_locale l ON 1=1
+  `).bind(network.country, network.country, requested, requested).first<{
+    country_code: string; default_currency: string; tax_inclusive_default: number;
+    recommendation_region: string; merchandising_region: string; checkout_enabled: number;
+    active_locale: string | null; active_language_code: string | null; active_direction: string | null;
+    payment_methods_json: string; messages_json: string; available_markets_json?: string;
+  }>();
+  if (!row) throw new ApiError(503, "No active Cove storefront market is configured.");
+  if (!row.active_locale) throw new ApiError(503, "This storefront has no active locale configured.");
+  const methods = JSON.parse(row.payment_methods_json) as StorefrontContext["paymentMethods"];
+  const messages = JSON.parse(row.messages_json) as { message_key: string; message_value: string }[];
+  const availableMarkets = includeMarkets
+    ? (JSON.parse(row.available_markets_json || "[]") as {
+        countryCode: string; displayName: string; defaultLocale: string;
+        defaultCurrency: string; taxInclusive: number; checkoutEnabled: number; locales: string;
+      }[]).map((market) => ({
+        ...market,
+        taxInclusive: !!market.taxInclusive,
+        checkoutEnabled: !!market.checkoutEnabled,
+        locales: String(market.locales || "").split(",").filter(Boolean),
+      }))
+    : undefined;
+  return {
+    storefrontCountry: row.country_code,
+    rightsCountry: network.country,
+    networkCountry: network.source === "network" ? network.country : null,
+    locale: row.active_locale,
+    language: String(row.active_language_code),
+    currency: row.default_currency.toUpperCase(),
+    direction: row.active_direction === "rtl" ? "rtl" : "ltr",
+    taxInclusive: !!row.tax_inclusive_default,
+    recommendationRegion: String(row.recommendation_region || "global"),
+    merchandisingRegion: String(row.merchandising_region || "global"),
+    checkoutEnabled: !!row.checkout_enabled,
+    source: {
+      country: row.country_code === network.country ? network.source : "default",
+      locale: "negotiated",
+      currency: "market",
+    },
+    paymentMethods: methods.map((method) => ({
+      ...method,
+      priority: Number(method.priority || 100),
+    })),
+    messages: mergeMessages(messages),
+    uiMessages: selectedUiCatalog(row.active_locale),
+    requestedCountry: null,
+    ...(includeMarkets ? { availableMarkets: availableMarkets || [] } : {}),
+  };
+}
+
 export async function saveStorefrontPreferences(
   db: StorefrontDB,
   userId: string | null,

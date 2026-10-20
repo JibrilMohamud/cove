@@ -1,4 +1,4 @@
-import { networkCountry, resolveStorefrontContext } from "./localization.server";
+import { networkCountry, resolveStorefrontContext, resolveAnonymousStorefrontContext } from "./localization.server";
 import {
   prefetchAnonymousHomepageCandidates,
   resolvePrefetchedAnonymousHomepage,
@@ -83,26 +83,17 @@ export async function serveLeanAnonymousBootstrap(
   // Launch the authoritative primary-rights query *before* waiting for
   // independent replica presentation reads. No book leaves the Worker until
   // the rate limiter, markets, context, page and rights checks ALL succeed.
+  const resolveContext = () =>
+    env.COVE_SSR_STAGING === "1" &&
+    (env as CoveEnv & { FORE_ANON_CONTEXT_ONE_READ?: string }).FORE_ANON_CONTEXT_ONE_READ === "1"
+      ? resolveAnonymousStorefrontContext(readMetadata(), request, env.FORE_DEFAULT_TERRITORY || "US", true)
+      : resolveStorefrontContext(readMetadata(), request, null, env.FORE_DEFAULT_TERRITORY || "US", true);
   const contextPromise = timed(
     "context",
     (env as CoveEnv & { FORE_ANON_CONTEXT_SINGLEFLIGHT?: string })
       .FORE_ANON_CONTEXT_SINGLEFLIGHT === "1"
-      ? singleflightAnonymousPresentation(rawDb, request, trustedCountry, true, () =>
-          resolveStorefrontContext(
-            readMetadata(),
-            request,
-            null,
-            env.FORE_DEFAULT_TERRITORY || "US",
-            true,
-          ),
-        )
-      : resolveStorefrontContext(
-          readMetadata(),
-          request,
-          null,
-          env.FORE_DEFAULT_TERRITORY || "US",
-          true,
-        ),
+      ? singleflightAnonymousPresentation(rawDb, request, trustedCountry, true, resolveContext)
+      : resolveContext(),
   );
   // Home-page branding is a presentation read, not a rights grant. Fetch
   // its bounded candidates concurrently with the market and authoritative
