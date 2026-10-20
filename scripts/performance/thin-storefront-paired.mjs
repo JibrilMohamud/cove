@@ -146,7 +146,8 @@ async function deploy(role) {
       d.versions.some((v) => v.percentage === 100)
     ) {
       lastDeployments[role] = d.id;
-      await new Promise((done) => setTimeout(done, 2000));
+      // Allow edge deployment/secret propagation without prewarming a cold request.
+      await new Promise((done) => setTimeout(done, 6000));
       return {
         id: d.id,
         created_on: d.created_on,
@@ -259,6 +260,9 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
       rightsCountry: /data-rights-country="([A-Z]{2})"/.exec(body)?.[1],
       colo: r.headers.get("cf-ray")?.split("-").at(-1),
       serverTiming: r.headers.get("server-timing"),
+      telemetrySink: r.headers.get("x-cove-perf-telemetry"),
+      syntheticErrorCategory: r.headers.get("x-cove-perf-error-category"),
+      requestId: r.headers.get("x-fore-request-id"),
       rayId: r.headers.get("cf-ray"),
       observedAt: new Date().toISOString(),
       ...(valid ? {} : { failureBody: body.slice(0, 300) }),
@@ -705,6 +709,19 @@ try {
   // Customer-like reads run concurrently against the SAME synthetic D1:
   // homepage, filtered catalog, personalized recommendations and campaigns.
   // These GET journeys cannot certify cart, checkout, reading or account POST.
+  // A passing HTTP 200 without this marker has NOT activated the
+  // nonessential telemetry-write bypass, so cannot prove improvement.
+  evidence.telemetryProbes = [];
+  for (const route of [
+    "/api/fore/catalog?search=Synthetic&sort=popular&page=1&currency=USD",
+    "/api/fore/recommendations/home?visitor=00000000-0000-4000-8000-000000000001&limit=12",
+    "/api/fore/merchandising?visitor=00000000-0000-4000-8000-000000000001",
+  ]) {
+    const result = await sample("thin", { route });
+    evidence.telemetryProbes.push(result);
+    if (!result.valid || result.telemetrySink !== "worker-log") failed = true;
+    save();
+  }
   for (const rate of [50, 100]) {
     await new Promise((done) => setTimeout(done, 3_000));
     const result = await mixedCapacity(rate);
