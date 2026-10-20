@@ -92,21 +92,28 @@ async function fetchOne(route) {
     const h2 = stageTransportSpan(response);
     if (h2) Object.assign(span, { created: h2.created, sent: h2.sent, headers: h2.received });
     const body = await response.text();
-    let valid =
-      (!expectedArm || response.headers.get("x-cove-stage-context-mode") === expectedArm) &&
-      (!expectedArm ||
-        response.headers.get("x-cove-stage-bootstrap-transport") ===
-          (expectedArm === "one-read" ? "primary-batch" : "individual")) &&
-      response.status === 200 &&
-      /no-store/i.test(response.headers.get("cache-control") || "");
+    const failureReasons = [];
+    if (expectedArm && response.headers.get("x-cove-stage-context-mode") !== expectedArm)
+      failureReasons.push("context-mode");
+    if (
+      expectedArm &&
+      response.headers.get("x-cove-stage-bootstrap-transport") !==
+        (expectedArm === "one-read" ? "primary-batch" : "individual")
+    )
+      failureReasons.push("bootstrap-transport");
+    if (response.status !== 200) failureReasons.push("http-status");
+    if (!/no-store/i.test(response.headers.get("cache-control") || ""))
+      failureReasons.push("cache-policy");
+    let valid = failureReasons.length === 0;
     if (valid && route.name === "home") {
       try {
-        valid =
-          validateHtml(status, response.headers.get("content-type") || "", body) > 0 &&
-          /cove_ssr_local_rights;dur=0/.test(response.headers.get("server-timing") || "");
+        validateHtml(status, response.headers.get("content-type") || "", body);
       } catch {
-        valid = false;
+        failureReasons.push("invalid-html");
       }
+      if (!/cove_ssr_local_rights;dur=0/.test(response.headers.get("server-timing") || ""))
+        failureReasons.push("live-rights-timing");
+      valid = failureReasons.length === 0;
     } else if (valid) {
       try {
         const data = JSON.parse(body);
@@ -116,6 +123,7 @@ async function fetchOne(route) {
             Array.isArray(data.catalog?.results) &&
             data.catalog.results.length > 0 &&
             data.catalog.results.every((x) => String(x.productId).startsWith("p_stage_"));
+          if (!valid) failureReasons.push("invalid-bootstrap");
         } else {
           // Search output is a public, authorized catalog: verify the exact
           // isolated synthetic product namespace, not simply HTTP status.
@@ -130,9 +138,11 @@ async function fetchOne(route) {
             Array.isArray(books) &&
             books.length > 0 &&
             books.every((x) => String(x.productId || x.id || "").startsWith("p_stage_"));
+          if (!valid) failureReasons.push("invalid-catalog");
         }
       } catch {
         valid = false;
+        failureReasons.push("invalid-json");
       }
     }
     const timingHeader = response.headers.get("server-timing") || "";
@@ -141,6 +151,7 @@ async function fetchOne(route) {
       contextMode: response.headers.get("x-cove-stage-context-mode") || "unknown",
       bootstrapTransport: response.headers.get("x-cove-stage-bootstrap-transport") || "unknown",
       valid,
+      failureReasons,
       ttfbMs,
       contentEncoding: response.headers.get("content-encoding") || "identity",
       decodedBytes: Buffer.byteLength(body, "utf8"),
@@ -183,6 +194,7 @@ async function fetchOne(route) {
     return {
       status,
       valid: false,
+      failureReasons: ["transport"],
       ttfbMs: Math.round(performance.now() - started),
       class: route.name,
       queueMs: duration(span.sent, span.created),
@@ -287,6 +299,9 @@ async function runStage(rate, seconds) {
     achievedCompletionRps: Number(((rows.length * 1000) / completionElapsedMs).toFixed(2)),
     diagnostics: routeDiagnostics,
     slowest: [...rows].sort((a, b) => b.ttfbMs - a.ttfbMs).slice(0, 8),
+    // Fast failures must remain reviewable even when they fall outside the
+    // slowest sample. These records contain only bounded aggregate telemetry.
+    failedResponses: rows.filter((row) => !row.valid),
     seconds,
     statusCounts,
     byRoute,
@@ -308,7 +323,12 @@ fs.mkdirSync("artifacts", { recursive: true });
 try {
   // First verify individual account-free read routes before launching load.
   const probes = await Promise.all(destinations.map(fetchOne));
-  stageReport.smoke = probes.map((p) => ({ route: p.class, status: p.status, valid: p.valid }));
+  stageReport.smoke = probes.map((p) => ({
+    route: p.class,
+    status: p.status,
+    valid: p.valid,
+    failureReasons: p.failureReasons,
+  }));
   if (!probes.every((p) => p.valid)) {
     stageReport.reason = "One or more required actual API routes failed isolated smoke";
     process.exitCode = 1;

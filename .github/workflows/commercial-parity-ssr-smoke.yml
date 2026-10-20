@@ -26,6 +26,7 @@ on:
       - "scripts/staging/check-anonymous-context-one-read.mjs"
       - "scripts/staging/check-commercial-parity-ssr.mjs"
       - "scripts/staging/check-commercial-parity-rps.mjs"
+      - "scripts/staging/check-commercial-parity-failure-retention.mjs"
       - "scripts/staging/check-commercial-parity-state.mjs"
       - "scripts/staging/check-anonymous-homepage-prefetch.mjs"
       - "src/features/fore/storefront-anonymous-bootstrap.server.ts"
@@ -111,6 +112,7 @@ jobs:
             "scripts/staging/check-anonymous-context-singleflight.mjs",
             "scripts/staging/check-anonymous-homepage-prefetch.mjs",
             "scripts/staging/check-commercial-parity-rps.mjs",
+            "scripts/staging/check-commercial-parity-failure-retention.mjs",
             "scripts/staging/check-commercial-parity-ssr.mjs",
             "scripts/staging/check-commercial-parity-state.mjs",
             "scripts/staging/reconstruct-d1-schema-only.mjs",
@@ -146,6 +148,8 @@ jobs:
           NODE
       - name: Verify deployment control-plane readiness boundaries
         run: node scripts/check-cloudflare-deployment-readiness.mjs
+      - name: Retain every fast invalid response without weakening load gates
+        run: node scripts/staging/check-commercial-parity-failure-retention.mjs
       - name: Verify browser session forwarding and UI catalog parity
         run: |
           node scripts/check-auth-attacher.mjs
