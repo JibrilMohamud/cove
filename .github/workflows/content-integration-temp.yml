@@ -35,26 +35,24 @@ jobs:
           mark='    FORE_ASSETS_PER_MINUTE?: string;'
           assert s.count(mark)==1 and 'FORE_CONTENT_PIPELINE_EXTERNAL?: string;' not in s
           s=s.replace(mark,mark+'\n    FORE_CONTENT_PIPELINE_EXTERNAL?: string;')
-          old='''      for (const work of [
-                () => runStoredAssetTick(env),
-                () => verifyAudioStorage(env),
-                () => runLiteraryProfileTick(env),
-                () => seedMusicProfiles(env),
-              ]) {'''
-          new='''      // Opt-in externalization only after both dedicated Workers have been
-                // deployed and verified. Defaults to today's inline scheduling.
-                const external = env.FORE_CONTENT_PIPELINE_EXTERNAL === "1";
-                const work = external
-                  ? [() => verifyAudioStorage(env), () => seedMusicProfiles(env)]
-                  : [
-                      () => runStoredAssetTick(env),
-                      () => verifyAudioStorage(env),
-                      () => runLiteraryProfileTick(env),
-                      () => seedMusicProfiles(env),
-                    ];
-                for (const run of work) {'''
-          assert s.count(old)==1
-          s=s.replace(old,new)
+          import re
+          old_pattern = r"(?m)^      for \\(const work of \\[\\n        \\(\\) => runStoredAssetTick\\(env\\),\\n        \\(\\) => verifyAudioStorage\\(env\\),\\n        \\(\\) => runLiteraryProfileTick\\(env\\),\\n        \\(\\) => seedMusicProfiles\\(env\\),\\n      \\]\\) \\{"
+          updated = "\\n".join([
+              "      // Opt-in externalization only after both dedicated Workers have been",
+              "      // deployed and verified. Defaults to today's inline scheduling.",
+              '      const external = env.FORE_CONTENT_PIPELINE_EXTERNAL === "1";',
+              "      const work = external",
+              "        ? [() => verifyAudioStorage(env), () => seedMusicProfiles(env)]",
+              "        : [",
+              "            () => runStoredAssetTick(env),",
+              "            () => verifyAudioStorage(env),",
+              "            () => runLiteraryProfileTick(env),",
+              "            () => seedMusicProfiles(env),",
+              "          ];",
+              "      for (const run of work) {",
+          ])
+          s, count = re.subn(old_pattern, lambda _: updated, s)
+          assert count == 1, f"Unexpected minute cron match count: {count}"
           assert s.count('          await work();')==1
           s=s.replace('          await work();','          await run();')
           assert 'FORE_REGIONAL_EPUB_REPAIR_ENABLED' in s
@@ -65,6 +63,12 @@ jobs:
             git commit -m "merge: preserve both EPUB repairs and isolated content cron handoff"
           fi
           git merge --no-ff --no-edit origin/perf/literary-budget-settlement-20261020
+          npm ci
+          npx prettier --write src/persistence-backend.worker.ts
+          if ! git diff --quiet -- src/persistence-backend.worker.ts; then
+            git add src/persistence-backend.worker.ts
+            git commit -m "style: format combined persistence Worker cron and repair"
+          fi
           test -f src/features/fore/regional-epub-asset-repair.server.ts
           test -f src/content-processing.worker.ts
           test -f src/lib/literary-budget-settlement.ts
