@@ -20,3 +20,5 @@ CREATE TABLE IF NOT EXISTS literary_prepare_outbox (
 );
 CREATE INDEX IF NOT EXISTS idx_literary_prepare_outbox_frontier
   ON literary_prepare_outbox(status,available_at,id);
+CREATE INDEX IF NOT EXISTS idx_literary_prepare_outbox_expired
+  ON literary_prepare_outbox(status,lease_until,attempts);
