@@ -1,0 +1,30 @@
+name: Temporary preparation final formatter
+on:
+  push:
+    branches:
+      - feat/isolated-literary-preparation-20261020
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/isolated-literary-preparation-20261020
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prettier --write src/lib/literary-preparation-domain.server.ts src/content-processing.worker.ts scripts/check-literary-preparation-domain.mjs scripts/staging/literary-preparation-two-d1-smoke.ts
+      - name: Commit formatting
+        run: |
+          if ! git diff --quiet -- src/lib/literary-preparation-domain.server.ts src/content-processing.worker.ts scripts/check-literary-preparation-domain.mjs scripts/staging/literary-preparation-two-d1-smoke.ts; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add src/lib/literary-preparation-domain.server.ts src/content-processing.worker.ts scripts/check-literary-preparation-domain.mjs scripts/staging/literary-preparation-two-d1-smoke.ts
+            git commit -m 'style(content): final formatting for stage and retry-cap tests'
+            git push origin HEAD:feat/isolated-literary-preparation-20261020
+          fi
