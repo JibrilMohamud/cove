@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -26,7 +27,6 @@ try {
 
   const env = localBindings(root);
   const date = "2026-10-20T00:00:00.000Z";
-  const sha = "a".repeat(40);
   async function recording(id, { status = "ready", quality = "passed", territories = '["US"]', triage = "" } = {}) {
     await env.DB.prepare(
       "INSERT INTO soundtrack_recordings(id,source_title,source_page_url,source_file_url," +
@@ -37,7 +37,7 @@ try {
         " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
     ).bind(
       id, "File:" + id + ".ogg", "https://commons.wikimedia.org/wiki/File:" + id,
-      "https://upload.wikimedia.org/" + id, sha, 1024, "audio/ogg",
+      "https://upload.wikimedia.org/" + id, createHash("sha1").update(id).digest("hex"), 1024, "audio/ogg",
       "Test " + id, "test performer", "test composer", "CC0",
       "https://creativecommons.org/publicdomain/zero/1.0/", "test declared",
       "test attribution", "{}", date, date, status, quality,
