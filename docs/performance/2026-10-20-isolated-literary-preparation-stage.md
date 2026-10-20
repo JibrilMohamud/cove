@@ -47,13 +47,44 @@ Independent regression covers:
 - Explicit live rights denial and revocation during private-R2 reading.
 - Reject CONTENT_DB with any rights/catalog/commerce authority tables.
 
+## Separate primary-D1 import proof (nonpublic)
+
+New guarded `literary_prepared_evidence` projection was created only in
+the synthetic staging primary. The `importIsolatedLiteraryEvidence`
+operation verifies secondary job completion and secondary D1 identity;
+retrieves and SHA-validates the PRIVATE R2 manifest; checks its pinned
+product/edition/source and content hash; then imports **one idempotent
+pointer** using authoritative primary-D1 SQL source and rights predicates,
+including a concurrent active-deny override.
+
+The hosted two-D1 + R2 import test passed:
+https://github.com/JibrilMohamud/cove/actions/runs/39484460930
+
+Actual result:
+`{"pass":true,"imported":true,"activeDenyBlocked":true,"revokedBlocked":true}`.
+
+The same private manifest could be re-imported idempotently while grants
+remained valid, but an active territorial deny or revoked allow blocked
+subsequent import attempts. The local SQLite two-domain test also rejected
+changed source SHA, tampered R2 bytes and secondary binding contamination.
+No customer-visible `literary_profiles`, book grants, checkout or reader
+entitlements were changed.
+
+The temporary importer test Worker was deleted and the temporary harness
+removed from the release branch after the passing hosted test. A direct
+Cloudflare audit verified **zero synthetic imported-projection rows and
+zero secondary queue fixture rows** afterward, no lingering smoke Worker,
+unchanged production backend deployment, and an unset production literary
+budget cutover flag.
+
 ## Missing commercial-release evidence
 
 Do **not** conflate this with full migration of literary inference.
 The legacy literary job queue, R2 evidence flow, existing chapter
 publication and catalog-writing EPUB ingester still run on primary D1.
-This new private preparation result is not yet imported into
-`literary_profile_jobs` or publicly served, and there is no
+This new private preparation result has a protected, nonpublic
+primary projection importer but is not integrated into customer-visible
+`literary_profile_jobs` or `literary_profiles`, and there is no
 production-approved secondary queue seeder/outbox.
 
 Before enabling production:
