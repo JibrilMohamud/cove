@@ -66,6 +66,7 @@
     "test:regional-epub-repair": "node scripts/check-regional-epub-asset-repair.mjs",
     "test:regional-epub-operator": "node scripts/check-regional-epub-operator.mjs",
     "test:soundtracks": "node scripts/check-soundtrack-library.mjs",
+    "test:quiet-music-inventory": "node scripts/check-quiet-music-inventory.mjs",
     "test:storefront-bootstrap": "node scripts/check-storefront-bootstrap.mjs && node scripts/check-storefront-recovery.mjs && node scripts/check-storefront-authoritative-recovery.mjs && node scripts/check-storefront-hedged.mjs",
     "test:social-journeys": "node scripts/check-sharing-erasure.mjs && node scripts/check-journey-privacy-progress.mjs && node scripts/check-social-pagination.mjs",
     "test:stripe-webhooks": "node scripts/check-stripe-webhooks.mjs",
