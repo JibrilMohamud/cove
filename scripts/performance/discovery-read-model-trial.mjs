@@ -19,10 +19,10 @@ const output = "artifacts/discovery-benchmark";
 fs.mkdirSync(output, { recursive: true });
 const evidence = {
   sha: process.env.GITHUB_SHA,
-  kind: "isolated-engagement-separation-diagnostic-v2",
+  kind: "isolated-bounded-delivery-diagnostic-v3",
   variants: {
-    control: "R2 projections + primary engagement and durable HTTP telemetry",
-    projection: "R2 projections + independent engagement and durable HTTP telemetry",
+    control: "Classic full-pool authorization + independent engagement + durable HTTP telemetry",
+    projection: "Bounded display authorization + independent engagement + durable HTTP telemetry",
   },
   productionD1: false,
   fullCustomerJourney: false,

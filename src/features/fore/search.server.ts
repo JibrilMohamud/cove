@@ -1,4 +1,8 @@
-import { engagementDatabase } from "./recommendation-engagement.server";
+import {
+  engagementDatabase,
+  scopeEngagementEnv,
+  type EngagementEnv,
+} from "./recommendation-engagement.server";
 import { authorizeDiscoveryCandidates } from "./discovery-rights.server";
 import type { CatalogBook } from "./client";
 import {
@@ -13,7 +17,7 @@ import { writeCatalogCache } from "./catalog-cache.server";
 import { presentationSearchCount } from "./search-counts-cache.server";
 import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
 
-type SearchEnv = {
+type SearchEnv = EngagementEnv & {
   DB: CatalogDB;
   FORE_SEARCH_BACKEND?: string;
   FORE_SEARCH_FALLBACK?: string;
@@ -1713,6 +1717,7 @@ export async function searchCatalog(
   userId: string | null,
   options: { analytics?: boolean } = {},
 ): Promise<SearchResult> {
+  env = scopeEngagementEnv(env);
   if (input.query && !queryTokens(input.query).length)
     return {
       books: [],
@@ -1832,6 +1837,7 @@ export async function recordCachedSearchQuery(
   },
   territory: string,
 ) {
+  env = scopeEngagementEnv(env);
   const input = { ...parseSearchInput(url), territory };
   return logQuery(env.DB, input, null, {
     count: data.count,

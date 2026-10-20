@@ -23,7 +23,7 @@ No production flags or routes are changed. Apply migration `0079_bounded_discove
 - `FORE_SEARCH_BACKEND=meilisearch` plus URL, search/admin keys and index name selects the existing search integration. Its indexing queue and synchronization code are retained. `FORE_SEARCH_FALLBACK=disabled` prevents an engine outage from stampeding primary D1. Incremental indexing, relevance, disjunctive facets, channel filtering and freshness need real-engine acceptance testing before enabling this setting.
 - `FORE_D1_COST_PROFILE=1` enables route cost logging. It is opt-in because instrumentation has overhead and DB-identity-keyed caches must be considered when interpreting profiles.
 
-Recommendation request/impression records, search-query attribution, account/security/commerce writes and existing operations dashboards remain on primary D1. Moving attribution requires coordinated event ingestion, lookup, deduplication, privacy/erasure and dashboard changes; it must not be disguised by silently dropping writes or by `waitUntil()` alone.
+By default, recommendation request/impression records and search-query attribution retain primary D1 storage. The subsequent opt-in engagement boundary and current architecture work are documented in [ARCHITECTURE_RECOVERY_20261020.md](ARCHITECTURE_RECOVERY_20261020.md). Account/security/commerce writes remain authoritative. Independent storage requires coordinated ingestion, lookup, deduplication, privacy/erasure, training and dashboard changes; `waitUntil()` alone does not provide that separation.
 
 ## Validation
 

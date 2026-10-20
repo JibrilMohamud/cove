@@ -53,7 +53,8 @@ export default {
       DB: profiled.db,
       ENGAGEMENT_DB: engagement.db,
       FORE_DISCOVERY_READ_MODE: "required",
-      FORE_ENGAGEMENT_STORAGE: mode === "projection" ? "separate" : "legacy",
+      FORE_ENGAGEMENT_STORAGE: "separate",
+      FORE_ANONYMOUS_DELIVERY: mode === "projection" ? "bounded" : "classic",
     };
     const background: Promise<unknown>[] = [];
     const execution = {

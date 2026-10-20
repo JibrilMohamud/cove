@@ -42,6 +42,7 @@ import { setWishlistItem } from "./retail.server";
 export type RecommendationEnv = DiscoveryReadEnv &
   EngagementEnv & {
     DB: CatalogDB;
+    FORE_ANONYMOUS_DELIVERY?: string;
     FORE_RECOMMENDER_URL?: string;
     FORE_RECOMMENDER_API_KEY?: string;
     FORE_RECOMMENDER_MODEL?: string;
@@ -1362,6 +1363,7 @@ async function requestRecord(
     };
   },
   candidates: Candidate[],
+  pendingWrites?: ReturnType<CatalogDB["prepare"]>[],
 ) {
   const id = crypto.randomUUID(),
     at = now(),
@@ -1436,7 +1438,8 @@ async function requestRecord(
         ),
     );
   }
-  await ledger.batch([requestWrite, ...impressionsWrites]);
+  if (pendingWrites) pendingWrites.push(requestWrite, ...impressionsWrites);
+  else await ledger.batch([requestWrite, ...impressionsWrites]);
   return id;
 }
 
@@ -1510,6 +1513,27 @@ async function eligibleRecommendationIds(
   for (const id of allowed) if (blockedEditions.has(editions.get(id) || "")) allowed.delete(id);
   return allowed;
 }
+function deliveryRankingControls(
+  model: ModelRuntime,
+  experiment: ReturnType<typeof assignRecommendationExperiment>,
+  explorationRate?: number,
+): RankingControls {
+  const modelControls: RankingControls = {
+    explorationRate: modelNumber(model, "explorationRate", 0.08, 0, 0.5),
+    diversityStrength: modelNumber(model, "diversityStrength", 1, 0, 3),
+    sourceWeights: modelRecord(model, "sourceWeights"),
+  };
+  return {
+    ...modelControls,
+    ...(explorationRate === undefined ? {} : { explorationRate: explorationRate }),
+    ...(experiment?.config || {}),
+    sourceWeights: {
+      ...(modelControls.sourceWeights || {}),
+      ...(experiment?.config?.sourceWeights || {}),
+    },
+  };
+}
+
 async function makeRail(
   env: RecommendationEnv,
   opts: {
@@ -1569,20 +1593,7 @@ async function makeRail(
         opts.surface,
         opts.userId || opts.visitorId || crypto.randomUUID(),
       );
-  const modelControls: RankingControls = {
-    explorationRate: modelNumber(model, "explorationRate", 0.08, 0, 0.5),
-    diversityStrength: modelNumber(model, "diversityStrength", 1, 0, 3),
-    sourceWeights: modelRecord(model, "sourceWeights"),
-  };
-  const controls = {
-    ...modelControls,
-    ...(opts.explorationRate === undefined ? {} : { explorationRate: opts.explorationRate }),
-    ...(experiment?.config || {}),
-    sourceWeights: {
-      ...(modelControls.sourceWeights || {}),
-      ...(experiment?.config?.sourceWeights || {}),
-    },
-  };
+  const controls = deliveryRankingControls(model, experiment, opts.explorationRate);
   const ranked = applyRankingControls(hydrated, controls);
   const selected = diversitySelect(
     ranked,
@@ -1884,6 +1895,166 @@ export async function publishAnonymousHomeCandidates(env: RecommendationEnv, ter
   return publishDiscoveryModel(env, "home-candidates", territory, data);
 }
 
+/** Rank in the neutral domain, then authorize only the proposed display in one fresh snapshot.
+ * Greedy selection is unchanged when unselected ineligible items are removed. Exploration is
+ * pool-position dependent, so any visitor who could explore retains full-pool authorization.
+ */
+async function boundedAnonymousHome(
+  env: RecommendationEnv,
+  projection: z.infer<typeof homeModelSchema>,
+  opts: { visitorId: string; territory: string; limit?: number },
+) {
+  env = scopeEngagementEnv(env);
+  const limit = Math.max(4, Math.min(20, opts.limit || 12));
+  const experiments = await anonymousHomeExperiments(env.DB, opts.visitorId);
+  const [base, editorial] = await Promise.all([
+    augmentMeta(env.DB, projection.candidates.map(restoreNeutralCandidate)),
+    augmentMeta(env.DB, projection.editorial.map(restoreNeutralCandidate)),
+  ]);
+  const trending = base
+    .filter((c) => c.meta?.trend && c.meta.trend > 0)
+    .sort((a, b) => (b.meta?.trend || 0) - (a.meta?.trend || 0));
+  const specs = [
+    {
+      key: "recommended-for-you",
+      title: "Popular on Cove",
+      subtitle: "Strong picks from current reader activity",
+      surface: "home:recommended",
+      candidates: base,
+      telemetry: projection.telemetry,
+    },
+    {
+      key: "trending",
+      title: "Trending now",
+      subtitle: undefined,
+      surface: "home:trending",
+      candidates: trending.length ? trending : base,
+      telemetry: projection.telemetry,
+    },
+    {
+      key: "editors-picks",
+      title: "Cove editors recommend",
+      subtitle: undefined,
+      surface: "home:editorial",
+      candidates: editorial,
+      telemetry: undefined,
+    },
+  ].map((spec) => ({
+    ...spec,
+    experiment: experiments.get(spec.surface) || null,
+    controls: deliveryRankingControls(projection.model, experiments.get(spec.surface) || null),
+  }));
+  const allIds = [...new Set([...base, ...editorial].map((c) => c.productId))];
+  const denied = new Set<string>();
+  function choose(allowed?: Set<string>) {
+    const used = new Set<string>();
+    return specs
+      .map((spec) => {
+        const ranked = applyRankingControls(
+          spec.candidates.filter(
+            (c) =>
+              !used.has(c.productId) &&
+              !denied.has(c.productId) &&
+              (!allowed || allowed.has(c.productId)),
+          ),
+          spec.controls,
+        );
+        const selected = diversitySelect(
+          ranked,
+          limit,
+          `${opts.visitorId}:${spec.surface}:${spec.key}`,
+          spec.controls,
+        );
+        selected.forEach((c) => used.add(c.productId));
+        return { ...spec, selected };
+      })
+      .filter((rail) => rail.selected.length);
+  }
+  const explores = specs.some((spec) => {
+    const probability = Math.max(0, Math.min(0.5, Number(spec.controls.explorationRate ?? 0.08)));
+    return (
+      hash32(`${opts.visitorId}:${spec.surface}:${spec.key}:explore`) % 10000 < probability * 10000
+    );
+  });
+  let plan = choose();
+  if (explores)
+    plan = choose(await authorizeDiscoveryCandidates(env.DB, allIds, opts.territory, true));
+  else {
+    let complete = false;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const ids = plan.flatMap((rail) => rail.selected.map((c) => c.productId));
+      const allowed = await authorizeDiscoveryCandidates(env.DB, ids, opts.territory, true);
+      if (ids.every((id) => allowed.has(id))) {
+        complete = true;
+        break;
+      }
+      ids.filter((id) => !allowed.has(id)).forEach((id) => denied.add(id));
+      plan = choose();
+    }
+    if (!complete) {
+      // A mass revocation/series exclusion cannot turn into unbounded refill queries.
+      // Recheck the full bounded pool, including earlier denials, in one new snapshot.
+      denied.clear();
+      plan = choose(await authorizeDiscoveryCandidates(env.DB, allIds, opts.territory, true));
+    }
+  }
+  const selectedIds = plan.flatMap((rail) => rail.selected.map((c) => c.productId));
+  const writes: ReturnType<CatalogDB["prepare"]>[] = [];
+  const records = await Promise.all(
+    plan.map((rail) =>
+      requestRecord(
+        env.DB,
+        {
+          userId: null,
+          visitorId: opts.visitorId,
+          surface: rail.surface,
+          territory: opts.territory,
+          personalized: false,
+          context: { rail: rail.key, discoveryVersion: DISCOVERY_VERSION },
+          experiment: rail.experiment,
+          model: projection.model,
+          telemetry: rail.telemetry,
+        },
+        rail.selected,
+        writes,
+      ),
+    ),
+  );
+  const [, books] = await Promise.all([
+    writes.length ? engagementDatabase(env.DB).batch(writes) : Promise.resolve([]),
+    canonicalBooksByProductIds(env.DB, selectedIds),
+  ]);
+  const contextual = await contextualizeDiscoveryChannels(env.DB, books, opts.territory);
+  const byId = new Map(contextual.map((book) => [book.productId, book]));
+  const rails: RecommendationRail[] = plan.map((rail, index) => ({
+    key: rail.key,
+    title: rail.title,
+    subtitle: rail.subtitle,
+    requestId: records[index],
+    modelVersion: projection.model.version,
+    personalized: false,
+    books: rail.selected
+      .map((c) => byId.get(c.productId))
+      .filter((book): book is CatalogBook => !!book),
+    items: rail.selected.map((c) => ({
+      productId: c.productId,
+      score: Number(c.score.toFixed(4)),
+      reasonCode: c.reasonCode,
+      reason: c.reasonText,
+    })),
+  }));
+  return {
+    rails,
+    personalization: { enabled: false, activityLearning: false, personalizedSearch: false },
+    model: {
+      key: projection.model.key,
+      version: projection.model.version,
+      algorithm: projection.model.algorithm,
+      externalScorer: !!env.FORE_RECOMMENDER_URL,
+    },
+  };
+}
+
 export async function homeRecommendations(
   env: RecommendationEnv,
   opts: { userId: string | null; visitorId: string; territory: string; limit?: number },
@@ -1894,6 +2065,8 @@ export async function homeRecommendations(
           homeModelSchema.parse(value),
         )
       : null;
+  if (projection && env.FORE_ANONYMOUS_DELIVERY === "bounded")
+    return boundedAnonymousHome(env, projection, opts);
   const limit = Math.max(4, Math.min(20, opts.limit || 12)),
     privacy = await recommendationPrivacy(env.DB, opts.userId),
     personalized = !!opts.userId && privacy.personalizationEnabled,

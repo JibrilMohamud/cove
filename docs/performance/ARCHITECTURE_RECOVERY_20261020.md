@@ -42,11 +42,31 @@ Cloudflare's [D1 concurrency guidance](https://developers.cloudflare.com/d1/plat
 
 Local two-database acceptance verifies actual behavior and absence of primary delivery writes, not just source strings. Existing real-schema ranking/revocation/rights tests remain required. Profiler snapshots distinguish initiated and pending statements; asynchronous work without metadata is not reported as proven zero cost.
 
+## Bounded display authorization
+
+`FORE_ANONYMOUS_DELIVERY=bounded` is a separate opt-in for anonymous required-model home delivery. It proposes all rails from neutral metadata, authorizes their combined visible IDs in a fresh primary snapshot, then hydrates canonical books once and persists all rail exposures in one atomic engagement batch. Most non-exploring deliveries therefore check at most 60 proposed IDs rather than 500 candidates.
+
+The safety/ranking argument matters: removing unselected candidates cannot change a deterministic greedy selector's chosen sequence. Cove's exploration uses positions in the remaining pool, so that property does not hold for exploring visitor seeds. Those seeds retain full-pool authorization before selection. After a denial, non-exploring requests recompute all rails and reauthorize the complete proposed display, including previously allowed IDs. After two bounded attempts, they fall back to one full bounded-pool authorization; there is no unbounded refill or cached legal decision.
+
+Tests compare exact books, scores, reasons and rail labels across 80 visitor seeds and varying limits, stale projections with mass revocation, and the 50k fixture with 20k series memberships. This preserves exploration rather than switching it off to obtain a passing number. Local anonymous delivery uses four primary statements in the small fixture and no primary writes; these are function-level SQLite measurements, not Cloudflare API latency evidence.
+
 ## Controlled capacity experiment
 
-The next protected campaign compares the same R2 projection/ranking code with primary versus independent engagement storage. Both variants enable normal durable HTTP telemetry. This is a different experiment from the earlier legacy-candidate versus projection campaign and must not be presented as the same comparison.
+The first protected campaign compares the same R2 projection/ranking code with primary versus independent engagement storage. Both variants enable normal durable HTTP telemetry. This is a different experiment from the earlier legacy-candidate versus projection campaign and must not be presented as the same comparison.
 
 Both use the synthetic primary D1 only; the new independent database is `cove-engagement-isolated-20261020`. The harness verifies its schema marker and absence of catalog/rights/commerce tables before traffic. It preserves all offered arrivals, timeouts, rejections, deployment identity and committed-revocation evidence. Primary and engagement costs are separately labeled, including pending telemetry statements. Full post-response sampled costs are logged after background completion. Production traffic is not used for load generation.
+
+## Measured progress on the independent store
+
+[Run 39383054735](https://github.com/JibrilMohamud/cove/actions/runs/39383054735), runtime `db0cb87b`, returned valid responses for all 3,150 offered load arrivals with no drops. Within that campaign, recommendations at 25 RPS had successful p95 4,102 ms with primary engagement versus 1,776 ms with independent engagement. Mixed independent traffic at 25 RPS had p95 744 ms but maximum 1,320 ms. Cold maximum 838 ms and 32-concurrent recommendation maximum 1,522 ms still fail the hard gate. All eight committed-revocation checks passed. Cold response ingress was IAD; do not attribute cross-campaign differences from the earlier ORD run solely to code changes.
+
+Successful independent recommendation responses recorded nine initiated primary statements, zero pending primary statements and zero known primary writes. They initiated seven engagement statements, including three pending background telemetry statements at header time. The sampled post-response logs wait for that telemetry before recording complete domain costs. These counts explain the resource boundary without pretending background work vanished.
+
+[Real Meilisearch acceptance run 39383384442](https://github.com/JibrilMohamud/cove/actions/runs/39383384442), test commit `0bedb962`, passed on the 50k synthetic catalog using the verified official v1.55.0 binary. Exact-title ranking, language/disjunctive facets, incremental changes, suppression and stale-index revocation checks passed. Its five-second local offered-load diagnostics returned 50/50 valid at 10 RPS and 125/125 at 25 RPS. These are loopback engine + local SQLite timings, not a remotely hosted search or Cloudflare capacity result.
+
+A repeat [run 39383384490](https://github.com/JibrilMohamud/cove/actions/runs/39383384490) on the same runtime (test-only follow-up `0bedb962`) again served all 3,150 offered arrivals and passed revocation. Its 25-RPS recommendation p95 was 6,015 ms with primary engagement versus 1,608 ms independently; cold maximum 1,152 ms, 32-concurrent recommendation maximum 1,706 ms and mixed maximum 1,689 ms still failed. Both runs must be retained; the faster first run is not certification.
+
+The bounded-display campaign is the next independent comparison: both variants retain independent engagement storage and durable telemetry; only the authorization/hydration/batching delivery strategy changes. Production remains unchanged.
 
 ## Production migration and release conditions
 

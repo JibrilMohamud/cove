@@ -115,13 +115,16 @@ try {
     ENGAGEMENT_DB: separate.db,
     FORE_ENGAGEMENT_STORAGE: "separate",
     FORE_DISCOVERY_READ_MODE: "required",
+    FORE_ANONYMOUS_DELIVERY: "bounded",
   };
   const actual = await rec.homeRecommendations(serving, options);
   const shape = (v) =>
     v.rails.map((r) => ({
       key: r.key,
       ids: r.books.map((b) => b.productId),
-      reasons: r.items.map((i) => i.reason),
+      items: r.items,
+      title: r.title,
+      subtitle: r.subtitle,
     }));
   assert.deepEqual(
     shape(actual),
@@ -140,6 +143,11 @@ try {
     separate.samples.some((s) => s.operation === "batch"),
     "Attribution must actually be persisted independently",
   );
+  const deliveryCost = {
+    primaryStatements: primary.snapshot().statements,
+    engagementStatements: separate.snapshot().statements,
+    primaryDeliveryWrites: 0,
+  };
   const db = engagement.scopeEngagementEnv({ ...serving, DB: raw.DB, ENGAGEMENT_DB: ledger }).DB;
   const rail = actual.rails[0],
     productId = rail.books[0].productId;
@@ -322,6 +330,44 @@ try {
     ).n,
     0,
   );
+  // Compare many visitor seeds, including pool-position exploration and varying limits.
+  for (let i = 2; i < 82; i++) {
+    const optionsForVisitor = {
+      ...options,
+      limit: 4 + (i % 17),
+      visitorId: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+    };
+    const reference = await rec.homeRecommendations(
+      { ...serving, FORE_ANONYMOUS_DELIVERY: "classic" },
+      optionsForVisitor,
+    );
+    const bounded = await rec.homeRecommendations(serving, optionsForVisitor);
+    assert.deepEqual(shape(bounded), shape(reference), `Ranking/reason parity for visitor ${i}`);
+  }
+  // A stale neutral pool with mass revocation must fall back to a bounded full check.
+  const grants = (await raw.DB.prepare("SELECT id,status FROM rights_grants").all()).results;
+  try {
+    await raw.DB.prepare(
+      "UPDATE rights_grants SET status='revoked' WHERE edition_id IN (SELECT edition_id FROM products WHERE id<>?)",
+    )
+      .bind(productId)
+      .run();
+    const reference = await rec.homeRecommendations(
+      { ...serving, FORE_ANONYMOUS_DELIVERY: "classic" },
+      options,
+    );
+    const bounded = await rec.homeRecommendations(serving, options);
+    assert.deepEqual(
+      shape(bounded),
+      shape(reference),
+      "Mass revocation must preserve exact legal ranking",
+    );
+  } finally {
+    for (const grant of grants)
+      await raw.DB.prepare("UPDATE rights_grants SET status=? WHERE id=?")
+        .bind(grant.status, grant.id)
+        .run();
+  }
   // A ledger outage cannot silently return to primary persistence.
   const broken = {
     prepare() {
@@ -341,9 +387,7 @@ try {
   );
   console.log(
     JSON.stringify({
-      primaryStatements: primary.samples.length,
-      engagementStatements: separate.samples.length,
-      primaryDeliveryWrites: 0,
+      ...deliveryCost,
     }),
   );
   console.log(

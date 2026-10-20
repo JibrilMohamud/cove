@@ -503,6 +503,7 @@ export type CoveEnv = DiscoveryReadEnv &
     FORE_SEARCH_ADMIN_KEY?: string;
     FORE_SEARCH_INDEX?: string;
     FORE_SEARCH_EMBEDDER?: string;
+    FORE_ANONYMOUS_DELIVERY?: string;
     FORE_RECOMMENDER_URL?: string;
     FORE_RECOMMENDER_API_KEY?: string;
     FORE_RECOMMENDER_MODEL?: string;

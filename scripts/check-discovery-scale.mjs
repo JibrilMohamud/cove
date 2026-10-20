@@ -114,6 +114,21 @@ try {
     }));
   assert.deepEqual(ids(projected), ids(baseline));
   assert.equal(projected.rails[0].books.length, 20);
+  const boundedCost = profileD1(env.DB);
+  const bounded = await rec.homeRecommendations(
+    {
+      ...env,
+      DB: boundedCost.db,
+      FORE_DISCOVERY_READ_MODE: "required",
+      FORE_ANONYMOUS_DELIVERY: "bounded",
+    },
+    opts,
+  );
+  assert.deepEqual(
+    ids(bounded),
+    ids(baseline),
+    "Final-display authorization must preserve exact ranking at 50k scale with 20k series memberships",
+  );
   const evidenceRows = sqlite
     .prepare("SELECT position FROM recommendation_impressions WHERE request_id=? ORDER BY position")
     .all(projected.rails[0].requestId);
@@ -151,6 +166,7 @@ try {
         largestBind,
         baselineStatements: baselineCost.samples.length,
         projectedStatements: cost.samples.length,
+        boundedStatements: boundedCost.samples.length,
         rails: ids(projected).map((r) => ({ key: r.key, books: r.books.length })),
         rightsQueryPlan: plan.map((p) => p.detail),
       },
