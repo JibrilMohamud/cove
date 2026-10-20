@@ -82,6 +82,93 @@ try {
     raw,
   );
   assert.equal(seed.status, 200, await seed.text());
+  const readCounters = [];
+  const edgeReads = {
+    ...raw,
+    FORE_DISCOVERY_READ_RATE_LIMIT_MODE: "edge",
+    COVE_STOREFRONT_READ_LIMITER: {
+      async limit({ key }) {
+        readCounters.push({ cap: 180, key });
+        return { success: true };
+      },
+    },
+    COVE_DISCOVERY_READ_LIMITER_240: {
+      async limit({ key }) {
+        readCounters.push({ cap: 240, key });
+        return { success: true };
+      },
+    },
+  };
+  const readRequest = new Request("https://test/api/fore/recommendations/home", {
+    headers: { "cf-connecting-ip": "192.0.2.88" },
+  });
+  const countersBefore = (await raw.DB.prepare("SELECT COUNT(*) n FROM rate_limits").first()).n;
+  await api.rateLimitSearchRequest(readRequest, edgeReads, null, "recommend-home", 180);
+  await api.rateLimitSearchRequest(readRequest, edgeReads, null, "suggest", 240);
+  assert.deepEqual(
+    readCounters.map((entry) => entry.cap),
+    [180, 240],
+  );
+  assert.equal(
+    (await raw.DB.prepare("SELECT COUNT(*) n FROM rate_limits").first()).n,
+    countersBefore,
+    "Public edge read counters must not write primary D1",
+  );
+  await assert.rejects(
+    api.rateLimitSearchRequest(
+      readRequest,
+      { ...edgeReads, COVE_STOREFRONT_READ_LIMITER: undefined },
+      null,
+      "recommend-home",
+      180,
+    ),
+    (error) => error.status === 503,
+  );
+  await assert.rejects(
+    api.rateLimitSearchRequest(
+      readRequest,
+      {
+        ...edgeReads,
+        COVE_STOREFRONT_READ_LIMITER: {
+          async limit() {
+            return { success: false };
+          },
+        },
+      },
+      null,
+      "recommend-home",
+      180,
+    ),
+    (error) => error.status === 429,
+  );
+  await assert.rejects(
+    api.rateLimitSearchRequest(
+      new Request("https://test/api/fore/recommendations/home"),
+      edgeReads,
+      null,
+      "recommend-home",
+      180,
+    ),
+    (error) => error.status === 503,
+  );
+  const durableCounterCost = profileD1(raw.DB);
+  await api.rateLimitSearchRequest(
+    new Request(readRequest, { method: "POST" }),
+    { ...edgeReads, DB: durableCounterCost.db },
+    null,
+    "click",
+    240,
+  );
+  assert.equal(
+    durableCounterCost.snapshot().writeStatements,
+    1,
+    "Write accounting must recognize metadata-free .first() writes",
+  );
+  assert.equal(
+    (await raw.DB.prepare("SELECT COUNT(*) n FROM rate_limits").first()).n,
+    countersBefore + 1,
+    "POST event abuse controls must retain their durable primary counter",
+  );
   const objects = new Map();
   const store = {
     async get(k) {
@@ -107,7 +194,19 @@ try {
   const primaryCount = await raw.DB.prepare(
     "SELECT COUNT(*) n FROM recommendation_requests",
   ).first();
-  const primary = profileD1(raw.DB),
+  const primaryReadSql = [];
+  const readOnlyPrimary = {
+    ...raw.DB,
+    prepare(sql) {
+      assert.ok(
+        !/\b(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER)\b/i.test(sql),
+        "Delivery must prepare only primary reads",
+      );
+      primaryReadSql.push(sql);
+      return raw.DB.prepare(sql);
+    },
+  };
+  const primary = profileD1(readOnlyPrimary),
     separate = profileD1(ledger);
   const serving = {
     ...env,
@@ -115,7 +214,7 @@ try {
     ENGAGEMENT_DB: separate.db,
     FORE_ENGAGEMENT_STORAGE: "separate",
     FORE_DISCOVERY_READ_MODE: "required",
-    FORE_ANONYMOUS_DELIVERY: "bounded",
+    FORE_ANONYMOUS_DELIVERY: "snapshot",
   };
   const actual = await rec.homeRecommendations(serving, options);
   const shape = (v) =>
@@ -136,7 +235,8 @@ try {
     primaryCount.n,
   );
   assert.ok(
-    primary.samples.every((s) => ["all", "first"].includes(s.operation)),
+    primaryReadSql.length > 0 &&
+      primary.samples.every((s) => ["all", "first", "batch"].includes(s.operation)),
     "Anonymous delivery must not write primary D1",
   );
   assert.ok(
@@ -343,6 +443,15 @@ try {
     );
     const bounded = await rec.homeRecommendations(serving, optionsForVisitor);
     assert.deepEqual(shape(bounded), shape(reference), `Ranking/reason parity for visitor ${i}`);
+    const previousDelivery = await rec.homeRecommendations(
+      { ...serving, FORE_ANONYMOUS_DELIVERY: "bounded" },
+      optionsForVisitor,
+    );
+    assert.deepEqual(
+      shape(bounded),
+      shape(previousDelivery),
+      `Snapshot/bounded parity for visitor ${i}`,
+    );
   }
   // A stale neutral pool with mass revocation must fall back to a bounded full check.
   const grants = (await raw.DB.prepare("SELECT id,status FROM rights_grants").all()).results;

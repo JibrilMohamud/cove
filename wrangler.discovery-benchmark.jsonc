@@ -28,6 +28,11 @@
       "namespace_id": "732041",
       "simple": { "limit": 180, "period": 60 },
     },
+    {
+      "name": "COVE_DISCOVERY_READ_LIMITER_240",
+      "namespace_id": "732042",
+      "simple": { "limit": 240, "period": 60 },
+    },
   ],
   "vars": {
     "FORE_ENVIRONMENT": "production",

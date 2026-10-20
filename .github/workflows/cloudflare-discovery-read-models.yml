@@ -29,6 +29,7 @@ jobs:
       - name: Type, projection, legal authority and load-accounting gates
         run: |
           npm run typecheck
+          node scripts/check-recommendation-selection.mjs
           node scripts/check-engagement-separation.mjs
           node scripts/check-discovery-read-models.mjs
           node scripts/check-discovery-benchmark-config.mjs
@@ -53,8 +54,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cove-discovery-models-${{ github.sha }}-${{ github.run_attempt }}
-          path: artifacts/discovery-benchmark/results.json
+          path: |
+            artifacts/discovery-benchmark/results.json
+            artifacts/recommendation-selection/results.json
           retention-days: 30
+      - name: Retain raw synthetic evidence in the private benchmark bucket
+        if: always()
+        run: |
+          if [ -f artifacts/discovery-benchmark/results.json ]; then
+            npx --yes wrangler@4.151.0 r2 object put "cove-discovery-models-benchmark/evidence/${GITHUB_SHA}/${GITHUB_RUN_ID}/results.json" --file artifacts/discovery-benchmark/results.json --content-type application/json --remote --config wrangler.discovery-benchmark.jsonc
+          fi
       - name: Remove private diagnostic Worker
         if: always()
         run: |

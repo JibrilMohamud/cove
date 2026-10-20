@@ -2,6 +2,7 @@ import type { CatalogDB } from "./catalog-model.server";
 
 type Sample = {
   statement: string;
+  statementKind: "read" | "write" | "unknown";
   operation: string;
   wallMs: number;
   sqlMs: number | null;
@@ -24,6 +25,17 @@ export function profileD1(db: CatalogDB) {
   let dropped = 0;
   let startedStatements = 0,
     completedStatements = 0;
+  let writeStatements = 0;
+  function statementKind(sql: string): Sample["statementKind"] {
+    if (/^\s*(INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|VACUUM|ANALYZE)\b/i.test(sql))
+      return "write";
+    if (/^\s*(SELECT|EXPLAIN)\b/i.test(sql)) return "read";
+    return "unknown";
+  }
+  function start(sql: string) {
+    startedStatements++;
+    if (statementKind(sql) === "write") writeStatements++;
+  }
   const sources = new WeakMap<object, { raw: object; sql: string }>();
   const numeric = (v: unknown) =>
     typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
@@ -51,6 +63,7 @@ export function profileD1(db: CatalogDB) {
     const sqlMs = numeric(meta?.timings?.sql_duration_ms);
     const sample = {
       statement: fingerprint(sql),
+      statementKind: statementKind(sql),
       operation,
       wallMs,
       sqlMs,
@@ -75,7 +88,7 @@ export function profileD1(db: CatalogDB) {
         if (["all", "run", "first", "raw"].includes(String(property)))
           return async (...args: unknown[]) => {
             const started = performance.now();
-            startedStatements++;
+            start(sql);
             try {
               const result = await value.apply(target, args);
               record(sql, String(property), started, result, true);
@@ -102,7 +115,7 @@ export function profileD1(db: CatalogDB) {
         if (property === "batch")
           return async (statements: object[]) => {
             const entries = statements.map((s) => sources.get(s));
-            startedStatements += statements.length;
+            entries.forEach((entry) => start(entry?.sql || "batch"));
             const started = performance.now();
             try {
               const result = await value.call(
@@ -129,6 +142,7 @@ export function profileD1(db: CatalogDB) {
     samples,
     snapshot: () => ({
       statements: startedStatements,
+      writeStatements,
       pendingStatements: startedStatements - completedStatements,
       dropped,
       samples: [...samples],

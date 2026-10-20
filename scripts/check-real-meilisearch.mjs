@@ -203,6 +203,40 @@ try {
   });
   assert.equal(result.backend, "meilisearch");
   assert.equal(result.books[0].productId, a, "Exact title must rank first");
+  const suggestions = await search.searchSuggestions(env, "Quasar", "US");
+  assert.ok(
+    suggestions.some((hit) => hit.productId === a),
+    "Real engine supplies suggestions",
+  );
+  const wide = await search.searchCatalog(
+    env,
+    { ...input("q=Synthetic&territory=US"), limit: 200 },
+    null,
+    { analytics: false },
+  );
+  assert.ok(
+    wide.books.length > 100 && wide.books.length <= 200,
+    "The bounded personalization window must hydrate without exceeding D1 binds",
+  );
+  await assert.rejects(
+    search.searchCatalog({ ...env, FORE_SEARCH_SEARCH_KEY: undefined }, input("q=Quasar"), null, {
+      analytics: false,
+    }),
+    /temporarily unavailable/,
+  );
+  await assert.rejects(
+    search.searchCatalog(
+      { ...env, FORE_SEARCH_SEARCH_KEY: key, FORE_SEARCH_ADMIN_KEY: key },
+      input("q=Quasar"),
+      null,
+      { analytics: false },
+    ),
+    /temporarily unavailable/,
+  );
+  await assert.rejects(
+    search.searchSuggestions({ ...env, FORE_SEARCH_BACKEND: "d1" }, "Quasar", "US"),
+    /required/,
+  );
   const all = await search.searchCatalog(env, input("q=Quasar&territory=US"), null, {
     analytics: false,
   });
@@ -242,6 +276,10 @@ try {
   assert.ok(
     revoked.books.every((x) => x.productId !== a),
     "Primary revocation overrides the real stale index",
+  );
+  assert.ok(
+    !(await search.searchSuggestions(env, "Quasar", "US")).some((hit) => hit.productId === a),
+    "Revocation also overrides stale suggestions",
   );
   serving = false;
   sqlite
@@ -297,6 +335,25 @@ try {
   await assert.rejects(
     search.searchCatalog(env, input("q=Ocean+Solitude&territory=US"), null, { analytics: false }),
     /temporarily unavailable/,
+  );
+  await assert.rejects(search.searchSuggestions(env, "Ocean", "US"), /temporarily unavailable/);
+  sqlite.exec(
+    "INSERT INTO search_index_outbox(product_id,operation,queued_at,attempts,last_error) SELECT product_id,'upsert',datetime('now'),0,'' FROM catalog_search_documents LIMIT 500 ON CONFLICT(product_id) DO UPDATE SET attempts=0,last_error=''",
+  );
+  const beforeFailedSync = servingSql.length;
+  await assert.rejects(search.syncSearchIndex(env, 500), /injected real-engine outage/);
+  assert.ok(
+    servingSql.length - beforeFailedSync <= 7,
+    "500 failed documents must use a bounded retry update, not 500 primary RPCs",
+  );
+  const failedBacklog = sqlite
+    .prepare("SELECT COUNT(*) n,SUM(attempts) attempts FROM search_index_outbox")
+    .get();
+  assert.equal(failedBacklog.n, 500);
+  assert.equal(
+    failedBacklog.attempts,
+    500,
+    "Failed work must remain retryable, with attempts recorded",
   );
   assert.ok(
     !servingSql.some((sql) => /\b(catalog_search_fts|book_search_fts)\b/i.test(sql)),

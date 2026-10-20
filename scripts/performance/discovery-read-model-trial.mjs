@@ -20,7 +20,6 @@ fs.mkdirSync(output, { recursive: true });
 const controlName = `${config.name}-control`;
 const controlOrigin = `https://${controlName}.cove-jibrilmohamud.workers.dev`;
 const controlConfig = { ...config, name: controlName };
-delete controlConfig.placement;
 const controlConfigPath = `${output}/control.json`;
 // Wrangler paths are relative to the configuration file, not the repository root.
 controlConfig.main = "worker.mjs";
@@ -30,14 +29,15 @@ controlConfig.d1_databases = controlConfig.d1_databases.map((db) =>
 fs.writeFileSync(controlConfigPath, JSON.stringify(controlConfig, null, 2));
 const evidence = {
   sha: process.env.GITHUB_SHA,
-  kind: "isolated-bounded-delivery-paired-placement-v5",
+  kind: "isolated-primary-snapshot-delivery-v6",
   variants: {
-    control: "Bounded display + independent engagement + durable HTTP telemetry; default placement",
+    control:
+      "Bounded display + independent engagement + durable HTTP telemetry + native public read counters; Virginia placement",
     projection:
-      "Identical bounded display + independent engagement + durable HTTP telemetry; Virginia placement hint",
+      "Atomic primary display snapshot + independent engagement + durable HTTP telemetry + native public read counters; Virginia placement",
   },
   topology: {
-    control: { worker: controlName, placement: null },
+    control: { worker: controlName, placement: config.placement },
     projection: { worker: config.name, placement: config.placement },
   },
   productionD1: false,
@@ -97,6 +97,9 @@ async function probe(route, mode) {
       ttfbMs,
       totalMs: performance.now() - started,
       statements: Number(response.headers.get("x-cove-d1-statements")),
+      primaryWriteStatements: response.headers.has("x-cove-d1-write-statements")
+        ? Number(response.headers.get("x-cove-d1-write-statements"))
+        : null,
       primaryPendingStatements: Number(response.headers.get("x-cove-d1-pending-statements")),
       engagementPendingStatements: Number(
         response.headers.get("x-cove-engagement-pending-statements"),
@@ -111,7 +114,7 @@ async function probe(route, mode) {
       requestId: response.headers.get("x-fore-request-id"),
       epoch: response.headers.get("x-cove-benchmark-epoch"),
       colo: response.headers.get("cf-ray")?.split("-").at(-1),
-      placement: response.headers.get("cf-placement"),
+      placement: response.headers.get("cf-placement") || response.headers.get("x-cove-placement"),
       products: shape.products,
       ...(valid ? {} : { failure: response.ok ? "content" : `http-${response.status}` }),
     };
@@ -165,6 +168,16 @@ try {
   for (const path of ["wrangler.discovery-benchmark.jsonc", controlConfigPath]) {
     wrangler(["deploy", "--config", path]);
     wrangler(["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", path], key);
+  }
+  for (const [variant, worker] of [
+    ["control", controlName],
+    ["projection", config.name],
+  ]) {
+    const settings = await api("GET", `/workers/scripts/${worker}/settings`);
+    const placement = settings.placement;
+    const region = placement?.region || placement?.target?.[0]?.region;
+    assert.equal(region, "aws:us-east-1", "Deployed placement must match the actual experiment");
+    evidence.topology[variant].acceptedPlacement = placement;
   }
   await new Promise((r) => setTimeout(r, 6000));
   assert.equal((await fetch(origin)).status, 401, "Stage gate must reject unauthenticated traffic");
@@ -270,6 +283,9 @@ try {
     ) &&
     evidence.bursts.every((row) => pass(row.summary)) &&
     evidence.load.filter((row) => row.mode === "projection").every((row) => pass(row.summary)) &&
+    evidence.load
+      .filter((row) => row.mode === "projection")
+      .every((phase) => phase.rows.every((row) => row.primaryWriteStatements === 0)) &&
     evidence.revocation.passed;
   console.log(
     JSON.stringify({

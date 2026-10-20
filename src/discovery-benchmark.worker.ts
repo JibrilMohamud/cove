@@ -26,6 +26,7 @@ export default {
     let difference = 0;
     for (let i = 0; i < key.length; i++) difference |= key.charCodeAt(i) ^ supplied.charCodeAt(i);
     if (difference) return new Response(null, { status: 401 });
+    const placement = request.headers.get("cf-placement");
     request = syntheticClient(request, env);
     const url = new URL(request.url);
     if (url.pathname === "/__refresh" && request.method === "POST") {
@@ -54,7 +55,8 @@ export default {
       ENGAGEMENT_DB: engagement.db,
       FORE_DISCOVERY_READ_MODE: "required",
       FORE_ENGAGEMENT_STORAGE: "separate",
-      FORE_ANONYMOUS_DELIVERY: "bounded",
+      FORE_ANONYMOUS_DELIVERY: mode === "projection" ? "snapshot" : "bounded",
+      FORE_DISCOVERY_READ_RATE_LIMIT_MODE: "edge",
     };
     const background: Promise<unknown>[] = [];
     const execution = {
@@ -74,6 +76,7 @@ export default {
     );
     const knownSql = costs.samples.filter((sample) => sample.sqlMs !== null);
     response.headers.set("x-cove-d1-statements", String(costs.statements));
+    response.headers.set("x-cove-d1-write-statements", String(costs.writeStatements));
     response.headers.set("x-cove-d1-pending-statements", String(costs.pendingStatements));
     response.headers.set(
       "x-cove-engagement-pending-statements",
@@ -109,6 +112,7 @@ export default {
         ),
       );
     response.headers.set("x-cove-read-model", mode);
+    if (placement) response.headers.set("x-cove-placement", placement.slice(0, 80));
     response.headers.set("x-cove-benchmark-epoch", env.COVE_BENCHMARK_EPOCH || "initial");
     return response;
   },

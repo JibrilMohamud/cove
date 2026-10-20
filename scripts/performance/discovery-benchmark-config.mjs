@@ -24,6 +24,18 @@ export function parseDiscoveryBenchmarkConfig(source) {
   assert.equal(config.vars.COVE_PERF_DATABASE_ID, PERFORMANCE_D1.current.id);
   assert.equal(config.workers_dev, true);
   assert.deepEqual(config.placement, { region: "aws:us-east-1" });
+  assert.deepEqual(config.ratelimits, [
+    {
+      name: "COVE_STOREFRONT_READ_LIMITER",
+      namespace_id: "732041",
+      simple: { limit: 180, period: 60 },
+    },
+    {
+      name: "COVE_DISCOVERY_READ_LIMITER_240",
+      namespace_id: "732042",
+      simple: { limit: 240, period: 60 },
+    },
+  ]);
   const allowed = new Set([
     "name",
     "main",

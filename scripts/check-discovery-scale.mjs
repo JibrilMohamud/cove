@@ -120,7 +120,7 @@ try {
       ...env,
       DB: boundedCost.db,
       FORE_DISCOVERY_READ_MODE: "required",
-      FORE_ANONYMOUS_DELIVERY: "bounded",
+      FORE_ANONYMOUS_DELIVERY: "snapshot",
     },
     opts,
   );
@@ -158,6 +158,35 @@ try {
   assert.ok(
     !plan.some((p) => /^SCAN (p|e|d|sm|previous)$/.test(p.detail)),
     "No full product/edition/catalog scan for bounded authorization",
+  );
+  const displayReads = [];
+  const displayDB = {
+    ...env.DB,
+    prepare(query) {
+      const statement = env.DB.prepare(query);
+      return {
+        ...statement,
+        bind(...values) {
+          displayReads.push({ query, values });
+          return statement.bind(...values);
+        },
+      };
+    },
+  };
+  const display = await rights.authorizeDiscoveryDisplay(displayDB, candidates, "US", true);
+  assert.equal(display.size, new Set(candidates).size);
+  assert.equal(displayReads.length, 3);
+  const hydration = displayReads.find((read) => read.query.includes("contributors_json"));
+  const hydrationPlan = sqlite
+    .prepare("EXPLAIN QUERY PLAN " + hydration.query)
+    .all(...hydration.values);
+  assert.ok(
+    hydrationPlan.some((row) => /SEARCH p USING INDEX.*\(id=\?\)/.test(row.detail)),
+    "Batched canonical hydration must retain indexed product lookup",
+  );
+  assert.ok(
+    !hydrationPlan.some((row) => /^SCAN (p|e|d)$/.test(row.detail)),
+    "JSON binding must not introduce a catalog scan",
   );
   console.log(
     JSON.stringify(

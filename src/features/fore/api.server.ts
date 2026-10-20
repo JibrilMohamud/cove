@@ -31,7 +31,10 @@ import {
   workDetail,
 } from "./discovery.server";
 import { ApiError, rateLimit } from "./service";
-import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
+import {
+  enforceFirstPaintRateLimit,
+  enforceDiscoveryReadRateLimit,
+} from "./storefront-read-rate-limit.server";
 import { restoreReadingBackup } from "./reading-restore.server";
 import { issueOfflineEpubLicense, offlineEpubVerificationKey } from "./offline-epub.server";
 import { handleCommunity, migrateLegacy } from "./community.server";
@@ -476,6 +479,10 @@ export type CoveEnv = DiscoveryReadEnv &
     COVE_STOREFRONT_READ_LIMITER?: {
       limit(input: { key: string }): Promise<{ success: boolean }>;
     };
+    COVE_DISCOVERY_READ_LIMITER_240?: {
+      limit(input: { key: string }): Promise<{ success: boolean }>;
+    };
+    FORE_DISCOVERY_READ_RATE_LIMIT_MODE?: string;
     COVE_SSR_STAGING?: string;
     COVE_PERF_DATABASE_ID?: string;
     COVE_PERF_TELEMETRY_MODE?: string;
@@ -2665,6 +2672,15 @@ export async function rateLimitSearchRequest(
 ) {
   const ip = clientIp(request);
   const actor = userId ? `user:${userId}` : ip ? `ip:${ip}` : null;
+  if (
+    env.FORE_DISCOVERY_READ_RATE_LIMIT_MODE === "edge" &&
+    request.method === "GET" &&
+    ["catalog", "suggest", "merch", "recommend-home", "recommend-book"].includes(bucket)
+  ) {
+    if (!actor) throw new ApiError(503, "Unable to verify discovery request for rate limiting.");
+    await enforceDiscoveryReadRateLimit(env, `search:${bucket}:${actor}`, limit);
+    return;
+  }
   if (actor) await rateLimit(env, `search:${bucket}:${actor}`, limit);
 }
 

@@ -5,6 +5,7 @@ import {
 } from "./recommendation-engagement.server";
 import {
   authorizeDiscoveryCandidates,
+  authorizeDiscoveryDisplay,
   contextualizeDiscoveryChannels,
 } from "./discovery-rights.server";
 import {
@@ -897,7 +898,7 @@ type RankingControls = {
   diversityStrength?: number;
   sourceWeights?: Record<string, number>;
 };
-function diversitySelect(
+export function diversitySelect(
   candidates: Candidate[],
   limit: number,
   seed: string,
@@ -907,7 +908,16 @@ function diversitySelect(
     authorCount = new Map<string, number>(),
     seriesCount = new Map<string, number>(),
     rootCount = new Map<string, number>();
-  const remaining = [...candidates],
+  const selectedWorks = new Set<string>();
+  const remaining = candidates.map((candidate) => ({
+      candidate,
+      roots: candidate.meta ? rootTaxonomy(candidate.meta.taxonomyPaths) : [],
+      featureKeys: (candidate.literaryFeatures || []).map(
+        (feature) => `${feature.dimension}:${feature.feature}`,
+      ),
+      overlap: 0,
+      jitter: (hash32(`${seed}:${candidate.productId}`) % 1000) / 100000,
+    })),
     diversity = Math.max(0, Math.min(3, Number(controls.diversityStrength ?? 1))),
     exploration = Math.max(0, Math.min(0.5, Number(controls.explorationRate ?? 0.08)));
   while (chosen.length < limit && remaining.length) {
@@ -921,39 +931,41 @@ function diversitySelect(
       bestIndex = 5 + (hash32(`${seed}:explore-item`) % Math.min(20, remaining.length - 5));
     if (!explore)
       for (let i = 0; i < remaining.length; i++) {
-        const c = remaining[i],
+        const cached = remaining[i],
+          c = cached.candidate,
           m = c.meta;
         if (!m) continue;
         let penalty = 0;
         for (const a of m.authorIds) penalty += (authorCount.get(a) || 0) * 1.9;
         for (const s of m.seriesIds) penalty += (seriesCount.get(s) || 0) * 2.4;
-        for (const r of rootTaxonomy(m.taxonomyPaths)) penalty += (rootCount.get(r) || 0) * 0.45;
-        const jitter = (hash32(`${seed}:${c.productId}`) % 1000) / 100000;
-        const overlap = Math.max(
-          0,
-          ...chosen.map((p) => {
-            const a = new Set((p.literaryFeatures || []).map((f) => `${f.dimension}:${f.feature}`));
-            const b = c.literaryFeatures || [];
-            return b.length
-              ? b.filter((f) => a.has(`${f.dimension}:${f.feature}`)).length /
-                  Math.max(a.size, b.length)
-              : 0;
-          }),
-        );
-        const value = c.score - (penalty + overlap * 2) * diversity + jitter;
+        for (const r of cached.roots) penalty += (rootCount.get(r) || 0) * 0.45;
+        const value = c.score - (penalty + cached.overlap * 2) * diversity + cached.jitter;
         if (value > best) {
           best = value;
           bestIndex = i;
         }
       }
-    const [pick] = remaining.splice(bestIndex, 1);
+    const [cachedPick] = remaining.splice(bestIndex, 1);
+    const pick = cachedPick?.candidate;
     if (!pick?.meta) continue;
-    if (chosen.some((c) => c.meta?.workId === pick.meta?.workId)) continue;
+    if (selectedWorks.has(pick.meta.workId)) continue;
     chosen.push(pick);
+    selectedWorks.add(pick.meta.workId);
     for (const a of pick.meta.authorIds) authorCount.set(a, (authorCount.get(a) || 0) + 1);
     for (const s of pick.meta.seriesIds) seriesCount.set(s, (seriesCount.get(s) || 0) + 1);
-    for (const r of rootTaxonomy(pick.meta.taxonomyPaths))
-      rootCount.set(r, (rootCount.get(r) || 0) + 1);
+    for (const r of cachedPick.roots) rootCount.set(r, (rootCount.get(r) || 0) + 1);
+    // max(similarity to chosen) grows by one term per accepted pick. Preserve duplicate
+    // feature counts and the original denominator, exploration positions and tie order.
+    const selectedFeatures = new Set(cachedPick.featureKeys);
+    for (const candidate of remaining) {
+      if (!candidate.featureKeys.length) continue;
+      let matches = 0;
+      for (const key of candidate.featureKeys) if (selectedFeatures.has(key)) matches++;
+      candidate.overlap = Math.max(
+        candidate.overlap,
+        matches / Math.max(selectedFeatures.size, candidate.featureKeys.length),
+      );
+    }
   }
   return chosen;
 }
@@ -1977,13 +1989,21 @@ async function boundedAnonymousHome(
     );
   });
   let plan = choose();
+  const snapshotDelivery = env.FORE_ANONYMOUS_DELIVERY === "snapshot";
+  let display: Map<string, CatalogBook> | undefined;
+  async function authorizePlan() {
+    const ids = plan.flatMap((rail) => rail.selected.map((c) => c.productId));
+    if (!snapshotDelivery) return authorizeDiscoveryCandidates(env.DB, ids, opts.territory, true);
+    display = await authorizeDiscoveryDisplay(env.DB, ids, opts.territory, true);
+    return new Set(display.keys());
+  }
   if (explores)
     plan = choose(await authorizeDiscoveryCandidates(env.DB, allIds, opts.territory, true));
   else {
     let complete = false;
     for (let attempt = 0; attempt < 2; attempt++) {
       const ids = plan.flatMap((rail) => rail.selected.map((c) => c.productId));
-      const allowed = await authorizeDiscoveryCandidates(env.DB, ids, opts.territory, true);
+      const allowed = await authorizePlan();
       if (ids.every((id) => allowed.has(id))) {
         complete = true;
         break;
@@ -1996,7 +2016,19 @@ async function boundedAnonymousHome(
       // Recheck the full bounded pool, including earlier denials, in one new snapshot.
       denied.clear();
       plan = choose(await authorizeDiscoveryCandidates(env.DB, allIds, opts.territory, true));
+      display = undefined;
     }
+  }
+  if (snapshotDelivery) {
+    if (!display) await authorizePlan();
+    // The full-pool/exploration path receives a final fresh display snapshot as well.
+    // A concurrent denial is omitted, with no unbounded refill or stale exposure.
+    plan = plan
+      .map((rail) => ({
+        ...rail,
+        selected: rail.selected.filter((candidate) => display!.has(candidate.productId)),
+      }))
+      .filter((rail) => rail.selected.length);
   }
   const selectedIds = plan.flatMap((rail) => rail.selected.map((c) => c.productId));
   const writes: ReturnType<CatalogDB["prepare"]>[] = [];
@@ -2022,9 +2054,13 @@ async function boundedAnonymousHome(
   );
   const [, books] = await Promise.all([
     writes.length ? engagementDatabase(env.DB).batch(writes) : Promise.resolve([]),
-    canonicalBooksByProductIds(env.DB, selectedIds),
+    display
+      ? Promise.resolve([...display.values()])
+      : canonicalBooksByProductIds(env.DB, selectedIds),
   ]);
-  const contextual = await contextualizeDiscoveryChannels(env.DB, books, opts.territory);
+  const contextual = display
+    ? books
+    : await contextualizeDiscoveryChannels(env.DB, books, opts.territory);
   const byId = new Map(contextual.map((book) => [book.productId, book]));
   const rails: RecommendationRail[] = plan.map((rail, index) => ({
     key: rail.key,
@@ -2065,7 +2101,7 @@ export async function homeRecommendations(
           homeModelSchema.parse(value),
         )
       : null;
-  if (projection && env.FORE_ANONYMOUS_DELIVERY === "bounded")
+  if (projection && ["bounded", "snapshot"].includes(env.FORE_ANONYMOUS_DELIVERY || ""))
     return boundedAnonymousHome(env, projection, opts);
   const limit = Math.max(4, Math.min(20, opts.limit || 12)),
     privacy = await recommendationPrivacy(env.DB, opts.userId),

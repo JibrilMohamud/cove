@@ -600,15 +600,18 @@ export async function resolveProduct(db: DB, ref: string, userId?: string) {
   return row;
 }
 
+/** Reusable prepared read so a caller can hydrate inside its primary snapshot batch. */
+export function canonicalBookRowsStatement(db: DB, productIds: string[]) {
+  if (productIds.length > 200)
+    throw new ApiError(400, "Too many catalog products requested at once.");
+  return db
+    .prepare(`${canonicalSelect} WHERE p.id IN (SELECT value FROM json_each(?))`)
+    .bind(JSON.stringify(productIds));
+}
+
 export async function canonicalBooksByProductIds(db: DB, productIds: string[]) {
   if (!productIds.length) return [] as CatalogBook[];
-  if (productIds.length > 100)
-    throw new ApiError(400, "Too many catalog products requested at once.");
-  const placeholders = productIds.map(() => "?").join(",");
-  const rows = await db
-    .prepare(`${canonicalSelect} WHERE p.id IN (${placeholders})`)
-    .bind(...productIds)
-    .all<any>();
+  const rows = await canonicalBookRowsStatement(db, productIds).all<any>();
   const byId = new Map(
     rows.results.map((row: any) => [String(row.product_id), canonicalRowBook(row)]),
   );

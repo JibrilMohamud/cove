@@ -3,7 +3,11 @@ import {
   scopeEngagementEnv,
   type EngagementEnv,
 } from "./recommendation-engagement.server";
-import { authorizeDiscoveryCandidates } from "./discovery-rights.server";
+import {
+  authorizeDiscoveryCandidates,
+  authorizeDiscoveryDisplay,
+  contextualizeDiscoveryChannels,
+} from "./discovery-rights.server";
 import type { CatalogBook } from "./client";
 import {
   canonicalBooksByProductIds,
@@ -1078,7 +1082,10 @@ async function meiliRequest(
 ) {
   const key = admin
     ? env.FORE_SEARCH_ADMIN_KEY
-    : env.FORE_SEARCH_SEARCH_KEY || env.FORE_SEARCH_ADMIN_KEY;
+    : env.FORE_SEARCH_SEARCH_KEY ||
+      (env.FORE_SEARCH_FALLBACK === "disabled" ? undefined : env.FORE_SEARCH_ADMIN_KEY);
+  if (!admin && env.FORE_SEARCH_FALLBACK === "disabled" && key === env.FORE_SEARCH_ADMIN_KEY)
+    throw new Error("Required search needs a separate serving credential.");
   if (!meiliConfigured(env) || !key) throw new Error("Meilisearch is not configured.");
   const response = await fetch(meiliBase(env) + path, {
     ...init,
@@ -1463,52 +1470,15 @@ async function searchMeili(env: SearchEnv, input: SearchInput) {
     throw new Error("Invalid search candidate response");
   const ids: string[] = [...new Set<string>(payload.hits.map((h: { id: string }) => h.id))];
   // The external index is a candidate source, never the rights authority.
-  const eligible = await retailEligibleIdSet(env.DB, ids, input.territory);
-  // Index lag removes revoked candidates. Never amplify it into expensive primary search.
-  const books = await canonicalBooksByProductIds(
-    env.DB,
-    ids.filter((id: string) => eligible.has(id)),
-  );
+  const display = await authorizeDiscoveryDisplay(env.DB, ids, input.territory);
+  const books = ids.map((id) => display.get(id)).filter((book): book is CatalogBook => !!book);
   return {
     books,
+    channelsAuthoritative: true as const,
     count: Number(payload.totalHits ?? payload.estimatedTotalHits ?? books.length),
     facets,
     duration: Number(payload.processingTimeMs ?? Date.now() - started),
   };
-}
-
-async function loadChannelEligibility(db: CatalogDB, productIds: string[], territory: string) {
-  const unique = [...new Set(productIds.filter(Boolean))].slice(0, 200);
-  if (!unique.length) return new Set<string>();
-  const rows = await db
-    .prepare(
-      `SELECT product_id,sales_channel FROM product_channel_availability
-    WHERE EXISTS (
-      SELECT 1 FROM rights_grants INDEXED BY idx_rights_secondary_channel_potential
-      WHERE status='active' AND (
-        sales_channel IN ('subscription','library')
-        OR (sales_channel='retail' AND (subscription_permitted=1 OR library_permitted=1))
-      ) LIMIT 1
-    )
-      AND territory_code=upper(?) AND sales_channel IN ('subscription','library')
-      AND product_id IN (${unique.map(() => "?").join(",")})`,
-    )
-    .bind(territory, ...unique)
-    .all<any>();
-  return new Set(
-    rows.results.map((row) => `${String(row.product_id)}:${String(row.sales_channel)}`),
-  );
-}
-
-function applyChannelEligibility(books: CatalogBook[], allowed: Set<string>) {
-  return books.map((book) => {
-    const id = String(book.productId || "");
-    return {
-      ...book,
-      subscriptionEligible: allowed.has(`${id}:subscription`),
-      libraryEligible: allowed.has(`${id}:library`),
-    };
-  });
 }
 
 async function contextualizeChannelEligibility(
@@ -1516,10 +1486,7 @@ async function contextualizeChannelEligibility(
   books: CatalogBook[],
   territory: string,
 ) {
-  const productIds = books.map((book) => String(book.productId || ""));
-  if (!productIds.some(Boolean)) return books;
-  const allowed = await loadChannelEligibility(db, productIds, territory);
-  return applyChannelEligibility(books, allowed);
+  return contextualizeDiscoveryChannels(db, books, territory);
 }
 
 async function logQuery(
@@ -1789,7 +1756,10 @@ export async function searchCatalog(
     personalizeWindow && start < 200
       ? personalized.books.slice(start, start + input.limit)
       : personalized.books;
-  const channelBooks = await contextualizeChannelEligibility(env.DB, pageBooks, input.territory);
+  const channelBooks =
+    "channelsAuthoritative" in result && result.channelsAuthoritative
+      ? pageBooks
+      : await contextualizeChannelEligibility(env.DB, pageBooks, input.territory);
   const visibleBooks = channelBooks.filter(
     (book) =>
       (input.subscription === undefined || !!book.subscriptionEligible === input.subscription) &&
@@ -2027,17 +1997,12 @@ export async function syncSearchIndex(env: SearchEnv, limit = 100) {
     await env.DB.prepare("UPDATE search_index_state SET last_error=? WHERE id=1")
       .bind(message)
       .run();
-    const rows = await env.DB.prepare(
-      "SELECT product_id FROM search_index_outbox ORDER BY queued_at LIMIT ?",
+    // An engine outage must not turn a bounded 500-document job into 500 primary RPCs.
+    await env.DB.prepare(
+      "UPDATE search_index_outbox SET attempts=attempts+1,last_error=? WHERE product_id IN (SELECT product_id FROM search_index_outbox ORDER BY queued_at,product_id LIMIT ?)",
     )
-      .bind(safeLimit)
-      .all<any>();
-    for (const row of rows.results)
-      await env.DB.prepare(
-        "UPDATE search_index_outbox SET attempts=attempts+1,last_error=? WHERE product_id=?",
-      )
-        .bind(message, row.product_id)
-        .run();
+      .bind(message, safeLimit)
+      .run();
     throw error;
   } finally {
     await env.DB.prepare(
@@ -2073,7 +2038,10 @@ export async function searchSuggestions(env: SearchEnv, query: string, territory
   const q = cleanText(query, 100);
   if (q.length < 2 || !queryTokens(q).length) return [];
   const externalQuery = isbnLike(q) ? compactIdentifier(q) : q;
-  if (preferredBackend(env) === "meilisearch") {
+  const backend = preferredBackend(env);
+  if (env.FORE_SEARCH_FALLBACK === "disabled" && backend !== "meilisearch")
+    throw new ApiError(503, "Search read engine is required.");
+  if (backend === "meilisearch") {
     try {
       const payload = await meiliRequest(
         env,
@@ -2102,6 +2070,14 @@ export async function searchSuggestions(env: SearchEnv, query: string, territory
         },
       );
       const hits = payload.hits || [];
+      if (
+        !Array.isArray(hits) ||
+        hits.length > 8 ||
+        hits.some(
+          (hit: { id?: unknown }) => typeof hit.id !== "string" || !hit.id || hit.id.length > 180,
+        )
+      )
+        throw new Error("Invalid search suggestion response");
       const eligible = await retailEligibleIdSet(
         env.DB,
         hits.map((h: any) => String(h.id)),
@@ -2118,6 +2094,10 @@ export async function searchSuggestions(env: SearchEnv, query: string, territory
             (h.authors || []).join(", ") || (h.series || []).join(", ") || h.publisher || "",
         }));
     } catch (error) {
+      if (env.FORE_SEARCH_FALLBACK === "disabled") {
+        console.error(JSON.stringify({ event: "search_suggestions_engine_unavailable" }));
+        throw new ApiError(503, "Search is temporarily unavailable. Please try again shortly.");
+      }
       console.warn("Search suggestions fell back to D1", error);
     }
   }

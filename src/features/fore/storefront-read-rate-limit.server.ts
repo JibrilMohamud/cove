@@ -21,6 +21,14 @@ export async function enforceFirstPaintRateLimit(
   }
   if (typeof limiter.limit !== "function")
     throw new ApiError(503, "Native storefront read limiter is unavailable.");
+  await enforceNativeReadCounter(limiter, key);
+  return "edge";
+}
+
+async function enforceNativeReadCounter(
+  limiter: { limit(options: { key: string }): Promise<{ success: boolean }> },
+  key: string,
+) {
   let verdict: { success: boolean };
   try {
     verdict = await limiter.limit({ key });
@@ -31,5 +39,17 @@ export async function enforceFirstPaintRateLimit(
     throw new ApiError(429, "Please wait a minute before trying again.");
   if (verdict?.success !== true)
     throw new ApiError(503, "Native storefront read limiter is unavailable.");
-  return "edge";
+}
+
+/** Explicit opt-in for ordinary public discovery reads, never transaction/event quotas. */
+export async function enforceDiscoveryReadRateLimit(env: CoveEnv, key: string, cap: number) {
+  const limiter =
+    cap === 180
+      ? env.COVE_STOREFRONT_READ_LIMITER
+      : cap === 240
+        ? env.COVE_DISCOVERY_READ_LIMITER_240
+        : undefined;
+  if (!limiter || typeof limiter.limit !== "function")
+    throw new ApiError(503, "Native discovery read limiter is unavailable.");
+  await enforceNativeReadCounter(limiter, key);
 }
