@@ -1,0 +1,30 @@
+name: Temporary content formatting
+on:
+  push:
+    branches:
+      - feat/content-processing-isolation-20261020
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/content-processing-isolation-20261020
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prettier --write src/content-processing.worker.ts scripts/build-content-processing.mjs scripts/check-content-processing-isolation.mjs src/persistence-backend.worker.ts
+      - name: Commit scoped formatting
+        run: |
+          if ! git diff --quiet -- src/content-processing.worker.ts scripts/build-content-processing.mjs scripts/check-content-processing-isolation.mjs src/persistence-backend.worker.ts; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add src/content-processing.worker.ts scripts/build-content-processing.mjs scripts/check-content-processing-isolation.mjs src/persistence-backend.worker.ts
+            git commit -m 'style: format independent content processor'
+            git push origin HEAD:feat/content-processing-isolation-20261020
+          fi
