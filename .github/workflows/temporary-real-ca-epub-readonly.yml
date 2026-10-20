@@ -2,7 +2,7 @@ name: temporary-real-ca-epub-readonly
 on:
   push:
     branches:
-      - fix/epub-backfill-live-grants-20261020
+      - stage/real-ca-epub-check-20261020
     paths:
       - "scripts/staging/ca-epub-real-readonly.ts"
       - ".github/workflows/temporary-real-ca-epub-readonly.yml"
