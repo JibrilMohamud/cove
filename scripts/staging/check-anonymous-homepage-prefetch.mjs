@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { build } from "esbuild";
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cove-home-prefetch-"));
+const dir = fs.mkdtempSync(path.join(process.cwd(), ".cove-home-prefetch-"));
 const sqlite = new DatabaseSync(":memory:");
 try {
   await build({
