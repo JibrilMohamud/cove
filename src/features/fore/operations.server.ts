@@ -112,60 +112,60 @@ export async function recordHttpRequest(
   if (input.persist !== false) {
     try {
       await db.batch([
-      db
-        .prepare(
-          "INSERT OR IGNORE INTO ops_http_requests(id,request_id,trace_id,span_id,parent_span_id,method,route,status_code,duration_ms,actor_kind,storefront_country,error_class,sampled,occurred_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
-        )
-        .bind(
-          id("httpreq"),
-          trace.requestId,
-          trace.traceId,
-          trace.spanId,
-          trace.parentSpanId,
-          request.method,
-          route,
-          response.status,
-          duration,
-          input.actorKind || "anonymous",
-          input.storefrontCountry || null,
-          input.errorClass || null,
-          trace.startedAt,
-        ),
-      db
-        .prepare(
-          "INSERT INTO ops_trace_spans(id,trace_id,span_id,parent_span_id,span_name,span_kind,status,started_at,ended_at,duration_ms,attributes_json) VALUES(?,?,?,?,?,'server',?,?,?,?,?)",
-        )
-        .bind(
-          id("span"),
-          trace.traceId,
-          trace.spanId,
-          trace.parentSpanId,
-          `${request.method} ${route}`,
-          response.status >= 500 ? "error" : "ok",
-          trace.startedAt,
-          endedAt,
-          duration,
-          JSON.stringify({
-            statusCode: response.status,
-            requestId: trace.requestId,
-            actorKind: input.actorKind || "anonymous",
-            storefrontCountry: input.storefrontCountry || null,
-          }),
-        ),
-      db
-        .prepare(
-          "INSERT INTO ops_metric_points(id,metric_name,metric_type,value,unit,labels_json,observed_at) VALUES(?, 'http.server.duration','histogram',?,'ms',?,?)",
-        )
-        .bind(
-          id("metric"),
-          duration,
-          JSON.stringify({
-            method: request.method,
+        db
+          .prepare(
+            "INSERT OR IGNORE INTO ops_http_requests(id,request_id,trace_id,span_id,parent_span_id,method,route,status_code,duration_ms,actor_kind,storefront_country,error_class,sampled,occurred_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
+          )
+          .bind(
+            id("httpreq"),
+            trace.requestId,
+            trace.traceId,
+            trace.spanId,
+            trace.parentSpanId,
+            request.method,
             route,
-            statusClass: `${Math.floor(response.status / 100)}xx`,
-          }),
-          endedAt,
-        ),
+            response.status,
+            duration,
+            input.actorKind || "anonymous",
+            input.storefrontCountry || null,
+            input.errorClass || null,
+            trace.startedAt,
+          ),
+        db
+          .prepare(
+            "INSERT INTO ops_trace_spans(id,trace_id,span_id,parent_span_id,span_name,span_kind,status,started_at,ended_at,duration_ms,attributes_json) VALUES(?,?,?,?,?,'server',?,?,?,?,?)",
+          )
+          .bind(
+            id("span"),
+            trace.traceId,
+            trace.spanId,
+            trace.parentSpanId,
+            `${request.method} ${route}`,
+            response.status >= 500 ? "error" : "ok",
+            trace.startedAt,
+            endedAt,
+            duration,
+            JSON.stringify({
+              statusCode: response.status,
+              requestId: trace.requestId,
+              actorKind: input.actorKind || "anonymous",
+              storefrontCountry: input.storefrontCountry || null,
+            }),
+          ),
+        db
+          .prepare(
+            "INSERT INTO ops_metric_points(id,metric_name,metric_type,value,unit,labels_json,observed_at) VALUES(?, 'http.server.duration','histogram',?,'ms',?,?)",
+          )
+          .bind(
+            id("metric"),
+            duration,
+            JSON.stringify({
+              method: request.method,
+              route,
+              statusClass: `${Math.floor(response.status / 100)}xx`,
+            }),
+            endedAt,
+          ),
       ]);
     } catch {}
   }

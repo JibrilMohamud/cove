@@ -34,7 +34,10 @@ for (const route of [
     "oai-authenticated-user-email",
     "x-fore-authenticated-user-id",
   ]) {
-    assert.equal(skipD1(fixture, make(route, { headers: { [header]: "present" } }), 200, false), false);
+    assert.equal(
+      skipD1(fixture, make(route, { headers: { [header]: "present" } }), 200, false),
+      false,
+    );
   }
   assert.equal(skipD1({ ...fixture, COVE_SSR_STAGING: "0" }, make(route), 200, false), false);
   assert.equal(
