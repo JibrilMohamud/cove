@@ -6,6 +6,11 @@ on:
       - perf/commercial-parity-isolated-stage-20261020
     paths:
       - "package-lock.json"
+      - "vite.config.ts"
+      - "src/integrations/supabase/auth-attacher.ts"
+      - "src/features/fore/ui-catalog.server.ts"
+      - "scripts/check-auth-attacher.mjs"
+      - "scripts/check-cloudflare-ssr-pilot.mjs"
       - "scripts/performance/cloudflare-browser.mjs"
       - "scripts/staging/check-commercial-parity-live-rights.mjs"
       - "scripts/check-storefront-bootstrap.mjs"
@@ -88,6 +93,10 @@ jobs:
           import fs from "node:fs";
           import prettier from "prettier";
           const files = [
+            "src/integrations/supabase/auth-attacher.ts",
+            "src/features/fore/ui-catalog.server.ts",
+            "scripts/check-auth-attacher.mjs",
+            "scripts/check-cloudflare-ssr-pilot.mjs",
             "scripts/staging/profile-commercial-parity-cpu.mjs",
             "scripts/cloudflare-deployment-readiness.mjs",
             "scripts/check-cloudflare-deployment-readiness.mjs",
@@ -134,6 +143,10 @@ jobs:
           NODE
       - name: Verify deployment control-plane readiness boundaries
         run: node scripts/check-cloudflare-deployment-readiness.mjs
+      - name: Verify browser session forwarding and UI catalog parity
+        run: |
+          node scripts/check-auth-attacher.mjs
+          node scripts/check-ui-catalog-wire.mjs
       - name: Check canonical localization parity and one-read context
         run: node scripts/staging/check-anonymous-context-one-read.mjs
       - name: Verify full catalog parity, private guards and live denial
@@ -155,6 +168,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Build current candidate Cloudflare-native SSR
         run: npm run build
+      - name: Guard actual first-request middleware imports
+        run: node scripts/check-cloudflare-ssr-pilot.mjs
       - name: Profile local Worker startup without warming the remote stage
         continue-on-error: true
         run: npx wrangler@4.151.3 check startup --config wrangler.commercial-parity.stage.toml

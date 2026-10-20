@@ -120,9 +120,7 @@ try {
   console.log(top);
   const frames = top
     .split("\n")
-    .map((line) =>
-      /^\s*\S+\s+[\d.]+%\s+[\d.]+%\s+\S+\s+[\d.]+%\s+(.+)$/.exec(line)?.[1],
-    )
+    .map((line) => /^\s*\S+\s+[\d.]+%\s+[\d.]+%\s+\S+\s+[\d.]+%\s+(.+)$/.exec(line)?.[1])
     .filter((name) => name && !/^\((?:root|idle|program)\)$/.test(name));
   report.nonIdleFrames = frames.length;
   report.profileUseful = frames.length > 0;

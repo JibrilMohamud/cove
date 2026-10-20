@@ -29,6 +29,8 @@ jobs:
         run: npm run lint
       - name: Strict TypeScript validation
         run: npm run typecheck
+      - name: Browser session forwarding and lazy import boundary
+        run: node scripts/check-auth-attacher.mjs
       - name: Vercel preview build cost guard and production-safety regressions
         run: node --test scripts/vercel-ignore-build.test.mjs
       - name: Security/domain regressions
