@@ -50,6 +50,12 @@ assert.equal(health.ok,true);
 assert.equal(health.database,true);
 results.validations.isolatedD1Ready=true;
 const bootstrap=await request("/api/fore/storefront/bootstrap");
+if(bootstrap.status!==200){
+  const message=bootstrap.body.slice(0,400).replace(/Bearer\\s+[\\w.-]+/gi,"Bearer [redacted]");
+  console.error(JSON.stringify({stage:"catalog-bootstrap",status:bootstrap.status,
+    contentType:bootstrap.contentType,serverTiming:bootstrap.timings.slice(0,200),
+    responsePreview:message}));
+}
 assert.equal(bootstrap.status,200,"Authorized synthetic catalog bootstrap must return 200");
 const catalog=JSON.parse(bootstrap.body);
 assert.ok(catalog.catalog?.results?.length>0,"Rights-authorized catalog must not be empty");
