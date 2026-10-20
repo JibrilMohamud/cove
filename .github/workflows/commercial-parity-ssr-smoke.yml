@@ -53,20 +53,34 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Validate every Bash block before deployment work
+      - name: Validate literal Bash blocks before deployment work
         run: |
           node --input-type=module <<'NODE'
           import fs from "node:fs";
           import { spawnSync } from "node:child_process";
-          import { parse } from "yaml";
-          const workflow = parse(fs.readFileSync(".github/workflows/commercial-parity-ssr-smoke.yml", "utf8"));
-          for (const step of workflow.jobs.smoke.steps) {
-            if (typeof step.run !== "string") continue;
-            const result = spawnSync("bash", ["-n"], { input: step.run, encoding: "utf8" });
-            if (result.status !== 0)
-              throw Error("Invalid Bash in " + (step.name || step.run) + ": " + result.stderr);
+          const lines = fs.readFileSync(".github/workflows/commercial-parity-ssr-smoke.yml", "utf8").split("\n");
+          let checked = 0;
+          for (let index = 0; index < lines.length; index++) {
+            const match = /^(\s*)(?:-\s+)?run:\s*(.*)$/.exec(lines[index]);
+            if (!match) continue;
+            let script = match[2];
+            if (script === "|" || script === "|-") {
+              const indent = lines[index].indexOf("run:") + 2;
+              const body = [];
+              while (index + 1 < lines.length) {
+                const line = lines[index + 1];
+                if (line.trim() && !line.startsWith(" ".repeat(indent))) break;
+                body.push(line.slice(indent));
+                index++;
+              }
+              script = body.join("\n");
+            }
+            const result = spawnSync("bash", ["-n"], { input: script, encoding: "utf8" });
+            if (result.status !== 0) throw Error("Invalid Bash run block: " + result.stderr);
+            checked++;
           }
-          console.log("All protected deployment workflow Bash blocks parse.");
+          if (checked < 10) throw Error("Missing expected deployment run blocks");
+          console.log("Protected deployment Bash blocks parsed: " + checked);
           NODE
       - name: Report canonical formatting for changed sources
         run: |
