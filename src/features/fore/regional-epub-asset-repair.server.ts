@@ -14,6 +14,20 @@ export async function repairRegionalEpubAssets(
   const after = options.after ?? "";
   if (!/^[a-z0-9_]{0,90}$/.test(after)) throw new Error("Invalid regional asset repair cursor");
   const limit = Math.max(1, Math.min(16, Math.floor(options.limit ?? 8) || 8));
+  // Source-level approval is insufficient: a separate operator could revoke
+  // every live territorial grant without modifying the Gutenberg source row.
+  // The candidate scan and EACH mutation require a currently valid grant.
+  const liveGrant =
+    " EXISTS(SELECT 1 FROM rights_grants g" +
+    " WHERE g.edition_id=p.edition_id AND g.format='ebook'" +
+    " AND g.sales_channel='retail' AND g.status='active' AND g.decision='allow'" +
+    " AND g.source='gutenberg-'||c.source_id||'-public-domain'" +
+    " AND g.territory_code IN (SELECT value FROM json_each(" +
+    " CASE WHEN json_valid(c.rights_territories_json)" +
+    " THEN c.rights_territories_json ELSE '[]' END))" +
+    " AND (g.starts_at IS NULL OR datetime(g.starts_at)<=datetime('now'))" +
+    " AND (g.ends_at IS NULL OR datetime(g.ends_at)>datetime('now')))";
+
   const rows = (
     await env.DB.prepare(
       "SELECT c.id,c.content_hash,p.edition_id," +
@@ -27,6 +41,8 @@ export async function repairRegionalEpubAssets(
         " WHERE c.source_id IN ('pg_au','pg_ca','pg_eu')" +
         " AND c.epub_status='completed' AND c.ingest_status='active'" +
         " AND c.rights_status='public-domain' AND c.commercial_use_status='approved'" +
+        " AND" +
+        liveGrant +
         " AND COALESCE(c.content_hash,'')<>'' AND c.id>?" +
         " AND (d.id IS NULL OR v.id IS NULL OR COALESCE(v.object_key,'')='')" +
         " ORDER BY c.id LIMIT ?",
@@ -52,6 +68,8 @@ export async function repairRegionalEpubAssets(
     " AND c.source_id IN ('pg_au','pg_ca','pg_eu')" +
     " AND c.epub_status='completed' AND c.ingest_status='active'" +
     " AND c.rights_status='public-domain' AND c.commercial_use_status='approved'" +
+    " AND" +
+    liveGrant +
     " AND c.content_hash=?)";
   for (const row of rows) {
     nextAfter = row.id;

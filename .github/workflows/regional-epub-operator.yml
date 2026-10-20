@@ -1,0 +1,32 @@
+name: regional-epub-operator
+on:
+  pull_request:
+    paths:
+      - "scripts/operate-regional-epub-backfill.mjs"
+      - "scripts/check-regional-epub-operator.mjs"
+      - "package.json"
+      - ".github/workflows/regional-epub-operator.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/operate-regional-epub-backfill.mjs"
+      - "scripts/check-regional-epub-operator.mjs"
+      - "package.json"
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:regional-epub-operator
+      - run: npx prettier --check scripts/operate-regional-epub-backfill.mjs scripts/check-regional-epub-operator.mjs
+      - name: Verify dry-run cannot call production
+        run: |
+          node scripts/operate-regional-epub-backfill.mjs
