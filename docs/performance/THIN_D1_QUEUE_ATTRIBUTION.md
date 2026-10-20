@@ -50,3 +50,21 @@ Colo changes or differing client schedules invalidate causal comparisons.
 Each phase remains separately reported; **do not subtract independent
 quantiles**. Whole-fleet cold and regional SLO certification need geographically
 controlled runners that are not represented by these probes.
+
+## Concurrent synthetic customer-read mix
+
+After phase attribution, the runner applies 20-second 50 and 100 RPS
+mixed-arrival schedules against the same synthetic rights-safe D1:
+55% first-page HTML, 20% filtered catalog JSON, 15% recommendation rail
+JSON and 10% merchandising JSON. The real unchanged full app serves the
+non-home routes through the CORE service binding. Every JSON response is
+shape-validated, not merely HTTP 200; each URL's status, TTFB, drops,
+late arrivals, colo, and errors are saved separately. A failing stage stops
+further escalation. A new explicit `mixedLoadGate` requires a passing
+100-RPS mixed stage with no dropped or unscheduled requests and the same
+sub-800-ms p99/headroom gates. The runner never targets production D1.
+
+This is more representative than homepage-only concurrency, but it is NOT
+full commerce parity: authenticated account, checkout, EPUB reading, offline
+behavior, ingestion and background indexing are not included. It must not
+replace those later end-to-end canary and soak requirements.
