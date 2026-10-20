@@ -49,28 +49,33 @@ export async function importIsolatedLiteraryEvidence(
     identity?.domain !== "cove-isolated-literary-budget" ||
     identity.schema_version !== 1 ||
     identity.contaminated
-  ) throw new Error("literary_prepared_import_not_isolated");
+  )
+    throw new Error("literary_prepared_import_not_isolated");
 
   const job = await env.CONTENT_DB.prepare(
     "SELECT id,product_id,edition_id,source_id,content_sha256,result_key,result_sha256" +
       " FROM literary_prepare_jobs WHERE id=? AND status='done'",
-  ).bind(jobId).first<Completed>();
+  )
+    .bind(jobId)
+    .first<Completed>();
   if (!job) return { skipped: "not_prepared" };
   const canonicalKey = "literary/isolated-prepared-v1/" + jobId + ".json";
   if (
     job.result_key !== canonicalKey ||
     !/^[0-9a-f]{64}$/.test(job.result_sha256) ||
     !/^[0-9a-f]{64}$/.test(job.content_sha256)
-  ) throw new Error("invalid_preparation_receipt");
+  )
+    throw new Error("invalid_preparation_receipt");
   const object = await env.BUCKET.get(canonicalKey);
   if (!object || object.size <= 30 || object.size > 100_000)
     throw new Error("missing_private_preparation");
   if (
     object.customMetadata?.sha256 !== job.result_sha256 ||
     object.httpMetadata?.contentType !== "application/json"
-  ) throw new Error("invalid_preparation_object_metadata");
+  )
+    throw new Error("invalid_preparation_object_metadata");
   const bytes = new Uint8Array(await object.arrayBuffer());
-  if (await sha256(bytes) !== job.result_sha256) throw new Error("tampered_preparation_bytes");
+  if ((await sha256(bytes)) !== job.result_sha256) throw new Error("tampered_preparation_bytes");
   const manifest = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
   if (
     manifest.version !== 1 ||
@@ -80,7 +85,8 @@ export async function importIsolatedLiteraryEvidence(
     manifest.sourceSha256 !== job.content_sha256 ||
     !Array.isArray(manifest.selected) ||
     manifest.selected.length < 1
-  ) throw new Error("untrusted_preparation_manifest");
+  )
+    throw new Error("untrusted_preparation_manifest");
 
   // The public rights authority is queried as part of the actual D1
   // mutation, not merely as a stale preflight in the content Worker.
@@ -114,7 +120,16 @@ export async function importIsolatedLiteraryEvidence(
       " ON CONFLICT(product_id,source_sha256) DO UPDATE SET" +
       " evidence_key=excluded.evidence_key,evidence_sha256=excluded.evidence_sha256," +
       " imported_at=excluded.imported_at RETURNING product_id",
-  ).bind(canonicalKey, job.result_sha256, now, job.product_id, job.edition_id, job.source_id, job.content_sha256)
+  )
+    .bind(
+      canonicalKey,
+      job.result_sha256,
+      now,
+      job.product_id,
+      job.edition_id,
+      job.source_id,
+      job.content_sha256,
+    )
     .first<{ product_id: string }>();
   if (!published) return { skipped: "rights_or_source_changed" };
   return { imported: published.product_id };

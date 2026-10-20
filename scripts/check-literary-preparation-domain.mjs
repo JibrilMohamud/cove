@@ -188,7 +188,18 @@ try {
     skipped: "no_preparation_jobs",
   });
   // Even an otherwise valid allow cannot defeat an explicit same-market deny.
-  insertGrant.run("deny_a", "edition_a", "ebook", "retail", "active", "deny", "operator-override", "AU", null, null);
+  insertGrant.run(
+    "deny_a",
+    "edition_a",
+    "ebook",
+    "retail",
+    "active",
+    "deny",
+    "operator-override",
+    "AU",
+    null,
+    null,
+  );
   assert.deepEqual(await enqueueIsolatedLiteraryPreparation(env, "prod_a", "edition_a"), {
     skipped: "source_or_rights_ineligible",
   });
