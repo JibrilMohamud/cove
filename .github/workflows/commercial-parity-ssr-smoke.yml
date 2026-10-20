@@ -5,6 +5,9 @@ on:
       - perf/commercial-parity-isolated-stage-20261020
     paths:
       - "scripts/staging/check-commercial-parity-ssr.mjs"
+      - "scripts/staging/check-anonymous-homepage-prefetch.mjs"
+      - "src/features/fore/storefront-anonymous-bootstrap.server.ts"
+      - "src/features/fore/taxonomy.server.ts"
       - "wrangler.commercial-parity.stage.toml"
       - ".github/workflows/commercial-parity-ssr-smoke.yml"
 permissions:
@@ -31,6 +34,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Guard merchandising and locale parity of parallel page read
+        run: node scripts/staging/check-anonymous-homepage-prefetch.mjs
       - name: Assert isolated fixture and immutable cloud bindings
         shell: bash
         run: |
