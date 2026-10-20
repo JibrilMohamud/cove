@@ -1,5 +1,6 @@
 import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
 import { runLiteraryProfileTick } from "./features/fore/literary-profiles.server";
+import { runIsolatedLiteraryPreparationTick } from "./lib/literary-preparation-domain.server";
 import { admitCatalogBatch, catalogAdmissionBudget } from "./lib/catalog-ingestion-backpressure";
 import type { CoveEnv } from "./features/fore/api.server";
 
@@ -13,9 +14,10 @@ import type { CoveEnv } from "./features/fore/api.server";
  */
 export type ContentProcessorEnv = CoveEnv & {
   FORE_CONTENT_PROCESSOR_ENABLED?: string;
-  FORE_CONTENT_PROCESSOR_ROLE?: "assets" | "literary";
+  FORE_CONTENT_PROCESSOR_ROLE?: "assets" | "literary" | "literary-prepare";
   FORE_CONTENT_D1_ADMISSION_MAX_MS?: string;
   FORE_ASSETS_PER_MINUTE?: string;
+  FORE_CONTENT_PREPARE_ENABLED?: string;
   CONTENT_DB?: CoveEnv["DB"];
   FORE_CONTENT_BUDGET_MODE?: string;
 };
@@ -24,6 +26,7 @@ type Runner = (env: ContentProcessorEnv) => Promise<unknown>;
 type ProcessorRunners = {
   assets: Runner;
   literary: Runner;
+  "literary-prepare"?: Runner;
 };
 /** Keep per-minute background writes bounded even if dashboard configuration
  * is accidentally raised. These caps do not affect the original Worker. */
@@ -47,6 +50,7 @@ const defaultRunners: ProcessorRunners = {
       FORE_ASSETS_PER_MINUTE: String(contentAssetAttemptCap(env.FORE_ASSETS_PER_MINUTE)),
     }),
   literary: (env) => runLiteraryProfileTick(env, CONTENT_LITERARY_TICK_CAPS),
+  "literary-prepare": (env) => runIsolatedLiteraryPreparationTick(env),
 };
 
 export async function runContentProcessingTick(
@@ -55,7 +59,10 @@ export async function runContentProcessingTick(
 ) {
   if (env.FORE_CONTENT_PROCESSOR_ENABLED !== "1") return { skipped: "disabled" };
   const role = env.FORE_CONTENT_PROCESSOR_ROLE;
-  if (role !== "assets" && role !== "literary") return { skipped: "invalid_role" };
+  if (role !== "assets" && role !== "literary" && role !== "literary-prepare")
+    return { skipped: "invalid_role" };
+  if (role === "literary-prepare" && env.FORE_CONTENT_PREPARE_ENABLED !== "1")
+    return { skipped: "preparation_disabled" };
   if (!env.BUCKET) return { skipped: "missing_private_r2", role };
   if (role === "literary" && !env.AI) return { skipped: "missing_ai", role };
 
@@ -76,7 +83,9 @@ export async function runContentProcessingTick(
     return { skipped: admission.reason, role, probeMs: admission.probeMs };
   }
   const started = performance.now();
-  const result = await runners[role](env);
+  const runner = runners[role];
+  if (!runner) return { skipped: "missing_runner", role };
+  const result = await runner(env);
   const elapsedMs = Math.ceil(performance.now() - started);
   console.info(
     JSON.stringify({
