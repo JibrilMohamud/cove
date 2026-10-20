@@ -184,6 +184,13 @@ try {
     .first();
   assert.equal(current?.object_key, "epubs/pgau_9100005.epub");
   assert.equal(current?.source_url, "https://example.invalid/pgau_9100005.html");
+  const repairSource = fs.readFileSync(
+    "src/features/fore/regional-epub-asset-repair.server.ts",
+    "utf8",
+  );
+  assert.match(repairSource, /INDEXED BY sqlite_autoindex_gutenberg_source_cache_1/);
+  assert.match(repairSource, /CROSS JOIN products p ON p.source_external_id=c.id/);
+  assert.match(repairSource, /suppliedAfter > "pga"/);
   const workerSource = fs.readFileSync("src/persistence-backend.worker.ts", "utf8");
   const endpoint = workerSource.slice(
     workerSource.indexOf('if (path === "/__cove/ingestion/repair-regional-epubs"'),
