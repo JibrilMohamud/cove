@@ -9,6 +9,10 @@ import { build } from "esbuild";
 import { DatabaseSync } from "node:sqlite";
 import { localBindings } from "./local-api.mjs";
 import { offeredLoad } from "./performance/offered-load.mjs";
+import {
+  createSearchCredentials,
+  verifySearchCredentialBoundary,
+} from "./search/scoped-credentials.mjs";
 const binary = process.env.COVE_MEILISEARCH_BINARY;
 assert.ok(binary, "Set COVE_MEILISEARCH_BINARY to a verified real Meilisearch executable");
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "cove-real-search-")),
@@ -17,36 +21,56 @@ let child;
 const originalFetch = globalThis.fetch;
 try {
   const log = fs.openSync(path.join(root, "engine.log"), "a");
-  child = spawn(
-    binary,
-    [
-      "--http-addr",
-      "127.0.0.1:7700",
-      "--env",
-      "production",
-      "--no-analytics",
-      "--db-path",
-      path.join(root, "meili-data"),
-    ],
-    { env: { ...process.env, MEILI_MASTER_KEY: key }, stdio: ["ignore", log, log] },
-  );
   const origin = "http://127.0.0.1:7700";
-  let healthy = false;
-  for (let i = 0; i < 100; i++) {
-    if (child.exitCode !== null)
-      throw Error(
-        "Real engine exited before readiness: " +
-          fs.readFileSync(path.join(root, "engine.log"), "utf8").slice(-1500),
-      );
-    try {
-      if ((await fetch(origin + "/health")).ok) {
-        healthy = true;
-        break;
-      }
-    } catch {}
-    await new Promise((r) => setTimeout(r, 100));
+  async function startEngine() {
+    child = spawn(
+      binary,
+      [
+        "--http-addr",
+        "127.0.0.1:7700",
+        "--env",
+        "production",
+        "--no-analytics",
+        "--db-path",
+        path.join(root, "meili-data"),
+      ],
+      { env: { ...process.env, MEILI_MASTER_KEY: key }, stdio: ["ignore", log, log] },
+    );
+    let healthy = false;
+    for (let i = 0; i < 100; i++) {
+      if (child.exitCode !== null)
+        throw Error(
+          "Real engine exited before readiness: " +
+            fs.readFileSync(path.join(root, "engine.log"), "utf8").slice(-1500),
+        );
+      try {
+        if ((await fetch(origin + "/health")).ok) {
+          healthy = true;
+          break;
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.ok(healthy, "Real Meilisearch must become ready");
   }
-  assert.ok(healthy, "Real Meilisearch must become ready");
+  async function stopEngine() {
+    if (!child || child.exitCode !== null) return;
+    const exited = new Promise((resolve) => child.once("exit", resolve));
+    child.kill("SIGTERM");
+    let timer;
+    await Promise.race([
+      exited,
+      new Promise((resolve) => {
+        timer = setTimeout(resolve, 3000);
+      }),
+    ]);
+    clearTimeout(timer);
+    if (child.exitCode === null) {
+      child.kill("SIGKILL");
+      await exited;
+    }
+  }
+  await startEngine();
   fs.cpSync("drizzle", path.join(root, "drizzle"), { recursive: true });
   await build({
     entryPoints: ["src/features/fore/search.server.ts"],
@@ -108,14 +132,22 @@ try {
       return statement(sql, raw.DB.prepare(sql));
     },
   };
+  const index = "cove-acceptance-" + randomUUID();
+  const credentials = await createSearchCredentials({
+    origin,
+    masterKey: key,
+    index,
+    expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
+    allowLoopback: true,
+  });
   const env = {
     DB: db,
     FORE_SEARCH_BACKEND: "meilisearch",
     FORE_SEARCH_FALLBACK: "disabled",
     FORE_SEARCH_URL: origin,
-    FORE_SEARCH_SEARCH_KEY: key,
-    FORE_SEARCH_ADMIN_KEY: key,
-    FORE_SEARCH_INDEX: "cove-acceptance-" + randomUUID(),
+    FORE_SEARCH_SEARCH_KEY: credentials.search.key,
+    FORE_SEARCH_ADMIN_KEY: credentials.indexer.key,
+    FORE_SEARCH_INDEX: index,
   };
   let indexed = await search.rebuildSearchIndex(env, 500),
     iterations = 1;
@@ -139,6 +171,31 @@ try {
     "Real engine must hold exactly the eligible source projection",
   );
   assert.ok(eligibleDocuments > 49000);
+  const credentialBoundary = await verifySearchCredentialBoundary({
+    origin,
+    index,
+    searchKey: credentials.search.key,
+    adminKey: credentials.indexer.key,
+  });
+  // A persistent volume must survive a real engine process restart, including scoped keys.
+  await stopEngine();
+  await startEngine();
+  const persisted = await (
+    await fetch(`${origin}/indexes/${index}/stats`, {
+      headers: { authorization: `Bearer ${credentials.indexer.key}` },
+    })
+  ).json();
+  assert.equal(
+    persisted.numberOfDocuments,
+    eligibleDocuments,
+    "Restart must preserve the full index",
+  );
+  await verifySearchCredentialBoundary({
+    origin,
+    index,
+    searchKey: credentials.search.key,
+    adminKey: credentials.indexer.key,
+  });
   const input = (q) => search.parseSearchInput(new URL("http://test/api/fore/catalog?" + q));
   serving = true;
   const result = await search.searchCatalog(env, input("q=Quasar+Drift&territory=US"), null, {
@@ -254,6 +311,9 @@ try {
         realEngine: true,
         fixtureBooks: 50000,
         largestBind: binds,
+        indexedDocuments: eligibleDocuments,
+        credentialBoundary,
+        persistentRestartPassed: true,
         load,
         cloudflareCapacityCertified: false,
         releaseApproved: false,
@@ -264,7 +324,7 @@ try {
   );
   console.log(JSON.stringify({ realEngine: true, fixtureBooks: 50000, largestBind: binds, load }));
   console.log(
-    "PASS: real 50k index, exact-title relevance, filters, disjunctive facets, incremental updates, suppression, live rights after revocation, offered-load accounting and outage isolation",
+    "PASS: real 50k index, scoped credentials, persistent restart, exact-title relevance, filters, disjunctive facets, incremental updates, suppression, live rights after revocation, offered-load accounting and outage isolation",
   );
   sqlite.close();
 } finally {

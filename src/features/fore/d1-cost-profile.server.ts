@@ -9,6 +9,8 @@ type Sample = {
   rowsRead: number | null;
   rowsWritten: number | null;
   servedByPrimary: boolean | null;
+  servedByColo: string | null;
+  servedByRegion: string | null;
   success: boolean;
 };
 function fingerprint(sql: string) {
@@ -41,6 +43,8 @@ export function profileD1(db: CatalogDB) {
           rows_read?: number;
           rows_written?: number;
           served_by_primary?: boolean;
+          served_by_colo?: string;
+          served_by_region?: string;
         };
       } | null
     )?.meta;
@@ -55,6 +59,8 @@ export function profileD1(db: CatalogDB) {
       rowsRead: numeric(meta?.rows_read),
       rowsWritten: numeric(meta?.rows_written),
       servedByPrimary: typeof meta?.served_by_primary === "boolean" ? meta.served_by_primary : null,
+      servedByColo: typeof meta?.served_by_colo === "string" ? meta.served_by_colo : null,
+      servedByRegion: typeof meta?.served_by_region === "string" ? meta.served_by_region : null,
       success,
     };
     if (samples.length < 200) samples.push(sample);
