@@ -6,6 +6,9 @@ compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 minify = false
 workers_dev = true
+# Controlled stage-only test: Worker compute colocated toward D1 if Cloudflare learns the dependency.
+[placement]
+mode = "smart"
 [assets]
 directory = "./.output/public"
 binding = "ASSETS"
