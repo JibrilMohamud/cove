@@ -90,9 +90,7 @@ const result = [
   "-- Source D1 introspection was limited to sqlite_master definitions.",
   "-- No customer, book, rights, account, payment, audio or source rows.",
   "-- Do not commit or upload this generated SQL; delete after stage import.",
-  "PRAGMA foreign_keys=OFF;",
   ...definitions.map((o) => o.sql.trim().replace(/;\s*$/, "") + ";"),
-  "PRAGMA foreign_keys=ON;",
 ].join("\n\n");
 fs.writeFileSync(process.argv[2], result, { mode: 0o600 });
 console.log(JSON.stringify({
