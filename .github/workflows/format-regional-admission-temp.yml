@@ -1,0 +1,30 @@
+name: Temporary regional admission formatter
+on:
+  push:
+    branches:
+      - fix/regional-epub-asset-repair-20261020
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/regional-epub-asset-repair-20261020
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prettier --write src/persistence-backend.worker.ts scripts/check-regional-epub-asset-repair.mjs
+      - name: Commit scoped formatting
+        run: |
+          if ! git diff --quiet -- src/persistence-backend.worker.ts scripts/check-regional-epub-asset-repair.mjs; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add src/persistence-backend.worker.ts scripts/check-regional-epub-asset-repair.mjs
+            git commit -m 'style: format bounded EPUB repair admission'
+            git push origin HEAD:fix/regional-epub-asset-repair-20261020
+          fi
