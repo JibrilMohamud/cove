@@ -364,8 +364,7 @@ async function browserCheck(role) {
   }
 }
 async function capacity(role, rate, { route = "/", duration = 20_000 } = {}) {
-  const
-    interval = 1000 / rate,
+  const interval = 1000 / rate,
     start = performance.now(),
     rows = [],
     pending = new Set();
