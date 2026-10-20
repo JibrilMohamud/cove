@@ -68,13 +68,15 @@ export async function runContentProcessingTick(
     role !== "literary" &&
     role !== "literary-prepare" &&
     role !== "literary-handoff"
-  ) return { skipped: "invalid_role" };
+  )
+    return { skipped: "invalid_role" };
   if (role === "literary-prepare" && env.FORE_CONTENT_PREPARE_ENABLED !== "1")
     return { skipped: "preparation_disabled" };
-  if (role === "literary-handoff" && (
-    env.FORE_CONTENT_PREPARE_ENABLED !== "1" ||
-    env.FORE_CONTENT_HANDOFF_ENABLED !== "1"
-  )) return { skipped: "handoff_disabled" };
+  if (
+    role === "literary-handoff" &&
+    (env.FORE_CONTENT_PREPARE_ENABLED !== "1" || env.FORE_CONTENT_HANDOFF_ENABLED !== "1")
+  )
+    return { skipped: "handoff_disabled" };
   if (!env.BUCKET) return { skipped: "missing_private_r2", role };
   if (role === "literary" && !env.AI) return { skipped: "missing_ai", role };
 

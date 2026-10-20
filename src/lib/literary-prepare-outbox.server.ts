@@ -13,8 +13,12 @@ export type HandoffEnv = {
 };
 type Source = { source_id: string; content_hash: string };
 type Handoff = {
-  id: string; product_id: string; edition_id: string;
-  source_id: string; source_sha256: string; attempts: number;
+  id: string;
+  product_id: string;
+  edition_id: string;
+  source_id: string;
+  source_sha256: string;
+  attempts: number;
 };
 
 const sourcePredicate =
@@ -42,42 +46,51 @@ const sourcePredicate =
   " AND (deny.ends_at IS NULL OR datetime(deny.ends_at)>datetime('now')))";
 const digest = async (text: string) => {
   const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join("");
+  return [...new Uint8Array(h)].map((b) => b.toString(16).padStart(2, "0")).join("");
 };
 function assertEnabled(env: HandoffEnv) {
-  if (env.FORE_CONTENT_PROCESSOR_ENABLED !== "1" ||
-      env.FORE_CONTENT_PREPARE_ENABLED !== "1" ||
-      env.FORE_CONTENT_HANDOFF_ENABLED !== "1" ||
-      env.FORE_CONTENT_PROCESSOR_ROLE !== "literary-handoff" ||
-      !env.CONTENT_DB || env.CONTENT_DB === env.DB)
+  if (
+    env.FORE_CONTENT_PROCESSOR_ENABLED !== "1" ||
+    env.FORE_CONTENT_PREPARE_ENABLED !== "1" ||
+    env.FORE_CONTENT_HANDOFF_ENABLED !== "1" ||
+    env.FORE_CONTENT_PROCESSOR_ROLE !== "literary-handoff" ||
+    !env.CONTENT_DB ||
+    env.CONTENT_DB === env.DB
+  )
     throw Error("literary_prepare_handoff_disabled");
 }
 
 /** An explicit priority-book intent, committed to primary D1 only. */
 export async function seedLiteraryPreparationHandoff(
-  env: HandoffEnv, productId: string, editionId: string,
+  env: HandoffEnv,
+  productId: string,
+  editionId: string,
 ) {
   assertEnabled(env);
   if (!/^[\w:-]{1,150}$/.test(productId) || !/^[\w:-]{1,150}$/.test(editionId))
     throw Error("Invalid outbox book");
   const source = await env.DB.prepare(
     "SELECT c.id source_id,c.content_hash" + sourcePredicate + " LIMIT 1",
-  ).bind(productId, editionId).first<Source>();
+  )
+    .bind(productId, editionId)
+    .first<Source>();
   if (!source) return { skipped: "source_or_rights_ineligible" };
   const id = await digest([productId, editionId, source.source_id, source.content_hash].join(":"));
   const now = new Date().toISOString();
   // Rights are checked AGAIN inside this INSERT; preflight is not authority.
   const row = await env.DB.prepare(
     "INSERT OR IGNORE INTO literary_prepare_outbox" +
-    "(id,product_id,edition_id,source_id,source_sha256,available_at,created_at,updated_at)" +
-    " SELECT ?,p.id,p.edition_id,c.id,c.content_hash,?,?,?" +
-    sourcePredicate + " AND c.id=? AND c.content_hash=? RETURNING id",
-  ).bind(id, now, now, now, productId, editionId, source.source_id, source.content_hash)
-   .first<{ id: string }>();
+      "(id,product_id,edition_id,source_id,source_sha256,available_at,created_at,updated_at)" +
+      " SELECT ?,p.id,p.edition_id,c.id,c.content_hash,?,?,?" +
+      sourcePredicate +
+      " AND c.id=? AND c.content_hash=? RETURNING id",
+  )
+    .bind(id, now, now, now, productId, editionId, source.source_id, source.content_hash)
+    .first<{ id: string }>();
   if (row) return { outboxId: id, duplicate: false };
-  const prior = await env.DB.prepare(
-    "SELECT id FROM literary_prepare_outbox WHERE id=?",
-  ).bind(id).first();
+  const prior = await env.DB.prepare("SELECT id FROM literary_prepare_outbox WHERE id=?")
+    .bind(id)
+    .first();
   return prior ? { outboxId: id, duplicate: true } : { skipped: "rights_changed" };
 }
 
@@ -89,30 +102,36 @@ export async function dispatchOneLiteraryPreparationHandoff(env: HandoffEnv) {
   const until = new Date(Date.now() + 120_000).toISOString();
   await env.DB.prepare(
     "UPDATE literary_prepare_outbox SET status='failed',lease_token='',lease_until=''," +
-    "last_error='expired_final_attempt',updated_at=?" +
-    " WHERE status='running' AND lease_until<? AND attempts>=4",
-  ).bind(now, now).run();
+      "last_error='expired_final_attempt',updated_at=?" +
+      " WHERE status='running' AND lease_until<? AND attempts>=4",
+  )
+    .bind(now, now)
+    .run();
   const job = await env.DB.prepare(
     "UPDATE literary_prepare_outbox SET status='running',lease_token=?," +
-    "lease_until=?,attempts=attempts+1,updated_at=?" +
-    " WHERE id=(SELECT id FROM literary_prepare_outbox WHERE" +
-    " ((status='queued' AND available_at<=?) OR" +
-    " (status='running' AND lease_until<?)) AND attempts<4" +
-    " ORDER BY available_at,id LIMIT 1)" +
-    " RETURNING id,product_id,edition_id,source_id,source_sha256,attempts",
-  ).bind(token, until, now, now, now).first<Handoff>();
+      "lease_until=?,attempts=attempts+1,updated_at=?" +
+      " WHERE id=(SELECT id FROM literary_prepare_outbox WHERE" +
+      " ((status='queued' AND available_at<=?) OR" +
+      " (status='running' AND lease_until<?)) AND attempts<4" +
+      " ORDER BY available_at,id LIMIT 1)" +
+      " RETURNING id,product_id,edition_id,source_id,source_sha256,attempts",
+  )
+    .bind(token, until, now, now, now)
+    .first<Handoff>();
   if (!job) return { skipped: "no_handoffs" };
   try {
-    const result = await enqueueIsolatedLiteraryPreparation(
-      env, job.product_id, job.edition_id,
-      { sourceId: job.source_id, contentHash: job.source_sha256 },
-    );
+    const result = await enqueueIsolatedLiteraryPreparation(env, job.product_id, job.edition_id, {
+      sourceId: job.source_id,
+      contentHash: job.source_sha256,
+    });
     if ("skipped" in result) {
       await env.DB.prepare(
         "UPDATE literary_prepare_outbox SET status='cancelled',last_error=?," +
-        "lease_token='',lease_until='',updated_at=?" +
-        " WHERE id=? AND lease_token=? AND status='running' AND lease_until>?",
-      ).bind(result.skipped, new Date().toISOString(), job.id, token, new Date().toISOString()).run();
+          "lease_token='',lease_until='',updated_at=?" +
+          " WHERE id=? AND lease_token=? AND status='running' AND lease_until>?",
+      )
+        .bind(result.skipped, new Date().toISOString(), job.id, token, new Date().toISOString())
+        .run();
       return { cancelled: job.id, reason: result.skipped };
     }
     const expected = await digest(
@@ -122,23 +141,30 @@ export async function dispatchOneLiteraryPreparationHandoff(env: HandoffEnv) {
       throw Error("isolated_job_receipt_mismatch");
     const ack = await env.DB.prepare(
       "UPDATE literary_prepare_outbox SET status='delivered'," +
-      "delivered_job_id=?,lease_token='',lease_until='',updated_at=?" +
-      " WHERE id=? AND lease_token=? AND status='running' AND lease_until>?" +
-      " RETURNING id",
-    ).bind(result.enqueued, new Date().toISOString(), job.id, token, new Date().toISOString()).first();
+        "delivered_job_id=?,lease_token='',lease_until='',updated_at=?" +
+        " WHERE id=? AND lease_token=? AND status='running' AND lease_until>?" +
+        " RETURNING id",
+    )
+      .bind(result.enqueued, new Date().toISOString(), job.id, token, new Date().toISOString())
+      .first();
     if (!ack) throw Error("handoff_ack_lease_lost");
     return { delivered: job.id };
   } catch (error) {
     const reason = String(error).slice(0, 90);
     await env.DB.prepare(
       "UPDATE literary_prepare_outbox SET status=?,available_at=?," +
-      "lease_token='',lease_until='',last_error=?,updated_at=?" +
-      " WHERE id=? AND lease_token=? AND status='running'",
-    ).bind(
-      job.attempts < 4 ? "queued" : "failed",
-      new Date(Date.now() + Math.min(3600000, 60000 * 2 ** job.attempts)).toISOString(),
-      reason, new Date().toISOString(), job.id, token,
-    ).run();
+        "lease_token='',lease_until='',last_error=?,updated_at=?" +
+        " WHERE id=? AND lease_token=? AND status='running'",
+    )
+      .bind(
+        job.attempts < 4 ? "queued" : "failed",
+        new Date(Date.now() + Math.min(3600000, 60000 * 2 ** job.attempts)).toISOString(),
+        reason,
+        new Date().toISOString(),
+        job.id,
+        token,
+      )
+      .run();
     return { failed: job.id, reason };
   }
 }

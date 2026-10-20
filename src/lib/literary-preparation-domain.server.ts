@@ -75,8 +75,10 @@ async function requireIsolatedDomain(env: PreparationEnv): Promise<D1> {
     env.FORE_CONTENT_PROCESSOR_ENABLED !== "1" ||
     env.FORE_CONTENT_PREPARE_ENABLED !== "1" ||
     (env.FORE_CONTENT_PROCESSOR_ROLE !== "literary-prepare" &&
-      !(env.FORE_CONTENT_PROCESSOR_ROLE === "literary-handoff" &&
-        env.FORE_CONTENT_HANDOFF_ENABLED === "1")) ||
+      !(
+        env.FORE_CONTENT_PROCESSOR_ROLE === "literary-handoff" &&
+        env.FORE_CONTENT_HANDOFF_ENABLED === "1"
+      )) ||
     !env.CONTENT_DB ||
     env.CONTENT_DB === env.DB
   )
@@ -116,8 +118,10 @@ export async function enqueueIsolatedLiteraryPreparation(
   if (!book) return { skipped: "source_or_rights_ineligible" };
   // A late-changing edition may not silently switch an outbox intent to
   // another EPUB; independent queue keys are pinned to the primary event.
-  if (expected &&
-      (book.source_id !== expected.sourceId || book.content_hash !== expected.contentHash))
+  if (
+    expected &&
+    (book.source_id !== expected.sourceId || book.content_hash !== expected.contentHash)
+  )
     return { skipped: "source_changed" };
   const id = await digest(
     [book.product_id, book.edition_id, book.source_id, book.content_hash].join(":"),
