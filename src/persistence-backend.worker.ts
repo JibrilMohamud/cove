@@ -949,10 +949,7 @@ export default {
         catalogAdmissionBudget(env.FORE_REGIONAL_EPUB_REPAIR_PROBE_MS),
       );
       if (!admission.allowed)
-        return json(
-          { skipped: admission.reason, probeMs: admission.probeMs },
-          503,
-        );
+        return json({ skipped: admission.reason, probeMs: admission.probeMs }, 503);
       try {
         const result = await repairRegionalEpubAssets(env, {
           after: after as string | undefined,
