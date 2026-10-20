@@ -44,8 +44,7 @@ export function shouldUseConsoleOnlyHttpTelemetry(
   const authorization = request.headers.get("authorization");
   if (authorization !== null) {
     const gate = env.COVE_SSR_STAGING_GATE_KEY;
-    if (!gate || !/^[a-f0-9]{64}$/.test(gate) || authorization !== `Bearer ${gate}`)
-      return false;
+    if (!gate || !/^[a-f0-9]{64}$/.test(gate) || authorization !== `Bearer ${gate}`) return false;
   }
   // Any other potential identity/session hint retains durable telemetry.
   for (const header of [

@@ -54,9 +54,14 @@ for (const route of [
   }
   assert.equal(skipD1({ ...fixture, COVE_SSR_STAGING: "0" }, make(route), 200, false), false);
   assert.equal(
-    skipD1({ ...fixture, COVE_SSR_STAGING_GATE_KEY: undefined }, make(route, {
-      headers: { authorization: "Bearer " + fixture.COVE_SSR_STAGING_GATE_KEY },
-    }), 200, false),
+    skipD1(
+      { ...fixture, COVE_SSR_STAGING_GATE_KEY: undefined },
+      make(route, {
+        headers: { authorization: "Bearer " + fixture.COVE_SSR_STAGING_GATE_KEY },
+      }),
+      200,
+      false,
+    ),
     false,
   );
   assert.equal(
