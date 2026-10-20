@@ -9,6 +9,7 @@ on:
       - "scripts/performance/cloudflare-browser.mjs"
       - "scripts/staging/check-commercial-parity-live-rights.mjs"
       - "scripts/check-storefront-bootstrap.mjs"
+      - "scripts/staging/profile-commercial-parity-cpu.mjs"
       - "scripts/cloudflare-deployment-readiness.mjs"
       - "scripts/check-cloudflare-deployment-readiness.mjs"
       - "scripts/staging/wait-commercial-parity-deployment.mjs"
@@ -58,6 +59,7 @@ jobs:
           import fs from "node:fs";
           import prettier from "prettier";
           const files = [
+            "scripts/staging/profile-commercial-parity-cpu.mjs",
             "scripts/cloudflare-deployment-readiness.mjs",
             "scripts/check-cloudflare-deployment-readiness.mjs",
             "scripts/staging/wait-commercial-parity-deployment.mjs",
@@ -165,9 +167,19 @@ jobs:
               node scripts/performance/cloudflare-browser.mjs
             local browser_status=$?
             local rights_status=0
+            local profile_status=0
+            local profile_summary_status=0
             if [ "$arm" = "one-read" ]; then
               node scripts/staging/check-commercial-parity-live-rights.mjs
               rights_status=$?
+              COVE_STAGE_HTTP2=1 node scripts/staging/profile-commercial-parity-cpu.mjs
+              profile_status=$?
+              if [ -f artifacts/commercial-parity-cpu.pprof ]; then
+                go tool pprof -top -nodecount=40 -unit=ms artifacts/commercial-parity-cpu.pprof \
+                  > artifacts/commercial-parity-cpu-top.txt
+                profile_summary_status=$?
+                cat artifacts/commercial-parity-cpu-top.txt
+              fi
             fi
             node --input-type=module <<'NODE'
           import fs from "node:fs";
@@ -191,7 +203,8 @@ jobs:
             if [ "$burst_status" -ne 0 ] || [ "$mixed_status" -ne 0 ] || \
                [ "$h2_burst_status" -ne 0 ] || [ "$h2_mixed_status" -ne 0 ] || \
                [ "$rights_status" -ne 0 ] || [ "$browser_status" -ne 0 ] || \
-               [ "$artifact_status" -ne 0 ]; then return 1; fi
+               [ "$artifact_status" -ne 0 ] || [ "$profile_status" -ne 0 ] || \
+               [ "$profile_summary_status" -ne 0 ]; then return 1; fi
           }
           set +e
           run_arm baseline 0
@@ -210,6 +223,8 @@ jobs:
           path: |
             artifacts/baseline/*.json
             artifacts/one-read/*.json
+            artifacts/commercial-parity-cpu.pprof
+            artifacts/commercial-parity-cpu-top.txt
             worker-startup.cpuprofile
           if-no-files-found: warn
           retention-days: 14

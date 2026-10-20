@@ -65,6 +65,7 @@ const select = (i) =>
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 const stageReport = {
   transport: stageTransport,
+  workerClock: "I/O-progress clock; worker timings exclude CPU-only execution",
   scope:
     "Cloudflare protected isolated 508-table staging DB, 1000 synthetic books; NO customer accounts, orders, music, production D1 or routing",
   limits: { maxInflight, hardTtfbMs: 800, p95Ms: 600, p99Ms: 750 },

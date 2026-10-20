@@ -93,6 +93,7 @@ async function request(path = "/", options = {}) {
 }
 const results = {
   transport: stageTransport,
+  workerClock: "I/O-progress clock; worker timings exclude CPU-only execution",
   scope: "schema-parity isolated D1, 1000 SYNTHETIC books, zero customer accounts/orders",
   validations: {},
   waves: [],
