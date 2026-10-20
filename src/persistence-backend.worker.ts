@@ -1,3 +1,5 @@
+import { publishAnonymousHomeCandidates } from "./features/fore/recommendations.server";
+import { publishAnonymousMerchandising } from "./features/fore/merchandising.server";
 import { seedMusicProfiles } from "./features/fore/music-profiles.server";
 import { verifyAudioStorage } from "./features/fore/audio-coverage.server";
 import { runLiteraryProfileTick } from "./features/fore/literary-profiles.server";
@@ -41,6 +43,7 @@ import {
 
 type BackendEnv = CoveEnv &
   AudioComputeEnv & {
+    FORE_DISCOVERY_SCOPES?: string;
     FORE_BACKEND_TOKEN?: string;
     FORE_BACKEND_TOKEN_SHA256?: string;
     FORE_PUBLIC_URL?: string;
@@ -843,6 +846,23 @@ async function hostedBiosyncTranscript(
 
 export default {
   async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
+    if (controller.cron === "* * * * *" && env.DISCOVERY_MODELS && env.FORE_DISCOVERY_SCOPES) {
+      // At most ONE configured market per tick; prevent an unbounded producer from starving rights.
+      const scopes = env.FORE_DISCOVERY_SCOPES.split(",")
+        .filter((s) => /^[A-Z]{2}_[a-z-]{2,16}$/.test(s))
+        .slice(0, 4);
+      const scope = scopes[Math.floor(Date.now() / 60_000) % scopes.length];
+      if (scope)
+        ctx.waitUntil?.(
+          (async () => {
+            const [territory, language] = scope.split("_");
+            await publishAnonymousHomeCandidates(env, territory);
+            await publishAnonymousMerchandising(env, { territory, language });
+          })().catch(() =>
+            console.error(JSON.stringify({ event: "discovery_projection_publish_failed", scope })),
+          ),
+        );
+    }
     if (
       controller.cron === "*/10 * * * *" ||
       controller.cron === "23 * * * *" ||

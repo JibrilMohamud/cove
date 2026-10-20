@@ -1,3 +1,4 @@
+import { authorizeDiscoveryCandidates } from "./discovery-rights.server";
 import type { CatalogBook } from "./client";
 import {
   canonicalBooksByProductIds,
@@ -14,6 +15,7 @@ import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
 type SearchEnv = {
   DB: CatalogDB;
   FORE_SEARCH_BACKEND?: string;
+  FORE_SEARCH_FALLBACK?: string;
   FORE_SEARCH_URL?: string;
   FORE_SEARCH_SEARCH_KEY?: string;
   FORE_SEARCH_ADMIN_KEY?: string;
@@ -1080,7 +1082,7 @@ async function meiliRequest(
       Authorization: `Bearer ${key}`,
       ...(init.headers || {}),
     },
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(!admin && env.FORE_SEARCH_FALLBACK === "disabled" ? 450 : 8000),
   });
   if (allow404 && response.status === 404) return null;
   const payload = await response.json().catch(() => ({}));
@@ -1395,7 +1397,9 @@ async function meiliDisjunctiveFacets(
     method: "POST",
     body: JSON.stringify({ queries }),
   });
-  const results = Array.isArray(payload?.results) ? payload.results : [];
+  if (!Array.isArray(payload?.results) || payload.results.length !== specs.length)
+    throw new Error("Incomplete search facet response");
+  const results = payload.results;
   const priceStats = results[5]?.facetStats?.priceMinor;
   return {
     categories: facetValues(results[0], "categories"),
@@ -1415,16 +1419,7 @@ async function meiliDisjunctiveFacets(
 }
 
 async function retailEligibleIdSet(db: CatalogDB, productIds: string[], territory: string) {
-  if (!productIds.length) return new Set<string>();
-  const unique = [...new Set(productIds)].slice(0, 500);
-  const placeholders = unique.map(() => "?").join(",");
-  const rows = await db
-    .prepare(
-      `SELECT DISTINCT product_id FROM retail_product_availability WHERE territory_code=upper(?) AND product_id IN (${placeholders})`,
-    )
-    .bind(territory, ...unique)
-    .all<any>();
-  return new Set(rows.results.map((row) => String(row.product_id)));
+  return authorizeDiscoveryCandidates(db, productIds, territory);
 }
 
 async function searchMeili(env: SearchEnv, input: SearchInput) {
@@ -1453,13 +1448,22 @@ async function searchMeili(env: SearchEnv, input: SearchInput) {
   // Availability has no public UI selector today, so its counts can safely come from the main
   // query while the shopper-facing facets use self-filter-excluding counts from multi-search.
   facets.availability = facetValues(payload, "availability", 10);
-  const ids = (payload.hits || []).map((h: any) => String(h.id));
-  // Never trust an external search index as the rights authority. If its cached territorial
-  // metadata is stale, fail over to D1 rather than exposing an unavailable product.
+  if (
+    !Array.isArray(payload.hits) ||
+    payload.hits.length > input.limit ||
+    payload.hits.some(
+      (hit: { id?: unknown }) => typeof hit.id !== "string" || !hit.id || hit.id.length > 180,
+    )
+  )
+    throw new Error("Invalid search candidate response");
+  const ids: string[] = [...new Set<string>(payload.hits.map((h: { id: string }) => h.id))];
+  // The external index is a candidate source, never the rights authority.
   const eligible = await retailEligibleIdSet(env.DB, ids, input.territory);
-  if (ids.some((id: string) => !eligible.has(id)))
-    throw new Error("Search index rights projection is stale.");
-  const books = await canonicalBooksByProductIds(env.DB, ids);
+  // Index lag removes revoked candidates. Never amplify it into expensive primary search.
+  const books = await canonicalBooksByProductIds(
+    env.DB,
+    ids.filter((id: string) => eligible.has(id)),
+  );
   return {
     books,
     count: Number(payload.totalHits ?? payload.estimatedTotalHits ?? books.length),
@@ -1704,6 +1708,7 @@ export async function searchCatalog(
   env: SearchEnv,
   input: SearchInput,
   userId: string | null,
+  options: { analytics?: boolean } = {},
 ): Promise<SearchResult> {
   if (input.query && !queryTokens(input.query).length)
     return {
@@ -1735,15 +1740,27 @@ export async function searchCatalog(
     windowLimit = Math.min(200, Math.max(input.limit * 5, start + input.limit));
   const searchInputForBackend =
     personalizeWindow && start < 200 ? { ...input, page: 1, limit: windowLimit } : input;
+  if (env.FORE_SEARCH_FALLBACK === "disabled" && !meiliConfigured(env))
+    throw new ApiError(503, "Search read engine is not configured.");
   let backend = preferredBackend(env);
+  if (env.FORE_SEARCH_FALLBACK === "disabled" && backend !== "meilisearch")
+    throw new ApiError(503, "Search read engine is required.");
   // Subscription/library eligibility is date- and territory-sensitive legal state; D1 is the
   // authoritative projection until those channels have independent external indexes.
-  if (input.subscription !== undefined || input.library !== undefined) backend = "d1";
+  if (
+    env.FORE_SEARCH_FALLBACK !== "disabled" &&
+    (input.subscription !== undefined || input.library !== undefined)
+  )
+    backend = "d1";
   let result: Awaited<ReturnType<typeof searchD1>> | Awaited<ReturnType<typeof searchMeili>>;
   if (backend === "meilisearch") {
     try {
       result = await searchMeili(env, searchInputForBackend);
     } catch (error) {
+      if (env.FORE_SEARCH_FALLBACK === "disabled") {
+        console.error(JSON.stringify({ event: "search_read_engine_unavailable" }));
+        throw new ApiError(503, "Search is temporarily unavailable. Please try again shortly.");
+      }
       console.warn("Meilisearch query failed; using D1 FTS5 fallback", error);
       backend = "d1";
       result = await searchD1(env, searchInputForBackend);
@@ -1764,17 +1781,25 @@ export async function searchCatalog(
     personalizeWindow && start < 200
       ? personalized.books.slice(start, start + input.limit)
       : personalized.books;
-  const visibleBooks = await contextualizeChannelEligibility(env.DB, pageBooks, input.territory);
-  const queryId = await logQuery(env.DB, input, userId, {
-    count: result.count,
-    backend: backendName,
-    duration: result.duration,
-    correctedQuery: "correctedQuery" in result ? result.correctedQuery : undefined,
-    productIds: visibleBooks.map((book) => String(book.productId || "")).filter(Boolean),
-  }).catch((error: unknown) => {
-    console.warn("Search analytics unavailable", error);
-    return null;
-  });
+  const channelBooks = await contextualizeChannelEligibility(env.DB, pageBooks, input.territory);
+  const visibleBooks = channelBooks.filter(
+    (book) =>
+      (input.subscription === undefined || !!book.subscriptionEligible === input.subscription) &&
+      (input.library === undefined || !!book.libraryEligible === input.library),
+  );
+  const queryId =
+    options.analytics === false
+      ? null
+      : await logQuery(env.DB, input, userId, {
+          count: result.count,
+          backend: backendName,
+          duration: result.duration,
+          correctedQuery: "correctedQuery" in result ? result.correctedQuery : undefined,
+          productIds: visibleBooks.map((book) => String(book.productId || "")).filter(Boolean),
+        }).catch((error: unknown) => {
+          console.warn("Search analytics unavailable", error);
+          return null;
+        });
   return {
     books: visibleBooks,
     count: result.count,

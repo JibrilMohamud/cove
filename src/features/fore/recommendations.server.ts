@@ -1,3 +1,14 @@
+import {
+  authorizeDiscoveryCandidates,
+  contextualizeDiscoveryChannels,
+} from "./discovery-rights.server";
+import {
+  loadDiscoveryModel,
+  discoveryProductionEnv,
+  publishDiscoveryModel,
+  requiresDiscoveryReadModel,
+  type DiscoveryReadEnv,
+} from "./discovery-read-model.server";
 import { discoveryRankerSchema, rankFeatures, satisfactionPrediction } from "./discovery-ranker";
 import {
   DISCOVERY_VERSION,
@@ -23,7 +34,7 @@ import { canonicalBooksByProductIds, type CatalogDB } from "./catalog-model.serv
 import { ApiError, now } from "./service";
 import { setWishlistItem } from "./retail.server";
 
-export type RecommendationEnv = {
+export type RecommendationEnv = DiscoveryReadEnv & {
   DB: CatalogDB;
   FORE_RECOMMENDER_URL?: string;
   FORE_RECOMMENDER_API_KEY?: string;
@@ -1360,26 +1371,32 @@ async function requestRecord(
       telemetry.fallbackReason,
       at,
     );
-  // A rail has at most 20 impressions: 160 bound values, not 20 serial
-  // Worker-to-D1 requests. Keep request and impressions atomic; do not
-  // weaken recommendation evidence or turn a failed write into success.
-  const impressionsWrite = db
-    .prepare(
-      `INSERT INTO recommendation_impressions(request_id,product_id,position,score,reason_code,reason_text,candidate_sources_json,feature_snapshot_json) VALUES ${candidates.map(() => "(?,?,?,?,?,?,?,?)").join(",")}`,
-    )
-    .bind(
-      ...candidates.flatMap((c, i) => [
-        id,
-        c.productId,
-        i + 1,
-        c.score,
-        c.reasonCode,
-        c.reasonText,
-        JSON.stringify([...c.sources]),
-        JSON.stringify(c.rankFeatures || []),
-      ]),
+  // D1 permits at most 100 bound parameters in each statement, including batched
+  // statements. Twelve 8-field impressions use 96; a 20-book rail needs two inserts.
+  // One database batch preserves atomic request+impression attribution and positions.
+  const impressionsWrites = [];
+  for (let offset = 0; offset < candidates.length; offset += 12) {
+    const chunk = candidates.slice(offset, offset + 12);
+    impressionsWrites.push(
+      db
+        .prepare(
+          `INSERT INTO recommendation_impressions(request_id,product_id,position,score,reason_code,reason_text,candidate_sources_json,feature_snapshot_json) VALUES ${chunk.map(() => "(?,?,?,?,?,?,?,?)").join(",")}`,
+        )
+        .bind(
+          ...chunk.flatMap((c, i) => [
+            id,
+            c.productId,
+            offset + i + 1,
+            c.score,
+            c.reasonCode,
+            c.reasonText,
+            JSON.stringify([...c.sources]),
+            JSON.stringify(c.rankFeatures || []),
+          ]),
+        ),
     );
-  await db.batch([requestWrite, impressionsWrite]);
+  }
+  await db.batch([requestWrite, ...impressionsWrites]);
   return id;
 }
 
@@ -1390,6 +1407,7 @@ async function eligibleRecommendationIds(
   userId: string | null,
 ) {
   if (!ids.length) return new Set<string>();
+  if (!userId) return authorizeDiscoveryCandidates(db, ids, territory, true);
   if (ids.length > 80) {
     const combined = new Set<string>();
     for (let offset = 0; offset < ids.length; offset += 80)
@@ -1720,27 +1738,140 @@ async function augmentMeta(db: CatalogDB, candidates: Candidate[]) {
     }));
 }
 
+// The ranking algorithm, feature evidence and visitor-specific diversity remain unchanged.
+// Only candidate production and metadata preparation move out of the request path.
+const neutralCandidateSchema = z.object({
+  productId: z.string().min(1).max(180),
+  score: z.number().finite(),
+  sources: z.array(z.string().max(100)).max(30),
+  sourceScores: z
+    .array(z.tuple([z.string(), z.number().finite()]))
+    .max(30)
+    .optional(),
+  reasonCode: z.string().max(160),
+  reasonText: z.string().max(2000),
+  reasonScore: z.number().finite().optional(),
+  rankFeatures: z.array(z.number().finite()).max(100).optional(),
+  literaryFeatures: z
+    .array(
+      z
+        .object({
+          dimension: z.enum(discoveryDimensions),
+          feature: z.string(),
+          confidence: z.number(),
+        })
+        .passthrough(),
+    )
+    .max(500)
+    .optional(),
+  meta: z.object({
+    productId: z.string(),
+    externalBookId: z.string(),
+    editionId: z.string(),
+    workId: z.string(),
+    title: z.string(),
+    format: z.string(),
+    authorIds: z.array(z.string()),
+    authorNames: z.array(z.string()),
+    seriesIds: z.array(z.string()),
+    seriesNames: z.array(z.string()),
+    seriesPositions: z.record(z.string(), z.number()),
+    publisherId: z.string(),
+    publisherName: z.string(),
+    taxonomyPaths: z.array(z.string()),
+    languages: z.array(z.string()),
+    priceMinor: z.number(),
+    currency: z.string(),
+    releaseDate: z.string(),
+    popularity: z.number(),
+    trend: z.number(),
+    rating: z.number(),
+    reviewCount: z.number(),
+    readingMinutesMax: z.number().nullable(),
+  }),
+});
+const homeModelSchema = z.object({
+  model: z.object({
+    key: z.string(),
+    version: z.string(),
+    algorithm: z.string(),
+    config: z.record(z.string(), z.unknown()),
+  }),
+  candidates: z.array(neutralCandidateSchema).max(MAX_CANDIDATES),
+  editorial: z.array(neutralCandidateSchema).max(24),
+  telemetry: z.object({
+    candidateCount: z.number(),
+    candidateCounts: z.record(z.string(), z.number()),
+    scorerMode: z.string(),
+    fallbackReason: z.string(),
+    latencyMs: z.number(),
+  }),
+});
+function serializeNeutralCandidate(c: Candidate) {
+  return {
+    ...c,
+    sources: [...c.sources],
+    sourceScores: c.sourceScores ? [...c.sourceScores] : undefined,
+  };
+}
+function restoreNeutralCandidate(c: z.infer<typeof neutralCandidateSchema>): Candidate {
+  return {
+    ...c,
+    sources: new Set(c.sources),
+    sourceScores: c.sourceScores ? new Map(c.sourceScores) : undefined,
+    literaryFeatures: c.literaryFeatures as LiteraryFeature[] | undefined,
+  };
+}
+/** Run only from a bounded scheduled producer. Requests never call this on a cache miss. */
+export async function publishAnonymousHomeCandidates(env: RecommendationEnv, territory: string) {
+  if (!/^[A-Z]{2}$/.test(territory)) throw new ApiError(400, "Invalid projection territory.");
+  env = discoveryProductionEnv(env);
+  const model = await activeModel(env.DB);
+  const pool = await candidatePool(env, { userId: null, territory, mode: "home", model });
+  const editorial = await augmentMeta(env.DB, await editorialCandidates(env.DB));
+  const data = homeModelSchema.parse({
+    model,
+    candidates: pool.candidates.map(serializeNeutralCandidate),
+    editorial: editorial.map(serializeNeutralCandidate),
+    telemetry: pool.telemetry,
+  });
+  return publishDiscoveryModel(env, "home-candidates", territory, data);
+}
+
 export async function homeRecommendations(
   env: RecommendationEnv,
   opts: { userId: string | null; visitorId: string; territory: string; limit?: number },
 ) {
+  const projection =
+    !opts.userId && requiresDiscoveryReadModel(env)
+      ? await loadDiscoveryModel(env, "home-candidates", opts.territory, (value) =>
+          homeModelSchema.parse(value),
+        )
+      : null;
   const limit = Math.max(4, Math.min(20, opts.limit || 12)),
     privacy = await recommendationPrivacy(env.DB, opts.userId),
     personalized = !!opts.userId && privacy.personalizationEnabled,
-    model = await activeModel(env.DB);
-  const base = await candidatePool(env, {
-      userId: personalized ? opts.userId : null,
-      territory: opts.territory,
-      mode: "home",
-      model,
-    }),
+    model = projection?.model || (await activeModel(env.DB));
+  const base = projection
+      ? {
+          candidates: projection.candidates.map(restoreNeutralCandidate),
+          telemetry: projection.telemetry,
+        }
+      : await candidatePool(env, {
+          userId: personalized ? opts.userId : null,
+          territory: opts.territory,
+          mode: "home",
+          model,
+        }),
     rails: RecommendationRail[] = [],
     used = new Set<string>();
   // All anonymous rails share the SAME fresh rights snapshot for this
   // request, rather than running identical expensive checks per rail.
   // Anonymous eligibility is never shared across requests, territories,
   // users or Worker isolates, and revocations apply on the next request.
-  const editorial = await augmentMeta(env.DB, await editorialCandidates(env.DB));
+  const editorial = projection
+    ? projection.editorial.map(restoreNeutralCandidate)
+    : await augmentMeta(env.DB, await editorialCandidates(env.DB));
   const anonymousAllowed = !opts.userId
     ? await eligibleRecommendationIds(
         env.DB,
@@ -1965,6 +2096,15 @@ export async function homeRecommendations(
       excludeOwned: true,
     }),
   );
+  if (projection) {
+    const currentBooks = await contextualizeDiscoveryChannels(
+      env.DB,
+      rails.flatMap((rail) => rail.books),
+      opts.territory,
+    );
+    const byId = new Map(currentBooks.map((book) => [book.productId, book]));
+    for (const rail of rails) rail.books = rail.books.map((book) => byId.get(book.productId)!);
+  }
   return {
     rails,
     personalization: {

@@ -1,3 +1,5 @@
+import { profileD1 } from "./d1-cost-profile.server";
+import type { DiscoveryReadEnv } from "./discovery-read-model.server";
 import { saveTasteControls, loadTasteControls } from "./discovery-intelligence.server";
 import { validateStoredEpub } from "./stored-epub.server";
 import { createAuth, resolvedIdentity } from "./auth.server";
@@ -465,7 +467,8 @@ type Statement = {
   all<T = any>(): Promise<{ results: T[] }>;
   run(): Promise<unknown>;
 };
-export type CoveEnv = {
+export type CoveEnv = DiscoveryReadEnv & {
+  FORE_D1_COST_PROFILE?: string;
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   DB: { prepare(sql: string): Statement; batch(s: Statement[]): Promise<unknown> };
   COVE_STOREFRONT_READ_LIMITER?: {
@@ -492,6 +495,7 @@ export type CoveEnv = {
   FORE_GUTENBERG_EUROPE_FEED_URL?: string;
   FORE_GUTENBERG_EUROPE_TRUSTED_ORIGINS?: string;
   FORE_SEARCH_BACKEND?: string;
+  FORE_SEARCH_FALLBACK?: string;
   FORE_SEARCH_URL?: string;
   FORE_SEARCH_SEARCH_KEY?: string;
   FORE_SEARCH_ADMIN_KEY?: string;
@@ -2763,6 +2767,8 @@ export async function handleCoveApi(
   execution?: ApiExecutionContext,
 ): Promise<Response | null> {
   if (!new URL(request.url).pathname.startsWith("/api/fore/")) return null;
+  const cost = env.FORE_D1_COST_PROFILE === "1" && env.DB ? profileD1(env.DB) : null;
+  if (cost) env = { ...env, DB: cost.db };
   const started = performance.now(),
     timings: Record<string, number> = {};
   const trace = beginRequestTrace(request),
@@ -2807,6 +2813,24 @@ export async function handleCoveApi(
       timings.log = performance.now() - logStarted;
     }
   }
+  if (cost)
+    console.info(
+      JSON.stringify({
+        event: "d1_route_cost",
+        method: request.method,
+        route: [
+          "/api/fore/catalog",
+          "/api/fore/recommendations/home",
+          "/api/fore/merchandising",
+          "/api/fore/storefront/bootstrap",
+        ].includes(new URL(request.url).pathname)
+          ? new URL(request.url).pathname
+          : "other",
+        phase: "response",
+        requestId: trace.requestId,
+        ...cost.snapshot(),
+      }),
+    );
   timings.api = performance.now() - started;
   // Numeric request-local timings only. Exclude URLs, identity, locale and SQL.
   response.headers.append(

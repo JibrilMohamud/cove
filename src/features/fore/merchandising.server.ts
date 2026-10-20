@@ -1,3 +1,15 @@
+import {
+  authorizeDiscoveryCandidates,
+  contextualizeDiscoveryChannels,
+  DISCOVERY_CANDIDATE_LIMIT,
+} from "./discovery-rights.server";
+import {
+  loadDiscoveryModel,
+  discoveryProductionEnv,
+  publishDiscoveryModel,
+  requiresDiscoveryReadModel,
+  type DiscoveryReadEnv,
+} from "./discovery-read-model.server";
 import { z } from "zod";
 import type { CatalogBook } from "./client";
 import { canonicalBooksByProductIds, type CatalogDB } from "./catalog-model.server";
@@ -5,9 +17,10 @@ import { searchCatalog, type SearchInput } from "./search.server";
 import { ApiError, now } from "./service";
 import { recommendationPlacementBooks } from "./recommendations.server";
 
-export type MerchEnv = {
+export type MerchEnv = DiscoveryReadEnv & {
   DB: CatalogDB;
   FORE_SEARCH_BACKEND?: string;
+  FORE_SEARCH_FALLBACK?: string;
   FORE_SEARCH_URL?: string;
   FORE_SEARCH_SEARCH_KEY?: string;
   FORE_SEARCH_ADMIN_KEY?: string;
@@ -166,7 +179,7 @@ async function resolveCollection(
 ) {
   if (row.mode === "dynamic") {
     const input = searchInput(parseJson(row.query_json, {}), territory, maxItems);
-    return (await searchCatalog(env, input, userId)).books;
+    return (await searchCatalog(env, input, userId, { analytics: false })).books;
   }
   const items = await env.DB.prepare(
     `SELECT mci.product_id FROM merch_collection_items mci
@@ -222,10 +235,16 @@ async function resolvePlacement(
     });
     // If personalization is unavailable or disabled, the placement's JSON also doubles as a safe catalog fallback.
     if (!books.length)
-      books = (await searchCatalog(env, searchInput(base, territory, maxItems), userId)).books;
+      books = (
+        await searchCatalog(env, searchInput(base, territory, maxItems), userId, {
+          analytics: false,
+        })
+      ).books;
   } else if (row.source_type === "query") {
     const base = parseJson<Record<string, any>>(row.query_json, {});
-    books = (await searchCatalog(env, searchInput(base, territory, maxItems), userId)).books;
+    books = (
+      await searchCatalog(env, searchInput(base, territory, maxItems), userId, { analytics: false })
+    ).books;
   }
   return {
     id: String(row.id),
@@ -248,12 +267,8 @@ async function resolvePlacement(
   };
 }
 
-export async function storefrontMerchandising(
-  env: MerchEnv,
-  options: { territory: string; language: string; visitorId: string; userId: string | null },
-) {
-  const context = await audienceContext(env.DB, options.userId);
-  const rows = await env.DB.prepare(
+async function loadPlacementRows(env: MerchEnv, options: { territory: string; language: string }) {
+  return env.DB.prepare(
     `SELECT p.*,c.audience_json,c.priority campaign_priority,s.slot_key,s.name slot_name,s.placement_type,s.max_items,s.max_placements,
       x.experiment_key,x.variants_json
     FROM merch_placements p
@@ -270,6 +285,103 @@ export async function storefrontMerchandising(
   )
     .bind(options.territory, options.territory, options.language, options.language)
     .all<any>();
+}
+const merchProjectionSchema = z.object({
+  validUntil: z.number().finite(),
+  entries: z
+    .array(
+      z.object({
+        row: z.record(z.string(), z.unknown()),
+        decoration: z.record(z.string(), z.unknown()),
+        productIds: z.array(z.string().min(1).max(180)).max(60),
+      }),
+    )
+    .max(64),
+});
+function merchScope(territory: string, language: string) {
+  if (!/^[A-Z]{2}$/.test(territory) || !/^[a-zA-Z-]{2,16}$/.test(language))
+    throw new ApiError(400, "Invalid merchandising projection scope.");
+  return `${territory}_${language.toLowerCase()}`;
+}
+/** All placement strategies execute here on a schedule, never as a read-model miss fallback. */
+export async function publishAnonymousMerchandising(
+  env: MerchEnv,
+  options: { territory: string; language: string },
+) {
+  const scope = merchScope(options.territory, options.language);
+  env = discoveryProductionEnv(env);
+  const rows = await loadPlacementRows(env, options);
+  if (rows.results.length > 64)
+    throw new ApiError(503, "Merchandising projection budget exceeded.");
+  const entries = [];
+  for (const raw of rows.results) {
+    if (!audienceMatches(raw.audience_json, { authenticated: false, librarySize: 0 })) continue;
+    const resolved = await resolvePlacement(
+      env,
+      { ...raw, request_language: options.language },
+      options.territory,
+      null,
+      "00000000-0000-4000-8000-000000000000",
+    );
+    const { books, ...decoration } = resolved;
+    entries.push({
+      row: raw,
+      decoration,
+      productIds: books.map((book) => String(book.productId || "")).filter(Boolean),
+    });
+  }
+  const ids = new Set(entries.flatMap((entry) => entry.productIds));
+  if (ids.size > DISCOVERY_CANDIDATE_LIMIT)
+    throw new ApiError(503, "Merchandising candidate budget exceeded.");
+  // No precomputed placement may cross a schedule boundary. Invalidation is fail-closed
+  // until the scheduled producer publishes the next complete version.
+  const boundary = await env.DB.prepare(
+    `SELECT MIN(unixepoch(at))*1000 at FROM (
+    SELECT starts_at at FROM merch_campaigns UNION ALL SELECT ends_at FROM merch_campaigns
+    UNION ALL SELECT starts_at FROM merch_placements UNION ALL SELECT ends_at FROM merch_placements
+    UNION ALL SELECT starts_at FROM merch_collections UNION ALL SELECT ends_at FROM merch_collections
+    UNION ALL SELECT starts_at FROM merch_collection_items UNION ALL SELECT ends_at FROM merch_collection_items
+    UNION ALL SELECT starts_at FROM merch_experiments UNION ALL SELECT ends_at FROM merch_experiments
+  ) WHERE julianday(at)>julianday('now')`,
+  ).first<{ at: number | null }>();
+  const validUntil = Math.min(Date.now() + 5 * 60_000, boundary?.at ?? Infinity);
+  return publishDiscoveryModel(
+    env,
+    "merchandising",
+    scope,
+    merchProjectionSchema.parse({ validUntil, entries }),
+  );
+}
+
+export async function storefrontMerchandising(
+  env: MerchEnv,
+  options: { territory: string; language: string; visitorId: string; userId: string | null },
+) {
+  const context = await audienceContext(env.DB, options.userId);
+  const projection =
+    !options.userId && requiresDiscoveryReadModel(env)
+      ? await loadDiscoveryModel(
+          env,
+          "merchandising",
+          merchScope(options.territory, options.language),
+          (value) => merchProjectionSchema.parse(value),
+        )
+      : null;
+  if (projection && projection.validUntil <= Date.now())
+    throw new ApiError(503, "Merchandising is refreshing.");
+  const rows = projection
+    ? { results: projection.entries.map((entry) => entry.row) }
+    : await loadPlacementRows(env, options);
+  const projectedById = new Map(
+    projection?.entries.map((entry) => [String(entry.row.id), entry]) || [],
+  );
+  const allowed = projection
+    ? await authorizeDiscoveryCandidates(
+        env.DB,
+        projection.entries.flatMap((entry) => entry.productIds),
+        options.territory,
+      )
+    : null;
 
   // Resolve conflicts per stable slot. Highest campaign priority wins first; placements at the
   // same priority/sort order use deterministic visitor weighting so traffic allocation is sticky.
@@ -319,13 +431,20 @@ export async function storefrontMerchandising(
       if (chosenIndex >= 0) candidates.splice(chosenIndex, 1);
       ordinal += 1;
 
-      const resolved = await resolvePlacement(
-        env,
-        chosen,
-        options.territory,
-        options.userId,
-        options.visitorId,
-      );
+      const precomputed = projectedById.get(String(chosen.id));
+      const resolved = precomputed
+        ? {
+            ...(precomputed.decoration as Omit<
+              Awaited<ReturnType<typeof resolvePlacement>>,
+              "books"
+            >),
+            experimentVariant: chosen.assigned_variant || null,
+            books: await canonicalBooksByProductIds(
+              env.DB,
+              precomputed.productIds.filter((id) => allowed!.has(id)),
+            ),
+          }
+        : await resolvePlacement(env, chosen, options.territory, options.userId, options.visitorId);
       // Avoid showing the same SKU in the hero and multiple homepage rails. This is done after
       // resolution because dynamic/personalized collections are not known until request time.
       resolved.books = resolved.books.filter((book) => {
@@ -342,6 +461,17 @@ export async function storefrontMerchandising(
     if (selected.length) bySlot.set(slotKey, selected);
   }
 
+  if (projection) {
+    const placements = [...bySlot.values()].flat();
+    const currentBooks = await contextualizeDiscoveryChannels(
+      env.DB,
+      placements.flatMap((placement) => placement.books),
+      options.territory,
+    );
+    const byId = new Map(currentBooks.map((book) => [book.productId, book]));
+    for (const placement of placements)
+      placement.books = placement.books.map((book: CatalogBook) => byId.get(book.productId)!);
+  }
   return {
     visitorId: options.visitorId,
     territory: options.territory,

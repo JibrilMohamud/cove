@@ -1,0 +1,56 @@
+name: cloudflare-discovery-read-models
+on:
+  push:
+    branches: [perf/discovery-workload-separation-20261020]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cove-cleanoverlap-recovery-20261019
+  queue: max
+  cancel-in-progress: false
+jobs:
+  isolated-discovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Type, projection, legal authority and load-accounting gates
+        run: |
+          npm run typecheck
+          node scripts/check-discovery-read-models.mjs
+          node scripts/check-offered-load.mjs
+          node scripts/check-discovery-scale.mjs
+          node scripts/check-rights.mjs
+          node scripts/check-recommendations.mjs
+          node scripts/check-thin-storefront.mjs
+      - name: Build private synthetic diagnostic
+        run: npx esbuild src/discovery-benchmark.worker.ts --bundle --format=esm --platform=neutral --main-fields=browser,module,main --conditions=workerd,worker,browser,import,default --alias:jszip=jszip/dist/jszip.min.js --external:node:* --external:cloudflare:* --minify --outfile=artifacts/discovery-benchmark/worker.mjs
+      - name: Apply covering indexes only to the isolated synthetic candidate
+        run: npx --yes wrangler@4.151.0 d1 execute DB --remote --config wrangler.discovery-benchmark.jsonc --file drizzle/0079_bounded_discovery_series_gates.sql
+      - name: Run complete 50k discovery trial with drops and failures in gate
+        run: node scripts/performance/discovery-read-model-trial.mjs
+      - name: Preserve exact-commit evidence on all outcomes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cove-discovery-models-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/discovery-benchmark/results.json
+          retention-days: 30
+      - name: Remove private diagnostic Worker
+        if: always()
+        run: |
+          curl --fail-with-body -sS --max-time 30 -X DELETE \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/cove-discovery-read-model-staging?force=true" >/dev/null
