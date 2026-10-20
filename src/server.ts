@@ -71,6 +71,7 @@ export default {
         ASSETS?: { fetch: (request: Request) => Promise<Response> };
         COVE_SSR_STAGING?: string;
         COVE_SSR_STAGING_GATE_KEY?: string;
+        FORE_LEAN_ANON_PUBLIC_API?: string;
         FORE_PUBLIC_URL?: string;
         FORE_ENVIRONMENT?: string;
         FORE_CSP_REPORT_URI?: string;
@@ -135,6 +136,22 @@ export default {
       const persistenceResponse = await proxyPersistenceApi(request, foreEnv);
       if (persistenceResponse)
         return stageNoStore(applySecurityHeaders(request, persistenceResponse, foreEnv), staging);
+      // Stage-only experiment: use the same strictly anonymous, rights-gated
+      // bootstrap as Worker SSR. Never shortcut an authenticated browser,
+      // unknown market, missing edge limit binding or non-GET request.
+      // Production/normal requests still use the existing full API.
+      if (
+        staging &&
+        foreEnv.FORE_LEAN_ANON_PUBLIC_API === "1" &&
+        request.method === "GET" &&
+        new URL(request.url).pathname === "/api/fore/storefront/bootstrap"
+      ) {
+        const lean = await import("./features/fore/storefront-anonymous-bootstrap.server");
+        if (lean.canUseLeanAnonymousBootstrap(request, foreEnv as any)) {
+          const response = await lean.serveLeanAnonymousBootstrap(request, foreEnv as any);
+          return stageNoStore(applySecurityHeaders(request, response, foreEnv), true);
+        }
+      }
       // A configured persistence gateway handles APIs without loading the entire
       // catalog, publishing, commerce and audio backend into the Vercel process.
       const apiResponse = new URL(request.url).pathname.startsWith("/api/fore/")
