@@ -1,17 +1,15 @@
+import { parseDiscoveryBenchmarkConfig } from "./discovery-benchmark-config.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { offeredLoad, summarizeRequests } from "./offered-load.mjs";
-import { PERFORMANCE_D1, PRODUCTION_D1_ID, verifySyntheticD1 } from "./isolated-d1-gate.mjs";
+import { PERFORMANCE_D1, verifySyntheticD1 } from "./isolated-d1-gate.mjs";
 
-const config = JSON.parse(fs.readFileSync("wrangler.discovery-benchmark.jsonc", "utf8"));
-assert.equal(config.name, "cove-discovery-read-model-staging");
-assert.equal(config.d1_databases[0].database_id, PERFORMANCE_D1.current.id);
-assert.ok(!JSON.stringify(config).includes(PRODUCTION_D1_ID));
-assert.ok(!config.routes && !config.route && !config.triggers);
-assert.equal(config.r2_buckets[0].bucket_name, "cove-discovery-models-benchmark");
+const config = parseDiscoveryBenchmarkConfig(
+  fs.readFileSync("wrangler.discovery-benchmark.jsonc", "utf8"),
+);
 assert.ok(process.env.CLOUDFLARE_API_TOKEN);
 const account = "d26430caa63ec55f6612e32f36aca5e9",
   key = randomBytes(32).toString("hex");

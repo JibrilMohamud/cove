@@ -30,6 +30,7 @@ jobs:
         run: |
           npm run typecheck
           node scripts/check-discovery-read-models.mjs
+          node scripts/check-discovery-benchmark-config.mjs
           node scripts/check-offered-load.mjs
           node scripts/check-discovery-scale.mjs
           node scripts/check-rights.mjs
@@ -51,6 +52,11 @@ jobs:
       - name: Remove private diagnostic Worker
         if: always()
         run: |
-          curl --fail-with-body -sS --max-time 30 -X DELETE \
+          status=$(curl --silent --show-error --max-time 30 -X DELETE \
+            --output "$RUNNER_TEMP/discovery-cleanup.json" --write-out '%{http_code}' \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/cove-discovery-read-model-staging?force=true" >/dev/null
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/cove-discovery-read-model-staging?force=true")
+          case "$status" in
+            200|204|404) echo "Private diagnostic Worker absent after cleanup." ;;
+            *) echo "Diagnostic Worker cleanup failed: HTTP $status"; exit 1 ;;
+          esac
