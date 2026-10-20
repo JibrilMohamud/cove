@@ -2,7 +2,11 @@
 export function syntheticDbFailureCategory(error: unknown): string {
   const e = error as { name?: unknown; message?: unknown; cause?: { code?: unknown } };
   const message = String(e?.message || "") + " " + String(e?.cause?.code || "");
-  if (/overloaded|requests queued for too long|SQLITE_BUSY|database is locked|too many requests/i.test(message))
+  if (
+    /overloaded|requests queued for too long|SQLITE_BUSY|database is locked|too many requests/i.test(
+      message,
+    )
+  )
     return "database-queue-or-overload";
   if (/no such table|no such column|syntax error|SQLITE_ERROR/i.test(message))
     return "database-schema-or-statement";
