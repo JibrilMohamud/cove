@@ -1,9 +1,6 @@
 import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
 import { runLiteraryProfileTick } from "./features/fore/literary-profiles.server";
-import {
-  admitCatalogBatch,
-  catalogAdmissionBudget,
-} from "./lib/catalog-ingestion-backpressure";
+import { admitCatalogBatch, catalogAdmissionBudget } from "./lib/catalog-ingestion-backpressure";
 import type { CoveEnv } from "./features/fore/api.server";
 
 /**
@@ -35,15 +32,11 @@ export async function runContentProcessingTick(
   env: ContentProcessorEnv,
   runners: ProcessorRunners = defaultRunners,
 ) {
-  if (env.FORE_CONTENT_PROCESSOR_ENABLED !== "1")
-    return { skipped: "disabled" };
+  if (env.FORE_CONTENT_PROCESSOR_ENABLED !== "1") return { skipped: "disabled" };
   const role = env.FORE_CONTENT_PROCESSOR_ROLE;
-  if (role !== "assets" && role !== "literary")
-    return { skipped: "invalid_role" };
-  if (!env.BUCKET)
-    return { skipped: "missing_private_r2", role };
-  if (role === "literary" && !env.AI)
-    return { skipped: "missing_ai", role };
+  if (role !== "assets" && role !== "literary") return { skipped: "invalid_role" };
+  if (!env.BUCKET) return { skipped: "missing_private_r2", role };
+  if (role === "literary" && !env.AI) return { skipped: "missing_ai", role };
 
   // At most one read-only D1 latency probe per cron execution. If rights and
   // commerce requests are already experiencing database queueing, derived

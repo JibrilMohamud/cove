@@ -19,8 +19,14 @@ try {
   );
   const calls = [];
   const runners = {
-    assets: async () => { calls.push("assets"); return { stored: 2 }; },
-    literary: async () => { calls.push("literary"); return { analyzed: 2 }; },
+    assets: async () => {
+      calls.push("assets");
+      return { stored: 2 };
+    },
+    literary: async () => {
+      calls.push("literary");
+      return { analyzed: 2 };
+    },
   };
   let canRead = true;
   const env = {
@@ -32,7 +38,12 @@ try {
     DB: {
       prepare(sql) {
         assert.equal(sql, "SELECT 1 AS ok", "Admission must not write to D1");
-        return { async first() { if (!canRead) throw Error("D1 unavailable"); return { ok: 1 }; } };
+        return {
+          async first() {
+            if (!canRead) throw Error("D1 unavailable");
+            return { ok: 1 };
+          },
+        };
       },
     },
   };
