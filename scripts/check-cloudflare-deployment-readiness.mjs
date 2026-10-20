@@ -69,11 +69,8 @@ await waitForCloudflareStageDeployment(
 );
 assert.equal(isolatedCalls, 1);
 await assert.rejects(
-  waitForCloudflareStageDeployment(
-    "x".repeat(40),
-    "d26430caa63ec55f6612e32f36aca5e9",
-    started,
-    { workerName: "../production" },
-  ),
+  waitForCloudflareStageDeployment("x".repeat(40), "d26430caa63ec55f6612e32f36aca5e9", started, {
+    workerName: "../production",
+  }),
 );
 console.log("PASS: fresh 100% stage version and deploy settle without Worker requests.");

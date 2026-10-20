@@ -93,7 +93,8 @@ async function fetchOne(route) {
     const body = await response.text();
     let valid =
       (!expectedArm || response.headers.get("x-cove-stage-context-mode") === expectedArm) &&
-      response.status === 200 && /no-store/i.test(response.headers.get("cache-control") || "");
+      response.status === 200 &&
+      /no-store/i.test(response.headers.get("cache-control") || "");
     if (valid && route.name === "home") {
       try {
         valid =
