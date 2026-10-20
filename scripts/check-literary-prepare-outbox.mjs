@@ -64,7 +64,7 @@ try {
       .run("g_"+suffix,"e_"+suffix,"ebook","retail","active","allow","gutenberg-pg_au-public-domain","AU",null,null);
   }
   fixture("a");
-  assert.rejects(seedLiteraryPreparationHandoff(
+  await assert.rejects(seedLiteraryPreparationHandoff(
     { ...env, FORE_CONTENT_HANDOFF_ENABLED: "0" },"p_a","e_a",
   ), /disabled/);
   const first = await seedLiteraryPreparationHandoff(env,"p_a","e_a");
