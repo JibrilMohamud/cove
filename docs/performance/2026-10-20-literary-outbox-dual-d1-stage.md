@@ -46,3 +46,20 @@ fully provisioned and the preexisting D1 contention remains unresolved.
 
 Production catalog, legal-rights grants, actual music curation, Worker
 runtime configuration, cutover flag and routing remained unchanged.
+
+## Expired-lease query-plan verification
+
+Following the hosted correctness run, both staging databases received a
+separate index on `(status, lease_until, attempts)` for final-attempt lease
+cleanup. Read-only `EXPLAIN QUERY PLAN UPDATE` directly on Cloudflare
+staging D1 returned indexed range scans, **not table scans**:
+
+- Primary literary outbox:
+  `SEARCH literary_prepare_outbox USING INDEX idx_literary_prepare_outbox_expired (status=? AND lease_until<?)`.
+- Independent preparation queue:
+  `SEARCH literary_prepare_jobs USING INDEX idx_literary_prepare_jobs_expired (status=? AND lease_until<?)`.
+
+These are plan checks on staging fixture databases, not benchmarked
+per-request latency or a measured 100-RPS customer workload. The indexes
+are included in migration files 0004 and 0002 respectively. Existing
+production databases were not migrated.
