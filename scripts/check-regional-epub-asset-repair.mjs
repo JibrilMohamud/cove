@@ -85,15 +85,7 @@ try {
         " VALUES(?,'pg_au',?,?,'public-domain','AU',?,'operator-review',?," +
         "'test-fixture-v1','approved',?,?)",
     )
-      .bind(
-        evidenceId,
-        id,
-        id,
-        "https://example.invalid/rights/" + id,
-        hash,
-        at,
-        at,
-      )
+      .bind(evidenceId, id, id, "https://example.invalid/rights/" + id, hash, at, at)
       .run();
     await env.DB.prepare(
       "INSERT INTO rights_grants(id,edition_id,territory_code,format,license_type,created_at," +
