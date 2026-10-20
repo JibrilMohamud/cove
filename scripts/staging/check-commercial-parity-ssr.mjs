@@ -17,6 +17,7 @@ assert.match(key || "", /^[a-f0-9]{64}$/, "A temporary 256-bit staging bearer is
 const headers = {
   Authorization: "Bearer " + key,
   Accept: "text/html",
+  "Accept-Encoding": "br, gzip, deflate",
   "Cache-Control": "no-store",
 };
 const traceContext = new AsyncLocalStorage();
@@ -60,6 +61,10 @@ async function request(path = "/", options = {}) {
     return {
       status: response.status,
       ttfbMs,
+      contentEncoding: response.headers.get("content-encoding") || "identity",
+      decodedBytes: Buffer.byteLength(body, "utf8"),
+      wireBytes: stageTransportSpan(response)?.wireBytes ?? null,
+      totalMs: Math.round(performance.now() - began),
       body,
       contentType: response.headers.get("content-type") || "",
       cacheControl: response.headers.get("cache-control") || "",
@@ -147,6 +152,10 @@ for (const wave of waves) {
           status: response.status,
           cards,
           ttfbMs: response.ttfbMs,
+        contentEncoding: response.contentEncoding,
+        decodedBytes: response.decodedBytes,
+        wireBytes: response.wireBytes,
+        totalMs: response.totalMs,
           colo: response.colo,
           placement: response.placement,
           clientQueueMs: response.clientQueueMs,

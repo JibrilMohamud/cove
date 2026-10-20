@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - perf/anonymous-context-one-read-20261020
+      - perf/commercial-parity-isolated-stage-20261020
     paths:
       - "package-lock.json"
       - "scripts/performance/cloudflare-browser.mjs"
@@ -128,6 +129,7 @@ jobs:
           run_arm() {
             local arm="$1"
             local one_read="$2"
+            echo "COVE_STAGE_ARM $arm"
             cp /tmp/cove-parity-original.toml wrangler.commercial-parity.stage.toml
             sed -i "s/FORE_ANON_CONTEXT_ONE_READ = \"1\"/FORE_ANON_CONTEXT_ONE_READ = \"$one_read\"/" wrangler.commercial-parity.stage.toml
             grep -q "FORE_ANON_CONTEXT_ONE_READ = \"$one_read\"" wrangler.commercial-parity.stage.toml || return 1
@@ -166,6 +168,7 @@ jobs:
             const result = JSON.parse(fs.readFileSync(source, "utf8"));
             result.experiment = {
               arm, oneRead: arm === "one-read", sha: process.env.GITHUB_SHA,
+              requestedEncodings: ["br", "gzip", "deflate"],
               boundary: "Warm sequential A/B, same code/schema/resources; no background writers or accounts"
             };
             fs.writeFileSync(source, JSON.stringify(result, null, 2));

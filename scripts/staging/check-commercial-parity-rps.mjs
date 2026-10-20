@@ -14,7 +14,11 @@ import { validateHtml, percentile } from "../check-production-storefront-perform
 const origin = "https://cove-commercial-parity-ssr-staging-20261020.cove-jibrilmohamud.workers.dev";
 const token = process.env.COVE_SSR_STAGING_GATE_KEY;
 assert.match(token || "", /^[a-f0-9]{64}$/, "Never load test an unprotected origin");
-const baseHeaders = { Authorization: "Bearer " + token, "Cache-Control": "no-store" };
+const baseHeaders = {
+  Authorization: "Bearer " + token,
+  "Cache-Control": "no-store",
+  "Accept-Encoding": "br, gzip, deflate",
+};
 const maxInflight = 192;
 const context = new AsyncLocalStorage();
 const requestContexts = new WeakMap();
@@ -128,6 +132,10 @@ async function fetchOne(route) {
       status,
       valid,
       ttfbMs,
+      contentEncoding: response.headers.get("content-encoding") || "identity",
+      decodedBytes: Buffer.byteLength(body, "utf8"),
+      wireBytes: stageTransportSpan(response)?.wireBytes ?? null,
+      totalMs: Math.round(performance.now() - started),
       class: route.name,
       queueMs: duration(span.sent, span.created),
       transportMs: duration(span.headers, span.sent),
@@ -151,6 +159,8 @@ async function fetchOne(route) {
           "cove_identity",
           "cove_catalog_query",
           "cove_catalog_rate_limit",
+          "cove_lean_catalog",
+          "cove_catalog_context",
           "cove_api",
           "cove_log_queued",
         ].map((key) => [key, timing(timingHeader, key)]),
@@ -218,6 +228,9 @@ async function runStage(rate, seconds) {
         route.name,
         {
           ttfb: asPercentiles(subset.map((r) => r.ttfbMs)),
+          decodedBytes: asPercentiles(subset.map((r) => r.decodedBytes)),
+          wireBytes: asPercentiles(subset.map((r) => r.wireBytes)),
+          contentEncodings: [...new Set(subset.map((r) => r.contentEncoding).filter(Boolean))],
           clientQueue: asPercentiles(subset.map((r) => r.queueMs)),
           sentToHeaders: asPercentiles(subset.map((r) => r.transportMs)),
           serverTimings: Object.fromEntries(
@@ -238,7 +251,9 @@ async function runStage(rate, seconds) {
               "cove_identity",
               "cove_catalog_query",
               "cove_catalog_rate_limit",
-              "cove_api",
+              "cove_lean_catalog",
+          "cove_catalog_context",
+          "cove_api",
               "cove_log_queued",
             ].map((phase) => [phase, asPercentiles(subset.map((r) => r.phases?.[phase]))]),
           ),

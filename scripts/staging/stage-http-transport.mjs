@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { connect } from "node:http2";
 import { performance } from "node:perf_hooks";
+import { brotliDecompressSync, gunzipSync, inflateSync } from "node:zlib";
 
 // A separate diagnostic arm. Default requests retain native fetch/HTTP1.
 // Both arms enforce identical status, body, rights and hard latency checks.
@@ -64,6 +65,7 @@ export async function stageFetch(url, options = {}) {
     body.catch(() => {});
     const chunks = [];
     let bytes = 0;
+    let encoding = "identity";
     const abort = () => stream.destroy(new Error("Protected stage request timed out"));
     const cleanup = () => options.signal?.removeEventListener("abort", abort);
     if (options.signal?.aborted) {
@@ -83,6 +85,7 @@ export async function stageFetch(url, options = {}) {
     stream.once("response", (incoming) => {
       responded = true;
       span.received = performance.now();
+      encoding = String(incoming["content-encoding"] || "identity").toLowerCase();
       const headers = new Headers();
       for (const [key, value] of Object.entries(incoming))
         if (!key.startsWith(":") && value !== undefined)
@@ -98,7 +101,26 @@ export async function stageFetch(url, options = {}) {
     stream.once("end", () => {
       finished = true;
       cleanup();
-      bodyResolve(Buffer.concat(chunks).toString("utf8"));
+      try {
+        const encoded = Buffer.concat(chunks);
+        const options = { maxOutputLength: 4 * 1024 * 1024 };
+        const decoded =
+          encoding === "br"
+            ? brotliDecompressSync(encoded, options)
+            : encoding === "gzip"
+              ? gunzipSync(encoded, options)
+              : encoding === "deflate"
+                ? inflateSync(encoded, options)
+                : encoding === "identity"
+                  ? encoded
+                  : null;
+        if (!decoded) throw new Error("Unsupported stage response content encoding");
+        span.wireBytes = bytes;
+        span.decodedBytes = decoded.length;
+        bodyResolve(decoded.toString("utf8"));
+      } catch (error) {
+        bodyReject(error);
+      }
     });
     stream.once("error", (error) => {
       cleanup();
