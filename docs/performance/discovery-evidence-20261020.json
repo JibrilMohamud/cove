@@ -1,0 +1,396 @@
+{
+  "testedRuntimeSha": "e16c08682405a4eee1151dabce821402834c6053",
+  "runUrl": "https://github.com/JibrilMohamud/cove/actions/runs/39379082376",
+  "artifactUrl": "https://github.com/JibrilMohamud/cove/actions/runs/39379082376/artifacts/12245460230",
+  "artifactZipSha256": "7acb0d7be64fb670e0641175033fec88aecc3e674f79ee50c54b7603de59dd8b",
+  "fixtureBooks": 50000,
+  "coldResponseColo": "ORD",
+  "primaryD1Colo": "IAD",
+  "productionD1": false,
+  "realSearchEngine": false,
+  "fullCustomerJourney": false,
+  "cold": [
+    {
+      "firstMs": 1193.451853999999,
+      "warmMaxMs": 1013.3206720000017
+    },
+    {
+      "firstMs": 1288.5624120000066,
+      "warmMaxMs": 1003.4555249999976
+    },
+    {
+      "firstMs": 1086.9402030000056,
+      "warmMaxMs": 1160.3285979999928
+    }
+  ],
+  "bursts": [
+    {
+      "concurrency": 1,
+      "route": "/api/fore/recommendations/home",
+      "summary": {
+        "offered": 3,
+        "attempted": 3,
+        "valid": 3,
+        "invalid": 0,
+        "dropped": 0,
+        "complete": true,
+        "allValid": true,
+        "successfulTtfb": {
+          "p50": 678.0698980000016,
+          "p75": 723.7098350000015,
+          "p95": 723.7098350000015,
+          "p99": 723.7098350000015,
+          "max": 723.7098350000015
+        },
+        "failureKinds": {}
+      }
+    },
+    {
+      "concurrency": 1,
+      "route": "/api/fore/storefront/bootstrap",
+      "summary": {
+        "offered": 3,
+        "attempted": 3,
+        "valid": 3,
+        "invalid": 0,
+        "dropped": 0,
+        "complete": true,
+        "allValid": true,
+        "successfulTtfb": {
+          "p50": 563.3357649999962,
+          "p75": 693.0171039999987,
+          "p95": 693.0171039999987,
+          "p99": 693.0171039999987,
+          "max": 693.0171039999987
+        },
+        "failureKinds": {}
+      }
+    },
+    {
+      "concurrency": 4,
+      "route": "/api/fore/recommendations/home",
+      "summary": {
+        "offered": 12,
+        "attempted": 12,
+        "valid": 12,
+        "invalid": 0,
+        "dropped": 0,
+        "complete": true,
+        "allValid": true,
+        "successfulTtfb": {
+          "p50": 719.6848610000015,
+          "p75": 1071.614677999998,
+          "p95": 1976.8148849999998,
+          "p99": 1976.8148849999998,
+          "max": 1976.8148849999998
+        },
+        "failureKinds": {}
+      }
+    },
+    {
+      "concurrency": 4,
+      "route": "/api/fore/storefront/bootstrap",
+      "summary": {
+        "offered": 12,
+        "attempted": 12,
+        "valid": 8,
+        "invalid": 4,
+        "dropped": 0,
+        "complete": true,
+        "allValid": false,
+        "successfulTtfb": {
+          "p50": 206.04485299999942,
+          "p75": 2917.1022759999905,
+          "p95": 2962.344839000012,
+          "p99": 2962.344839000012,
+          "max": 2962.344839000012
+        },
+        "failureKinds": {
+          "timeout": 4
+        }
+      }
+    },
+    {
+      "concurrency": 8,
+      "route": "/api/fore/recommendations/home",
+      "summary": {
+        "offered": 24,
+        "attempted": 24,
+        "valid": 24,
+        "invalid": 0,
+        "dropped": 0,
+        "complete": true,
+        "allValid": true,
+        "successfulTtfb": {
+          "p50": 865.4587909999973,
+          "p75": 1580.2306890000036,
+          "p95": 2540.8900859999994,
+          "p99": 3158.33842,
+          "max": 3158.33842
+        },
+        "failureKinds": {}
+      }
+    },
+    {
+      "concurrency": 8,
+      "route": "/api/fore/storefront/bootstrap",
+      "summary": {
+        "offered": 24,
+        "attempted": 24,
+        "valid": 24,
+        "invalid": 0,
+        "dropped": 0,
+        "complete": true,
+        "allValid": true,
+        "successfulTtfb": {
+          "p50": 383.0037489999959,
+          "p75": 543.5555920000043,
+          "p95": 1022.942922000002,
+          "p99": 1087.0734339999908,
+          "max": 1087.0734339999908
+        },
+        "failureKinds": {}
+      }
+    },
+    {
+      "concurrency": 16,
+      "route": "/api/fore/recommendations/home",
+      "summary": {
+        "offered": 48,
+        "attempted": 48,
+        "valid": 48,
+        "invalid": 0,
+        "dropped": 0,
+        "complete": true,
+        "allValid": true,
+        "successfulTtfb": {
+          "p50": 1268.6575630000007,
+          "p75": 1679.2155469999998,
+          "p95": 2530.912547,
+          "p99": 3448.1990179999993,
+          "max": 3448.1990179999993
+        },
+        "failureKinds": {}
+      }
+    },
+    {
+      "concurrency": 16,
+      "route": "/api/fore/storefront/bootstrap",
+      "summary": {
+        "offered": 48,
+        "attempted": 48,
+        "valid": 48,
+        "invalid": 0,
+        "dropped": 0,
+        "complete": true,
+        "allValid": true,
+        "successfulTtfb": {
+          "p50": 348.9247369999939,
+          "p75": 400.13081500001135,
+          "p95": 484.28879900000175,
+          "p99": 673.5747070000216,
+          "max": 673.5747070000216
+        },
+        "failureKinds": {}
+      }
+    },
+    {
+      "concurrency": 32,
+      "route": "/api/fore/recommendations/home",
+      "summary": {
+        "offered": 96,
+        "attempted": 96,
+        "valid": 96,
+        "invalid": 0,
+        "dropped": 0,
+        "complete": true,
+        "allValid": true,
+        "successfulTtfb": {
+          "p50": 1650.9422529999865,
+          "p75": 2013.9212870000047,
+          "p95": 2974.2123289999727,
+          "p99": 3621.135433999996,
+          "max": 3621.135433999996
+        },
+        "failureKinds": {}
+      }
+    },
+    {
+      "concurrency": 32,
+      "route": "/api/fore/storefront/bootstrap",
+      "summary": {
+        "offered": 96,
+        "attempted": 96,
+        "valid": 96,
+        "invalid": 0,
+        "dropped": 0,
+        "complete": true,
+        "allValid": true,
+        "successfulTtfb": {
+          "p50": 818.7053119999764,
+          "p75": 935.2183889999869,
+          "p95": 1029.6771829999925,
+          "p99": 1270.9373970000015,
+          "max": 1270.9373970000015
+        },
+        "failureKinds": {}
+      }
+    }
+  ],
+  "load": [
+    {
+      "kind": "recommendations",
+      "rps": 10,
+      "mode": "control",
+      "summary": {
+        "offered": 300,
+        "attempted": 300,
+        "valid": 4,
+        "invalid": 296,
+        "dropped": 0,
+        "complete": true,
+        "allValid": false,
+        "successfulTtfb": {
+          "p50": 4443.173618000001,
+          "p75": 5308.882320999983,
+          "p95": 7065.2069550000015,
+          "p99": 7065.2069550000015,
+          "max": 7065.2069550000015
+        },
+        "failureKinds": {
+          "timeout": 199,
+          "http-503": 97
+        }
+      },
+      "elapsedMs": 33043.128502999985
+    },
+    {
+      "kind": "recommendations",
+      "rps": 10,
+      "mode": "projection",
+      "summary": {
+        "offered": 300,
+        "attempted": 300,
+        "valid": 300,
+        "invalid": 0,
+        "dropped": 0,
+        "complete": true,
+        "allValid": true,
+        "successfulTtfb": {
+          "p50": 1172.4715959999885,
+          "p75": 1471.9264019999828,
+          "p95": 2127.209475999989,
+          "p99": 3316.0245510000095,
+          "max": 5355.022135999985
+        },
+        "failureKinds": {}
+      },
+      "elapsedMs": 31133.569156000012
+    },
+    {
+      "kind": "mixed-without-search",
+      "rps": 10,
+      "mode": "projection",
+      "summary": {
+        "offered": 300,
+        "attempted": 300,
+        "valid": 299,
+        "invalid": 1,
+        "dropped": 0,
+        "complete": true,
+        "allValid": false,
+        "successfulTtfb": {
+          "p50": 844.9669830000203,
+          "p75": 1042.6391560000193,
+          "p95": 1662.6615959999908,
+          "p99": 3648.3370019999566,
+          "max": 4381.120335999993
+        },
+        "failureKinds": {
+          "timeout": 1
+        }
+      },
+      "elapsedMs": 31409.054714000027
+    },
+    {
+      "kind": "recommendations",
+      "rps": 25,
+      "mode": "projection",
+      "summary": {
+        "offered": 750,
+        "attempted": 750,
+        "valid": 736,
+        "invalid": 14,
+        "dropped": 0,
+        "complete": true,
+        "allValid": false,
+        "successfulTtfb": {
+          "p50": 5537.121883000014,
+          "p75": 6653.762411000032,
+          "p95": 7515.347807999991,
+          "p99": 7803.971218999999,
+          "max": 7949.067264000012
+        },
+        "failureKinds": {
+          "timeout": 14
+        }
+      },
+      "elapsedMs": 34691.689939
+    },
+    {
+      "kind": "recommendations",
+      "rps": 25,
+      "mode": "control",
+      "summary": {
+        "offered": 750,
+        "attempted": 750,
+        "valid": 7,
+        "invalid": 743,
+        "dropped": 0,
+        "complete": true,
+        "allValid": false,
+        "successfulTtfb": {
+          "p50": 5441.084520000033,
+          "p75": 6737.4352109999745,
+          "p95": 7988.232804999978,
+          "p99": 7988.232804999978,
+          "max": 7988.232804999978
+        },
+        "failureKinds": {
+          "timeout": 329,
+          "http-503": 414
+        }
+      },
+      "elapsedMs": 37241.997798
+    },
+    {
+      "kind": "mixed-without-search",
+      "rps": 25,
+      "mode": "projection",
+      "summary": {
+        "offered": 750,
+        "attempted": 750,
+        "valid": 700,
+        "invalid": 50,
+        "dropped": 0,
+        "complete": true,
+        "allValid": false,
+        "successfulTtfb": {
+          "p50": 1025.9087719999952,
+          "p75": 1511.2450909999898,
+          "p95": 2411.503616999951,
+          "p99": 3325.1821529999725,
+          "max": 4252.380612000008
+        },
+        "failureKinds": {
+          "http-503": 49,
+          "timeout": 1
+        }
+      },
+      "elapsedMs": 37961.20360800001
+    }
+  ],
+  "revocation": true,
+  "architecturalGatePassed": false,
+  "releaseApproved": false
+}
