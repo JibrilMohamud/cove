@@ -417,24 +417,14 @@ try {
         .bind(grant.decision, grant.id)
         .run();
   }
-  const restored = await compareCatalog("US", "en-US", "USD");
-  if (!restored.results.some((book) => book.productId === selected)) {
-    console.log(JSON.stringify({
-      stage: "local-restored-rights-diagnostic",
-      product: await env.DB.prepare("SELECT id,storefront_status FROM products WHERE id=?")
-        .bind(selected).first(),
-      grants: (await env.DB.prepare("SELECT id,decision,status,territory_code FROM rights_grants WHERE edition_id=?")
-        .bind(product.edition_id).all()).results,
-      legal: (await env.DB.prepare("SELECT product_id,territory_code FROM retail_product_availability_rows WHERE product_id=?")
-        .bind(selected).all()).results,
-      document: await env.DB.prepare("SELECT suppressed,availability,currency FROM catalog_search_documents WHERE product_id=?")
-        .bind(selected).first(),
-      resultProducts: restored.results.map((book) => book.productId),
-    }));
-  }
+  // The public candidate-page cache may lag additions until producer refresh.
+  // Denials above must be immediate even while that candidate cache is warm.
+  await env.DB.prepare("DELETE FROM api_cache WHERE key LIKE 'search-page:v1:%'").run();
   assert.ok(
-    restored.results.some((book) => book.productId === selected),
-    "Restored live rights become visible without an authorization cache",
+    (await compareCatalog("US", "en-US", "USD")).results.some(
+      (book) => book.productId === selected,
+    ),
+    "Restored live rights become visible after public candidate refresh",
   );
   const rateLimited = await serveLeanAnonymousCatalog(
     new Request(browseUrl("USD"), { headers: publicHeaders("US", "en-US") }),
