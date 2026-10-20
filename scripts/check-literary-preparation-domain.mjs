@@ -200,6 +200,18 @@ try {
   assert.deepEqual(await enqueueIsolatedLiteraryPreparation(env, "prod_b", "edition_b"), {
     skipped: "source_or_rights_ineligible",
   });
+  // Every expired attempt cap must settle to a durable terminal status.
+  secondary.prepare(
+    "INSERT INTO literary_prepare_jobs(id,product_id,edition_id,source_id,content_sha256,status,attempts,available_at,lease_token,lease_until,created_at,updated_at)" +
+    " VALUES('expired_test','prod_a','edition_a','pgau_a',?,'running',3,?,'old-token',?,?,?)",
+  ).run(sha, "2026-01-01", "2026-01-01", "2026-01-01", "2026-01-01");
+  await runIsolatedLiteraryPreparationTick(env);
+  assert.equal(
+    secondary.prepare("SELECT status FROM literary_prepare_jobs WHERE id='expired_test'").get().status,
+    "failed",
+    "Lease attempts must not remain stuck as running",
+  );
+  secondary.prepare("DELETE FROM literary_prepare_jobs WHERE id='expired_test'").run();
   secondary.exec("CREATE TABLE rights_grants(id TEXT PRIMARY KEY)");
   await assert.rejects(
     enqueueIsolatedLiteraryPreparation(env, "prod_a", "edition_a"),
