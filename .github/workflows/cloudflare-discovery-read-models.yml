@@ -33,6 +33,7 @@ jobs:
           node scripts/check-engagement-separation.mjs
           node scripts/check-discovery-read-models.mjs
           node scripts/check-discovery-benchmark-config.mjs
+          node scripts/check-placement-evidence.mjs
           node scripts/check-discovery-response.mjs
           node scripts/check-offered-load.mjs
           node scripts/check-discovery-scale.mjs
@@ -67,7 +68,7 @@ jobs:
       - name: Remove private diagnostic Worker
         if: always()
         run: |
-          for worker in cove-discovery-read-model-staging cove-discovery-read-model-staging-control; do
+          for worker in cove-discovery-read-model-staging cove-discovery-read-model-staging-control cove-discovery-read-model-staging-placement-reference; do
           status=$(curl --silent --show-error --max-time 30 -X DELETE \
             --output "$RUNNER_TEMP/discovery-cleanup.json" --write-out '%{http_code}' \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \

@@ -7,6 +7,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { offeredLoad, summarizeRequests } from "./offered-load.mjs";
 import { PERFORMANCE_D1, verifySyntheticD1 } from "./isolated-d1-gate.mjs";
+import { assertAcceptedPlacement } from "./placement-evidence.mjs";
 
 const config = parseDiscoveryBenchmarkConfig(
   fs.readFileSync("wrangler.discovery-benchmark.jsonc", "utf8"),
@@ -50,17 +51,18 @@ const evidence = {
   errors: [],
 };
 const save = () => fs.writeFileSync(`${output}/results.json`, JSON.stringify(evidence, null, 2));
-async function api(method, path, body) {
+async function api(method, path, body, contentType = "application/json") {
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${account}${path}`, {
     method,
     headers: {
       authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
-      "content-type": "application/json",
+      "content-type": contentType,
     },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+    ...(body ? { body: contentType === "application/json" ? JSON.stringify(body) : body } : {}),
     signal: AbortSignal.timeout(60000),
   });
   const json = await response.json();
+  if (method === "DELETE" && response.status === 404) return null;
   if (!response.ok || !json.success)
     throw new Error(`Cloudflare ${method} ${path}: ${response.status}`);
   return json.result;
@@ -169,15 +171,53 @@ try {
     wrangler(["deploy", "--config", path]);
     wrangler(["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", path], key);
   }
+  // Calibrate the API's opaque numeric target without guessing its region map.
+  // This reference has no bindings or public route and is always deleted.
+  const referenceName = `${config.name}-placement-reference`;
+  let referencePlacement;
+  try {
+    const boundary = `CovePlacement${randomBytes(8).toString("hex")}`;
+    const metadata = {
+      main_module: "reference.mjs",
+      compatibility_date: config.compatibility_date,
+      placement: config.placement,
+    };
+    const body = [
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="metadata"',
+      "Content-Type: application/json",
+      "",
+      JSON.stringify(metadata),
+      `--${boundary}`,
+      'Content-Disposition: form-data; name="reference.mjs"; filename="reference.mjs"',
+      "Content-Type: application/javascript+module",
+      "",
+      'export default {fetch(){return new Response("unauthorized",{status:401})}}',
+      `--${boundary}--`,
+    ].join("\r\n");
+    await api(
+      "PUT",
+      `/workers/scripts/${referenceName}`,
+      body,
+      `multipart/form-data; boundary=${boundary}`,
+    );
+    referencePlacement = (await api("GET", `/workers/scripts/${referenceName}/settings`)).placement;
+    evidence.placementReference = { requested: config.placement, actual: referencePlacement };
+  } finally {
+    await api("DELETE", `/workers/scripts/${referenceName}`);
+  }
   for (const [variant, worker] of [
     ["control", controlName],
     ["projection", config.name],
   ]) {
     const settings = await api("GET", `/workers/scripts/${worker}/settings`);
     const placement = settings.placement;
-    const region = placement?.region || placement?.target?.[0]?.region;
-    assert.equal(region, "aws:us-east-1", "Deployed placement must match the actual experiment");
     evidence.topology[variant].acceptedPlacement = placement;
+    evidence.topology[variant].placementVerification = assertAcceptedPlacement(
+      placement,
+      config.placement,
+      referencePlacement,
+    );
   }
   await new Promise((r) => setTimeout(r, 6000));
   assert.equal((await fetch(origin)).status, 401, "Stage gate must reject unauthenticated traffic");
