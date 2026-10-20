@@ -4,6 +4,8 @@ on:
     branches:
       - perf/anonymous-context-one-read-20261020
     paths:
+      - "src/server.ts"
+      - "scripts/staging/stage-http-transport.mjs"
       - "src/features/fore/localization.server.ts"
       - "src/features/fore/storefront-anonymous-catalog.server.ts"
       - "scripts/staging/check-anonymous-context-one-read.mjs"
@@ -47,6 +49,7 @@ jobs:
           import fs from "node:fs";
           import prettier from "prettier";
           const files = [
+            "scripts/staging/stage-http-transport.mjs",
             "scripts/staging/check-anonymous-context-singleflight.mjs",
             "scripts/staging/check-anonymous-homepage-prefetch.mjs",
             "scripts/staging/check-commercial-parity-rps.mjs",
@@ -77,7 +80,7 @@ jobs:
                   source[source.length - 1 - suffix] === formatted[formatted.length - 1 - suffix]) suffix++;
                 console.log("COVE_FORMAT_DELTA " + JSON.stringify({
                   path, start, end: source.length - suffix,
-                  content: formatted.slice(start, formatted.length - suffix)
+                  encodedContent: encodeURIComponent(formatted.slice(start, formatted.length - suffix))
                 }));
               }
           }
@@ -120,15 +123,20 @@ jobs:
           burst_status=$?
           node scripts/staging/check-commercial-parity-rps.mjs
           mixed_status=$?
+          COVE_STAGE_HTTP2=1 node scripts/staging/check-commercial-parity-ssr.mjs
+          h2_burst_status=$?
+          COVE_STAGE_HTTP2=1 node scripts/staging/check-commercial-parity-rps.mjs
+          h2_mixed_status=$?
           set -e
-          if [ "$burst_status" -ne 0 ] || [ "$mixed_status" -ne 0 ]; then exit 1; fi
+          if [ "$burst_status" -ne 0 ] || [ "$mixed_status" -ne 0 ] || \
+             [ "$h2_burst_status" -ne 0 ] || [ "$h2_mixed_status" -ne 0 ]; then exit 1; fi
       - name: Retain sanitized aggregate results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: isolated-commercial-parity-ssr
           path: |
-            artifacts/commercial-parity-ssr-smoke.json
-            artifacts/commercial-parity-mixed-rps.json
+            artifacts/commercial-parity-ssr-smoke*.json
+            artifacts/commercial-parity-mixed-rps*.json
           if-no-files-found: warn
           retention-days: 14

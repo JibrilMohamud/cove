@@ -3,6 +3,12 @@ import { performance } from "node:perf_hooks";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { channel } from "node:diagnostics_channel";
 import fs from "node:fs";
+import {
+  stageFetch,
+  stageTransport,
+  stageTransportSpan,
+  closeStageTransport,
+} from "./stage-http-transport.mjs";
 import { validateHtml, percentile } from "../check-production-storefront-performance.mjs";
 
 const origin = "https://cove-commercial-parity-ssr-staging-20261020.cove-jibrilmohamud.workers.dev";
@@ -41,7 +47,7 @@ async function request(path = "/", options = {}) {
   const span = {};
   try {
     const response = await traceContext.run(span, () =>
-      fetch(origin + path, {
+      stageFetch(origin + path, {
         method: options.method || "GET",
         redirect: "manual",
         headers: options.noAuth ? { "Cache-Control": "no-store" } : headers,
@@ -49,6 +55,7 @@ async function request(path = "/", options = {}) {
       }),
     );
     const ttfbMs = Math.round(performance.now() - began);
+    Object.assign(span, stageTransportSpan(response));
     const body = await response.text();
     return {
       status: response.status,
@@ -57,6 +64,7 @@ async function request(path = "/", options = {}) {
       contentType: response.headers.get("content-type") || "",
       cacheControl: response.headers.get("cache-control") || "",
       timings: response.headers.get("server-timing") || "",
+      placement: response.headers.get("x-cove-stage-placement") || "unknown",
       colo: (response.headers.get("cf-ray") || "").match(/-([A-Z]{3})$/)?.[1] || "unknown",
       clientQueueMs: elapsed(span.sent, span.created),
       clientSentToHeadersMs: elapsed(span.received, span.sent),
@@ -76,6 +84,7 @@ async function request(path = "/", options = {}) {
   }
 }
 const results = {
+  transport: stageTransport,
   scope: "schema-parity isolated D1, 1000 SYNTHETIC books, zero customer accounts/orders",
   validations: {},
   waves: [],
@@ -139,6 +148,7 @@ for (const wave of waves) {
           cards,
           ttfbMs: response.ttfbMs,
           colo: response.colo,
+        placement: response.placement,
           clientQueueMs: response.clientQueueMs,
           clientSentToHeadersMs: response.clientSentToHeadersMs,
           workerTotalMs: serverDuration(response.timings, "cove_total"),
@@ -179,6 +189,8 @@ for (const wave of waves) {
     p50Ms: percentile(times, 0.5),
     p95Ms: percentile(times, 0.95),
     maxMs: Math.max(...times),
+    placements: [...new Set(rows.map((x) => x.placement).filter(Boolean))].sort(),
+    slowest: [...rows].sort((a, b) => b.ttfbMs - a.ttfbMs).slice(0, 5),
     colocations: [...new Set(rows.map((x) => x.colo))].sort(),
     p95WorkerMs: percentile(rows.map((x) => x.workerTotalMs).filter(Number.isFinite), 0.95),
     p95CatalogMs: percentile(rows.map((x) => x.catalogMs).filter(Number.isFinite), 0.95),
@@ -204,6 +216,8 @@ results.validations.noFastUnauthorizedResponses = results.waves.every((w) => w.v
 results.performancePass = results.waves.every((w) => w.pass);
 results.commercialCertified = false;
 fs.mkdirSync("artifacts", { recursive: true });
-fs.writeFileSync("artifacts/commercial-parity-ssr-smoke.json", JSON.stringify(results, null, 2));
+fs.writeFileSync(`artifacts/commercial-parity-ssr-smoke-${stageTransport}.json`, JSON.stringify(results, null, 2));
 console.log(JSON.stringify(results));
 if (!results.performancePass) process.exitCode = 1;
+
+closeStageTransport();

@@ -1,5 +1,11 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import {
+  stageFetch,
+  stageTransport,
+  stageTransportSpan,
+  closeStageTransport,
+} from "./stage-http-transport.mjs";
 import { performance } from "node:perf_hooks";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { channel } from "node:diagnostics_channel";
@@ -52,6 +58,7 @@ const select = (i) =>
   i % 10 < 6 ? destinations[0] : i % 10 < 9 ? destinations[1] : destinations[2];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 const stageReport = {
+  transport: stageTransport,
   scope:
     "Cloudflare protected isolated 508-table staging DB, 1000 synthetic books; NO customer accounts, orders, music, production D1 or routing",
   limits: { maxInflight, hardTtfbMs: 800, p95Ms: 600, p99Ms: 750 },
@@ -64,7 +71,7 @@ async function fetchOne(route) {
   let status = 0;
   try {
     const response = await context.run(span, () =>
-      fetch(origin + route.path, {
+      stageFetch(origin + route.path, {
         redirect: "manual",
         headers: {
           ...baseHeaders,
@@ -75,6 +82,8 @@ async function fetchOne(route) {
     );
     status = response.status;
     const ttfbMs = Math.round(performance.now() - started);
+    const h2 = stageTransportSpan(response);
+    if (h2) Object.assign(span, { created: h2.created, sent: h2.sent, headers: h2.received });
     const body = await response.text();
     let valid =
       response.status === 200 && /no-store/i.test(response.headers.get("cache-control") || "");
@@ -124,6 +133,8 @@ async function fetchOne(route) {
       transportMs: duration(span.headers, span.sent),
       phases: Object.fromEntries(
         [
+          "cove_entry",
+          "cove_render",
           "cove_total",
           "cove_ssr_bootstrap",
           "cove_catalog",
@@ -144,6 +155,7 @@ async function fetchOne(route) {
           "cove_log_queued",
         ].map((key) => [key, timing(timingHeader, key)]),
       ),
+      placement: response.headers.get("x-cove-stage-placement") || "unknown",
       colo: (response.headers.get("cf-ray") || "").match(/-([A-Z]{3})$/)?.[1] || "unknown",
     };
   } catch {
@@ -228,7 +240,8 @@ async function runStage(rate, seconds) {
               "cove_log_queued",
             ].map((phase) => [phase, asPercentiles(subset.map((r) => r.phases?.[phase]))]),
           ),
-          colo: [...new Set(subset.map((r) => r.colo).filter(Boolean))].sort(),
+          placement: [...new Set(subset.map((r) => r.placement).filter(Boolean))].sort(),
+        colo: [...new Set(subset.map((r) => r.colo).filter(Boolean))].sort(),
         },
       ];
     }),
@@ -241,6 +254,7 @@ async function runStage(rate, seconds) {
     dropped,
     rps: rate,
     diagnostics: routeDiagnostics,
+    slowest: [...rows].sort((a, b) => b.ttfbMs - a.ttfbMs).slice(0, 8),
     seconds,
     statusCounts,
     byRoute,
@@ -283,8 +297,9 @@ try {
   }
 } finally {
   fs.writeFileSync(
-    "artifacts/commercial-parity-mixed-rps.json",
+    `artifacts/commercial-parity-mixed-rps-${stageTransport}.json`,
     JSON.stringify(stageReport, null, 2),
   );
   console.log(JSON.stringify(stageReport));
+  closeStageTransport();
 }

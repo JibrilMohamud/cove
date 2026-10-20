@@ -62,6 +62,7 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     const requestStarted = performance.now();
+    const incomingPlacement = request.headers.get("cf-placement") || "";
     try {
       const suppliedEnv =
         env && typeof env === "object" ? env : typeof process !== "undefined" ? process.env : {};
@@ -230,6 +231,8 @@ export default {
         secured.headers.get("content-type")?.includes("text/html")
       ) {
         const headers = new Headers(secured.headers);
+        if (staging && /^(?:local|remote)-[A-Z]{3}$/.test(incomingPlacement))
+          headers.set("X-Cove-Stage-Placement", incomingPlacement);
         headers.append(
           "Server-Timing",
           [
