@@ -74,6 +74,7 @@
     "test:literary-budget-settlement": "node scripts/check-literary-budget-settlement.mjs",
     "test:literary-budget-domain": "node scripts/check-literary-budget-domain.mjs",
     "test:literary-preparation-domain": "node scripts/check-literary-preparation-domain.mjs",
+    "test:literary-prepared-projection": "node scripts/check-literary-prepared-projection.mjs",
     "test:music-profiles": "node scripts/check-music-profiles.mjs",
     "test:matching": "node scripts/check-matching-engine.mjs",
     "test:literary-discovery": "node scripts/check-literary-discovery.mjs",
