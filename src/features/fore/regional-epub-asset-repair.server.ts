@@ -11,8 +11,12 @@ export async function repairRegionalEpubAssets(
   options: { after?: string; limit?: number } = {},
 ) {
   if (!env.BUCKET?.head) return { skipped: "no_private_r2" };
-  const after = options.after ?? "";
-  if (!/^[a-z0-9_]{0,90}$/.test(after)) throw new Error("Invalid regional asset repair cursor");
+  const suppliedAfter = options.after ?? "";
+  if (!/^[a-z0-9_]{0,90}$/.test(suppliedAfter))
+    throw new Error("Invalid regional asset repair cursor");
+  // Only AU/CA/EU sources can be selected here. Start at the first regional
+  // ID prefix, otherwise an empty cursor scans unrelated US Gutenberg rows.
+  const after = suppliedAfter > "pga" ? suppliedAfter : "pga";
   const limit = Math.max(1, Math.min(16, Math.floor(options.limit ?? 8) || 8));
   // Source-level approval is insufficient: a separate operator could revoke
   // every live territorial grant without modifying the Gutenberg source row.
@@ -34,7 +38,8 @@ export async function repairRegionalEpubAssets(
         " COALESCE(json_extract(c.formats_json,'$.\"application/epub+zip\"')," +
         " json_extract(c.formats_json,'$.\"application/epub+zip;\"')," +
         " json_extract(c.formats_json,'$.\"text/html\"'),'') source_url" +
-        " FROM gutenberg_source_cache c JOIN products p ON p.source_external_id=c.id" +
+        " FROM gutenberg_source_cache c INDEXED BY sqlite_autoindex_gutenberg_source_cache_1" +
+        " CROSS JOIN products p ON p.source_external_id=c.id" +
         " AND p.source_name='gutenberg' AND p.format='ebook'" +
         " LEFT JOIN digital_assets d ON d.edition_id=p.edition_id AND d.kind='epub'" +
         " LEFT JOIN asset_versions v ON v.id=d.current_version_id" +
