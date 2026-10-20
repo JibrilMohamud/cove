@@ -14,9 +14,37 @@ try {
     format: "esm",
     logLevel: "silent",
   });
-  const { runContentProcessingTick, default: worker } = await import(
-    path.join(root, "content.mjs")
-  );
+  const {
+    runContentProcessingTick,
+    contentAssetAttemptCap,
+    CONTENT_LITERARY_TICK_CAPS,
+    default: worker,
+  } = await import(path.join(root, "content.mjs"));
+  assert.equal(contentAssetAttemptCap(undefined), 1);
+  assert.equal(contentAssetAttemptCap("4"), 4);
+  assert.equal(contentAssetAttemptCap("40"), 4, "Dashboard cannot bypass cap");
+  assert.equal(contentAssetAttemptCap("-20"), 0);
+  assert.equal(contentAssetAttemptCap("garbage"), 0, "Malformed config fails closed");
+  assert.deepEqual(CONTENT_LITERARY_TICK_CAPS, {
+    maxSeeds: 8,
+    maxPrepares: 1,
+    maxDeferredSections: 1,
+    maxInferences: 1,
+  });
+  await build({
+    entryPoints: ["src/features/fore/literary-profiles.server.ts"],
+    outfile: path.join(root, "literary.mjs"),
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    logLevel: "silent",
+  });
+  const { boundedLiteraryTickCap } = await import(path.join(root, "literary.mjs"));
+  assert.equal(boundedLiteraryTickCap(1, 4), 1);
+  assert.equal(boundedLiteraryTickCap(100, 4), 4);
+  assert.equal(boundedLiteraryTickCap(-1, 4), 4);
+  assert.equal(boundedLiteraryTickCap(undefined, 50), 50);
+
   const calls = [];
   const runners = {
     assets: async () => {
