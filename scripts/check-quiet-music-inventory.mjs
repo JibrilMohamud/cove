@@ -27,7 +27,10 @@ try {
 
   const env = localBindings(root);
   const date = "2026-10-20T00:00:00.000Z";
-  async function recording(id, { status = "ready", quality = "passed", territories = '["US"]', triage = "" } = {}) {
+  async function recording(
+    id,
+    { status = "ready", quality = "passed", territories = '["US"]', triage = "" } = {},
+  ) {
     await env.DB.prepare(
       "INSERT INTO soundtrack_recordings(id,source_title,source_page_url,source_file_url," +
         "source_sha1,source_size,mime,title,performer,composer,license_code,license_url," +
@@ -35,26 +38,52 @@ try {
         "status,quality_status,quality_report_json,allowed_territories_json," +
         "storage_key,source_snapshot_key,has_vocals,automated_triage_reason)" +
         " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-    ).bind(
-      id, "File:" + id + ".ogg", "https://commons.wikimedia.org/wiki/File:" + id,
-      "https://upload.wikimedia.org/" + id, createHash("sha1").update(id).digest("hex"), 1024, "audio/ogg",
-      "Test " + id, "test performer", "test composer", "CC0",
-      "https://creativecommons.org/publicdomain/zero/1.0/", "test declared",
-      "test attribution", "{}", date, date, status, quality,
-      JSON.stringify({ durationSeconds: 120 }), territories,
-      status === "ready" ? "soundtracks/" + id : null,
-      status === "ready" ? "evidence/" + id : null, 0, triage,
-    ).run();
+    )
+      .bind(
+        id,
+        "File:" + id + ".ogg",
+        "https://commons.wikimedia.org/wiki/File:" + id,
+        "https://upload.wikimedia.org/" + id,
+        createHash("sha1").update(id).digest("hex"),
+        1024,
+        "audio/ogg",
+        "Test " + id,
+        "test performer",
+        "test composer",
+        "CC0",
+        "https://creativecommons.org/publicdomain/zero/1.0/",
+        "test declared",
+        "test attribution",
+        "{}",
+        date,
+        date,
+        status,
+        quality,
+        JSON.stringify({ durationSeconds: 120 }),
+        territories,
+        status === "ready" ? "soundtracks/" + id : null,
+        status === "ready" ? "evidence/" + id : null,
+        0,
+        triage,
+      )
+      .run();
   }
   async function profile(id, energy, distraction) {
     await env.DB.prepare(
       "INSERT INTO music_profiles(recording_id,fingerprint,policy,status,profile_json,updated_at)" +
         " VALUES(?,?,?,'analyzed',?,?)",
-    ).bind(
-      id, "sha_" + id, "v1",
-      JSON.stringify({ audioAnalysis: { durationSeconds: 120, signal: { energy }, structure: { timeline: [] } }, readingSuitability: { distraction } }),
-      date,
-    ).run();
+    )
+      .bind(
+        id,
+        "sha_" + id,
+        "v1",
+        JSON.stringify({
+          audioAnalysis: { durationSeconds: 120, signal: { energy }, structure: { timeline: [] } },
+          readingSuitability: { distraction },
+        }),
+        date,
+      )
+      .run();
   }
 
   await recording("cm_1001");
@@ -65,7 +94,8 @@ try {
   await profile("cm_1003", 0.2, 0.1); // never counted in US
   await recording("cm_1004", { status: "pending_review" }); // not playable
   await recording("cm_1005", {
-    status: "pending_review", triage: "Human rights review required",
+    status: "pending_review",
+    triage: "Human rights review required",
   });
   await recording("cm_1006", { quality: "failed" }); // not playable
   await profile("cm_1006", 0.2, 0.1);
@@ -93,13 +123,15 @@ try {
 
   const route = fs.readFileSync("src/features/fore/soundtracks.server.ts", "utf8");
   assert.ok(
-    route.indexOf("if (admin && path === \"/admin/soundtracks/quiet-inventory\"") >
-      route.indexOf('const url = new URL(request.url);'),
+    route.indexOf('if (admin && path === "/admin/soundtracks/quiet-inventory"') >
+      route.indexOf("const url = new URL(request.url);"),
     "Staff route must not be exposed outside the admin-gated handler",
   );
   assert.match(route, /requireStaffPermission\(env.DB,staffIdentity,"soundtracks.review"/);
   assert.match(route, /requireServiceScope\(env.DB,request,"soundtracks.review"/);
-  console.log("Quiet readiness measures actual signal features, excludes unapproved and wrong-market tracks, and never alters licenses.");
+  console.log(
+    "Quiet readiness measures actual signal features, excludes unapproved and wrong-market tracks, and never alters licenses.",
+  );
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

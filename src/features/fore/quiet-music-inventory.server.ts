@@ -76,14 +76,12 @@ export function quietInventoryMarket(value: string | null): string {
   return country;
 }
 
-export async function getQuietMusicInventory(
-  db: CoveEnv["DB"],
-  market = "US",
-) {
+export async function getQuietMusicInventory(db: CoveEnv["DB"], market = "US") {
   const territory = quietInventoryMarket(market);
   const t = quietMusicInventoryThresholds;
   const [ready, reviews, shortlist] = await Promise.all([
-    db.prepare(readyQuery)
+    db
+      .prepare(readyQuery)
       .bind(
         territory,
         t.measuredSignalEnergyStrictMax,
