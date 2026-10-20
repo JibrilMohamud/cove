@@ -2661,13 +2661,7 @@ export async function rateLimitSearchRequest(
   const actor = userId ? `user:${userId}` : ip ? `ip:${ip}` : null;
   if (
     actor &&
-    syntheticPublicReadBucket(
-      env,
-      request.method,
-      new URL(request.url).pathname,
-      !!userId,
-      bucket,
-    )
+    syntheticPublicReadBucket(env, request.method, new URL(request.url).pathname, !!userId, bucket)
   ) {
     // Same existing edge limiter as rights SSR; never skip abuse controls.
     // Synthetic staging ONLY. This cap of 180/min is stricter than the

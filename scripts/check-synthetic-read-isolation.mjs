@@ -7,7 +7,8 @@ const output = await build({
   platform: "node",
   write: false,
 });
-const moduleUrl = "data:text/javascript;base64," + Buffer.from(output.outputFiles[0].contents).toString("base64");
+const moduleUrl =
+  "data:text/javascript;base64," + Buffer.from(output.outputFiles[0].contents).toString("base64");
 const { syntheticPublicReadBucket: bucket, syntheticFailureCategory: failure } = await import(
   moduleUrl
 );
@@ -37,7 +38,10 @@ assert.equal(bucket(synthetic, "POST", "/api/fore/catalog", false, "catalog"), f
 assert.equal(bucket(synthetic, "GET", "/api/fore/catalog", true, "catalog"), false);
 assert.equal(bucket(synthetic, "GET", "/api/fore/checkout", false, "catalog"), false);
 assert.equal(bucket(synthetic, "GET", "/api/fore/catalog", false, "search-click"), false);
-assert.equal(failure(new Error("D1_ERROR: no such table: private")), "database-schema-or-statement");
+assert.equal(
+  failure(new Error("D1_ERROR: no such table: private")),
+  "database-schema-or-statement",
+);
 assert.equal(failure(new Error("SQLITE_BUSY: queue")), "database-queue-or-overload");
 assert.equal(failure(new Error("Timeout exceeded")), "dependency-timeout");
 assert.equal(failure(new TypeError("Sensitive visitor info")), "runtime-type");
