@@ -1435,8 +1435,7 @@ async function eligibleRecommendationIds(
     .bind(...unique, userId || "")
     .all<{ edition_id: string }>();
   const blockedEditions = new Set(series.results.map((r) => r.edition_id));
-  for (const id of allowed)
-    if (blockedEditions.has(editions.get(id) || "")) allowed.delete(id);
+  for (const id of allowed) if (blockedEditions.has(editions.get(id) || "")) allowed.delete(id);
   return allowed;
 }
 async function makeRail(
