@@ -99,6 +99,8 @@ async function fetchOne(route) {
         "cove_backend_catalog", "cove_backend_catalog_sql",
         "cove_backend_context", "cove_backend_bootstrap",
         "cove_backend_limit", "cove_backend_page",
+        "cove_auth", "cove_identity", "cove_catalog_query",
+        "cove_catalog_rate_limit", "cove_api", "cove_log_queued",
       ].map((key) => [key, timing(timingHeader, key)])),
       colo: (response.headers.get("cf-ray") || "").match(/-([A-Z]{3})$/)?.[1] || "unknown",
     };
@@ -144,6 +146,8 @@ async function runStage(rate, seconds) {
         "cove_backend_catalog", "cove_backend_catalog_sql",
         "cove_backend_context", "cove_backend_bootstrap",
         "cove_backend_limit", "cove_backend_page",
+        "cove_auth", "cove_identity", "cove_catalog_query",
+        "cove_catalog_rate_limit", "cove_api", "cove_log_queued",
       ].map((phase) => [phase, asPercentiles(subset.map((r) => r.phases?.[phase]))])),
       colo: [...new Set(subset.map((r) => r.colo).filter(Boolean))].sort(),
     }];
