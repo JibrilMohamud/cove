@@ -16,6 +16,8 @@ export type ContentProcessorEnv = CoveEnv & {
   FORE_CONTENT_PROCESSOR_ROLE?: "assets" | "literary";
   FORE_CONTENT_D1_ADMISSION_MAX_MS?: string;
   FORE_ASSETS_PER_MINUTE?: string;
+  CONTENT_DB?: CoveEnv["DB"];
+  FORE_CONTENT_BUDGET_MODE?: string;
 };
 
 type Runner = (env: ContentProcessorEnv) => Promise<unknown>;
