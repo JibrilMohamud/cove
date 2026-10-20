@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { performance } from "node:perf_hooks";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { channel } from "node:diagnostics_channel";
 import fs from "node:fs";
 import { validateHtml, percentile } from "../check-production-storefront-performance.mjs";
 
@@ -11,14 +13,37 @@ const headers={
   Accept:"text/html",
   "Cache-Control":"no-store",
 };
+const traceContext=new AsyncLocalStorage();
+const requests=new WeakMap();
+channel("undici:request:create").subscribe(({request})=>{
+  const span=traceContext.getStore();
+  if(span&&request?.origin===origin){
+    span.created=performance.now();
+    requests.set(request,span);
+  }
+});
+channel("undici:client:sendHeaders").subscribe(({request})=>{
+  const span=requests.get(request);
+  if(span)span.sent=performance.now();
+});
+channel("undici:request:headers").subscribe(({request})=>{
+  const span=requests.get(request);
+  if(span)span.received=performance.now();
+});
+const elapsed=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)?Math.max(0,Math.round(a-b)):null;
+const serverDuration=(header,key)=>{
+  const m=header.match(new RegExp("(?:^|,)\\s*"+key+";dur=(\\d+(?:\\.\\d+)?)"));
+  return m?Number(m[1]):null;
+};
 async function request(path="/",options={}) {
   const began=performance.now();
+  const span={};
   try{
-    const response=await fetch(origin+path,{
+    const response=await traceContext.run(span,()=>fetch(origin+path,{
       method:options.method||"GET",redirect:"manual",
       headers:options.noAuth?{"Cache-Control":"no-store"}:headers,
       signal:AbortSignal.timeout(15000),
-    });
+    }));
     const ttfbMs=Math.round(performance.now()-began);
     const body=await response.text();
     return {
@@ -28,8 +53,11 @@ async function request(path="/",options={}) {
       contentType:response.headers.get("content-type")||"",
       cacheControl:response.headers.get("cache-control")||"",
       timings:response.headers.get("server-timing")||"",
+      colo:(response.headers.get("cf-ray")||"").match(/-([A-Z]{3})$/)?.[1]||"unknown",
+      clientQueueMs:elapsed(span.sent,span.created),
+      clientSentToHeadersMs:elapsed(span.received,span.sent),
     };
-  }catch{return {status:0,ttfbMs:Math.round(performance.now()-began),body:"",contentType:"",cacheControl:"",timings:""};}
+  }catch{return {status:0,ttfbMs:Math.round(performance.now()-began),body:"",contentType:"",cacheControl:"",timings:"",colo:"unknown",clientQueueMs:null,clientSentToHeadersMs:null};}
 }
 const results={scope:"schema-parity isolated D1, 1000 SYNTHETIC books, zero customer accounts/orders",validations:{},waves:[]};
 let denied={status:0};
@@ -73,6 +101,12 @@ for(const wave of waves){
       try{cards=validateHtml(response.status,response.contentType,response.body);}catch{}
       rows.push({
         status:response.status,cards,ttfbMs:response.ttfbMs,
+        colo:response.colo,
+        clientQueueMs:response.clientQueueMs,
+        clientSentToHeadersMs:response.clientSentToHeadersMs,
+        workerTotalMs:serverDuration(response.timings,"cove_total"),
+        bootstrapMs:serverDuration(response.timings,"cove_ssr_bootstrap"),
+        catalogMs:serverDuration(response.timings,"cove_catalog"),
         authorized:!!cards&&response.status===200&&/no-store/i.test(response.cacheControl)&&/cove_ssr_local_rights;dur=0/.test(response.timings),
       });
     }
@@ -83,6 +117,12 @@ for(const wave of waves){
     valid,failed:wave.requests-valid,
     p50Ms:percentile(times,0.5),p95Ms:percentile(times,0.95),
     maxMs:Math.max(...times),
+    colocations:[...new Set(rows.map(x=>x.colo))].sort(),
+    p95WorkerMs:percentile(rows.map(x=>x.workerTotalMs).filter(Number.isFinite),0.95),
+    p95CatalogMs:percentile(rows.map(x=>x.catalogMs).filter(Number.isFinite),0.95),
+    p95BootstrapMs:percentile(rows.map(x=>x.bootstrapMs).filter(Number.isFinite),0.95),
+    p95ClientQueueMs:percentile(rows.map(x=>x.clientQueueMs).filter(Number.isFinite),0.95),
+    p95SentToHeadersMs:percentile(rows.map(x=>x.clientSentToHeadersMs).filter(Number.isFinite),0.95),
     pass:valid===wave.requests&&Math.max(...times)<800,
   };
   results.waves.push(summary);
