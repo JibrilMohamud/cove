@@ -6,9 +6,10 @@ compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 minify = false
 workers_dev = true
-# Controlled stage-only test: Worker compute colocated toward D1 if Cloudflare learns the dependency.
+# Controlled staging experiment: the isolated D1 primary reports ENAM/IAD.
+# Use an explicit nearby region rather than waiting for Smart Placement training.
 [placement]
-mode = "smart"
+region = "aws:us-east-1"
 [assets]
 directory = "./.output/public"
 binding = "ASSETS"
