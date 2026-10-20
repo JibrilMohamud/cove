@@ -232,6 +232,77 @@ export async function taxonomyTree(
   };
 }
 
+/**
+ * Fetch only public homepage presentation rows without a resolved locale.
+ * The caller can launch this independently of network-market negotiation.
+ * Multiple overlapping rows are deliberately ambiguous: we then fall back
+ * to the original exact SQL selector rather than guess precedence.
+ *
+ * Rights and catalog grants are NEVER obtained from these page rows.
+ */
+export async function prefetchAnonymousHomepageCandidates(db: CatalogDB, territory: string) {
+  if (!/^[A-Z]{2}$/.test(territory)) throw new ApiError(400, "Invalid homepage territory.");
+  const result = await db.prepare(
+    "SELECT * FROM storefront_pages WHERE path='/' AND status='published'" +
+      " AND (territory_code IS NULL OR territory_code=?)" +
+      " AND (starts_at IS NULL OR starts_at<=datetime('now'))" +
+      " AND (ends_at IS NULL OR ends_at>datetime('now')) LIMIT 2",
+  ).bind(territory).all<any>();
+  return result.results;
+}
+
+function materializeHomepagePage(path: string, row: any) {
+  if (!row) {
+    if (["/", "/store", "/search"].includes(path)) {
+      return {
+        path,
+        pageType: path === "/search" ? "search" : "home",
+        title: "Bookstore",
+        heading: path === "/search" ? "Search the bookstore" : "Find your next great read.",
+        eyebrow: "THE BOOKSTORE",
+        description: "Stories to get lost in. Ideas to carry with you.",
+        seoTitle: path === "/search" ? "Search eBooks | Cove" : "Cove — Bookstore & Reading Room",
+        seoDescription: "Discover ebooks, read online, and build your reading life.",
+        noindex: path === "/search",
+        canonical: path === "/store" ? "/" : path,
+        query: {},
+      };
+    }
+    throw new ApiError(404, "This bookstore page does not exist.");
+  }
+  return {
+    path: String(row.path),
+    pageType: String(row.page_type),
+    title: String(row.title),
+    heading: String(row.heading),
+    eyebrow: String(row.eyebrow || "THE BOOKSTORE"),
+    description: String(row.description || ""),
+    seoTitle: String(row.seo_title || row.title),
+    seoDescription: String(row.seo_description || row.description || ""),
+    noindex: !!row.noindex,
+    canonical: String(row.path),
+    query: parseObject(row.query_json),
+  };
+}
+
+/** Identical materialization to the ordinary page selector for 0/1 matches;
+ * use original live D1 locale-filtered selector for ambiguous page sets. */
+export async function resolvePrefetchedAnonymousHomepage(
+  db: CatalogDB,
+  candidates: any[],
+  territory: string,
+  language: string,
+  locale: string,
+) {
+  if (candidates.length > 1)
+    return resolveStorefrontPage(db, "/", territory, language, locale);
+  const row = candidates[0];
+  if (row && row.language_code != null &&
+      String(row.language_code).toLowerCase() !== language.toLowerCase())
+    return materializeHomepagePage("/", null);
+  return materializeHomepagePage("/", row ?? null);
+}
+
 export async function resolveStorefrontPage(
   db: CatalogDB,
   pathValue: string,
@@ -535,37 +606,7 @@ export async function resolveStorefrontPage(
     )
     .bind(path, territory, language)
     .first<any>();
-  if (!row) {
-    if (["/", "/store", "/search"].includes(path)) {
-      return {
-        path,
-        pageType: path === "/search" ? "search" : "home",
-        title: "Bookstore",
-        heading: path === "/search" ? "Search the bookstore" : "Find your next great read.",
-        eyebrow: "THE BOOKSTORE",
-        description: "Stories to get lost in. Ideas to carry with you.",
-        seoTitle: path === "/search" ? "Search eBooks | Cove" : "Cove — Bookstore & Reading Room",
-        seoDescription: "Discover ebooks, read online, and build your reading life.",
-        noindex: path === "/search",
-        canonical: path === "/store" ? "/" : path,
-        query: {},
-      };
-    }
-    throw new ApiError(404, "This bookstore page does not exist.");
-  }
-  return {
-    path: String(row.path),
-    pageType: String(row.page_type),
-    title: String(row.title),
-    heading: String(row.heading),
-    eyebrow: String(row.eyebrow || "THE BOOKSTORE"),
-    description: String(row.description || ""),
-    seoTitle: String(row.seo_title || row.title),
-    seoDescription: String(row.seo_description || row.description || ""),
-    noindex: !!row.noindex,
-    canonical: String(row.path),
-    query: parseObject(row.query_json),
-  };
+  return materializeHomepagePage(path, row);
 }
 
 const taxonomyNodeInput = z.object({
