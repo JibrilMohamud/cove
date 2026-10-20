@@ -86,6 +86,16 @@ export default {
         .first<{ status: string; result_key: string; result_sha256: string }>();
       const obj = row?.result_key ? await env.BUCKET!.get(row.result_key) : null;
       const json = obj ? JSON.parse(await obj.text()) : null;
+      await env.DB.prepare(
+        "INSERT OR REPLACE INTO rights_grants(id,edition_id,territory_code,format,sales_channel,status,decision,source)" +
+          " VALUES(?,?,'AU','ebook','retail','active','deny','operator-stage-veto')",
+      )
+        .bind(grant + "_deny", edition)
+        .run();
+      const denied = await enqueueIsolatedLiteraryPreparation(role, product, edition);
+      await env.DB.prepare("DELETE FROM rights_grants WHERE id=?")
+        .bind(grant + "_deny")
+        .run();
       await env.DB.prepare("UPDATE rights_grants SET status='revoked' WHERE id=?")
         .bind(grant)
         .run();
@@ -97,6 +107,8 @@ export default {
         row.result_sha256 === obj?.customMetadata?.sha256 &&
         json?.sourceSha256 === hash &&
         json?.selected?.length > 0 &&
+        "skipped" in denied &&
+        denied.skipped === "source_or_rights_ineligible" &&
         "skipped" in revoked &&
         revoked.skipped === "source_or_rights_ineligible";
       return Response.json(
@@ -122,6 +134,10 @@ export default {
           .run()
           .catch(() => {});
       }
+      await env.DB.prepare("DELETE FROM rights_grants WHERE id=?")
+        .bind(grant + "_deny")
+        .run()
+        .catch(() => {});
       await env.DB.prepare("DELETE FROM rights_grants WHERE id=?")
         .bind(grant)
         .run()
