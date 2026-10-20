@@ -73,3 +73,29 @@ test Worker.
 New ledger mode remains disabled by default. Cove production D1/runtime
 flags, backfill, music approvals, storefront routing and production Worker
 deployments were **not changed**.
+
+## Identity-fenced repeat run
+
+After the first hosted proof, the independent schema gained
+`literary_budget_domain_identity` with a required
+`cove-isolated-literary-budget` domain and schema version 1. Before
+authorizing any isolated work, code now asserts the domain identifier and
+rejects a bound database containing rights, product or payment-authority
+tables, even if someone accidentally copied ledger tables into it.
+The actual atomic debit SQL repeats these binding-identity and
+no-authority-tables predicates. A regression deliberately contaminates
+the secondary database with `rights_grants` and proves both the
+preflight and atomic reservation fail closed.
+
+A **second actual Cloudflare Worker** run passed using the updated code
+and two physically distinct hosted staging D1 bindings:
+https://github.com/JibrilMohamud/cove/actions/runs/39478998958
+
+Result:
+`{"success":true,"accepted":3,"content":{"reserved_units":350,"calls":5},"primary":{"reserved_units":170,"calls":2}}`.
+
+The independent staged budget was re-seeded to the same synthetic
+opening balance **for this explicitly repeatable test only**. Never reset
+a live/production budget to an earlier balance during a real cutover.
+The secondary day's control was closed by the test, and the Worker was
+deleted. The temporary smoke Worker/workflow were removed from the PR.
