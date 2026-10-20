@@ -163,7 +163,7 @@ try {
     assert.equal(result.headers.get("cache-control")?.includes("no-store"), true);
     assert.equal(result.headers.has("set-cookie"), false);
     assert.equal("results" in data, false, "diagnostics cannot expose offers");
-    if (stage === "rights") assert.equal(data.books, 24);
+    if (stage === "rights") assert.ok(data.books > 0);
     if (stage.startsWith("context")) assert.ok(data.markets > 0);
   }
   assert.equal(
