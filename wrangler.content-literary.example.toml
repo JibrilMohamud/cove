@@ -1,0 +1,22 @@
+# Isolated literary worker. STAGING TEMPLATE ONLY; supply dedicated staging resources.
+name = "cove-content-literary-staging"
+main = "content-dist/worker.js"
+compatibility_date = "2026-10-09"
+workers_dev = true
+[limits]
+cpu_ms = 300_000
+[[d1_databases]]
+binding = "DB"
+database_name = "REPLACE_WITH_STAGING_DATABASE"
+database_id = "REPLACE_WITH_STAGING_D1_UUID"
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "REPLACE_WITH_PRIVATE_STAGING_R2"
+[ai]
+binding = "AI"
+[vars]
+FORE_CONTENT_PROCESSOR_ENABLED = "0"
+FORE_CONTENT_PROCESSOR_ROLE = "literary"
+FORE_CONTENT_D1_ADMISSION_MAX_MS = "300"
+[triggers]
+crons = ["* * * * *"]
