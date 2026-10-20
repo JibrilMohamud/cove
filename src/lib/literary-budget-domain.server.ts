@@ -42,11 +42,19 @@ export async function resolveLiteraryBudgetDb(
     throw new Error("literary_budget_isolation_not_authorized");
 
   const cutover = await env.CONTENT_DB.prepare(
-    "SELECT status FROM literary_budget_cutover WHERE day=?",
+    "SELECT status," +
+      " (SELECT domain FROM literary_budget_domain_identity" +
+      " WHERE id=1 AND schema_version=1) domain," +
+      " EXISTS(SELECT 1 FROM sqlite_master WHERE type='table'" +
+      " AND name IN ('rights_grants','products','payment_orders')) contaminated" +
+      " FROM literary_budget_cutover WHERE day=?",
   )
     .bind(day)
-    .first<{ status: string }>();
-  if (cutover?.status !== "active") throw new Error("literary_budget_day_not_seeded");
+    .first<{ status: string; domain: string | null; contaminated: number }>();
+  if (!cutover) throw new Error("literary_budget_day_not_seeded");
+  if (cutover.domain !== "cove-isolated-literary-budget" || cutover.contaminated)
+    throw new Error("literary_budget_binding_not_isolated");
+  if (cutover.status !== "active") throw new Error("literary_budget_day_not_seeded");
   return env.CONTENT_DB;
 }
 
@@ -89,10 +97,18 @@ export async function reserveLiteraryBudget(
       "INSERT INTO literary_profile_budget(day,reserved_units,calls)" +
         " SELECT ?,?,1 WHERE ?<=? AND EXISTS(" +
         " SELECT 1 FROM literary_budget_cutover WHERE day=? AND status='active')" +
+        " AND EXISTS(SELECT 1 FROM literary_budget_domain_identity" +
+        " WHERE id=1 AND domain='cove-isolated-literary-budget' AND schema_version=1)" +
+        " AND NOT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table'" +
+        " AND name IN ('rights_grants','products','payment_orders'))" +
         " ON CONFLICT(day) DO UPDATE SET" +
         " reserved_units=reserved_units+excluded.reserved_units,calls=calls+1" +
         " WHERE reserved_units+excluded.reserved_units<=?" +
         " AND EXISTS(SELECT 1 FROM literary_budget_cutover WHERE day=? AND status='active')" +
+        " AND EXISTS(SELECT 1 FROM literary_budget_domain_identity" +
+        " WHERE id=1 AND domain='cove-isolated-literary-budget' AND schema_version=1)" +
+        " AND NOT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table'" +
+        " AND name IN ('rights_grants','products','payment_orders'))" +
         " RETURNING calls",
     )
     .bind(day, units, units, dailyLimit, day, dailyLimit, day)
