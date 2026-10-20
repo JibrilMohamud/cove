@@ -55,7 +55,9 @@ jobs:
           npx wrangler deploy --config regional-smoke.toml
           SMOKE_TOKEN=$(openssl rand -hex 40)
           printf %s "$SMOKE_TOKEN" | npx wrangler secret put SMOKE_TOKEN --config regional-smoke.toml
-          BODY=$(curl --retry 3 --retry-delay 1 --fail-with-body --silent --show-error \
+          sleep 5
+          BODY=$(curl --retry 8 --retry-all-errors --retry-delay 2 \
+            --fail-with-body --silent --show-error \
             --max-time 50 -X POST \
             -H "x-smoke-token: $SMOKE_TOKEN" \
             "https://cove-epub-repair-smoke-20261020.cove-jibrilmohamud.workers.dev/__isolated-smoke")
