@@ -15,7 +15,7 @@ export default {
     if (
       env.COVE_SSR_STAGING !== "1" ||
       env.COVE_PERF_DATABASE_ID !== "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" ||
-      env.COVE_PERF_ENGAGEMENT_DATABASE_ID !== "86915082-bfa5-478e-a8c4-90d05f01e62c" ||
+      env.COVE_PERF_ENGAGEMENT_DATABASE_ID !== "41315f96-7e9f-4e0e-9447-bca71003a7db" ||
       !env.ENGAGEMENT_DB
     )
       return new Response(null, { status: 404 });

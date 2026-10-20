@@ -19,7 +19,7 @@ const output = "artifacts/discovery-benchmark";
 fs.mkdirSync(output, { recursive: true });
 const evidence = {
   sha: process.env.GITHUB_SHA,
-  kind: "isolated-bounded-delivery-diagnostic-v3",
+  kind: "isolated-bounded-delivery-generator-local-v4",
   variants: {
     control: "Classic full-pool authorization + independent engagement + durable HTTP telemetry",
     projection: "Bounded display authorization + independent engagement + durable HTTP telemetry",
@@ -125,6 +125,9 @@ try {
     PERFORMANCE_D1.current.id,
     async (id, sql) => (await api("POST", `/d1/database/${id}/query`, { sql }))[0],
   );
+  const primaryLocation = await api("POST", `/d1/database/${PERFORMANCE_D1.current.id}/query`, {
+    sql: "SELECT 1 n",
+  });
   const ledgerRole = await api("POST", `/d1/database/${config.d1_databases[1].database_id}/query`, {
     sql: "SELECT version FROM engagement_schema",
   });
@@ -133,6 +136,7 @@ try {
     [{ version: 1 }],
     "Separate database schema must be initialized",
   );
+  evidence.databaseLocations = { primary: primaryLocation[0].meta, engagement: ledgerRole[0].meta };
   const unrelated = await api("POST", `/d1/database/${config.d1_databases[1].database_id}/query`, {
     sql: "SELECT name FROM sqlite_master WHERE name IN ('products','rights_grants','commerce_orders')",
   });

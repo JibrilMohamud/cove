@@ -72,6 +72,10 @@ The next independent comparison concerns physical locality. Fresh D1 metadata re
 
 The Render synthetic search Blueprint is `infra/search/render.synthetic.yaml`: pinned Meilisearch v1.55.0, Virginia, one 2 GB instance, persistent disk and a generated master secret. It is prepared configuration, not evidence of an actual deployment. Scoped serving/indexing credentials are created separately; the master never belongs in Cove bindings. Real-engine acceptance also verifies denied write/key-management/cross-index access and index/key persistence across a process restart. Render's single attached disk prevents multiple instances and zero-downtime deployment, so this synthetic service is not a production HA claim. Hosted load, restart and recovery must still be observed on the actual service.
 
+The generator-local resource was created once in [run 39386126054](https://github.com/JibrilMohamud/cove/actions/runs/39386126054). Creation ingress was IAD; its actual primary is **EWR**, not IAD. The next campaign binds that new synthetic ledger (`41315f96-7e9f-4e0e-9447-bca71003a7db`) and records actual database locations in the raw evidence. Its within-run comparison remains classic versus bounded delivery. Cross-run changes also include ledger history/size and deployment variability, so they cannot uniquely establish locality's causal contribution.
+
+The scoped-key/persistent-restart Meilisearch checks passed in [run 39386125958](https://github.com/JibrilMohamud/cove/actions/runs/39386125958), commit `b06a9c0d`. All 175 offered local engine requests were valid; the distinct serving key could not write documents or manage keys, and the indexer could not manage keys or inspect an unrelated index. The actual 50k engine index and scoped credentials survived a process restart. These checks still do not establish Render disk behavior or remotely hosted capacity.
+
 Production remains unchanged.
 
 ## Production migration and release conditions

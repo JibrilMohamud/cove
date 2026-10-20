@@ -12,7 +12,7 @@ export function parseDiscoveryBenchmarkConfig(source) {
   assert.equal(config.d1_databases.length, 2);
   assert.equal(config.d1_databases[0].binding, "DB");
   assert.equal(config.d1_databases[1].binding, "ENGAGEMENT_DB");
-  assert.equal(config.d1_databases[1].database_id, "86915082-bfa5-478e-a8c4-90d05f01e62c");
+  assert.equal(config.d1_databases[1].database_id, "41315f96-7e9f-4e0e-9447-bca71003a7db");
   assert.equal(config.d1_databases[1].migrations_dir, "engagement-migrations");
   assert.equal(config.vars.COVE_PERF_ENGAGEMENT_DATABASE_ID, config.d1_databases[1].database_id);
   assert.equal(config.d1_databases[0].database_id, PERFORMANCE_D1.current.id);
