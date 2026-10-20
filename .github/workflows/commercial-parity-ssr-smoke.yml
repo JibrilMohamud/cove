@@ -1,0 +1,65 @@
+name: commercial-parity-ssr-smoke
+on:
+  push:
+    branches:
+      - perf/commercial-parity-isolated-stage-20261020
+    paths:
+      - "scripts/staging/check-commercial-parity-ssr.mjs"
+      - ".github/workflows/commercial-parity-ssr-smoke.yml"
+permissions:
+  contents: read
+concurrency:
+  group: cove-commercial-parity-protected-ssr
+  cancel-in-progress: false
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_SEND_METRICS: "false"
+      VERCEL: "0"
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Assert isolated fixture and immutable cloud bindings
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          grep -q 'database_id = "ce0e67b7-692d-44c6-94dc-7f324e7c5421"' wrangler.commercial-parity.stage.toml
+          ! grep -q '4bd657ac-8789-403e-a28c-93aba8d0a989' wrangler.commercial-parity.stage.toml
+          grep -q 'bucket_name = "cove-commercial-parity-media-20261020"' wrangler.commercial-parity.stage.toml
+          grep -q 'COVE_SSR_STAGING = "1"' wrangler.commercial-parity.stage.toml
+      - name: Build current candidate Cloudflare-native SSR
+        run: npm run build
+      - name: Deploy protected ephemeral stage and run strict rights/TTFB probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup() {
+            npx wrangler@4.151.0 delete --config wrangler.commercial-parity.stage.toml --force || true
+          }
+          trap cleanup EXIT
+          npx wrangler@4.151.0 deploy --config wrangler.commercial-parity.stage.toml
+          STAGE_TOKEN=$(openssl rand -hex 32)
+          printf %s "$STAGE_TOKEN" | npx wrangler@4.151.0 secret put COVE_SSR_STAGING_GATE_KEY \
+            --config wrangler.commercial-parity.stage.toml
+          export COVE_SSR_STAGING_GATE_KEY="$STAGE_TOKEN"
+          node scripts/staging/check-commercial-parity-ssr.mjs
+      - name: Retain sanitized aggregate results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolated-commercial-parity-ssr
+          path: artifacts/commercial-parity-ssr-smoke.json
+          if-no-files-found: warn
+          retention-days: 14
