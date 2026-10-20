@@ -2,6 +2,7 @@ import { seedMusicProfiles } from "./features/fore/music-profiles.server";
 import { verifyAudioStorage } from "./features/fore/audio-coverage.server";
 import { runLiteraryProfileTick } from "./features/fore/literary-profiles.server";
 import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
+import { repairRegionalEpubAssets } from "./features/fore/regional-epub-asset-repair.server";
 import {
   discoverSoundtrackCandidates,
   importOneReviewedSoundtrack,
@@ -48,6 +49,8 @@ type BackendEnv = CoveEnv &
     FORE_CATALOG_EPUBS_PER_TICK?: string;
     FORE_CATALOG_ADMISSION_MAX_MS?: string;
     FORE_ASSETS_PER_MINUTE?: string;
+    FORE_REGIONAL_EPUB_REPAIR_ENABLED?: string;
+    FORE_REGIONAL_EPUB_REPAIR_PROBE_MS?: string;
     FORE_INGESTION_TRIGGER_TOKEN?: string;
     FORE_INGESTION_SIGNING_KEY?: string;
     AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
@@ -922,6 +925,41 @@ export default {
 
     if (path === "/__cove/ingestion/catalog" && request.method === "POST") {
       return catalogBatch(request, env);
+    }
+    // Operator-only repair is disabled in every environment by default.
+    // The gateway authorization is checked above; a separate explicit
+    // activation is still required before this can touch catalog metadata.
+    if (path === "/__cove/ingestion/repair-regional-epubs" && request.method === "POST") {
+      if (env.FORE_REGIONAL_EPUB_REPAIR_ENABLED !== "1")
+        return json({ error: "Regional EPUB repair is disabled." }, 403);
+      const input = await request.json().catch(() => null);
+      if (!input || typeof input !== "object" || Array.isArray(input))
+        return json({ error: "Invalid repair cursor or batch limit." }, 400);
+      const { after, limit } = input as Record<string, unknown>;
+      if (after !== undefined && typeof after !== "string")
+        return json({ error: "Invalid repair cursor or batch limit." }, 400);
+      const validLimit =
+        limit === undefined ||
+        (Number.isSafeInteger(limit) && Number(limit) >= 1 && Number(limit) <= 16);
+      if (!validLimit) return json({ error: "Invalid repair cursor or batch limit." }, 400);
+      // A bulk repair is deferrable: never initiate it while the shared
+      // primary D1 is unavailable or already showing substantial queue delay.
+      const admission = await admitCatalogBatch(
+        env.DB,
+        catalogAdmissionBudget(env.FORE_REGIONAL_EPUB_REPAIR_PROBE_MS),
+      );
+      if (!admission.allowed)
+        return json({ skipped: admission.reason, probeMs: admission.probeMs }, 503);
+      try {
+        const result = await repairRegionalEpubAssets(env, {
+          after: after as string | undefined,
+          limit: limit as number | undefined,
+        });
+        return json(result);
+      } catch (error) {
+        console.error("Regional EPUB repair failed", String(error).slice(0, 180));
+        return json({ error: "Regional EPUB repair failed." }, 503);
+      }
     }
     if (path === "/__cove/ingestion/audio-admission" && request.method === "POST") {
       const input = (await request.json().catch(() => null)) as { reserve?: unknown } | null;
