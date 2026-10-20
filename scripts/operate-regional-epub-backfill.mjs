@@ -94,6 +94,8 @@ export async function runBackfill(config, dependencies = {}) {
       throw Error("Operator repair returned malformed JSON");
     }
     if (
+      !data ||
+      typeof data !== "object" ||
       !safeInteger(data.scanned, 0, opts.limit) ||
       !safeInteger(data.repaired, 0, data.scanned) ||
       !safeInteger(data.missingOrMismatched, 0, data.scanned) ||
@@ -101,6 +103,7 @@ export async function runBackfill(config, dependencies = {}) {
       typeof data.nextAfter !== "string" ||
       !/^[a-z0-9_]{0,90}$/.test(data.nextAfter) ||
       data.nextAfter < cursor ||
+      (data.scanned > 0 && data.nextAfter <= cursor) ||
       data.repaired + data.missingOrMismatched + data.conflicts > data.scanned ||
       typeof data.maybeMore !== "boolean"
     ) {
