@@ -69,9 +69,15 @@ export async function reserveLiteraryBudget(
     return ledger
       .prepare(
         "INSERT INTO literary_profile_budget(day,reserved_units,calls)" +
-          " SELECT ?,?,1 WHERE ?<=? ON CONFLICT(day) DO UPDATE SET" +
+          " SELECT ?,?,1 WHERE ?<=? AND NOT EXISTS(" +
+          " SELECT 1 FROM cove_runtime_config WHERE key='literary_budget_domain'" +
+          " AND value='isolated')" +
+          " ON CONFLICT(day) DO UPDATE SET" +
           " reserved_units=reserved_units+excluded.reserved_units,calls=calls+1" +
-          " WHERE reserved_units+excluded.reserved_units<=? RETURNING calls",
+          " WHERE reserved_units+excluded.reserved_units<=?" +
+          " AND NOT EXISTS(SELECT 1 FROM cove_runtime_config" +
+          " WHERE key='literary_budget_domain' AND value='isolated')" +
+          " RETURNING calls",
       )
       .bind(day, units, units, dailyLimit, dailyLimit)
       .first();
