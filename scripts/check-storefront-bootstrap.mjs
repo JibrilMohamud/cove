@@ -366,7 +366,8 @@ try {
     ["CA", "en-US", "CAD"],
     ["SA", "ar-SA", "USD"],
     ["JP", "en-US", "JPY"],
-  ]) await compareCatalog(...args);
+  ])
+    await compareCatalog(...args);
   assert.equal(leanLimitCalls, 6, "One enforced limiter call per eligible lean catalog request");
   for (const header of [
     "cookie",
@@ -392,14 +393,18 @@ try {
   const selected = live.results[0]?.productId;
   assert.ok(selected, "Live denial probe needs a real authorized product");
   const product = await env.DB.prepare("SELECT edition_id FROM products WHERE id=?")
-    .bind(selected).first();
-  const original = (await env.DB.prepare(
-    "SELECT id,decision FROM rights_grants WHERE edition_id=?",
-  ).bind(product.edition_id).all()).results;
+    .bind(selected)
+    .first();
+  const original = (
+    await env.DB.prepare("SELECT id,decision FROM rights_grants WHERE edition_id=?")
+      .bind(product.edition_id)
+      .all()
+  ).results;
   assert.ok(original.length);
   try {
     await env.DB.prepare("UPDATE rights_grants SET decision='deny' WHERE edition_id=?")
-      .bind(product.edition_id).run();
+      .bind(product.edition_id)
+      .run();
     const revoked = await compareCatalog("US", "en-US", "USD");
     assert.equal(
       revoked.results.some((book) => book.productId === selected),
@@ -409,21 +414,50 @@ try {
   } finally {
     for (const grant of original)
       await env.DB.prepare("UPDATE rights_grants SET decision=? WHERE id=?")
-        .bind(grant.decision, grant.id).run();
+        .bind(grant.decision, grant.id)
+        .run();
   }
-  assert.ok((await compareCatalog("US", "en-US", "USD")).results.some(
-    (book) => book.productId === selected,
-  ), "Restored live rights become visible without an authorization cache");
+  const restored = await compareCatalog("US", "en-US", "USD");
+  if (!restored.results.some((book) => book.productId === selected)) {
+    console.log(JSON.stringify({
+      stage: "local-restored-rights-diagnostic",
+      product: await env.DB.prepare("SELECT id,storefront_status FROM products WHERE id=?")
+        .bind(selected).first(),
+      grants: (await env.DB.prepare("SELECT id,decision,status,territory_code FROM rights_grants WHERE edition_id=?")
+        .bind(product.edition_id).all()).results,
+      legal: (await env.DB.prepare("SELECT product_id,territory_code FROM retail_product_availability_rows WHERE product_id=?")
+        .bind(selected).all()).results,
+      document: await env.DB.prepare("SELECT suppressed,availability,currency FROM catalog_search_documents WHERE product_id=?")
+        .bind(selected).first(),
+      resultProducts: restored.results.map((book) => book.productId),
+    }));
+  }
+  assert.ok(
+    restored.results.some((book) => book.productId === selected),
+    "Restored live rights become visible without an authorization cache",
+  );
   const rateLimited = await serveLeanAnonymousCatalog(
     new Request(browseUrl("USD"), { headers: publicHeaders("US", "en-US") }),
-    { ...leanCatalogEnv, COVE_STOREFRONT_READ_LIMITER: {
-      async limit() { return { success: false }; },
-    } },
+    {
+      ...leanCatalogEnv,
+      COVE_STOREFRONT_READ_LIMITER: {
+        async limit() {
+          return { success: false };
+        },
+      },
+    },
   );
   assert.equal(rateLimited.status, 429, "The optimized route must retain rate-limit rejection");
   const unavailable = await serveLeanAnonymousCatalog(
     new Request(browseUrl("USD"), { headers: publicHeaders("US", "en-US") }),
-    { ...leanCatalogEnv, DB: { prepare() { throw new Error("Synthetic D1 outage"); } } },
+    {
+      ...leanCatalogEnv,
+      DB: {
+        prepare() {
+          throw new Error("Synthetic D1 outage");
+        },
+      },
+    },
   );
   assert.equal(unavailable.status, 503, "Dependency failure retains canonical unavailable status");
   assert.deepEqual(await unavailable.json(), {
