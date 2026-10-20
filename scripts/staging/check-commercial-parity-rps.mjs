@@ -241,7 +241,7 @@ async function runStage(rate, seconds) {
             ].map((phase) => [phase, asPercentiles(subset.map((r) => r.phases?.[phase]))]),
           ),
           placement: [...new Set(subset.map((r) => r.placement).filter(Boolean))].sort(),
-        colo: [...new Set(subset.map((r) => r.colo).filter(Boolean))].sort(),
+          colo: [...new Set(subset.map((r) => r.colo).filter(Boolean))].sort(),
         },
       ];
     }),

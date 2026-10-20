@@ -148,7 +148,7 @@ for (const wave of waves) {
           cards,
           ttfbMs: response.ttfbMs,
           colo: response.colo,
-        placement: response.placement,
+          placement: response.placement,
           clientQueueMs: response.clientQueueMs,
           clientSentToHeadersMs: response.clientSentToHeadersMs,
           workerTotalMs: serverDuration(response.timings, "cove_total"),
@@ -216,7 +216,10 @@ results.validations.noFastUnauthorizedResponses = results.waves.every((w) => w.v
 results.performancePass = results.waves.every((w) => w.pass);
 results.commercialCertified = false;
 fs.mkdirSync("artifacts", { recursive: true });
-fs.writeFileSync(`artifacts/commercial-parity-ssr-smoke-${stageTransport}.json`, JSON.stringify(results, null, 2));
+fs.writeFileSync(
+  `artifacts/commercial-parity-ssr-smoke-${stageTransport}.json`,
+  JSON.stringify(results, null, 2),
+);
 console.log(JSON.stringify(results));
 if (!results.performancePass) process.exitCode = 1;
 

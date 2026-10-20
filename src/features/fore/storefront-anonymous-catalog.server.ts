@@ -1,4 +1,5 @@
 import type { CoveEnv } from "./api.server";
+import { ApiError, json } from "./service";
 import {
   networkCountry,
   resolveStorefrontContext,
@@ -23,6 +24,7 @@ export function canUseLeanAnonymousCatalog(request: Request, env: CoveEnv): bool
     "oai-authenticated-user-id",
     "oai-authenticated-user-email",
     "x-fore-authenticated-user-id",
+    "x-fore-authenticated-user-email",
   ])
     if (request.headers.has(key)) return false;
   if (
@@ -49,7 +51,7 @@ export function canUseLeanAnonymousCatalog(request: Request, env: CoveEnv): bool
   return true;
 }
 
-export async function serveLeanAnonymousCatalog(request: Request, env: CoveEnv) {
+async function readLeanAnonymousCatalog(request: Request, env: CoveEnv) {
   if (!canUseLeanAnonymousCatalog(request, env))
     return new Response(null, { status: 403, headers: { "Cache-Control": "no-store" } });
   const started = performance.now();
@@ -86,11 +88,6 @@ export async function serveLeanAnonymousCatalog(request: Request, env: CoveEnv) 
   ]);
   if (market.rightsCountry !== territory)
     throw new Error("Catalog market and trusted territory disagree.");
-  if (input.currency !== market.currency)
-    return new Response(JSON.stringify({ error: "Invalid currency for this market" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-    });
   const next =
     input.page * catalog.limit < catalog.count
       ? (() => {
@@ -129,4 +126,17 @@ export async function serveLeanAnonymousCatalog(request: Request, env: CoveEnv) 
       },
     },
   );
+}
+
+export async function serveLeanAnonymousCatalog(request: Request, env: CoveEnv) {
+  try {
+    return await readLeanAnonymousCatalog(request, env);
+  } catch (error) {
+    if (error instanceof ApiError) return json({ error: error.message }, error.status);
+    console.error("Anonymous catalog search failed closed", error);
+    return json(
+      { error: "The catalog is temporarily unavailable while Cove verifies distribution rights." },
+      503,
+    );
+  }
 }

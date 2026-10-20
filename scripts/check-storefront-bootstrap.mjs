@@ -36,6 +36,17 @@ try {
     logLevel: "silent",
   });
   const { upsertTaxonomyNode, taxonomyTree } = await import(path.join(root, "taxonomy.mjs"));
+  await build({
+    entryPoints: ["src/features/fore/storefront-anonymous-catalog.server.ts"],
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    outfile: path.join(root, "anonymous-catalog.mjs"),
+    logLevel: "silent",
+  });
+  const { canUseLeanAnonymousCatalog, serveLeanAnonymousCatalog } = await import(
+    path.join(root, "anonymous-catalog.mjs")
+  );
   const env = localBindings(root);
   // Guard the cold SSR path itself, not merely its JSON shape: a future
   // refactor must not silently bring large live taxonomy scans back into
@@ -294,6 +305,131 @@ try {
       "Exactly two replica presentation reads: combined market/locale/menu and page",
     );
   }
+
+  // Exercise the actual optimized catalog adapter against the canonical API
+  // on real migrations. Currency selection must retain canonical behavior,
+  // including supported nondefault currencies and empty regional shelves.
+  let leanLimitCalls = 0;
+  const leanCatalogEnv = {
+    ...env,
+    FORE_ENVIRONMENT: "staging",
+    COVE_SSR_STAGING: "1",
+    FORE_ANON_CONTEXT_ONE_READ: "1",
+    COVE_STOREFRONT_READ_LIMITER: {
+      async limit() {
+        leanLimitCalls++;
+        return { success: true };
+      },
+    },
+  };
+  const publicHeaders = (country, language) => ({
+    "x-cove-client-country": country,
+    "cf-connecting-ip": "203.0.113.123",
+    "accept-language": language,
+  });
+  const browseUrl = (currency) =>
+    "https://cove.test/api/fore/catalog?search=&sort=popular&page=1&currency=" + currency;
+  const stableCatalog = (value) => ({
+    ...value,
+    search: { ...value.search, queryId: null, processingTimeMs: null },
+  });
+  const compareCatalog = async (country, language, currency) => {
+    const req = new Request(browseUrl(currency), { headers: publicHeaders(country, language) });
+    assert.equal(canUseLeanAnonymousCatalog(req, leanCatalogEnv), true);
+    const lean = await serveLeanAnonymousCatalog(req, leanCatalogEnv);
+    const canonical = await handleCoveApi(
+      new Request(browseUrl(currency), {
+        headers: {
+          "cf-ipcountry": country,
+          "cf-connecting-ip": "203.0.113.123",
+          "accept-language": language,
+        },
+      }),
+      { ...leanCatalogEnv, COVE_SSR_STAGING: "0", FORE_ENVIRONMENT: "production" },
+    );
+    assert.equal(lean.status, canonical.status, country + "/" + currency + ": status parity");
+    assert.equal(lean.status, 200);
+    assert.match(lean.headers.get("cache-control") || "", /no-store/);
+    assert.equal(lean.headers.has("set-cookie"), false);
+    const actual = await lean.json();
+    assert.deepEqual(
+      stableCatalog(actual),
+      stableCatalog(await canonical.json()),
+      country + "/" + currency + ": complete canonical catalog response parity",
+    );
+    return actual;
+  };
+  for (const args of [
+    ["US", "en-US", "USD"],
+    ["US", "fr-FR", "EUR"],
+    ["CA", "fr-FR", "USD"],
+    ["CA", "en-US", "CAD"],
+    ["SA", "ar-SA", "USD"],
+    ["JP", "en-US", "JPY"],
+  ]) await compareCatalog(...args);
+  assert.equal(leanLimitCalls, 6, "One enforced limiter call per eligible lean catalog request");
+  for (const header of [
+    "cookie",
+    "authorization",
+    "oai-authenticated-user-id",
+    "oai-authenticated-user-email",
+    "x-fore-authenticated-user-id",
+    "x-fore-authenticated-user-email",
+  ]) {
+    const req = new Request(browseUrl("USD"), {
+      headers: { ...publicHeaders("US", "en-US"), [header]: "private" },
+    });
+    assert.equal(canUseLeanAnonymousCatalog(req, leanCatalogEnv), false, header);
+    assert.equal((await serveLeanAnonymousCatalog(req, leanCatalogEnv)).status, 403);
+  }
+  for (const suffix of ["&page=1", "&currency=USD", "&visitor=untrusted", "&language=fr"]) {
+    const req = new Request(browseUrl("USD") + suffix, {
+      headers: publicHeaders("US", "en-US"),
+    });
+    assert.equal(canUseLeanAnonymousCatalog(req, leanCatalogEnv), false);
+  }
+  const live = await compareCatalog("US", "en-US", "USD");
+  const selected = live.results[0]?.productId;
+  assert.ok(selected, "Live denial probe needs a real authorized product");
+  const product = await env.DB.prepare("SELECT edition_id FROM products WHERE id=?")
+    .bind(selected).first();
+  const original = (await env.DB.prepare(
+    "SELECT id,decision FROM rights_grants WHERE edition_id=?",
+  ).bind(product.edition_id).all()).results;
+  assert.ok(original.length);
+  try {
+    await env.DB.prepare("UPDATE rights_grants SET decision='deny' WHERE edition_id=?")
+      .bind(product.edition_id).run();
+    const revoked = await compareCatalog("US", "en-US", "USD");
+    assert.equal(
+      revoked.results.some((book) => book.productId === selected),
+      false,
+      "A live explicit deny must immediately remove a previously returned book",
+    );
+  } finally {
+    for (const grant of original)
+      await env.DB.prepare("UPDATE rights_grants SET decision=? WHERE id=?")
+        .bind(grant.decision, grant.id).run();
+  }
+  assert.ok((await compareCatalog("US", "en-US", "USD")).results.some(
+    (book) => book.productId === selected,
+  ), "Restored live rights become visible without an authorization cache");
+  const rateLimited = await serveLeanAnonymousCatalog(
+    new Request(browseUrl("USD"), { headers: publicHeaders("US", "en-US") }),
+    { ...leanCatalogEnv, COVE_STOREFRONT_READ_LIMITER: {
+      async limit() { return { success: false }; },
+    } },
+  );
+  assert.equal(rateLimited.status, 429, "The optimized route must retain rate-limit rejection");
+  const unavailable = await serveLeanAnonymousCatalog(
+    new Request(browseUrl("USD"), { headers: publicHeaders("US", "en-US") }),
+    { ...leanCatalogEnv, DB: { prepare() { throw new Error("Synthetic D1 outage"); } } },
+  );
+  assert.equal(unavailable.status, 503, "Dependency failure retains canonical unavailable status");
+  assert.deepEqual(await unavailable.json(), {
+    error: "The catalog is temporarily unavailable while Cove verifies distribution rights.",
+  });
+
   assert.ok(joinedMarketLocaleReads >= 4, "One live joined market/locale read per bootstrap");
   assert.ok(
     localePaymentBatches >= 4,
