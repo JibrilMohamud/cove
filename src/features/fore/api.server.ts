@@ -18,6 +18,7 @@ import {
   type RegionalSourceId,
 } from "./gutenberg-federation.server";
 import { z } from "zod";
+import { shouldUseConsoleOnlyHttpTelemetry } from "./telemetry-isolation.server";
 import {
   addSeriesToCart,
   editionResolve,
@@ -470,6 +471,8 @@ export type CoveEnv = {
     limit(input: { key: string }): Promise<{ success: boolean }>;
   };
   COVE_SSR_STAGING?: string;
+  COVE_PERF_DATABASE_ID?: string;
+  COVE_PERF_TELEMETRY_MODE?: string;
   BUCKET?: {
     get(key: string, options?: any): Promise<any>;
     head?(key: string): Promise<any>;
@@ -2782,8 +2785,15 @@ export async function handleCoveApi(
   });
   const logStarted = performance.now();
   if (env.DB) {
+    const identifiedUser = !!identity(tracedRequest);
     const work = recordHttpRequest(env.DB as any, trace, tracedRequest, response, {
-      actorKind: identity(tracedRequest) ? "user" : "anonymous",
+      actorKind: identifiedUser ? "user" : "anonymous",
+      persist: !shouldUseConsoleOnlyHttpTelemetry(
+        env,
+        tracedRequest,
+        response.status,
+        identifiedUser,
+      ),
     });
     if (execution?.waitUntil) {
       execution.waitUntil(work);

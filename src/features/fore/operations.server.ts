@@ -98,13 +98,20 @@ export async function recordHttpRequest(
   trace: RequestTrace,
   request: Request,
   response: Response,
-  input: { actorKind?: string; storefrontCountry?: string | null; errorClass?: string | null } = {},
+  input: {
+    actorKind?: string;
+    storefrontCountry?: string | null;
+    errorClass?: string | null;
+    /** Set false solely by the explicitly gated synthetic-only experiment. */
+    persist?: boolean;
+  } = {},
 ) {
   const endedAt = now(),
     duration = Math.max(0, Date.now() - trace.startedMs),
     route = new URL(request.url).pathname.replace(/\b[0-9a-f]{8}-[0-9a-f-]{27,}\b/gi, ":id");
-  try {
-    await db.batch([
+  if (input.persist !== false) {
+    try {
+      await db.batch([
       db
         .prepare(
           "INSERT OR IGNORE INTO ops_http_requests(id,request_id,trace_id,span_id,parent_span_id,method,route,status_code,duration_ms,actor_kind,storefront_country,error_class,sampled,occurred_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1,?)",
@@ -159,8 +166,9 @@ export async function recordHttpRequest(
           }),
           endedAt,
         ),
-    ]);
-  } catch {}
+      ]);
+    } catch {}
+  }
   console.log(
     JSON.stringify({
       level: response.status >= 500 ? "error" : "info",
@@ -173,6 +181,7 @@ export async function recordHttpRequest(
       status: response.status,
       durationMs: duration,
       storefrontCountry: input.storefrontCountry || null,
+      ...(input.persist === false ? { telemetrySink: "worker-log" } : {}),
       at: endedAt,
     }),
   );
