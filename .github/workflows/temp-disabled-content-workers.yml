@@ -31,7 +31,9 @@ jobs:
           [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo "::error::Missing Cloudflare staging token"; exit 1; }
           function cleanup() {
             for role in assets literary; do
-              npx wrangler delete --config "smoke-${role}.toml" --force || true
+              if [ -f "smoke-${role}.toml" ]; then
+                npx wrangler delete --config "smoke-${role}.toml" --force || true
+              fi
             done
           }
           trap cleanup EXIT
@@ -57,8 +59,6 @@ jobs:
           FORE_CONTENT_PROCESSOR_ROLE = "${role}"
           FORE_ASSETS_PER_MINUTE = "1"
           FORE_CONTENT_D1_ADMISSION_MAX_MS = "100"
-          [triggers]
-          crons = ["* * * * *"]
           EOF
             npx wrangler deploy --config "smoke-${role}.toml"
             URL="https://cove-content-off-${role}-20261020.cove-jibrilmohamud.workers.dev/"
@@ -68,4 +68,4 @@ jobs:
             [ "$HTTP" = "404" ] || { echo "::error::Unexpected public content Worker behavior"; exit 1; }
           done
           # No scheduled content work can run in the disabled-by-default Worker.
-          echo "Both independent Workers deployed, denied HTTP, and will be cleaned up."
+          echo "Both independent Workers deployed without cron, denied HTTP, and will be cleaned up."
