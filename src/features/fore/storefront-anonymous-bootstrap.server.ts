@@ -5,6 +5,7 @@ import {
 } from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
+import { singleflightAnonymousPresentation } from "./anonymous-context-singleflight.server";
 import type { CoveEnv } from "./api.server";
 
 /**
@@ -84,13 +85,24 @@ export async function serveLeanAnonymousBootstrap(
   // the rate limiter, markets, context, page and rights checks ALL succeed.
   const contextPromise = timed(
     "context",
-    resolveStorefrontContext(
-      readMetadata(),
-      request,
-      null,
-      env.FORE_DEFAULT_TERRITORY || "US",
-      true,
-    ),
+    (env as CoveEnv & { FORE_ANON_CONTEXT_SINGLEFLIGHT?: string })
+      .FORE_ANON_CONTEXT_SINGLEFLIGHT === "1"
+      ? singleflightAnonymousPresentation(rawDb, request, trustedCountry, true, () =>
+          resolveStorefrontContext(
+            readMetadata(),
+            request,
+            null,
+            env.FORE_DEFAULT_TERRITORY || "US",
+            true,
+          ),
+        )
+      : resolveStorefrontContext(
+          readMetadata(),
+          request,
+          null,
+          env.FORE_DEFAULT_TERRITORY || "US",
+          true,
+        ),
   );
   // Home-page branding is a presentation read, not a rights grant. Fetch
   // its bounded candidates concurrently with the market and authoritative
