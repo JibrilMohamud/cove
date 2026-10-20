@@ -187,6 +187,11 @@ try {
   assert.deepEqual(await runIsolatedLiteraryPreparationTick(env), {
     skipped: "no_preparation_jobs",
   });
+  // Even an otherwise valid allow cannot defeat an explicit same-market deny.
+  insertGrant.run("deny_a", "edition_a", "ebook", "retail", "active", "deny", "operator-override", "AU", null, null);
+  assert.deepEqual(await enqueueIsolatedLiteraryPreparation(env, "prod_a", "edition_a"), {
+    skipped: "source_or_rights_ineligible",
+  });
   // Change the grant during private-R2 read, before the last rights check.
   await enqueueIsolatedLiteraryPreparation(env, "prod_b", "edition_b");
   const revoked = await runIsolatedLiteraryPreparationTick(env);
