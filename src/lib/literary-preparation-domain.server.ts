@@ -62,7 +62,8 @@ async function requireIsolatedDomain(env: PreparationEnv): Promise<D1> {
     env.FORE_CONTENT_PROCESSOR_ROLE !== "literary-prepare" ||
     !env.CONTENT_DB ||
     env.CONTENT_DB === env.DB
-  ) throw new Error("literary_prepare_disabled");
+  )
+    throw new Error("literary_prepare_disabled");
   // This domain is not permitted to hold products, customer orders or rights
   // authority. Check identity and schema on every processing tick.
   const identity = await env.CONTENT_DB.prepare(
@@ -75,7 +76,8 @@ async function requireIsolatedDomain(env: PreparationEnv): Promise<D1> {
     identity?.domain !== "cove-isolated-literary-budget" ||
     identity.schema_version !== 1 ||
     identity.contaminated
-  ) throw new Error("literary_prepare_binding_not_isolated");
+  )
+    throw new Error("literary_prepare_binding_not_isolated");
   if (!env.BUCKET) throw new Error("literary_prepare_private_r2_required");
   return env.CONTENT_DB;
 }
@@ -94,13 +96,18 @@ export async function enqueueIsolatedLiteraryPreparation(
     throw new Error("Invalid preparation product");
   const book = await eligible(env, productId, editionId);
   if (!book) return { skipped: "source_or_rights_ineligible" };
-  const id = await digest([book.product_id, book.edition_id, book.source_id, book.content_hash].join(":"));
+  const id = await digest(
+    [book.product_id, book.edition_id, book.source_id, book.content_hash].join(":"),
+  );
   const now = new Date().toISOString();
-  await queue.prepare(
-    "INSERT OR IGNORE INTO literary_prepare_jobs" +
-      "(id,product_id,edition_id,source_id,content_sha256,available_at,created_at,updated_at)" +
-      " VALUES(?,?,?,?,?,?,?,?)",
-  ).bind(id, productId, editionId, book.source_id, book.content_hash, now, now, now).run();
+  await queue
+    .prepare(
+      "INSERT OR IGNORE INTO literary_prepare_jobs" +
+        "(id,product_id,edition_id,source_id,content_sha256,available_at,created_at,updated_at)" +
+        " VALUES(?,?,?,?,?,?,?,?)",
+    )
+    .bind(id, productId, editionId, book.source_id, book.content_hash, now, now, now)
+    .run();
   return { enqueued: id };
 }
 
@@ -110,15 +117,18 @@ export async function runIsolatedLiteraryPreparationTick(env: PreparationEnv) {
   const token = crypto.randomUUID();
   const now = new Date().toISOString();
   const lease = new Date(Date.now() + 120_000).toISOString();
-  const job = await queue.prepare(
-    "UPDATE literary_prepare_jobs" +
-      " SET status='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=?" +
-      " WHERE id=(SELECT id FROM literary_prepare_jobs" +
-      " WHERE ((status='queued' AND available_at<=?) OR" +
-      " (status='running' AND lease_until<?))" +
-      " AND attempts<3 ORDER BY available_at,id LIMIT 1)" +
-      " RETURNING id,product_id,edition_id,source_id,content_sha256,attempts",
-  ).bind(token, lease, now, now, now).first<PreparationJob>();
+  const job = await queue
+    .prepare(
+      "UPDATE literary_prepare_jobs" +
+        " SET status='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=?" +
+        " WHERE id=(SELECT id FROM literary_prepare_jobs" +
+        " WHERE ((status='queued' AND available_at<=?) OR" +
+        " (status='running' AND lease_until<?))" +
+        " AND attempts<3 ORDER BY available_at,id LIMIT 1)" +
+        " RETURNING id,product_id,edition_id,source_id,content_sha256,attempts",
+    )
+    .bind(token, lease, now, now, now)
+    .first<PreparationJob>();
   if (!job) return { skipped: "no_preparation_jobs" };
   try {
     const current = await eligible(env, job.product_id, job.edition_id);
@@ -126,7 +136,8 @@ export async function runIsolatedLiteraryPreparationTick(env: PreparationEnv) {
       !current ||
       current.source_id !== job.source_id ||
       current.content_hash !== job.content_sha256
-    ) throw new Error("rights_or_source_changed");
+    )
+      throw new Error("rights_or_source_changed");
     const key = "epubs/" + job.source_id + ".epub";
     const object = await env.BUCKET!.get(key);
     if (
@@ -135,14 +146,15 @@ export async function runIsolatedLiteraryPreparationTick(env: PreparationEnv) {
       object.size > 16 * 1024 * 1024 ||
       object.httpMetadata?.contentType !== "application/epub+zip" ||
       object.customMetadata?.sha256 !== job.content_sha256
-    ) throw new Error("missing_or_unverified_epub");
+    )
+      throw new Error("missing_or_unverified_epub");
     const bytes = new Uint8Array(await object.arrayBuffer());
-    if (await digest(bytes) !== job.content_sha256) throw new Error("epub_bytes_sha_mismatch");
+    if ((await digest(bytes)) !== job.content_sha256) throw new Error("epub_bytes_sha_mismatch");
     const extraction = await extractLiterarySections(bytes);
     if (!extraction.sections.length) throw new Error("no_valid_literary_sections");
-    const sectionIndices = [...new Set([
-      0, Math.floor(extraction.sections.length / 2), extraction.sections.length - 1,
-    ])];
+    const sectionIndices = [
+      ...new Set([0, Math.floor(extraction.sections.length / 2), extraction.sections.length - 1]),
+    ];
     const output = JSON.stringify({
       version: 1,
       productId: job.product_id,
@@ -154,8 +166,11 @@ export async function runIsolatedLiteraryPreparationTick(env: PreparationEnv) {
       selected: sectionIndices.map((n) => {
         const x = extraction.sections[n];
         return {
-          id: x.id, spineIndex: x.spineIndex, href: x.href,
-          locator: [x.charStart, x.charEnd], text: x.text.slice(0, 4000),
+          id: x.id,
+          spineIndex: x.spineIndex,
+          href: x.href,
+          locator: [x.charStart, x.charEnd],
+          text: x.text.slice(0, 4000),
         };
       }),
     });
@@ -171,26 +186,43 @@ export async function runIsolatedLiteraryPreparationTick(env: PreparationEnv) {
       httpMetadata: { contentType: "application/json" },
       customMetadata: { sha256: resultHash },
     });
-    const result = await queue.prepare(
-      "UPDATE literary_prepare_jobs" +
-        " SET status='done',result_key=?,result_sha256=?,lease_until='',lease_token='',updated_at=?" +
-        " WHERE id=? AND lease_token=? AND status='running' AND lease_until>?" +
-        " RETURNING id",
-    ).bind(resultKey, resultHash, new Date().toISOString(), job.id, token, new Date().toISOString()).first();
+    const result = await queue
+      .prepare(
+        "UPDATE literary_prepare_jobs" +
+          " SET status='done',result_key=?,result_sha256=?,lease_until='',lease_token='',updated_at=?" +
+          " WHERE id=? AND lease_token=? AND status='running' AND lease_until>?" +
+          " RETURNING id",
+      )
+      .bind(
+        resultKey,
+        resultHash,
+        new Date().toISOString(),
+        job.id,
+        token,
+        new Date().toISOString(),
+      )
+      .first();
     if (!result) throw new Error("literary_prepare_lease_lost");
     return { prepared: job.id, sections: extraction.sections.length };
   } catch (err) {
     const reason = String(err).slice(0, 100);
-    const retry = !/rights_|source_changed|epub_bytes_sha_mismatch/.test(reason) && job.attempts < 3;
-    await queue.prepare(
-      "UPDATE literary_prepare_jobs SET status=?,available_at=?," +
-        "lease_until='',lease_token='',last_error=?,updated_at=?" +
-        " WHERE id=? AND lease_token=? AND status='running'",
-    ).bind(
-      retry ? "queued" : "failed",
-      new Date(Date.now() + Math.min(3_600_000, 60_000 * 2 ** job.attempts)).toISOString(),
-      reason, new Date().toISOString(), job.id, token,
-    ).run();
+    const retry =
+      !/rights_|source_changed|epub_bytes_sha_mismatch/.test(reason) && job.attempts < 3;
+    await queue
+      .prepare(
+        "UPDATE literary_prepare_jobs SET status=?,available_at=?," +
+          "lease_until='',lease_token='',last_error=?,updated_at=?" +
+          " WHERE id=? AND lease_token=? AND status='running'",
+      )
+      .bind(
+        retry ? "queued" : "failed",
+        new Date(Date.now() + Math.min(3_600_000, 60_000 * 2 ** job.attempts)).toISOString(),
+        reason,
+        new Date().toISOString(),
+        job.id,
+        token,
+      )
+      .run();
     return { failed: job.id, reason };
   }
 }
