@@ -92,7 +92,7 @@ const report = {
   workerClock: "Cloudflare in-Worker clocks advance on I/O and do not measure CPU-only execution",
   driver:
     "20 RPS for 16 seconds plus two 32-request bursts; at most 64 in flight; attribution only",
-  boundary: "Fresh one-read deployment; no preceding browser or asset traffic; not a capacity gate",
+  boundary: "After measured HTTP/browser comparison; attribution only; not a capacity gate",
   commercialCertified: false,
 };
 try {
