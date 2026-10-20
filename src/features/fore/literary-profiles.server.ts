@@ -13,7 +13,10 @@ import {
 } from "./matching.server";
 import { resolveProduct } from "./catalog-model.server";
 import { settleLiteraryOutputReservation } from "../../lib/literary-budget-settlement";
-import { reserveLiteraryBudget, resolveLiteraryBudgetDb } from "../../lib/literary-budget-domain.server";
+import {
+  reserveLiteraryBudget,
+  resolveLiteraryBudgetDb,
+} from "../../lib/literary-budget-domain.server";
 import { extractLiterarySections } from "./literary-extract.server";
 import {
   emptyLiteraryProfile,
