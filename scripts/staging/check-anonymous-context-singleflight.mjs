@@ -33,13 +33,13 @@ await run(db, us, "US", true, async () => { calls++; return { market: "US" }; })
 assert.equal(calls, 2, "A completed presentation result is NOT cached");
 
 let active = 0;
-let release;
-const pause = () => { active++; return new Promise((r) => { release = r; }); };
+const releases = [];
+const pause = () => { active++; return new Promise((r) => { releases.push(r); }); };
 const australia = run(db, anonymous("AU"), "AU", true, pause);
 const canada = run(db, anonymous("CA"), "CA", true, pause);
 await Promise.resolve();
 assert.equal(active, 2, "Territories cannot share one presentation operation");
-release("market");
+for (const finish of releases) finish("market");
 await Promise.all([australia, canada]);
 
 const personalized = anonymous("US", "en-US", { Cookie: "fore-currency=USD" });
