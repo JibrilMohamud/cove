@@ -13,6 +13,8 @@ import { validateHtml, percentile } from "../check-production-storefront-perform
 
 const origin = "https://cove-commercial-parity-ssr-staging-20261020.cove-jibrilmohamud.workers.dev";
 const key = process.env.COVE_SSR_STAGING_GATE_KEY;
+const expectedArm = process.env.COVE_STAGE_EXPERIMENT_ARM;
+if (expectedArm) assert.ok(["baseline", "one-read"].includes(expectedArm));
 assert.match(key || "", /^[a-f0-9]{64}$/, "A temporary 256-bit staging bearer is mandatory");
 const headers = {
   Authorization: "Bearer " + key,
@@ -60,6 +62,7 @@ async function request(path = "/", options = {}) {
     const body = await response.text();
     return {
       status: response.status,
+      contextMode: response.headers.get("x-cove-stage-context-mode") || "unknown",
       ttfbMs,
       contentEncoding: response.headers.get("content-encoding") || "identity",
       decodedBytes: Buffer.byteLength(body, "utf8"),
@@ -102,15 +105,23 @@ for (let i = 0; i < 15; i++) {
 }
 assert.equal(denied.status, 401, "Protected stage must deny unauthenticated homepage");
 results.validations.unauthorized401 = true;
-const post = await request("/", { method: "POST" });
-assert.equal(post.status, 405, "Protected SSR must reject POST");
-results.validations.authenticatedWritesDenied = true;
-const ready = await request("/api/fore/health/ready");
-assert.equal(ready.status, 200, "D1 readiness must pass before any performance sampling");
+let ready = { status: 0 };
+for (let attempt = 0; attempt < 20; attempt++) {
+  ready = await request("/api/fore/health/ready");
+  if (ready.status === 200 && (!expectedArm || ready.contextMode === expectedArm)) break;
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+}
+assert.equal(ready.status, 200, "Authorized D1 readiness must pass before performance sampling");
+if (expectedArm)
+  assert.equal(ready.contextMode, expectedArm, "Fresh deployment arm must be active");
 const health = JSON.parse(ready.body);
 assert.equal(health.ok, true);
 assert.equal(health.database, true);
 results.validations.isolatedD1Ready = true;
+results.validations.experimentArm = expectedArm || "unspecified";
+const post = await request("/", { method: "POST" });
+assert.equal(post.status, 405, "Protected SSR must reject POST");
+results.validations.authenticatedWritesDenied = true;
 const bootstrap = await request("/api/fore/storefront/bootstrap");
 if (bootstrap.status !== 200) {
   const message = bootstrap.body.slice(0, 400).replace(/Bearer\\s+[\\w.-]+/gi, "Bearer ");
@@ -156,6 +167,7 @@ for (const wave of waves) {
           decodedBytes: response.decodedBytes,
           wireBytes: response.wireBytes,
           totalMs: response.totalMs,
+          contextMode: response.contextMode,
           colo: response.colo,
           placement: response.placement,
           clientQueueMs: response.clientQueueMs,
@@ -170,6 +182,7 @@ for (const wave of waves) {
           limitMs: serverDuration(response.timings, "cove_backend_limit"),
           edgeBootstrapMs: serverDuration(response.timings, "cove_backend_bootstrap"),
           authorized:
+            (!expectedArm || response.contextMode === expectedArm) &&
             !!cards &&
             response.status === 200 &&
             /no-store/i.test(response.cacheControl) &&

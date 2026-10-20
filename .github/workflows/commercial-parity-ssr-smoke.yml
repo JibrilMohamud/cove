@@ -9,6 +9,9 @@ on:
       - "scripts/performance/cloudflare-browser.mjs"
       - "scripts/staging/check-commercial-parity-live-rights.mjs"
       - "scripts/check-storefront-bootstrap.mjs"
+      - "scripts/cloudflare-deployment-readiness.mjs"
+      - "scripts/check-cloudflare-deployment-readiness.mjs"
+      - "scripts/staging/wait-commercial-parity-deployment.mjs"
       - "scripts/staging/observed-ssr-entry.mjs"
       - "src/server.ts"
       - "scripts/staging/stage-http-transport.mjs"
@@ -55,6 +58,9 @@ jobs:
           import fs from "node:fs";
           import prettier from "prettier";
           const files = [
+            "scripts/cloudflare-deployment-readiness.mjs",
+            "scripts/check-cloudflare-deployment-readiness.mjs",
+            "scripts/staging/wait-commercial-parity-deployment.mjs",
             "scripts/staging/observed-ssr-entry.mjs",
             "scripts/staging/check-commercial-parity-live-rights.mjs",
             "scripts/performance/cloudflare-browser.mjs",
@@ -95,6 +101,8 @@ jobs:
               }
           }
           NODE
+      - name: Verify deployment control-plane readiness boundaries
+        run: node scripts/check-cloudflare-deployment-readiness.mjs
       - name: Check canonical localization parity and one-read context
         run: node scripts/staging/check-anonymous-context-one-read.mjs
       - name: Verify full catalog parity, private guards and live denial
@@ -127,6 +135,8 @@ jobs:
             npx wrangler@4.151.3 delete --config wrangler.commercial-parity.stage.toml --force || true
           }
           trap cleanup EXIT
+          STAGE_TOKEN=$(openssl rand -hex 32)
+          export COVE_SSR_STAGING_GATE_KEY="$STAGE_TOKEN"
           cp wrangler.commercial-parity.stage.toml /tmp/cove-parity-original.toml
           run_arm() {
             local arm="$1"
@@ -136,10 +146,10 @@ jobs:
             sed -i "s/FORE_ANON_CONTEXT_ONE_READ = \"1\"/FORE_ANON_CONTEXT_ONE_READ = \"$one_read\"/" wrangler.commercial-parity.stage.toml
             grep -q "FORE_ANON_CONTEXT_ONE_READ = \"$one_read\"" wrangler.commercial-parity.stage.toml || return 1
             npx wrangler@4.151.3 deploy --config wrangler.commercial-parity.stage.toml || return 1
-            STAGE_TOKEN=$(openssl rand -hex 32)
+            export COVE_STAGE_SECRET_ROTATION_EPOCH_MS="$(node -p Date.now())"
             printf %s "$STAGE_TOKEN" | npx wrangler@4.151.3 secret put COVE_SSR_STAGING_GATE_KEY \
               --config wrangler.commercial-parity.stage.toml || return 1
-            export COVE_SSR_STAGING_GATE_KEY="$STAGE_TOKEN"
+            node scripts/staging/wait-commercial-parity-deployment.mjs || return 1
             export COVE_STAGE_EXPERIMENT_ARM="$arm"
             # Every arm validates real responses and keeps the same hard SLO.
             # This is a warm A/B experiment, never a cold certification.

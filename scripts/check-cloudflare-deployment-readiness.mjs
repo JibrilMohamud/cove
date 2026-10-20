@@ -49,4 +49,31 @@ await waitForCloudflareStageDeployment(
   },
 );
 assert.ok(calls >= 10, "Cold Worker is never fetched or prewarmed during control-plane wait");
+let isolatedCalls = 0;
+await waitForCloudflareStageDeployment(
+  "x".repeat(40),
+  "d26430caa63ec55f6612e32f36aca5e9",
+  started,
+  {
+    workerName: "cove-commercial-parity-ssr-staging-20261020",
+    fetcher: async (url) => {
+      assert.equal(
+        url,
+        "https://api.cloudflare.com/client/v4/accounts/d26430caa63ec55f6612e32f36aca5e9/workers/scripts/cove-commercial-parity-ssr-staging-20261020/deployments",
+      );
+      isolatedCalls++;
+      return { ok: true, json: async () => payload };
+    },
+    now: () => started + 34_000,
+  },
+);
+assert.equal(isolatedCalls, 1);
+await assert.rejects(
+  waitForCloudflareStageDeployment(
+    "x".repeat(40),
+    "d26430caa63ec55f6612e32f36aca5e9",
+    started,
+    { workerName: "../production" },
+  ),
+);
 console.log("PASS: fresh 100% stage version and deploy settle without Worker requests.");

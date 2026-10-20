@@ -9,6 +9,10 @@ export default {
     const response = await app.fetch(request, env, ctx);
     if (env.COVE_SSR_STAGING !== "1" || response.status !== 200) return response;
     const headers = new Headers(response.headers);
+    headers.set(
+      "X-Cove-Stage-Context-Mode",
+      env.FORE_ANON_CONTEXT_ONE_READ === "1" ? "one-read" : "baseline",
+    );
     headers.append(
       "Server-Timing",
       `cove_worker_dispatch;dur=${(performance.now() - started).toFixed(1)}`,

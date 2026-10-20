@@ -13,6 +13,8 @@ import { validateHtml, percentile } from "../check-production-storefront-perform
 
 const origin = "https://cove-commercial-parity-ssr-staging-20261020.cove-jibrilmohamud.workers.dev";
 const token = process.env.COVE_SSR_STAGING_GATE_KEY;
+const expectedArm = process.env.COVE_STAGE_EXPERIMENT_ARM;
+if (expectedArm) assert.ok(["baseline", "one-read"].includes(expectedArm));
 assert.match(token || "", /^[a-f0-9]{64}$/, "Never load test an unprotected origin");
 const baseHeaders = {
   Authorization: "Bearer " + token,
@@ -90,6 +92,7 @@ async function fetchOne(route) {
     if (h2) Object.assign(span, { created: h2.created, sent: h2.sent, headers: h2.received });
     const body = await response.text();
     let valid =
+      (!expectedArm || response.headers.get("x-cove-stage-context-mode") === expectedArm) &&
       response.status === 200 && /no-store/i.test(response.headers.get("cache-control") || "");
     if (valid && route.name === "home") {
       try {
@@ -130,6 +133,7 @@ async function fetchOne(route) {
     const timingHeader = response.headers.get("server-timing") || "";
     return {
       status,
+      contextMode: response.headers.get("x-cove-stage-context-mode") || "unknown",
       valid,
       ttfbMs,
       contentEncoding: response.headers.get("content-encoding") || "identity",
