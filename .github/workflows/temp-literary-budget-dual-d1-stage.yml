@@ -1,0 +1,61 @@
+name: temporary-literary-budget-dual-d1-stage
+on:
+  push:
+    branches:
+      - feat/literary-budget-d1-isolation-20261020
+    paths:
+      - "scripts/staging/literary-budget-dual-d1-smoke.ts"
+      - ".github/workflows/temp-literary-budget-dual-d1-stage.yml"
+permissions:
+  contents: read
+concurrency:
+  group: cove-literary-budget-dual-d1-smoke
+  cancel-in-progress: false
+jobs:
+  hosted-d1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Deploy isolated two-D1 budget Worker and clean it up
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "::error::Missing Cloudflare staging credentials"
+            exit 1
+          fi
+          npx esbuild scripts/staging/literary-budget-dual-d1-smoke.ts --bundle --platform=neutral --format=esm --target=es2022 --outfile=./dual-d1-smoke.mjs
+          cat > dual-d1-smoke.toml <<'EOF'
+          name = "cove-literary-budget-domain-smoke-20261020"
+          main = "./dual-d1-smoke.mjs"
+          compatibility_date = "2026-10-09"
+          workers_dev = true
+          [[d1_databases]]
+          binding = "DB"
+          database_name = "cove-content-repair-stage-20261020"
+          database_id = "dbcc0d95-8ca2-4036-ad78-49dbc0ee4b38"
+          [[d1_databases]]
+          binding = "CONTENT_DB"
+          database_name = "cove-literary-budget-stage-20261020"
+          database_id = "7a26c27d-966c-468a-a3ad-d06cfff68010"
+          EOF
+          cleanup() { npx wrangler delete --config dual-d1-smoke.toml --force || true; }
+          trap cleanup EXIT
+          npx wrangler deploy --config dual-d1-smoke.toml
+          SMOKE_TOKEN=$(openssl rand -hex 40)
+          printf %s "$SMOKE_TOKEN" | npx wrangler secret put SMOKE_TOKEN --config dual-d1-smoke.toml
+          sleep 6
+          BODY=$(curl --retry 7 --retry-all-errors --retry-delay 2 --fail-with-body --silent --show-error --max-time 50 \
+            -H "x-smoke-token: $SMOKE_TOKEN" -X POST \
+            "https://cove-literary-budget-domain-smoke-20261020.cove-jibrilmohamud.workers.dev/__isolated-budget-smoke")
+          echo "$BODY"
+          node -e 'const r=JSON.parse(process.argv[1]); if(!r.success || r.accepted!==3 || r.content.reserved_units!==350 || r.primary.reserved_units!==170)process.exit(1)' "$BODY"
