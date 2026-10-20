@@ -13,6 +13,18 @@ inside the persistence Worker's minute maintenance chain.
 - A read-only D1 probe runs once per tick, deferring nonessential work when the
   primary has high latency or is unavailable. Budget is configured by
   FORE_CONTENT_D1_ADMISSION_MAX_MS (default 300ms).
+- The new standalone **assets** role applies a hard maximum of four download
+  attempts per tick regardless of a dashboard value of 32 or 64. It defaults
+  to one attempt when unconfigured; malformed limits fail closed at zero.
+- The standalone **literary** role caps each tick at eight provisional profile
+  seeds, one section-preparation job, one deferred section, and one AI inference.
+  This is an execution budget, NOT a precise count of D1 statements inside
+  those jobs. It preserves the prior primary persistence Worker's behavior
+  because only the new worker passes the tighter limit object.
+- Before enabling these roles on production data, measure actual SQL statements,
+  rows read/written, D1 queue service time, and total Worker wall time while
+  checkout/rights workloads are active. If capacity is inadequate, disable the
+  workers; these conservative caps alone cannot guarantee isolation.
 - The HTTP handler returns 404 and performs no mutations or authorization.
 - This separates Worker CPU, memory and scheduling ONLY. Both roles still
   share the same primary D1 database until the authority/data model is moved.
