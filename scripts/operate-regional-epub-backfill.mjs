@@ -80,7 +80,9 @@ export async function runBackfill(config, dependencies = {}) {
       });
     } catch {
       await receipt({ requestId, phase: "error", reason: "transport_or_timeout" });
-      throw Error("Operator repair stopped after transport failure; reconcile journal before resuming");
+      throw Error(
+        "Operator repair stopped after transport failure; reconcile journal before resuming",
+      );
     }
     if (response.status !== 200) {
       await receipt({ requestId, phase: "error", status: response.status });
@@ -135,7 +137,13 @@ export async function runBackfill(config, dependencies = {}) {
 async function main() {
   const execute = process.argv.slice(2).includes("--execute");
   if (!execute) {
-    console.log(JSON.stringify({ skipped: "dry_run_no_network", message: "Pass --execute and scoped operator approval to change verified metadata. Default makes no network calls." }));
+    console.log(
+      JSON.stringify({
+        skipped: "dry_run_no_network",
+        message:
+          "Pass --execute and scoped operator approval to change verified metadata. Default makes no network calls.",
+      }),
+    );
     return;
   }
   const config = {
