@@ -79,9 +79,7 @@ try {
     [b, "Quasar Journey"],
     [c, "Ocean Solitude"],
   ]) {
-    sqlite
-      .prepare("UPDATE catalog_search_documents SET title=?,title_sort=? WHERE product_id=?")
-      .run(title, title.toLowerCase(), id);
+    sqlite.prepare("UPDATE catalog_search_documents SET title=? WHERE product_id=?").run(title, id);
     sqlite
       .prepare("UPDATE editions SET title=? WHERE id=(SELECT edition_id FROM products WHERE id=?)")
       .run(title, id);
@@ -190,9 +188,7 @@ try {
   );
   serving = false;
   sqlite
-    .prepare(
-      "UPDATE catalog_search_documents SET title='Nebula Passage',title_sort='nebula passage' WHERE product_id=?",
-    )
+    .prepare("UPDATE catalog_search_documents SET title='Nebula Passage' WHERE product_id=?")
     .run(b);
   await search.syncSearchIndex(env, 500);
   serving = true;
