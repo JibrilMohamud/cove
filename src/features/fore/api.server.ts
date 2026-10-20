@@ -3064,11 +3064,11 @@ async function handleCoveRequest(
     const [storefront, bootstrapPreflight] = await Promise.all([
       timed(
         "context",
-        (request.method === "GET" &&
-        (path === "/catalog" || firstPaint) &&
-        !currentIdentity?.id &&
-        (env as CoveEnv & { FORE_ANON_CONTEXT_SINGLEFLIGHT?: string })
-          .FORE_ANON_CONTEXT_SINGLEFLIGHT === "1"
+        request.method === "GET" &&
+          (path === "/catalog" || firstPaint) &&
+          !currentIdentity?.id &&
+          (env as CoveEnv & { FORE_ANON_CONTEXT_SINGLEFLIGHT?: string })
+            .FORE_ANON_CONTEXT_SINGLEFLIGHT === "1"
           ? singleflightAnonymousPresentation(
               machineDb,
               request,
@@ -3087,7 +3087,7 @@ async function handleCoveRequest(
               request,
               currentIdentity?.id || null,
               env.FORE_DEFAULT_TERRITORY || "US",
-            )),
+            ),
       ),
       firstPaint
         ? Promise.all([

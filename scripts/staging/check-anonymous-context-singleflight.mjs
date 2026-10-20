@@ -2,12 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { transform } from "esbuild";
 
-const source = readFileSync(
-  "src/features/fore/anonymous-context-singleflight.server.ts", "utf8",
-);
+const source = readFileSync("src/features/fore/anonymous-context-singleflight.server.ts", "utf8");
 const { code } = await transform(source, { loader: "ts", format: "esm" });
 const { singleflightAnonymousPresentation: run } = await import(
-  "data:text/javascript;base64," + Buffer.from(code).toString("base64"),
+  "data:text/javascript;base64," + Buffer.from(code).toString("base64")
 );
 const db = {};
 const anonymous = (country = "US", lang = "en-US", other = {}) =>
@@ -18,23 +16,37 @@ let calls = 0;
 let resolve;
 const slow = () => {
   calls++;
-  return new Promise((r) => { resolve = r; });
+  return new Promise((r) => {
+    resolve = r;
+  });
 };
 const us = anonymous();
 const first = run(db, us, "US", true, slow);
 const same = run(db, anonymous(), "US", true, slow);
-assert.strictEqual(same, first, "Concurrent, identical public presentation calls share one promise");
+assert.strictEqual(
+  same,
+  first,
+  "Concurrent, identical public presentation calls share one promise",
+);
 await Promise.resolve();
 assert.equal(calls, 1);
 resolve({ market: "US", rights: "not-checked-here" });
 const [one, two] = await Promise.all([first, same]);
 assert.deepEqual(one, two);
-await run(db, us, "US", true, async () => { calls++; return { market: "US" }; });
+await run(db, us, "US", true, async () => {
+  calls++;
+  return { market: "US" };
+});
 assert.equal(calls, 2, "A completed presentation result is NOT cached");
 
 let active = 0;
 const releases = [];
-const pause = () => { active++; return new Promise((r) => { releases.push(r); }); };
+const pause = () => {
+  active++;
+  return new Promise((r) => {
+    releases.push(r);
+  });
+};
 const australia = run(db, anonymous("AU"), "AU", true, pause);
 const canada = run(db, anonymous("CA"), "CA", true, pause);
 await Promise.resolve();
@@ -69,4 +81,6 @@ await Promise.resolve();
 await run(db, anonymous("US", "fr-CA"), "US", false, async () => ++faults);
 assert.equal(faults, 2, "Failures never remain cached");
 
-console.log("Anonymous singleflight: concurrent-only, country/locale/private isolation and fail-open retry PASS");
+console.log(
+  "Anonymous singleflight: concurrent-only, country/locale/private isolation and fail-open retry PASS",
+);
