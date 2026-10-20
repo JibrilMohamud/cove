@@ -48,6 +48,18 @@ const sourceSql = `SELECT p.id product_id,p.edition_id,c.id source_id,
         )
         AND (g.starts_at IS NULL OR datetime(g.starts_at)<=datetime('now'))
         AND (g.ends_at IS NULL OR datetime(g.ends_at)>datetime('now'))
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM rights_grants deny
+      WHERE deny.edition_id=p.edition_id AND deny.format='ebook'
+        AND deny.sales_channel='retail' AND deny.status='active'
+        AND deny.decision='deny'
+        AND deny.territory_code IN (
+          SELECT value FROM json_each(CASE WHEN json_valid(c.rights_territories_json)
+          THEN c.rights_territories_json ELSE '[]' END)
+        )
+        AND (deny.starts_at IS NULL OR datetime(deny.starts_at)<=datetime('now'))
+        AND (deny.ends_at IS NULL OR datetime(deny.ends_at)>datetime('now'))
     ) LIMIT 1`;
 
 const digest = async (bytes: Uint8Array | string) => {
