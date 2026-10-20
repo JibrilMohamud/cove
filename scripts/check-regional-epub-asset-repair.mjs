@@ -27,7 +27,9 @@ try {
   const env = localBindings(root);
   const at = "2026-10-20T00:00:00.000Z";
   const hash = "a".repeat(64);
-  await env.DB.prepare("INSERT OR IGNORE INTO territories(code,name) VALUES('AU','Australia')").run();
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO territories(code,name) VALUES('AU','Australia')",
+  ).run();
   async function seed(id, options = {}) {
     const status = options.status ?? "completed";
     const rights = options.rights ?? "approved";
@@ -94,9 +96,7 @@ try {
       async head(key) {
         if (key.endsWith("9100002.epub")) return null;
         if (key.endsWith("9100003.epub")) {
-          await env.DB.prepare(
-            "UPDATE rights_grants SET status='revoked' WHERE edition_id=?",
-          )
+          await env.DB.prepare("UPDATE rights_grants SET status='revoked' WHERE edition_id=?")
             .bind(c)
             .run();
         }
@@ -110,13 +110,21 @@ try {
   };
 
   const result = await repairRegionalEpubAssets(envWithR2, { limit: 8 });
-  assert.equal(result.scanned, 3, "pending source approval or revoked grants are never repair candidates");
+  assert.equal(
+    result.scanned,
+    3,
+    "pending source approval or revoked grants are never repair candidates",
+  );
   assert.equal(result.repaired, 1, "verified completed regional EPUB is restored");
   assert.equal(result.missingOrMismatched, 1, "missing R2 object must fail closed");
   assert.equal(result.conflicts, 1, "live grant revocation between HEAD and write blocks repair");
   assert.equal(result.nextAfter, "pgau_9100003");
   assert.equal(
-    (await env.DB.prepare("SELECT commercial_use_status FROM gutenberg_source_cache WHERE id='pgau_9100003'").first()).commercial_use_status,
+    (
+      await env.DB.prepare(
+        "SELECT commercial_use_status FROM gutenberg_source_cache WHERE id='pgau_9100003'",
+      ).first()
+    ).commercial_use_status,
     "approved",
     "active source approval alone must not defeat separate live-grant revocation",
   );

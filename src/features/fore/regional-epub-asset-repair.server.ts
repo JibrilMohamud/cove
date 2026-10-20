@@ -41,7 +41,8 @@ export async function repairRegionalEpubAssets(
         " WHERE c.source_id IN ('pg_au','pg_ca','pg_eu')" +
         " AND c.epub_status='completed' AND c.ingest_status='active'" +
         " AND c.rights_status='public-domain' AND c.commercial_use_status='approved'" +
-        " AND" + liveGrant +
+        " AND" +
+        liveGrant +
         " AND COALESCE(c.content_hash,'')<>'' AND c.id>?" +
         " AND (d.id IS NULL OR v.id IS NULL OR COALESCE(v.object_key,'')='')" +
         " ORDER BY c.id LIMIT ?",
@@ -67,7 +68,8 @@ export async function repairRegionalEpubAssets(
     " AND c.source_id IN ('pg_au','pg_ca','pg_eu')" +
     " AND c.epub_status='completed' AND c.ingest_status='active'" +
     " AND c.rights_status='public-domain' AND c.commercial_use_status='approved'" +
-    " AND" + liveGrant +
+    " AND" +
+    liveGrant +
     " AND c.content_hash=?)";
   for (const row of rows) {
     nextAfter = row.id;
