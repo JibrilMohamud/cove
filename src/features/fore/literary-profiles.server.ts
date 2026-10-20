@@ -742,7 +742,18 @@ export function literaryPreparationCapacity(
 export function preferLiterarySection(turn: number) {
   return Number.isSafeInteger(turn) && ((turn % 4) + 4) % 4 === 3;
 }
-export async function runLiteraryProfileTick(env: LiteraryEnv) {
+export type LiteraryTickCaps = {
+  maxSeeds?: number;
+  maxPrepares?: number;
+  maxDeferredSections?: number;
+  maxInferences?: number;
+};
+export function boundedLiteraryTickCap(value: number | undefined, fallback: number) {
+  return Number.isSafeInteger(value) && value! >= 0 ? Math.min(fallback, value!) : fallback;
+}
+/** Explicit caps are used only by the isolated content Worker. The original
+ * scheduler receives the same unmodified limits as before. */
+export async function runLiteraryProfileTick(env: LiteraryEnv, caps: LiteraryTickCaps = {}) {
   if (!(await config(env, "enabled", 1))) return { skipped: "disabled" };
   // A catalog sweep can generate 50 new durable preparation jobs each minute.
   // Stop enumerating once that backlog is saturated; the already-seeded titles
@@ -760,7 +771,11 @@ export async function runLiteraryProfileTick(env: LiteraryEnv) {
   // Always maintain provisional metadata profiles and estimated reading
   // times for new editions. Suppress ONLY costly preparation claims while
   // overloaded, then enqueue deferred books on the next keyset sweep.
-  const seeded = await seedLiteraryProfiles(env, 50, queuedPrepares < maxQueuedPrepares);
+  const seeded = await seedLiteraryProfiles(
+    env,
+    boundedLiteraryTickCap(caps.maxSeeds, 50),
+    queuedPrepares < maxQueuedPrepares,
+  );
   const jobs = [];
   // Source preparation writes extracted EPUB sections and queues many costly
   // inference jobs. Respect the backlog instead of endlessly creating more
@@ -779,21 +794,28 @@ export async function runLiteraryProfileTick(env: LiteraryEnv) {
     1024,
     Math.min(16384, await config(env, "max_total_pending_analysis", 4096)),
   );
-  const prepares = literaryOverviewPreparationCapacity(
+  const eligiblePrepares = literaryOverviewPreparationCapacity(
     await config(env, "prepares_per_tick", 2),
     Number(analysisCounts?.overviews || 0),
     Number(analysisCounts?.total || 0),
     maxPendingOverviews,
     maxTotalPending,
   );
+  const prepares = Math.min(eligiblePrepares, boundedLiteraryTickCap(caps.maxPrepares, 4));
   for (let n = 0; n < prepares; n++) jobs.push(await processLiteraryJob(env, false, "prepare"));
   // The section lane remains independently capped; filling deferred chapters
   // must never block creation of distinct literary book overviews.
   const sectionsPending = Number(analysisCounts?.sections || 0) + prepares * 3;
   const sectionHeadroom = Math.max(0, 2048 - sectionsPending);
-  const deferredSections = await enqueueDeferredLiterarySections(env, Math.min(2, sectionHeadroom));
+  const deferredSections = await enqueueDeferredLiterarySections(
+    env,
+    Math.min(2, sectionHeadroom, boundedLiteraryTickCap(caps.maxDeferredSections, 2)),
+  );
   if (!env.AI) return { seeded, jobs, skipped: "missing_ai" };
-  const limit = Math.max(0, Math.min(4, await config(env, "jobs_per_tick", 2)));
+  const limit = Math.max(
+    0,
+    Math.min(4, await config(env, "jobs_per_tick", 2), boundedLiteraryTickCap(caps.maxInferences, 4)),
+  );
   // Persistent alternation also works when configured to one inference per tick.
   const turn = await env.DB.prepare(
     "UPDATE literary_profile_state SET inference_turn=inference_turn+? WHERE id=1 RETURNING inference_turn",
