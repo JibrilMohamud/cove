@@ -79,10 +79,10 @@ const debitResults = await Promise.all(
   Array.from({ length: 5 }, () => reserveLiteraryBudget(content, day, 60, 400, true)),
 );
 assert.equal(debitResults.filter(Boolean).length, 3, "Atomic second-domain reservation never exceeds seeded remaining budget");
-assert.deepEqual(isolatedDb.prepare("SELECT reserved_units,calls FROM literary_profile_budget").get(), {
-  reserved_units: 350,
-  calls: 5,
-});
+assert.deepEqual(
+  { ...isolatedDb.prepare("SELECT reserved_units,calls FROM literary_profile_budget").get() },
+  { reserved_units: 350, calls: 5 },
+);
 assert.equal(primaryDb.prepare("SELECT reserved_units FROM literary_profile_budget").get().reserved_units, 170);
 isolatedDb.prepare("UPDATE literary_budget_cutover SET status='closed' WHERE day=?").run(day);
 assert.equal(await reserveLiteraryBudget(content, day, 1, 400, true), null, "SQL fence must prevent late debit after closure");
