@@ -13,6 +13,7 @@ import {
 } from "./matching.server";
 import { resolveProduct } from "./catalog-model.server";
 import { settleLiteraryOutputReservation } from "../../lib/literary-budget-settlement";
+import { reserveLiteraryBudget, resolveLiteraryBudgetDb } from "../../lib/literary-budget-domain.server";
 import { extractLiterarySections } from "./literary-extract.server";
 import {
   emptyLiteraryProfile,
@@ -30,6 +31,10 @@ import {
 export type LiteraryEnv = CoveEnv & {
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   FORE_LITERARY_ACTUAL_UNIT_SETTLEMENT?: string;
+  CONTENT_DB?: CoveEnv["DB"];
+  FORE_CONTENT_BUDGET_MODE?: string;
+  FORE_CONTENT_PROCESSOR_ENABLED?: string;
+  FORE_CONTENT_PROCESSOR_ROLE?: string;
 };
 type BookInput = {
   id: string;
@@ -457,13 +462,18 @@ async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
   const units = prompt.system.length + prompt.user.length + reservedOutput;
   const day = at().slice(0, 10),
     budget = Math.max(0, Math.min(100_000_000, await config(env, "daily_units", 2_000_000)));
+  // The ledger domain is selected before a new inference. Cached R2 results
+  // do not consume a second allowance; uncached reservations must be fenced.
+  const budgetDb = cached ? null : await resolveLiteraryBudgetDb(env, day);
   const reserved = cached
     ? true
-    : await env.DB.prepare(
-        `INSERT INTO literary_profile_budget(day,reserved_units,calls) SELECT ?,?,1 WHERE ?<=? ON CONFLICT(day) DO UPDATE SET reserved_units=reserved_units+excluded.reserved_units,calls=calls+1 WHERE reserved_units+excluded.reserved_units<=? RETURNING calls`,
-      )
-        .bind(day, units, units, budget, budget)
-        .first();
+    : await reserveLiteraryBudget(
+        budgetDb!,
+        day,
+        units,
+        budget,
+        env.FORE_CONTENT_BUDGET_MODE === "isolated",
+      );
   if (!reserved) throw new Error("daily_budget_exhausted");
   const raw = cached
     ? { response: await cached.text() }
@@ -496,7 +506,7 @@ async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
         typeof response === "string" ? response.length : JSON.stringify(response).length,
       );
       await settleLiteraryOutputReservation(
-        env.DB,
+        budgetDb!,
         day,
         prompt.system.length + prompt.user.length,
         outputCharacters,
