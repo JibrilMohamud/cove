@@ -61,6 +61,13 @@ jobs:
           FORE_CONTENT_D1_ADMISSION_MAX_MS = "100"
           EOF
             npx wrangler deploy --config "smoke-${role}.toml"
+            cat >> "smoke-${role}.toml" <<'EOFCRON'
+          [triggers]
+          crons = ["* * * * *"]
+          EOFCRON
+            # Cloudflare new Workers require first creating the script before
+            # attaching the cron trigger; the first deploy did not do so.
+            npx wrangler deploy --config "smoke-${role}.toml"
             URL="https://cove-content-off-${role}-20261020.cove-jibrilmohamud.workers.dev/"
             HTTP=$(curl --silent --show-error --retry 5 --retry-all-errors --retry-delay 2 \
               --max-time 20 -o /dev/null -w "%{http_code}" "$URL")
@@ -68,4 +75,4 @@ jobs:
             [ "$HTTP" = "404" ] || { echo "::error::Unexpected public content Worker behavior"; exit 1; }
           done
           # No scheduled content work can run in the disabled-by-default Worker.
-          echo "Both independent Workers deployed without cron, denied HTTP, and will be cleaned up."
+          echo "Both disabled independent Workers deployed, cron bindings attached after initialization, HTTP denied, and cleanup scheduled."
