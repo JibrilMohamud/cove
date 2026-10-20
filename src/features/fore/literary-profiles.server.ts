@@ -12,6 +12,7 @@ import {
   type MatchingContext,
 } from "./matching.server";
 import { resolveProduct } from "./catalog-model.server";
+import { settleLiteraryOutputReservation } from "../../lib/literary-budget-settlement";
 import { extractLiterarySections } from "./literary-extract.server";
 import {
   emptyLiteraryProfile,
@@ -28,6 +29,7 @@ import {
 
 export type LiteraryEnv = CoveEnv & {
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
+  FORE_LITERARY_ACTUAL_UNIT_SETTLEMENT?: string;
 };
 type BookInput = {
   id: string;
@@ -483,6 +485,29 @@ async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
     await env.BUCKET.put(cacheKey, JSON.stringify(profile), {
       httpMetadata: { contentType: "application/json" },
     });
+  // The pessimistic output allowance is only a reservation. Once a real,
+  // validated response is safely stored in content-addressed R2, refund the
+  // unused characters on an opt-in basis without increasing daily_units.
+  // The R2 hit on a crash/retry prevents a second refund.
+  if (!cached && env.FORE_LITERARY_ACTUAL_UNIT_SETTLEMENT === "1") {
+    try {
+      const outputCharacters = Math.max(
+        JSON.stringify(profile).length,
+        typeof response === "string" ? response.length : JSON.stringify(response).length,
+      );
+      await settleLiteraryOutputReservation(
+        env.DB,
+        day,
+        prompt.system.length + prompt.user.length,
+        outputCharacters,
+        reservedOutput,
+      );
+    } catch (error) {
+      // A settlement failure must never invalidate a successfully cached
+      // inference, double-spend, or cause a retry to refund the same work.
+      console.warn("Literary unit settlement unavailable", String(error).slice(0, 140));
+    }
+  }
   const encoded = JSON.stringify(profile),
     time = at();
   const guard = `EXISTS(SELECT 1 FROM literary_profile_jobs j JOIN literary_profiles p ON p.product_id=j.product_id AND p.fingerprint=j.fingerprint WHERE j.id=? AND j.lease_token=? AND j.status='running' AND j.lease_until>?)`;
