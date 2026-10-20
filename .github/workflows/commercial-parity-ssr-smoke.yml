@@ -53,6 +53,21 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Validate every Bash block before deployment work
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import { spawnSync } from "node:child_process";
+          import { parse } from "yaml";
+          const workflow = parse(fs.readFileSync(".github/workflows/commercial-parity-ssr-smoke.yml", "utf8"));
+          for (const step of workflow.jobs.smoke.steps) {
+            if (typeof step.run !== "string") continue;
+            const result = spawnSync("bash", ["-n"], { input: step.run, encoding: "utf8" });
+            if (result.status !== 0)
+              throw Error("Invalid Bash in " + (step.name || step.run) + ": " + result.stderr);
+          }
+          console.log("All protected deployment workflow Bash blocks parse.");
+          NODE
       - name: Report canonical formatting for changed sources
         run: |
           node --input-type=module <<'NODE'
@@ -148,7 +163,7 @@ jobs:
             sed -i "s/FORE_ANON_CONTEXT_ONE_READ = \"1\"/FORE_ANON_CONTEXT_ONE_READ = \"$one_read\"/" wrangler.commercial-parity.stage.toml
             grep -q "FORE_ANON_CONTEXT_ONE_READ = \"$one_read\"" wrangler.commercial-parity.stage.toml || return 1
             npx wrangler@4.151.3 deploy --config wrangler.commercial-parity.stage.toml || return 1
-            export COVE_STAGE_SECRET_ROTATION_EPOCH_MS="$(node -p Date.now())"
+            export COVE_STAGE_SECRET_ROTATION_EPOCH_MS="$(node -p 'Date.now()')"
             printf %s "$STAGE_TOKEN" | npx wrangler@4.151.3 secret put COVE_SSR_STAGING_GATE_KEY \
               --config wrangler.commercial-parity.stage.toml || return 1
             node scripts/staging/wait-commercial-parity-deployment.mjs || return 1
