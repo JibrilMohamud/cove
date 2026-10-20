@@ -13,6 +13,12 @@ export default {
       "X-Cove-Stage-Context-Mode",
       env.FORE_ANON_CONTEXT_ONE_READ === "1" ? "one-read" : "baseline",
     );
+    headers.set(
+      "X-Cove-Stage-Bootstrap-Transport",
+      env.FORE_ANON_CONTEXT_ONE_READ === "1" && env.FORE_ANON_BOOTSTRAP_BATCH === "1"
+        ? "primary-batch"
+        : "individual",
+    );
     headers.append(
       "Server-Timing",
       `cove_worker_dispatch;dur=${(performance.now() - started).toFixed(1)}`,

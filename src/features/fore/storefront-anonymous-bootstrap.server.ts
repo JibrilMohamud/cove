@@ -10,6 +10,7 @@ import {
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
 import { singleflightAnonymousPresentation } from "./anonymous-context-singleflight.server";
+import { anonymousBootstrapReadBatch } from "./anonymous-bootstrap-read-batch.server";
 import type { CoveEnv } from "./api.server";
 
 /**
@@ -54,7 +55,8 @@ export function canUseLeanAnonymousBootstrap(
  * All three independent checks complete before returning any data. An
  * edge-side locale/market read may be a replica, but authoritative
  * country-filtered retail availability STILL queries env.DB (primary).
- * A new session is created for each independent presentation read.
+ * A new session is created for each independent presentation read. The
+ * opt-in staging batch instead sends all three reads to primary together.
  */
 export async function serveLeanAnonymousBootstrap(
   request: Request,
@@ -73,24 +75,34 @@ export async function serveLeanAnonymousBootstrap(
     }
   };
   const rawDb = env.DB!;
+  const experiment = env as CoveEnv & {
+    FORE_ANON_CONTEXT_ONE_READ?: string;
+    FORE_ANON_BOOTSTRAP_BATCH?: string;
+  };
+  const oneRead = env.COVE_SSR_STAGING === "1" && experiment.FORE_ANON_CONTEXT_ONE_READ === "1";
+  const readBatch =
+    oneRead && experiment.FORE_ANON_BOOTSTRAP_BATCH === "1"
+      ? anonymousBootstrapReadBatch(rawDb)
+      : null;
   const configDb = rawDb as typeof rawDb & {
     withSession?: (constraint: "first-unconstrained") => typeof rawDb;
   };
   const readMetadata = () =>
-    typeof configDb.withSession === "function"
-      ? configDb.withSession("first-unconstrained")
-      : rawDb;
+    readBatch
+      ? readBatch.db
+      : typeof configDb.withSession === "function"
+        ? configDb.withSession("first-unconstrained")
+        : rawDb;
   const ip = request.headers.get("cf-connecting-ip")!.trim();
   // No cookie/account data is present. This same canonical resolver also
   // drives resolveStorefrontContext's country for anonymous visitors.
   const trustedCountry = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country;
   const d1Metrics: { sqlDurationMs?: number; rowsRead?: number; attempts?: number } = {};
-  // Launch the authoritative primary-rights query *before* waiting for
-  // independent replica presentation reads. No book leaves the Worker until
-  // the rate limiter, markets, context, page and rights checks ALL succeed.
+  // Launch the authoritative primary-rights query without waiting for the
+  // presentation reads. The staging batch queues all three before dispatch.
+  // No book leaves until rate limit, context, page and rights checks succeed.
   const resolveContext = () =>
-    env.COVE_SSR_STAGING === "1" &&
-    (env as CoveEnv & { FORE_ANON_CONTEXT_ONE_READ?: string }).FORE_ANON_CONTEXT_ONE_READ === "1"
+    oneRead
       ? resolveAnonymousStorefrontContext(
           readMetadata(),
           request,
@@ -106,8 +118,9 @@ export async function serveLeanAnonymousBootstrap(
         );
   const contextPromise = timed(
     "context",
-    (env as CoveEnv & { FORE_ANON_CONTEXT_SINGLEFLIGHT?: string })
-      .FORE_ANON_CONTEXT_SINGLEFLIGHT === "1"
+    !readBatch &&
+      (env as CoveEnv & { FORE_ANON_CONTEXT_SINGLEFLIGHT?: string })
+        .FORE_ANON_CONTEXT_SINGLEFLIGHT === "1"
       ? singleflightAnonymousPresentation(rawDb, request, trustedCountry, true, resolveContext)
       : resolveContext(),
   );
@@ -138,8 +151,19 @@ export async function serveLeanAnonymousBootstrap(
     timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
     // NULL currency means active-market currency is looked up in this SAME
     // live primary D1 statement with the full retail-grant view.
-    timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics)),
+    timed(
+      "catalog",
+      firstPaintStorefrontShelf(
+        readBatch ? { ...env, DB: readBatch.db } : env,
+        null,
+        trustedCountry,
+        d1Metrics,
+      ),
+    ),
     pagePromise,
+    // All three first queries enqueue synchronously before this flush. Attach
+    // all consumers together so even synchronous prepare failures are observed.
+    readBatch?.flush(),
   ]);
   if (context.rightsCountry !== trustedCountry)
     throw new Error("Anonymous country mismatch; refuse to render a legal-rights shelf.");

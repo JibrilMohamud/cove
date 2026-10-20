@@ -14,6 +14,7 @@ import { validateHtml, percentile } from "../check-production-storefront-perform
 const origin = "https://cove-commercial-parity-ssr-staging-20261020.cove-jibrilmohamud.workers.dev";
 const key = process.env.COVE_SSR_STAGING_GATE_KEY;
 const expectedArm = process.env.COVE_STAGE_EXPERIMENT_ARM;
+const expectedBootstrapTransport = expectedArm === "one-read" ? "primary-batch" : "individual";
 if (expectedArm) assert.ok(["baseline", "one-read"].includes(expectedArm));
 assert.match(key || "", /^[a-f0-9]{64}$/, "A temporary 256-bit staging bearer is mandatory");
 const headers = {
@@ -63,6 +64,7 @@ async function request(path = "/", options = {}) {
     return {
       status: response.status,
       contextMode: response.headers.get("x-cove-stage-context-mode") || "unknown",
+      bootstrapTransport: response.headers.get("x-cove-stage-bootstrap-transport") || "unknown",
       ttfbMs,
       contentEncoding: response.headers.get("content-encoding") || "identity",
       decodedBytes: Buffer.byteLength(body, "utf8"),
@@ -93,7 +95,7 @@ async function request(path = "/", options = {}) {
 }
 const results = {
   transport: stageTransport,
-  workerClock: "I/O-progress clock; worker timings exclude CPU-only execution",
+  workerClock: "I/O-progress clock; cannot isolate CPU, queueing or network time",
   scope: "schema-parity isolated D1, 1000 SYNTHETIC books, zero customer accounts/orders",
   validations: {},
   waves: [],
@@ -109,12 +111,24 @@ results.validations.unauthorized401 = true;
 let ready = { status: 0 };
 for (let attempt = 0; attempt < 20; attempt++) {
   ready = await request("/api/fore/health/ready");
-  if (ready.status === 200 && (!expectedArm || ready.contextMode === expectedArm)) break;
+  if (
+    ready.status === 200 &&
+    (!expectedArm ||
+      (ready.contextMode === expectedArm &&
+        ready.bootstrapTransport === expectedBootstrapTransport))
+  )
+    break;
   await new Promise((resolve) => setTimeout(resolve, 1000));
 }
 assert.equal(ready.status, 200, "Authorized D1 readiness must pass before performance sampling");
-if (expectedArm)
+if (expectedArm) {
   assert.equal(ready.contextMode, expectedArm, "Fresh deployment arm must be active");
+  assert.equal(
+    ready.bootstrapTransport,
+    expectedBootstrapTransport,
+    "Fresh bootstrap transport must be active",
+  );
+}
 const health = JSON.parse(ready.body);
 assert.equal(health.ok, true);
 assert.equal(health.database, true);
@@ -169,6 +183,7 @@ for (const wave of waves) {
           wireBytes: response.wireBytes,
           totalMs: response.totalMs,
           contextMode: response.contextMode,
+          bootstrapTransport: response.bootstrapTransport,
           colo: response.colo,
           placement: response.placement,
           clientQueueMs: response.clientQueueMs,
@@ -184,6 +199,7 @@ for (const wave of waves) {
           edgeBootstrapMs: serverDuration(response.timings, "cove_backend_bootstrap"),
           authorized:
             (!expectedArm || response.contextMode === expectedArm) &&
+            (!expectedArm || response.bootstrapTransport === expectedBootstrapTransport) &&
             !!cards &&
             response.status === 200 &&
             /no-store/i.test(response.cacheControl) &&

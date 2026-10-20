@@ -65,7 +65,7 @@ const select = (i) =>
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 const stageReport = {
   transport: stageTransport,
-  workerClock: "I/O-progress clock; worker timings exclude CPU-only execution",
+  workerClock: "I/O-progress clock; cannot isolate CPU, queueing or network time",
   scope:
     "Cloudflare protected isolated 508-table staging DB, 1000 synthetic books; NO customer accounts, orders, music, production D1 or routing",
   limits: { maxInflight, hardTtfbMs: 800, p95Ms: 600, p99Ms: 750 },
@@ -94,6 +94,9 @@ async function fetchOne(route) {
     const body = await response.text();
     let valid =
       (!expectedArm || response.headers.get("x-cove-stage-context-mode") === expectedArm) &&
+      (!expectedArm ||
+        response.headers.get("x-cove-stage-bootstrap-transport") ===
+          (expectedArm === "one-read" ? "primary-batch" : "individual")) &&
       response.status === 200 &&
       /no-store/i.test(response.headers.get("cache-control") || "");
     if (valid && route.name === "home") {
@@ -136,6 +139,7 @@ async function fetchOne(route) {
     return {
       status,
       contextMode: response.headers.get("x-cove-stage-context-mode") || "unknown",
+      bootstrapTransport: response.headers.get("x-cove-stage-bootstrap-transport") || "unknown",
       valid,
       ttfbMs,
       contentEncoding: response.headers.get("content-encoding") || "identity",

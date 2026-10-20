@@ -333,6 +333,173 @@ try {
     ...value,
     search: { ...value.search, queryId: null, processingTimeMs: null },
   });
+  const bootstrapRequest = (country = "US", language = "en-US", extra = {}) =>
+    new Request("https://cove.test/api/fore/storefront/bootstrap", {
+      headers: { ...publicHeaders(country, language), ...extra },
+    });
+  const stableBootstrap = (value) => ({
+    ...value,
+    at: null,
+    catalog: stableCatalog(value.catalog),
+  });
+  let batchCalls = 0;
+  const batchSizes = [];
+  const batchEnv = {
+    ...leanCatalogEnv,
+    FORE_ANON_BOOTSTRAP_BATCH: "1",
+    // This flag must not defer context enqueueing beyond the request flush.
+    FORE_ANON_CONTEXT_SINGLEFLIGHT: "1",
+    DB: new Proxy(env.DB, {
+      get(target, key) {
+        if (key === "withSession")
+          return () => {
+            throw Error("Batch must use primary");
+          };
+        if (key === "batch")
+          return async (statements) => {
+            batchCalls++;
+            batchSizes.push(statements.length);
+            return (await target.batch(statements)).map((result, index) => ({
+              ...result,
+              meta: { ...result.meta, timings: { sql_duration_ms: 10 + index }, rows_read: 480 },
+            }));
+          };
+        if (key === "prepare")
+          return (sql) => {
+            const wrap = (statement) => ({
+              bind: (...values) => wrap(statement.bind(...values)),
+              all: () => {
+                throw Error("Independent read escaped bootstrap batch");
+              },
+              first: () => {
+                throw Error("Independent read escaped bootstrap batch");
+              },
+              run: () => statement.run(),
+            });
+            return wrap(target.prepare(sql));
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }),
+  };
+  for (const [country, language] of [
+    ["US", "en-US"],
+    ["CA", "fr-FR"],
+    ["SA", "ar-SA"],
+    ["JP", "en-US"],
+  ]) {
+    const req = bootstrapRequest(country, language);
+    const ordinary = await (await serveLeanAnonymousBootstrap(req, leanCatalogEnv)).json();
+    const before = batchCalls;
+    const batchResponse = await serveLeanAnonymousBootstrap(req, batchEnv);
+    assert.match(
+      batchResponse.headers.get("server-timing"),
+      /cove_catalog_sql;dur=12\.0/,
+      "Native batch per-statement SQL metadata survives transport",
+    );
+    const batched = await batchResponse.json();
+    assert.deepEqual(
+      stableBootstrap(batched),
+      stableBootstrap(ordinary),
+      "Complete bootstrap parity: " + country,
+    );
+    assert.equal(batchCalls - before, 1, "One primary service call per bootstrap");
+    assert.equal(batchSizes.at(-1), 3, "Context, page and live rights in same native batch");
+  }
+  // Concurrent requests never share a rights decision or batch result. The
+  // local SQLite test binding serializes transactions; production D1 does too.
+  const concurrentSizes = [];
+  let transaction = Promise.resolve();
+  const concurrentEnv = {
+    ...batchEnv,
+    DB: {
+      prepare: env.DB.prepare,
+      batch(statements) {
+        concurrentSizes.push(statements.length);
+        const result = transaction.then(() => env.DB.batch(statements));
+        transaction = result.catch(() => {});
+        return result;
+      },
+    },
+  };
+  await Promise.all(
+    Array.from({ length: 8 }, () => serveLeanAnonymousBootstrap(bootstrapRequest(), concurrentEnv)),
+  );
+  assert.deepEqual(concurrentSizes, Array(8).fill(3));
+  for (const key of [
+    "cookie",
+    "authorization",
+    "oai-authenticated-user-id",
+    "oai-authenticated-user-email",
+    "x-fore-authenticated-user-id",
+    "x-fore-authenticated-user-email",
+  ]) {
+    assert.equal(
+      (
+        await serveLeanAnonymousBootstrap(
+          bootstrapRequest("US", "en-US", { [key]: "private" }),
+          batchEnv,
+        )
+      ).status,
+      403,
+    );
+  }
+  await assert.rejects(
+    serveLeanAnonymousBootstrap(bootstrapRequest(), {
+      ...batchEnv,
+      COVE_STOREFRONT_READ_LIMITER: {
+        async limit() {
+          return { success: false };
+        },
+      },
+    }),
+    (error) => error.status === 429,
+  );
+  const unhandled = [];
+  const onUnhandled = (error) => unhandled.push(error);
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    for (const failAt of [1, 2, 3]) {
+      let prepares = 0;
+      await assert.rejects(
+        serveLeanAnonymousBootstrap(bootstrapRequest(), {
+          ...batchEnv,
+          DB: {
+            prepare(sql) {
+              if (++prepares === failAt) throw Error("Synthetic prepare outage");
+              return env.DB.prepare(sql);
+            },
+            batch: env.DB.batch,
+          },
+        }),
+        /Synthetic prepare outage/,
+      );
+    }
+    for (const batch of [
+      async () => {
+        throw Error("Synthetic batch outage");
+      },
+      async () => [],
+      async () => [{ results: [], success: false }, { results: [] }, { results: [] }],
+      async () =>
+        Array.from({ length: 3 }, () => ({ results: [], meta: { served_by_primary: false } })),
+    ]) {
+      await assert.rejects(
+        serveLeanAnonymousBootstrap(bootstrapRequest(), {
+          ...batchEnv,
+          DB: { prepare: env.DB.prepare, batch },
+        }),
+        /Synthetic batch outage|Incomplete bootstrap|must execute on primary D1/,
+      );
+    }
+    await new Promise(setImmediate);
+    assert.deepEqual(unhandled, [], "Every rejected query is observed");
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+  }
+  // Bootstrap probes above use the same limiter; count catalog probes alone.
+  leanLimitCalls = 0;
   const compareCatalog = async (country, language, currency) => {
     const req = new Request(browseUrl(currency), { headers: publicHeaders(country, language) });
     assert.equal(canUseLeanAnonymousCatalog(req, leanCatalogEnv), true);
@@ -401,6 +568,11 @@ try {
       .all()
   ).results;
   assert.ok(original.length);
+  assert.ok(
+    (
+      await (await serveLeanAnonymousBootstrap(bootstrapRequest(), batchEnv)).json()
+    ).catalog.results.some((book) => book.productId === selected),
+  );
   try {
     await env.DB.prepare("UPDATE rights_grants SET decision='deny' WHERE edition_id=?")
       .bind(product.edition_id)
@@ -411,6 +583,13 @@ try {
       false,
       "A live explicit deny must immediately remove a previously returned book",
     );
+    assert.equal(
+      (
+        await (await serveLeanAnonymousBootstrap(bootstrapRequest(), batchEnv)).json()
+      ).catalog.results.some((book) => book.productId === selected),
+      false,
+      "A new primary batch observes the committed deny",
+    );
   } finally {
     for (const grant of original)
       await env.DB.prepare("UPDATE rights_grants SET decision=? WHERE id=?")
@@ -420,6 +599,12 @@ try {
   // The public candidate-page cache may lag additions until producer refresh.
   // Denials above must be immediate even while that candidate cache is warm.
   await env.DB.prepare("DELETE FROM api_cache WHERE key LIKE 'search-page:v1:%'").run();
+  assert.ok(
+    (
+      await (await serveLeanAnonymousBootstrap(bootstrapRequest(), batchEnv)).json()
+    ).catalog.results.some((book) => book.productId === selected),
+    "Fresh primary batch observes restored rights",
+  );
   assert.ok(
     (await compareCatalog("US", "en-US", "USD")).results.some(
       (book) => book.productId === selected,
