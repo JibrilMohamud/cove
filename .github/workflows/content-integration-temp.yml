@@ -36,8 +36,8 @@ jobs:
           assert s.count(mark)==1 and 'FORE_CONTENT_PIPELINE_EXTERNAL?: string;' not in s
           s=s.replace(mark,mark+'\n    FORE_CONTENT_PIPELINE_EXTERNAL?: string;')
           import re
-          old_pattern = r"(?m)^      for \\(const work of \\[\\n        \\(\\) => runStoredAssetTick\\(env\\),\\n        \\(\\) => verifyAudioStorage\\(env\\),\\n        \\(\\) => runLiteraryProfileTick\\(env\\),\\n        \\(\\) => seedMusicProfiles\\(env\\),\\n      \\]\\) \\{"
-          updated = "\\n".join([
+          old_pattern = re.escape("      for (const work of [") + r"[\s\S]*?" + re.escape("]) {")
+          updated = "\n".join([
               "      // Opt-in externalization only after both dedicated Workers have been",
               "      // deployed and verified. Defaults to today's inline scheduling.",
               '      const external = env.FORE_CONTENT_PIPELINE_EXTERNAL === "1";',
