@@ -1,6 +1,7 @@
 import type { CatalogBook } from "../features/fore/client";
 import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap";
 import { formatMinorCurrency } from "../features/fore/currency";
+import { renderThinExperience } from "./experience";
 
 const escape = (value: unknown) =>
   String(value ?? "").replace(
@@ -57,7 +58,13 @@ function card(book: CatalogBook, index: number) {
 }
 
 /** No framework runtime, serialized grant, hydration payload, or shared HTML cache. */
-export function renderThinStorefront(bootstrap: StorefrontBootstrap, origin: string) {
+export function renderThinStorefront(
+  bootstrap: StorefrontBootstrap,
+  origin: string,
+  experience = false,
+) {
+  if (experience)
+    return renderThinExperience(bootstrap, origin, bootstrap.catalog.results.map(card).join(""));
   const { context, catalog, page } = bootstrap;
   const title = page.title || "Discover your next great read";
   const description = page.description || "Good books. Open to everyone.";

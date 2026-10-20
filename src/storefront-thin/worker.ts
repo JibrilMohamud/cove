@@ -87,7 +87,13 @@ export default {
       }
       failurePhase = "render";
       return finish(
-        new Response(renderThinStorefront(bootstrap, env.FORE_PUBLIC_URL || url.origin), {
+        new Response(
+          renderThinStorefront(
+            bootstrap,
+            env.FORE_PUBLIC_URL || url.origin,
+            (env as ThinRuntimeEnv & { COVE_THIN_EXPERIENCE?: string }).COVE_THIN_EXPERIENCE === "1",
+          ),
+          {
           headers: {
             "content-type": "text/html; charset=utf-8",
             "cache-control": "private, no-store",

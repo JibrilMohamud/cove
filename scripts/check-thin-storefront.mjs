@@ -40,6 +40,7 @@ try {
       "api.server": "src/features/fore/api.server.ts",
       client: "src/storefront-thin/synthetic-client.ts",
       render: "src/storefront-thin/render.ts",
+      experience: "src/storefront-thin/experience.ts",
       ingress: "src/storefront-thin/benchmark-ingress.ts",
       failure: "src/storefront-thin/failure.ts",
       "storefront-anonymous-bootstrap.server":
@@ -276,9 +277,22 @@ try {
       formats: { "image/jpeg": "javascript:alert(1)" },
     },
   ];
-  const escaped = renderThinStorefront(bad, "https://cove.test");
-  assert.doesNotMatch(escaped, /<script|javascript:/);
+  const enhanced = renderThinStorefront(initial, "https://cove.test", true);
+  assert.match(enhanced, /id="thin-discovery-form"/);
+  assert.match(enhanced, /id="thin-locale"/);
+  assert.match(enhanced, /id="thin-merchandising"/);
+  assert.match(enhanced, /id="thin-install"/);
+  assert.match(enhanced, /data-rights-country="US"/);
+  assert.deepEqual(
+    [...enhanced.matchAll(/data-product="([^"]+)"/g)].map((x) => x[1]),
+    initial.catalog.results.map((x) => x.productId),
+    "interactive shell must use precisely the same primary-authorized ordered edition shelf",
+  );
+  const escaped = renderThinStorefront(bad, "https://cove.test", true);
+  assert.doesNotMatch(escaped, /<script>alert|javascript:/);
   assert.match(escaped, /&lt;script&gt;/);
+  assert.match(escaped, /<script type="module">/);
+  assert.doesNotMatch(escaped, /<script type="module">[^]*?<script>alert/);
   console.log(
     "PASS: thin storefront ordered rights parity across US/CA/SA/JP; immediate grant revocation; identity fallback; forged geo rejection; outage/limiter fail-closed; escaping.",
   );
