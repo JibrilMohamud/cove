@@ -27,6 +27,7 @@ try {
   const env = localBindings(root);
   const at = "2026-10-20T00:00:00.000Z";
   const hash = "a".repeat(64);
+  await env.DB.prepare("INSERT OR IGNORE INTO territories(code,name) VALUES('AU','Australia')").run();
   async function seed(id, options = {}) {
     const status = options.status ?? "completed";
     const rights = options.rights ?? "approved";
@@ -72,6 +73,13 @@ try {
     )
       .bind("prd_gutenberg_" + id, edition, "sku_" + id, id, at, at)
       .run();
+    await env.DB.prepare(
+      "INSERT INTO rights_grants(id,edition_id,territory_code,format,license_type,created_at," +
+        "source,sales_channel,status,decision) VALUES(?,?,'AU','ebook','public-domain',?," +
+        "'gutenberg-pg_au-public-domain','retail',?,'allow')",
+    )
+      .bind("rg_test_" + id, edition, at, options.grantStatus ?? "active")
+      .run();
     return edition;
   }
 
@@ -79,6 +87,7 @@ try {
   const b = await seed("pgau_9100002");
   const c = await seed("pgau_9100003");
   await seed("pgau_9100004", { rights: "pending" });
+  const revoked = await seed("pgau_9100006", { grantStatus: "revoked" });
   const envWithR2 = {
     ...env,
     BUCKET: {
@@ -86,9 +95,9 @@ try {
         if (key.endsWith("9100002.epub")) return null;
         if (key.endsWith("9100003.epub")) {
           await env.DB.prepare(
-            "UPDATE gutenberg_source_cache SET commercial_use_status='quarantined' WHERE id=?",
+            "UPDATE rights_grants SET status='revoked' WHERE edition_id=?",
           )
-            .bind("pgau_9100003")
+            .bind(c)
             .run();
         }
         return {
@@ -101,11 +110,16 @@ try {
   };
 
   const result = await repairRegionalEpubAssets(envWithR2, { limit: 8 });
-  assert.equal(result.scanned, 3, "pending commercial approval is never a repair candidate");
+  assert.equal(result.scanned, 3, "pending source approval or revoked grants are never repair candidates");
   assert.equal(result.repaired, 1, "verified completed regional EPUB is restored");
   assert.equal(result.missingOrMismatched, 1, "missing R2 object must fail closed");
-  assert.equal(result.conflicts, 1, "rights withdrawal between HEAD and write blocks repair");
+  assert.equal(result.conflicts, 1, "live grant revocation between HEAD and write blocks repair");
   assert.equal(result.nextAfter, "pgau_9100003");
+  assert.equal(
+    (await env.DB.prepare("SELECT commercial_use_status FROM gutenberg_source_cache WHERE id='pgau_9100003'").first()).commercial_use_status,
+    "approved",
+    "active source approval alone must not defeat separate live-grant revocation",
+  );
   const asset = await env.DB.prepare(
     "SELECT v.object_key,v.sha256 FROM digital_assets d JOIN asset_versions v" +
       " ON d.current_version_id=v.id WHERE d.edition_id=?",
@@ -114,7 +128,7 @@ try {
     .first();
   assert.equal(asset.object_key, "epubs/pgau_9100001.epub");
   assert.equal(asset.sha256, hash);
-  for (const id of [b, c, "ed_gutenberg_pgau_9100004"]) {
+  for (const id of [b, c, revoked, "ed_gutenberg_pgau_9100004"]) {
     assert.equal(
       (
         await env.DB.prepare("SELECT COUNT(*) n FROM digital_assets WHERE edition_id=?")
