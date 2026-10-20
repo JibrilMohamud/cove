@@ -36,6 +36,7 @@
   "vars": {
     "COVE_SSR_STAGING": "1",
     "COVE_THIN_STOREFRONT": "synthetic-only",
+    "COVE_THIN_METADATA_CACHE": "1",
     "FORE_ENVIRONMENT": "production",
     "FORE_DEFAULT_TERRITORY": "US",
     "FORE_PUBLIC_URL": "https://cove-thin-pilot-staging.cove-jibrilmohamud.workers.dev",
