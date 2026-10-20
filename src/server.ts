@@ -72,6 +72,7 @@ export default {
         COVE_SSR_STAGING?: string;
         COVE_SSR_STAGING_GATE_KEY?: string;
         FORE_LEAN_ANON_PUBLIC_API?: string;
+        FORE_LEAN_ANON_CATALOG?: string;
         FORE_PUBLIC_URL?: string;
         FORE_ENVIRONMENT?: string;
         FORE_CSP_REPORT_URI?: string;
@@ -149,6 +150,20 @@ export default {
         const lean = await import("./features/fore/storefront-anonymous-bootstrap.server");
         if (lean.canUseLeanAnonymousBootstrap(request, foreEnv as any)) {
           const response = await lean.serveLeanAnonymousBootstrap(request, foreEnv as any);
+          return stageNoStore(applySecurityHeaders(request, response, foreEnv), true);
+        }
+      }
+      // Strict stage-only default browse. All other catalog queries and every
+      // session/cookie/account request still use the full canonical API.
+      if (
+        staging &&
+        foreEnv.FORE_LEAN_ANON_CATALOG === "1" &&
+        request.method === "GET" &&
+        new URL(request.url).pathname === "/api/fore/catalog"
+      ) {
+        const lean = await import("./features/fore/storefront-anonymous-catalog.server");
+        if (lean.canUseLeanAnonymousCatalog(request, foreEnv as any)) {
+          const response = await lean.serveLeanAnonymousCatalog(request, foreEnv as any);
           return stageNoStore(applySecurityHeaders(request, response, foreEnv), true);
         }
       }
