@@ -1,0 +1,30 @@
+name: Temporary literary D1 budget formatter
+on:
+  push:
+    branches:
+      - feat/literary-budget-d1-isolation-20261020
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/literary-budget-d1-isolation-20261020
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prettier --write src/lib/literary-budget-domain.server.ts src/features/fore/literary-profiles.server.ts scripts/check-literary-budget-domain.mjs
+      - name: Commit only scoped formatting
+        run: |
+          if ! git diff --quiet -- src/lib/literary-budget-domain.server.ts src/features/fore/literary-profiles.server.ts scripts/check-literary-budget-domain.mjs; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add src/lib/literary-budget-domain.server.ts src/features/fore/literary-profiles.server.ts scripts/check-literary-budget-domain.mjs
+            git commit -m 'style(literary): format isolated D1 quota migration'
+            git push origin HEAD:feat/literary-budget-d1-isolation-20261020
+          fi
