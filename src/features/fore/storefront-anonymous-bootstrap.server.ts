@@ -1,4 +1,4 @@
-import { networkCountry, resolveAnonymousHomepageContext } from "./localization.server";
+import { networkCountry, resolveAnonymousHomepageContext, type StorefrontContext } from "./localization.server";
 import { formatGenericStorefrontPageRecord } from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
@@ -51,6 +51,7 @@ export async function serveLeanAnonymousBootstrap(
   request: Request,
   env: CoveEnv,
   onFailure?: (phase: string, error: unknown) => void,
+  loadPresentation?: (read: () => Promise<StorefrontContext>) => Promise<StorefrontContext>,
 ): Promise<Response> {
   if (!canUseLeanAnonymousBootstrap(request, env))
     return new Response(null, { status: 403, headers: { "cache-control": "no-store" } });
@@ -85,7 +86,9 @@ export async function serveLeanAnonymousBootstrap(
   // the rate limiter, markets, context, page and rights checks ALL succeed.
   const contextPromise = timed(
     "context",
-    resolveAnonymousHomepageContext(readMetadata(), request, env.FORE_DEFAULT_TERRITORY || "US"),
+    loadPresentation
+      ? loadPresentation(() => resolveAnonymousHomepageContext(readMetadata(), request, env.FORE_DEFAULT_TERRITORY || "US"))
+      : resolveAnonymousHomepageContext(readMetadata(), request, env.FORE_DEFAULT_TERRITORY || "US"),
   );
   // The read-only metadata batch now also performs the active market/locale
   // lookup. No second dependent D1 service call is needed for anonymous SSR.
