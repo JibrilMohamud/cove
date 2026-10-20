@@ -383,7 +383,6 @@ export async function resolveStorefrontContext(
   };
 }
 
-
 /**
  * Resolve cookie-free anonymous presentation configuration in one D1 read.
  * Market/locale selection, translation fallback and payment methods share a
@@ -398,14 +397,21 @@ export async function resolveAnonymousStorefrontContext(
 ): Promise<StorefrontContext> {
   if (
     request.method !== "GET" ||
-    ["cookie", "authorization", "oai-authenticated-user-id", "oai-authenticated-user-email",
-      "x-fore-authenticated-user-id", "x-fore-authenticated-user-email"]
-      .some((header) => request.headers.has(header))
-  ) throw new ApiError(400, "Anonymous context requires a cookie-free, anonymous GET.");
+    [
+      "cookie",
+      "authorization",
+      "oai-authenticated-user-id",
+      "oai-authenticated-user-email",
+      "x-fore-authenticated-user-id",
+      "x-fore-authenticated-user-email",
+    ].some((header) => request.headers.has(header))
+  )
+    throw new ApiError(400, "Anonymous context requires a cookie-free, anonymous GET.");
   const network = networkCountry(request, fallbackCountry);
   const requested = JSON.stringify(
-    parseAcceptLanguage(request.headers.get("accept-language") || "")
-      .map((locale) => locale.trim().replace(/_/g, "-").toLowerCase()),
+    parseAcceptLanguage(request.headers.get("accept-language") || "").map((locale) =>
+      locale.trim().replace(/_/g, "-").toLowerCase(),
+    ),
   );
   const marketProjection = includeMarkets
     ? `,(SELECT json_group_array(json_object(
@@ -421,7 +427,9 @@ export async function resolveAnonymousStorefrontContext(
           FROM storefront_markets sm WHERE sm.market_status='active' ORDER BY sm.display_name
         )) available_markets_json`
     : "";
-  const row = await db.prepare(`
+  const row = await db
+    .prepare(
+      `
     WITH RECURSIVE chosen_market AS (
       SELECT * FROM storefront_markets
       WHERE country_code IN (?, 'US') AND market_status='active'
@@ -476,25 +484,49 @@ export async function resolveAnonymousStorefrontContext(
       )) messages_json
       ${marketProjection}
     FROM chosen_market m LEFT JOIN selected_locale l ON 1=1
-  `).bind(network.country, network.country, requested, requested).first<{
-    country_code: string; default_currency: string; tax_inclusive_default: number;
-    recommendation_region: string; merchandising_region: string; checkout_enabled: number;
-    active_locale: string | null; active_language_code: string | null; active_direction: string | null;
-    payment_methods_json: string; messages_json: string; available_markets_json?: string;
-  }>();
+  `,
+    )
+    .bind(network.country, network.country, requested, requested)
+    .first<{
+      country_code: string;
+      default_currency: string;
+      tax_inclusive_default: number;
+      recommendation_region: string;
+      merchandising_region: string;
+      checkout_enabled: number;
+      active_locale: string | null;
+      active_language_code: string | null;
+      active_direction: string | null;
+      payment_methods_json: string;
+      messages_json: string;
+      available_markets_json?: string;
+    }>();
   if (!row) throw new ApiError(503, "No active Cove storefront market is configured.");
-  if (!row.active_locale) throw new ApiError(503, "This storefront has no active locale configured.");
+  if (!row.active_locale)
+    throw new ApiError(503, "This storefront has no active locale configured.");
   const methods = JSON.parse(row.payment_methods_json) as StorefrontContext["paymentMethods"];
-  const messages = JSON.parse(row.messages_json) as { message_key: string; message_value: string }[];
+  const messages = JSON.parse(row.messages_json) as {
+    message_key: string;
+    message_value: string;
+  }[];
   const availableMarkets = includeMarkets
-    ? (JSON.parse(row.available_markets_json || "[]") as {
-        countryCode: string; displayName: string; defaultLocale: string;
-        defaultCurrency: string; taxInclusive: number; checkoutEnabled: number; locales: string;
-      }[]).map((market) => ({
+    ? (
+        JSON.parse(row.available_markets_json || "[]") as {
+          countryCode: string;
+          displayName: string;
+          defaultLocale: string;
+          defaultCurrency: string;
+          taxInclusive: number;
+          checkoutEnabled: number;
+          locales: string;
+        }[]
+      ).map((market) => ({
         ...market,
         taxInclusive: !!market.taxInclusive,
         checkoutEnabled: !!market.checkoutEnabled,
-        locales: String(market.locales || "").split(",").filter(Boolean),
+        locales: String(market.locales || "")
+          .split(",")
+          .filter(Boolean),
       }))
     : undefined;
   return {

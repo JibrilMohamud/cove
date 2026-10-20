@@ -1,4 +1,8 @@
-import { networkCountry, resolveStorefrontContext, resolveAnonymousStorefrontContext } from "./localization.server";
+import {
+  networkCountry,
+  resolveStorefrontContext,
+  resolveAnonymousStorefrontContext,
+} from "./localization.server";
 import {
   prefetchAnonymousHomepageCandidates,
   resolvePrefetchedAnonymousHomepage,
@@ -86,8 +90,19 @@ export async function serveLeanAnonymousBootstrap(
   const resolveContext = () =>
     env.COVE_SSR_STAGING === "1" &&
     (env as CoveEnv & { FORE_ANON_CONTEXT_ONE_READ?: string }).FORE_ANON_CONTEXT_ONE_READ === "1"
-      ? resolveAnonymousStorefrontContext(readMetadata(), request, env.FORE_DEFAULT_TERRITORY || "US", true)
-      : resolveStorefrontContext(readMetadata(), request, null, env.FORE_DEFAULT_TERRITORY || "US", true);
+      ? resolveAnonymousStorefrontContext(
+          readMetadata(),
+          request,
+          env.FORE_DEFAULT_TERRITORY || "US",
+          true,
+        )
+      : resolveStorefrontContext(
+          readMetadata(),
+          request,
+          null,
+          env.FORE_DEFAULT_TERRITORY || "US",
+          true,
+        );
   const contextPromise = timed(
     "context",
     (env as CoveEnv & { FORE_ANON_CONTEXT_SINGLEFLIGHT?: string })
