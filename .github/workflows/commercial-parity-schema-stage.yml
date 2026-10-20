@@ -6,6 +6,7 @@ on:
     paths:
       - "wrangler.commercial-parity.stage.toml"
       - "scripts/staging/verify-schema-only-export.mjs"
+      - "scripts/staging/reconstruct-d1-schema-only.mjs"
       - ".github/workflows/commercial-parity-schema-stage.yml"
 permissions:
   contents: read
@@ -37,12 +38,9 @@ jobs:
           ! grep -q '4bd657ac-8789-403e-a28c-93aba8d0a989' wrangler.commercial-parity.stage.toml
           grep -q 'bucket_name = "cove-commercial-parity-media-20261020"' wrangler.commercial-parity.stage.toml
           ! grep -q 'cove-production-media' wrangler.commercial-parity.stage.toml
-      - name: Export production schema ONLY — no records, secrets or media
+      - name: Reconstruct schema ONLY from read-only D1 catalog (FTS-safe)
         run: |
-          npx wrangler@4.151.0 d1 export cove-production \
-            --config wrangler.backend.production.toml \
-            --remote --no-data --skip-confirmation \
-            --output ./schema-only-private.sql
+          node scripts/staging/reconstruct-d1-schema-only.mjs ./schema-only-private.sql
           node scripts/staging/verify-schema-only-export.mjs ./schema-only-private.sql
       - name: Import into verified EMPTY separate parity D1
         run: |
