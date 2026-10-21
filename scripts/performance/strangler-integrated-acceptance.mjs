@@ -141,17 +141,14 @@ async function sample() {
       // One bounded idempotent GET retry is permitted only for immediate
       // client transport errors, never for D1 503s, timeouts, HTTP errors,
       // invalid rights checks, or a slow response. Include retry time in TTFB.
-      if (
-        attempt === 0 &&
-        error instanceof TypeError &&
-        performance.now() - start < 200
-      ) {
+      if (attempt === 0 && error instanceof TypeError && performance.now() - start < 200) {
         transportRetries = 1;
         continue;
       }
-      const code = error instanceof Error && "cause" in error && error.cause
-        ? String(error.cause.code || error.cause.errno || "")
-        : "";
+      const code =
+        error instanceof Error && "cause" in error && error.cause
+          ? String(error.cause.code || error.cause.errno || "")
+          : "";
       return {
         ok: false,
         ms: performance.now() - start,
