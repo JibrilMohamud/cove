@@ -6,9 +6,7 @@ import fs from "node:fs";
 const producer = JSON.parse(
   fs.readFileSync("wrangler.storefront-candidate-producer.stage.jsonc", "utf8"),
 );
-const service = JSON.parse(
-  fs.readFileSync("wrangler.storefront-strangler.stage.jsonc", "utf8"),
-);
+const service = JSON.parse(fs.readFileSync("wrangler.storefront-strangler.stage.jsonc", "utf8"));
 const bucket = "cove-strangler-private-presentation-stage";
 const dbId = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
 assert.equal(producer.r2_buckets?.[0]?.bucket_name, bucket);
@@ -47,7 +45,11 @@ if (existing.status === 200 && existing.data.success) {
 } else if (existing.status === 404) {
   const result = await api("POST", "/r2/buckets", { name: bucket });
   console.log("COVE_PRIVATE_STAGE_BUCKET_CREATE " + result.status);
-  if (!result.data.success || ![200, 201].includes(result.status) || result.data.result?.name !== bucket)
+  if (
+    !result.data.success ||
+    ![200, 201].includes(result.status) ||
+    result.data.result?.name !== bucket
+  )
     throw Error("Staging bucket provisioning refused; no additional resources changed.");
 } else {
   throw Error("Cannot verify bucket absence: HTTP " + existing.status);
@@ -55,4 +57,6 @@ if (existing.status === 200 && existing.data.success) {
 const verify = await api("GET", path);
 if (verify.status !== 200 || !verify.data.success || verify.data.result?.name !== bucket)
   throw Error("Dedicated stage bucket verification failed after creation");
-console.log("COVE_PRIVATE_STAGE_BUCKET_PASS: isolated R2 exists; no public access or route was configured.");
+console.log(
+  "COVE_PRIVATE_STAGE_BUCKET_PASS: isolated R2 exists; no public access or route was configured.",
+);
