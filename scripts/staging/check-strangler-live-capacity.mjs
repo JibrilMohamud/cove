@@ -74,16 +74,12 @@ function report(name, offered, rows, dropped = 0) {
     valid === offered &&
     maxMs < strictMaximumMs &&
     p95Ms < p95MaximumMs;
-  const observed = rows.filter(
-    (row) => Number.isFinite(row.serverTiming?.cove_bootstrap),
-  );
+  const observed = rows.filter((row) => Number.isFinite(row.serverTiming?.cove_bootstrap));
   const boot = observed.map((row) => row.serverTiming.cove_bootstrap);
   const catalog = observed
     .map((row) => row.serverTiming.cove_catalog)
     .filter((value) => Number.isFinite(value));
-  const residual = observed.map((row) =>
-    Math.max(0, row.ttfbMs - row.serverTiming.cove_bootstrap),
-  );
+  const residual = observed.map((row) => Math.max(0, row.ttfbMs - row.serverTiming.cove_bootstrap));
   const output = {
     name,
     offered,
@@ -126,7 +122,12 @@ async function scheduled(rate, seconds, route = "/") {
     task.then((result) => rows.push(result)).finally(() => pending.delete(task));
   }
   await Promise.allSettled([...pending]);
-  report((route === "/" ? "" : "transport-") + rate + "-rps-" + seconds + "s", offered, rows, dropped);
+  report(
+    (route === "/" ? "" : "transport-") + rate + "-rps-" + seconds + "s",
+    offered,
+    rows,
+    dropped,
+  );
 }
 try {
   if (results.mode === "cold") {
