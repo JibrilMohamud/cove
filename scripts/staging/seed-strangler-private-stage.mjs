@@ -14,9 +14,7 @@ assert.ok(token.length >= 20);
 const producer = JSON.parse(
   fs.readFileSync("wrangler.storefront-candidate-producer.stage.jsonc", "utf8"),
 );
-const storefront = JSON.parse(
-  fs.readFileSync("wrangler.storefront-strangler.stage.jsonc", "utf8"),
-);
+const storefront = JSON.parse(fs.readFileSync("wrangler.storefront-strangler.stage.jsonc", "utf8"));
 assert.equal(producer.d1_databases?.[0]?.database_id, DB_ID);
 assert.equal(storefront.d1_databases?.[0]?.database_id, DB_ID);
 assert.equal(producer.r2_buckets?.[0]?.bucket_name, BUCKET);
@@ -25,8 +23,8 @@ assert.equal(producer.preview_urls, false);
 assert.ok(!producer.routes && !producer.triggers);
 fs.mkdirSync(dir, { recursive: true });
 
-const endpoint = "https://api.cloudflare.com/client/v4/accounts/" +
-  account + "/d1/database/" + DB_ID + "/query";
+const endpoint =
+  "https://api.cloudflare.com/client/v4/accounts/" + account + "/d1/database/" + DB_ID + "/query";
 async function readOnly(sql, params = []) {
   assert.match(sql.trim(), /^SELECT\b/i);
   const response = await fetch(endpoint, {
@@ -81,7 +79,8 @@ for (const country of countries) {
     productIds.length > 128 ||
     new Set(productIds).size !== productIds.length ||
     productIds.some((id) => !/^[A-Za-z0-9][A-Za-z0-9_-]{1,159}$/.test(id))
-  ) throw Error("Invalid private candidate IDs");
+  )
+    throw Error("Invalid private candidate IDs");
   if (country === "US" && !productIds.length)
     throw Error("No available US books in synthetic stage");
   const now = Date.now();
@@ -101,9 +100,20 @@ for (const country of countries) {
     execFileSync(
       "npm",
       [
-        "exec", "--yes", "--package=wrangler@4.151.0", "--", "wrangler",
-        "r2", "object", "put", key, "--remote", "--file", file,
-        "--content-type", "application/json",
+        "exec",
+        "--yes",
+        "--package=wrangler@4.151.0",
+        "--",
+        "wrangler",
+        "r2",
+        "object",
+        "put",
+        key,
+        "--remote",
+        "--file",
+        file,
+        "--content-type",
+        "application/json",
       ],
       { encoding: "utf8", stdio: "pipe", timeout: 60000 },
     );
@@ -120,10 +130,18 @@ try {
   execFileSync(
     "npm",
     [
-      "exec", "--yes", "--package=wrangler@4.151.0", "--", "wrangler",
-      "r2", "object", "get",
+      "exec",
+      "--yes",
+      "--package=wrangler@4.151.0",
+      "--",
+      "wrangler",
+      "r2",
+      "object",
+      "get",
       BUCKET + "/private/presentation/v1/home/US.json",
-      "--remote", "--file", downloaded,
+      "--remote",
+      "--file",
+      downloaded,
     ],
     { encoding: "utf8", stdio: "pipe", timeout: 60000 },
   );
@@ -137,5 +155,6 @@ if (
   !Array.isArray(verified.productIds) ||
   !verified.productIds.length ||
   verified.expiresAt <= Date.now()
-) throw Error("Private seed failed structural verification");
+)
+  throw Error("Private seed failed structural verification");
 console.log("COVE_PRIVATE_STAGE_SEED_PASS: verified remote R2 object, no grant cached");
