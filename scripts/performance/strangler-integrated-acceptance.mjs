@@ -193,10 +193,7 @@ try {
     console.log("COLD_PROBE", JSON.stringify({ round: i + 1, ...cold }));
     save();
   }
-  assert.ok(
-    evidence.cold.every((cold) => cold.ok && cold.ms < 800),
-    "Independent cold visits failed validity or 800ms bound",
-  );
+  evidence.coldPass = evidence.cold.every((cold) => cold.ok && cold.ms < 800);
   const unauthorized = await fetch(origin, { signal: AbortSignal.timeout(6000) });
   assert.equal(unauthorized.status, 401, "Stage gate must reject requests without bearer");
   for (const concurrency of [1, 4, 8, 16, 32]) {
@@ -205,8 +202,8 @@ try {
     evidence.bursts.push({ concurrency, ...summary });
     console.log("BURST_RESULT", JSON.stringify({ concurrency, ...summary }));
     save();
-    assert.equal(summary.valid, concurrency, "Concurrent request failed");
-    assert.ok(summary.max < 800, "Concurrent maximum exceeded 800ms");
+    // Continue diagnostic campaign after a failed gate to attribute the
+    // independently sampled 100-RPS bottleneck; never waive the gate.
   }
   const offered = 2000;
   const inFlight = new Set();
@@ -282,6 +279,11 @@ try {
   };
   console.log("SUSTAINED_RESULT", JSON.stringify(evidence.sustained));
   save();
+  assert.ok(evidence.coldPass, "Independent cold visits failed validity or 800ms bound");
+  assert.ok(
+    evidence.bursts.every((burst) => burst.valid === burst.concurrency && burst.max < 800),
+    "Concurrent request invalid or maximum exceeded 800ms",
+  );
   assert.equal(dropped, 0, "Offered arrivals dropped");
   assert.equal(summary.valid, offered, "Sustained requests failed");
   assert.ok(
