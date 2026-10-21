@@ -15,7 +15,10 @@ function normalizePath(value: string) {
   return path;
 }
 
-export function formatGenericStorefrontPageRecord(pathValue: string, record: Record<string, unknown> | null) {
+export function formatGenericStorefrontPageRecord(
+  pathValue: string,
+  record: Record<string, unknown> | null,
+) {
   const path = normalizePath(pathValue);
   const row = record;
   if (!row) {
