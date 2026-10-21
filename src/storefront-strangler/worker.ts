@@ -231,7 +231,9 @@ export default {
       // No presentation cache or independent authorizer is activated here.
       // Main's authoritative live territorial-rights bootstrap remains unchanged.
       const bootstrapEnv =
-        productionAcceptance || customerGateway ? { ...env, DB: stableReadOnlyStageD1(env.DB) } : env;
+        productionAcceptance || customerGateway
+          ? { ...env, DB: stableReadOnlyStageD1(env.DB) }
+          : env;
       const response = await serveLeanAnonymousBootstrap(
         bootstrapRequest,
         bootstrapEnv,
