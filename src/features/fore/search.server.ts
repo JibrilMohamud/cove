@@ -1619,6 +1619,7 @@ export async function firstPaintStorefrontShelf(
   currency: string | null,
   territory: string,
   diagnostics?: FirstPaintD1QueryMetrics,
+  presentationDb?: CatalogDB,
 ) {
   const started = performance.now();
   const url = new URL("https://internal.invalid/api/fore/catalog");
@@ -1673,6 +1674,7 @@ export async function firstPaintStorefrontShelf(
       currencyCountry: currency === null ? input.territory : undefined,
     },
     diagnostics,
+    presentationDb,
   );
   // The first-paint BookCard displays titles, covers, retail offers and
   // genres, but NEVER the subscription/library access flags. Computing those
