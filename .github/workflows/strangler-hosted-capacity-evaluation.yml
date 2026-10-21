@@ -68,54 +68,14 @@ jobs:
           unset CORE_GATE INGRESS_GATE
       - name: Launch an out-of-band private model producer with 5-minute staging cron
         run: |
-          node --input-type=module <<'NODE'
-          import fs from "node:fs";
-          const original = JSON.parse(fs.readFileSync("wrangler.storefront-candidate-producer.stage.jsonc", "utf8"));
-          if (original.d1_databases?.[0]?.database_id !== "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3")
-            throw Error("Producer is not bound to synthetic D1");
-          original.triggers = { crons: ["*/5 * * * *"] };
-          fs.writeFileSync(".output/strangler/producer-cron.stage.jsonc", JSON.stringify(original));
-          NODE
-          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config .output/strangler/producer-cron.stage.jsonc
+          node scripts/staging/configure-strangler-producer.mjs enable
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config .output/strangler/producer-enable.stage.jsonc
       - name: Enable private read model on ephemeral ingress only
         run: |
-          node --input-type=module <<'NODE'
-          import fs from "node:fs";
-          const path = ".output/strangler/protected-capacity.stage.jsonc";
-          const data = JSON.parse(fs.readFileSync(path, "utf8"));
-          data.vars.COVE_STRANGLER_READ_MODEL = "1";
-          fs.writeFileSync(path, JSON.stringify(data));
-          NODE
+          node scripts/staging/enable-strangler-private-read-model.mjs
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config .output/strangler/protected-capacity.stage.jsonc
       - name: Require a genuinely generated private candidate snapshot
-        shell: bash
-        run: |
-          set -euo pipefail
-          # The cron does not confer authorization. Poll stage until an actual
-          # R2 projection exists and has passed fresh primary rights validation.
-          python3 - <<'PY'
-          import time, urllib.request
-          import os
-          origin = "https://cove-strangler-m1-staging.cove-jibrilmohamud.workers.dev"
-          token = os.environ["COVE_STRANGLER_STAGE_KEY"]
-          deadline = time.time() + 390
-          while time.time() < deadline:
-              try:
-                  req = urllib.request.Request(
-                      origin + "/__cove_perf/bootstrap",
-                      headers={"Authorization": "Bearer " + token}
-                  )
-                  with urllib.request.urlopen(req, timeout=12) as resp:
-                      body = resp.read(4096)
-                      if resp.status == 200 and b'"ok":true' in body:
-                          print("COVE_PRIVATE_MODEL_STAGING_READY: real canonical catalog")
-                          break
-              except Exception:
-                  pass
-              time.sleep(10)
-          else:
-              raise SystemExit("Private producer or actual stage shelf unavailable")
-          PY
+        run: node scripts/staging/wait-strangler-private-model.mjs
       - name: Repeat three independently rotated cold deployment suites
         shell: bash
         run: |
@@ -145,13 +105,8 @@ jobs:
             npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.storefront-strangler.stage.jsonc
           fi
           if [ -f ".output/strangler/producer.mjs" ]; then
-            node --input-type=module <<'NODE'
-            import fs from "node:fs";
-            const config = JSON.parse(fs.readFileSync("wrangler.storefront-candidate-producer.stage.jsonc", "utf8"));
-            config.triggers = { crons: [] };
-            fs.writeFileSync(".output/strangler/producer-disabled.stage.jsonc", JSON.stringify(config));
-            NODE
-            npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config .output/strangler/producer-disabled.stage.jsonc
+            node scripts/staging/configure-strangler-producer.mjs disable
+            npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config .output/strangler/producer-disable.stage.jsonc
           fi
       - uses: actions/upload-artifact@v4
         if: always()

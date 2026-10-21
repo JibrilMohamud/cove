@@ -164,3 +164,13 @@ a Worker secret during paired staging deployment. The inbound token is never
 forwarded. A malformed or reused key fails closed with 503; customer session
 cookies remain intact. This handshake does not enable customer traffic or
 turn the read-only staging API into a writable production checkout.
+
+## Hosted runner build/config path and cleanup correctness
+
+The ephemeral Wrangler configurations live in `.output/strangler`, so their
+`main` fields must be `index.mjs` and `producer.mjs` respectively.
+Separate checked JavaScript programs construct the producer-activation,
+producer-disable, model-enablement, and real-model readiness operations.
+This avoids fragile nested YAML/Bash heredocs that previously broke cleanup.
+The operator-dispatch-only CORE and bucket provisioning workflows never
+re-rotate their credentials on unrelated pull-request commits.

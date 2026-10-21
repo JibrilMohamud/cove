@@ -22,6 +22,8 @@ assert.equal(producer.r2_buckets?.[0]?.bucket_name, bucket);
 assert.ok(!source.r2_buckets, "Committed config must remain private/unroutable and conservative");
 const ephemeral = structuredClone(source);
 ephemeral.workers_dev = true;
+// Wrangler resolves main relative to the generated config directory.
+ephemeral.main = "index.mjs";
 ephemeral.preview_urls = false;
 ephemeral.r2_buckets = [{ binding: "PRESENTATION", bucket_name: bucket }];
 ephemeral.vars.COVE_STRANGLER_READ_MODEL = "0";
