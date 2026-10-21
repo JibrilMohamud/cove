@@ -27,6 +27,8 @@ config.preview_urls = false;
 // exercised with a fake CORE by the same-SHA local integration suite.
 config.services = [];
 config.vars.FORE_PUBLIC_URL = origin;
+config.vars.COVE_THIN_METADATA_COALESCE = "1";
+config.vars.COVE_THIN_SPLIT_PROJECTION = "1";
 const configString = JSON.stringify(config, null, 2);
 assert.ok(!configString.includes(prodDbId), "Production D1 must never be bound");
 assert.ok(!config.routes && !config.route && !config.r2_buckets && !config.queues);
@@ -128,6 +130,9 @@ async function sample() {
       failure: response.headers.get("x-cove-stage-failure") || null,
       observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
       renderer: response.headers.get("x-cove-renderer"),
+      serverTiming: response.headers.get("server-timing"),
+      failureSubphase: response.headers.get("x-cove-stage-failure-subphase"),
+      failureKind: response.headers.get("x-cove-stage-failure-kind"),
     };
   } catch (error) {
     return { ok: false, ms: performance.now() - start, error: error.name };
@@ -189,10 +194,7 @@ try {
     console.log("COLD_PROBE", JSON.stringify({ round: i + 1, ...cold }));
     save();
   }
-  assert.ok(
-    evidence.cold.every((cold) => cold.ok && cold.ms < 800),
-    "Independent cold visits failed validity or 800ms bound",
-  );
+  evidence.coldPass = evidence.cold.every((cold) => cold.ok && cold.ms < 800);
   const unauthorized = await fetch(origin, { signal: AbortSignal.timeout(6000) });
   assert.equal(unauthorized.status, 401, "Stage gate must reject requests without bearer");
   for (const concurrency of [1, 4, 8, 16, 32]) {
@@ -201,8 +203,8 @@ try {
     evidence.bursts.push({ concurrency, ...summary });
     console.log("BURST_RESULT", JSON.stringify({ concurrency, ...summary }));
     save();
-    assert.equal(summary.valid, concurrency, "Concurrent request failed");
-    assert.ok(summary.max < 800, "Concurrent maximum exceeded 800ms");
+    // Continue diagnostic campaign after a failed gate to attribute the
+    // independently sampled 100-RPS bottleneck; never waive the gate.
   }
   const offered = 2000;
   const inFlight = new Set();
@@ -246,8 +248,49 @@ try {
     maxOutstanding,
     ...summary,
   };
+  // Every request returns a bounded, stage-only duration breakdown.
+  // Compare Worker/D1 service wait against SQL execution and runner transport.
+  const timing = (sample, key) => {
+    const match = (sample.serverTiming || "").match(
+      new RegExp("(?:^|,\\s*)" + key + ";dur=([0-9.]+)"),
+    );
+    return match ? Number(match[1]) : null;
+  };
+  const counts = (values) =>
+    Object.fromEntries(
+      [...new Set(values)].map((key) => [key, values.filter((x) => x === key).length]),
+    );
+  const p95Timing = (key) => {
+    const durations = results.map((x) => timing(x, key)).filter(Number.isFinite);
+    return percentile(durations, 0.95);
+  };
+  evidence.sustained.attribution = {
+    statuses: counts(results.map((x) => String(x.status || x.error || "unknown"))),
+    failurePhases: counts(
+      results.filter((x) => !x.ok).map((x) => x.failureSubphase || x.failure || "unknown"),
+    ),
+    p95CatalogServiceMs: p95Timing("cove_catalog"),
+    p95RightsPrimaryServiceMs: p95Timing("cove_catalog_rights_service"),
+    p95ReplicaPresentationMs: p95Timing("cove_catalog_projection_service"),
+    p95ReplicaProjectionSqlMs: p95Timing("cove_catalog_projection_sql"),
+    splitProjectionRequests: results.filter(
+      (x) => timing(x, "cove_catalog_split_presentation") === 1,
+    ).length,
+    p95CatalogSqlMs: p95Timing("cove_catalog_sql"),
+    p95ContextServiceMs: p95Timing("cove_context"),
+    p95ContextSqlMs: p95Timing("cove_context_sql"),
+    p95BootstrapMs: p95Timing("cove_bootstrap"),
+    eligibleMetadataFlights: results.filter((x) => timing(x, "cove_context_flight_eligible") === 1)
+      .length,
+    joinedMetadataFlights: results.filter((x) => timing(x, "cove_context_joined") === 1).length,
+  };
   console.log("SUSTAINED_RESULT", JSON.stringify(evidence.sustained));
   save();
+  assert.ok(evidence.coldPass, "Independent cold visits failed validity or 800ms bound");
+  assert.ok(
+    evidence.bursts.every((burst) => burst.valid === burst.concurrency && burst.max < 800),
+    "Concurrent request invalid or maximum exceeded 800ms",
+  );
   assert.equal(dropped, 0, "Offered arrivals dropped");
   assert.equal(summary.valid, offered, "Sustained requests failed");
   assert.ok(
