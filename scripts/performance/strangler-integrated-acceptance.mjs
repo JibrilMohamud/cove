@@ -28,7 +28,7 @@ config.preview_urls = false;
 config.services = [];
 config.vars.FORE_PUBLIC_URL = origin;
 config.vars.COVE_THIN_METADATA_COALESCE = "1";
-config.vars.COVE_THIN_SPLIT_PROJECTION = "1";
+config.vars.COVE_THIN_SPLIT_PROJECTION = "0";
 config.vars.COVE_THIN_PRIMARY_MICROBATCH = "1";
 const configString = JSON.stringify(config, null, 2);
 assert.ok(!configString.includes(prodDbId), "Production D1 must never be bound");
@@ -291,6 +291,18 @@ try {
       .length,
     joinedMetadataFlights: results.filter((x) => timing(x, "cove_context_joined") === 1).length,
   };
+  evidence.sustained.failedSamples = results
+    .filter((x) => !x.ok)
+    .map((x) => ({
+      status: x.status ?? null,
+      error: x.error ?? null,
+      ms: Math.round(x.ms),
+      kind: x.failureKind ?? null,
+      phase: x.failureSubphase ?? null,
+    }));
+  evidence.sustained.attribution.failureKinds = counts(
+    results.filter((x) => !x.ok).map((x) => x.failureKind || x.error || "unknown"),
+  );
   console.log("SUSTAINED_RESULT", JSON.stringify(evidence.sustained));
   save();
   assert.ok(evidence.coldPass, "Independent cold visits failed validity or 800ms bound");
