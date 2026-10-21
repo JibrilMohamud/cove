@@ -239,6 +239,14 @@ try {
     if (country === "US") firstBootstrap = current;
   }
   assert.ok(firstBootstrap.catalog.results.length > 1);
+  // The real seeded, rights-checked synthetic HTML is reused for interaction
+  // testing in Chromium rather than testing a disconnected hand-written page.
+  fs.mkdirSync("artifacts", { recursive: true });
+  fs.writeFileSync(
+    "artifacts/strangler-fixture.html",
+    renderStranglerStorefront(firstBootstrap, "http://127.0.0.1", true),
+  );
+
   const first = firstBootstrap.catalog.results[0];
   await env.DB.prepare("UPDATE products SET storefront_status='inactive' WHERE id=?")
     .bind(first.productId)

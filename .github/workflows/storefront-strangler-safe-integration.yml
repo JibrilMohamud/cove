@@ -5,6 +5,7 @@ on:
       - "src/storefront-strangler/**"
       - "scripts/build-storefront-strangler.mjs"
       - "scripts/check-storefront-strangler.mjs"
+      - "scripts/test-storefront-strangler-browser.mjs"
       - "wrangler.storefront-strangler.stage.jsonc"
       - ".github/workflows/storefront-strangler-safe-integration.yml"
       - "docs/architecture/SAFE_THIN_MAIN_INTEGRATION.md"
@@ -44,6 +45,10 @@ jobs:
           assert.ok(!push.includes('".github/workflows/deploy-persistence-backend.yml"'));
           console.log("PASS: dependency-only main merge cannot auto-deploy persistence.");
           NODE
+      - name: Install Chromium for progressive interaction QA
+        run: npx playwright install --with-deps chromium
+      - name: Verify interactive catalog, search, locale, discovery and CORE fallbacks
+        run: node scripts/test-storefront-strangler-browser.mjs
       - name: Compile isolated Worker without application dependencies
         run: node scripts/build-storefront-strangler.mjs
       - name: Typecheck all source without changing production build
