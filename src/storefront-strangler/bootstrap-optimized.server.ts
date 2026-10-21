@@ -6,7 +6,6 @@ import type { CoveEnv } from "../features/fore/api.server";
 type OptimizedEnv = CoveEnv & {
   COVE_SSR_DIAGNOSTICS?: string;
   COVE_THIN_METADATA_COALESCE?: string;
-  COVE_THIN_SPLIT_PROJECTION?: string;
   COVE_THIN_PRIMARY_MICROBATCH?: string;
   COVE_STRANGLER_DATABASE_ID?: string;
 };
@@ -144,15 +143,7 @@ export async function serveLeanAnonymousBootstrap(
   // No cookie/account data is present. This same canonical resolver also
   // drives resolveStorefrontContext's country for anonymous visitors.
   const trustedCountry = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country;
-  const d1Metrics: {
-    sqlDurationMs?: number;
-    rowsRead?: number;
-    attempts?: number;
-    rightsServiceMs?: number;
-    projectionServiceMs?: number;
-    projectionSqlDurationMs?: number;
-    usedReplicaPresentation?: number;
-  } = {};
+  const d1Metrics: { sqlDurationMs?: number; rowsRead?: number; attempts?: number } = {};
   const contextMetrics: {
     sqlDurationMs?: number;
     rowsRead?: number;
@@ -192,21 +183,12 @@ export async function serveLeanAnonymousBootstrap(
   const contextPromise = timed("context", flight.task);
   // The read-only metadata batch now also performs the active market/locale
   // lookup. No second dependent D1 service call is needed for anonymous SSR.
-  // Stage-only experiment: the legal decision remains the authoritative
-  // primary SELECT. A replica can hydrate metadata for IDs that primary
-  // already allowed; it can neither authorize nor expand the candidate set.
-  const replicaProjection =
-    env.COVE_SSR_STAGING === "1" &&
-    env.COVE_THIN_SPLIT_PROJECTION === "1" &&
-    typeof configDb.withSession === "function"
-      ? configDb.withSession("first-unconstrained")
-      : undefined;
   const microbatchEnabled =
     env.COVE_SSR_STAGING === "1" &&
     env.COVE_STRANGLER_DATABASE_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" &&
     env.COVE_THIN_PRIMARY_MICROBATCH === "1";
   const createShelf = () =>
-    firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics, replicaProjection);
+    firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics);
   const shelfFlight = microbatchEnabled
     ? preReadPrimaryBatch(rawDb, trustedCountry, createShelf)
     : { task: createShelf(), joined: false };
@@ -248,14 +230,6 @@ export async function serveLeanAnonymousBootstrap(
     timings.primary_microbatch_joined = shelfFlight.joined ? 1 : 0;
   }
   if (d1Metrics.sqlDurationMs !== undefined) timings.catalog_sql = d1Metrics.sqlDurationMs;
-  if (d1Metrics.usedReplicaPresentation)
-    timings.catalog_split_presentation = d1Metrics.usedReplicaPresentation;
-  if (d1Metrics.rightsServiceMs !== undefined)
-    timings.catalog_rights_service = d1Metrics.rightsServiceMs;
-  if (d1Metrics.projectionServiceMs !== undefined)
-    timings.catalog_projection_service = d1Metrics.projectionServiceMs;
-  if (d1Metrics.projectionSqlDurationMs !== undefined)
-    timings.catalog_projection_sql = d1Metrics.projectionSqlDurationMs;
   if (env.COVE_SSR_DIAGNOSTICS === "1" && contextMetrics.sqlDurationMs !== undefined)
     timings.context_sql = contextMetrics.sqlDurationMs;
 
