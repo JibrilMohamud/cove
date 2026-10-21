@@ -611,7 +611,7 @@ try {
     // The 100-RPS no-D1 control uses exactly the same hostname, ingress,
     // thin service binding, bearer gate, Undici agent and offered schedule.
     // It must not be confused with a valid authorized storefront response.
-    if (rate === 100 && active.has("thin")) {
+    if (rate === 100) {
       const control = await capacity("thin", 100, {
         route: "/__cove_perf/transport",
         duration: 20_000,
@@ -698,7 +698,7 @@ try {
     // The historical architecture gate is preserved; capacity >=100 RPS
     // is a distinct hard SLO and cannot be inferred from 50-RPS success.
     evidence.capacity.some((x) => x.role === "thin" && x.offeredRps === 100 && x.pass) &&
-    (evidence.transportControls || []).length === 2 &&
+    (evidence.transportControls || []).filter((x) => x.position.includes("100")).length === 2 &&
     evidence.transportControls.every((control) => control.pass) &&
     evidence.contentParity &&
     evidence.remoteRevocation?.pass &&
