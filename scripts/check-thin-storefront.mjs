@@ -295,13 +295,19 @@ try {
   ]);
   assert.deepEqual(langs.map((x) => x.status), [200, 200]);
   assert.equal(batches, 4, "Different language preferences must not share a batch");
+  const disabled = await Promise.all([
+    worker.fetch(request("US", { "x-cove-perf-no-metadata-flight": "1" }), singleflight),
+    worker.fetch(request("US", { "x-cove-perf-no-metadata-flight": "1" }), singleflight),
+  ]);
+  assert.deepEqual(disabled.map((x) => x.status), [200, 200]);
+  assert.equal(batches, 6, "Protected synthetic A/B control must disable only metadata coalescing");
   const failingDb = {
     ...countedDb,
     async batch() { batches++; throw Error("synthetic context outage"); },
   };
   assert.equal((await worker.fetch(request("US"), { ...singleflight, DB: failingDb })).status, 503);
   assert.equal((await worker.fetch(request("US"), { ...singleflight, DB: failingDb })).status, 503);
-  assert.equal(batches, 6, "Failed context promise must not be reused");
+  assert.equal(batches, 8, "Failed context promise must not be reused");
   // Exercise a real rights revocation WITH coalescing enabled, not just
   // the unoptimized path; metadata reuse must never preserve stale offers.
   const firstJoinedProduct = /data-product="([^"]+)"/.exec(shelves[0])?.[1];

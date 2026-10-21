@@ -202,7 +202,7 @@ function summary(rows) {
   };
 }
 let client = 0;
-async function sample(role, { fresh = false, route = "/" } = {}) {
+async function sample(role, { fresh = false, route = "/", benchmarkHeaders = {} } = {}) {
   const dispatcher = fresh ? new Agent({ connections: 1, pipelining: 1 }) : agents[role];
   const started = performance.now();
   try {
@@ -212,6 +212,7 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
         authorization: `Bearer ${keys[role]}`,
         "x-cove-perf-client": String(client++ % 1024),
         "x-cove-perf-renderer": role,
+        ...benchmarkHeaders,
       },
       signal: AbortSignal.timeout(8000),
     });
@@ -384,7 +385,7 @@ async function browserCheck(role) {
     await browser.close();
   }
 }
-async function capacity(role, rate, { route = "/", duration = 20_000 } = {}) {
+async function capacity(role, rate, { route = "/", duration = 20_000, benchmarkHeaders = {} } = {}) {
   const offered = Math.round(rate * duration / 1000),
     interval = 1000 / rate,
     start = performance.now(),
@@ -410,7 +411,7 @@ async function capacity(role, rate, { route = "/", duration = 20_000 } = {}) {
       dropped++;
       continue;
     }
-    const task = sample(role, { route })
+    const task = sample(role, { route, benchmarkHeaders })
       .then((r) => {
         rows.push(r);
         if (!r.valid) stop = true;
@@ -672,6 +673,52 @@ try {
     // unsafe HTTP failure.
     if (unsafe || (!active.size && rate >= 100)) break;
   }
+  // Hold the same deployed Worker, synthetic D1, ingress, rights view,
+  // agent, and schedule fixed. Only metadata singleflight changes.
+  // OFF/ON/OFF reveals whether a regional shift or warmup masquerades as
+  // a coalescing gain. Never score OFF runs as authorized storefront success
+  // for the optimized serving configuration.
+  evidence.singleflightControlled = [];
+  for (const mode of ["off-before", "on", "off-after"]) {
+    const result = await capacity("thin", 100, {
+      benchmarkHeaders:
+        mode.startsWith("off") ? { "x-cove-perf-no-metadata-flight": "1" } : {},
+    });
+    evidence.singleflightControlled.push({ mode, ...result });
+    save();
+    console.log("singleflight-controlled", mode, JSON.stringify({
+      ...result.summary, offered:result.offered, valid:result.summary.valid,
+      dropped:result.dropped, late:result.late, peakPending:result.peakPending,
+    }));
+  }
+  const sameColo = evidence.singleflightControlled.every((run) =>
+    run.summary.colos.length === 1 &&
+    run.summary.colos[0] === evidence.singleflightControlled[0].summary.colos[0],
+  );
+  const middle = evidence.singleflightControlled[1];
+  const controls = [
+    evidence.singleflightControlled[0],
+    evidence.singleflightControlled[2],
+  ];
+  evidence.singleflightCausal = {
+    sameColo,
+    offP95Ms: controls.map((run) => run.summary.p95),
+    onP95Ms: middle.summary.p95,
+    offMaxMs: controls.map((run) => run.summary.max),
+    onMaxMs: middle.summary.max,
+    onPassed: middle.pass,
+    // Improvement is a measured outcome, not an assumption just because
+    // the flag was enabled. Comparison cannot be certified across colos.
+    improvementSupported:
+      sameColo &&
+      middle.pass &&
+      controls.every((run) =>
+        run.summary.valid === run.offered &&
+        run.dropped === 0 &&
+        run.summary.p95 > middle.summary.p95 * 1.1,
+      ),
+  };
+  save();
   const mobile = evidence.browser.find((x) => x.role === "thin"),
     controlMobile = evidence.browser.find((x) => x.role === "baseline");
   evidence.mobileGate =

@@ -120,6 +120,10 @@ export async function serveLeanAnonymousBootstrap(
   const coalesce =
     env.COVE_SSR_STAGING === "1" &&
     env.COVE_THIN_METADATA_COALESCE === "1" &&
+    // A/B control is available only inside the existing bearer-protected
+    // synthetic benchmark Worker; it cannot disable rights checks or the
+    // rate limiter and has no effect in a live customer deployment.
+    request.headers.get("x-cove-perf-no-metadata-flight") !== "1" &&
     (request.headers.get("accept-language") || "").length <= 512;
   const flight = coalesce
     ? anonymousMetadataFlight(

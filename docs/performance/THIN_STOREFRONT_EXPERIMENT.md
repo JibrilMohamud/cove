@@ -91,3 +91,18 @@ live-primary rights/catalog query and limiter check; authenticated requests
 never enter this path. Tests cover simultaneous same-locale requests, locale
 isolation, no settlement caching and failed-promise cleanup. Reject the
 optimization unless the full 50/75/90/100 RPS and cold/rights gates pass.
+
+## Controlled same-deployment 100-RPS singleflight comparison
+
+The attribution runner now runs OFF/ON/OFF at 100 offered RPS on the
+same stage-only thin Worker, isolated D1, ingest hostname, request shape
+(except one experimental header), and shared client agent. The opt-out header
+can disable **only anonymous context metadata coalescing** and is honored
+only when both the existing stage gate and staging-only coalescing flag are
+active. Rights SQL, authentication and rate limiting are unchanged. Every
+stage records raw measurements and output colos. An improvement is explicitly
+reported **only** when all runs share a colo, the ON run passes and both
+independent OFF controls have over 10% greater p95 than ON with zero drops.
+No outcome is inferred from one favorable regional load campaign.
+This does not authorize production rollout; security audit and full interface
+parity remain release blockers.
