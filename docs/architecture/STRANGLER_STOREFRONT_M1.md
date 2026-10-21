@@ -141,3 +141,16 @@ if the preexisting isolated D1 identifier verifies first, the bucket returns
 modify D1, deploy Workers, configure custom/public domains, set cron, or change
 production routing. Existing buckets are reused. This creates infrastructure
 capacity only; candidate snapshots and production traffic remain untouched.
+
+## Private real application CORE pilot
+
+`wrangler.storefront-core.stage.toml` configures Cove's actual native
+TanStack SSR server (not a dummy CORE) using the isolated synthetic D1
+fixture. It is **nonpublic**, with workers.dev and preview URLs disabled,
+no production media/payments binding, and a distinct random bearer gate
+secret. A tightly scoped PR workflow can deploy this real private CORE to
+allow the thin evaluation Worker to delegate authenticated navigation once
+an explicit internal credential handshake is added. This first deploy does
+not itself enable the public thin Worker or route customer traffic. In
+particular checkout, reader/media and audio cannot be certified until a
+fully seeded production-equivalent environment exists.

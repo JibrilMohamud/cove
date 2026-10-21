@@ -1,0 +1,58 @@
+name: strangler-stage-core-deploy
+on:
+  pull_request:
+    paths:
+      - "wrangler.storefront-core.stage.toml"
+      - "scripts/staging/check-strangler-core-stage.mjs"
+      - ".github/workflows/strangler-stage-core-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-strangler-real-core-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy-private-authenticated-real-core:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.head.ref == 'architecture/strangler-storefront-m1-20261020')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_SEND_METRICS: "false"
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+      VERCEL: "0"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Prove private synthetic-resource config and expected gateway binding
+        run: node scripts/staging/check-strangler-core-stage.mjs
+      - name: Compile real current TanStack SSR implementation
+        run: npm run build
+      - name: Local platform compatibility only
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.storefront-core.stage.toml
+      - name: Publish internal Worker without DNS or workers.dev
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.storefront-core.stage.toml
+      - name: Install distinct random stage-only gate credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          CORE_KEY="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          echo "::add-mask::$CORE_KEY"
+          printf '%s' "$CORE_KEY" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.storefront-core.stage.toml
+          unset CORE_KEY
+
+# Only real application code is deployed. No migration, no data mutation,
+# custom domain, public route, production Worker or Stripe credentials.
