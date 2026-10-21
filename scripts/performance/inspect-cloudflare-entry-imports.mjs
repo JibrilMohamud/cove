@@ -129,7 +129,9 @@ const scanStaticClosure = (initial) => {
   // TanStack and unrelated UI modules are not evidence of an auth SDK leak.
   const browserAuthModules = bySize
     .map((item) => item.file)
-    .filter((file) => /(?:^|\/)(?:supabase__auth-js|@supabase\/ssr|@supabase\/supabase-js)(?:[.+_-]|$)/.test(file));
+    .filter((file) =>
+      /(?:^|\/)(?:supabase__auth-js|@supabase\/ssr|@supabase\/supabase-js)(?:[.+_-]|$)/.test(file),
+    );
   return {
     modules: modules.size,
     bytes: bySize.reduce((n, item) => n + item.bytes, 0),
