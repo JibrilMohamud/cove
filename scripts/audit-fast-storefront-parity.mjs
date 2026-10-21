@@ -38,6 +38,44 @@ const results = {
   releaseMobileLcpCertified: false,
   certified: false,
 };
+async function pixelMismatch(page, baseline, candidate) {
+  return page.evaluate(
+    async ([first, second]) => {
+      const load = (base64) =>
+        new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = reject;
+          image.src = "data:image/png;base64," + base64;
+        });
+      const [a, b] = await Promise.all([load(first), load(second)]);
+      const width = Math.min(a.width, b.width);
+      const height = Math.min(a.height, b.height);
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.drawImage(a, 0, 0);
+      const p = context.getImageData(0, 0, width, height).data;
+      context.clearRect(0, 0, width, height);
+      context.drawImage(b, 0, 0);
+      const q = context.getImageData(0, 0, width, height).data;
+      let mismatched = 0;
+      for (let i = 0; i < p.length; i += 4) {
+        if (
+          Math.max(
+            Math.abs(p[i] - q[i]),
+            Math.abs(p[i + 1] - q[i + 1]),
+            Math.abs(p[i + 2] - q[i + 2]),
+          ) > 32
+        )
+          mismatched++;
+      }
+      return Math.round((mismatched * 10000) / (width * height)) / 100;
+    },
+    [baseline.toString("base64"), candidate.toString("base64")],
+  );
+}
 try {
   for (const profile of [
     { id: "mobile", width: 390, height: 844, isMobile: true },
@@ -70,14 +108,22 @@ try {
           baseline === 0 || candidate >= Math.min(baseline, name === "advanced-facets" ? 5 : 1),
       });
     }
-    await live.screenshot({ path: root + "/" + profile.id + "-live.png", fullPage: false });
-    await stage.screenshot({ path: root + "/" + profile.id + "-candidate.png", fullPage: false });
+    const liveImage = await live.screenshot({
+      path: root + "/" + profile.id + "-live.png",
+      fullPage: false,
+    });
+    const candidateImage = await stage.screenshot({
+      path: root + "/" + profile.id + "-candidate.png",
+      fullPage: false,
+    });
+    const mismatchPercent = await pixelMismatch(stage, liveImage, candidateImage);
     const result = {
       profile: profile.id,
       status: liveResponse?.status(),
       viewport: [profile.width, profile.height],
       checks,
       parity: checks.every((x) => x.matched),
+      screenshotPixelMismatchPercent: mismatchPercent,
     };
     results.profiles.push(result);
     console.log("PARITY_PROFILE", JSON.stringify(result));
@@ -102,6 +148,7 @@ try {
   );
   results.certified =
     results.gaps.length === 0 &&
+    results.profiles.every((p) => p.screenshotPixelMismatchPercent < 10) &&
     results.customerCheckoutCertified &&
     results.customerReaderCertified &&
     results.releaseMobileLcpCertified;
