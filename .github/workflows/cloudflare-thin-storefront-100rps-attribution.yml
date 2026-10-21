@@ -10,6 +10,8 @@ on:
       - "package*.json"
       - "*config*"
       - ".github/workflows/cloudflare-thin-storefront-100rps-attribution.yml"
+      - "scripts/performance/thin-stage-run-scope.mjs"
+      - "scripts/performance/check-thin-stage-run-scope.mjs"
   workflow_dispatch:
 permissions:
   contents: read
@@ -39,6 +41,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Verify existing synthetic fixtures; never load production D1
         run: node scripts/performance/verify-isolated-d1-fixtures.mjs
+      - name: Prove benchmark Workers and cleanup cannot touch another run
+        run: node scripts/performance/check-thin-stage-run-scope.mjs
       - name: Territorial authority and new entry regression gates
         run: |
           npm run typecheck
@@ -66,7 +70,11 @@ jobs:
       - name: Clean up only this experiment's Workers
         if: always()
         run: |
-          for script in cove-thin-pilot-staging cove-thin-core-staging cove-thin-control-staging cove-thin-ingress-staging; do
+          set -euo pipefail
+          [[ "${GITHUB_RUN_ID}" =~ ^[0-9]{8,14}$ ]] || exit 1
+          # Never clean up fixed names or resources from another GitHub run.
+          for role in pilot core control ingress; do
+            script="cove-thin-${role}-${GITHUB_RUN_ID}"
             curl --fail-with-body -sS --max-time 30 -X DELETE \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
               "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$script?force=true" \

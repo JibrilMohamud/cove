@@ -106,3 +106,21 @@ independent OFF controls have over 10% greater p95 than ON with zero drops.
 No outcome is inferred from one favorable regional load campaign.
 This does not authorize production rollout; security audit and full interface
 parity remain release blockers.
+
+## October 21: benchmark Worker deployment lifecycle hardening
+
+The first singleflight OFF/ON/OFF CI attempt **did not benchmark anything**.
+[Run 39541802055](https://github.com/JibrilMohamud/cove/actions/runs/39541802055)
+failed deploying a fixed-name `cove-thin-ingress-staging` with Cloudflare error
+10007 (nonexistent Worker/subdomain), after seeding synthetic fixtures. No
+cold/burst/capacity outcomes can be attributed to that run. Earlier workflows
+also deleted the fixed Worker names during unconditional cleanup.
+
+The experiment now generates unique Worker identities from the numeric
+`GITHUB_RUN_ID` for baseline, thin, CORE, and ingress. Wrangler's temporary
+thin and ingress configs rewrite only the names/service bindings, while
+keeping the same isolated D1, request code, and benchmark topology. Cleanup
+can delete **only its own four generated staging names**; fixed names and
+production services cannot be deleted by this workflow. Validation fails
+closed on malformed run IDs, changed binding topology or production DB IDs.
+Newly deployed credentials remain independently rotated and ephemeral.

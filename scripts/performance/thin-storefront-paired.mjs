@@ -9,6 +9,7 @@ import { Agent, fetch as httpFetch } from "undici";
 import { chromium, devices } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { parseThinConfig, parseBenchmarkConfig } from "./thin-config.mjs";
+import { thinRunWorkerNames, scopedStageConfigs } from "./thin-stage-run-scope.mjs";
 import { PERFORMANCE_D1, isolatedD1Config, verifySyntheticD1 } from "./isolated-d1-gate.mjs";
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const token = process.env.CLOUDFLARE_API_TOKEN;
@@ -34,12 +35,8 @@ const evidence = {
 };
 const save = () =>
   fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(evidence, null, 2));
-const workers = {
-  baseline: "cove-thin-control-staging",
-  core: "cove-thin-core-staging",
-  thin: "cove-thin-pilot-staging",
-  ingress: "cove-thin-ingress-staging",
-};
+const workers = thinRunWorkerNames(process.env.GITHUB_RUN_ID);
+evidence.configuration.scopedStageRunId = process.env.GITHUB_RUN_ID;
 const origin = () => `https://${workers.ingress}.cove-jibrilmohamud.workers.dev`;
 const keys = { baseline: randomBytes(32).toString("hex"), core: randomBytes(32).toString("hex") };
 keys.thin = keys.core;
@@ -107,6 +104,12 @@ assert.equal(thinConfig.vars.COVE_PERF_DATABASE_ID, PERFORMANCE_D1.current.id);
 assert.ok(!thinConfig.routes);
 assert.ok(!thinConfig.r2_buckets);
 assert.ok(!thinConfig.placement);
+const ingressConfig = parseBenchmarkConfig(
+  fs.readFileSync("wrangler.storefront-benchmark.jsonc", "utf8"),
+);
+const scoped = scopedStageConfigs(thinConfig, ingressConfig, workers, PERFORMANCE_D1.current.id);
+fs.writeFileSync("wrangler.thin-run.jsonc", JSON.stringify(scoped.thin, null, 2));
+fs.writeFileSync("wrangler.thin-ingress-run.jsonc", JSON.stringify(scoped.ingress, null, 2));
 async function readiness() {
   const query = async (id, sql) => {
     assert.ok(Object.values(PERFORMANCE_D1).some((x) => x.id === id));
@@ -122,7 +125,7 @@ async function readiness() {
 parseBenchmarkConfig(fs.readFileSync("wrangler.storefront-benchmark.jsonc", "utf8"));
 const lastDeployments = {};
 async function deploy(role) {
-  const config = role === "thin" ? "wrangler.storefront-thin.jsonc" : `wrangler.thin-${role}.toml`;
+  const config = role === "thin" ? "wrangler.thin-run.jsonc" : `wrangler.thin-${role}.toml`;
   command(["deploy", "--config", config]);
   // An identical upload alone may reuse a loaded environment. Rotate the
   // binding on EVERY round to force a distinct Worker environment. Thin and
@@ -567,7 +570,7 @@ try {
   await deploy("core");
   await deploy("baseline");
   await deploy("thin");
-  command(["deploy", "--config", "wrangler.storefront-benchmark.jsonc"]);
+  command(["deploy", "--config", "wrangler.thin-ingress-run.jsonc"]);
   for (let round = 1; round <= 3; round++) {
     await deploy("core");
     for (const role of round % 2 ? ["baseline", "thin"] : ["thin", "baseline"]) {
