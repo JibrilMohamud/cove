@@ -57,10 +57,9 @@ function readOnlyStageD1<T extends object>(db: T, approved = new WeakMap<object,
         };
       }
       if (key === "withSession") {
-        return (constraint: string) => {
-          const session = (target as { withSession(arg: string): object }).withSession(constraint);
-          return readOnlyStageD1(session, approved);
-        };
+        const open = (target as { withSession?: (arg: string) => object }).withSession;
+        if (typeof open !== "function") return undefined;
+        return (constraint: string) => readOnlyStageD1(open.call(target, constraint), approved);
       }
       if (key === "batch") {
         return (statements: object[]) => {
