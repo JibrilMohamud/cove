@@ -100,7 +100,10 @@ export default {
       if (bootstrap.context.rightsCountry !== headers.get("x-cove-client-country"))
         throw new Error("Thin storefront territorial mismatch");
       if (diagnostic) {
-        if (!Array.isArray(bootstrap.context.availableMarkets) || !bootstrap.catalog.results.length)
+        if (
+          !Array.isArray(bootstrap.context.availableMarkets) ||
+          !Array.isArray(bootstrap.catalog.results)
+        )
           throw new Error("Anonymous market projection is unavailable.");
         return finish(
           new Response(

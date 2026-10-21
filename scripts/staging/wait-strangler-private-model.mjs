@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 const origin = "https://cove-strangler-m1-staging.cove-jibrilmohamud.workers.dev";
 const key = process.env.COVE_STRANGLER_STAGE_KEY || "";
 assert.match(key, /^[a-f0-9]{64}$/);
-const deadline = Date.now() + 390_000;
+// The private model has already been seeded; this checks real serving, not cron.
+const deadline = Date.now() + 90_000;
 let tries = 0;
 while (Date.now() < deadline) {
   tries++;

@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "scripts/staging/prepare-strangler-capacity-config.mjs"
+      - "scripts/staging/seed-strangler-private-stage.mjs"
       - "scripts/staging/strangler-http-transport.mjs"
       - "scripts/staging/check-strangler-live-capacity.mjs"
       - "scripts/staging/wait-strangler-secret-deployment.mjs"
@@ -68,10 +69,8 @@ jobs:
           unset CORE_GATE INGRESS_GATE
       - name: Verify producer access path against isolated stage data only
         run: node scripts/staging/check-strangler-synthetic-producer-sql.mjs
-      - name: Launch an out-of-band private model producer with 5-minute staging cron
-        run: |
-          node scripts/staging/configure-strangler-producer.mjs enable
-          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config .output/strangler/producer-enable.stage.jsonc
+      - name: Seed isolated R2 presentation without depending on new cron propagation
+        run: node scripts/staging/seed-strangler-private-stage.mjs
       - name: Enable private read model on ephemeral ingress only
         run: |
           node scripts/staging/enable-strangler-private-read-model.mjs
@@ -105,10 +104,6 @@ jobs:
           set +e
           if [ -f ".output/strangler/index.mjs" ]; then
             npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.storefront-strangler.stage.jsonc
-          fi
-          if [ -f ".output/strangler/producer.mjs" ]; then
-            node scripts/staging/configure-strangler-producer.mjs disable
-            npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config .output/strangler/producer-disable.stage.jsonc
           fi
       - uses: actions/upload-artifact@v4
         if: always()

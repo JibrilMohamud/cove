@@ -174,3 +174,19 @@ producer-disable, model-enablement, and real-model readiness operations.
 This avoids fragile nested YAML/Bash heredocs that previously broke cleanup.
 The operator-dispatch-only CORE and bucket provisioning workflows never
 re-rotate their credentials on unrelated pull-request commits.
+
+## Independent stage seed (not a scheduled-producer release proof)
+
+New Cloudflare cron schedules may require up to 15 minutes to propagate; a
+fresh 5-minute cron followed by a 390-second wait cannot establish actual
+catalog readiness. The protected hosted capacity harness now seeds all active
+markets from a **read-only synthetic D1** candidate query into the named
+**private staging R2** bucket, independently verifies the US R2 object,
+and only then runs its live-primary-rights storefront readiness test. This
+avoids conflating cron propagation with request TTFB. The candidate validity
+window is 20 minutes; legal rights still revalidate at each request. Empty
+territories produce empty candidates, never forged rights or offers.
+
+The scheduled production-like publisher remains a separate unproven release
+gate, as do ingestion-under-load, complete store UI parity, checkout, reader,
+audio and live 100-RPS capacity. No production data or route is modified.

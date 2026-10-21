@@ -19,7 +19,8 @@ const MODEL_VERSION = "cove.home.candidates.v1";
 const MODEL_PREFIX = "private/presentation/v1/home/";
 const MAX_BYTES = 16_384;
 const MAX_CANDIDATES = 128;
-const MAX_AGE_MS = 5 * 60_000;
+// Candidate freshness tolerates cron propagation; rights remain primary-D1 live.
+const MAX_AGE_MS = 20 * 60_000;
 
 type CandidateSnapshot = {
   schema: typeof MODEL_VERSION;
