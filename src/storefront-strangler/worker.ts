@@ -27,15 +27,72 @@ export type StorefrontStranglerEnv = CoveEnv & {
   CORE: { fetch(request: Request): Promise<Response> };
 };
 
+/** Hard prohibit D1 writes by the real-catalog, credential-gated preview. */
+function readOnlyStageD1<T extends object>(db: T, approved = new WeakMap<object, object>()): T {
+  const wrapStatement = (statement: object): object => {
+    const proxy = new Proxy(statement, {
+      get(target, key) {
+        if (key === "bind")
+          return (...args: unknown[]) =>
+            wrapStatement((target as { bind(...values: unknown[]): object }).bind(...args));
+        const value = Reflect.get(target, key, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    approved.set(proxy, statement);
+    return proxy;
+  };
+  return new Proxy(db, {
+    get(target, key) {
+      if (key === "prepare") {
+        return (sql: string) => {
+          const trimmed = sql.trim();
+          if (!/^(?:SELECT|WITH|EXPLAIN)\s/i.test(trimmed) || /;\s*\S/.test(trimmed))
+            throw new Error("Production catalog acceptance is read-only");
+          const real = (target as { prepare(sql: string): object }).prepare(sql);
+          return wrapStatement(real);
+        };
+      }
+      if (key === "withSession") {
+        return (constraint: string) => {
+          const session = (target as { withSession(arg: string): object }).withSession(constraint);
+          return readOnlyStageD1(session, approved);
+        };
+      }
+      if (key === "batch") {
+        return (statements: object[]) => {
+          if (
+            !Array.isArray(statements) ||
+            !statements.length ||
+            statements.some((statement) => !approved.has(statement))
+          )
+            throw new Error("Only validated SELECT batches may query production D1");
+          return (target as { batch(statements: object[]): unknown }).batch(
+            statements.map((statement) => approved.get(statement)!),
+          );
+        };
+      }
+      if (key === "exec")
+        return () => {
+          throw new Error("Production catalog acceptance cannot exec SQL");
+        };
+      const value = Reflect.get(target, key, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
 export default {
   async fetch(request: Request, env: StorefrontStranglerEnv): Promise<Response> {
     // Fail closed even under an accidental deployment or config substitution.
     // The reviewed config must also contain only the dedicated synthetic D1.
-    if (
-      env.COVE_SSR_STAGING !== "1" ||
-      env.COVE_STRANGLER_MODE !== "isolated-evaluation" ||
-      env.COVE_STRANGLER_DATABASE_ID !== "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3"
-    )
+    const syntheticEvaluation =
+      env.COVE_STRANGLER_MODE === "isolated-evaluation" &&
+      env.COVE_STRANGLER_DATABASE_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
+    const productionAcceptance =
+      env.COVE_STRANGLER_MODE === "production-acceptance" &&
+      env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989";
+    if (env.COVE_SSR_STAGING !== "1" || (!syntheticEvaluation && !productionAcceptance))
       return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
     const rejected = await rejectUnauthenticatedStagingRequest(request, env);
     if (rejected) return rejected;
@@ -43,6 +100,10 @@ export default {
       stageNoStore(applySecurityHeaders(request, response, env), true);
     // Stage bearer authorizes this gateway, not a customer session at CORE.
     const delegate = () => {
+      // This production-D1 acceptance origin has no authenticated CORE
+      // service and must never become an alternate checkout/reader gateway.
+      if (productionAcceptance)
+        return Promise.resolve(new Response("Not an application route", { status: 404 }));
       const headers = new Headers(request.headers);
       // The operator's ingress token is NEVER a backend identity.
       // A different service-only secret can be provisioned for the private
@@ -78,7 +139,10 @@ export default {
             },
           }),
         );
-      const safe = isolateWorkerCountry(syntheticBenchmarkClient(request, env));
+      const benchmarkRequest = syntheticEvaluation
+        ? syntheticBenchmarkClient(request, env)
+        : request;
+      const safe = isolateWorkerCountry(benchmarkRequest);
       if (!safe)
         return finish(new Response("Unable to verify storefront territory.", { status: 503 }));
       const headers = new Headers(safe.headers);
@@ -95,7 +159,8 @@ export default {
       // Preserve it unchanged; all failures remain fail-closed and classified.
       // No presentation cache or independent authorizer is activated here.
       // Main's authoritative live territorial-rights bootstrap remains unchanged.
-      const response = await serveLeanAnonymousBootstrap(bootstrapRequest, env);
+      const bootstrapEnv = productionAcceptance ? { ...env, DB: readOnlyStageD1(env.DB) } : env;
+      const response = await serveLeanAnonymousBootstrap(bootstrapRequest, bootstrapEnv);
       if (!response.ok) return finish(new Response(null, { status: response.status }));
       const bootstrap = (await response.json()) as StorefrontBootstrap;
       if (bootstrap.context.rightsCountry !== headers.get("x-cove-client-country"))

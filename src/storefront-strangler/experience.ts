@@ -153,6 +153,12 @@ for (const button of document.querySelectorAll("[data-thin-href]")) {
     if (href && href.startsWith("/") && !href.startsWith("//")) location.assign(href);
   });
 }
+const advancedFilters = document.querySelector(".thin-advanced-facets");
+advancedFilters?.addEventListener("change", (event) => {
+  if (window.matchMedia("(min-width: 801px)").matches) {
+    if (event.target?.matches("select, input")) advancedFilters.requestSubmit();
+  }
+});
 const language = byId("thin-locale");
 language?.addEventListener("change", async () => {
   const status = byId("thin-locale-status");
@@ -330,5 +336,169 @@ a:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible{ou
 @media(max-width:1180px){.book-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.topbar,.content{padding-left:25px;padding-right:25px}}
 @media(max-width:800px){.sidebar{display:none}.main-shell{margin-left:0}.topbar,.content{padding:14px 16px}.topbar{min-height:48px}.book-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.book-card .cover{height:185px;padding:8px}.book-card h3{font-size:16px}.heading h1{font-size:36px}.heading{display:block}.heading p{font-size:13px}.mobile-menu{display:block}.mobile-menu nav{display:flex;flex-direction:column;gap:12px;padding:8px}.topbar nav{gap:8px}.discovery .two{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
-</style></head><body><a class="skip" href="#main">Skip to books</a><div class="fore-app"><aside class="sidebar"><a class="logo" href="/">Cove<span>.</span></a><p class="nav-label">DISCOVER</p><nav class="main-nav" aria-label="Main">${nav}</nav><div class="sidebar-bottom">Find your next great read.</div></aside><div class="main-shell"><header class="topbar"><div><strong>Cove</strong> / Bookstore</div><nav aria-label="Account"><a href="/?storefront=full&amp;auth=login">Sign in</a><a class="button gold" href="/?storefront=full&amp;auth=signup">Create account</a></nav><details class="mobile-menu"><summary>Menu</summary><nav aria-label="Mobile">${nav}</nav></details><label class="locale">Storefront language<select id="thin-locale" aria-label="Storefront language">${options}</select></label><span id="thin-locale-status" role="status" class="sr-only"></span></header><main id="main" class="content"><div class="eyebrow">${escape(eyebrow)} <span>Good books. Open to everyone.</span></div><div class="heading"><div><h1>${escape(headline)}<span>.</span></h1><p>${escape(description)}</p></div><a href="/library">Your library ↗</a></div><form class="catalog-search" action="/search" method="get" role="search"><label class="sr-only" for="thin-search">Search books by title, author, series, ISBN, publisher, or catalog ID</label><div class="search-field"><input id="thin-search" type="search" name="q" autocomplete="off" aria-label="Search books by title, author, series, ISBN, publisher, or catalog ID" aria-controls="thin-search-suggestions" aria-expanded="false" placeholder="Search titles, authors, series, ISBNs, publishers…"><div id="thin-search-suggestions" role="listbox" aria-label="Book suggestions" hidden></div></div><button type="submit">Search</button></form><nav class="commercial-shortcuts" aria-label="Bookstore destinations"><a href="/bestsellers">Bestsellers</a><a href="/new-releases">New releases</a><a href="/preorders">Coming soon</a><a href="/deals">Deals</a></nav><div class="catalog-controls"><nav class="topic-tabs" aria-label="Featured book categories"><a href="/store">All books</a><a href="/ebooks">Categories</a><a href="/trending">Trending</a><a href="/top-rated">Top rated</a></nav><span>Books available to read</span></div><div class="filter-row"><span>${bootstrap.catalog.results.length} currently available editions</span><div><label>Sort books <select data-thin-filter="sort" aria-label="Sort books"><option value="popular">Popular</option><option value="bestselling">Bestselling on Cove</option><option value="released">Recently released</option><option value="price_asc">Price: low to high</option><option value="title">Title A–Z</option></select></label></div></div><nav class="filters" aria-label="Search filters"><a href="/store">More filters</a><button type="button" class="facet-toggle" data-thin-href="/deals">Deals</button><button type="button" class="facet-toggle" data-thin-href="/new-releases">New releases</button><button type="button" class="facet-toggle" data-thin-href="/preorders">Preorders</button><button type="button" class="facet-toggle" data-thin-href="/store?subscription=true">Subscription</button><button type="button" class="facet-toggle" data-thin-href="/store?library=true">Library eligible</button></nav><div class="book-grid" data-rights-country="${escape(context.rightsCountry)}">${cardsMarkup}</div><div class="pagination"><a href="${bootstrap.catalog.next ? "/store?page=2" : "/store"}" aria-label="Browse the complete catalog">Browse more books ↗</a></div><div id="thin-merchandising" aria-label="Featured storefront campaigns"></div><section class="discovery" aria-labelledby="literary-discovery-title"><h2 id="literary-discovery-title">What would you love to read next?</h2><p>Explore by theme, mood, style or setting. Results use available book evidence.</p><form id="thin-discovery-form"><label for="thin-discovery-query">For this search<input id="thin-discovery-query" maxlength="500" placeholder="mystery, reflective, less violence"></label><div class="two"><label for="thin-discovery-likes">More of (comma-separated)<input id="thin-discovery-likes" maxlength="1000" placeholder="friendship, witty"></label><label for="thin-discovery-dislikes">Avoid known themes or styles<input id="thin-discovery-dislikes" maxlength="1000" placeholder="war, melancholic"></label><label for="thin-discovery-minutes">Maximum reading time in minutes<input id="thin-discovery-minutes" type="number" min="5" max="10000" placeholder="Any length"></label><label for="thin-discovery-adventure">Discovery adventure<input id="thin-discovery-adventure" type="range" min="0" max="1" step="0.1" value="0.3"></label></div><p>Avoid filters exclude books tagged with those terms; incomplete profiles may have unrecorded content.</p><div class="actions"><button type="submit" class="gold">Discover books</button><button type="reset">Clear preferences</button><a class="button" href="/?storefront=full#literary-discovery-title">Full literary discovery</a></div></form><p id="thin-discovery-status" role="status" aria-live="polite"></p><div id="thin-discovery-results"></div></section><section class="thin-placement"><h3>Read anywhere</h3><p>Keep your library and reading tools close, online or offline.</p><button id="thin-install" type="button">Install Cove</button><a href="/downloads">Offline reading and downloads</a></section><footer><span>Cove · Read something that stays with you.</span><a href="/publishing-policy">Publishing &amp; AI policy</a><a href="/copyright">Copyright / DMCA</a><a href="/privacy">Privacy</a><span>Availability follows the rights determination for your storefront country.</span></footer></main></div></div><script type="module">${behavior}</script></body></html>`;
+ 
+/* Shared visual language with Cove's live fore.css, without React hydration. */
+:root{--background:#0c1625;--foreground:#edf0f5;--border:#293344}
+.topbar{height:88px;min-height:88px;border-color:#293344}
+.thin-crumb{color:#d7dfe6;font-size:13px}
+.thin-crumb strong{font-weight:400}
+.content{padding-top:38px}
+.eyebrow{color:#dec18b;letter-spacing:1.9px;font-size:11px}
+.eyebrow span{display:inline-block;border-left:1px solid #384051;padding-left:14px;margin-left:10px;font-size:12px;letter-spacing:.2px;color:#8796a8}
+.heading{align-items:center;margin:15px 0 24px}
+.heading h1{font:400 clamp(32px,3.2vw,47px)/1.18 Georgia,serif;letter-spacing:-1.3px;margin:0}
+.heading p{color:#95a2b4;font-size:14px;margin-top:11px}
+.catalog-search{display:flex;align-items:center;gap:10px;border:1px solid #3a475b;border-radius:6px;background:#142033;padding:0 15px;min-height:56px;margin:0}
+.catalog-search:focus-within{border-color:#c6ac7e}
+.search-field:before{content:"⌕";position:absolute;top:50%;left:3px;transform:translateY(-55%);font-size:24px;color:#b1bfd0;line-height:1}
+.search-field input{background:transparent;border:0;outline:0;padding:12px 0 12px 27px;font-size:15px}
+.search-field input:focus-visible{outline:0}
+.commercial-shortcuts{gap:9px;margin:16px 0 12px}
+.commercial-shortcuts a{border:1px solid #334258;background:#111d2e;color:#cbd5e1;border-radius:999px;padding:8px 13px;font-size:12px}
+.thin-category-browse{border:1px solid #344258;border-radius:6px;margin:0 0 16px}
+.thin-category-browse summary{cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:12px 15px;color:#cbd5e1;font-size:13px}
+.thin-category-browse summary:after{content:"⌄";color:#c4d0e1}
+.thin-category-browse[open] summary:after{content:"⌃"}
+.thin-category-browse nav{display:flex;flex-wrap:wrap;gap:12px;padding:10px 15px;font-size:13px}
+.catalog-controls{border:0;padding:0;margin:16px 0 0}
+.catalog-controls>span{display:none}
+.topic-tabs{gap:22px;overflow-x:auto;flex-wrap:nowrap;white-space:nowrap;border-bottom:1px solid #2f3b4c}
+.topic-tabs a{padding:0 0 16px;font-size:14px;color:#91a1b7}
+.topic-tabs a[aria-current="page"]{color:#efd29d;border-bottom:2px solid #e5c17c}
+.filter-row{margin:20px 0 12px;display:flex;align-items:center;gap:12px}
+.catalog-count{font-size:13px;color:#8393a9}
+.filter-selects{display:flex;gap:8px;min-width:0}
+.filter-selects select,.thin-advanced-facets>select{border:1px solid #344258;background:#111d2e;color:#cbd5e1;border-radius:5px;font-size:12px;min-height:36px;padding:6px 11px}
+.filter-selects select{width:auto;max-width:180px}
+.thin-advanced-facets{display:flex;flex-wrap:wrap;gap:9px;margin:0 0 24px;align-items:center}
+.thin-advanced-facets>select{min-width:146px;flex:1 1 165px}
+.thin-advanced-facets .filters{display:contents}
+.facet-toggle{height:36px;padding:0 13px;background:transparent;border:1px solid #344258;border-radius:5px;color:#9cabbe;font-size:12px}
+.thin-facet-field{min-height:36px;display:inline-flex;align-items:center;gap:6px;padding:0 10px;border:1px solid #344258;border-radius:8px;color:#a2afbf;font-size:12px;white-space:nowrap}
+.thin-facet-field input{background:transparent;border:0;width:90px;padding:6px 0;font-size:12px}
+.thin-facet-field.date{flex:1 1 260px}
+.thin-facet-field.date input{width:auto;margin-left:auto;max-width:160px}
+.thin-apply-filters{border:1px solid #b99b66;background:#182536;color:#efd29d;font-size:12px;min-height:36px}
+@media(max-width:800px){
+  .topbar{height:68px;min-height:68px;padding:0 16px;gap:8px;justify-content:space-between}
+  .mobile-menu{order:-4;display:block}
+  .mobile-menu summary{list-style:none;cursor:pointer;font-size:0;width:28px;height:30px;display:flex;align-items:center}
+  .mobile-menu summary::-webkit-details-marker{display:none}
+  .mobile-menu summary:before{content:"☰";font-size:21px;color:#a4b2c4}
+  .mobile-menu[open] nav{position:absolute;top:68px;left:0;right:0;background:#111c2c;z-index:20;padding:14px;box-shadow:0 14px 18px #0007}
+  .thin-crumb{order:-3;font-size:12px;white-space:nowrap}
+  .thin-crumb strong,.thin-crumb-separator{display:none}
+  .locale{order:-2;display:flex;flex-direction:row-reverse}
+  .locale select{padding:5px;font-size:11px;max-width:70px}
+  .locale{font-size:0}
+  .topbar nav[aria-label="Account"]{order:-1;display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
+  .topbar nav[aria-label="Account"] a:first-child{font-size:12px;max-width:34px;text-align:center;line-height:17px}
+  .topbar nav[aria-label="Account"] a.button{min-height:53px;padding:9px 11px;font-size:12px;width:110px;text-align:center;line-height:18px}
+  .content{padding:22px 16px}
+  .eyebrow{margin:0 0 17px}
+  .eyebrow span{display:none}
+  .heading{margin:0 0 24px}
+  .heading h1{font-size:38px;line-height:1.15;letter-spacing:-1px}
+  .heading p{margin:12px 0 0;font-size:14px;line-height:1.5}
+  .heading>a{display:none}
+  .catalog-search{margin:0;min-height:56px;padding:0 12px}
+  .catalog-search button[type="submit"]{position:absolute;width:1px;height:1px;padding:0;clip-path:inset(50%);overflow:hidden}
+  .search-field input{width:100%;padding:16px 0 16px 29px;text-overflow:ellipsis}
+  .commercial-shortcuts{margin:16px 0 14px;flex-wrap:nowrap;overflow:auto;white-space:nowrap}
+  .commercial-shortcuts a{flex-shrink:0;padding:9px 12px}
+  .thin-category-browse{margin-bottom:19px}
+  .catalog-controls{margin:0}
+  .topic-tabs{gap:22px}
+  .topic-tabs a{font-size:13px;padding:9px 0 16px}
+  .filter-row{align-items:flex-start;gap:10px;margin:20px 0 12px}
+  .catalog-count{flex:0 0 52px;font-size:12px;line-height:18px}
+  .filter-selects{flex:1;gap:8px;overflow:hidden}
+  .filter-selects select{min-width:0;flex:1 1 0;padding:7px 5px}
+  .filter-selects select:last-child{max-width:46px}
+  .thin-advanced-facets{gap:9px;margin-bottom:24px}
+  .thin-advanced-facets>select{flex:1 1 135px}
+  .thin-advanced-facets .facet-toggle{flex:1 1 auto}
+  .thin-facet-field{flex:1 1 120px}
+  .thin-facet-field.date{flex:1 1 100%}
+  .thin-apply-filters{flex:1 1 100%}
+}
+
+@media(max-width:800px){
+  .thin-category-browse{margin-bottom:13px}
+  .catalog-controls{margin-top:0}
+  .filter-row{margin-top:16px}
+  .catalog-count{flex:0 0 48px;font-size:12px;line-height:18px}
+  .filter-selects{gap:8px;align-items:center}
+  .filter-selects select:first-child{flex:0 0 98px;width:98px}
+  .filter-selects select:nth-child(2){flex:0 0 94px;width:94px}
+  .thin-sort-wrapper{display:flex;align-items:center;justify-content:center;position:relative;flex:1 1 auto;min-width:65px;height:36px;border:1px solid #344258;border-radius:5px;background:#111d2e;color:#cbd5e1}
+  .thin-sort-wrapper>span{font-size:18px}
+  .thin-sort-wrapper select{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}
+  .thin-advanced-facets>select[name="minRating"]{flex:0 0 215px;max-width:215px}
+  .thin-facet-field:has(input[name="minPrice"]){flex:1 0 133px}
+  .thin-facet-field.max{flex:0 0 134px}
+}
+@media(max-width:800px){
+  .topbar nav[aria-label="Account"] a:first-child{max-width:24px;white-space:normal}
+  .thin-facet-field:has(input[name="minPrice"]){flex:0 0 133px;max-width:133px;min-width:0}
+  .thin-facet-field input[name="minPrice"]{width:65px;min-width:0}
+  .thin-facet-field.max{flex:0 0 134px}
+}
+
+@media(min-width:801px){
+  .sidebar{padding:40px 22px}
+  .logo{font:44px Georgia,serif;line-height:1;letter-spacing:-2px;padding-left:10px}
+  .nav-label{margin:54px 13px 18px;font-size:11px}
+  .main-nav{gap:9px}
+  .main-nav a{display:flex;align-items:center;gap:13px;padding:13px 12px;font-size:14px}
+  .main-nav a:before{content:"◦";width:13px;text-align:center;font-size:17px;color:#8999aa;line-height:1}
+  .main-nav a[href="/"]:before{content:"▤"}
+  .main-nav a[href="/audiobooks"]:before{content:"♫"}
+  .main-nav a[href="/library"]:before{content:"▥"}
+  .main-nav a[href="/wishlist"]:before{content:"♡"}
+  .main-nav a[href="/cart"]:before{content:"♧"}
+  .main-nav a[href="/orders"]:before{content:"▧"}
+  .main-nav a[href="/notifications"]:before{content:"♧"}
+  .main-nav a[href="/community"]:before{content:"♧"}
+  .main-nav a[href="/shelves"]:before{content:"▥"}
+  .main-nav a[href="/stats"]:before{content:"▥"}
+  .sidebar-bottom{display:none}
+  .topbar{height:88px;min-height:88px;padding:0 46px;gap:12px}
+  .topbar .thin-crumb{margin-right:auto;font-size:13px;color:#8f9eb0}
+  .thin-crumb strong{color:#d7dfe6}
+  .topbar .locale{order:1;display:flex;align-items:center;gap:8px;font-size:11px}
+  .topbar .locale select{font-size:11px;padding:5px 8px;border:1px solid #364458}
+  .topbar nav[aria-label="Account"]{order:2;display:flex;align-items:center;gap:18px}
+  .topbar nav[aria-label="Account"] a.button{min-height:38px;padding:9px 13px}
+  .content{padding:38px 46px 0}
+  .heading{margin:15px 0 27px}
+  .heading h1{font-size:clamp(32px,3.2vw,47px)}
+  .catalog-search button[type="submit"]{position:absolute;width:1px;height:1px;padding:0;clip-path:inset(50%);overflow:hidden}
+  .topic-tabs{gap:15px}
+  .topic-tabs a{font-size:12px}
+  .filter-row{margin-top:20px}
+  .book-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:32px 24px}
+  .book-card .cover{height:auto;aspect-ratio:2/3;padding:0;background:#263044;border:0;overflow:hidden}
+  .book-card img{object-fit:cover;width:100%;height:100%;max-height:none;max-width:none}
+}
+@media(min-width:801px) and (max-width:1280px){
+  .book-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:25px 18px}
+}
+
+@media(min-width:801px){
+  .logo-book{display:inline-block;margin-right:13px;color:#e5c17c;font:30px Georgia,serif;letter-spacing:0;vertical-align:middle}
+  .logo{font-size:45px;padding-left:4px}
+  .catalog-controls .topic-tabs{gap:20px}
+  .topic-tabs a{white-space:nowrap}
+  .topic-tabs{overflow-x:auto;max-width:100%;scrollbar-width:none}
+  .thin-advanced-facets{position:relative}
+  .thin-apply-filters{position:absolute;right:0;bottom:-28px;font-size:11px;padding:2px 6px;min-height:24px;opacity:.78}
+  .main-nav a[href="/"]{position:relative}
+  .main-nav a[href="/"].active:after{content:"›";position:absolute;right:12px;font-size:18px;color:#e2c489}
+}
+@media(max-width:800px){
+  .logo-book{display:none}
+  .topic-tabs a:nth-child(n+5){display:none}
+}
+</style></head><body><a class="skip" href="#main">Skip to books</a><div class="fore-app"><aside class="sidebar"><a class="logo" href="/"><span class="logo-book" aria-hidden="true">▯</span>cove<span>.</span></a><p class="nav-label">YOUR READING ROOM</p><nav class="main-nav" aria-label="Main">${nav}</nav><div class="sidebar-bottom">Find your next great read.</div></aside><div class="main-shell"><header class="topbar"><div class="thin-crumb"><strong>Cove</strong><span class="thin-crumb-separator"> / </span>Bookstore</div><nav aria-label="Account"><a href="/?storefront=full&amp;auth=login">Log in</a><a class="button gold" href="/?storefront=full&amp;auth=signup">Create account</a></nav><details class="mobile-menu"><summary aria-label="Open navigation">Menu</summary><nav aria-label="Mobile">${nav}</nav></details><label class="locale">Storefront language<select id="thin-locale" aria-label="Storefront language">${options}</select></label><span id="thin-locale-status" role="status" class="sr-only"></span></header><main id="main" class="content"><div class="eyebrow">${escape(eyebrow)} <span>Good books. Open to everyone.</span></div><div class="heading"><div><h1>${escape(headline)}<span>.</span></h1><p>${escape(description)}</p></div><a href="/library">Your library ↗</a></div><form class="catalog-search" action="/search" method="get" role="search"><label class="sr-only" for="thin-search">Search books by title, author, series, ISBN, publisher, or catalog ID</label><div class="search-field"><input id="thin-search" type="search" name="q" autocomplete="off" aria-label="Search books by title, author, series, ISBN, publisher, or catalog ID" aria-controls="thin-search-suggestions" aria-expanded="false" placeholder="Search titles, authors, series, ISBNs, publishers…"><div id="thin-search-suggestions" role="listbox" aria-label="Book suggestions" hidden></div></div><button type="submit">Search</button></form><nav class="commercial-shortcuts" aria-label="Bookstore destinations"><a href="/bestsellers">Bestsellers</a><a href="/new-releases">New releases</a><a href="/preorders">Coming soon</a><a href="/deals">Deals</a></nav><details class="thin-category-browse"><summary>Browse categories</summary><nav aria-label="Browse categories"><a href="/ebooks">Fiction &amp; Literature</a><a href="/ebooks?taxonomy=classics">Classics</a><a href="/ebooks?taxonomy=adventure">Adventure</a><a href="/store">All categories</a></nav></details><div class="catalog-controls"><nav class="topic-tabs" aria-label="Featured book categories"><a href="/store" aria-current="page">All books</a><a href="/ebooks?taxonomy=fiction">Fiction &amp; Literature</a><a href="/ebooks?taxonomy=classics">Classics</a><a href="/ebooks?taxonomy=adventure">Adventure</a><a href="/ebooks?taxonomy=mystery">Mystery &amp; Thriller</a><a href="/ebooks?taxonomy=romance">Romance</a><a href="/ebooks?taxonomy=fantasy">Fantasy</a><a href="/ebooks?taxonomy=science-fiction">Science Fiction</a><a href="/ebooks?taxonomy=young-adult">Young Adult</a><a href="/ebooks?taxonomy=children">Children’s Books</a></nav><span>Books available to read</span></div><div class="filter-row"><span class="catalog-count">${bootstrap.catalog.results.length} books</span><div class="filter-selects"><select data-thin-filter="language" aria-label="Languages"><option value="all">All languages</option><option value="en">English</option><option value="fr">French</option><option value="es">Spanish</option></select><select data-thin-filter="format" aria-label="Formats"><option value="all">All formats</option><option value="epub">EPUB</option><option value="pdf">PDF</option></select><span class="thin-sort-wrapper"><span aria-hidden="true">☷</span><select data-thin-filter="sort" aria-label="Sort books"><option value="popular">Popular</option><option value="bestselling">Bestselling on Cove</option><option value="released">Recently released</option><option value="price_asc">Price: low to high</option><option value="title">Title A–Z</option></select></span></div></div><form class="thin-advanced-facets" action="/store" method="get"><select name="taxonomy" aria-label="Categories"><option value="">All categories</option><option value="fiction">Fiction &amp; Literature</option><option value="classics">Classics</option><option value="adventure">Adventure</option></select><select name="publisher" aria-label="Publishers"><option value="">All publishers</option></select><select name="series" aria-label="Series"><option value="">All series</option></select><div class="filters" aria-label="Search filters"><button type="button" class="facet-toggle" data-thin-href="/deals">Deals</button><button type="button" class="facet-toggle" data-thin-href="/new-releases">New releases</button><button type="button" class="facet-toggle" data-thin-href="/preorders">Preorders</button><button type="button" class="facet-toggle" data-thin-href="/store?subscription=true">Subscription</button><button type="button" class="facet-toggle" data-thin-href="/store?library=true">Library eligible</button></div><select name="minRating" aria-label="Minimum rating"><option value="">Any rating</option><option value="4">4 stars &amp; up</option><option value="3">3 stars &amp; up</option></select><label class="thin-facet-field"><span>Min $</span><input type="number" step="0.01" min="0" name="minPrice" aria-label="Minimum price" placeholder="0"></label><label class="thin-facet-field max"><span>Max $</span><input type="number" step="0.01" min="0" name="maxPrice" aria-label="Maximum price" placeholder="Any"></label><label class="thin-facet-field date"><span>Published after</span><input type="date" name="publishedAfter" aria-label="Published after"></label><label class="thin-facet-field date"><span>Published before</span><input type="date" name="publishedBefore" aria-label="Published before"></label><button class="thin-apply-filters" type="submit">Apply filters</button></form><div class="book-grid" data-rights-country="${escape(context.rightsCountry)}">${cardsMarkup}</div><div class="pagination"><a href="${bootstrap.catalog.next ? "/store?page=2" : "/store"}" aria-label="Browse the complete catalog">Browse more books ↗</a></div><div id="thin-merchandising" aria-label="Featured storefront campaigns"></div><section class="discovery" aria-labelledby="literary-discovery-title"><h2 id="literary-discovery-title">What would you love to read next?</h2><p>Explore by theme, mood, style or setting. Results use available book evidence.</p><form id="thin-discovery-form"><label for="thin-discovery-query">For this search<input id="thin-discovery-query" maxlength="500" placeholder="mystery, reflective, less violence"></label><div class="two"><label for="thin-discovery-likes">More of (comma-separated)<input id="thin-discovery-likes" maxlength="1000" placeholder="friendship, witty"></label><label for="thin-discovery-dislikes">Avoid known themes or styles<input id="thin-discovery-dislikes" maxlength="1000" placeholder="war, melancholic"></label><label for="thin-discovery-minutes">Maximum reading time in minutes<input id="thin-discovery-minutes" type="number" min="5" max="10000" placeholder="Any length"></label><label for="thin-discovery-adventure">Discovery adventure<input id="thin-discovery-adventure" type="range" min="0" max="1" step="0.1" value="0.3"></label></div><p>Avoid filters exclude books tagged with those terms; incomplete profiles may have unrecorded content.</p><div class="actions"><button type="submit" class="gold">Discover books</button><button type="reset">Clear preferences</button><a class="button" href="/?storefront=full#literary-discovery-title">Full literary discovery</a></div></form><p id="thin-discovery-status" role="status" aria-live="polite"></p><div id="thin-discovery-results"></div></section><section class="thin-placement"><h3>Read anywhere</h3><p>Keep your library and reading tools close, online or offline.</p><button id="thin-install" type="button">Install Cove</button><a href="/downloads">Offline reading and downloads</a></section><footer><span>Cove · Read something that stays with you.</span><a href="/publishing-policy">Publishing &amp; AI policy</a><a href="/copyright">Copyright / DMCA</a><a href="/privacy">Privacy</a><span>Availability follows the rights determination for your storefront country.</span></footer></main></div></div><script type="module">${behavior}</script></body></html>`;
 }
