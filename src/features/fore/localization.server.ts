@@ -419,6 +419,7 @@ export async function resolveAnonymousHomepageContext(
   db: StorefrontDB,
   request: Request,
   fallbackCountry = "US",
+  diagnostics?: { sqlDurationMs?: number; rowsRead?: number; measuredStatements?: number },
 ): Promise<StorefrontContext> {
   if (request.headers.has("cookie") || request.headers.has("authorization"))
     throw new Error("Anonymous presentation batch rejects identity or preference headers.");
@@ -428,7 +429,7 @@ export async function resolveAnonymousHomepageContext(
     SELECT 1 FROM storefront_markets
     WHERE country_code=? AND market_status='active'
   ) THEN ? ELSE 'US' END`;
-  const [marketResult, translationsResult, paymentResult, pageResult] = (await db.batch([
+  const batchResult = (await db.batch([
     db
       .prepare(
         `SELECT m.*,l.locale active_locale,l.language_code active_language_code,
@@ -535,6 +536,29 @@ export async function resolveAnonymousHomepageContext(
     },
     { results: Record<string, unknown>[] },
   ];
+  const [marketResult, translationsResult, paymentResult, pageResult] = batchResult;
+  if (diagnostics) {
+    // Cloudflare D1 meta.duration measures SQL execution, not service
+    // queuing/network delay. Comparing it to cove_context distinguishes
+    // actual SQL cost from waiting without changing queries or results.
+    let totalSql = 0;
+    let totalRows = 0;
+    let measured = 0;
+    for (const result of batchResult as Array<{
+      meta?: { duration?: number; rows_read?: number };
+    }>) {
+      if (Number.isFinite(result.meta?.duration)) {
+        totalSql += Number(result.meta?.duration);
+        measured++;
+      }
+      if (Number.isFinite(result.meta?.rows_read)) totalRows += Number(result.meta?.rows_read);
+    }
+    if (measured) {
+      diagnostics.sqlDurationMs = totalSql;
+      diagnostics.rowsRead = totalRows;
+      diagnostics.measuredStatements = measured;
+    }
+  }
   const selectedMarket = marketResult.results[0];
   if (!selectedMarket) throw new ApiError(503, "No active Cove storefront market is configured.");
   const localeRows = marketResult.results

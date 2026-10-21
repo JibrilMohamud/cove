@@ -1,0 +1,74 @@
+name: cloudflare-thin-storefront-paired
+on:
+  push:
+    branches: [perf/thin-storefront-20261019]
+    paths:
+      - "src/**"
+      - "scripts/**"
+      - "drizzle/**"
+      - "wrangler*"
+      - "package*.json"
+      - "*config*"
+      - ".github/workflows/cloudflare-thin-storefront-paired.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cove-cleanoverlap-recovery-20261019
+  queue: max
+  cancel-in-progress: false
+jobs:
+  architecture-comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      CI: "1"
+      VERCEL: "0"
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify existing synthetic fixtures; never load production D1
+        run: node scripts/performance/verify-isolated-d1-fixtures.mjs
+      - name: Territorial authority and new entry regression gates
+        run: |
+          npm run typecheck
+          node scripts/check-thin-storefront.mjs
+          node scripts/check-rights.mjs
+          node scripts/check-storefront-bootstrap.mjs
+          node scripts/check-storefront-firstpaint-rate-limit.mjs
+      - name: Build full commerce core and independent thin entry
+        run: |
+          npm run build
+          node scripts/build-thin-storefront.mjs
+          npx --yes wrangler@4.151.0 deploy --dry-run --config wrangler.storefront-thin.jsonc
+      - run: npx playwright install --with-deps chromium
+      - name: Three fresh deployments, repeated concurrency, mobile browser and bounded capacity curve
+        run: node scripts/performance/thin-storefront-paired.mjs
+      - name: Preserve raw evidence on failed gates
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cove-thin-storefront-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            artifacts/thin-storefront/
+            .output/thin/metafile.json
+          retention-days: 30
+      - name: Clean up only this experiment's Workers
+        if: always()
+        run: |
+          for script in cove-thin-pilot-staging cove-thin-core-staging cove-thin-control-staging cove-thin-ingress-staging; do
+            curl --fail-with-body -sS --max-time 30 -X DELETE \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$script?force=true" \
+              >/dev/null || true
+          done

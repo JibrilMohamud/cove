@@ -1,0 +1,48 @@
+name: thin-stage-scoping-strict-format
+on:
+  push:
+    branches: [perf/pr227-100rps-causal-20261020]
+    paths:
+      - "scripts/performance/thin-stage-run-scope.mjs"
+      - "scripts/performance/check-thin-stage-run-scope.mjs"
+      - "scripts/performance/thin-storefront-paired.mjs"
+      - ".github/workflows/thin-stage-scoping-strict-format.yml"
+permissions:
+  contents: read
+jobs:
+  format-and-test-synthetic-run-scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify private run-scope and original config separation
+        run: node scripts/performance/check-thin-stage-run-scope.mjs
+      - name: Emit exact Prettier fixes for newly introduced stage sources
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import prettier from "prettier";
+          for (const path of [
+            "scripts/performance/thin-stage-run-scope.mjs",
+            "scripts/performance/check-thin-stage-run-scope.mjs",
+            "scripts/performance/thin-storefront-paired.mjs",
+          ]) {
+            const content = fs.readFileSync(path, "utf8");
+            const cfg = (await prettier.resolveConfig(path)) || {};
+            const formatted = await prettier.format(content, { ...cfg, filepath: path });
+            if (formatted !== content) {
+              console.log("COVE_STAGE_FORMAT " + JSON.stringify({ path, content: encodeURIComponent(formatted) }));
+            }
+          }
+          NODE
+      - name: Verify synthetic rights and typing
+        run: |
+          npm run typecheck
+          node scripts/check-thin-storefront.mjs
