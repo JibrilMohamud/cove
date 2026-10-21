@@ -126,6 +126,27 @@ export default {
           );
         request = safe;
       }
+      // Synthetic transport floor: independently quantify Cloudflare ingress,
+      // scheduling and client transit without SSR, SQL, R2 or rights output.
+      // The protected staging gate and trusted-country validation above are
+      // mandatory; this endpoint never exists in production.
+      if (
+        staging &&
+        request.method === "GET" &&
+        new URL(request.url).pathname === "/__cove/stage/transport-floor"
+      ) {
+        return stageNoStore(
+          new Response(JSON.stringify({ kind: "transport_floor" }), {
+            headers: {
+              "content-type": "application/json; charset=utf-8",
+              "cache-control": "private, no-store",
+              "x-content-type-options": "nosniff",
+              "server-timing": "cove_edge_floor;dur=0",
+            },
+          }),
+          true,
+        );
+      }
       if (staging) {
         // Authenticated stage transport must never forward its ephemeral
         // bearer token into any application/session/backend handler.
