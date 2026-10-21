@@ -12,16 +12,27 @@ const server = http.createServer(async (request, response) => {
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify(body));
   };
-  if (url.pathname === "/") {
+  if (url.pathname === "/" && !url.search) {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     response.end(html);
   } else if (url.pathname === "/api/fore/recommendations/discover") {
     assert.equal(request.method, "POST");
     calls.discovery++;
-    json({ rails: [{ title: "Verified recommendations", books: [{ publicEditionId: "ed_123", title: "Example title" }] }] });
+    json({
+      rails: [
+        {
+          title: "Verified recommendations",
+          books: [{ publicEditionId: "ed_123", title: "Example title" }],
+        },
+      ],
+    });
   } else if (url.pathname === "/api/fore/merchandising") {
     calls.merchandising++;
-    json({ slots: { home: [{ title: "Featured collection", ctaHref: "/store", ctaLabel: "See collection" }] } });
+    json({
+      slots: {
+        home: [{ title: "Featured collection", ctaHref: "/store", ctaLabel: "See collection" }],
+      },
+    });
   } else if (url.pathname === "/api/fore/storefront/context") {
     assert.equal(request.method, "POST");
     calls.language++;
@@ -41,10 +52,10 @@ try {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
-  assert.equal(await page.locator('[data-rights-country="US"] .book-card').count() > 0, true);
-  assert.equal(await page.locator('nav[aria-label="Main"] a').count() >= 15, true);
+  assert.equal((await page.locator('[data-rights-country="US"] .book-card').count()) > 0, true);
+  assert.equal((await page.locator('nav[aria-label="Main"] a').count()) >= 15, true);
   for (const path of ["/library", "/cart", "/orders", "/wishlist", "/downloads", "/publishing"]) {
-    assert.equal(await page.locator(`a[href="${path}"]`).count() > 0, true, path);
+    assert.equal((await page.locator(`a[href="${path}"]`).count()) > 0, true, path);
   }
 
   await page.locator("#thin-discovery-query").fill("hope and adventure");
@@ -72,8 +83,12 @@ try {
   assert.equal(calls.language, 1);
   assert.equal(await page.getByText("Original CORE experience").count(), 1);
   assert.deepEqual(errors, []);
-  console.log("PASS: responsive thin experience, route delegation, discovery, merchandising, locale, filtering and search.");
+  console.log(
+    "PASS: responsive thin experience, route delegation, discovery, merchandising, locale, filtering and search.",
+  );
 } finally {
   await browser.close();
-  await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+  await new Promise((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
 }
