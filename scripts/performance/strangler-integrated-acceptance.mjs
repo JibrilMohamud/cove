@@ -118,26 +118,45 @@ async function sample() {
       html.includes('id="thin-merchandising"') &&
       !html.includes('data-product="perf-synth-000107"') &&
       !html.includes('data-product="perf-synth-000097"');
-    return { ok, ms, status: response.status };
+    return {
+      ok,
+      ms,
+      status: response.status,
+      failure: response.headers.get("x-cove-stage-failure") || null,
+      observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
+      renderer: response.headers.get("x-cove-renderer"),
+    };
   } catch (error) {
     return { ok: false, ms: performance.now() - start, error: error.name };
   }
 }
+let lastDeploymentId = null;
 async function deployFresh() {
   command(["deploy", "--config", configPath]);
   stageKey = randomBytes(32).toString("hex");
+  const rotatedAt = Date.now();
   command(["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", configPath], stageKey);
-  // Never run customer data through this Worker; the stage gate must reject
-  // every anonymous request before touching the wholly synthetic fixture.
-  let unauthorized = null;
-  for (let attempt = 0; attempt < 12; attempt++) {
-    try {
-      unauthorized = await fetch(origin, { signal: AbortSignal.timeout(6000) });
-      if (unauthorized.status === 401) break;
-    } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+  // Confirm the new fully active deployment via Cloudflare control plane only:
+  // an unauthenticated fetch here would prewarm and invalidate the cold trial.
+  for (let attempt = 0; attempt < 18; attempt++) {
+    const result = await cloudflare(
+      "GET",
+      `/accounts/${account}/workers/scripts/${name}/deployments`,
+    );
+    const latest = result.deployments?.[0];
+    if (
+      latest &&
+      latest.id !== lastDeploymentId &&
+      Date.parse(latest.created_on) >= rotatedAt - 5000 &&
+      latest.versions?.some((version) => version.percentage === 100)
+    ) {
+      lastDeploymentId = latest.id;
+      await new Promise((resolve) => setTimeout(resolve, 1600));
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1800));
   }
-  assert.equal(unauthorized?.status, 401, "Staging gate must reject unauthenticated traffic");
+  throw new Error("Fresh fully active synthetic stage deployment not confirmed");
 }
 const startedAt = performance.now();
 try {
@@ -151,9 +170,15 @@ try {
     await deployFresh();
     const cold = await sample();
     evidence.cold.push(cold);
+    console.log("COLD_PROBE", JSON.stringify({ round: i + 1, ...cold }));
     save();
-    assert.ok(cold.ok && cold.ms < 800, "Independent cold visit exceeded 800ms");
   }
+  assert.ok(
+    evidence.cold.every((cold) => cold.ok && cold.ms < 800),
+    "Independent cold visits failed validity or 800ms bound",
+  );
+  const unauthorized = await fetch(origin, { signal: AbortSignal.timeout(6000) });
+  assert.equal(unauthorized.status, 401, "Stage gate must reject requests without bearer");
   for (const concurrency of [1, 4, 8, 16, 32]) {
     const results = await Promise.all(Array.from({ length: concurrency }, () => sample()));
     const summary = summarize(results);
