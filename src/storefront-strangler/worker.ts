@@ -1,5 +1,6 @@
 import type { CoveEnv } from "../features/fore/api.server";
 import { isolateWorkerCountry } from "../lib/cloudflare-country.server";
+import { verifyFastCountryClaim } from "../lib/fast-storefront-relay.server";
 import {
   rejectUnauthenticatedStagingRequest,
   stageNoStore,
@@ -22,6 +23,8 @@ export type StorefrontStranglerEnv = CoveEnv & {
   COVE_STRANGLER_MODE?: string;
   COVE_STRANGLER_DATABASE_ID?: string;
   COVE_STRANGLER_EXPERIENCE?: string;
+  COVE_STRANGLER_RELEASE_CERTIFIED?: string;
+  COVE_FAST_RELAY_KEY?: string;
   COVE_SSR_STAGING_GATE_KEY?: string;
   COVE_INTERNAL_CORE_STAGE_GATE_KEY?: string;
   CORE: { fetch(request: Request): Promise<Response> };
@@ -92,17 +95,43 @@ export default {
     const productionAcceptance =
       env.COVE_STRANGLER_MODE === "production-acceptance" &&
       env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989";
-    if (env.COVE_SSR_STAGING !== "1" || (!syntheticEvaluation && !productionAcceptance))
+    const customerGateway =
+      env.COVE_SSR_STAGING !== "1" &&
+      env.COVE_STRANGLER_MODE === "customer-gateway" &&
+      env.COVE_STRANGLER_RELEASE_CERTIFIED === "1" &&
+      env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989";
+    if (
+      (!customerGateway && env.COVE_SSR_STAGING !== "1") ||
+      (!customerGateway && !syntheticEvaluation && !productionAcceptance)
+    )
       return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
-    const rejected = await rejectUnauthenticatedStagingRequest(request, env);
-    if (rejected) return rejected;
-    const finish = (response: Response) =>
-      stageNoStore(applySecurityHeaders(request, response, env), true);
+    if (!customerGateway) {
+      const rejected = await rejectUnauthenticatedStagingRequest(request, env);
+      if (rejected) return rejected;
+    }
+    // Production Worker accepts only HMAC-authenticated Vercel relay requests.
+    // Cloudflare's Vercel-egress request.cf.country is NOT the customer's
+    // territory, and must never authorize a licensed book.
+    const relay = customerGateway
+      ? await verifyFastCountryClaim(
+          request.headers,
+          env.COVE_FAST_RELAY_KEY || "",
+        )
+      : null;
+    if (customerGateway && !relay)
+      return new Response("Unauthorized", { status: 401, headers: { "cache-control": "no-store" } });
+    const finish = (response: Response) => {
+      const secured = applySecurityHeaders(request, response, env);
+      if (!customerGateway) return stageNoStore(secured, true);
+      const headers = new Headers(secured.headers);
+      headers.set("cache-control", "private, no-store");
+      return new Response(secured.body, { status: secured.status, headers });
+    };
     // Stage bearer authorizes this gateway, not a customer session at CORE.
     const delegate = () => {
       // This production-D1 acceptance origin has no authenticated CORE
       // service and must never become an alternate checkout/reader gateway.
-      if (productionAcceptance)
+      if (productionAcceptance || customerGateway)
         return Promise.resolve(new Response("Not an application route", { status: 404 }));
       const headers = new Headers(request.headers);
       // The operator's ingress token is NEVER a backend identity.
@@ -142,7 +171,19 @@ export default {
       const benchmarkRequest = syntheticEvaluation
         ? syntheticBenchmarkClient(request, env)
         : request;
-      const safe = isolateWorkerCountry(benchmarkRequest);
+      let safe: Request | null;
+      if (customerGateway && relay) {
+        const relayHeaders = new Headers(request.headers);
+        relayHeaders.delete("cookie");
+        relayHeaders.delete("authorization");
+        relayHeaders.delete("x-cove-client-country");
+        relayHeaders.delete("x-cove-client-ip");
+        relayHeaders.set("x-cove-client-country", relay.country);
+        relayHeaders.set("cf-connecting-ip", relay.ip);
+        safe = new Request(request, { headers: relayHeaders });
+      } else {
+        safe = isolateWorkerCountry(benchmarkRequest);
+      }
       if (!safe)
         return finish(new Response("Unable to verify storefront territory.", { status: 503 }));
       const headers = new Headers(safe.headers);
@@ -159,7 +200,9 @@ export default {
       // Preserve it unchanged; all failures remain fail-closed and classified.
       // No presentation cache or independent authorizer is activated here.
       // Main's authoritative live territorial-rights bootstrap remains unchanged.
-      const bootstrapEnv = productionAcceptance ? { ...env, DB: readOnlyStageD1(env.DB) } : env;
+      const bootstrapEnv = productionAcceptance || customerGateway
+        ? { ...env, DB: readOnlyStageD1(env.DB) }
+        : env;
       const response = await serveLeanAnonymousBootstrap(bootstrapRequest, bootstrapEnv);
       if (!response.ok) return finish(new Response(null, { status: response.status }));
       const bootstrap = (await response.json()) as StorefrontBootstrap;
@@ -201,7 +244,7 @@ export default {
             headers: {
               "content-type": "text/html; charset=utf-8",
               "cache-control": "private, no-store",
-              "x-cove-renderer": "strangler-evaluation",
+              "x-cove-renderer": customerGateway ? "strangler-live" : "strangler-evaluation",
               "server-timing": response.headers.get("server-timing") || "",
             },
           },

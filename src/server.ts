@@ -71,6 +71,12 @@ export default {
         ASSETS?: { fetch: (request: Request) => Promise<Response> };
         COVE_SSR_STAGING?: string;
         COVE_SSR_STAGING_GATE_KEY?: string;
+        COVE_FAST_STOREFRONT_MODE?: string;
+        COVE_FAST_STOREFRONT_RELEASE_CERTIFIED?: string;
+        COVE_FAST_STOREFRONT_ORIGIN?: string;
+        COVE_FAST_STOREFRONT_PERCENT?: string;
+        COVE_FAST_RELAY_KEY?: string;
+        VERCEL_ENV?: string;
         FORE_PUBLIC_URL?: string;
         FORE_ENVIRONMENT?: string;
         FORE_CSP_REPORT_URI?: string;
@@ -128,6 +134,20 @@ export default {
         const headers = new Headers(request.headers);
         headers.delete("authorization");
         request = new Request(request, { headers });
+      }
+      // Only the anonymous homepage may use the optional verified-Country
+      // Cloudflare renderer. Account/session, checkout, API, reader, and
+      // media traffic always retain the established Vercel/CORE route.
+      // Default OFF; a separately reviewed release certificate is required.
+      if (
+        !staging &&
+        request.method === "GET" &&
+        new URL(request.url).pathname === "/" &&
+        foreEnv.COVE_FAST_STOREFRONT_RELEASE_CERTIFIED === "1"
+      ) {
+        const { maybeProxyFastHomepage } = await import("./lib/fast-storefront-proxy.server");
+        const fast = await maybeProxyFastHomepage(request, foreEnv);
+        if (fast) return applySecurityHeaders(request, fast, foreEnv);
       }
       const ingestionControl = await handleVercelIngestionControl(request, foreEnv);
       if (ingestionControl)
