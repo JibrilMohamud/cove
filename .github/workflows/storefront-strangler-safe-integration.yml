@@ -6,6 +6,7 @@ on:
       - "scripts/build-storefront-strangler.mjs"
       - "scripts/check-storefront-strangler.mjs"
       - "scripts/test-storefront-strangler-browser.mjs"
+      - "scripts/performance/strangler-integrated-acceptance.mjs"
       - "wrangler.storefront-strangler.stage.jsonc"
       - ".github/workflows/storefront-strangler-safe-integration.yml"
       - "docs/architecture/SAFE_THIN_MAIN_INTEGRATION.md"
@@ -27,6 +28,24 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Emit deterministic performance harness formatting corrections
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import prettier from "prettier";
+          for (const path of [
+            "scripts/performance/strangler-integrated-acceptance.mjs",
+            "src/storefront-strangler/synthetic-client.ts",
+          ]) {
+            const raw = fs.readFileSync(path, "utf8");
+            const opts = await prettier.resolveConfig(path);
+            const formatted = await prettier.format(raw, { ...opts, filepath: path });
+            if (formatted !== raw)
+              console.log("COVE_FORMAT " + JSON.stringify({ path, content: encodeURIComponent(formatted) }));
+          }
+          NODE
+      - name: Strict formatting for release harness
+        run: npx prettier --check scripts/performance/strangler-integrated-acceptance.mjs src/storefront-strangler/synthetic-client.ts
       - name: Prove config isolation, bearer delegation, primary rights and revocation
         run: node scripts/check-storefront-strangler.mjs
       - name: Protect current checkout, reader and legal rights
@@ -57,4 +76,38 @@ jobs:
         env:
           CLOUDFLARE_SEND_METRICS: "false"
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.storefront-strangler.stage.jsonc
-# No push deployment, API credentials, production D1, migrations or public routes.
+
+  hosted-acceptance:
+    needs: isolated-evaluation-only
+    # Only the reviewed same-repository release candidate may receive a
+    # scoped Cloudflare token. Forked PRs and other branches cannot deploy.
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 251 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'release/isolated-storefront-safe-main-20261021'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: "1"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Build immutable, isolated interactive Worker
+        run: node scripts/build-storefront-strangler.mjs
+      - name: Independently verify 3 cold, 1/4/8/16/32 and 100 RPS
+        run: node scripts/performance/strangler-integrated-acceptance.mjs
+      - name: Preserve failed and successful raw measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cove-strangler-acceptance-${{ github.sha }}
+          path: artifacts/strangler-acceptance/results.json
+          retention-days: 30
+          if-no-files-found: warn
+# No production route, production database, scheduled job, or migration.
