@@ -130,7 +130,7 @@ async function sample() {
       renderer: response.headers.get("x-cove-renderer"),
       serverTiming: response.headers.get("server-timing"),
       edgeError:
-        response.status === 503 && !response.headers.has("x-cove-renderer")
+        [404, 503].includes(response.status) && !response.headers.has("x-cove-renderer")
           ? {
               ray: response.headers.get("cf-ray"),
               contentType: response.headers.get("content-type"),
@@ -176,7 +176,23 @@ async function deployFresh(round) {
       Date.parse(latest.created_on) >= rotatedAt - 3000 &&
       latest.versions?.some((version) => version.percentage === 100)
     ) {
-      await new Promise((resolve) => setTimeout(resolve, 3500));
+      // A 100%-deployed script is not necessarily reachable through its
+      // newly created workers.dev hostname. Allow control-plane DNS and edge
+      // propagation to settle WITHOUT issuing a request that warms the
+      // Worker: the next sample remains a genuine first execution.
+      const subdomain = await cloudflare(
+        "GET",
+        `/accounts/${account}/workers/scripts/${name}/subdomain`,
+      );
+      assert.equal(subdomain.enabled, true, "Workers.dev route has not been enabled");
+      const publishedAt = Date.parse(latest.created_on);
+      assert.ok(Number.isFinite(publishedAt), "Deployment timestamp unavailable");
+      const remaining = Math.max(0, publishedAt + 25_000 - Date.now());
+      console.log(
+        "ROUTE_PROPAGATION_GRACE",
+        JSON.stringify({ round, waitMs: remaining, firstRequestStillCold: true }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, remaining));
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 1800));
