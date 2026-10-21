@@ -357,7 +357,10 @@ async function runTransportFloor() {
     delivered: rows.length,
     valid: rows.filter((row) => row.valid).length,
     dropped,
-    p95Ms: percentile(rows.map((row) => row.ttfbMs), 0.95),
+    p95Ms: percentile(
+      rows.map((row) => row.ttfbMs),
+      0.95,
+    ),
     maxMs: Math.max(0, ...rows.map((row) => row.ttfbMs)),
     outsideMeasuredWorker: asPercentiles(rows.map((row) => row.outsideWorkerMs)),
     colos: Object.fromEntries(
