@@ -199,9 +199,14 @@ export async function serveLeanAnonymousBootstrap(
             d1Metrics,
           ).then((approved) => {
             const books = new Map(candidateSeed!.books.map((book) => [book.productId, book]));
-            const results = approved.flatMap((row) => {
-              const cached = books.get(row.productId);
-              if (!cached) return [];
+            const liveById = new Map(approved.map((row) => [row.productId, row]));
+            // D1 does not promise row order without ORDER BY. Preserve the
+            // original ranking while rejecting every ID absent from the
+            // current authoritative territorial-rights result.
+            const results = candidateSeed!.ids.flatMap((productId) => {
+              const row = liveById.get(productId);
+              const cached = books.get(productId);
+              if (!row || !cached) return [];
               // Retain only public presentation, but always take the current
               // primary-D1 offer and availability from this same fresh query.
               const offer = row.offerJson

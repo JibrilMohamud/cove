@@ -335,6 +335,13 @@ try {
     seedSecond.headers.get("server-timing") || "",
     /cove_catalog_presentation_reused;dur=1/,
   );
+  const productIds = (html) =>
+    [...html.matchAll(/data-product="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(
+    productIds(await seedSecond.text()),
+    productIds(await seedFirst.text()),
+    "Warm presentation must retain canonical first-paint book ordering",
+  );
   const first = firstBootstrap.catalog.results[0];
   await env.DB.prepare("UPDATE products SET storefront_status='inactive' WHERE id=?")
     .bind(first.productId)
