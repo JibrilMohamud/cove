@@ -190,7 +190,7 @@ export async function serveLeanAnonymousBootstrap(
         seedBucket!.set(seedKey, {
           ids,
           hasMore: !!catalog.next,
-          expiresAt: Date.now() + 15_000,
+          expiresAt: Date.now() + 30_000,
         });
       }
     } else if (candidateSeed?.hasMore && !catalog.next) {
