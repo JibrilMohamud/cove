@@ -3,7 +3,9 @@ function parseObject(value: unknown): Record<string, unknown> {
   try {
     const parsed = JSON.parse(String(value ?? "{}"));
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-  } catch { return {}; }
+  } catch {
+    return {};
+  }
 }
 function normalizePath(value: string) {
   let path = value.trim();
@@ -13,7 +15,7 @@ function normalizePath(value: string) {
   return path;
 }
 
-export function formatGenericStorefrontPageRecord(pathValue: string, record: any | null) {
+export function formatGenericStorefrontPageRecord(pathValue: string, record: Record<string, unknown> | null) {
   const path = normalizePath(pathValue);
   const row = record;
   if (!row) {
