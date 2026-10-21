@@ -171,7 +171,7 @@ function summary(rows) {
     }),
   );
   const spans = {};
-  for (const name of ["cove_catalog", "cove_catalog_sql", "cove_context", "cove_page", "cove_bootstrap"]) {
+  for (const name of ["cove_catalog", "cove_catalog_sql", "cove_context", "cove_context_sql", "cove_context_joined", "cove_page", "cove_bootstrap"]) {
     const values = valid.map((row) => row.timings?.[name]).filter(Number.isFinite);
     if (values.length) spans[name] = { count: values.length, p95: pct(values, 0.95), max: Math.max(...values) };
   }
