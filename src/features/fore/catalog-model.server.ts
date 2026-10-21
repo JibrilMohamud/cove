@@ -709,10 +709,10 @@ export async function canonicalAuthorizedPreparedFirstPaintBooks(
   if (!productIds.length) return { books: [], hasMore: false };
   const rows = await db
     .prepare(
-      \`WITH candidates AS MATERIALIZED (
+      `WITH candidates AS MATERIALIZED (
         SELECT value AS product_id, CAST(key AS INTEGER) AS position FROM json_each(?)
       )
-      \${firstPaintBookProjectionSql}
+      ${firstPaintBookProjectionSql}
       JOIN candidates candidate ON candidate.product_id=p.id
       WHERE p.storefront_status='active'
         AND p.source_name<>'upload'
@@ -731,7 +731,7 @@ export async function canonicalAuthorizedPreparedFirstPaintBooks(
           WHERE rpa.product_id=p.id AND rpa.territory_code=?
         )
       ORDER BY candidate.position ASC
-      LIMIT ?\`,
+      LIMIT ?`,
     )
     .bind(JSON.stringify(productIds), expectedCurrency, expectedCurrency, territory, territory, limit + 1)
     .all<Record<string, unknown>>();
