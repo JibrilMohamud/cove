@@ -7,6 +7,8 @@ type OptimizedEnv = CoveEnv & {
   COVE_SSR_DIAGNOSTICS?: string;
   COVE_THIN_METADATA_COALESCE?: string;
   COVE_THIN_SPLIT_PROJECTION?: string;
+  COVE_THIN_PRIMARY_MICROBATCH?: string;
+  COVE_STRANGLER_DATABASE_ID?: string;
 };
 
 /**
@@ -79,6 +81,35 @@ function anonymousMetadataFlight(
       if (pending!.get(key) === task) pending!.delete(key);
     },
   );
+  return { task, joined: false };
+}
+// Rights decisions are never cached, even for one millisecond. A 20-ms
+// admission window groups only requests that arrived BEFORE primary D1's
+// authoritative SELECT begins. After admission closes the flight is removed
+// immediately, so later arrivals must initiate a fresh legal check.
+// This experimental path is strictly limited to the synthetic stage database.
+type FirstPaintShelf = Awaited<ReturnType<typeof firstPaintStorefrontShelf>>;
+const pendingPreReadShelves = new WeakMap<object, Map<string, Promise<FirstPaintShelf>>>();
+function preReadPrimaryBatch(
+  binding: object,
+  country: string,
+  create: () => Promise<FirstPaintShelf>,
+): { task: Promise<FirstPaintShelf>; joined: boolean } {
+  let flights = pendingPreReadShelves.get(binding);
+  if (!flights) {
+    flights = new Map();
+    pendingPreReadShelves.set(binding, flights);
+  }
+  const existing = flights.get(country);
+  if (existing) return { task: existing, joined: true };
+  const task = new Promise<FirstPaintShelf>((resolve, reject) => {
+    setTimeout(() => {
+      // Do not admit requests after the primary check has begun.
+      if (flights!.get(country) === task) flights!.delete(country);
+      Promise.resolve().then(create).then(resolve, reject);
+    }, 20);
+  });
+  flights.set(country, task);
   return { task, joined: false };
 }
 export async function serveLeanAnonymousBootstrap(
@@ -170,15 +201,21 @@ export async function serveLeanAnonymousBootstrap(
     typeof configDb.withSession === "function"
       ? configDb.withSession("first-unconstrained")
       : undefined;
+  const microbatchEnabled =
+    env.COVE_SSR_STAGING === "1" &&
+    env.COVE_STRANGLER_DATABASE_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" &&
+    env.COVE_THIN_PRIMARY_MICROBATCH === "1";
+  const createShelf = () =>
+    firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics, replicaProjection);
+  const shelfFlight = microbatchEnabled
+    ? preReadPrimaryBatch(rawDb, trustedCountry, createShelf)
+    : { task: createShelf(), joined: false };
   const [context, , catalog] = await Promise.all([
     contextPromise,
     timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
     // NULL currency means active-market currency is looked up in this SAME
     // live primary D1 statement with the full retail-grant view.
-    timed(
-      "catalog",
-      firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics, replicaProjection),
-    ),
+    timed("catalog", shelfFlight.task),
   ]);
   if (context.rightsCountry !== trustedCountry)
     throw new Error("Anonymous country mismatch; refuse to render a legal-rights shelf.");
@@ -207,6 +244,8 @@ export async function serveLeanAnonymousBootstrap(
   if (env.COVE_SSR_STAGING === "1" && env.COVE_SSR_DIAGNOSTICS === "1") {
     timings.context_flight_eligible = coalesce ? 1 : 0;
     timings.context_joined = flight.joined ? 1 : 0;
+    timings.primary_microbatch_eligible = microbatchEnabled ? 1 : 0;
+    timings.primary_microbatch_joined = shelfFlight.joined ? 1 : 0;
   }
   if (d1Metrics.sqlDurationMs !== undefined) timings.catalog_sql = d1Metrics.sqlDurationMs;
   if (d1Metrics.usedReplicaPresentation)
