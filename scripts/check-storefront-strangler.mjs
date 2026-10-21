@@ -312,7 +312,10 @@ try {
   const seedSecond = await worker.fetch(request(), env);
   assert.equal(seedSecond.status, 200);
   assert.match(seedSecond.headers.get("server-timing") || "", /cove_catalog_seeded;dur=1/);
-  assert.match(seedSecond.headers.get("server-timing") || "", /cove_catalog_presentation_reused;dur=1/);
+  assert.match(
+    seedSecond.headers.get("server-timing") || "",
+    /cove_catalog_presentation_reused;dur=1/,
+  );
   const first = firstBootstrap.catalog.results[0];
   await env.DB.prepare("UPDATE products SET storefront_status='inactive' WHERE id=?")
     .bind(first.productId)
