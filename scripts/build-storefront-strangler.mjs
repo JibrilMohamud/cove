@@ -25,9 +25,19 @@ const inputs = Object.entries(result.metafile.outputs).flatMap(([, output]) =>
     .filter(([, input]) => input.bytesInOutput > 0)
     .map(([name]) => name),
 );
-const forbidden = /(?:^|[/\\])(?:react-dom|@tanstack|@supabase|epubjs|jszip)(?:[/\\]|$)|[/\\]features[/\\]fore[/\\](?:App|Store|api\.server|Reader|Commerce|Publishing|recommendations\.server)\./i;
+const forbidden =
+  /(?:^|[/\\])(?:react-dom|@tanstack|@supabase|epubjs|jszip)(?:[/\\]|$)|[/\\]features[/\\]fore[/\\](?:App|Store|api\.server|Reader|Commerce|Publishing|recommendations\.server)\./i;
 const leaked = inputs.filter((name) => forbidden.test(name));
-if (leaked.length) throw Error("Strangler read boundary imports forbidden runtime: " + leaked.join(", "));
+if (leaked.length)
+  throw Error("Strangler read boundary imports forbidden runtime: " + leaked.join(", "));
 const bytes = fs.statSync(outfile).size;
 fs.writeFileSync(".output/strangler/metafile.json", JSON.stringify(result.metafile, null, 2));
-console.log(JSON.stringify({service:"strangler-storefront",bytes,sourceModules:inputs.length,frameworkImports:0,productionRouted:false}));
+console.log(
+  JSON.stringify({
+    service: "strangler-storefront",
+    bytes,
+    sourceModules: inputs.length,
+    frameworkImports: 0,
+    productionRouted: false,
+  }),
+);
