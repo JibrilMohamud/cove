@@ -56,19 +56,24 @@ const preview = {
   COVE_FAST_STOREFRONT_MODE: "preview",
   COVE_FAST_STOREFRONT_RELEASE_CERTIFIED: "1",
 };
-const notEligible = (request, env) =>
-  assert.equal(proxy.eligibleFastHomepage(request, env), false);
+const notEligible = (request, env) => assert.equal(proxy.eligibleFastHomepage(request, env), false);
 assert.equal(proxy.eligibleFastHomepage(req(), preview), true);
 notEligible(req(), { ...preview, COVE_FAST_STOREFRONT_RELEASE_CERTIFIED: "0" });
 notEligible(req(), { ...preview, VERCEL_ENV: "production" });
 notEligible(req("https://cove-puce-theta.vercel.app/search"), preview);
 notEligible(req("https://cove-puce-theta.vercel.app/?country=US"), preview);
-notEligible(req("https://cove-puce-theta.vercel.app/", {
-  headers: { cookie: "fore-auth=test" },
-}), preview);
-notEligible(req("https://cove-puce-theta.vercel.app/", {
-  headers: { authorization: "Bearer demo" },
-}), preview);
+notEligible(
+  req("https://cove-puce-theta.vercel.app/", {
+    headers: { cookie: "fore-auth=test" },
+  }),
+  preview,
+);
+notEligible(
+  req("https://cove-puce-theta.vercel.app/", {
+    headers: { authorization: "Bearer demo" },
+  }),
+  preview,
+);
 notEligible(req("https://cove-puce-theta.vercel.app/", { method: "POST" }), preview);
 assert.equal(await proxy.maybeProxyFastHomepage(req(), {}), null);
 const spoofedOrigin = {
