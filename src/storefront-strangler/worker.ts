@@ -60,9 +60,9 @@ export default {
       if (!canUseLeanAnonymousBootstrap(bootstrapRequest, env))
         return await env.CORE.fetch(request);
       failurePhase = "bootstrap";
-      const response = await serveLeanAnonymousBootstrap(bootstrapRequest, env, (phase) => {
-        failurePhase = phase;
-      });
+      // The current main-branch canonical bootstrap has a two-argument API.
+      // Preserve it unchanged; all failures remain fail-closed and classified.
+      const response = await serveLeanAnonymousBootstrap(bootstrapRequest, env);
       if (!response.ok) return finish(new Response(null, { status: response.status }));
       const bootstrap = (await response.json()) as StorefrontBootstrap;
       if (bootstrap.context.rightsCountry !== headers.get("x-cove-client-country"))
