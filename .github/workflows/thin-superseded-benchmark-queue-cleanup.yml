@@ -28,18 +28,25 @@ jobs:
             accept: "application/vnd.github+json",
             "x-github-api-version": "2022-11-28",
           };
-          const target = "a54c0dc39d8bcf2058a143a90e3d3448f394635a";
+          // Preserve the newest benchmark run rather than a stale hardcoded
+          // SHA. This workflow never cancels jobs already in progress.
+          const expectedBranch = "perf/pr227-100rps-causal-20261020";
           const endpoint = base +
             "/actions/workflows/cloudflare-thin-storefront-100rps-attribution.yml/runs" +
             "?branch=perf%2Fpr227-100rps-causal-20261020&per_page=100";
           const response = await fetch(endpoint, { headers });
           if (!response.ok) throw Error("Unable to inspect exact benchmark queue");
           const body = await response.json();
-          const candidates = (body.workflow_runs || []).filter((run) =>
+          const scoped = (body.workflow_runs || []).filter((run) =>
+            run.head_branch === expectedBranch &&
+            run.event === "push" &&
+            run.name === "cloudflare-thin-storefront-100rps-attribution",
+          );
+          const latest = scoped.reduce((id, run) => Math.max(id, run.id), 0);
+          if (!latest) throw Error("No target benchmark run to preserve");
+          const candidates = scoped.filter((run) =>
             ["queued", "pending", "waiting", "requested"].includes(run.status) &&
-            run.head_sha !== target &&
-            run.head_branch === "perf/pr227-100rps-causal-20261020" &&
-            run.event === "push",
+            run.id !== latest,
           );
           for (const run of candidates) {
             const result = await fetch(
@@ -54,7 +61,7 @@ jobs:
             if (![202, 409].includes(result.status))
               throw Error("Superseded queued run could not be cancelled");
           }
-          console.log("COVE_STAGE_QUEUE: kept active runs and target A/B " + target);
+          console.log("COVE_STAGE_QUEUE: preserved running jobs and latest A/B run " + latest);
           NODE
 # Does not cancel active, in-progress, or newest controlled benchmark.
 # No staging Worker, production Cloudflare, D1, DNS, or deployment changes.
