@@ -682,7 +682,6 @@ export async function canonicalFirstPaintBooksByProductIds(db: DB, productIds: s
   return productIds.map((id) => byId.get(id)).filter((book): book is CatalogBook => !!book);
 }
 
-
 /**
  * Prepared presentation IDs have no authorization power. One fresh primary
  * statement rechecks the SAME active/unsuppressed/available, territorial
@@ -733,7 +732,14 @@ export async function canonicalAuthorizedPreparedFirstPaintBooks(
       ORDER BY candidate.position ASC
       LIMIT ?`,
     )
-    .bind(JSON.stringify(productIds), expectedCurrency, expectedCurrency, territory, territory, limit + 1)
+    .bind(
+      JSON.stringify(productIds),
+      expectedCurrency,
+      expectedCurrency,
+      territory,
+      territory,
+      limit + 1,
+    )
     .all<Record<string, unknown>>();
   const distinct = new Map<string, CatalogBook>();
   for (const row of rows.results) {
