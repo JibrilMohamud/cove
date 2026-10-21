@@ -15,12 +15,16 @@ while (Date.now() < deadline) {
     if (response.ok && response.headers.get("cache-control")?.includes("no-store")) {
       const data = await response.json();
       if (data.stage === "bootstrap" && data.ok === true && data.books > 0) {
-        console.log("COVE_PRIVATE_MODEL_STAGE_READY: prepared candidates, primary rights, stage auth");
+        console.log(
+          "COVE_PRIVATE_MODEL_STAGE_READY: prepared candidates, primary rights, stage auth",
+        );
         process.exit(0);
       }
     }
     if (tries % 6 === 1)
-      console.log("COVE_PRIVATE_MODEL_STAGE_PENDING " + JSON.stringify({ status: response.status }));
+      console.log(
+        "COVE_PRIVATE_MODEL_STAGE_PENDING " + JSON.stringify({ status: response.status }),
+      );
   } catch (error) {
     if (tries % 6 === 1)
       console.log("COVE_PRIVATE_MODEL_STAGE_PENDING " + String(error?.name || "network"));
