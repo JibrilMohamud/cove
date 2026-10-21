@@ -27,6 +27,9 @@ config.preview_urls = false;
 // exercised with a fake CORE by the same-SHA local integration suite.
 config.services = [];
 config.vars.FORE_PUBLIC_URL = origin;
+config.vars.COVE_THIN_METADATA_COALESCE = "1";
+config.vars.COVE_THIN_RIGHTS_SHORTLIST = "1";
+config.vars.COVE_SSR_DIAGNOSTICS = "1";
 const configString = JSON.stringify(config, null, 2);
 assert.ok(!configString.includes(prodDbId), "Production D1 must never be bound");
 assert.ok(!config.routes && !config.route && !config.r2_buckets && !config.queues);
