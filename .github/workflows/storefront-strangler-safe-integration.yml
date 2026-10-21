@@ -1,0 +1,43 @@
+name: storefront-strangler-safe-integration
+on:
+  pull_request:
+    paths:
+      - "src/storefront-strangler/**"
+      - "scripts/build-storefront-strangler.mjs"
+      - "scripts/check-storefront-strangler.mjs"
+      - "wrangler.storefront-strangler.stage.jsonc"
+      - ".github/workflows/storefront-strangler-safe-integration.yml"
+      - "docs/architecture/SAFE_THIN_MAIN_INTEGRATION.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-evaluation-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Prove config isolation, bearer delegation, primary rights and revocation
+        run: node scripts/check-storefront-strangler.mjs
+      - name: Protect current checkout, reader and legal rights
+        run: |
+          npm run test:rights
+          npm run test:commerce
+      - name: Compile isolated Worker without application dependencies
+        run: node scripts/build-storefront-strangler.mjs
+      - name: Typecheck all source without changing production build
+        run: npm run typecheck
+      - name: Dry-run non-routable stage only (never publish)
+        env:
+          CLOUDFLARE_SEND_METRICS: "false"
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config wrangler.storefront-strangler.stage.jsonc
+# No push deployment, API credentials, production D1, migrations or public routes.
