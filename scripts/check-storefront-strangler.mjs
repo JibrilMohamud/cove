@@ -273,10 +273,7 @@ try {
   assert.equal(liveSigned.status, 200);
   assert.equal(liveSigned.headers.get("x-cove-renderer"), "strangler-live");
   assert.match(await liveSigned.text(), /data-rights-country="CA"/);
-  assert.equal(
-    (await worker.fetch(relayRequest(new Headers()), customerEnv)).status,
-    401,
-  );
+  assert.equal((await worker.fetch(relayRequest(new Headers()), customerEnv)).status, 401);
   const forgedRelay = new Headers(relayHeaders);
   forgedRelay.set("x-cove-fast-country", "US");
   assert.equal((await worker.fetch(relayRequest(forgedRelay), customerEnv)).status, 401);
