@@ -38,9 +38,33 @@ for (const country of ["US", "CA", "SA", "JP"]) {
   // Check only response shape and whether at least one rankable licensed
   // product exists in the isolated fixture; never emit product identifiers.
   const count = Array.isArray(value?.results) ? value.results.length : 0;
-  const ok = body.success === true && value?.success === true && count > 0;
+  const queryOk = body.success === true && value?.success === true;
   console.log(
-    "COVE_PRODUCER_SQL_PREFLIGHT " + JSON.stringify({ country, queryOk: ok, candidates: count }),
+    "COVE_PRODUCER_SQL_PREFLIGHT " + JSON.stringify({ country, queryOk, candidates: count }),
   );
-  if (!ok) throw Error("Stage candidate producer SQL or fixture unavailable for " + country);
+  if (!queryOk) throw Error("Stage candidate SQL failed for " + country);
+  // A legally empty market is valid; never invent a grant merely to pass
+  // staging. Only the US smoke fixture must have at least one candidate.
+  if (country === "US" && count === 0)
+    throw Error("Protected US stage shelf fixture has no licensed products");
 }
+
+const marketsResponse = await fetch(endpoint, {
+  method: "POST",
+  headers: {
+    authorization: "Bearer " + token,
+    "content-type": "application/json",
+  },
+  body: JSON.stringify({
+    sql: "SELECT COUNT(*) AS total FROM storefront_markets WHERE market_status='active'",
+  }),
+  signal: AbortSignal.timeout(20000),
+});
+if (!marketsResponse.ok) throw Error("Stage market-count API refused");
+const marketData = await marketsResponse.json();
+const total = Number(marketData.result?.[0]?.results?.[0]?.total);
+if (!marketData.success || !Number.isSafeInteger(total) || total < 1)
+  throw Error("Isolated stage market configuration unavailable");
+console.log("COVE_PRODUCER_MARKET_COUNT " + JSON.stringify({ markets: total, limit: 32 }));
+if (total > 32)
+  throw Error("Private projection producer cannot cover all active markets within its configured limit");
