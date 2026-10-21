@@ -1,0 +1,35 @@
+name: storefront-strangler-architecture
+on:
+  pull_request:
+    paths:
+      - "src/storefront-strangler/**"
+      - "scripts/build-storefront-strangler.mjs"
+      - "scripts/check-storefront-strangler.mjs"
+      - "wrangler.storefront-strangler.stage.jsonc"
+      - ".github/workflows/storefront-strangler-architecture.yml"
+      - "docs/architecture/STRANGLER_STOREFRONT_M1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-serving-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Assert protected stage config and canonical legal parity
+        run: node scripts/check-storefront-strangler.mjs
+      - name: Compile isolated Worker and exclude full application runtime
+        run: node scripts/build-storefront-strangler.mjs
+      - name: Strict typecheck (existing baseline)
+        run: npm run typecheck
+
+# Deliberately no deploy, production token, environment, custom domain,
+# migration, or production Worker publish steps.
