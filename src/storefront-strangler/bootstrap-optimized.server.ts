@@ -187,8 +187,7 @@ export async function serveLeanAnonymousBootstrap(
     env.COVE_SSR_STAGING === "1" &&
     env.COVE_STRANGLER_DATABASE_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" &&
     env.COVE_THIN_PRIMARY_MICROBATCH === "1";
-  const createShelf = () =>
-    firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics);
+  const createShelf = () => firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics);
   const shelfFlight = microbatchEnabled
     ? preReadPrimaryBatch(rawDb, trustedCountry, createShelf)
     : { task: createShelf(), joined: false };
