@@ -9,7 +9,7 @@ export function syntheticBenchmarkClient(
   if (
     env.COVE_SSR_STAGING !== "1" ||
     env.COVE_STRANGLER_DATABASE_ID !== "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" ||
-    !/^\\d{1,5}$/.test(client) ||
+    !/^\d{1,5}$/.test(client) ||
     Number(client) > 65535
   )
     throw new Error("Synthetic client outside isolated benchmark");
