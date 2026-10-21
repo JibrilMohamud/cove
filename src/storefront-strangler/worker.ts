@@ -51,10 +51,7 @@ export default {
       headers.delete("authorization");
       const internal = env.COVE_INTERNAL_CORE_STAGE_GATE_KEY;
       if (internal) {
-        if (
-          !/^[a-f0-9]{64}$/.test(internal) ||
-          internal === env.COVE_SSR_STAGING_GATE_KEY
-        )
+        if (!/^[a-f0-9]{64}$/.test(internal) || internal === env.COVE_SSR_STAGING_GATE_KEY)
           return Promise.resolve(new Response(null, { status: 503 }));
         headers.set("authorization", "Bearer " + internal);
       }
