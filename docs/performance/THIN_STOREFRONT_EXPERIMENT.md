@@ -67,3 +67,15 @@ are healthy but offered arrivals drop, isolate/scale the generator. Reject
 any code change that worsens 50-RPS, cold or 32-request rights-correct tails.
 A green 100-RPS synthetic result is NOT full storefront feature parity,
 mixed checkout/reader/audio certification or production-release permission.
+
+### Independent context SQL-vs-wall-clock attribution
+
+Existing raw PR #227 artifacts show campaign A at 100 RPS has ORD
+`cove_context` p50 ~741 ms while `cove_catalog` is only ~46 ms;
+campaign B IAD has both context/catalog ~637 ms while `cove_catalog_sql`
+is ~4.9 ms. A single global query-plan fix does not explain these facts.
+The diagnostic branch now sums the four context D1 batch statements'
+`meta.duration` into `cove_context_sql` when synthetic staging diagnostics
+are enabled; no SQL, rights checks, or normal response data have changed.
+High context wall time with low `context_sql` is evidence of dispatch,
+replica-selection, queueing or other service waits, not proof of one cause.

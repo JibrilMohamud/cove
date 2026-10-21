@@ -80,12 +80,22 @@ export async function serveLeanAnonymousBootstrap(
   // drives resolveStorefrontContext's country for anonymous visitors.
   const trustedCountry = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country;
   const d1Metrics: { sqlDurationMs?: number; rowsRead?: number; attempts?: number } = {};
+  const contextMetrics: {
+    sqlDurationMs?: number;
+    rowsRead?: number;
+    measuredStatements?: number;
+  } = {};
   // Launch the authoritative primary-rights query *before* waiting for
   // independent replica presentation reads. No book leaves the Worker until
   // the rate limiter, markets, context, page and rights checks ALL succeed.
   const contextPromise = timed(
     "context",
-    resolveAnonymousHomepageContext(readMetadata(), request, env.FORE_DEFAULT_TERRITORY || "US"),
+    resolveAnonymousHomepageContext(
+      readMetadata(),
+      request,
+      env.FORE_DEFAULT_TERRITORY || "US",
+      contextMetrics,
+    ),
   );
   // The read-only metadata batch now also performs the active market/locale
   // lookup. No second dependent D1 service call is needed for anonymous SSR.
@@ -118,6 +128,8 @@ export async function serveLeanAnonymousBootstrap(
   // Keep measured actual primary SQL duration, rows read and retries separate
   // from the full D1 service/network request duration.
   if (d1Metrics.sqlDurationMs !== undefined) timings.catalog_sql = d1Metrics.sqlDurationMs;
+  if (env.COVE_SSR_DIAGNOSTICS === "1" && contextMetrics.sqlDurationMs !== undefined)
+    timings.context_sql = contextMetrics.sqlDurationMs;
 
   timings.bootstrap = performance.now() - started;
   timings.lean = 0;
