@@ -113,7 +113,15 @@ export async function serveLeanAnonymousBootstrap(
   // No cookie/account data is present. This same canonical resolver also
   // drives resolveStorefrontContext's country for anonymous visitors.
   const trustedCountry = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country;
-  const d1Metrics: { sqlDurationMs?: number; rowsRead?: number; attempts?: number; rightsServiceMs?: number; projectionServiceMs?: number; projectionSqlDurationMs?: number; usedReplicaPresentation?: number } = {};
+  const d1Metrics: {
+    sqlDurationMs?: number;
+    rowsRead?: number;
+    attempts?: number;
+    rightsServiceMs?: number;
+    projectionServiceMs?: number;
+    projectionSqlDurationMs?: number;
+    usedReplicaPresentation?: number;
+  } = {};
   const contextMetrics: {
     sqlDurationMs?: number;
     rowsRead?: number;
