@@ -50,7 +50,13 @@ function readOnlyStageD1<T extends object>(db: T, approved = new WeakMap<object,
       if (key === "prepare") {
         return (sql: string) => {
           const trimmed = sql.trim();
-          if (!/^(?:SELECT|WITH|EXPLAIN)\s/i.test(trimmed) || /;\s*\S/.test(trimmed))
+          if (
+            !/^(?:SELECT|WITH)\s/i.test(trimmed) ||
+            /;\s*\S/.test(trimmed) ||
+            /\b(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|ATTACH|DETACH|PRAGMA|VACUUM)\b/i.test(
+              trimmed,
+            )
+          )
             throw new Error("Production catalog acceptance is read-only");
           const real = (target as { prepare(sql: string): object }).prepare(sql);
           return wrapStatement(real);
@@ -157,6 +163,8 @@ export default {
       return env.CORE.fetch(new Request(request, { headers }));
     };
     let failurePhase = "entry";
+    let bootstrapSubphase: string | null = null;
+    let bootstrapSubkind: string | null = null;
     try {
       const url = new URL(request.url);
       const diagnostic = url.pathname === "/__cove_perf/bootstrap" && !url.search;
@@ -212,7 +220,14 @@ export default {
       // Main's authoritative live territorial-rights bootstrap remains unchanged.
       const bootstrapEnv =
         productionAcceptance || customerGateway ? { ...env, DB: readOnlyStageD1(env.DB) } : env;
-      const response = await serveLeanAnonymousBootstrap(bootstrapRequest, bootstrapEnv);
+      const response = await serveLeanAnonymousBootstrap(
+        bootstrapRequest,
+        bootstrapEnv,
+        (phase, error) => {
+          bootstrapSubphase = ["context", "catalog", "limit"].includes(phase) ? phase : "unknown";
+          bootstrapSubkind = bootstrapFailureKind(error);
+        },
+      );
       if (!response.ok) return finish(new Response(null, { status: response.status }));
       const bootstrap = (await response.json()) as StorefrontBootstrap;
       if (bootstrap.context.rightsCountry !== headers.get("x-cove-client-country"))
@@ -271,6 +286,8 @@ export default {
           status,
           phase: failurePhase,
           kind: bootstrapFailureKind(error),
+          subphase: bootstrapSubphase,
+          subkind: bootstrapSubkind,
         }),
       );
       // Only a small allowlist of error-phase labels is visible in this
@@ -279,7 +296,15 @@ export default {
       return finish(
         new Response("Storefront temporarily unavailable.", {
           status,
-          headers: { "x-cove-stage-failure": code },
+          headers: {
+            "x-cove-stage-failure": code,
+            ...(customerGateway
+              ? {}
+              : {
+                  "x-cove-stage-failure-subphase": bootstrapSubphase || "unknown",
+                  "x-cove-stage-failure-kind": bootstrapSubkind || bootstrapFailureKind(error),
+                }),
+          },
         }),
       );
     }
