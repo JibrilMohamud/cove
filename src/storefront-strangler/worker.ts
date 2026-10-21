@@ -34,19 +34,14 @@ function readOnlyStageD1<T extends object>(db: T): T {
       if (key === "prepare") {
         return (sql: string) => {
           const trimmed = sql.trim();
-          if (
-            !/^(?:SELECT|WITH|EXPLAIN)\s/i.test(trimmed) ||
-            /;\s*\S/.test(trimmed)
-          )
+          if (!/^(?:SELECT|WITH|EXPLAIN)\s/i.test(trimmed) || /;\s*\S/.test(trimmed))
             throw new Error("Production catalog acceptance is read-only");
           return (target as { prepare(sql: string): unknown }).prepare(sql);
         };
       }
       if (key === "withSession") {
         return (constraint: string) => {
-          const session = (target as { withSession(arg: string): object }).withSession(
-            constraint,
-          );
+          const session = (target as { withSession(arg: string): object }).withSession(constraint);
           return readOnlyStageD1(session);
         };
       }
@@ -70,10 +65,7 @@ export default {
     const productionAcceptance =
       env.COVE_STRANGLER_MODE === "production-acceptance" &&
       env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989";
-    if (
-      env.COVE_SSR_STAGING !== "1" ||
-      (!syntheticEvaluation && !productionAcceptance)
-    )
+    if (env.COVE_SSR_STAGING !== "1" || (!syntheticEvaluation && !productionAcceptance))
       return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
     const rejected = await rejectUnauthenticatedStagingRequest(request, env);
     if (rejected) return rejected;
@@ -84,9 +76,7 @@ export default {
       // This production-D1 acceptance origin has no authenticated CORE
       // service and must never become an alternate checkout/reader gateway.
       if (productionAcceptance)
-        return Promise.resolve(
-          new Response("Not an application route", { status: 404 }),
-        );
+        return Promise.resolve(new Response("Not an application route", { status: 404 }));
       const headers = new Headers(request.headers);
       // The operator's ingress token is NEVER a backend identity.
       // A different service-only secret can be provisioned for the private
@@ -142,9 +132,7 @@ export default {
       // Preserve it unchanged; all failures remain fail-closed and classified.
       // No presentation cache or independent authorizer is activated here.
       // Main's authoritative live territorial-rights bootstrap remains unchanged.
-      const bootstrapEnv = productionAcceptance
-        ? { ...env, DB: readOnlyStageD1(env.DB) }
-        : env;
+      const bootstrapEnv = productionAcceptance ? { ...env, DB: readOnlyStageD1(env.DB) } : env;
       const response = await serveLeanAnonymousBootstrap(bootstrapRequest, bootstrapEnv);
       if (!response.ok) return finish(new Response(null, { status: response.status }));
       const bootstrap = (await response.json()) as StorefrontBootstrap;
