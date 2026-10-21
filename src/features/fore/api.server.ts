@@ -420,6 +420,7 @@ import {
   probeCdnEdge,
   runTrackedWorker,
 } from "./operations.server";
+import { emitIsolatedAnonymousHttpMetric } from "./anonymous-http-metric.server";
 import {
   securityOperationsSnapshot,
   saveThreatModel,
@@ -470,6 +471,11 @@ export type CoveEnv = {
     limit(input: { key: string }): Promise<{ success: boolean }>;
   };
   COVE_SSR_STAGING?: string;
+  // Stage-only candidate: independent low-cardinality anonymous metrics.
+  COVE_OPS_TELEMETRY_MODE?: string;
+  OPS_ANALYTICS?: {
+    writeDataPoint(point: { blobs: string[]; doubles: number[]; indexes: string[] }): void;
+  };
   BUCKET?: {
     get(key: string, options?: any): Promise<any>;
     head?(key: string): Promise<any>;
@@ -2781,9 +2787,22 @@ export async function handleCoveApi(
     headers: responseHeaders,
   });
   const logStarted = performance.now();
-  if (env.DB) {
+  const actorKind = identity(tracedRequest) ? "user" : "anonymous";
+  // Only successful, unauthenticated, public GET request measurements may
+  // bypass ops D1. Error, auth, commerce and security audit writes stay on
+  // the established durable primary path. Feature is staging-only.
+  const isolated = emitIsolatedAnonymousHttpMetric(
+    env,
+    tracedRequest,
+    response,
+    actorKind,
+    Date.now() - trace.startedMs,
+  );
+  if (isolated) {
+    timings.log_isolated = performance.now() - logStarted;
+  } else if (env.DB) {
     const work = recordHttpRequest(env.DB as any, trace, tracedRequest, response, {
-      actorKind: identity(tracedRequest) ? "user" : "anonymous",
+      actorKind,
     });
     if (execution?.waitUntil) {
       execution.waitUntil(work);

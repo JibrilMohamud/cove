@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "cove-strangler-candidate-producer-stage",
+  "main": ".output/strangler/producer.mjs",
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cove-perf-isolated-candidate-20261019",
+      "database_id": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "PRESENTATION",
+      "bucket_name": "cove-strangler-private-presentation-stage"
+    }
+  ],
+  "vars": {
+    "COVE_SSR_STAGING": "1",
+    "COVE_STRANGLER_MODE": "isolated-evaluation",
+    "COVE_STRANGLER_DATABASE_ID": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3"
+  }
+}
