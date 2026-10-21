@@ -20,10 +20,8 @@ export function eligibleFastHomepage(request: Request, env: FastStorefrontVercel
   )
     return false;
   if (env.COVE_FAST_STOREFRONT_RELEASE_CERTIFIED !== "1") return false;
-  if (env.VERCEL_ENV === "preview" && env.COVE_FAST_STOREFRONT_MODE === "preview")
-    return true;
-  if (env.VERCEL_ENV !== "production" || env.COVE_FAST_STOREFRONT_MODE !== "canary")
-    return false;
+  if (env.VERCEL_ENV === "preview" && env.COVE_FAST_STOREFRONT_MODE === "preview") return true;
+  if (env.VERCEL_ENV !== "production" || env.COVE_FAST_STOREFRONT_MODE !== "canary") return false;
   const percent = Number(env.COVE_FAST_STOREFRONT_PERCENT);
   if (!Number.isInteger(percent) || percent < 1 || percent > 5) return false;
   const client = verifiedVercelClient(request);
@@ -64,10 +62,7 @@ export async function maybeProxyFastHomepage(
     return null;
   const nonce = crypto.randomUUID().replace(/-/g, "");
   try {
-    const headers = await signFastCountryClaim(
-      { ...client, timestamp: Date.now(), nonce },
-      secret,
-    );
+    const headers = await signFastCountryClaim({ ...client, timestamp: Date.now(), nonce }, secret);
     const language = request.headers.get("accept-language");
     if (language && language.length <= 512) headers.set("accept-language", language);
     const response = await fetch(target.href, {
