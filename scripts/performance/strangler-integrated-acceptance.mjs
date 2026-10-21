@@ -29,6 +29,7 @@ config.services = [];
 config.vars.FORE_PUBLIC_URL = origin;
 config.vars.COVE_THIN_METADATA_COALESCE = "1";
 config.vars.COVE_THIN_RIGHTS_SHORTLIST = "1";
+config.vars.COVE_THIN_PRESENTATION_CACHE = "1";
 config.vars.COVE_SSR_DIAGNOSTICS = "1";
 const configString = JSON.stringify(config, null, 2);
 assert.ok(!configString.includes(prodDbId), "Production D1 must never be bound");
@@ -263,6 +264,7 @@ try {
   };
   evidence.sustained.rightsSeed = {
     used: results.filter((result) => timing(result, "cove_catalog_seeded") === 1).length,
+    reusedPresentation: results.filter((result) => timing(result, "cove_catalog_presentation_reused") === 1).length,
     measured: results.filter((result) => timing(result, "cove_catalog_seeded") !== null).length,
     p95CatalogD1Ms: latency95("cove_catalog"),
     p95CatalogSqlMs: latency95("cove_catalog_sql"),
