@@ -109,6 +109,17 @@ export default {
       const rejected = await rejectUnauthenticatedStagingRequest(request, env);
       if (rejected) return rejected;
     }
+    // A signed homepage claim cannot authorize diagnostic, API, media,
+    // checkout, or reader paths, even if a signed header is replayed.
+    if (
+      customerGateway &&
+      (request.method !== "GET" ||
+        new URL(request.url).pathname !== "/" ||
+        new URL(request.url).search ||
+        request.headers.has("cookie") ||
+        request.headers.has("authorization"))
+    )
+      return new Response("Not found", { status: 404, headers: { "cache-control": "no-store" } });
     // Production Worker accepts only HMAC-authenticated Vercel relay requests.
     // Cloudflare's Vercel-egress request.cf.country is NOT the customer's
     // territory, and must never authorize a licensed book.
