@@ -12,6 +12,7 @@ import {
 import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap";
 import { renderStranglerStorefront } from "./render";
 import { bootstrapFailureKind } from "./failure";
+import { servePreparedCatalog, type PrivatePresentationStore } from "./prepared-catalog.server";
 
 /** Build-isolated serving boundary. No auth, orders, reader or background code.
  * Existing domain logic is reused through type-only references. This pilot is
@@ -20,6 +21,8 @@ import { bootstrapFailureKind } from "./failure";
 export type StorefrontStranglerEnv = CoveEnv & {
   COVE_STRANGLER_MODE?: string;
   COVE_STRANGLER_DATABASE_ID?: string;
+  COVE_STRANGLER_READ_MODEL?: string;
+  PRESENTATION?: PrivatePresentationStore;
   COVE_SSR_STAGING_GATE_KEY?: string;
   CORE: { fetch(request: Request): Promise<Response> };
 };
@@ -62,7 +65,17 @@ export default {
       failurePhase = "bootstrap";
       // The current main-branch canonical bootstrap has a two-argument API.
       // Preserve it unchanged; all failures remain fail-closed and classified.
-      const response = await serveLeanAnonymousBootstrap(bootstrapRequest, env);
+      // Opt-in preview model: ranking data lives outside primary D1, but a
+      // separate live-rights query against PRIMARY is mandatory every time.
+      // Missing/bad private model is an error, not permission or a broad scan.
+      const prepared =
+        env.COVE_STRANGLER_READ_MODEL === "1"
+          ? (country: string) => {
+              if (!env.PRESENTATION) throw Error("Private projection store not configured.");
+              return servePreparedCatalog(env.DB, env.PRESENTATION, country);
+            }
+          : undefined;
+      const response = await serveLeanAnonymousBootstrap(bootstrapRequest, env, prepared);
       if (!response.ok) return finish(new Response(null, { status: response.status }));
       const bootstrap = (await response.json()) as StorefrontBootstrap;
       if (bootstrap.context.rightsCountry !== headers.get("x-cove-client-country"))

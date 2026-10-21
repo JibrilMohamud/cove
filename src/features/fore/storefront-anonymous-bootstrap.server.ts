@@ -50,6 +50,7 @@ export function canUseLeanAnonymousBootstrap(
 export async function serveLeanAnonymousBootstrap(
   request: Request,
   env: CoveEnv,
+  preparedShelf?: (territory: string) => ReturnType<typeof firstPaintStorefrontShelf>,
 ): Promise<Response> {
   if (!canUseLeanAnonymousBootstrap(request, env))
     return new Response(null, { status: 403, headers: { "cache-control": "no-store" } });
@@ -106,7 +107,12 @@ export async function serveLeanAnonymousBootstrap(
     timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
     // NULL currency means active-market currency is looked up in this SAME
     // live primary D1 statement with the full retail-grant view.
-    timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics)),
+    timed(
+      "catalog",
+      preparedShelf
+        ? preparedShelf(trustedCountry)
+        : firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics),
+    ),
     pagePromise,
   ]);
   if (context.rightsCountry !== trustedCountry)

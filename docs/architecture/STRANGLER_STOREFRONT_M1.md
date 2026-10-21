@@ -58,3 +58,25 @@ PR #227 passed two 50-RPS short synthetic trials but **failed 100 RPS**.
 This evaluation branch does not modify main or expose a Worker route. Abort
 it by closing its PR. A later cutover must explicitly preserve the existing
 app route and independently verified production database recovery path.
+
+## M2 prepared catalog branch (off by default)
+
+A new `storefront-strangler/prepared-catalog.server.ts` contains a separate
+private candidate producer and reader contract. Producers prepare at most 128
+currency-appropriate popularity-ranked IDs per market and publish expiring
+non-authoritative snapshots to a private object store. Request-time resolution
+**must** run a fresh, bounded primary D1 query against the exact existing
+`retail_product_availability_rows` view, current market currency, product
+activation, suppression, and edition release conditions. Revocations apply
+on the next request; no cached grant or entitlement authorizes access.
+
+The opt-in `COVE_STRANGLER_READ_MODEL=1` requires a private
+`PRESENTATION` binding and is intentionally absent in the nonroutable
+Wrangler file. No source publishes models automatically; an independently
+isolated job worker and dedicated R2 binding must be explicitly provisioned
+and integration tested before enabling it. If the model is missing, expired,
+malformed, mismatched or the primary authority fails, the request fails
+closed without falling back to 50,000-row D1 rankings. The legacy unflagged
+bootstrap remains untouched. The candidate shortlist may not include every
+newly ranked book until refresh, so ranking/pagination parity must be proven
+before the opt-in can serve customers. This is NOT a rights or LCP certification.

@@ -682,6 +682,70 @@ export async function canonicalFirstPaintBooksByProductIds(db: DB, productIds: s
   return productIds.map((id) => byId.get(id)).filter((book): book is CatalogBook => !!book);
 }
 
+
+/**
+ * Prepared presentation IDs have no authorization power. One fresh primary
+ * statement rechecks the SAME active/unsuppressed/available, territorial
+ * retail view and current market currency used by the canonical first-paint
+ * shelf. The private read-model may reorder candidates, never grant access.
+ */
+export async function canonicalAuthorizedPreparedFirstPaintBooks(
+  db: DB,
+  productIds: string[],
+  territory: string,
+  expectedCurrency: string,
+  limit = 24,
+): Promise<{ books: CatalogBook[]; hasMore: boolean }> {
+  if (
+    !/^[A-Z]{2}$/.test(territory) ||
+    !/^[A-Z]{3}$/.test(expectedCurrency) ||
+    !Number.isInteger(limit) ||
+    limit < 1 ||
+    limit > 24 ||
+    productIds.length > 128 ||
+    new Set(productIds).size !== productIds.length
+  )
+    throw new ApiError(400, "Invalid prepared storefront candidates.");
+  if (!productIds.length) return { books: [], hasMore: false };
+  const rows = await db
+    .prepare(
+      \`WITH candidates AS MATERIALIZED (
+        SELECT value AS product_id, CAST(key AS INTEGER) AS position FROM json_each(?)
+      )
+      \${firstPaintBookProjectionSql}
+      JOIN candidates candidate ON candidate.product_id=p.id
+      WHERE p.storefront_status='active'
+        AND p.source_name<>'upload'
+        AND e.release_status IN ('available','preorder')
+        AND d.suppressed=0
+        AND d.availability='available'
+        AND d.currency=?
+        AND ?=COALESCE(
+          (SELECT default_currency FROM storefront_markets
+           WHERE country_code=? AND market_status='active'),
+          (SELECT default_currency FROM storefront_markets
+           WHERE country_code='US' AND market_status='active')
+        )
+        AND EXISTS (
+          SELECT 1 FROM retail_product_availability_rows rpa
+          WHERE rpa.product_id=p.id AND rpa.territory_code=?
+        )
+      ORDER BY candidate.position ASC
+      LIMIT ?\`,
+    )
+    .bind(JSON.stringify(productIds), expectedCurrency, expectedCurrency, territory, territory, limit + 1)
+    .all<Record<string, unknown>>();
+  const distinct = new Map<string, CatalogBook>();
+  for (const row of rows.results) {
+    const id = String(row.product_id);
+    if (!distinct.has(id)) distinct.set(id, canonicalRowBook(row));
+  }
+  return {
+    books: [...distinct.values()].slice(0, limit),
+    hasMore: distinct.size > limit,
+  };
+}
+
 /**
  * Authoritative first-paint selection and hydration in a single D1 statement.
  * The caller constructs the predicate exclusively from the existing rights-
