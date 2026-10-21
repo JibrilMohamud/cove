@@ -105,11 +105,22 @@ try {
   assert.equal(config.r2_buckets[0].binding, "PRESENTATION");
   assert.equal((await producer.fetch()).status, 404);
   const pending = [];
-  const ctx = { waitUntil(promise) { pending.push(promise); } };
+  const ctx = {
+    waitUntil(promise) {
+      pending.push(promise);
+    },
+  };
   assert.throws(() => producer.scheduled({ cron: "* * * * *" }, env, ctx));
-  assert.throws(() => producer.scheduled({ cron: "*/5 * * * *" }, {
-    ...env, COVE_STRANGLER_DATABASE_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989",
-  }, ctx));
+  assert.throws(() =>
+    producer.scheduled(
+      { cron: "*/5 * * * *" },
+      {
+        ...env,
+        COVE_STRANGLER_DATABASE_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989",
+      },
+      ctx,
+    ),
+  );
   producer.scheduled({ cron: "*/5 * * * *" }, env, ctx);
   await Promise.all(pending);
   assert.ok(objects.has(privateCandidateKey("US")));
