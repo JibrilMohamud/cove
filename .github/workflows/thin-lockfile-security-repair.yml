@@ -1,0 +1,75 @@
+name: thin-lockfile-security-repair
+on:
+  push:
+    branches: [perf/pr227-100rps-causal-20261020]
+    paths:
+      - ".github/workflows/thin-lockfile-security-repair.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: cove-pr250-lockfile-security-repair
+  cancel-in-progress: false
+jobs:
+  audited-semver-safe-lockfile:
+    if: github.ref == 'refs/heads/perf/pr227-100rps-causal-20261020'
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    env:
+      CI: "1"
+      VERCEL: "0"
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Fix vulnerable installed lock resolutions without force or manifest changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm audit fix --package-lock-only --ignore-scripts --no-fund || {
+            echo "Automatic semver-safe resolution failed: release still blocked"
+            exit 1
+          }
+          git diff --exit-code -- package.json
+          test "$(git diff --name-only | grep -Ev '^package-lock.json$' | wc -l)" -eq 0
+          npm ci --no-audit --no-fund
+          npm audit --audit-level=high
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          const lock = JSON.parse(fs.readFileSync("package-lock.json", "utf8"));
+          if (lock.packages[""].dependencies.vite !== pkg.dependencies.vite &&
+              lock.packages[""].devDependencies.vite !== pkg.devDependencies.vite)
+            throw Error("Manifest and lock mismatch");
+          console.log("COVE_SECURITY_LOCKFILE_SAFE: semver constraint unchanged");
+          NODE
+      - name: Validate identical runtime code with patched dependency resolution
+        run: |
+          npm run typecheck
+          node scripts/check-thin-storefront.mjs
+          node scripts/check-rights.mjs
+          node scripts/check-storefront-firstpaint-rate-limit.mjs
+          npm run build
+          npm run lint
+      - name: Commit vetted lock resolution to this experiment only
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- package-lock.json; then
+            echo "No changes needed, current dependency tree already satisfies security gate"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- package-lock.json
+          git diff --cached --check
+          git commit -m "fix(deps): resolve high-severity Vite and launch-editor advisories without force"
+          git push origin "HEAD:refs/heads/perf/pr227-100rps-causal-20261020"
+# This workflow modifies only the lockfile after verifying the audit, typecheck,
+# tests, build and lint. No database, deployment, routing, or production changes.
