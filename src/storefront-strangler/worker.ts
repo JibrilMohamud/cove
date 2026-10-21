@@ -69,8 +69,10 @@ export default {
       // Authenticated transport control intentionally bypasses D1 and R2.
       // It establishes a same-gateway transport/runtime floor, not a claim
       // that the residual latency is all network time.
-      if (request.method !== "GET" ||
-          (!diagnostic && !transportControl && (url.pathname !== "/" || url.search)))
+      if (
+        request.method !== "GET" ||
+        (!diagnostic && !transportControl && (url.pathname !== "/" || url.search))
+      )
         return await delegate();
       if (transportControl)
         return finish(
