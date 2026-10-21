@@ -283,8 +283,7 @@ try {
       await page.addInitScript(() => {
         window.__coveVitals = { lcp: null, cls: 0 };
         new PerformanceObserver((list) => {
-          for (const entry of list.getEntries())
-            window.__coveVitals.lcp = entry.startTime;
+          for (const entry of list.getEntries()) window.__coveVitals.lcp = entry.startTime;
         }).observe({ type: "largest-contentful-paint", buffered: true });
         new PerformanceObserver((list) => {
           for (const entry of list.getEntries()) {
