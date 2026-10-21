@@ -1,6 +1,9 @@
 name: deploy-persistence-backend
 
 on:
+  # Dependency-lock or workflow-only changes must never silently execute
+  # production D1 migrations and backend deploys. Use workflow_dispatch for
+  # such releases after explicit validation.
   push:
     branches: [main]
     paths:
@@ -14,8 +17,6 @@ on:
       - "drizzle/*.sql"
       - "wrangler.backend.production.toml"
       - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/deploy-persistence-backend.yml"
   workflow_dispatch:
     inputs:
       worker_name:

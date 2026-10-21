@@ -17,4 +17,6 @@ The synthetic thin prototype has different storefront UI and has not established
 
 ## Activation boundary
 
+The high-severity Vite/launch-editor advisories in the old main lockfile are corrected by reusing the separately CI-validated lock-only update from PR #249, without altering root package declarations. Because main previously deployed the production persistence Worker and applied D1 migrations on every lockfile-only change, its deployment workflow no longer auto-runs for lockfile-only or workflow-only changes; explicit manual dispatch remains available.
+
 No production activation is authorized by this merge. Any future route cutover requires its own candidate PR, user-journey parity (including save, locale, discovery, search/filter, checkout, reader, protected audio), live rights tests, explicit deployment approval, staged canary and rollback.
