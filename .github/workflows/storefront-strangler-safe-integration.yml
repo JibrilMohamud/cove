@@ -100,6 +100,16 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Install pinned Wrangler once (avoid per-deploy npm network resolution)
+        run: |
+          for attempt in 1 2 3; do
+            if npm install --no-save --no-package-lock --no-audit --no-fund wrangler@4.151.0; then
+              break
+            fi
+            sleep "$((attempt * 3))"
+          done
+          test -x node_modules/.bin/wrangler
+          node_modules/.bin/wrangler --version
       - name: Install Chromium for deployed stage mobile-LCP measurements
         run: npx playwright install --with-deps chromium
       - name: Build immutable, isolated interactive Worker
