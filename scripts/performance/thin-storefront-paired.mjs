@@ -159,7 +159,25 @@ function pct(values, p) {
 }
 function summary(rows) {
   const valid = rows.filter((x) => x.valid);
+  const byColo = Object.fromEntries(
+    [...new Set(valid.map((row) => row.colo || "unknown"))].map((colo) => {
+      const subset = valid.filter((row) => (row.colo || "unknown") === colo);
+      return [colo, {
+        count: subset.length,
+        p50: pct(subset.map((row) => row.ttfb), 0.5),
+        p95: pct(subset.map((row) => row.ttfb), 0.95),
+        max: Math.max(...subset.map((row) => row.ttfb)),
+      }];
+    }),
+  );
+  const spans = {};
+  for (const name of ["cove_catalog", "cove_catalog_sql", "cove_context", "cove_page", "cove_bootstrap"]) {
+    const values = valid.map((row) => row.timings?.[name]).filter(Number.isFinite);
+    if (values.length) spans[name] = { count: values.length, p95: pct(values, 0.95), max: Math.max(...values) };
+  }
   return {
+    byColo,
+    spans,
     requested: rows.length,
     valid: valid.length,
     errors: rows.length - valid.length,
@@ -212,6 +230,14 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
         diagnosticValid = false;
       }
     }
+    if (route === "/__cove_perf/transport")
+      diagnosticValid =
+        body === "ok" && r.headers.get("x-cove-perf-control") === "thin-no-d1";
+    const timings = {};
+    for (const m of (r.headers.get("server-timing") || "").matchAll(
+      /(cove_[a-z_]+);dur=([0-9]+(?:\.[0-9]+)?)/g,
+    ))
+      timings[m[1]] = Number(m[2]);
     const valid =
       r.status === 200 &&
       diagnosticValid &&
@@ -231,6 +257,7 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
       rightsCountry: /data-rights-country="([A-Z]{2})"/.exec(body)?.[1],
       colo: r.headers.get("cf-ray")?.split("-").at(-1),
       serverTiming: r.headers.get("server-timing"),
+      timings,
       rayId: r.headers.get("cf-ray"),
       observedAt: new Date().toISOString(),
       ...(valid ? {} : { failureBody: body.slice(0, 300) }),
@@ -357,28 +384,33 @@ async function browserCheck(role) {
     await browser.close();
   }
 }
-async function capacity(role, rate) {
-  const duration = 20_000,
+async function capacity(role, rate, { route = "/", duration = 20_000 } = {}) {
+  const offered = Math.round(rate * duration / 1000),
     interval = 1000 / rate,
     start = performance.now(),
     rows = [],
-    pending = new Set();
+    pending = new Set(),
+    arrivalDelayMs = [];
   let dropped = 0,
     late = 0,
+    peakPending = 0,
     stop = false,
     scheduled = 0;
-  for (let n = 0; n < (rate * duration) / 1000; n++) {
+  for (let n = 0; n < offered; n++) {
     const due = start + n * interval,
       delay = due - performance.now();
     if (delay > 0) await new Promise((r) => setTimeout(r, delay));
     if (stop) break;
     scheduled++;
-    if (performance.now() - due > 100) late++;
+    const behind = Math.max(0, performance.now() - due);
+    arrivalDelayMs.push(behind);
+    if (behind > 100) late++;
+    peakPending = Math.max(peakPending, pending.size);
     if (pending.size >= 128) {
       dropped++;
       continue;
     }
-    const task = sample(role)
+    const task = sample(role, { route })
       .then((r) => {
         rows.push(r);
         if (!r.valid) stop = true;
@@ -392,10 +424,15 @@ async function capacity(role, rate) {
   return {
     role,
     offeredRps: rate,
+    route,
     durationMs: elapsed,
+    offered,
+    peakPending,
+    arrivalDelayP95Ms: pct(arrivalDelayMs, 0.95),
+    arrivalDelayMaxMs: arrivalDelayMs.length ? Math.max(...arrivalDelayMs) : 0,
     completedRps: rows.length / (elapsed / 1000),
     scheduled,
-    unscheduled: (rate * duration) / 1000 - scheduled,
+    unscheduled: offered - scheduled,
     dropped,
     late,
     summary: s,
@@ -569,13 +606,37 @@ try {
   // Any HTTP/transport error stops the entire shared-D1 campaign immediately.
   const active = new Set(["baseline", "thin"]);
   evidence.capacityStoppedByRole = {};
-  for (const rate of [10, 25, 50, 100, 250, 500]) {
+  for (const rate of [10, 25, 50, 75, 90, 100, 125]) {
     let unsafe = false;
+    // The 100-RPS no-D1 control uses exactly the same hostname, ingress,
+    // thin service binding, bearer gate, Undici agent and offered schedule.
+    // It must not be confused with a valid authorized storefront response.
+    if (rate === 100 && active.has("thin")) {
+      const control = await capacity("thin", 100, {
+        route: "/__cove_perf/transport",
+        duration: 20_000,
+      });
+      evidence.transportControls ??= [];
+      evidence.transportControls.push({position:"before-100",...control});
+      save();
+      console.log("control", "before-100", JSON.stringify({
+        ...control.summary, dropped:control.dropped, late:control.late,
+        peakPending:control.peakPending, byColo:control.summary.byColo,
+      }));
+      if (!control.pass) evidence.errors.push({
+        phase:"transport-control", message:"Data-free 100-RPS control failed; storefront attribution inconclusive",
+      });
+    }
     for (const role of [...active]) {
       const result = await capacity(role, rate);
       evidence.capacity.push(result);
       save();
-      console.log("capacity", role, rate, JSON.stringify(result.summary));
+      console.log("capacity", role, rate, JSON.stringify({
+        ...result.summary, scheduled:result.scheduled,
+        unscheduled:result.unscheduled, dropped:result.dropped,
+        late:result.late, peakPending:result.peakPending,
+        arrivalDelayP95Ms:result.arrivalDelayP95Ms,
+      }));
       if (!result.pass) {
         active.delete(role);
         evidence.capacityStoppedByRole[role] = rate;
@@ -584,6 +645,21 @@ try {
         unsafe = true;
         break;
       }
+    }
+    if (rate === 100 && evidence.transportControls?.length) {
+      const control = await capacity("thin", 100, {
+        route: "/__cove_perf/transport",
+        duration: 20_000,
+      });
+      evidence.transportControls.push({position:"after-100",...control});
+      save();
+      console.log("control", "after-100", JSON.stringify({
+        ...control.summary, dropped:control.dropped, late:control.late,
+        peakPending:control.peakPending, byColo:control.summary.byColo,
+      }));
+      if (!control.pass) evidence.errors.push({
+        phase:"transport-control",message:"Post-100 data-free control failed; storefront attribution inconclusive",
+      });
     }
     if (unsafe || !active.size) break;
   }
@@ -614,6 +690,11 @@ try {
     evidence.bootstrap.filter((x) => x.role === "thin").every((x) => x.pass) &&
     evidence.capacity.some((x) => x.role === "thin" && x.pass) &&
     !evidence.capacity.some((x) => x.role === "thin" && x.summary.errors) &&
+    // The historical architecture gate is preserved; capacity >=100 RPS
+    // is a distinct hard SLO and cannot be inferred from 50-RPS success.
+    evidence.capacity.some((x) => x.role === "thin" && x.offeredRps === 100 && x.pass) &&
+    (evidence.transportControls || []).length === 2 &&
+    evidence.transportControls.every((control) => control.pass) &&
     evidence.contentParity &&
     evidence.remoteRevocation?.pass &&
     evidence.matchedColo;

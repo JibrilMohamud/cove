@@ -41,3 +41,29 @@ The follow-up uses a shared, database-free benchmark ingress Worker and connecti
 The thin bootstrap diagnostic now executes the actual thin bootstrap, rather than delegating to the full application. Both diagnostic validity and its 750 ms 32-request maximum are required. Failed requests retain a bounded staging error body, ray ID and timestamp; server logs report only a fixed failure category and the bootstrap phase, never error text, SQL, tokens or visitor data. No error retry policy or authorization fallback is added without identifying the failing dependency.
 
 Capacity exploration now stops scheduling on the first invalid response and records unscheduled arrivals separately. A candidate HTTP/transport failure blocks the architectural gate. A baseline latency failure remains recorded but does not by itself mark a healthy candidate as failed. All 650/750/800 ms targets, mobile comparison, rights tests and release blockers remain in force. `releaseApproved` remains false even if the architectural comparison passes.
+
+## October 20 forensic 100-RPS diagnostic branch
+
+Frozen serving implementation from PR #227 remains the comparator. The only
+serving-code modification is a bearer-gated no-D1 control that executes inside
+the SAME thin destination behind the SAME public synthetic benchmark ingress.
+It returns constant text and does not touch catalog or legal authorization.
+Successful control requests **cannot** count as successful storefront traffic.
+
+The paired 20-second campaign now tries 75/90 RPS before 100 (and 125 only
+if the 100-RPS gate passes). The 100-RPS stage has before/after fully valid
+data-free 100-RPS controls, per-colo p50/p95/max, parsed Server-Timing
+catalog/sql/bootstrap/context/page spans, offered/scheduled/dropped and client
+arrival-delay metrics. The original 650-ms cold, 750-ms burst, 600-ms capacity
+p95, 750-ms capacity p99, 800-ms absolute max and rights/UI/LCP checks remain.
+
+**Pre-registered decisions**: If same-path no-D1 controls also fail 100 RPS,
+fix client/transport/ingress and repeat before touching SQL. If controls pass,
+compare catalog wall time to actual D1 SQL time and colo-specific tails:
+high catalog wall/low SQL points toward binding queue/service latency; high
+SQL indicates an execution-plan problem; low catalog wall/high TTFB suggests
+transport, scheduling or uninstrumented Worker latency. If all three forms
+are healthy but offered arrivals drop, isolate/scale the generator. Reject
+any code change that worsens 50-RPS, cold or 32-request rights-correct tails.
+A green 100-RPS synthetic result is NOT full storefront feature parity,
+mixed checkout/reader/audio certification or production-release permission.
