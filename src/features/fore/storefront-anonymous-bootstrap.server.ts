@@ -49,7 +49,8 @@ export function canUseLeanAnonymousBootstrap(
  */
 // Promise-level coalescing only: isolate-local; no settled metadata or rights cache.
 const pendingAnonymousMetadata = new WeakMap<
-  object, Map<string, Promise<Awaited<ReturnType<typeof resolveAnonymousHomepageContext>>>>
+  object,
+  Map<string, Promise<Awaited<ReturnType<typeof resolveAnonymousHomepageContext>>>>
 >();
 function anonymousMetadataFlight(
   binding: object,
@@ -66,8 +67,12 @@ function anonymousMetadataFlight(
   const task = Promise.resolve().then(create);
   pending.set(key, task);
   task.then(
-    () => { if (pending!.get(key) === task) pending!.delete(key); },
-    () => { if (pending!.get(key) === task) pending!.delete(key); },
+    () => {
+      if (pending!.get(key) === task) pending!.delete(key);
+    },
+    () => {
+      if (pending!.get(key) === task) pending!.delete(key);
+    },
   );
   return { task, joined: false };
 }
@@ -114,7 +119,10 @@ export async function serveLeanAnonymousBootstrap(
   // the rate limiter, markets, context, page and rights checks ALL succeed.
   const fetchContext = () =>
     resolveAnonymousHomepageContext(
-      readMetadata(), request, env.FORE_DEFAULT_TERRITORY || "US", contextMetrics,
+      readMetadata(),
+      request,
+      env.FORE_DEFAULT_TERRITORY || "US",
+      contextMetrics,
     );
   const countrySource = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").source;
   const coalesce =
@@ -129,7 +137,9 @@ export async function serveLeanAnonymousBootstrap(
     ? anonymousMetadataFlight(
         rawDb,
         JSON.stringify([
-          trustedCountry, countrySource, env.FORE_DEFAULT_TERRITORY || "US",
+          trustedCountry,
+          countrySource,
+          env.FORE_DEFAULT_TERRITORY || "US",
           request.headers.get("accept-language") || "",
         ]),
         fetchContext,

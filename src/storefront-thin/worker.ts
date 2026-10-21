@@ -36,19 +36,23 @@ export default {
       const transportControl = url.pathname === "/__cove_perf/transport" && !url.search;
       // Service binding preserves all existing auth, account, reader, API and
       // filtered navigation. No public HTTP hop or recursive homepage fetch.
-      if (request.method !== "GET" ||
-          (!diagnostic && !transportControl && (url.pathname !== "/" || url.search)))
+      if (
+        request.method !== "GET" ||
+        (!diagnostic && !transportControl && (url.pathname !== "/" || url.search))
+      )
         return await env.CORE.fetch(request);
       // Deliberately data-free: same benchmark ingress, service binding,
       // staging bearer validation, but no catalog, D1, R2 or rights work.
       // Constant response and no user content, restricted to synthetic stage.
       if (transportControl)
-        return finish(new Response("ok", {
-          headers: {
-            "content-type": "text/plain; charset=utf-8",
-            "x-cove-perf-control": "thin-no-d1",
-          },
-        }));
+        return finish(
+          new Response("ok", {
+            headers: {
+              "content-type": "text/plain; charset=utf-8",
+              "x-cove-perf-control": "thin-no-d1",
+            },
+          }),
+        );
       const safe = isolateWorkerCountry(syntheticClient(request, env));
       if (!safe)
         return finish(new Response("Unable to verify storefront territory.", { status: 503 }));

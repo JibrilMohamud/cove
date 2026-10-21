@@ -162,18 +162,36 @@ function summary(rows) {
   const byColo = Object.fromEntries(
     [...new Set(valid.map((row) => row.colo || "unknown"))].map((colo) => {
       const subset = valid.filter((row) => (row.colo || "unknown") === colo);
-      return [colo, {
-        count: subset.length,
-        p50: pct(subset.map((row) => row.ttfb), 0.5),
-        p95: pct(subset.map((row) => row.ttfb), 0.95),
-        max: Math.max(...subset.map((row) => row.ttfb)),
-      }];
+      return [
+        colo,
+        {
+          count: subset.length,
+          p50: pct(
+            subset.map((row) => row.ttfb),
+            0.5,
+          ),
+          p95: pct(
+            subset.map((row) => row.ttfb),
+            0.95,
+          ),
+          max: Math.max(...subset.map((row) => row.ttfb)),
+        },
+      ];
     }),
   );
   const spans = {};
-  for (const name of ["cove_catalog", "cove_catalog_sql", "cove_context", "cove_context_sql", "cove_context_joined", "cove_page", "cove_bootstrap"]) {
+  for (const name of [
+    "cove_catalog",
+    "cove_catalog_sql",
+    "cove_context",
+    "cove_context_sql",
+    "cove_context_joined",
+    "cove_page",
+    "cove_bootstrap",
+  ]) {
     const values = valid.map((row) => row.timings?.[name]).filter(Number.isFinite);
-    if (values.length) spans[name] = { count: values.length, p95: pct(values, 0.95), max: Math.max(...values) };
+    if (values.length)
+      spans[name] = { count: values.length, p95: pct(values, 0.95), max: Math.max(...values) };
   }
   return {
     byColo,
@@ -232,8 +250,7 @@ async function sample(role, { fresh = false, route = "/", benchmarkHeaders = {} 
       }
     }
     if (route === "/__cove_perf/transport")
-      diagnosticValid =
-        body === "ok" && r.headers.get("x-cove-perf-control") === "thin-no-d1";
+      diagnosticValid = body === "ok" && r.headers.get("x-cove-perf-control") === "thin-no-d1";
     const timings = {};
     for (const m of (r.headers.get("server-timing") || "").matchAll(
       /(cove_[a-z_]+);dur=([0-9]+(?:\.[0-9]+)?)/g,
@@ -385,8 +402,12 @@ async function browserCheck(role) {
     await browser.close();
   }
 }
-async function capacity(role, rate, { route = "/", duration = 20_000, benchmarkHeaders = {} } = {}) {
-  const offered = Math.round(rate * duration / 1000),
+async function capacity(
+  role,
+  rate,
+  { route = "/", duration = 20_000, benchmarkHeaders = {} } = {},
+) {
+  const offered = Math.round((rate * duration) / 1000),
     interval = 1000 / rate,
     start = performance.now(),
     rows = [],
@@ -618,26 +639,43 @@ try {
         duration: 20_000,
       });
       evidence.transportControls ??= [];
-      evidence.transportControls.push({position:"before-100",...control});
+      evidence.transportControls.push({ position: "before-100", ...control });
       save();
-      console.log("control", "before-100", JSON.stringify({
-        ...control.summary, dropped:control.dropped, late:control.late,
-        peakPending:control.peakPending, byColo:control.summary.byColo,
-      }));
-      if (!control.pass) evidence.errors.push({
-        phase:"transport-control", message:"Data-free 100-RPS control failed; storefront attribution inconclusive",
-      });
+      console.log(
+        "control",
+        "before-100",
+        JSON.stringify({
+          ...control.summary,
+          dropped: control.dropped,
+          late: control.late,
+          peakPending: control.peakPending,
+          byColo: control.summary.byColo,
+        }),
+      );
+      if (!control.pass)
+        evidence.errors.push({
+          phase: "transport-control",
+          message: "Data-free 100-RPS control failed; storefront attribution inconclusive",
+        });
     }
     for (const role of [...active]) {
       const result = await capacity(role, rate);
       evidence.capacity.push(result);
       save();
-      console.log("capacity", role, rate, JSON.stringify({
-        ...result.summary, scheduled:result.scheduled,
-        unscheduled:result.unscheduled, dropped:result.dropped,
-        late:result.late, peakPending:result.peakPending,
-        arrivalDelayP95Ms:result.arrivalDelayP95Ms,
-      }));
+      console.log(
+        "capacity",
+        role,
+        rate,
+        JSON.stringify({
+          ...result.summary,
+          scheduled: result.scheduled,
+          unscheduled: result.unscheduled,
+          dropped: result.dropped,
+          late: result.late,
+          peakPending: result.peakPending,
+          arrivalDelayP95Ms: result.arrivalDelayP95Ms,
+        }),
+      );
       if (!result.pass) {
         active.delete(role);
         evidence.capacityStoppedByRole[role] = rate;
@@ -657,15 +695,24 @@ try {
         route: "/__cove_perf/transport",
         duration: 20_000,
       });
-      evidence.transportControls.push({position:"after-100",...control});
+      evidence.transportControls.push({ position: "after-100", ...control });
       save();
-      console.log("control", "after-100", JSON.stringify({
-        ...control.summary, dropped:control.dropped, late:control.late,
-        peakPending:control.peakPending, byColo:control.summary.byColo,
-      }));
-      if (!control.pass) evidence.errors.push({
-        phase:"transport-control",message:"Post-100 data-free control failed; storefront attribution inconclusive",
-      });
+      console.log(
+        "control",
+        "after-100",
+        JSON.stringify({
+          ...control.summary,
+          dropped: control.dropped,
+          late: control.late,
+          peakPending: control.peakPending,
+          byColo: control.summary.byColo,
+        }),
+      );
+      if (!control.pass)
+        evidence.errors.push({
+          phase: "transport-control",
+          message: "Post-100 data-free control failed; storefront attribution inconclusive",
+        });
     }
     // The rights-checked candidate can be retired at 90 RPS. Still execute
     // the protected 100-RPS no-D1 controls to distinguish transport capacity
@@ -681,25 +728,30 @@ try {
   evidence.singleflightControlled = [];
   for (const mode of ["off-before", "on", "off-after"]) {
     const result = await capacity("thin", 100, {
-      benchmarkHeaders:
-        mode.startsWith("off") ? { "x-cove-perf-no-metadata-flight": "1" } : {},
+      benchmarkHeaders: mode.startsWith("off") ? { "x-cove-perf-no-metadata-flight": "1" } : {},
     });
     evidence.singleflightControlled.push({ mode, ...result });
     save();
-    console.log("singleflight-controlled", mode, JSON.stringify({
-      ...result.summary, offered:result.offered, valid:result.summary.valid,
-      dropped:result.dropped, late:result.late, peakPending:result.peakPending,
-    }));
+    console.log(
+      "singleflight-controlled",
+      mode,
+      JSON.stringify({
+        ...result.summary,
+        offered: result.offered,
+        valid: result.summary.valid,
+        dropped: result.dropped,
+        late: result.late,
+        peakPending: result.peakPending,
+      }),
+    );
   }
-  const sameColo = evidence.singleflightControlled.every((run) =>
-    run.summary.colos.length === 1 &&
-    run.summary.colos[0] === evidence.singleflightControlled[0].summary.colos[0],
+  const sameColo = evidence.singleflightControlled.every(
+    (run) =>
+      run.summary.colos.length === 1 &&
+      run.summary.colos[0] === evidence.singleflightControlled[0].summary.colos[0],
   );
   const middle = evidence.singleflightControlled[1];
-  const controls = [
-    evidence.singleflightControlled[0],
-    evidence.singleflightControlled[2],
-  ];
+  const controls = [evidence.singleflightControlled[0], evidence.singleflightControlled[2]];
   evidence.singleflightCausal = {
     sameColo,
     offP95Ms: controls.map((run) => run.summary.p95),
@@ -712,10 +764,11 @@ try {
     improvementSupported:
       sameColo &&
       middle.pass &&
-      controls.every((run) =>
-        run.summary.valid === run.offered &&
-        run.dropped === 0 &&
-        run.summary.p95 > middle.summary.p95 * 1.1,
+      controls.every(
+        (run) =>
+          run.summary.valid === run.offered &&
+          run.dropped === 0 &&
+          run.summary.p95 > middle.summary.p95 * 1.1,
       ),
   };
   save();

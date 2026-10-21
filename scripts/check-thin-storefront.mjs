@@ -136,30 +136,22 @@ try {
       },
     },
   };
-  const transport = await worker.fetch(
-    request("US", {}, "/__cove_perf/transport"),
-    noDb,
-  );
+  const transport = await worker.fetch(request("US", {}, "/__cove_perf/transport"), noDb);
   assert.equal(transport.status, 200);
   assert.equal(transport.headers.get("x-cove-perf-control"), "thin-no-d1");
   assert.match(transport.headers.get("cache-control"), /no-store/);
   assert.equal(await transport.text(), "ok");
   assert.equal(
-    (
-      await worker.fetch(
-        new Request("https://cove.test/__cove_perf/transport"),
-        noDb,
-      )
-    ).status,
+    (await worker.fetch(new Request("https://cove.test/__cove_perf/transport"), noDb)).status,
     401,
     "Unauthenticated requests may not reach the benchmark control",
   );
   assert.equal(
     (
-      await worker.fetch(
-        request("US", {}, "/__cove_perf/transport"),
-        { ...noDb, COVE_THIN_STOREFRONT: "production" },
-      )
+      await worker.fetch(request("US", {}, "/__cove_perf/transport"), {
+        ...noDb,
+        COVE_THIN_STOREFRONT: "production",
+      })
     ).status,
     503,
     "Production cannot enable the synthetic benchmark control",
@@ -270,7 +262,8 @@ try {
     },
   };
   const singleflight = {
-    ...env, DB: countedDb,
+    ...env,
+    DB: countedDb,
     COVE_THIN_METADATA_COALESCE: "1",
     COVE_SSR_DIAGNOSTICS: "1",
   };
@@ -278,9 +271,16 @@ try {
     worker.fetch(request("US"), singleflight),
     worker.fetch(request("US"), singleflight),
   ]);
-  assert.deepEqual(together.map((response) => response.status), [200, 200]);
+  assert.deepEqual(
+    together.map((response) => response.status),
+    [200, 200],
+  );
   assert.equal(batches, 1, "Same-market concurrent anonymous reads share only the metadata batch");
-  assert.equal(primaryRightsReads, 2, "Every joined request must still execute its own primary rights SQL");
+  assert.equal(
+    primaryRightsReads,
+    2,
+    "Every joined request must still execute its own primary rights SQL",
+  );
   assert.match(together[1].headers.get("server-timing") || "", /cove_context_joined;dur=1/);
   const shelves = await Promise.all(together.map((response) => response.text()));
   assert.deepEqual(
@@ -293,17 +293,26 @@ try {
     worker.fetch(request("US", { "accept-language": "fr-FR" }), singleflight),
     worker.fetch(request("US", { "accept-language": "en-US" }), singleflight),
   ]);
-  assert.deepEqual(langs.map((x) => x.status), [200, 200]);
+  assert.deepEqual(
+    langs.map((x) => x.status),
+    [200, 200],
+  );
   assert.equal(batches, 4, "Different language preferences must not share a batch");
   const disabled = await Promise.all([
     worker.fetch(request("US", { "x-cove-perf-no-metadata-flight": "1" }), singleflight),
     worker.fetch(request("US", { "x-cove-perf-no-metadata-flight": "1" }), singleflight),
   ]);
-  assert.deepEqual(disabled.map((x) => x.status), [200, 200]);
+  assert.deepEqual(
+    disabled.map((x) => x.status),
+    [200, 200],
+  );
   assert.equal(batches, 6, "Protected synthetic A/B control must disable only metadata coalescing");
   const failingDb = {
     ...countedDb,
-    async batch() { batches++; throw Error("synthetic context outage"); },
+    async batch() {
+      batches++;
+      throw Error("synthetic context outage");
+    },
   };
   assert.equal((await worker.fetch(request("US"), { ...singleflight, DB: failingDb })).status, 503);
   assert.equal((await worker.fetch(request("US"), { ...singleflight, DB: failingDb })).status, 503);
@@ -312,19 +321,24 @@ try {
   // the unoptimized path; metadata reuse must never preserve stale offers.
   const firstJoinedProduct = /data-product="([^"]+)"/.exec(shelves[0])?.[1];
   assert.ok(firstJoinedProduct);
-  const record = await originalDb.prepare(
-    "SELECT edition_id FROM products WHERE id=?"
-  ).bind(firstJoinedProduct).first();
+  const record = await originalDb
+    .prepare("SELECT edition_id FROM products WHERE id=?")
+    .bind(firstJoinedProduct)
+    .first();
   assert.ok(record?.edition_id);
-  const activeGrants = await originalDb.prepare(
-    "SELECT id FROM rights_grants WHERE edition_id=? AND decision='allow' AND status='active'"
-  ).bind(record.edition_id).all();
+  const activeGrants = await originalDb
+    .prepare(
+      "SELECT id FROM rights_grants WHERE edition_id=? AND decision='allow' AND status='active'",
+    )
+    .bind(record.edition_id)
+    .all();
   assert.ok(activeGrants.results.length);
   try {
     for (const grant of activeGrants.results) {
-      await originalDb.prepare(
-        "UPDATE rights_grants SET status='revoked' WHERE id=?"
-      ).bind(grant.id).run();
+      await originalDb
+        .prepare("UPDATE rights_grants SET status='revoked' WHERE id=?")
+        .bind(grant.id)
+        .run();
     }
     const afterRevocation = await worker.fetch(request("US"), singleflight);
     assert.equal(afterRevocation.status, 200);
@@ -335,9 +349,10 @@ try {
     );
   } finally {
     for (const grant of activeGrants.results) {
-      await originalDb.prepare(
-        "UPDATE rights_grants SET status='active' WHERE id=?"
-      ).bind(grant.id).run();
+      await originalDb
+        .prepare("UPDATE rights_grants SET status='active' WHERE id=?")
+        .bind(grant.id)
+        .run();
     }
   }
   const restored = await worker.fetch(request("US"), singleflight);

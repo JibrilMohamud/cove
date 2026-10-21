@@ -551,8 +551,7 @@ export async function resolveAnonymousHomepageContext(
         totalSql += Number(result.meta?.duration);
         measured++;
       }
-      if (Number.isFinite(result.meta?.rows_read))
-        totalRows += Number(result.meta?.rows_read);
+      if (Number.isFinite(result.meta?.rows_read)) totalRows += Number(result.meta?.rows_read);
     }
     if (measured) {
       diagnostics.sqlDurationMs = totalSql;
