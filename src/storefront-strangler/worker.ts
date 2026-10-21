@@ -31,10 +31,15 @@ export default {
   async fetch(request: Request, env: StorefrontStranglerEnv): Promise<Response> {
     // Fail closed even under an accidental deployment or config substitution.
     // The reviewed config must also contain only the dedicated synthetic D1.
+    const syntheticEvaluation =
+      env.COVE_STRANGLER_MODE === "isolated-evaluation" &&
+      env.COVE_STRANGLER_DATABASE_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
+    const productionAcceptance =
+      env.COVE_STRANGLER_MODE === "production-acceptance" &&
+      env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989";
     if (
       env.COVE_SSR_STAGING !== "1" ||
-      env.COVE_STRANGLER_MODE !== "isolated-evaluation" ||
-      env.COVE_STRANGLER_DATABASE_ID !== "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3"
+      (!syntheticEvaluation && !productionAcceptance)
     )
       return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
     const rejected = await rejectUnauthenticatedStagingRequest(request, env);
@@ -43,6 +48,12 @@ export default {
       stageNoStore(applySecurityHeaders(request, response, env), true);
     // Stage bearer authorizes this gateway, not a customer session at CORE.
     const delegate = () => {
+      // This production-D1 acceptance origin has no authenticated CORE
+      // service and must never become an alternate checkout/reader gateway.
+      if (productionAcceptance)
+        return Promise.resolve(
+          new Response("Not an application route", { status: 404 }),
+        );
       const headers = new Headers(request.headers);
       // The operator's ingress token is NEVER a backend identity.
       // A different service-only secret can be provisioned for the private
@@ -78,7 +89,10 @@ export default {
             },
           }),
         );
-      const safe = isolateWorkerCountry(syntheticBenchmarkClient(request, env));
+      const benchmarkRequest = syntheticEvaluation
+        ? syntheticBenchmarkClient(request, env)
+        : request;
+      const safe = isolateWorkerCountry(benchmarkRequest);
       if (!safe)
         return finish(new Response("Unable to verify storefront territory.", { status: 503 }));
       const headers = new Headers(safe.headers);
