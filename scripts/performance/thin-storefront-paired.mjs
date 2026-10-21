@@ -208,8 +208,8 @@ function summary(rows) {
   const instrumented = valid.filter((row) =>
     Number.isFinite(row.timings?.cove_context_flight_eligible),
   );
-  const eligible = instrumented.filter((row) =>
-    row.timings.cove_context_flight_eligible === 1,
+  const eligible = instrumented.filter(
+    (row) => row.timings.cove_context_flight_eligible === 1,
   ).length;
   const joined = instrumented.filter((row) => row.timings.cove_context_joined === 1).length;
   return {
@@ -792,10 +792,11 @@ try {
       middle.summary.coalescing.instrumented === middle.offered &&
       middle.summary.coalescing.eligible === middle.offered &&
       middle.summary.coalescing.joined > 0 &&
-      controls.every((run) =>
-        run.summary.coalescing.instrumented === run.offered &&
-        run.summary.coalescing.eligible === 0 &&
-        run.summary.coalescing.joined === 0,
+      controls.every(
+        (run) =>
+          run.summary.coalescing.instrumented === run.offered &&
+          run.summary.coalescing.eligible === 0 &&
+          run.summary.coalescing.joined === 0,
       ),
     // Improvement is a measured outcome, not an assumption just because
     // the flag was enabled. Comparison cannot be certified across colos.
@@ -805,10 +806,11 @@ try {
       middle.summary.coalescing.instrumented === middle.offered &&
       middle.summary.coalescing.eligible === middle.offered &&
       middle.summary.coalescing.joined > 0 &&
-      controls.every((run) =>
-        run.summary.coalescing.instrumented === run.offered &&
-        run.summary.coalescing.eligible === 0 &&
-        run.summary.coalescing.joined === 0,
+      controls.every(
+        (run) =>
+          run.summary.coalescing.instrumented === run.offered &&
+          run.summary.coalescing.eligible === 0 &&
+          run.summary.coalescing.joined === 0,
       ) &&
       controls.every(
         (run) =>
