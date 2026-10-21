@@ -10,7 +10,7 @@ import {
   serveLeanAnonymousBootstrap,
 } from "../features/fore/storefront-anonymous-bootstrap.server";
 import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap";
-import { renderThinStorefront } from "./render";
+import { renderStranglerStorefront } from "./render";
 import { bootstrapFailureKind } from "./failure";
 
 /** Build-isolated serving boundary. No auth, orders, reader or background code.
@@ -90,7 +90,7 @@ export default {
       }
       failurePhase = "render";
       return finish(
-        new Response(renderThinStorefront(bootstrap, env.FORE_PUBLIC_URL || url.origin), {
+        new Response(renderStranglerStorefront(bootstrap, env.FORE_PUBLIC_URL || url.origin), {
           headers: {
             "content-type": "text/html; charset=utf-8",
             "cache-control": "private, no-store",
