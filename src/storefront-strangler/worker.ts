@@ -28,7 +28,25 @@ export type StorefrontStranglerEnv = CoveEnv & {
 };
 
 /** Hard prohibit D1 writes by the real-catalog, credential-gated preview. */
-function readOnlyStageD1<T extends object>(db: T): T {
+function readOnlyStageD1<T extends object>(
+  db: T,
+  approved = new WeakMap<object, object>(),
+): T {
+  const wrapStatement = (statement: object): object => {
+    const proxy = new Proxy(statement, {
+      get(target, key) {
+        if (key === "bind")
+          return (...args: unknown[]) =>
+            wrapStatement(
+              (target as { bind(...values: unknown[]): object }).bind(...args),
+            );
+        const value = Reflect.get(target, key, target);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    approved.set(proxy, statement);
+    return proxy;
+  };
   return new Proxy(db, {
     get(target, key) {
       if (key === "prepare") {
@@ -36,18 +54,32 @@ function readOnlyStageD1<T extends object>(db: T): T {
           const trimmed = sql.trim();
           if (!/^(?:SELECT|WITH|EXPLAIN)\s/i.test(trimmed) || /;\s*\S/.test(trimmed))
             throw new Error("Production catalog acceptance is read-only");
-          return (target as { prepare(sql: string): unknown }).prepare(sql);
+          const real = (target as { prepare(sql: string): object }).prepare(sql);
+          return wrapStatement(real);
         };
       }
       if (key === "withSession") {
         return (constraint: string) => {
           const session = (target as { withSession(arg: string): object }).withSession(constraint);
-          return readOnlyStageD1(session);
+          return readOnlyStageD1(session, approved);
         };
       }
-      if (key === "batch" || key === "exec")
+      if (key === "batch") {
+        return (statements: object[]) => {
+          if (
+            !Array.isArray(statements) ||
+            !statements.length ||
+            statements.some((statement) => !approved.has(statement))
+          )
+            throw new Error("Only validated SELECT batches may query production D1");
+          return (target as { batch(statements: object[]): unknown }).batch(
+            statements.map((statement) => approved.get(statement)!),
+          );
+        };
+      }
+      if (key === "exec")
         return () => {
-          throw new Error("Production catalog acceptance cannot batch or mutate D1");
+          throw new Error("Production catalog acceptance cannot exec SQL");
         };
       const value = Reflect.get(target, key, target);
       return typeof value === "function" ? value.bind(target) : value;
