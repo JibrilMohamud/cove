@@ -214,6 +214,28 @@ async function pixelMismatch(page, baseline, candidate) {
     [baseline.toString("base64"), candidate.toString("base64")],
   );
 }
+// In production, Vercel continues to own all /covers and /api assets.
+// Route stage-only browser requests through that public origin to compare
+// equivalent customer resource loading; never forward the stage bearer.
+async function stageBrowserRoute(route) {
+  const resource = new URL(route.request().url());
+  if (resource.origin !== origin) return route.continue();
+  if (
+    route.request().method() === "GET" &&
+    (/^\\/(?:covers|assets|images|fonts)\\//.test(resource.pathname) ||
+      resource.pathname.startsWith("/api/fore/"))
+  ) {
+    const publicUrl = "https://cove-puce-theta.vercel.app" + resource.pathname + resource.search;
+    const response = await route.fetch({
+      url: publicUrl,
+      headers: { accept: route.request().headers()["accept"] || "*/*" },
+    });
+    return route.fulfill({ response });
+  }
+  return route.continue({
+    headers: { ...route.request().headers(), authorization: "Bearer " + stageKey },
+  });
+}
 const startedAt = performance.now();
 try {
   const fixture = await cloudflare("POST", `/accounts/${account}/d1/database/${dbId}/query`, {
@@ -255,16 +277,7 @@ try {
       const page = await context.newPage();
       const pageErrors = [];
       page.on("pageerror", (error) => pageErrors.push(error.message));
-      await page.route("**/*", (route) => {
-        const url = new URL(route.request().url());
-        if (url.origin !== origin) return route.continue();
-        return route.continue({
-          headers: {
-            ...route.request().headers(),
-            authorization: "Bearer " + stageKey,
-          },
-        });
-      });
+      await page.route("**/*", stageBrowserRoute);
       await page.addInitScript(() => {
         window.__coveVitals = { lcp: null, cls: 0 };
         new PerformanceObserver((list) => {
@@ -303,7 +316,8 @@ try {
   }
   const mobileLcp = mobileSamples.map((s) => s.lcpMs).filter(Number.isFinite);
   evidence.stageMobileLcp = {
-    description: "Synthetic-only deployed Worker, Chromium 390x844, 4x CPU, 150ms RTT",
+    description:
+      "Bearer-gated real production D1 with Vercel asset fetch, Chromium 390x844, 4x CPU, 150ms RTT",
     samples: mobileSamples,
     p75Ms: percentile(mobileLcp, 0.75),
   };
@@ -324,12 +338,7 @@ try {
       deviceScaleFactor: 1,
     });
     const candidate = await auditCtx.newPage();
-    await candidate.route("**/*", (route) => {
-      if (new URL(route.request().url()).origin !== origin) return route.continue();
-      return route.continue({
-        headers: { ...route.request().headers(), authorization: "Bearer " + stageKey },
-      });
-    });
+    await candidate.route("**/*", stageBrowserRoute);
     const live = await auditCtx.newPage();
     const liveResponse = await live.goto("https://cove-puce-theta.vercel.app/", {
       waitUntil: "domcontentloaded",
@@ -356,8 +365,13 @@ try {
         .evaluateAll((els) => [...new Set(els.map((el) => el.getAttribute("href")))]);
     const liveLinks = await links(live);
     const stageLinks = await links(candidate);
+    const covers = await candidate.locator("article.book-card img").evaluateAll((images) => ({
+      total: images.length,
+      loaded: images.filter((image) => image.complete && image.naturalWidth > 0).length,
+    }));
     evidence.realCatalogParity = {
       mismatchPercent,
+      covers,
       liveEditionCount: liveLinks.length,
       stageEditionCount: stageLinks.length,
       matchedEditionCount: stageLinks.filter((x) => liveLinks.includes(x)).length,
