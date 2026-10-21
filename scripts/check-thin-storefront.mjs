@@ -118,6 +118,52 @@ try {
     if (country) Object.defineProperty(r, "cf", { value: { country } });
     return r;
   }
+  // Control must be available only after the exact staging bearer gate.
+  // Unlike the homepage it must never touch primary D1, catalog or rights.
+  const noDb = {
+    ...env,
+    DB: {
+      prepare() {
+        throw Error("No-D1 transport control reached primary database");
+      },
+      batch() {
+        throw Error("No-D1 transport control reached primary database");
+      },
+    },
+    COVE_STOREFRONT_READ_LIMITER: {
+      async limit() {
+        throw Error("Transport control unexpectedly called the read limiter");
+      },
+    },
+  };
+  const transport = await worker.fetch(
+    request("US", {}, "/__cove_perf/transport"),
+    noDb,
+  );
+  assert.equal(transport.status, 200);
+  assert.equal(transport.headers.get("x-cove-perf-control"), "thin-no-d1");
+  assert.match(transport.headers.get("cache-control"), /no-store/);
+  assert.equal(await transport.text(), "ok");
+  assert.equal(
+    (
+      await worker.fetch(
+        new Request("https://cove.test/__cove_perf/transport"),
+        noDb,
+      )
+    ).status,
+    401,
+    "Unauthenticated requests may not reach the benchmark control",
+  );
+  assert.equal(
+    (
+      await worker.fetch(
+        request("US", {}, "/__cove_perf/transport"),
+        { ...noDb, COVE_THIN_STOREFRONT: "production" },
+      )
+    ).status,
+    503,
+    "Production cannot enable the synthetic benchmark control",
+  );
   assert.equal((await worker.fetch(new Request("https://cove.test"), env)).status, 401);
   for (const role of ["baseline", "thin"]) {
     const receive = (req) => {
