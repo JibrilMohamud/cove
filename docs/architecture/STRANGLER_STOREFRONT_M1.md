@@ -120,3 +120,14 @@ The opt-in requires `COVE_SSR_STAGING=1`,
 existing runtime behavior remains unchanged. Test coverage verifies all guard
 conditions and non-PII metric content. Hosted D1 contention savings remain
 unmeasured, and no change should be merged solely on this experiment.
+
+## Read-only infrastructure readiness gate
+
+The `strangler-data-plane-preflight` workflow checks the **existing**
+synthetic D1 ID, private stage R2 bucket and staging CORE service through
+Cloudflare's GET-only control-plane API. It requires the account's existing
+staging CI token but cannot create, deploy, schedule, mutate or route anything.
+A failed or inaccessible resource is a **release blocker**, not permission to
+reuse production D1 or create an unrestricted public Worker. Even a green
+preflight does not constitute hosted capacity, full feature parity, Stripe
+sandbox or protected audio acceptance.
