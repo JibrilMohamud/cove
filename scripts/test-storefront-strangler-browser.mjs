@@ -113,7 +113,7 @@ try {
 
   await page.goto(origin + "/");
   await page.locator("#thin-search").fill("Jane Austen");
-  await page.locator('.catalog-search button[type="submit"]').click();
+  await page.locator("#thin-search").press("Enter");
   await page.waitForURL("**/search?q=Jane+Austen");
   assert.equal(await page.getByText("Original CORE experience").count(), 1);
 
