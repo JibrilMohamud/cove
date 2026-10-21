@@ -81,7 +81,7 @@ jobs:
     needs: isolated-evaluation-only
     # Only the reviewed same-repository release candidate may receive a
     # scoped Cloudflare token. Forked PRs and other branches cannot deploy.
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 251 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'release/isolated-storefront-safe-main-20261021'
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 253 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'release/fast-storefront-live-parity-20261021'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -98,6 +98,8 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Install Chromium for deployed stage mobile-LCP measurements
+        run: npx playwright install --with-deps chromium
       - name: Build immutable, isolated interactive Worker
         run: node scripts/build-storefront-strangler.mjs
       - name: Independently verify 3 cold, 1/4/8/16/32 and 100 RPS
