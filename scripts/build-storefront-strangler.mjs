@@ -41,4 +41,3 @@ console.log(
     productionRouted: false,
   }),
 );
-
