@@ -241,7 +241,10 @@ async function settleCatalog(page) {
     await page.waitForFunction(
       () => {
         const covers = [...document.querySelectorAll("article.book-card img")];
-        return covers.length >= 6 && covers.filter((img) => img.complete && img.naturalWidth > 0).length >= 6;
+        return (
+          covers.length >= 6 &&
+          covers.filter((img) => img.complete && img.naturalWidth > 0).length >= 6
+        );
       },
       null,
       { timeout: 14000 },
