@@ -20,6 +20,7 @@ import {
 import { z } from "zod";
 import type { CatalogBook } from "./client";
 import { canonicalBooksByProductIds, type CatalogDB } from "./catalog-model.server";
+import { replicaEligiblePresentationRead } from "./presentation-replica.server";
 import { ApiError, now } from "./service";
 import { setWishlistItem } from "./retail.server";
 
@@ -375,7 +376,8 @@ async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400)
     // The extra headroom is never authorization; insufficient live-rights
     // results always force the exact full-catalog fallback.
     const shortlist = Math.min(1000, Math.max(wanted + 100, Math.ceil(wanted * 1.375)));
-    const fast = await db
+    const presentationDb = replicaEligiblePresentationRead(db);
+    const fast = await presentationDb
       .prepare(
         `WITH ranked AS MATERIALIZED (
         SELECT p.id,
@@ -401,9 +403,26 @@ async function activeCandidateIds(db: CatalogDB, territory: string, limit = 400)
       )
       .bind(territory, shortlist, territory, wanted)
       .all<{ id: string }>();
-    // If the top N eligible works fit in the shortlist, they are exactly
-    // the complete catalogue's top N.
-    if (fast.results.length === wanted) return fast.results.map((x) => String(x.id));
+    // Replica candidates carry only presentation ranking; their legal
+    // eligibility can be stale. Before displaying any title, perform a
+    // separate CURRENT primary-D1 rights check on every selected ID.
+    // If a grant/withdrawal has changed, fall back to full primary selection.
+    if (fast.results.length === wanted) {
+      const ids = fast.results.map((x) => String(x.id));
+      if (presentationDb === db) return ids; // Non-replicated fixture/engine.
+      const current = await db
+        .prepare(
+          `SELECT COUNT(*) eligible FROM products p JOIN editions e ON e.id=p.edition_id
+          WHERE p.id IN (${ids.map(() => "?").join(",")})
+            AND p.storefront_status='active' AND p.source_name<>'upload'
+            AND e.release_status IN ('available','preorder')
+            AND EXISTS(SELECT 1 FROM retail_product_availability_rows rpa
+              WHERE rpa.product_id=p.id AND rpa.territory_code=upper(?))`,
+        )
+        .bind(...ids, territory)
+        .first<{ eligible: number }>();
+      if (Number(current?.eligible || 0) === ids.length) return ids;
+    }
   }
 
   // No truncation when a market has sparse live grants. The territory/grant
