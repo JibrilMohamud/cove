@@ -12,7 +12,11 @@ import {
 import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap";
 import { renderStranglerStorefront } from "./render";
 import { bootstrapFailureKind } from "./failure";
-import { servePreparedCatalog, type PrivatePresentationStore } from "./prepared-catalog.server";
+import {
+  PreparedCatalogUnavailable,
+  servePreparedCatalog,
+  type PrivatePresentationStore,
+} from "./prepared-catalog.server";
 
 /** Build-isolated serving boundary. No auth, orders, reader or background code.
  * Existing domain logic is reused through type-only references. This pilot is
@@ -141,7 +145,15 @@ export default {
           kind: bootstrapFailureKind(error),
         }),
       );
-      return finish(new Response("Storefront temporarily unavailable.", { status }));
+      // Only a small allowlist of error-phase labels is visible in this
+      // authenticated synthetic stage; never send SQL, book IDs, or secrets.
+      const code = error instanceof PreparedCatalogUnavailable ? error.code : "bootstrap";
+      return finish(
+        new Response("Storefront temporarily unavailable.", {
+          status,
+          headers: { "x-cove-stage-failure": code },
+        }),
+      );
     }
   },
 };

@@ -23,7 +23,11 @@ while (Date.now() < deadline) {
     }
     if (tries % 6 === 1)
       console.log(
-        "COVE_PRIVATE_MODEL_STAGE_PENDING " + JSON.stringify({ status: response.status }),
+        "COVE_PRIVATE_MODEL_STAGE_PENDING " +
+          JSON.stringify({
+            status: response.status,
+            failure: (response.headers.get("x-cove-stage-failure") || "unknown").slice(0, 32),
+          }),
       );
   } catch (error) {
     if (tries % 6 === 1)

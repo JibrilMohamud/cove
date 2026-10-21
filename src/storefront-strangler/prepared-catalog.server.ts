@@ -6,6 +6,15 @@ import {
 export type PrivatePresentationStore = {
   get(key: string): Promise<{ size: number; text(): Promise<string> } | null>;
 };
+// These are fixed, intentionally low-cardinality staging diagnostics only.
+export class PreparedCatalogUnavailable extends Error {
+  constructor(
+    readonly code: "snapshot_read" | "snapshot_absent" | "snapshot_invalid" | "primary_rights",
+  ) {
+    super("Prepared catalog unavailable");
+  }
+}
+
 const MODEL_VERSION = "cove.home.candidates.v1";
 const MODEL_PREFIX = "private/presentation/v1/home/";
 const MAX_BYTES = 16_384;
@@ -132,16 +141,34 @@ export async function servePreparedCatalog(
   country: string,
   now = Date.now(),
 ) {
-  const object = await store.get(privateCandidateKey(country));
-  if (!object || !Number.isFinite(object.size) || object.size > MAX_BYTES || object.size < 2)
-    throw Error("Private candidate projection missing or oversized.");
-  const doc = validateCandidateSnapshot(JSON.parse(await object.text()), country, now);
-  const { books, hasMore } = await canonicalAuthorizedPreparedFirstPaintBooks(
-    db,
-    doc.productIds,
-    country,
-    doc.currency,
-  );
+  let object: Awaited<ReturnType<PrivatePresentationStore["get"]>>;
+  try {
+    object = await store.get(privateCandidateKey(country));
+  } catch {
+    throw new PreparedCatalogUnavailable("snapshot_read");
+  }
+  if (!object)
+    throw new PreparedCatalogUnavailable("snapshot_absent");
+  if (!Number.isFinite(object.size) || object.size > MAX_BYTES || object.size < 2)
+    throw new PreparedCatalogUnavailable("snapshot_invalid");
+  let doc: CandidateSnapshot;
+  try {
+    doc = validateCandidateSnapshot(JSON.parse(await object.text()), country, now);
+  } catch {
+    throw new PreparedCatalogUnavailable("snapshot_invalid");
+  }
+  let authorized: Awaited<ReturnType<typeof canonicalAuthorizedPreparedFirstPaintBooks>>;
+  try {
+    authorized = await canonicalAuthorizedPreparedFirstPaintBooks(
+      db,
+      doc.productIds,
+      country,
+      doc.currency,
+    );
+  } catch {
+    throw new PreparedCatalogUnavailable("primary_rights");
+  }
+  const { books, hasMore } = authorized;
   // Unknown channel eligibility is never represented as granted.
   for (const book of books) {
     delete book.subscriptionEligible;
