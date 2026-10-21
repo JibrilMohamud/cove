@@ -194,7 +194,22 @@ async function deployFresh(round) {
       Date.parse(latest.created_on) >= rotatedAt - 3000 &&
       latest.versions?.some((version) => version.percentage === 100)
     ) {
-      await new Promise((resolve) => setTimeout(resolve, 3500));
+      // Control-plane publication is not equivalent to Workers.dev route
+      // propagation. Do not warm this Worker with an HTTP probe: keep the
+      // following homepage as its first genuine execution.
+      const subdomain = await cloudflare(
+        "GET",
+        `/accounts/${account}/workers/scripts/${name}/subdomain`,
+      );
+      assert.equal(subdomain.enabled, true, "Workers.dev route has not been enabled");
+      const activatedAt = Date.parse(latest.created_on);
+      assert.ok(Number.isFinite(activatedAt), "Deployment activation timestamp missing");
+      const remaining = Math.max(0, activatedAt + 25000 - Date.now());
+      console.log(
+        "ROUTE_PROPAGATION_GRACE",
+        JSON.stringify({ round, waitMs: remaining, firstRequestStillCold: true }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, remaining));
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 1800));
