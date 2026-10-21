@@ -58,8 +58,17 @@ function card(book: CatalogBook, index: number) {
 }
 
 /** No framework runtime, serialized grant, hydration payload, or shared HTML cache. */
-export function renderStranglerStorefront(bootstrap: StorefrontBootstrap, origin: string, interactive = false) {
-  if (interactive) return renderStranglerExperience(bootstrap, origin, bootstrap.catalog.results.map(card).join(""));
+export function renderStranglerStorefront(
+  bootstrap: StorefrontBootstrap,
+  origin: string,
+  interactive = false,
+) {
+  if (interactive)
+    return renderStranglerExperience(
+      bootstrap,
+      origin,
+      bootstrap.catalog.results.map(card).join(""),
+    );
 
   const { context, catalog, page } = bootstrap;
   const title = page.title || "Discover your next great read";
