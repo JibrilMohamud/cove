@@ -182,7 +182,17 @@ export default {
       const securityDocument = securityTxt(request, foreEnv);
       if (securityDocument)
         return stageNoStore(applySecurityHeaders(request, securityDocument, foreEnv), staging);
-      if (foreEnv.DB) {
+      // Robots and sitemap documents are the SEO handler's only routes.
+      // Do not import/initialize it on every rights-scoped homepage SSR: the
+      // ordinary storefront needs no SEO service code before first paint.
+      // This changes no sitemap behavior or legal-rights authorization.
+      const seoPath = new URL(request.url).pathname;
+      if (
+        foreEnv.DB &&
+        (seoPath === "/robots.txt" ||
+          seoPath === "/sitemap.xml" ||
+          seoPath.startsWith("/sitemaps/"))
+      ) {
         const { handleSeoDocumentRequest } = await import("./features/fore/seo.server");
         const seo = await handleSeoDocumentRequest(request, foreEnv.DB, foreEnv.FORE_PUBLIC_URL);
         if (seo) return stageNoStore(applySecurityHeaders(request, seo, foreEnv), staging);
