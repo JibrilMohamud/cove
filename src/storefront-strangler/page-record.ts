@@ -8,10 +8,11 @@ function parseObject(value: unknown): Record<string, unknown> {
 function normalizePath(value: string) {
   let path = value.trim();
   if (!path.startsWith("/")) path = "/" + path;
-  path = path.replace(/\\/{2,}/g, "/");
-  if (path.length > 1) path = path.replace(/\\/$/, "");
+  path = path.replace(/[/]{2,}/g, "/");
+  if (path.length > 1 && path.endsWith("/")) path = path.slice(0, -1);
   return path;
 }
+
 export function formatGenericStorefrontPageRecord(pathValue: string, record: any | null) {
   const path = normalizePath(pathValue);
   const row = record;
