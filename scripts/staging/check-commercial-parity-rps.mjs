@@ -60,6 +60,7 @@ const destinations = [
   { name: "bootstrap", path: "/api/fore/storefront/bootstrap" },
   { name: "catalog", path: "/api/fore/catalog?search=&sort=popular&page=1&currency=USD" },
 ];
+const transportFloor = { name: "transport_floor", path: "/__cove/stage/transport-floor" };
 const select = (i) =>
   i % 10 < 6 ? destinations[0] : i % 10 < 9 ? destinations[1] : destinations[2];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
@@ -117,7 +118,10 @@ async function fetchOne(route) {
     } else if (valid) {
       try {
         const data = JSON.parse(body);
-        if (route.name === "bootstrap") {
+        if (route.name === "transport_floor") {
+          valid = data?.kind === "transport_floor";
+          if (!valid) failureReasons.push("invalid-transport-floor");
+        } else if (route.name === "bootstrap") {
           valid =
             data.context?.rightsCountry === "US" &&
             Array.isArray(data.catalog?.results) &&
@@ -146,6 +150,11 @@ async function fetchOne(route) {
       }
     }
     const timingHeader = response.headers.get("server-timing") || "";
+    const workerDispatchMs = timing(timingHeader, "cove_worker_dispatch");
+    // Not measured network time: includes edge scheduling, service dispatch,
+    // client transit and any provider delays outside our Worker timing span.
+    const outsideWorkerMs =
+      workerDispatchMs === null ? null : Math.max(0, Math.round(ttfbMs - workerDispatchMs));
     return {
       status,
       contextMode: response.headers.get("x-cove-stage-context-mode") || "unknown",
@@ -157,6 +166,7 @@ async function fetchOne(route) {
       decodedBytes: Buffer.byteLength(body, "utf8"),
       wireBytes: stageTransportSpan(response)?.wireBytes ?? null,
       totalMs: Math.round(performance.now() - started),
+      outsideWorkerMs,
       class: route.name,
       queueMs: duration(span.sent, span.created),
       transportMs: duration(span.headers, span.sent),
@@ -165,6 +175,7 @@ async function fetchOne(route) {
           "cove_entry",
           "cove_render",
           "cove_worker_dispatch",
+          "cove_edge_floor",
           "cove_total",
           "cove_ssr_bootstrap",
           "cove_catalog",
@@ -256,6 +267,7 @@ async function runStage(rate, seconds) {
           contentEncodings: [...new Set(subset.map((r) => r.contentEncoding).filter(Boolean))],
           clientQueue: asPercentiles(subset.map((r) => r.queueMs)),
           sentToHeaders: asPercentiles(subset.map((r) => r.transportMs)),
+          outsideMeasuredWorker: asPercentiles(subset.map((r) => r.outsideWorkerMs)),
           serverTimings: Object.fromEntries(
             [
               "cove_worker_dispatch",
@@ -319,6 +331,45 @@ async function runStage(rate, seconds) {
   stageReport.stages.push(result);
   return result;
 }
+/** Diagnostic floor is a separate campaign, never substituted for real traffic.
+ * Run after the strict mixed workload to avoid prewarming its result. */
+async function runTransportFloor() {
+  const offered = 125;
+  const rows = [];
+  const pending = new Set();
+  let dropped = 0;
+  const started = performance.now();
+  for (let i = 0; i < offered; i++) {
+    await sleep(started + i * 40 - performance.now());
+    if (pending.size >= maxInflight) {
+      dropped++;
+      continue;
+    }
+    const job = fetchOne(transportFloor);
+    pending.add(job);
+    job.then((row) => rows.push(row)).finally(() => pending.delete(job));
+  }
+  await Promise.allSettled([...pending]);
+  const byColo = {};
+  for (const row of rows) (byColo[row.colo || "unknown"] ??= []).push(row);
+  return {
+    offered,
+    delivered: rows.length,
+    valid: rows.filter((row) => row.valid).length,
+    dropped,
+    p95Ms: percentile(rows.map((row) => row.ttfbMs), 0.95),
+    maxMs: Math.max(0, ...rows.map((row) => row.ttfbMs)),
+    outsideMeasuredWorker: asPercentiles(rows.map((row) => row.outsideWorkerMs)),
+    colos: Object.fromEntries(
+      Object.entries(byColo).map(([colo, subset]) => [
+        colo,
+        { count: subset.length, maxMs: Math.max(...subset.map((row) => row.ttfbMs)) },
+      ]),
+    ),
+    // This validates the instrument only: it cannot certify storefront SLOs.
+    diagnosticValid: dropped === 0 && rows.length === offered && rows.every((row) => row.valid),
+  };
+}
 fs.mkdirSync("artifacts", { recursive: true });
 try {
   // First verify individual account-free read routes before launching load.
@@ -346,6 +397,10 @@ try {
       await runStage(100, 60);
     }
     if (!stageReport.stages.every((x) => x.pass)) process.exitCode = 1;
+    if (process.env.COVE_STAGE_TRANSPORT_FLOOR === "1") {
+      stageReport.transportFloor = await runTransportFloor();
+      if (!stageReport.transportFloor.diagnosticValid) process.exitCode = 1;
+    }
   }
 } finally {
   fs.writeFileSync(
