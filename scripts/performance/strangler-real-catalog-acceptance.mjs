@@ -243,6 +243,7 @@ async function settleCatalog(page) {
         const covers = [...document.querySelectorAll("article.book-card img")];
         return covers.length >= 6 && covers.filter((img) => img.complete && img.naturalWidth > 0).length >= 6;
       },
+      null,
       { timeout: 14000 },
     );
   } catch {
