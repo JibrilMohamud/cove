@@ -21,7 +21,9 @@ while (Date.now() < deadline) {
   const data = await response.json();
   if (!data.success) throw Error("Thin stage control-plane result unavailable");
   if (latestSecretDeploymentStatus(data, rotated, Date.now(), 30_000).ready) {
-    console.log("COVE_STRANGLER_COLD_READY: new 100% secret deployment settled without HTTP warmup");
+    console.log(
+      "COVE_STRANGLER_COLD_READY: new 100% secret deployment settled without HTTP warmup",
+    );
     process.exit(0);
   }
   await new Promise((resolve) => setTimeout(resolve, 2000));
