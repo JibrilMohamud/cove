@@ -6,6 +6,7 @@ import type { CoveEnv } from "../features/fore/api.server";
 type OptimizedEnv = CoveEnv & {
   COVE_SSR_DIAGNOSTICS?: string;
   COVE_THIN_METADATA_COALESCE?: string;
+  COVE_THIN_SPLIT_PROJECTION?: string;
 };
 
 /**
@@ -152,12 +153,24 @@ export async function serveLeanAnonymousBootstrap(
   const contextPromise = timed("context", flight.task);
   // The read-only metadata batch now also performs the active market/locale
   // lookup. No second dependent D1 service call is needed for anonymous SSR.
+  // Stage-only experiment: the legal decision remains the authoritative
+  // primary SELECT. A replica can hydrate metadata for IDs that primary
+  // already allowed; it can neither authorize nor expand the candidate set.
+  const replicaProjection =
+    env.COVE_SSR_STAGING === "1" &&
+    env.COVE_THIN_SPLIT_PROJECTION === "1" &&
+    typeof configDb.withSession === "function"
+      ? configDb.withSession("first-unconstrained")
+      : undefined;
   const [context, , catalog] = await Promise.all([
     contextPromise,
     timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
     // NULL currency means active-market currency is looked up in this SAME
     // live primary D1 statement with the full retail-grant view.
-    timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics)),
+    timed(
+      "catalog",
+      firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics, replicaProjection),
+    ),
   ]);
   if (context.rightsCountry !== trustedCountry)
     throw new Error("Anonymous country mismatch; refuse to render a legal-rights shelf.");
@@ -188,6 +201,14 @@ export async function serveLeanAnonymousBootstrap(
     timings.context_joined = flight.joined ? 1 : 0;
   }
   if (d1Metrics.sqlDurationMs !== undefined) timings.catalog_sql = d1Metrics.sqlDurationMs;
+  if (d1Metrics.usedReplicaPresentation)
+    timings.catalog_split_presentation = d1Metrics.usedReplicaPresentation;
+  if (d1Metrics.rightsServiceMs !== undefined)
+    timings.catalog_rights_service = d1Metrics.rightsServiceMs;
+  if (d1Metrics.projectionServiceMs !== undefined)
+    timings.catalog_projection_service = d1Metrics.projectionServiceMs;
+  if (d1Metrics.projectionSqlDurationMs !== undefined)
+    timings.catalog_projection_sql = d1Metrics.projectionSqlDurationMs;
   if (env.COVE_SSR_DIAGNOSTICS === "1" && contextMetrics.sqlDurationMs !== undefined)
     timings.context_sql = contextMetrics.sqlDurationMs;
 
