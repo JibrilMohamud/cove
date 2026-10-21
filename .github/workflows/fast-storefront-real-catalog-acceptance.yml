@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   protected-real-catalog-acceptance:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && (github.event.pull_request.head.ref == 'release/fast-storefront-prod-acceptance-20261021' || github.event.pull_request.head.ref == 'release/verified-geo-fast-storefront-relay-20261021')
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && (github.event.pull_request.head.ref == 'release/fast-storefront-prod-acceptance-20261021' || github.event.pull_request.head.ref == 'release/verified-geo-fast-storefront-relay-20261021' || github.event.pull_request.head.ref == 'perf/stage-rights-shortlist-20261021')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

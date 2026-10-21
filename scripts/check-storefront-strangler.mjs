@@ -296,6 +296,25 @@ try {
     ).status,
     503,
   );
+  // Test the real-preview read-only wrapper against a local synthetic fixture,
+  // proving its stable identity permits presentation reuse while each new
+  // request still performs an authoritative primary rights query.
+  const realPreviewEnv = {
+    ...env,
+    COVE_STRANGLER_MODE: "production-acceptance",
+    COVE_STRANGLER_DATABASE_ID: PROD_DB,
+    COVE_THIN_RIGHTS_SHORTLIST: "1",
+    COVE_THIN_PRESENTATION_CACHE: "1",
+    COVE_SSR_DIAGNOSTICS: "1",
+  };
+  const firstRealPreview = await worker.fetch(request(), realPreviewEnv);
+  const secondRealPreview = await worker.fetch(request(), realPreviewEnv);
+  assert.equal(firstRealPreview.status, 200);
+  assert.equal(secondRealPreview.status, 200);
+  assert.match(
+    secondRealPreview.headers.get("server-timing") || "",
+    /cove_catalog_presentation_reused;dur=1\.0/,
+  );
   assert.ok(firstBootstrap.catalog.results.length > 1);
   // The real seeded, rights-checked synthetic HTML is reused for interaction
   // testing in Chromium rather than testing a disconnected hand-written page.
