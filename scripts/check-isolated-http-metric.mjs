@@ -44,12 +44,22 @@ try {
     [env, request("/api/fore/checkout"), status(200), "anonymous"],
     [env, request("/api/fore/books/secret"), status(200), "anonymous"],
     [env, request("/api/fore/catalog", { cookie: "session=private" }), status(200), "anonymous"],
-    [env, request("/api/fore/catalog", { authorization: "Bearer private" }), status(200), "anonymous"],
+    [
+      env,
+      request("/api/fore/catalog", { authorization: "Bearer private" }),
+      status(200),
+      "anonymous",
+    ],
     [env, request("/api/fore/catalog"), status(401), "anonymous"],
     [env, request("/api/fore/catalog"), status(500), "anonymous"],
     [env, request("/api/fore/catalog"), status(200), "user"],
     [{ ...env, COVE_SSR_STAGING: "0" }, request("/api/fore/catalog"), status(200), "anonymous"],
-    [{ ...env, COVE_OPS_TELEMETRY_MODE: "off" }, request("/api/fore/catalog"), status(200), "anonymous"],
+    [
+      { ...env, COVE_OPS_TELEMETRY_MODE: "off" },
+      request("/api/fore/catalog"),
+      status(200),
+      "anonymous",
+    ],
     [{ ...env, OPS_ANALYTICS: undefined }, request("/api/fore/catalog"), status(200), "anonymous"],
   ];
   for (const item of refused) {
@@ -67,14 +77,13 @@ try {
   const originalWarn = console.warn;
   try {
     console.warn = () => {};
-    assert.equal(
-      route(broken, request("/api/fore/taxonomy"), status(200), "anonymous", 4),
-      true,
-    );
+    assert.equal(route(broken, request("/api/fore/taxonomy"), status(200), "anonymous", 4), true);
   } finally {
     console.warn = originalWarn;
   }
-  console.log("PASS: isolated anonymous API metrics; PII exclusions, errors and authenticated requests preserved on existing D1 path.");
+  console.log(
+    "PASS: isolated anonymous API metrics; PII exclusions, errors and authenticated requests preserved on existing D1 path.",
+  );
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });
 }
