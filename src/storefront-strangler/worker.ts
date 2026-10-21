@@ -65,10 +65,22 @@ export default {
     try {
       const url = new URL(request.url);
       const diagnostic = url.pathname === "/__cove_perf/bootstrap" && !url.search;
-      // Service binding preserves existing account/reader/API/filtered paths.
-      // Production routing is disabled in the checked Wrangler configuration.
-      if (request.method !== "GET" || (!diagnostic && (url.pathname !== "/" || url.search)))
+      const transportControl = url.pathname === "/__cove_perf/transport" && !url.search;
+      // Authenticated transport control intentionally bypasses D1 and R2.
+      // It establishes a same-gateway transport/runtime floor, not a claim
+      // that the residual latency is all network time.
+      if (request.method !== "GET" ||
+          (!diagnostic && !transportControl && (url.pathname !== "/" || url.search)))
         return await delegate();
+      if (transportControl)
+        return finish(
+          new Response("ok", {
+            headers: {
+              "content-type": "text/plain; charset=utf-8",
+              "x-cove-renderer": "transport-control",
+            },
+          }),
+        );
       const safe = isolateWorkerCountry(request);
       if (!safe)
         return finish(new Response("Unable to verify storefront territory.", { status: 503 }));

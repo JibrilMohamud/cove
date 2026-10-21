@@ -190,3 +190,15 @@ territories produce empty candidates, never forged rights or offers.
 The scheduled production-like publisher remains a separate unproven release
 gate, as do ingestion-under-load, complete store UI parity, checkout, reader,
 audio and live 100-RPS capacity. No production data or route is modified.
+
+## Correlated latency and independent failure collection
+
+The protected stage now has a fixed 200/"ok" transport-control response,
+which requires the same ingress bearer but performs no D1/R2 operations.
+The 1/4/8/16/32 and 25/50/100-RPS harness records bootstrap and catalog
+Server-Timing alongside end-to-end TTFB and a non-bootstrap residual.
+**Residual is not automatically network latency**: it also contains
+unmeasured Worker dispatch/runtime, ingress and client effects. Independent
+native and HTTP/2 suites run even if one cold round fails. The final gate
+requires all 3 cold rounds plus every offered/valid response, both protocols,
+strict 800-ms maximum and 650-ms p95 targets; no failure is hidden.

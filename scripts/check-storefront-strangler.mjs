@@ -104,6 +104,20 @@ try {
     return r;
   }
   assert.equal((await worker.fetch(new Request("https://cove.test"), env)).status, 401);
+  const transport = await worker.fetch(
+    request(null, {}, "/__cove_perf/transport"),
+    {
+      ...env,
+      DB: {
+        prepare() {
+          throw Error("Transport control must not query D1");
+        },
+      },
+    },
+  );
+  assert.equal(transport.status, 200);
+  assert.equal(transport.headers.get("x-cove-renderer"), "transport-control");
+  assert.equal(await transport.text(), "ok");
   assert.equal((await worker.fetch(request(), { ...env, COVE_SSR_STAGING: "0" })).status, 503);
   assert.equal(
     (await worker.fetch(request(), { ...env, COVE_STRANGLER_MODE: "production" })).status,

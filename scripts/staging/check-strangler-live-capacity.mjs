@@ -25,18 +25,29 @@ async function requestOne(route = "/") {
     });
     const headersAt = performance.now();
     const html = await resp.text();
+    const isControl = route === "/__cove_perf/transport";
     const valid =
       resp.status === 200 &&
       resp.headers.get("cache-control")?.includes("no-store") &&
-      (route === "/"
-        ? resp.headers.get("x-cove-renderer") === "strangler-evaluation" &&
-          /data-rights-country="[A-Z]{2}"/.test(html) &&
-          /data-product="/.test(html)
-        : /<html/i.test(html));
+      (isControl
+        ? resp.headers.get("x-cove-renderer") === "transport-control" && html === "ok"
+        : route === "/"
+          ? resp.headers.get("x-cove-renderer") === "strangler-evaluation" &&
+            /data-rights-country="[A-Z]{2}"/.test(html) &&
+            /data-product="/.test(html)
+          : /<html/i.test(html));
+    // Browser/runner wall clock includes client and Cloudflare transit.
+    // Server-Timing exposes separately measured Worker bootstrap stages.
+    const serverTiming = {};
+    for (const match of (resp.headers.get("server-timing") || "").matchAll(
+      /(cove_[a-z_]+);dur=([0-9]+(?:\.[0-9]+)?)/g,
+    ))
+      serverTiming[match[1]] = Number(match[2]);
     return {
       ttfbMs: Math.round(headersAt - start),
       valid: Boolean(valid),
       status: resp.status,
+      serverTiming,
     };
   } catch (error) {
     return {
@@ -63,6 +74,16 @@ function report(name, offered, rows, dropped = 0) {
     valid === offered &&
     maxMs < strictMaximumMs &&
     p95Ms < p95MaximumMs;
+  const observed = rows.filter(
+    (row) => Number.isFinite(row.serverTiming?.cove_bootstrap),
+  );
+  const boot = observed.map((row) => row.serverTiming.cove_bootstrap);
+  const catalog = observed
+    .map((row) => row.serverTiming.cove_catalog)
+    .filter((value) => Number.isFinite(value));
+  const residual = observed.map((row) =>
+    Math.max(0, row.ttfbMs - row.serverTiming.cove_bootstrap),
+  );
   const output = {
     name,
     offered,
@@ -73,16 +94,22 @@ function report(name, offered, rows, dropped = 0) {
     p99Ms,
     maxMs,
     pass,
+    bootstrapSamples: observed.length,
+    bootstrapP95Ms: boot.length ? Math.round(percentile(boot, 0.95)) : null,
+    bootstrapMaxMs: boot.length ? Math.round(Math.max(...boot)) : null,
+    catalogP95Ms: catalog.length ? Math.round(percentile(catalog, 0.95)) : null,
+    residualP95Ms: residual.length ? Math.round(percentile(residual, 0.95)) : null,
+    residualMaxMs: residual.length ? Math.round(Math.max(...residual)) : null,
   };
   results.phases.push(output);
   console.log("COVE_STRANGLER_CAPACITY " + JSON.stringify(output));
   return pass;
 }
-async function burst(n, name) {
-  const rows = await Promise.all(Array.from({ length: n }, () => requestOne()));
+async function burst(n, name, route = "/") {
+  const rows = await Promise.all(Array.from({ length: n }, () => requestOne(route)));
   report(name, n, rows);
 }
-async function scheduled(rate, seconds) {
+async function scheduled(rate, seconds, route = "/") {
   const offered = rate * seconds,
     rows = [];
   let dropped = 0;
@@ -94,12 +121,12 @@ async function scheduled(rate, seconds) {
       dropped++;
       continue;
     }
-    const task = requestOne();
+    const task = requestOne(route);
     pending.add(task);
     task.then((result) => rows.push(result)).finally(() => pending.delete(task));
   }
   await Promise.allSettled([...pending]);
-  report(rate + "-rps-10s", offered, rows, dropped);
+  report((route === "/" ? "" : "transport-") + rate + "-rps-" + seconds + "s", offered, rows, dropped);
 }
 try {
   if (results.mode === "cold") {
@@ -109,6 +136,8 @@ try {
   } else {
     for (const size of [1, 4, 8, 16, 32]) await burst(size, size + "-concurrent");
     for (const rate of [25, 50, 100]) await scheduled(rate, 10);
+    await burst(32, "transport-control-32", "/__cove_perf/transport");
+    await scheduled(25, 10, "/__cove_perf/transport");
     // Additional protected authentic application path. This isn't a
     // complete checkout/reader/payment or UI parity certification.
     const core = await requestOne("/?storefront=full");
