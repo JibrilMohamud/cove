@@ -419,8 +419,8 @@ import {
   probeObjectStorage,
   probeCdnEdge,
   runTrackedWorker,
-import { emitIsolatedAnonymousHttpMetric } from "./anonymous-http-metric.server";
 } from "./operations.server";
+import { emitIsolatedAnonymousHttpMetric } from "./anonymous-http-metric.server";
 import {
   securityOperationsSnapshot,
   saveThreatModel,
