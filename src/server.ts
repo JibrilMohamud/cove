@@ -136,14 +136,18 @@ export default {
         new URL(request.url).pathname === "/__cove/stage/transport-floor"
       ) {
         return stageNoStore(
-          new Response(JSON.stringify({ kind: "transport_floor" }), {
-            headers: {
-              "content-type": "application/json; charset=utf-8",
-              "cache-control": "private, no-store",
-              "x-content-type-options": "nosniff",
-              "server-timing": "cove_edge_floor;dur=0",
-            },
-          }),
+          applySecurityHeaders(
+            request,
+            new Response(JSON.stringify({ kind: "transport_floor" }), {
+              headers: {
+                "content-type": "application/json; charset=utf-8",
+                "cache-control": "private, no-store",
+                "x-content-type-options": "nosniff",
+                "server-timing": "cove_edge_floor;dur=0",
+              },
+            }),
+            foreEnv,
+          ),
           true,
         );
       }
