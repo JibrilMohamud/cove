@@ -66,6 +66,8 @@ jobs:
           printf '%s' "$INGRESS_GATE" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config .output/strangler/protected-capacity.stage.jsonc
           echo "COVE_STRANGLER_STAGE_KEY=$INGRESS_GATE" >> "$GITHUB_ENV"
           unset CORE_GATE INGRESS_GATE
+      - name: Verify producer access path against isolated stage data only
+        run: node scripts/staging/check-strangler-synthetic-producer-sql.mjs
       - name: Launch an out-of-band private model producer with 5-minute staging cron
         run: |
           node scripts/staging/configure-strangler-producer.mjs enable
