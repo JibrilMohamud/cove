@@ -298,6 +298,7 @@ try {
   const microEnv = {
     ...env,
     COVE_THIN_PRIMARY_MICROBATCH: "1",
+    COVE_SSR_DIAGNOSTICS: "1",
   };
   const grouped = await Promise.all(
     Array.from({ length: 6 }, () => worker.fetch(request(), microEnv)),
