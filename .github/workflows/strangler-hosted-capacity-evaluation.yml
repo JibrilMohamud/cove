@@ -77,6 +77,16 @@ jobs:
           fs.writeFileSync(".output/strangler/producer-cron.stage.jsonc", JSON.stringify(original));
           NODE
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config .output/strangler/producer-cron.stage.jsonc
+      - name: Enable private read model on ephemeral ingress only
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const path = ".output/strangler/protected-capacity.stage.jsonc";
+          const data = JSON.parse(fs.readFileSync(path, "utf8"));
+          data.vars.COVE_STRANGLER_READ_MODEL = "1";
+          fs.writeFileSync(path, JSON.stringify(data));
+          NODE
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config .output/strangler/protected-capacity.stage.jsonc
       - name: Require a genuinely generated private candidate snapshot
         shell: bash
         run: |
@@ -106,16 +116,6 @@ jobs:
           else:
               raise SystemExit("Private producer or actual stage shelf unavailable")
           PY
-      - name: Enable private read model on ephemeral ingress only
-        run: |
-          node --input-type=module <<'NODE'
-          import fs from "node:fs";
-          const path = ".output/strangler/protected-capacity.stage.jsonc";
-          const data = JSON.parse(fs.readFileSync(path, "utf8"));
-          data.vars.COVE_STRANGLER_READ_MODEL = "1";
-          fs.writeFileSync(path, JSON.stringify(data));
-          NODE
-          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config .output/strangler/protected-capacity.stage.jsonc
       - name: Repeat three independently rotated cold deployment suites
         shell: bash
         run: |
