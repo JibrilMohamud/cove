@@ -20,6 +20,7 @@ import { bootstrapFailureKind } from "./failure";
 export type StorefrontStranglerEnv = CoveEnv & {
   COVE_STRANGLER_MODE?: string;
   COVE_STRANGLER_DATABASE_ID?: string;
+  COVE_STRANGLER_EXPERIENCE?: string;
   COVE_SSR_STAGING_GATE_KEY?: string;
   COVE_INTERNAL_CORE_STAGE_GATE_KEY?: string;
   CORE: { fetch(request: Request): Promise<Response> };
@@ -124,7 +125,7 @@ export default {
       }
       failurePhase = "render";
       return finish(
-        new Response(renderStranglerStorefront(bootstrap, env.FORE_PUBLIC_URL || url.origin), {
+        new Response(renderStranglerStorefront(bootstrap, env.FORE_PUBLIC_URL || url.origin, env.COVE_STRANGLER_EXPERIENCE === "1"), {
           headers: {
             "content-type": "text/html; charset=utf-8",
             "cache-control": "private, no-store",

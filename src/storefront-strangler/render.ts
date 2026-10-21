@@ -1,6 +1,7 @@
 import type { CatalogBook } from "../features/fore/client";
 import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap";
 import { formatMinorCurrency } from "../features/fore/currency";
+import { renderStranglerExperience } from "./experience";
 
 const escape = (value: unknown) =>
   String(value ?? "").replace(
@@ -57,7 +58,9 @@ function card(book: CatalogBook, index: number) {
 }
 
 /** No framework runtime, serialized grant, hydration payload, or shared HTML cache. */
-export function renderStranglerStorefront(bootstrap: StorefrontBootstrap, origin: string) {
+export function renderStranglerStorefront(bootstrap: StorefrontBootstrap, origin: string, interactive = false) {
+  if (interactive) return renderStranglerExperience(bootstrap, origin, bootstrap.catalog.results.map(card).join(""));
+
   const { context, catalog, page } = bootstrap;
   const title = page.title || "Discover your next great read";
   const description = page.description || "Good books. Open to everyone.";

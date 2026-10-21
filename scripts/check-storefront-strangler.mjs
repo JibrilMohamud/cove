@@ -25,6 +25,7 @@ function validateConfig(raw) {
   assert.equal(c.services[0].binding, "CORE");
   assert.equal(c.vars?.COVE_SSR_STAGING, "1");
   assert.equal(c.vars?.COVE_STRANGLER_MODE, "isolated-evaluation");
+  assert.equal(c.vars?.COVE_STRANGLER_EXPERIENCE, "1");
   assert.equal(c.vars?.COVE_STRANGLER_DATABASE_ID, STAGE_DB);
   assert.equal(c.ratelimits?.length, 1);
   assert.equal(c.ratelimits[0].simple.limit, 180);
@@ -66,6 +67,7 @@ try {
     FORE_ENVIRONMENT: "production",
     COVE_SSR_STAGING: "1",
     COVE_STRANGLER_MODE: "isolated-evaluation",
+    COVE_STRANGLER_EXPERIENCE: "1",
     COVE_STRANGLER_DATABASE_ID: STAGE_DB,
     COVE_SSR_STAGING_GATE_KEY: "a".repeat(64),
     COVE_STOREFRONT_READ_LIMITER: {
@@ -212,6 +214,15 @@ try {
     assert.equal(result.headers.has("set-cookie"), false);
     const html = await result.text();
     assert.match(html, new RegExp('data-rights-country="' + country + '"'));
+    assert.match(html, /id="thin-discovery-form"/);
+    assert.match(html, /id="thin-merchandising"/);
+    assert.match(html, /data-thin-filter/);
+    assert.match(html, /<nav[^>]+aria-label="Main"/);
+    assert.match(html, /(?:\/library|\/cart|\/orders|\/wishlist)/);
+    assert.match(html, /\/api\/fore\/recommendations\/discover/);
+    assert.match(html, /\/api\/fore\/merchandising/);
+    assert.doesNotMatch(html, /javascript:/i);
+
     const current = await (
       await serveLeanAnonymousBootstrap(
         new Request("https://cove.test/api/fore/storefront/bootstrap", {
