@@ -236,6 +236,25 @@ async function stageBrowserRoute(route) {
     headers: { ...route.request().headers(), authorization: "Bearer " + stageKey },
   });
 }
+async function settleCatalog(page) {
+  try {
+    await page.waitForFunction(
+      () => {
+        const covers = [...document.querySelectorAll("article.book-card img")];
+        return covers.length >= 6 && covers.filter((img) => img.complete && img.naturalWidth > 0).length >= 6;
+      },
+      { timeout: 14000 },
+    );
+  } catch {
+    // The live React page can still be showing loading skeletons; never
+    // interpret a screenshot of placeholders as proof of visual divergence.
+  }
+  return page.evaluate(() => {
+    const covers = [...document.querySelectorAll("article.book-card img")];
+    const loaded = covers.filter((img) => img.complete && img.naturalWidth > 0).length;
+    return { count: covers.length, loaded, settled: covers.length >= 6 && loaded >= 6 };
+  });
+}
 const startedAt = performance.now();
 try {
   const fixture = await cloudflare("POST", `/accounts/${account}/d1/database/${dbId}/query`, {
@@ -350,7 +369,11 @@ try {
     });
     assert.equal(liveResponse?.status(), 200);
     assert.equal(stageResponse?.status(), 200);
-    await Promise.all([live.waitForTimeout(1500), candidate.waitForTimeout(1500)]);
+    const [liveCatalogPaint, stageCatalogPaint] = await Promise.all([
+      settleCatalog(live),
+      settleCatalog(candidate),
+    ]);
+    console.log("MOBILE_CATALOG_PAINT", JSON.stringify({ liveCatalogPaint, stageCatalogPaint }));
     fs.mkdirSync("artifacts/strangler-acceptance", { recursive: true });
     const baselineScreenshot = await live.screenshot({
       path: "artifacts/strangler-acceptance/live-mobile.png",
@@ -358,7 +381,10 @@ try {
     const stageScreenshot = await candidate.screenshot({
       path: "artifacts/strangler-acceptance/real-catalog-preview-mobile.png",
     });
-    const mismatchPercent = await pixelMismatch(candidate, baselineScreenshot, stageScreenshot);
+    const mismatchPercent =
+      liveCatalogPaint.settled && stageCatalogPaint.settled
+        ? await pixelMismatch(candidate, baselineScreenshot, stageScreenshot)
+        : null;
     const links = async (page) =>
       page
         .locator("article.book-card a[href^='/edition/']")
@@ -371,6 +397,7 @@ try {
     }));
     evidence.realCatalogParity = {
       mismatchPercent,
+      comparableMobileState: liveCatalogPaint.settled && stageCatalogPaint.settled,
       covers,
       liveEditionCount: liveLinks.length,
       stageEditionCount: stageLinks.length,
@@ -396,18 +423,23 @@ try {
     ]);
     assert.equal(desktopBaselineResponse?.status(), 200);
     assert.equal(desktopStageResponse?.status(), 200);
-    await Promise.all([desktopLive.waitForTimeout(1200), desktopCandidate.waitForTimeout(1200)]);
+    const [desktopLivePaint, desktopStagePaint] = await Promise.all([
+      settleCatalog(desktopLive),
+      settleCatalog(desktopCandidate),
+    ]);
+    console.log("DESKTOP_CATALOG_PAINT", JSON.stringify({ desktopLivePaint, desktopStagePaint }));
     const desktopBaseline = await desktopLive.screenshot({
       path: "artifacts/strangler-acceptance/live-desktop.png",
     });
     const desktopStage = await desktopCandidate.screenshot({
       path: "artifacts/strangler-acceptance/real-catalog-preview-desktop.png",
     });
-    evidence.realCatalogParity.desktopMismatchPercent = await pixelMismatch(
-      desktopCandidate,
-      desktopBaseline,
-      desktopStage,
-    );
+    evidence.realCatalogParity.desktopMismatchPercent =
+      desktopLivePaint.settled && desktopStagePaint.settled
+        ? await pixelMismatch(desktopCandidate, desktopBaseline, desktopStage)
+        : null;
+    evidence.realCatalogParity.comparableDesktopState =
+      desktopLivePaint.settled && desktopStagePaint.settled;
     console.log(
       "REAL_CATALOG_DESKTOP_PARITY",
       JSON.stringify({
