@@ -128,6 +128,9 @@ async function sample() {
       failure: response.headers.get("x-cove-stage-failure") || null,
       observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
       renderer: response.headers.get("x-cove-renderer"),
+      serverTiming: response.headers.get("server-timing"),
+      failureSubphase: response.headers.get("x-cove-stage-failure-subphase"),
+      failureKind: response.headers.get("x-cove-stage-failure-kind"),
     };
   } catch (error) {
     return { ok: false, ms: performance.now() - start, error: error.name };
@@ -245,6 +248,31 @@ try {
     maxSchedulerLagMs,
     maxOutstanding,
     ...summary,
+  };
+  // Every request returns a bounded, stage-only duration breakdown.
+  // Compare Worker/D1 service wait against SQL execution and runner transport.
+  const timing = (sample, key) => {
+    const match = (sample.serverTiming || "").match(
+      new RegExp("(?:^|,\\s*)" + key + ";dur=([0-9.]+)"),
+    );
+    return match ? Number(match[1]) : null;
+  };
+  evidence.sustained.attribution = {
+    statuses: Object.fromEntries(
+      [...new Set(results.map((x) => String(x.status || x.error || "unknown")))].map(
+        (key) => [key, results.filter((x) => String(x.status || x.error || "unknown") === key).length],
+      ),
+    ),
+    failurePhases: Object.fromEntries(
+      [...new Set(results.filter((x) => !x.ok).map((x) => x.failureSubphase || x.failure || "unknown"))].map(
+        (key) => [key, results.filter((x) => !x.ok && (x.failureSubphase || x.failure || "unknown") === key).length],
+      ),
+    ),
+    p95CatalogServiceMs: percentile(results.map((x) => timing(x, "cove_catalog")).filter(Number.isFinite), 0.95),
+    p95CatalogSqlMs: percentile(results.map((x) => timing(x, "cove_catalog_sql")).filter(Number.isFinite), 0.95),
+    p95ContextServiceMs: percentile(results.map((x) => timing(x, "cove_context")).filter(Number.isFinite), 0.95),
+    p95ContextSqlMs: percentile(results.map((x) => timing(x, "cove_context_sql")).filter(Number.isFinite), 0.95),
+    p95BootstrapMs: percentile(results.map((x) => timing(x, "cove_bootstrap")).filter(Number.isFinite), 0.95),
   };
   console.log("SUSTAINED_RESULT", JSON.stringify(evidence.sustained));
   save();
