@@ -132,6 +132,13 @@ async function sample() {
       observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
       renderer: response.headers.get("x-cove-renderer"),
       serverTiming: response.headers.get("server-timing"),
+      edgeError: response.status === 503 && !response.headers.has("x-cove-renderer")
+        ? {
+            ray: response.headers.get("cf-ray"),
+            contentType: response.headers.get("content-type"),
+            bodyPrefix: html.slice(0, 240),
+          }
+        : null,
     };
   } catch (error) {
     return { ok: false, ms: performance.now() - start, error: error.name };
@@ -193,10 +200,7 @@ try {
     console.log("COLD_PROBE", JSON.stringify({ round: i + 1, ...cold }));
     save();
   }
-  assert.ok(
-    evidence.cold.every((cold) => cold.ok && cold.ms < 800),
-    "Independent cold visits failed validity or 800ms bound",
-  );
+  evidence.coldPass = evidence.cold.every((cold) => cold.ok && cold.ms < 800);
   const unauthorized = await fetch(origin, { signal: AbortSignal.timeout(6000) });
   assert.equal(unauthorized.status, 401, "Stage gate must reject requests without bearer");
   for (const concurrency of [1, 4, 8, 16, 32]) {
@@ -205,8 +209,8 @@ try {
     evidence.bursts.push({ concurrency, ...summary });
     console.log("BURST_RESULT", JSON.stringify({ concurrency, ...summary }));
     save();
-    assert.equal(summary.valid, concurrency, "Concurrent request failed");
-    assert.ok(summary.max < 800, "Concurrent maximum exceeded 800ms");
+    // Preserve the exact bounds, but continue gathering sustained-load
+    // attribution when an earlier burst has failed.
   }
   const offered = 2000;
   const inFlight = new Set();
@@ -270,6 +274,11 @@ try {
   };
   console.log("SUSTAINED_RESULT", JSON.stringify(evidence.sustained));
   save();
+  assert.ok(evidence.coldPass, "Independent cold visits failed validity or 800ms bound");
+  assert.ok(
+    evidence.bursts.every((burst) => burst.valid === burst.concurrency && burst.max < 800),
+    "Concurrent requests failed validity or 800ms bound",
+  );
   assert.equal(dropped, 0, "Offered arrivals dropped");
   assert.equal(summary.valid, offered, "Sustained requests failed");
   assert.ok(
