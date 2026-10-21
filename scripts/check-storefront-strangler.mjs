@@ -47,6 +47,7 @@ try {
       "storefront-anonymous-bootstrap.server":
         "src/features/fore/storefront-anonymous-bootstrap.server.ts",
       render: "src/storefront-strangler/render.ts",
+      "fast-country": "src/lib/fast-storefront-relay.server.ts",
     },
     bundle: true,
     platform: "node",
@@ -60,6 +61,7 @@ try {
     path.join(root, "storefront-anonymous-bootstrap.server.js")
   );
   const { renderStranglerStorefront } = await import(path.join(root, "render.js"));
+  const { signFastCountryClaim } = await import(path.join(root, "fast-country.js"));
   let delegated = 0;
   const forwarded = [];
   const env = {
@@ -238,6 +240,62 @@ try {
     );
     if (country === "US") firstBootstrap = current;
   }
+  // A direct Cloudflare request from the *Vercel egress* region cannot
+  // authorize books for that region. The HMAC-verified client territory
+  // must win, and the independently enforced primary D1 retail view remains.
+  const relaySecret = "b".repeat(64);
+  const customerEnv = {
+    ...env,
+    COVE_SSR_STAGING: "0",
+    COVE_STRANGLER_MODE: "customer-gateway",
+    COVE_STRANGLER_RELEASE_CERTIFIED: "1",
+    COVE_STRANGLER_DATABASE_ID: PROD_DB,
+    COVE_FAST_RELAY_KEY: relaySecret,
+  };
+  const relayHeaders = await signFastCountryClaim(
+    {
+      country: "CA",
+      ip: "203.0.113.15",
+      timestamp: Date.now(),
+      nonce: "1".repeat(32),
+    },
+    relaySecret,
+  );
+  const relayRequest = (headers = relayHeaders, route = "/", init = {}) => {
+    const signed = new Request("https://cove.test" + route, {
+      ...init,
+      headers,
+    });
+    Object.defineProperty(signed, "cf", { value: { country: "JP" } });
+    return signed;
+  };
+  const liveSigned = await worker.fetch(relayRequest(), customerEnv);
+  assert.equal(liveSigned.status, 200);
+  assert.equal(liveSigned.headers.get("x-cove-renderer"), "strangler-live");
+  assert.match(await liveSigned.text(), /data-rights-country="CA"/);
+  assert.equal(
+    (await worker.fetch(relayRequest(new Headers()), customerEnv)).status,
+    401,
+  );
+  const forgedRelay = new Headers(relayHeaders);
+  forgedRelay.set("x-cove-fast-country", "US");
+  assert.equal((await worker.fetch(relayRequest(forgedRelay), customerEnv)).status, 401);
+  assert.equal(
+    (await worker.fetch(relayRequest(relayHeaders, "/checkout"), customerEnv)).status,
+    404,
+  );
+  const cookieRelay = new Headers(relayHeaders);
+  cookieRelay.set("cookie", "fore-auth=customer-session");
+  assert.equal((await worker.fetch(relayRequest(cookieRelay), customerEnv)).status, 404);
+  assert.equal(
+    (
+      await worker.fetch(relayRequest(), {
+        ...customerEnv,
+        COVE_STRANGLER_RELEASE_CERTIFIED: "0",
+      })
+    ).status,
+    503,
+  );
   assert.ok(firstBootstrap.catalog.results.length > 1);
   // The real seeded, rights-checked synthetic HTML is reused for interaction
   // testing in Chromium rather than testing a disconnected hand-written page.
