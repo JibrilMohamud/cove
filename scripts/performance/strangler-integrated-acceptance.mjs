@@ -183,6 +183,7 @@ try {
     const results = await Promise.all(Array.from({ length: concurrency }, () => sample()));
     const summary = summarize(results);
     evidence.bursts.push({ concurrency, ...summary });
+    console.log("BURST_RESULT", JSON.stringify({ concurrency, ...summary }));
     save();
     assert.equal(summary.valid, concurrency, "Concurrent request failed");
     assert.ok(summary.max < 800, "Concurrent maximum exceeded 800ms");
@@ -191,22 +192,45 @@ try {
   const inFlight = new Set();
   const results = [];
   let dropped = 0;
+  let maxSchedulerLagMs = 0;
+  let maxOutstanding = 0;
   const start = performance.now();
-  for (let i = 0; i < offered; i++) {
-    const planned = start + 10 * i;
-    const delay = planned - performance.now();
-    if (delay > 1) await new Promise((resolve) => setTimeout(resolve, delay));
-    if (performance.now() - planned > 100 || inFlight.size >= 200) {
-      dropped++;
-      continue;
-    }
-    const task = sample().then((result) => results.push(result));
-    inFlight.add(task);
-    task.finally(() => inFlight.delete(task));
-  }
-  await Promise.all(inFlight);
+  // Schedule all offered arrivals independently. A sequential await loop
+  // could itself drift under runner GC and falsely count missing arrivals.
+  const scheduled = Array.from(
+    { length: offered },
+    (_, i) =>
+      new Promise((resolve) => {
+        setTimeout(() => {
+          const lag = Math.max(0, performance.now() - (start + i * 10));
+          maxSchedulerLagMs = Math.max(maxSchedulerLagMs, lag);
+          if (lag > 100 || inFlight.size >= 200) {
+            dropped++;
+            resolve();
+            return;
+          }
+          const task = sample().then((result) => {
+            results.push(result);
+            inFlight.delete(task);
+            resolve();
+          });
+          inFlight.add(task);
+          maxOutstanding = Math.max(maxOutstanding, inFlight.size);
+        }, 10 * i);
+      }),
+  );
+  await Promise.all(scheduled);
   const summary = summarize(results);
-  evidence.sustained = { targetRps: 100, seconds: 20, offered, dropped, ...summary };
+  evidence.sustained = {
+    targetRps: 100,
+    seconds: 20,
+    offered,
+    dropped,
+    maxSchedulerLagMs,
+    maxOutstanding,
+    ...summary,
+  };
+  console.log("SUSTAINED_RESULT", JSON.stringify(evidence.sustained));
   save();
   assert.equal(dropped, 0, "Offered arrivals dropped");
   assert.equal(summary.valid, offered, "Sustained requests failed");
