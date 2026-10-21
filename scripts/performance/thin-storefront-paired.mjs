@@ -641,7 +641,12 @@ try {
         active.delete(role);
         evidence.capacityStoppedByRole[role] = rate;
       }
-      if (result.summary.errors) {
+      // A broken full-SSR comparator is valuable failure evidence, but
+      // must NEVER abort the thin candidate's own capacity campaign.
+      // The previous harness silently skipped thin at 10 RPS after a
+      // single unrelated baseline error. Thin HTTP/transport errors still
+      // stop all further synthetic load immediately.
+      if (result.summary.errors && role === "thin") {
         unsafe = true;
         break;
       }
