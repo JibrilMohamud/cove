@@ -55,8 +55,8 @@ const save = () =>
 let stageKey = "";
 function command(args, input) {
   const run = spawnSync(
-    "npm",
-    ["exec", "--yes", "--package=wrangler@4.151.0", "--", "wrangler", ...args],
+    "./node_modules/.bin/wrangler",
+    args,
     {
       input,
       encoding: "utf8",
