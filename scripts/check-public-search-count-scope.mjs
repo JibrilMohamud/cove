@@ -35,13 +35,19 @@ const replicaBundle = await build({
   write: false,
 });
 const { replicaEligiblePresentationRead } = await import(
-  "data:text/javascript;base64," +
-    Buffer.from(replicaBundle.outputFiles[0].text).toString("base64")
+  "data:text/javascript;base64," + Buffer.from(replicaBundle.outputFiles[0].text).toString("base64")
 );
 let selected = null;
 const replica = {
   prepare() {
-    return { bind() { return this; }, async first() { return { count: 17 }; } };
+    return {
+      bind() {
+        return this;
+      },
+      async first() {
+        return { count: 17 };
+      },
+    };
   },
   async batch() {},
 };

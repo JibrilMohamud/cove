@@ -1015,9 +1015,10 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
   };
   const runCount = async () => {
     const countLive = async () => {
-      const row = await presentationDb.prepare(
-        `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
-      )
+      const row = await presentationDb
+        .prepare(
+          `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
+        )
         .bind(...part.binds)
         .first<{ count: number }>();
       return Number(row?.count || 0);
