@@ -258,7 +258,9 @@ try {
     return match ? Number(match[1]) : null;
   };
   const counts = (values) =>
-    Object.fromEntries([...new Set(values)].map((key) => [key, values.filter((x) => x === key).length]));
+    Object.fromEntries(
+      [...new Set(values)].map((key) => [key, values.filter((x) => x === key).length]),
+    );
   const p95Timing = (key) => {
     const durations = results.map((x) => timing(x, key)).filter(Number.isFinite);
     return percentile(durations, 0.95);
