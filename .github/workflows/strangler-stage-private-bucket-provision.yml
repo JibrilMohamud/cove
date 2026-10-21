@@ -1,0 +1,36 @@
+name: strangler-stage-private-bucket-provision
+on:
+  pull_request:
+    paths:
+      - "scripts/staging/provision-strangler-private-r2.mjs"
+      - ".github/workflows/strangler-stage-private-bucket-provision.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-strangler-stage-bucket-provision
+  cancel-in-progress: false
+
+jobs:
+  provision-strictly-named-staging-bucket:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.head.ref == 'architecture/strangler-storefront-m1-20261020')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Provision exact private stage bucket only when absent
+        run: node scripts/staging/provision-strangler-private-r2.mjs
+
+# Creates at most one stage-only private R2 bucket. No D1 writes, deployments,
+# public R2 access, DNS, routes, worker publication or runtime flag changes.

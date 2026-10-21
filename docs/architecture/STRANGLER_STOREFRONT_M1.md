@@ -131,3 +131,13 @@ A failed or inaccessible resource is a **release blocker**, not permission to
 reuse production D1 or create an unrestricted public Worker. Even a green
 preflight does not constitute hosted capacity, full feature parity, Stripe
 sandbox or protected audio acceptance.
+
+## Controlled private staging bucket creation
+
+An account- and branch-scoped CI workflow may create the **one exact private
+staging R2 bucket** `cove-strangler-private-presentation-stage` if and only
+if the preexisting isolated D1 identifier verifies first, the bucket returns
+404, and the operator's CI token has R2 write permission. The workflow cannot
+modify D1, deploy Workers, configure custom/public domains, set cron, or change
+production routing. Existing buckets are reused. This creates infrastructure
+capacity only; candidate snapshots and production traffic remain untouched.
