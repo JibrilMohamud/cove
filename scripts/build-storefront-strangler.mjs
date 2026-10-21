@@ -11,7 +11,7 @@ const result = await build({
   entryPoints: ["src/storefront-strangler/worker.ts"],
   outfile,
   bundle: true,
-  platform: "neutral",
+  platform: "node",
   format: "esm",
   target: "es2022",
   conditions: ["workerd", "worker", "browser", "import", "default"],
