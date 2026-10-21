@@ -694,6 +694,10 @@ export type FirstPaintD1QueryMetrics = {
   sqlDurationMs?: number;
   rowsRead?: number;
   attempts?: number;
+  rightsServiceMs?: number;
+  projectionServiceMs?: number;
+  projectionSqlDurationMs?: number;
+  usedReplicaPresentation?: number;
 };
 
 export async function canonicalFirstPaintShelfByRightsQuery(
@@ -708,6 +712,9 @@ export async function canonicalFirstPaintShelfByRightsQuery(
     currencyCountry?: string;
   },
   diagnostics?: FirstPaintD1QueryMetrics,
+  /** Optional replica-eligible read for *presentation only*. All legally
+   * authoritative candidate IDs remain selected on the primary D1. */
+  presentationDb?: DB,
 ): Promise<{ books: CatalogBook[]; hasMore: boolean }> {
   if (!Number.isInteger(selection.limit) || selection.limit < 1 || selection.limit > 100)
     throw new ApiError(400, "Invalid storefront shelf limit.");
@@ -734,6 +741,71 @@ export async function canonicalFirstPaintShelfByRightsQuery(
   const bindings = selection.currencyCountry
     ? [selection.currencyCountry, ...selection.binds, selection.limit + 1]
     : [...selection.binds, selection.limit + 1];
+  if (presentationDb) {
+    // A primary-authoritative read performs ALL eligibility, currency,
+    // suppression, territorial grant and revocation checks. No replica can
+    // nominate or authorize a product. Presentation hydration uses ONLY
+    // these selected IDs, never a cached legal snapshot.
+    const beganRights = performance.now();
+    const selected = await db
+      .prepare(
+        `${currencyPrelude}
+           SELECT d.product_id,d.fore_bestseller_score AS sort_score,
+             d.external_book_id AS sort_source
+           FROM ${selection.from}
+           WHERE ${selection.where}
+           ORDER BY ${selection.order},d.product_id ASC LIMIT ?
+         )
+         SELECT product_id,sort_score,sort_source FROM eligible
+         ORDER BY sort_score DESC,sort_source ASC,product_id ASC`,
+      )
+      .bind(...bindings)
+      .all<{ product_id: string }>();
+    if (diagnostics) {
+      diagnostics.usedReplicaPresentation = 1;
+      diagnostics.rightsServiceMs = performance.now() - beganRights;
+      const meta = (
+        selected as typeof selected & {
+          meta?: { timings?: { sql_duration_ms?: number }; rows_read?: number; total_attempts?: number };
+        }
+      ).meta;
+      if (Number.isFinite(meta?.timings?.sql_duration_ms))
+        diagnostics.sqlDurationMs = Number(meta!.timings!.sql_duration_ms);
+      if (Number.isFinite(meta?.rows_read)) diagnostics.rowsRead = Number(meta!.rows_read);
+      if (Number.isFinite(meta?.total_attempts)) diagnostics.attempts = Number(meta!.total_attempts);
+    }
+    const authorizedIds = [...new Set(selected.results.map((row) => String(row.product_id)))].slice(
+      0,
+      selection.limit,
+    );
+    if (!authorizedIds.length) return { books: [], hasMore: selected.results.length > 0 };
+    const startedProjection = performance.now();
+    const projected = await presentationDb
+      .prepare(
+        `${firstPaintBookProjectionSql}
+           WHERE p.id IN (${authorizedIds.map(() => "?").join(",")})`,
+      )
+      .bind(...authorizedIds)
+      .all<Record<string, unknown>>();
+    if (diagnostics) {
+      diagnostics.projectionServiceMs = performance.now() - startedProjection;
+      const meta = (projected as typeof projected & { meta?: { timings?: { sql_duration_ms?: number } } }).meta;
+      if (Number.isFinite(meta?.timings?.sql_duration_ms))
+        diagnostics.projectionSqlDurationMs = Number(meta!.timings!.sql_duration_ms);
+    }
+    const hydrated = new Map<string, CatalogBook>(
+      projected.results.map((row) => [String(row.product_id), canonicalRowBook(row)]),
+    );
+    // Replica lag may affect presentation, but may NEVER add missing or
+    // now-revoked books. If a validated ID is not on the replica yet, fail
+    // closed and let the established application path serve the customer.
+    if (authorizedIds.some((id) => !hydrated.has(id)))
+      throw new ApiError(503, "Catalog presentation has not caught up.");
+    return {
+      books: authorizedIds.map((id) => hydrated.get(id)!),
+      hasMore: selected.results.length > selection.limit,
+    };
+  }
   const rows = await db
     .prepare(
       `${currencyPrelude}
