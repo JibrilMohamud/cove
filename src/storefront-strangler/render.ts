@@ -54,7 +54,7 @@ function card(book: CatalogBook, index: number) {
   const genre = (book.bookshelves?.[0] || book.subjects?.[0] || "Literature")
     .replace(/^.*?: /, "")
     .split(" -- ")[0];
-  return `<article class="book-card" data-product="${escape(book.productId)}"><a class="cover" href="${href}">${cover ? `<img src="${escape(cover)}" alt="${escape("Cover of " + book.title)}" width="240" height="360" loading="${index < 4 ? "eager" : "lazy"}" fetchpriority="${index === 0 ? "high" : "auto"}">` : `<span class="cover-fallback">${escape(book.title)}</span>`}</a><p class="genre">${escape(genre)}</p><h3><a class="book-title" href="${href}">${escape(book.title)}</a></h3><p>${authors}</p><p>${escape(price)} <small>EPUB</small></p><a href="${href}">Explore book<span class="sr-only">: ${escape(book.title)}</span></a></article>`;
+  return `<article class="book-card" data-product="${escape(book.productId)}"><a class="cover" href="${href}">${cover ? `<img src="${escape(cover)}" alt="${escape("Cover of " + book.title)}" width="240" height="360" loading="${index < 4 ? "eager" : "lazy"}" fetchpriority="${index === 0 ? "high" : "auto"}">` : `<span class="cover-fallback">${escape(book.title)}</span>`}</a><p class="genre">${escape(genre)}</p><h3><a class="book-title" href="${href}">${escape(book.title)}</a></h3><p>${authors}</p><p>${escape(price)} <small>EPUB</small></p><a href="${href}">Explore book<span class="sr-only">: ${escape(book.title)}</span></a><button class="thin-save" type="button" aria-label="Add ${escape(book.title)} to library" data-thin-save-id="${escape(book.id)}" data-thin-edition-href="${href}">Add to library</button></article>`;
 }
 
 /** No framework runtime, serialized grant, hydration payload, or shared HTML cache. */

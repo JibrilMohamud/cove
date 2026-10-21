@@ -81,7 +81,7 @@ jobs:
     needs: isolated-evaluation-only
     # Only the reviewed same-repository release candidate may receive a
     # scoped Cloudflare token. Forked PRs and other branches cannot deploy.
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 251 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'release/isolated-storefront-safe-main-20261021'
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 253 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'release/fast-storefront-live-parity-20261021'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
