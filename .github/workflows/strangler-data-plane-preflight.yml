@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "scripts/staging/check-strangler-data-plane-preflight.mjs"
+      - "scripts/staging/check-strangler-synthetic-producer-sql.mjs"
       - "wrangler.storefront-candidate-producer.stage.jsonc"
       - "wrangler.storefront-strangler.stage.jsonc"
       - ".github/workflows/strangler-data-plane-preflight.yml"
@@ -26,5 +27,7 @@ jobs:
           node-version: "22"
       - name: Check existing isolated D1 R2 and CORE resources using GET only
         run: node scripts/staging/check-strangler-data-plane-preflight.mjs
+      - name: Check producer SQL in isolated staging D1 (read-only)
+        run: node scripts/staging/check-strangler-synthetic-producer-sql.mjs
 
-# No deploy, auto-provision, migration, cron, domain or public Worker route.
+# No deploy, auto-provision, mutation, migration, cron, domain or public Worker route.
