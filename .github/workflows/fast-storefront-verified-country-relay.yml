@@ -1,0 +1,34 @@
+name: fast-storefront-verified-country-relay
+on:
+  pull_request:
+    paths:
+      - "src/lib/fast-storefront-relay.server.ts"
+      - "src/lib/fast-storefront-proxy.server.ts"
+      - "src/storefront-strangler/worker.ts"
+      - "src/server.ts"
+      - "scripts/check-fast-storefront-relay.mjs"
+      - "wrangler.storefront-strangler.customer.jsonc"
+      - ".github/workflows/fast-storefront-verified-country-relay.yml"
+permissions:
+  contents: read
+jobs:
+  signed-geo-default-off:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Prove country relay and authenticated-request isolation
+        run: node scripts/check-fast-storefront-relay.mjs
+      - name: Compile full SSR and standalone Worker with staging disabled
+        run: |
+          npm run typecheck
+          node scripts/build-storefront-strangler.mjs
+# NO production deployment in this workflow. The customer Worker config
+# has COVE_STRANGLER_RELEASE_CERTIFIED=0 and no route bindings.
