@@ -1,10 +1,5 @@
 name: strangler-stage-core-deploy
 on:
-  pull_request:
-    paths:
-      - "wrangler.storefront-core.stage.toml"
-      - "scripts/staging/check-strangler-core-stage.mjs"
-      - ".github/workflows/strangler-stage-core-deploy.yml"
   workflow_dispatch:
 
 permissions:
@@ -16,10 +11,6 @@ concurrency:
 
 jobs:
   deploy-private-authenticated-real-core:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.head.repo.full_name == github.repository &&
-       github.event.pull_request.head.ref == 'architecture/strangler-storefront-m1-20261020')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
