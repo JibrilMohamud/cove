@@ -102,3 +102,21 @@ performs one fresh bounded authoritative primary-D1 validation, including
 immediate revocation. The gateway also strips its staging operator bearer
 before delegating account, reader, checkout, or navigation to CORE while
 preserving customer session cookies. Dedicated regressions cover both.
+
+## M4 stage-only operational metric isolation
+
+An optional Analytics Engine writeDataPoint binding now replaces the **general
+HTTP timing aggregate only** for a strict allowlist of successful anonymous
+GET API responses. It never writes query strings, identity, IP, cookies, product
+IDs, tokens, or private routes. Every error/status other than 2xx, authenticated
+request, checkout, reader, and security-sensitive endpoint continues using the
+existing D1 HTTP/trace/metric records. Consent- and erasure-sensitive search
+and recommendation attribution is NOT rerouted by this change; those flows
+require a separate durable consumer and an audited consent/erasure model.
+
+The opt-in requires `COVE_SSR_STAGING=1`,
+`COVE_OPS_TELEMETRY_MODE=analytics-engine`, and an explicitly provisioned
+`OPS_ANALYTICS` Cloudflare binding. None is configured by this PR, so the
+existing runtime behavior remains unchanged. Test coverage verifies all guard
+conditions and non-PII metric content. Hosted D1 contention savings remain
+unmeasured, and no change should be merged solely on this experiment.

@@ -6,6 +6,9 @@ on:
       - "scripts/build-storefront-strangler.mjs"
       - "scripts/check-storefront-strangler.mjs"
       - "scripts/check-storefront-prepared-catalog.mjs"
+      - "scripts/check-isolated-http-metric.mjs"
+      - "src/features/fore/anonymous-http-metric.server.ts"
+      - "src/features/fore/api.server.ts"
       - "wrangler.storefront-candidate-producer.stage.jsonc"
       - "wrangler.storefront-strangler.stage.jsonc"
       - ".github/workflows/storefront-strangler-architecture.yml"
@@ -30,6 +33,8 @@ jobs:
         run: node scripts/check-storefront-strangler.mjs
       - name: Check independently prepared models against live rights and revocation
         run: node scripts/check-storefront-prepared-catalog.mjs
+      - name: Verify opt-in independent anonymous HTTP metrics
+        run: node scripts/check-isolated-http-metric.mjs
       - name: Compile isolated Worker and exclude full application runtime
         run: node scripts/build-storefront-strangler.mjs
       - name: Emit safe formatter deltas for architecture scripts
@@ -45,6 +50,9 @@ jobs:
             "src/storefront-strangler/prepared-catalog.server.ts",
             "src/features/fore/catalog-model.server.ts",
             "src/storefront-strangler/producer.worker.ts",
+            "src/features/fore/anonymous-http-metric.server.ts",
+            "scripts/check-isolated-http-metric.mjs",
+            "src/features/fore/api.server.ts",
           ]) {
             const raw = fs.readFileSync(path, "utf8");
             const settings = await prettier.resolveConfig(path);
