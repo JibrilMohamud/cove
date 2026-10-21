@@ -24,7 +24,30 @@ assert.equal(result.ingress.services.find((x) => x.binding === "BASELINE").servi
 assert.equal(result.thin.d1_databases[0].database_id, expected);
 assert.equal(thin.name, "cove-thin-pilot-staging", "Committed config stays unchanged");
 assert.equal(ingress.name, "cove-thin-ingress-staging");
-assert.throws(() => scopedStageConfigs({ ...thin, d1_databases: [{ ...thin.d1_databases[0], database_id: "4bd657ac-8789-403e-a28c-93aba8d0a989" }] }, ingress, first, expected));
-assert.throws(() => scopedStageConfigs(thin, { ...ingress, routes: ["*example.org/*"] }, first, expected));
-assert.throws(() => scopedStageConfigs(thin, { ...ingress, services: [{ binding: "THIN", service: "cove-production" }] }, first, expected));
-console.log("PASS: private run-scoped synthetic Workers; service bindings and destructive cleanup isolated by run ID");
+assert.throws(() =>
+  scopedStageConfigs(
+    {
+      ...thin,
+      d1_databases: [
+        { ...thin.d1_databases[0], database_id: "4bd657ac-8789-403e-a28c-93aba8d0a989" },
+      ],
+    },
+    ingress,
+    first,
+    expected,
+  ),
+);
+assert.throws(() =>
+  scopedStageConfigs(thin, { ...ingress, routes: ["*example.org/*"] }, first, expected),
+);
+assert.throws(() =>
+  scopedStageConfigs(
+    thin,
+    { ...ingress, services: [{ binding: "THIN", service: "cove-production" }] },
+    first,
+    expected,
+  ),
+);
+console.log(
+  "PASS: private run-scoped synthetic Workers; service bindings and destructive cleanup isolated by run ID",
+);
