@@ -244,7 +244,8 @@ async function settleCatalog(page) {
         const covers = [...document.querySelectorAll("article.book-card img")];
         return (
           covers.length >= 6 &&
-          covers.filter((img) => img.complete && img.naturalWidth > 0).length >= Math.ceil(covers.length * 0.9)
+          covers.filter((img) => img.complete && img.naturalWidth > 0).length >=
+            Math.ceil(covers.length * 0.9)
         );
       },
       null,
@@ -257,7 +258,11 @@ async function settleCatalog(page) {
   return page.evaluate(() => {
     const covers = [...document.querySelectorAll("article.book-card img")];
     const loaded = covers.filter((img) => img.complete && img.naturalWidth > 0).length;
-    return { count: covers.length, loaded, settled: covers.length >= 6 && loaded >= Math.ceil(covers.length * 0.9) };
+    return {
+      count: covers.length,
+      loaded,
+      settled: covers.length >= 6 && loaded >= Math.ceil(covers.length * 0.9),
+    };
   });
 }
 const startedAt = performance.now();
