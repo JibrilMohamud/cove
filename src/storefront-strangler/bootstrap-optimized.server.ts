@@ -1,12 +1,16 @@
 import { networkCountry, resolveAnonymousHomepageContext } from "./localization-optimized.server";
 import { formatGenericStorefrontPageRecord } from "./page-record";
-import { firstPaintStorefrontShelf } from "../features/fore/search.server";
+import {
+  firstPaintStorefrontShelf,
+  liveRightsForAnonymousPresentationSeeds,
+} from "../features/fore/search.server";
 import { enforceFirstPaintRateLimit } from "../features/fore/storefront-read-rate-limit.server";
 import type { CoveEnv } from "../features/fore/api.server";
 type OptimizedEnv = CoveEnv & {
   COVE_SSR_DIAGNOSTICS?: string;
   COVE_THIN_METADATA_COALESCE?: string;
   COVE_THIN_RIGHTS_SHORTLIST?: string;
+  COVE_THIN_PRESENTATION_CACHE?: string;
 };
 
 /**
@@ -86,7 +90,15 @@ function anonymousMetadataFlight(
 // Isolate-local state expires quickly and is never shared between countries.
 const pendingAnonymousCandidateSeeds = new WeakMap<
   object,
-  Map<string, { ids: string[]; hasMore: boolean; expiresAt: number }>
+  Map<
+    string,
+    {
+      ids: string[];
+      books: Awaited<ReturnType<typeof firstPaintStorefrontShelf>>["results"];
+      hasMore: boolean;
+      expiresAt: number;
+    }
+  >
 >();
 export async function serveLeanAnonymousBootstrap(
   request: Request,
@@ -136,6 +148,8 @@ export async function serveLeanAnonymousBootstrap(
   const existingSeed = seedEnabled ? seedBucket?.get(seedKey) : undefined;
   const candidateSeed =
     existingSeed && existingSeed.expiresAt > Date.now() ? existingSeed : undefined;
+  const reusePresentation =
+    !!candidateSeed && env.COVE_THIN_PRESENTATION_CACHE === "1" && seedEnabled;
   // Launch the authoritative primary-rights query *before* waiting for
   // independent replica presentation reads. No book leaves the Worker until
   // the rate limiter, markets, context, page and rights checks ALL succeed.
@@ -177,7 +191,38 @@ export async function serveLeanAnonymousBootstrap(
     // live primary D1 statement with the full retail-grant view.
     timed(
       "catalog",
-      firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics, candidateSeed?.ids),
+      reusePresentation
+        ? liveRightsForAnonymousPresentationSeeds(
+            env,
+            trustedCountry,
+            candidateSeed!.ids,
+            d1Metrics,
+          ).then((approved) => {
+            const books = new Map(candidateSeed!.books.map((book) => [book.productId, book]));
+            const results = approved.flatMap((row) => {
+              const cached = books.get(row.productId);
+              if (!cached) return [];
+              // Retain only public presentation, but always take the current
+              // primary-D1 offer and availability from this same fresh query.
+              const offer = row.offerJson
+                ? (JSON.parse(row.offerJson) as typeof cached.offer)
+                : undefined;
+              return [{ ...cached, offer }];
+            });
+            return {
+              results,
+              count: results.length,
+              next: candidateSeed!.hasMore ? "/api/fore/catalog?page=2&sort=popular" : null,
+              preview: true as const,
+              search: {
+                queryId: null,
+                backend: "d1-fts5" as const,
+                processingTimeMs: 0,
+                pageSize: 24,
+              },
+            };
+          })
+        : firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics, candidateSeed?.ids),
     ),
   ]);
   if (seedEnabled) {
@@ -189,6 +234,7 @@ export async function serveLeanAnonymousBootstrap(
       if (ids.length) {
         seedBucket!.set(seedKey, {
           ids,
+          books: catalog.results,
           hasMore: !!catalog.next,
           expiresAt: Date.now() + 30_000,
         });
@@ -199,6 +245,7 @@ export async function serveLeanAnonymousBootstrap(
       catalog.next = "/api/fore/catalog?page=2&sort=popular";
     }
     if (env.COVE_SSR_DIAGNOSTICS === "1") timings.catalog_seeded = candidateSeed ? 1 : 0;
+    if (env.COVE_SSR_DIAGNOSTICS === "1") timings.catalog_presentation_reused = reusePresentation ? 1 : 0;
   }
   if (context.rightsCountry !== trustedCountry)
     throw new Error("Anonymous country mismatch; refuse to render a legal-rights shelf.");
