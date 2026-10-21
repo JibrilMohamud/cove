@@ -276,12 +276,9 @@ try {
     p95ContextServiceMs: p95Timing("cove_context"),
     p95ContextSqlMs: p95Timing("cove_context_sql"),
     p95BootstrapMs: p95Timing("cove_bootstrap"),
-    eligibleMetadataFlights: results.filter(
-      (x) => timing(x, "cove_context_flight_eligible") === 1,
-    ).length,
-    joinedMetadataFlights: results.filter(
-      (x) => timing(x, "cove_context_joined") === 1,
-    ).length,
+    eligibleMetadataFlights: results.filter((x) => timing(x, "cove_context_flight_eligible") === 1)
+      .length,
+    joinedMetadataFlights: results.filter((x) => timing(x, "cove_context_joined") === 1).length,
   };
   console.log("SUSTAINED_RESULT", JSON.stringify(evidence.sustained));
   save();
