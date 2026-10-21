@@ -83,7 +83,7 @@ function anonymousMetadataFlight(
   );
   return { task, joined: false };
 }
-// Rights decisions are never cached, even for one millisecond. A 20-ms
+// Rights decisions are never cached, even for one millisecond. A 32-ms
 // admission window groups only requests that arrived BEFORE primary D1's
 // authoritative SELECT begins. After admission closes the flight is removed
 // immediately, so later arrivals must initiate a fresh legal check.
@@ -107,7 +107,7 @@ function preReadPrimaryBatch(
       // Do not admit requests after the primary check has begun.
       if (flights!.get(country) === task) flights!.delete(country);
       Promise.resolve().then(create).then(resolve, reject);
-    }, 20);
+    }, 32);
   });
   flights.set(country, task);
   return { task, joined: false };
