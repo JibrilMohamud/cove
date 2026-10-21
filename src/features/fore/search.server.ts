@@ -1622,7 +1622,11 @@ export async function liveRightsForAnonymousPresentationSeeds(
   productIds: string[],
   diagnostics?: FirstPaintD1QueryMetrics,
 ): Promise<Array<{ productId: string; offerJson: string | null }>> {
-  if (!productIds.length || productIds.length > 60 || new Set(productIds).size !== productIds.length)
+  if (
+    !productIds.length ||
+    productIds.length > 60 ||
+    new Set(productIds).size !== productIds.length
+  )
     throw new Error("Invalid untrusted presentation seed list.");
   const url = new URL("https://internal.invalid/api/fore/catalog");
   url.search = new URLSearchParams({
@@ -1670,9 +1674,15 @@ export async function liveRightsForAnonymousPresentationSeeds(
     .bind(input.territory, ...productIds, ...part.binds)
     .all<{ product_id: string; offer_json: string | null }>();
   if (diagnostics) {
-    const meta = (rows as typeof rows & {
-      meta?: { timings?: { sql_duration_ms?: number }; rows_read?: number; total_attempts?: number };
-    }).meta;
+    const meta = (
+      rows as typeof rows & {
+        meta?: {
+          timings?: { sql_duration_ms?: number };
+          rows_read?: number;
+          total_attempts?: number;
+        };
+      }
+    ).meta;
     if (typeof meta?.timings?.sql_duration_ms === "number")
       diagnostics.sqlDurationMs = meta.timings.sql_duration_ms;
     if (typeof meta?.rows_read === "number") diagnostics.rowsRead = meta.rows_read;
