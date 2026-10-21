@@ -8,7 +8,7 @@ import { applySecurityHeaders } from "../lib/security-headers";
 import {
   canUseLeanAnonymousBootstrap,
   serveLeanAnonymousBootstrap,
-} from "../features/fore/storefront-anonymous-bootstrap.server";
+} from "./bootstrap-optimized.server";
 import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap";
 import { renderStranglerStorefront } from "./render";
 import { bootstrapFailureKind } from "./failure";

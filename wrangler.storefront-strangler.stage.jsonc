@@ -40,6 +40,7 @@
     "COVE_SSR_STAGING": "1",
     "COVE_STRANGLER_MODE": "isolated-evaluation",
     "COVE_STRANGLER_EXPERIENCE": "1",
+    "COVE_SSR_DIAGNOSTICS": "1",
     "COVE_STRANGLER_DATABASE_ID": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
     "FORE_ENVIRONMENT": "production",
     "FORE_DEFAULT_TERRITORY": "US",
