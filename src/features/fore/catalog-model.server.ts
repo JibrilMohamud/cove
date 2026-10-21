@@ -775,9 +775,9 @@ export async function canonicalFirstPaintShelfByRightsQuery(
       ).meta;
       if (Number.isFinite(meta?.timings?.sql_duration_ms))
         diagnostics.sqlDurationMs = Number(meta!.timings!.sql_duration_ms);
-      if (Number.isFinite(meta?.rows_read))
-        diagnostics.rowsRead = Number(meta!.rows_read);
-      if (Number.isFinite(meta?.total_attempts)) diagnostics.attempts = Number(meta!.total_attempts);
+      if (Number.isFinite(meta?.rows_read)) diagnostics.rowsRead = Number(meta!.rows_read);
+      if (Number.isFinite(meta?.total_attempts))
+        diagnostics.attempts = Number(meta!.total_attempts);
     }
     const authorizedIds = [...new Set(selected.results.map((row) => String(row.product_id)))].slice(
       0,
