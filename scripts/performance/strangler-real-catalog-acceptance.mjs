@@ -222,8 +222,9 @@ async function stageBrowserRoute(route) {
   if (resource.origin !== origin) return route.continue();
   if (
     route.request().method() === "GET" &&
-    (/^\\/(?:covers|assets|images|fonts)\\//.test(resource.pathname) ||
-      resource.pathname.startsWith("/api/fore/"))
+    (["/covers/", "/assets/", "/images/", "/fonts/"].some((prefix) =>
+      resource.pathname.startsWith(prefix),
+    ) || resource.pathname.startsWith("/api/fore/"))
   ) {
     const publicUrl = "https://cove-puce-theta.vercel.app" + resource.pathname + resource.search;
     const response = await route.fetch({
