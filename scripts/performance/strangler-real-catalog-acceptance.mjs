@@ -267,7 +267,7 @@ try {
   assert.ok(Number(fixture?.[0]?.results?.[0]?.n) >= 40_000);
 
   evidence.fixtureProducts = Number(fixture[0].results[0].n);
-  for (let i = 0; i < 1; i++) {
+  for (let i = 0; i < 3; i++) {
     await deployFresh(i + 1);
     const cold = await sample();
     evidence.cold.push(cold);
