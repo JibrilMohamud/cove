@@ -8,6 +8,7 @@ type OptimizedEnv = CoveEnv & {
   COVE_THIN_METADATA_COALESCE?: string;
   COVE_THIN_PRIMARY_MICROBATCH?: string;
   COVE_STRANGLER_DATABASE_ID?: string;
+  COVE_STRANGLER_MODE?: string;
 };
 
 /**
@@ -183,9 +184,16 @@ export async function serveLeanAnonymousBootstrap(
   const contextPromise = timed("context", flight.task);
   // The read-only metadata batch now also performs the active market/locale
   // lookup. No second dependent D1 service call is needed for anonymous SSR.
+  // Allow a real-data experiment only behind the existing bearer-gated,
+  // read-only production-acceptance preview. Never activate for customers:
+  // they still use a fresh rights SELECT for every individual request.
+  const microbatchAllowedDatabase =
+    env.COVE_STRANGLER_DATABASE_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" ||
+    (env.COVE_STRANGLER_MODE === "production-acceptance" &&
+      env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989");
   const microbatchEnabled =
     env.COVE_SSR_STAGING === "1" &&
-    env.COVE_STRANGLER_DATABASE_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" &&
+    microbatchAllowedDatabase &&
     env.COVE_THIN_PRIMARY_MICROBATCH === "1";
   const createShelf = () => firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics);
   const shelfFlight = microbatchEnabled

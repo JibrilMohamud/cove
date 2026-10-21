@@ -31,6 +31,12 @@ config.preview_urls = false;
 // exercised with a fake CORE by the same-SHA local integration suite.
 config.services = [];
 config.vars.FORE_PUBLIC_URL = origin;
+// Measure the guarded real-data optimization rather than silently testing
+// the unoptimized main path. All statements remain read-only; no 100-RPS
+// campaign is offered against production D1.
+config.vars.COVE_THIN_PRIMARY_MICROBATCH = "1";
+config.vars.COVE_THIN_METADATA_COALESCE = "1";
+config.vars.COVE_SSR_DIAGNOSTICS = "1";
 const configString = JSON.stringify(config, null, 2);
 assert.ok(configString.includes(prodDbId), "Real-data preview must bind the expected D1");
 assert.ok(!config.routes && !config.route && !config.r2_buckets && !config.queues);
