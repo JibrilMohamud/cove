@@ -99,8 +99,8 @@ const thinConfig = parseThinConfig(fs.readFileSync("wrangler.storefront-thin.jso
 assert.equal(thinConfig.d1_databases.length, 1);
 assert.equal(thinConfig.d1_databases[0].database_id, PERFORMANCE_D1.current.id);
 // The checked-in config deliberately keeps the original fixed CORE name.
- // Only the transient run-scoped copy may reference this job's private CORE.
- assert.equal(thinConfig.services[0].service, "cove-thin-core-staging");
+// Only the transient run-scoped copy may reference this job's private CORE.
+assert.equal(thinConfig.services[0].service, "cove-thin-core-staging");
 assert.equal(thinConfig.vars.COVE_SSR_STAGING, "1");
 assert.equal(thinConfig.vars.COVE_PERF_DATABASE_ID, PERFORMANCE_D1.current.id);
 assert.ok(!thinConfig.routes);
@@ -112,7 +112,10 @@ const ingressConfig = parseBenchmarkConfig(
 const scoped = scopedStageConfigs(thinConfig, ingressConfig, workers, PERFORMANCE_D1.current.id);
 assert.equal(scoped.thin.services[0].service, workers.core);
 assert.equal(scoped.ingress.services.find((x) => x.binding === "THIN")?.service, workers.thin);
-assert.equal(scoped.ingress.services.find((x) => x.binding === "BASELINE")?.service, workers.baseline);
+assert.equal(
+  scoped.ingress.services.find((x) => x.binding === "BASELINE")?.service,
+  workers.baseline,
+);
 fs.writeFileSync("wrangler.thin-run.jsonc", JSON.stringify(scoped.thin, null, 2));
 fs.writeFileSync("wrangler.thin-ingress-run.jsonc", JSON.stringify(scoped.ingress, null, 2));
 async function readiness() {
