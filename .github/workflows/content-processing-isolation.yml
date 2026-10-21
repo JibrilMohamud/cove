@@ -1,0 +1,38 @@
+name: content-processing-isolation
+on:
+  pull_request:
+    paths:
+      - "src/content-processing.worker.ts"
+      - "src/persistence-backend.worker.ts"
+      - "scripts/build-content-processing.mjs"
+      - "scripts/check-content-processing-isolation.mjs"
+      - "wrangler.content-*.example.toml"
+      - ".github/workflows/content-processing-isolation.yml"
+      - "package.json"
+  push:
+    branches: [main]
+    paths:
+      - "src/content-processing.worker.ts"
+      - "src/persistence-backend.worker.ts"
+      - "scripts/build-content-processing.mjs"
+      - "scripts/check-content-processing-isolation.mjs"
+      - "wrangler.content-*.example.toml"
+      - ".github/workflows/content-processing-isolation.yml"
+      - "package.json"
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:content-processing-isolation
+      - run: npm run build:content-processing
+      - run: npx eslint src/content-processing.worker.ts
+      - run: npx prettier --check src/content-processing.worker.ts scripts/check-content-processing-isolation.mjs scripts/build-content-processing.mjs

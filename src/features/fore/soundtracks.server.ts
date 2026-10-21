@@ -6,6 +6,7 @@ import { requireStaffPermission } from "./moderation.server";
 import type { CoveIdentity } from "./auth.server";
 import { soundtrackDossierSchema, soundtrackQualitySchema, qualityPasses } from "./soundtrack-review";
 import { handleExternalSoundtracks, publicExternalList } from "./soundtracks-external.server";
+import { getQuietMusicInventory, quietInventoryMarket } from "./quiet-music-inventory.server";
 
 /** Rights-reviewed recording library. This is intentionally independent of audiobooks.
  * Discovery only queues candidates. Only an accountable, evidence-backed review may authorize
@@ -530,6 +531,12 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
   const providerRoute = await handleExternalSoundtracks(request,env,path,territory,principalId,staffIdentity);
   if (providerRoute) return providerRoute;
   const url = new URL(request.url);
+  if (admin && path === "/admin/soundtracks/quiet-inventory" && request.method === "GET") {
+    const requestedMarket = url.searchParams.get("territory");
+    if (requestedMarket && !/^[A-Z]{2}$/.test(requestedMarket))
+      throw new ApiError(400, "Invalid territory for staff inventory.");
+    return json(await getQuietMusicInventory(env.DB, quietInventoryMarket(requestedMarket)));
+  }
   if (admin && path === "/admin/soundtracks/import-next" && request.method === "POST") {
     // One bounded import per call; the same exclusive lease as scheduled work.
     return json(await importOneReviewedSoundtrack(env));

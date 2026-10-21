@@ -1,0 +1,41 @@
+name: literary-preparation-domain
+on:
+  pull_request:
+    paths:
+      - "src/lib/literary-preparation-domain.server.ts"
+      - "src/content-processing.worker.ts"
+      - "scripts/check-literary-preparation-domain.mjs"
+      - "scripts/check-literary-prepared-projection.mjs"
+      - "src/lib/literary-prepared-projection.server.ts"
+      - "infra/content-budget/0003_prepared_projection_primary.sql"
+      - "infra/content-budget/0002_preparation_queue.sql"
+      - "package.json"
+      - ".github/workflows/literary-preparation-domain.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/lib/literary-preparation-domain.server.ts"
+      - "src/content-processing.worker.ts"
+      - "scripts/check-literary-preparation-domain.mjs"
+      - "infra/content-budget/0002_preparation_queue.sql"
+      - "package.json"
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:literary-preparation-domain
+      - run: npm run test:literary-prepared-projection
+      - run: npm run test:content-processing-isolation
+      - run: npm run test:literary-budget-domain
+      - run: npm run build:content-processing
+      - run: npx eslint src/lib/literary-preparation-domain.server.ts src/lib/literary-prepared-projection.server.ts
+      - run: npx prettier --check src/lib/literary-preparation-domain.server.ts src/lib/literary-prepared-projection.server.ts scripts/check-literary-preparation-domain.mjs scripts/check-literary-prepared-projection.mjs

@@ -195,16 +195,24 @@ export function commercialCatalogStatements(db: DB, externalId: string, at: stri
     db
       .prepare(
         `INSERT INTO digital_assets(id,edition_id,kind,drm_status,downloadable,created_at,updated_at)
-      SELECT ?,?,'epub','none',1,first_ingested_at,updated_at FROM gutenberg_source_cache WHERE id=? AND COALESCE(json_extract(formats_json,'$."application/epub+zip"'),json_extract(formats_json,'$."application/epub+zip;"')) IS NOT NULL
+      SELECT ?,?,'epub','none',1,first_ingested_at,updated_at FROM gutenberg_source_cache WHERE id=? AND (
+        COALESCE(json_extract(formats_json,'$."application/epub+zip"'),json_extract(formats_json,'$."application/epub+zip;"')) IS NOT NULL
+        OR (source_id IN ('pg_au','pg_ca','pg_eu') AND epub_status='completed'
+          AND rights_status='public-domain' AND commercial_use_status='approved'
+          AND NULLIF(content_hash,'') IS NOT NULL))
       ON CONFLICT(edition_id,kind) DO UPDATE SET updated_at=excluded.updated_at`,
       )
       .bind(`asset_epub_gutenberg_${externalId}`, editionId, externalId),
     db
       .prepare(
         `INSERT INTO asset_versions(id,asset_id,version_number,source_url,object_key,mime_type,sha256,created_at)
-      SELECT ?,?,1,COALESCE(json_extract(formats_json,'$."application/epub+zip"'),json_extract(formats_json,'$."application/epub+zip;"')),
+      SELECT ?,?,1,COALESCE(json_extract(formats_json,'$."application/epub+zip"'),json_extract(formats_json,'$."application/epub+zip;"'),json_extract(formats_json,'$."text/html"')),
         CASE WHEN epub_status='completed' THEN 'epubs/'||id||'.epub' ELSE NULL END,'application/epub+zip',NULLIF(content_hash,''),first_ingested_at
-      FROM gutenberg_source_cache WHERE id=? AND COALESCE(json_extract(formats_json,'$."application/epub+zip"'),json_extract(formats_json,'$."application/epub+zip;"')) IS NOT NULL
+      FROM gutenberg_source_cache WHERE id=? AND (
+        COALESCE(json_extract(formats_json,'$."application/epub+zip"'),json_extract(formats_json,'$."application/epub+zip;"')) IS NOT NULL
+        OR (source_id IN ('pg_au','pg_ca','pg_eu') AND epub_status='completed'
+          AND rights_status='public-domain' AND commercial_use_status='approved'
+          AND NULLIF(content_hash,'') IS NOT NULL))
       ON CONFLICT(asset_id,version_number) DO UPDATE SET source_url=excluded.source_url,object_key=COALESCE(excluded.object_key,asset_versions.object_key),sha256=COALESCE(excluded.sha256,asset_versions.sha256)`,
       )
       .bind(

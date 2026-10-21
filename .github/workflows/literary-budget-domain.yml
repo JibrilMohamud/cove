@@ -1,0 +1,39 @@
+name: literary-budget-domain
+on:
+  pull_request:
+    paths:
+      - "src/lib/literary-budget-domain.server.ts"
+      - "src/features/fore/literary-profiles.server.ts"
+      - "src/content-processing.worker.ts"
+      - "scripts/check-literary-budget-domain.mjs"
+      - "infra/content-budget/0001_ledger.sql"
+      - ".github/workflows/literary-budget-domain.yml"
+      - "package.json"
+  push:
+    branches: [main]
+    paths:
+      - "src/lib/literary-budget-domain.server.ts"
+      - "src/features/fore/literary-profiles.server.ts"
+      - "scripts/check-literary-budget-domain.mjs"
+      - "infra/content-budget/0001_ledger.sql"
+      - ".github/workflows/literary-budget-domain.yml"
+      - "package.json"
+permissions:
+  contents: read
+jobs:
+  isolate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:literary-budget-domain
+      - run: npm run test:literary-budget-settlement
+      - run: npm run test:content-processing-isolation
+      - run: npm run build:content-processing
+      - run: npx eslint src/lib/literary-budget-domain.server.ts
+      - run: npx prettier --check src/lib/literary-budget-domain.server.ts scripts/check-literary-budget-domain.mjs

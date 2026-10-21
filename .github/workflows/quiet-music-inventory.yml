@@ -1,0 +1,34 @@
+name: quiet-music-inventory
+on:
+  pull_request:
+    paths:
+      - "src/features/fore/quiet-music-inventory.server.ts"
+      - "src/features/fore/soundtracks.server.ts"
+      - "scripts/check-quiet-music-inventory.mjs"
+      - ".github/workflows/quiet-music-inventory.yml"
+      - "package.json"
+  push:
+    branches: [main]
+    paths:
+      - "src/features/fore/quiet-music-inventory.server.ts"
+      - "src/features/fore/soundtracks.server.ts"
+      - "scripts/check-quiet-music-inventory.mjs"
+      - ".github/workflows/quiet-music-inventory.yml"
+      - "package.json"
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:quiet-music-inventory
+      - run: npm run test:soundtracks
+      - run: npx eslint src/features/fore/quiet-music-inventory.server.ts scripts/check-quiet-music-inventory.mjs
+      - run: npx prettier --check src/features/fore/quiet-music-inventory.server.ts scripts/check-quiet-music-inventory.mjs
