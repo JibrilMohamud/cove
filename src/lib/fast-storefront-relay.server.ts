@@ -40,7 +40,7 @@ function signedMessage(claim: FastCountryClaim): string {
 async function macKey(secret: string): Promise<CryptoKey> {
   return crypto.subtle.importKey(
     "raw",
-    secretBytes(secret),
+    new Uint8Array(secretBytes(secret)).buffer,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign", "verify"],
