@@ -65,7 +65,11 @@ export async function produceCandidateSnapshot(
   db: CatalogDB,
   country: string,
   store: {
-    put(key: string, value: string, opts: { httpMetadata: { contentType: string } }): Promise<unknown>;
+    put(
+      key: string,
+      value: string,
+      opts: { httpMetadata: { contentType: string } },
+    ): Promise<unknown>;
   },
   now = Date.now(),
 ) {
