@@ -47,37 +47,51 @@ const vercelHeaders = {
 const req = (url = "https://cove-puce-theta.vercel.app/", init = {}) =>
   new Request(url, { ...init, headers: { ...vercelHeaders, ...init.headers } });
 assert.deepEqual(relay.verifiedVercelClient(req()), { country: "US", ip: "198.51.100.6" });
-assert.equal(relay.verifiedVercelClient(req("https://cove-puce-theta.vercel.app/", { headers: { "x-vercel-ip-country": "XX" } })), null);
+const bogusGeo = req("https://cove-puce-theta.vercel.app/", {
+  headers: { "x-vercel-ip-country": "XX" },
+});
+assert.equal(relay.verifiedVercelClient(bogusGeo), null);
 const preview = {
   VERCEL_ENV: "preview",
   COVE_FAST_STOREFRONT_MODE: "preview",
   COVE_FAST_STOREFRONT_RELEASE_CERTIFIED: "1",
 };
+const notEligible = (request, env) =>
+  assert.equal(proxy.eligibleFastHomepage(request, env), false);
 assert.equal(proxy.eligibleFastHomepage(req(), preview), true);
-assert.equal(proxy.eligibleFastHomepage(req(), { ...preview, COVE_FAST_STOREFRONT_RELEASE_CERTIFIED: "0" }), false);
-assert.equal(proxy.eligibleFastHomepage(req(), { ...preview, VERCEL_ENV: "production" }), false);
-assert.equal(proxy.eligibleFastHomepage(req("https://cove-puce-theta.vercel.app/search"), preview), false);
-assert.equal(proxy.eligibleFastHomepage(req("https://cove-puce-theta.vercel.app/?country=US"), preview), false);
-assert.equal(proxy.eligibleFastHomepage(req("https://cove-puce-theta.vercel.app/", { headers: { cookie: "fore-auth=test" } }), preview), false);
-assert.equal(proxy.eligibleFastHomepage(req("https://cove-puce-theta.vercel.app/", { headers: { authorization: "Bearer demo" } }), preview), false);
-assert.equal(proxy.eligibleFastHomepage(req("https://cove-puce-theta.vercel.app/", { method: "POST" }), preview), false);
+notEligible(req(), { ...preview, COVE_FAST_STOREFRONT_RELEASE_CERTIFIED: "0" });
+notEligible(req(), { ...preview, VERCEL_ENV: "production" });
+notEligible(req("https://cove-puce-theta.vercel.app/search"), preview);
+notEligible(req("https://cove-puce-theta.vercel.app/?country=US"), preview);
+notEligible(req("https://cove-puce-theta.vercel.app/", {
+  headers: { cookie: "fore-auth=test" },
+}), preview);
+notEligible(req("https://cove-puce-theta.vercel.app/", {
+  headers: { authorization: "Bearer demo" },
+}), preview);
+notEligible(req("https://cove-puce-theta.vercel.app/", { method: "POST" }), preview);
 assert.equal(await proxy.maybeProxyFastHomepage(req(), {}), null);
-assert.equal(await proxy.maybeProxyFastHomepage(req(), {
+const spoofedOrigin = {
   ...preview,
   COVE_FAST_RELAY_KEY: secret,
   COVE_FAST_STOREFRONT_ORIGIN: "https://attacker.example.com/",
-}), null);
-assert.equal(await proxy.maybeProxyFastHomepage(req(), {
+};
+assert.equal(await proxy.maybeProxyFastHomepage(req(), spoofedOrigin), null);
+const missingKey = {
   ...preview,
   COVE_FAST_RELAY_KEY: "invalid",
   COVE_FAST_STOREFRONT_ORIGIN: "https://cove-fast-gateway.cove-jibrilmohamud.workers.dev/",
-}), null);
+};
+assert.equal(await proxy.maybeProxyFastHomepage(req(), missingKey), null);
 for (const percent of ["-1", "0", "6", "100", "abc"]) {
-  assert.equal(proxy.eligibleFastHomepage(req(), {
+  const canary = {
     ...preview,
     VERCEL_ENV: "production",
     COVE_FAST_STOREFRONT_MODE: "canary",
     COVE_FAST_STOREFRONT_PERCENT: percent,
-  }), false);
+  };
+  notEligible(req(), canary);
 }
-console.log("PASS: zero-default signed-country relay, expired/tampered geo rejection, bounded canary, authenticated-route bypass, origin allowlist");
+console.log(
+  "PASS: zero-default signed-country relay, expired/tampered geo rejection, bounded canary, authenticated-route bypass, origin allowlist",
+);
