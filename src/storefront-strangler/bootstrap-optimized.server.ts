@@ -126,8 +126,7 @@ export async function serveLeanAnonymousBootstrap(
     rowsRead?: number;
     measuredStatements?: number;
   } = {};
-  const seedEnabled =
-    env.COVE_SSR_STAGING === "1" && env.COVE_THIN_RIGHTS_SHORTLIST === "1";
+  const seedEnabled = env.COVE_SSR_STAGING === "1" && env.COVE_THIN_RIGHTS_SHORTLIST === "1";
   const seedKey = trustedCountry + ":" + (env.FORE_DEFAULT_TERRITORY || "US");
   let seedBucket = pendingAnonymousCandidateSeeds.get(rawDb);
   if (seedEnabled && !seedBucket) {
