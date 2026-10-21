@@ -4,6 +4,10 @@ on:
     branches: [perf/pr227-100rps-causal-20261020]
     paths:
       - ".github/workflows/thin-superseded-benchmark-queue-cleanup.yml"
+      - "scripts/performance/thin-storefront-paired.mjs"
+      - "scripts/performance/thin-stage-run-scope.mjs"
+      - "scripts/performance/check-thin-stage-run-scope.mjs"
+      - "src/features/fore/storefront-anonymous-bootstrap.server.ts"
 permissions:
   contents: read
   actions: write
