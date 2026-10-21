@@ -131,6 +131,7 @@ async function sample() {
       failure: response.headers.get("x-cove-stage-failure") || null,
       observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
       renderer: response.headers.get("x-cove-renderer"),
+      serverTiming: response.headers.get("server-timing"),
     };
   } catch (error) {
     return { ok: false, ms: performance.now() - start, error: error.name };
@@ -248,6 +249,24 @@ try {
     maxSchedulerLagMs,
     maxOutstanding,
     ...summary,
+  };
+  const timing = (sample, metric) => {
+    const match = (sample.serverTiming || "").match(
+      new RegExp("(?:^|,\\s*)" + metric + ";dur=([0-9.]+)"),
+    );
+    return match ? Number(match[1]) : null;
+  };
+  const latency95 = (metric) => {
+    const values = results.map((entry) => timing(entry, metric)).filter(Number.isFinite);
+    return percentile(values, 0.95);
+  };
+  evidence.sustained.rightsSeed = {
+    used: results.filter((result) => timing(result, "cove_catalog_seeded") === 1).length,
+    measured: results.filter((result) => timing(result, "cove_catalog_seeded") !== null).length,
+    p95CatalogD1Ms: latency95("cove_catalog"),
+    p95CatalogSqlMs: latency95("cove_catalog_sql"),
+    p95ContextD1Ms: latency95("cove_context"),
+    p95ContextSqlMs: latency95("cove_context_sql"),
   };
   console.log("SUSTAINED_RESULT", JSON.stringify(evidence.sustained));
   save();
