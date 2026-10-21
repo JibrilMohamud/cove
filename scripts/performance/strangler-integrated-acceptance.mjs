@@ -10,7 +10,7 @@ const dbId = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
 const prodDbId = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const token = process.env.CLOUDFLARE_API_TOKEN;
 assert.ok(token && token.length > 16, "Isolated hosted acceptance requires Cloudflare credentials");
-assert.match(process.env.GITHUB_RUN_ID || "", /^\\d+$/);
+assert.match(process.env.GITHUB_RUN_ID || "", /^\d+$/);
 const name = "cove-strangler-perf-" + process.env.GITHUB_RUN_ID;
 const origin = `https://${name}.cove-jibrilmohamud.workers.dev`;
 const configPath = "wrangler.strangler-perf-run.jsonc";
@@ -64,7 +64,7 @@ function command(args, input) {
         args.slice(0, 2).join(" ") +
         " failed: " +
         String(run.error?.message || run.stderr)
-          .replace(/Bearer\\s+\\S+/g, "Bearer [redacted]")
+          .replace(/Bearer\s+\S+/g, "Bearer [redacted]")
           .slice(-900),
     );
 }
@@ -141,11 +141,9 @@ async function deployFresh() {
 }
 const startedAt = performance.now();
 try {
-  const fixture = await cloudflare(
-    "POST",
-    `/accounts/${account}/d1/database/${dbId}/query`,
-    { sql: "SELECT COUNT(*) AS n, SUM(CASE WHEN id NOT LIKE 'perf-synth-%' THEN 1 ELSE 0 END) AS bad FROM products" },
-  );
+  const fixture = await cloudflare("POST", `/accounts/${account}/d1/database/${dbId}/query`, {
+    sql: "SELECT COUNT(*) AS n, SUM(CASE WHEN id NOT LIKE 'perf-synth-%' THEN 1 ELSE 0 END) AS bad FROM products",
+  });
   assert.ok(Number(fixture?.[0]?.results?.[0]?.n) >= 40_000);
   assert.equal(Number(fixture?.[0]?.results?.[0]?.bad), 0);
   evidence.fixtureProducts = Number(fixture[0].results[0].n);
@@ -187,14 +185,19 @@ try {
   save();
   assert.equal(dropped, 0, "Offered arrivals dropped");
   assert.equal(summary.valid, offered, "Sustained requests failed");
-  assert.ok(summary.p95 < 600 && summary.p99 < 750 && summary.max < 800,
-    "Integrated 100-RPS tails exceeded release envelope");
+  assert.ok(
+    summary.p95 < 600 && summary.p99 < 750 && summary.max < 800,
+    "Integrated 100-RPS tails exceeded release envelope",
+  );
   evidence.pass = true;
-  console.log("PASS integrated thin performance acceptance", JSON.stringify({
-    cold: evidence.cold.map((x) => Math.round(x.ms)),
-    bursts: evidence.bursts.map((x) => ({ n: x.concurrency, max: Math.round(x.max) })),
-    sustained: evidence.sustained,
-  }));
+  console.log(
+    "PASS integrated thin performance acceptance",
+    JSON.stringify({
+      cold: evidence.cold.map((x) => Math.round(x.ms)),
+      bursts: evidence.bursts.map((x) => ({ n: x.concurrency, max: Math.round(x.max) })),
+      sustained: evidence.sustained,
+    }),
+  );
 } catch (error) {
   evidence.failure = String(error.message || error);
   throw error;
@@ -202,10 +205,7 @@ try {
   evidence.elapsedMs = Math.round(performance.now() - startedAt);
   save();
   try {
-    await cloudflare(
-      "DELETE",
-      `/accounts/${account}/workers/scripts/${name}?force=true`,
-    );
+    await cloudflare("DELETE", `/accounts/${account}/workers/scripts/${name}?force=true`);
   } catch {
     console.error("Stage cleanup not confirmed; remove only " + name);
   }
