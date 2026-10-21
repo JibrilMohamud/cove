@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { performance } from "node:perf_hooks";
-import {
-  stageFetch,
-  stageTransport,
-  closeStageTransport,
-} from "./strangler-http-transport.mjs";
+import { stageFetch, stageTransport, closeStageTransport } from "./strangler-http-transport.mjs";
 
 const origin = "https://cove-strangler-m1-staging.cove-jibrilmohamud.workers.dev";
 const key = process.env.COVE_STRANGLER_STAGE_KEY || "";
@@ -14,7 +10,11 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, m
 const maxInflight = 128;
 const strictMaximumMs = 800;
 const p95MaximumMs = 650;
-const results = { transport: stageTransport, mode: process.env.COVE_STRANGLER_MODE || "bursts", phases: [] };
+const results = {
+  transport: stageTransport,
+  mode: process.env.COVE_STRANGLER_MODE || "bursts",
+  phases: [],
+};
 
 async function requestOne(route = "/") {
   const start = performance.now();
@@ -28,11 +28,11 @@ async function requestOne(route = "/") {
     const valid =
       resp.status === 200 &&
       resp.headers.get("cache-control")?.includes("no-store") &&
-      (route === "/" ?
-        resp.headers.get("x-cove-renderer") === "strangler-evaluation" &&
-        /data-rights-country="[A-Z]{2}"/.test(html) &&
-        /data-product="/.test(html) :
-        /<html/i.test(html));
+      (route === "/"
+        ? resp.headers.get("x-cove-renderer") === "strangler-evaluation" &&
+          /data-rights-country="[A-Z]{2}"/.test(html) &&
+          /data-product="/.test(html)
+        : /<html/i.test(html));
     return {
       ttfbMs: Math.round(headersAt - start),
       valid: Boolean(valid),
@@ -63,7 +63,17 @@ function report(name, offered, rows, dropped = 0) {
     valid === offered &&
     maxMs < strictMaximumMs &&
     p95Ms < p95MaximumMs;
-  const output = { name, offered, delivered: rows.length, valid, dropped, p95Ms, p99Ms, maxMs, pass };
+  const output = {
+    name,
+    offered,
+    delivered: rows.length,
+    valid,
+    dropped,
+    p95Ms,
+    p99Ms,
+    maxMs,
+    pass,
+  };
   results.phases.push(output);
   console.log("COVE_STRANGLER_CAPACITY " + JSON.stringify(output));
   return pass;
@@ -73,7 +83,8 @@ async function burst(n, name) {
   report(name, n, rows);
 }
 async function scheduled(rate, seconds) {
-  const offered = rate * seconds, rows = [];
+  const offered = rate * seconds,
+    rows = [];
   let dropped = 0;
   const pending = new Set();
   const started = performance.now();
