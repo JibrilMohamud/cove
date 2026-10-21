@@ -154,3 +154,13 @@ an explicit internal credential handshake is added. This first deploy does
 not itself enable the public thin Worker or route customer traffic. In
 particular checkout, reader/media and audio cannot be certified until a
 fully seeded production-equivalent environment exists.
+
+## Private service-to-service gate handshake
+
+The thin gateway strips the inbound staging bearer before delegating to CORE.
+The private CORE's *different* `COVE_SSR_STAGING_GATE_KEY` may be supplied
+to the thin Worker as `COVE_INTERNAL_CORE_STAGE_GATE_KEY`, installed only as
+a Worker secret during paired staging deployment. The inbound token is never
+forwarded. A malformed or reused key fails closed with 503; customer session
+cookies remain intact. This handshake does not enable customer traffic or
+turn the read-only staging API into a writable production checkout.

@@ -136,6 +136,31 @@ try {
     );
   }
   assert.ok(delegated >= 6);
+  assert.equal(
+    (await worker.fetch(request("US", {}, "/library"), {
+      ...env,
+      COVE_INTERNAL_CORE_STAGE_GATE_KEY: "b".repeat(64),
+      CORE: {
+        async fetch(req) {
+          assert.equal(req.headers.get("authorization"), "Bearer " + "b".repeat(64));
+          assert.notEqual(
+            req.headers.get("authorization"),
+            "Bearer " + env.COVE_SSR_STAGING_GATE_KEY,
+          );
+          return new Response("private-internal");
+        },
+      },
+    })).status,
+    200,
+  );
+  assert.equal(
+    (await worker.fetch(request("US", {}, "/library"), {
+      ...env,
+      COVE_INTERNAL_CORE_STAGE_GATE_KEY: env.COVE_SSR_STAGING_GATE_KEY,
+    })).status,
+    503,
+    "Core key cannot reuse exposed staging credential",
+  );
   assert.ok(
     forwarded.every((entry) => entry.authorization === null),
     "Stage bearer must never leave the gateway",
