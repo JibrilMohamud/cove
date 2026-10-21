@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Proven experimental metadata resolver moved unchanged into an isolated stage boundary. */
 import { z } from "zod";
 import { ApiError, now } from "../features/fore/service";
 import { selectedUiCatalog } from "../features/fore/ui-catalog.server";
@@ -782,7 +783,9 @@ export async function recordStorefrontContext(
         now(),
       )
       .run();
-  } catch {}
+  } catch {
+    // Presentation analytics must never disrupt storefront requests.
+  }
 }
 
 export async function localizationAdminSnapshot(db: StorefrontDB) {
