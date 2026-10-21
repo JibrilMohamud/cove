@@ -148,8 +148,7 @@ export async function servePreparedCatalog(
   } catch {
     throw new PreparedCatalogUnavailable("snapshot_read");
   }
-  if (!object)
-    throw new PreparedCatalogUnavailable("snapshot_absent");
+  if (!object) throw new PreparedCatalogUnavailable("snapshot_absent");
   if (!Number.isFinite(object.size) || object.size > MAX_BYTES || object.size < 2)
     throw new PreparedCatalogUnavailable("snapshot_invalid");
   let doc: CandidateSnapshot;
