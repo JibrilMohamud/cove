@@ -459,7 +459,7 @@ async function capacity(
     }
     const task = sample(role, { route, benchmarkHeaders })
       .then((r) => {
-        rows.push(r);
+        rows.push({ ...r, scheduledIndex: n });
         if (!r.valid) stop = true;
       })
       .finally(() => pending.delete(task));
@@ -468,6 +468,40 @@ async function capacity(
   await Promise.all(pending);
   const elapsed = performance.now() - start,
     s = summary(rows);
+  // Group by scheduled arrival index, not completion time; otherwise a
+  // growing D1 queue moves slow responses into later windows and hides
+  // when load first exceeded service capacity.
+  const windows = [];
+  if (duration >= 60_000) {
+    const count = Math.ceil(duration / 10_000);
+    for (let windowIndex = 0; windowIndex < count; windowIndex++) {
+      const first = Math.ceil((windowIndex * 10_000) / interval);
+      const last = Math.min(offered, Math.ceil(((windowIndex + 1) * 10_000) / interval));
+      const subset = rows.filter(
+        (row) => row.scheduledIndex >= first && row.scheduledIndex < last,
+      );
+      const period = summary(subset);
+      windows.push({
+        second: windowIndex * 10,
+        offered: last - first,
+        delivered: subset.length,
+        valid: period.valid,
+        p95Ms: period.p95,
+        p99Ms: period.p99,
+        maxMs: period.max,
+        catalogP95Ms: period.spans.cove_catalog?.p95 ?? null,
+        contextP95Ms: period.spans.cove_context?.p95 ?? null,
+        catalogSqlP95Ms: period.spans.cove_catalog_sql?.p95 ?? null,
+        colos: period.colos,
+        pass:
+          subset.length === last - first &&
+          period.valid === last - first &&
+          period.p95 <= 600 &&
+          period.p99 <= 750 &&
+          period.max < 800,
+      });
+    }
+  }
   return {
     role,
     offeredRps: rate,
@@ -483,7 +517,18 @@ async function capacity(
     dropped,
     late,
     summary: s,
-    pass: !stop && !dropped && !late && !s.errors && s.p95 <= 600 && s.p99 <= 750 && s.max < 800,
+    windows,
+    pass:
+      !stop &&
+      !dropped &&
+      !late &&
+      !s.errors &&
+      scheduled === offered &&
+      s.valid === offered &&
+      s.p95 <= 600 &&
+      s.p99 <= 750 &&
+      s.max < 800 &&
+      windows.every((window) => window.pass),
     rows,
   };
 }
@@ -840,6 +885,24 @@ try {
       ),
   };
   save();
+  // A 20-second 100-RPS burst does not establish sustainable capacity. A
+  // full two-minute offered-load period with independent 10-second cohorts
+  // detects late-stage D1 queue buildup while leaving the serving path alone.
+  evidence.sustained100 = await capacity("thin", 100, { duration: 120_000 });
+  save();
+  console.log(
+    "sustained-100-rps",
+    JSON.stringify({
+      offered: evidence.sustained100.offered,
+      valid: evidence.sustained100.summary.valid,
+      dropped: evidence.sustained100.dropped,
+      unscheduled: evidence.sustained100.unscheduled,
+      pass: evidence.sustained100.pass,
+      p95Ms: evidence.sustained100.summary.p95,
+      maxMs: evidence.sustained100.summary.max,
+      windows: evidence.sustained100.windows,
+    }),
+  );
   const mobile = evidence.browser.find((x) => x.role === "thin"),
     controlMobile = evidence.browser.find((x) => x.role === "baseline");
   evidence.mobileGate =
@@ -882,6 +945,7 @@ try {
   // only in ON, and p95 at least 10% better than BOTH OFF bookends.
   evidence.optimizationGate =
     evidence.architecturalGate &&
+    evidence.sustained100?.pass === true &&
     evidence.singleflightCausal.measurementComplete &&
     evidence.singleflightCausal.improvementSupported;
   if (!evidence.optimizationGate) failed = true;
