@@ -766,12 +766,17 @@ export async function canonicalFirstPaintShelfByRightsQuery(
       diagnostics.rightsServiceMs = performance.now() - beganRights;
       const meta = (
         selected as typeof selected & {
-          meta?: { timings?: { sql_duration_ms?: number }; rows_read?: number; total_attempts?: number };
+          meta?: {
+            timings?: { sql_duration_ms?: number };
+            rows_read?: number;
+            total_attempts?: number;
+          };
         }
       ).meta;
       if (Number.isFinite(meta?.timings?.sql_duration_ms))
         diagnostics.sqlDurationMs = Number(meta!.timings!.sql_duration_ms);
-      if (Number.isFinite(meta?.rows_read)) diagnostics.rowsRead = Number(meta!.rows_read);
+      if (Number.isFinite(meta?.rows_read))
+        diagnostics.rowsRead = Number(meta!.rows_read);
       if (Number.isFinite(meta?.total_attempts)) diagnostics.attempts = Number(meta!.total_attempts);
     }
     const authorizedIds = [...new Set(selected.results.map((row) => String(row.product_id)))].slice(
@@ -789,7 +794,9 @@ export async function canonicalFirstPaintShelfByRightsQuery(
       .all<Record<string, unknown>>();
     if (diagnostics) {
       diagnostics.projectionServiceMs = performance.now() - startedProjection;
-      const meta = (projected as typeof projected & { meta?: { timings?: { sql_duration_ms?: number } } }).meta;
+      const meta = (
+        projected as typeof projected & { meta?: { timings?: { sql_duration_ms?: number } } }
+      ).meta;
       if (Number.isFinite(meta?.timings?.sql_duration_ms))
         diagnostics.projectionSqlDurationMs = Number(meta!.timings!.sql_duration_ms);
     }
