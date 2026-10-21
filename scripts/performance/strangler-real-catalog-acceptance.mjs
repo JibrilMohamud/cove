@@ -408,9 +408,12 @@ try {
       desktopBaseline,
       desktopStage,
     );
-    console.log("REAL_CATALOG_DESKTOP_PARITY", JSON.stringify({
-      mismatchPercent: evidence.realCatalogParity.desktopMismatchPercent,
-    }));
+    console.log(
+      "REAL_CATALOG_DESKTOP_PARITY",
+      JSON.stringify({
+        mismatchPercent: evidence.realCatalogParity.desktopMismatchPercent,
+      }),
+    );
     await desktopContext.close();
   } finally {
     await audit.close();
