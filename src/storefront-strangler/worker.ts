@@ -124,13 +124,13 @@ export default {
     // Cloudflare's Vercel-egress request.cf.country is NOT the customer's
     // territory, and must never authorize a licensed book.
     const relay = customerGateway
-      ? await verifyFastCountryClaim(
-          request.headers,
-          env.COVE_FAST_RELAY_KEY || "",
-        )
+      ? await verifyFastCountryClaim(request.headers, env.COVE_FAST_RELAY_KEY || "")
       : null;
     if (customerGateway && !relay)
-      return new Response("Unauthorized", { status: 401, headers: { "cache-control": "no-store" } });
+      return new Response("Unauthorized", {
+        status: 401,
+        headers: { "cache-control": "no-store" },
+      });
     const finish = (response: Response) => {
       const secured = applySecurityHeaders(request, response, env);
       if (!customerGateway) return stageNoStore(secured, true);
@@ -211,9 +211,8 @@ export default {
       // Preserve it unchanged; all failures remain fail-closed and classified.
       // No presentation cache or independent authorizer is activated here.
       // Main's authoritative live territorial-rights bootstrap remains unchanged.
-      const bootstrapEnv = productionAcceptance || customerGateway
-        ? { ...env, DB: readOnlyStageD1(env.DB) }
-        : env;
+      const bootstrapEnv =
+        productionAcceptance || customerGateway ? { ...env, DB: readOnlyStageD1(env.DB) } : env;
       const response = await serveLeanAnonymousBootstrap(bootstrapRequest, bootstrapEnv);
       if (!response.ok) return finish(new Response(null, { status: response.status }));
       const bootstrap = (await response.json()) as StorefrontBootstrap;
