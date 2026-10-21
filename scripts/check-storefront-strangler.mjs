@@ -323,7 +323,7 @@ try {
   assert.ok(productionPreviewGroup.every((response) => response.status === 200));
   assert.ok(
     productionPreviewGroup.some((response) =>
-      /cove_primary_microbatch_joined;dur=1\\.0/.test(
+      /cove_primary_microbatch_joined;dur=1\.0/.test(
         response.headers.get("server-timing") || "",
       ),
     ),
