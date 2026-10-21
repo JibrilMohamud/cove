@@ -257,22 +257,22 @@ try {
     );
     return match ? Number(match[1]) : null;
   };
+  const counts = (values) =>
+    Object.fromEntries([...new Set(values)].map((key) => [key, values.filter((x) => x === key).length]));
+  const p95Timing = (key) => {
+    const durations = results.map((x) => timing(x, key)).filter(Number.isFinite);
+    return percentile(durations, 0.95);
+  };
   evidence.sustained.attribution = {
-    statuses: Object.fromEntries(
-      [...new Set(results.map((x) => String(x.status || x.error || "unknown")))].map(
-        (key) => [key, results.filter((x) => String(x.status || x.error || "unknown") === key).length],
-      ),
+    statuses: counts(results.map((x) => String(x.status || x.error || "unknown"))),
+    failurePhases: counts(
+      results.filter((x) => !x.ok).map((x) => x.failureSubphase || x.failure || "unknown"),
     ),
-    failurePhases: Object.fromEntries(
-      [...new Set(results.filter((x) => !x.ok).map((x) => x.failureSubphase || x.failure || "unknown"))].map(
-        (key) => [key, results.filter((x) => !x.ok && (x.failureSubphase || x.failure || "unknown") === key).length],
-      ),
-    ),
-    p95CatalogServiceMs: percentile(results.map((x) => timing(x, "cove_catalog")).filter(Number.isFinite), 0.95),
-    p95CatalogSqlMs: percentile(results.map((x) => timing(x, "cove_catalog_sql")).filter(Number.isFinite), 0.95),
-    p95ContextServiceMs: percentile(results.map((x) => timing(x, "cove_context")).filter(Number.isFinite), 0.95),
-    p95ContextSqlMs: percentile(results.map((x) => timing(x, "cove_context_sql")).filter(Number.isFinite), 0.95),
-    p95BootstrapMs: percentile(results.map((x) => timing(x, "cove_bootstrap")).filter(Number.isFinite), 0.95),
+    p95CatalogServiceMs: p95Timing("cove_catalog"),
+    p95CatalogSqlMs: p95Timing("cove_catalog_sql"),
+    p95ContextServiceMs: p95Timing("cove_context"),
+    p95ContextSqlMs: p95Timing("cove_context_sql"),
+    p95BootstrapMs: p95Timing("cove_bootstrap"),
   };
   console.log("SUSTAINED_RESULT", JSON.stringify(evidence.sustained));
   save();
