@@ -3,9 +3,7 @@ import fs from "node:fs";
 
 // Read-only Cloudflare control-plane verification. No D1 queries, migrations,
 // R2 writes, deployments, routes, Worker publish or cron activation.
-const storefront = JSON.parse(
-  fs.readFileSync("wrangler.storefront-strangler.stage.jsonc", "utf8"),
-);
+const storefront = JSON.parse(fs.readFileSync("wrangler.storefront-strangler.stage.jsonc", "utf8"));
 const producer = JSON.parse(
   fs.readFileSync("wrangler.storefront-candidate-producer.stage.jsonc", "utf8"),
 );
@@ -42,7 +40,9 @@ async function check(label, endpoint, expectedId = "") {
   );
   // Log only component type and HTTP status, never token, response body,
   // account-specific contents or Worker source.
-  console.log("COVE_STAGE_PREFLIGHT " + JSON.stringify({ component: label, status: response.status }));
+  console.log(
+    "COVE_STAGE_PREFLIGHT " + JSON.stringify({ component: label, status: response.status }),
+  );
   if (!response.ok) throw Error(label + " inaccessible (" + response.status + ")");
   if (expectedId) {
     const data = await response.json();
