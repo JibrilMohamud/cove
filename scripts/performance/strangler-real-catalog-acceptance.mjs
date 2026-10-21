@@ -130,6 +130,13 @@ async function sample() {
       failure: response.headers.get("x-cove-stage-failure") || null,
       observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
       renderer: response.headers.get("x-cove-renderer"),
+      serverTiming: response.headers.get("server-timing"),
+      failureSubphase: response.headers.get("x-cove-stage-failure-subphase"),
+      failureKind: response.headers.get("x-cove-stage-failure-kind"),
+      edgeError:
+        [404, 503].includes(response.status) && !response.headers.has("x-cove-renderer")
+          ? { status: response.status, ray: response.headers.get("cf-ray") }
+          : null,
     };
   } catch (error) {
     return { ok: false, ms: performance.now() - start, error: error.name };
@@ -169,7 +176,21 @@ async function deployFresh(round) {
       Date.parse(latest.created_on) >= rotatedAt - 3000 &&
       latest.versions?.some((version) => version.percentage === 100)
     ) {
-      await new Promise((resolve) => setTimeout(resolve, 3500));
+      // Confirm workers.dev enablement and allow route propagation without
+      // warming the isolate: the subsequent measured GET is truly cold.
+      const subdomain = await cloudflare(
+        "GET",
+        `/accounts/${account}/workers/scripts/${name}/subdomain`,
+      );
+      assert.equal(subdomain.enabled, true, "Workers.dev route has not been enabled");
+      const publishedAt = Date.parse(latest.created_on);
+      assert.ok(Number.isFinite(publishedAt), "Deployment timestamp unavailable");
+      const remaining = Math.max(0, publishedAt + 25_000 - Date.now());
+      console.log(
+        "ROUTE_PROPAGATION_GRACE",
+        JSON.stringify({ round, waitMs: remaining, firstRequestStillCold: true }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, remaining));
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 1800));
@@ -267,7 +288,8 @@ try {
   assert.ok(Number(fixture?.[0]?.results?.[0]?.n) >= 40_000);
 
   evidence.fixtureProducts = Number(fixture[0].results[0].n);
-  for (let i = 0; i < 1; i++) {
+  // Each cold round uses a brand-new script name and credential, never a warm retry.
+  for (let i = 0; i < 3; i++) {
     await deployFresh(i + 1);
     const cold = await sample();
     evidence.cold.push(cold);
