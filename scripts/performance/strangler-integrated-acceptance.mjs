@@ -28,7 +28,6 @@ config.preview_urls = false;
 config.services = [];
 config.vars.FORE_PUBLIC_URL = origin;
 config.vars.COVE_THIN_METADATA_COALESCE = "1";
-config.vars.COVE_THIN_SPLIT_PROJECTION = "0";
 config.vars.COVE_THIN_PRIMARY_MICROBATCH = "1";
 const configString = JSON.stringify(config, null, 2);
 assert.ok(!configString.includes(prodDbId), "Production D1 must never be bound");
@@ -107,37 +106,62 @@ function summarize(results) {
 let client = 0;
 async function sample() {
   const start = performance.now();
-  try {
-    const response = await fetch(origin + "/", {
-      headers: {
-        authorization: "Bearer " + stageKey,
-        "x-cove-perf-client": String(client++ % 2048),
-      },
-      signal: AbortSignal.timeout(10_000),
-    });
-    const ms = performance.now() - start;
-    const html = await response.text();
-    const ok =
-      response.status === 200 &&
-      html.includes('id="thin-discovery-form"') &&
-      html.includes('data-rights-country="US"') &&
-      html.includes('id="thin-merchandising"') &&
-      !html.includes('data-product="perf-synth-000107"') &&
-      !html.includes('data-product="perf-synth-000097"');
-    return {
-      ok,
-      ms,
-      status: response.status,
-      failure: response.headers.get("x-cove-stage-failure") || null,
-      observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
-      renderer: response.headers.get("x-cove-renderer"),
-      serverTiming: response.headers.get("server-timing"),
-      failureSubphase: response.headers.get("x-cove-stage-failure-subphase"),
-      failureKind: response.headers.get("x-cove-stage-failure-kind"),
-    };
-  } catch (error) {
-    return { ok: false, ms: performance.now() - start, error: error.name };
+  const virtualClient = String(client++ % 2048);
+  let transportRetries = 0;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(origin + "/", {
+        headers: {
+          authorization: "Bearer " + stageKey,
+          "x-cove-perf-client": virtualClient,
+        },
+        signal: AbortSignal.timeout(10_000),
+      });
+      const html = await response.text();
+      const ok =
+        response.status === 200 &&
+        html.includes('id="thin-discovery-form"') &&
+        html.includes('data-rights-country="US"') &&
+        html.includes('id="thin-merchandising"') &&
+        !html.includes('data-product="perf-synth-000107"') &&
+        !html.includes('data-product="perf-synth-000097"');
+      return {
+        ok,
+        ms: performance.now() - start,
+        transportRetries,
+        status: response.status,
+        failure: response.headers.get("x-cove-stage-failure") || null,
+        observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
+        renderer: response.headers.get("x-cove-renderer"),
+        serverTiming: response.headers.get("server-timing"),
+        failureSubphase: response.headers.get("x-cove-stage-failure-subphase"),
+        failureKind: response.headers.get("x-cove-stage-failure-kind"),
+      };
+    } catch (error) {
+      // One bounded idempotent GET retry is permitted only for immediate
+      // client transport errors, never for D1 503s, timeouts, HTTP errors,
+      // invalid rights checks, or a slow response. Include retry time in TTFB.
+      if (
+        attempt === 0 &&
+        error instanceof TypeError &&
+        performance.now() - start < 200
+      ) {
+        transportRetries = 1;
+        continue;
+      }
+      const code = error instanceof Error && "cause" in error && error.cause
+        ? String(error.cause.code || error.cause.errno || "")
+        : "";
+      return {
+        ok: false,
+        ms: performance.now() - start,
+        transportRetries,
+        error: error.name || "Error",
+        errorCode: /^[A-Z_0-9]{2,30}$/.test(code) ? code : null,
+      };
+    }
   }
+  throw new Error("Unreachable transport attempt");
 }
 async function deployFresh(round) {
   // A unique Worker identity prevents stale encrypted secrets from previous
@@ -271,18 +295,13 @@ try {
       results.filter((x) => !x.ok).map((x) => x.failureSubphase || x.failure || "unknown"),
     ),
     p95CatalogServiceMs: p95Timing("cove_catalog"),
-    p95RightsPrimaryServiceMs: p95Timing("cove_catalog_rights_service"),
-    p95ReplicaPresentationMs: p95Timing("cove_catalog_projection_service"),
-    p95ReplicaProjectionSqlMs: p95Timing("cove_catalog_projection_sql"),
     eligiblePrimaryMicrobatches: results.filter(
       (x) => timing(x, "cove_primary_microbatch_eligible") === 1,
     ).length,
     joinedPrimaryMicrobatches: results.filter(
       (x) => timing(x, "cove_primary_microbatch_joined") === 1,
     ).length,
-    splitProjectionRequests: results.filter(
-      (x) => timing(x, "cove_catalog_split_presentation") === 1,
-    ).length,
+    transportRetriedResponses: results.filter((x) => x.transportRetries === 1).length,
     p95CatalogSqlMs: p95Timing("cove_catalog_sql"),
     p95ContextServiceMs: p95Timing("cove_context"),
     p95ContextSqlMs: p95Timing("cove_context_sql"),
@@ -296,6 +315,8 @@ try {
     .map((x) => ({
       status: x.status ?? null,
       error: x.error ?? null,
+      errorCode: x.errorCode ?? null,
+      transportRetries: x.transportRetries ?? 0,
       ms: Math.round(x.ms),
       kind: x.failureKind ?? null,
       phase: x.failureSubphase ?? null,
@@ -314,6 +335,10 @@ try {
     evidence.sustained.attribution.eligiblePrimaryMicrobatches,
     summary.total,
     "Expected every synthetic request to use a post-admission live rights query",
+  );
+  assert.ok(
+    evidence.sustained.attribution.transportRetriedResponses <= 3,
+    "Too many transient transport retries were needed",
   );
   assert.equal(dropped, 0, "Offered arrivals dropped");
   assert.equal(summary.valid, offered, "Sustained requests failed");
