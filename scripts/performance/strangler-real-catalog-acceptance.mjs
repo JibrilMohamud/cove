@@ -131,6 +131,9 @@ async function sample() {
       observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
       renderer: response.headers.get("x-cove-renderer"),
       serverTiming: response.headers.get("server-timing"),
+      failureSubphase: response.headers.get("x-cove-stage-failure-subphase"),
+      failureKind: response.headers.get("x-cove-stage-failure-kind"),
+      serverTiming: response.headers.get("server-timing"),
     };
   } catch (error) {
     return { ok: false, ms: performance.now() - start, error: error.name };
