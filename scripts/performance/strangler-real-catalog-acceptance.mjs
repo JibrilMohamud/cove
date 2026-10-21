@@ -130,6 +130,7 @@ async function sample() {
       failure: response.headers.get("x-cove-stage-failure") || null,
       observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
       renderer: response.headers.get("x-cove-renderer"),
+      serverTiming: response.headers.get("server-timing"),
     };
   } catch (error) {
     return { ok: false, ms: performance.now() - start, error: error.name };
@@ -269,6 +270,14 @@ try {
   evidence.fixtureProducts = Number(fixture[0].results[0].n);
   for (let i = 0; i < 3; i++) {
     await deployFresh(i + 1);
+    const transportStart = performance.now();
+    const control = await fetch(origin + "/__cove_perf/transport", {
+      headers: { authorization: "Bearer " + stageKey },
+      signal: AbortSignal.timeout(6000),
+    });
+    const transportMs = performance.now() - transportStart;
+    assert.equal(control.status, 200, "Pre-cold transport control must succeed");
+    console.log("TRANSPORT_CONTROL", JSON.stringify({ round: i + 1, transportMs }));
     const cold = await sample();
     evidence.cold.push(cold);
     console.log("COLD_PROBE", JSON.stringify({ round: i + 1, ...cold }));
