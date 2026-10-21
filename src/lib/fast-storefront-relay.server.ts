@@ -34,7 +34,15 @@ function validClaim(claim: FastCountryClaim): boolean {
 }
 
 function signedMessage(claim: FastCountryClaim): string {
-  return ["cove-fast-home-v1", "GET", "/", claim.country, claim.ip, String(claim.timestamp), claim.nonce].join("\n");
+  return [
+    "cove-fast-home-v1",
+    "GET",
+    "/",
+    claim.country,
+    claim.ip,
+    String(claim.timestamp),
+    claim.nonce,
+  ].join("\n");
 }
 
 async function macKey(secret: string): Promise<CryptoKey> {
@@ -47,7 +55,9 @@ async function macKey(secret: string): Promise<CryptoKey> {
   );
 }
 
-export function verifiedVercelClient(request: Request): Pick<FastCountryClaim, "country" | "ip"> | null {
+export function verifiedVercelClient(
+  request: Request,
+): Pick<FastCountryClaim, "country" | "ip"> | null {
   // These are populated by Vercel ingress; do not trust similarly named
   // headers in the downstream Cloudflare Worker without the MAC.
   const country = (request.headers.get("x-vercel-ip-country") || "").toUpperCase();
@@ -63,7 +73,9 @@ export async function signFastCountryClaim(
 ): Promise<Headers> {
   if (!validClaim(claim)) throw new Error("Invalid fast storefront country claim");
   const key = await macKey(secret);
-  const bytes = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(signedMessage(claim))));
+  const bytes = new Uint8Array(
+    await crypto.subtle.sign("HMAC", key, encoder.encode(signedMessage(claim))),
+  );
   const mac = Array.from(bytes, (n) => n.toString(16).padStart(2, "0")).join("");
   const headers = new Headers();
   headers.set(signedHeaders.country, claim.country);
@@ -92,7 +104,12 @@ export async function verifyFastCountryClaim(
   try {
     const key = await macKey(secret);
     const data = Uint8Array.from(signature.match(/.{2}/g)!, (part) => parseInt(part, 16));
-    const valid = await crypto.subtle.verify("HMAC", key, data, encoder.encode(signedMessage(claim)));
+    const valid = await crypto.subtle.verify(
+      "HMAC",
+      key,
+      data,
+      encoder.encode(signedMessage(claim)),
+    );
     return valid ? claim : null;
   } catch {
     return null;
