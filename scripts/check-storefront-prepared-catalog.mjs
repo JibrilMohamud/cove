@@ -37,10 +37,14 @@ try {
     },
     async get(key) {
       const value = objects.get(key);
-      return value === undefined ? null : {
-        size: Buffer.byteLength(value),
-        async text() { return value; },
-      };
+      return value === undefined
+        ? null
+        : {
+            size: Buffer.byteLength(value),
+            async text() {
+              return value;
+            },
+          };
     },
   };
   const db = localBindings(root).DB;
@@ -54,8 +58,16 @@ try {
     COVE_STRANGLER_READ_MODEL: "1",
     COVE_SSR_STAGING_GATE_KEY: "a".repeat(64),
     PRESENTATION: store,
-    COVE_STOREFRONT_READ_LIMITER: { async limit() { return { success: true }; } },
-    CORE: { async fetch() { return new Response("delegated"); } },
+    COVE_STOREFRONT_READ_LIMITER: {
+      async limit() {
+        return { success: true };
+      },
+    },
+    CORE: {
+      async fetch() {
+        return new Response("delegated");
+      },
+    },
   };
   const seed = await handleCoveApi(
     new Request("https://cove.test/api/fore/storefront/bootstrap", {
@@ -121,20 +133,57 @@ try {
   }
   objects.set(usKey, original);
   const first = valid.productIds[0];
-  await db.prepare("UPDATE rights_grants SET status='revoked' WHERE edition_id=(SELECT edition_id FROM products WHERE id=?) AND decision='allow'")
-    .bind(first).run();
+  await db
+    .prepare(
+      "UPDATE rights_grants SET status='revoked' WHERE edition_id=(SELECT edition_id FROM products WHERE id=?) AND decision='allow'",
+    )
+    .bind(first)
+    .run();
   const revoked = await servePreparedCatalog(db, store, "US");
-  assert.ok(!revoked.results.some((book) => book.productId === first), "revocation must be immediately effective");
-  assert.ok(!(await (await worker.fetch(request(), env)).text()).includes('data-product="' + first + '"'));
-  await db.prepare("UPDATE products SET storefront_status='inactive' WHERE id=?").bind(valid.productIds[1]).run();
+  assert.ok(
+    !revoked.results.some((book) => book.productId === first),
+    "revocation must be immediately effective",
+  );
+  assert.ok(
+    !(await (await worker.fetch(request(), env)).text()).includes('data-product="' + first + '"'),
+  );
+  await db
+    .prepare("UPDATE products SET storefront_status='inactive' WHERE id=?")
+    .bind(valid.productIds[1])
+    .run();
   const disabled = await servePreparedCatalog(db, store, "US");
   assert.ok(!disabled.results.some((book) => book.productId === valid.productIds[1]));
-  const brokenDb = { prepare() { throw Error("primary DB failed"); }, batch() { throw Error("primary DB failed"); } };
+  const brokenDb = {
+    prepare() {
+      throw Error("primary DB failed");
+    },
+    batch() {
+      throw Error("primary DB failed");
+    },
+  };
   assert.equal((await worker.fetch(request(), { ...env, DB: brokenDb })).status, 503);
-  assert.equal((await worker.fetch(request(), { ...env, PRESENTATION: { async get() { throw Error("R2 down"); } } })).status, 503);
+  assert.equal(
+    (
+      await worker.fetch(request(), {
+        ...env,
+        PRESENTATION: {
+          async get() {
+            throw Error("R2 down");
+          },
+        },
+      })
+    ).status,
+    503,
+  );
   assert.equal((await worker.fetch(request(), { ...env, PRESENTATION: undefined })).status, 503);
-  assert.equal((await worker.fetch(request(), { ...env, COVE_STRANGLER_READ_MODEL: "0" })).status, 200, "disabled model keeps canonical rights path");
-  console.log("PASS: independently prepared candidates, primary rights SQL parity, revocation, country/currency guards, expired/bad store rejection, no fallback, and disabled-model compatibility.");
+  assert.equal(
+    (await worker.fetch(request(), { ...env, COVE_STRANGLER_READ_MODEL: "0" })).status,
+    200,
+    "disabled model keeps canonical rights path",
+  );
+  console.log(
+    "PASS: independently prepared candidates, primary rights SQL parity, revocation, country/currency guards, expired/bad store rejection, no fallback, and disabled-model compatibility.",
+  );
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
