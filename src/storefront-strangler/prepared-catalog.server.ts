@@ -27,7 +27,7 @@ const productId = (id: string) => /^[A-Za-z0-9][A-Za-z0-9_-]{1,159}$/.test(id);
 
 export function privateCandidateKey(country: string) {
   if (!countryCode(country)) throw Error("Invalid trusted market country.");
-  return \`\${MODEL_PREFIX}\${country}.json\`;
+  return `${MODEL_PREFIX}${country}.json`;
 }
 
 /** Strictly informational; nothing in this object can authorize delivery. */
@@ -72,12 +72,12 @@ export async function produceCandidateSnapshot(
   if (!countryCode(country)) throw Error("Invalid candidate market.");
   const selected = await db
     .prepare(
-      \`SELECT COALESCE(
+      `SELECT COALESCE(
         (SELECT default_currency FROM storefront_markets
          WHERE country_code=? AND market_status='active'),
         (SELECT default_currency FROM storefront_markets
          WHERE country_code='US' AND market_status='active')
-      ) currency\`,
+      ) currency`,
     )
     .bind(country)
     .first<{ currency: string }>();
@@ -85,12 +85,12 @@ export async function produceCandidateSnapshot(
   if (!currencyCode(currency)) throw Error("Active currency is unavailable.");
   const result = await db
     .prepare(
-      \`SELECT d.product_id FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
+      `SELECT d.product_id FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
        JOIN products p ON p.id=d.product_id JOIN editions e ON e.id=p.edition_id
        WHERE d.currency=? AND d.availability='available' AND d.suppressed=0
          AND p.storefront_status='active' AND p.source_name<>'upload'
          AND e.release_status IN ('available','preorder')
-       ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC LIMIT ?\`,
+       ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC LIMIT ?`,
     )
     .bind(currency, MAX_CANDIDATES)
     .all<{ product_id: string }>();
