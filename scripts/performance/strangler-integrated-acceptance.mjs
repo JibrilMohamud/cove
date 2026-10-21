@@ -29,6 +29,7 @@ config.services = [];
 config.vars.FORE_PUBLIC_URL = origin;
 config.vars.COVE_THIN_METADATA_COALESCE = "1";
 config.vars.COVE_THIN_SPLIT_PROJECTION = "1";
+config.vars.COVE_THIN_PRIMARY_MICROBATCH = "1";
 const configString = JSON.stringify(config, null, 2);
 assert.ok(!configString.includes(prodDbId), "Production D1 must never be bound");
 assert.ok(!config.routes && !config.route && !config.r2_buckets && !config.queues);
@@ -273,6 +274,12 @@ try {
     p95RightsPrimaryServiceMs: p95Timing("cove_catalog_rights_service"),
     p95ReplicaPresentationMs: p95Timing("cove_catalog_projection_service"),
     p95ReplicaProjectionSqlMs: p95Timing("cove_catalog_projection_sql"),
+    eligiblePrimaryMicrobatches: results.filter(
+      (x) => timing(x, "cove_primary_microbatch_eligible") === 1,
+    ).length,
+    joinedPrimaryMicrobatches: results.filter(
+      (x) => timing(x, "cove_primary_microbatch_joined") === 1,
+    ).length,
     splitProjectionRequests: results.filter(
       (x) => timing(x, "cove_catalog_split_presentation") === 1,
     ).length,
@@ -290,6 +297,11 @@ try {
   assert.ok(
     evidence.bursts.every((burst) => burst.valid === burst.concurrency && burst.max < 800),
     "Concurrent request invalid or maximum exceeded 800ms",
+  );
+  assert.equal(
+    evidence.sustained.attribution.eligiblePrimaryMicrobatches,
+    summary.total,
+    "Expected every synthetic request to use a post-admission live rights query",
   );
   assert.equal(dropped, 0, "Offered arrivals dropped");
   assert.equal(summary.valid, offered, "Sustained requests failed");
