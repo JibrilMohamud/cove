@@ -1610,6 +1610,91 @@ async function logQuery(
 }
 
 /**
+ * Stage-only presentation-seed revalidation. Its input IDs and stored card
+ * metadata are untrusted: every returned product must satisfy the exact
+ * current retail_product_availability_rows predicate on authoritative D1.
+ * Refreshes live offer prices in that same primary-D1 snapshot. Only the
+ * presentation projection (titles, covers, bylines) may be reused.
+ */
+export async function liveRightsForAnonymousPresentationSeeds(
+  env: SearchEnv,
+  territory: string,
+  productIds: string[],
+  diagnostics?: FirstPaintD1QueryMetrics,
+): Promise<Array<{ productId: string; offerJson: string | null }>> {
+  if (
+    !productIds.length ||
+    productIds.length > 60 ||
+    new Set(productIds).size !== productIds.length
+  )
+    throw new Error("Invalid untrusted presentation seed list.");
+  const url = new URL("https://internal.invalid/api/fore/catalog");
+  url.search = new URLSearchParams({
+    search: "",
+    sort: "popular",
+    page: "1",
+    currency: "USD",
+  }).toString();
+  const input = { ...parseSearchInput(url), territory: normalizeTerritoryCode(territory) };
+  const part = candidateParts(input, "");
+  const currencyIndex = part.where.indexOf("d.currency=?");
+  if (currencyIndex !== part.where.length - 1 || part.binds.at(-1) !== input.currency)
+    throw new Error("Unexpected live currency predicate.");
+  part.where[currencyIndex] = "d.currency=(SELECT currency FROM first_paint_currency)";
+  part.binds.pop();
+  part.where.unshift("EXISTS(SELECT 1 FROM first_paint_currency_available)");
+  const placeholders = productIds.map(() => "(?)").join(",");
+  const rows = await env.DB.prepare(
+    `WITH first_paint_currency(currency) AS MATERIALIZED (
+      SELECT COALESCE(
+        (SELECT default_currency FROM storefront_markets
+         WHERE country_code=upper(?) AND market_status='active'),
+        (SELECT default_currency FROM storefront_markets
+         WHERE country_code='US' AND market_status='active')
+      )
+    ), first_paint_currency_available AS MATERIALIZED (
+      SELECT 1 FROM catalog_search_documents probe INDEXED BY idx_search_price
+      WHERE probe.currency=(SELECT currency FROM first_paint_currency)
+        AND probe.availability='available' AND probe.suppressed=0 LIMIT 1
+    ), wanted(product_id) AS MATERIALIZED (VALUES ${placeholders})
+    SELECT d.product_id,
+      (SELECT json_object(
+        'type',o.offer_type,'currency',o.currency,'amountMinor',o.amount_minor
+       ) FROM offers o WHERE o.product_id=p.id AND o.sales_channel='retail' AND o.active=1
+         AND (o.starts_at IS NULL OR o.starts_at<=datetime('now'))
+         AND (o.ends_at IS NULL OR o.ends_at>datetime('now'))
+       ORDER BY o.created_at DESC LIMIT 1) offer_json
+    FROM wanted
+    CROSS JOIN catalog_search_documents d ON d.product_id=wanted.product_id
+    CROSS JOIN products p ON p.id=d.product_id
+    CROSS JOIN editions e ON e.id=p.edition_id
+    LEFT JOIN publishers pub ON pub.id=e.publisher_id
+    WHERE ${part.where.join(" AND ")}`,
+  )
+    .bind(input.territory, ...productIds, ...part.binds)
+    .all<{ product_id: string; offer_json: string | null }>();
+  if (diagnostics) {
+    const meta = (
+      rows as typeof rows & {
+        meta?: {
+          timings?: { sql_duration_ms?: number };
+          rows_read?: number;
+          total_attempts?: number;
+        };
+      }
+    ).meta;
+    if (typeof meta?.timings?.sql_duration_ms === "number")
+      diagnostics.sqlDurationMs = meta.timings.sql_duration_ms;
+    if (typeof meta?.rows_read === "number") diagnostics.rowsRead = meta.rows_read;
+    if (typeof meta?.total_attempts === "number") diagnostics.attempts = meta.total_attempts;
+  }
+  return rows.results.map((row) => ({
+    productId: String(row.product_id),
+    offerJson: row.offer_json ?? null,
+  }));
+}
+
+/**
  * First-paint live-rights shelf: an indexed seek for 25 candidates, not a
  * catalog-wide COUNT plus seven disjunctive facets. Hydration separately
  * obtains precise totals and filters from the ordinary catalog endpoint.
@@ -1619,6 +1704,8 @@ export async function firstPaintStorefrontShelf(
   currency: string | null,
   territory: string,
   diagnostics?: FirstPaintD1QueryMetrics,
+  /** Pre-ranked but legally untrusted; every ID still needs live primary-D1 validation. */
+  seedProductIds?: string[],
 ) {
   const started = performance.now();
   const url = new URL("https://internal.invalid/api/fore/catalog");
@@ -1671,6 +1758,7 @@ export async function firstPaintStorefrontShelf(
       binds: part.binds,
       limit: input.limit,
       currencyCountry: currency === null ? input.territory : undefined,
+      seedProductIds,
     },
     diagnostics,
   );

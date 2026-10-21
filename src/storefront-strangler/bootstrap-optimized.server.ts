@@ -1,11 +1,16 @@
 import { networkCountry, resolveAnonymousHomepageContext } from "./localization-optimized.server";
 import { formatGenericStorefrontPageRecord } from "./page-record";
-import { firstPaintStorefrontShelf } from "../features/fore/search.server";
+import {
+  firstPaintStorefrontShelf,
+  liveRightsForAnonymousPresentationSeeds,
+} from "../features/fore/search.server";
 import { enforceFirstPaintRateLimit } from "../features/fore/storefront-read-rate-limit.server";
 import type { CoveEnv } from "../features/fore/api.server";
 type OptimizedEnv = CoveEnv & {
   COVE_SSR_DIAGNOSTICS?: string;
   COVE_THIN_METADATA_COALESCE?: string;
+  COVE_THIN_RIGHTS_SHORTLIST?: string;
+  COVE_THIN_PRESENTATION_CACHE?: string;
 };
 
 /**
@@ -80,6 +85,21 @@ function anonymousMetadataFlight(
   );
   return { task, joined: false };
 }
+// A *presentation candidate list*, not an authorization cache. Every request
+// still sends these IDs through the original rights-filtered primary-D1 view.
+// Isolate-local state expires quickly and is never shared between countries.
+const pendingAnonymousCandidateSeeds = new WeakMap<
+  object,
+  Map<
+    string,
+    {
+      ids: string[];
+      books: Awaited<ReturnType<typeof firstPaintStorefrontShelf>>["results"];
+      hasMore: boolean;
+      expiresAt: number;
+    }
+  >
+>();
 export async function serveLeanAnonymousBootstrap(
   request: Request,
   env: OptimizedEnv,
@@ -118,6 +138,18 @@ export async function serveLeanAnonymousBootstrap(
     rowsRead?: number;
     measuredStatements?: number;
   } = {};
+  const seedEnabled = env.COVE_SSR_STAGING === "1" && env.COVE_THIN_RIGHTS_SHORTLIST === "1";
+  const seedKey = trustedCountry + ":" + (env.FORE_DEFAULT_TERRITORY || "US");
+  let seedBucket = pendingAnonymousCandidateSeeds.get(rawDb);
+  if (seedEnabled && !seedBucket) {
+    seedBucket = new Map();
+    pendingAnonymousCandidateSeeds.set(rawDb, seedBucket);
+  }
+  const existingSeed = seedEnabled ? seedBucket?.get(seedKey) : undefined;
+  const candidateSeed =
+    existingSeed && existingSeed.expiresAt > Date.now() ? existingSeed : undefined;
+  const reusePresentation =
+    !!candidateSeed && env.COVE_THIN_PRESENTATION_CACHE === "1" && seedEnabled;
   // Launch the authoritative primary-rights query *before* waiting for
   // independent replica presentation reads. No book leaves the Worker until
   // the rate limiter, markets, context, page and rights checks ALL succeed.
@@ -157,8 +189,70 @@ export async function serveLeanAnonymousBootstrap(
     timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
     // NULL currency means active-market currency is looked up in this SAME
     // live primary D1 statement with the full retail-grant view.
-    timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics)),
+    timed(
+      "catalog",
+      reusePresentation
+        ? liveRightsForAnonymousPresentationSeeds(
+            env,
+            trustedCountry,
+            candidateSeed!.ids,
+            d1Metrics,
+          ).then((approved) => {
+            const books = new Map(candidateSeed!.books.map((book) => [book.productId, book]));
+            const liveById = new Map(approved.map((row) => [row.productId, row]));
+            // D1 does not promise row order without ORDER BY. Preserve the
+            // original ranking while rejecting every ID absent from the
+            // current authoritative territorial-rights result.
+            const results = candidateSeed!.ids.flatMap((productId) => {
+              const row = liveById.get(productId);
+              const cached = books.get(productId);
+              if (!row || !cached) return [];
+              // Retain only public presentation, but always take the current
+              // primary-D1 offer and availability from this same fresh query.
+              const offer = row.offerJson
+                ? (JSON.parse(row.offerJson) as typeof cached.offer)
+                : undefined;
+              return [{ ...cached, offer }];
+            });
+            return {
+              results,
+              count: results.length,
+              next: candidateSeed!.hasMore ? "/api/fore/catalog?page=2&sort=popular" : null,
+              preview: true as const,
+              search: {
+                queryId: null,
+                backend: "d1-fts5" as const,
+                processingTimeMs: 0,
+                pageSize: 24,
+              },
+            };
+          })
+        : firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics, candidateSeed?.ids),
+    ),
   ]);
+  if (seedEnabled) {
+    if (!candidateSeed && catalog.results.length) {
+      const ids = catalog.results
+        .map((book) => String(book.productId || ""))
+        .filter(Boolean)
+        .slice(0, 60);
+      if (ids.length) {
+        seedBucket!.set(seedKey, {
+          ids,
+          books: catalog.results,
+          hasMore: !!catalog.next,
+          expiresAt: Date.now() + 30_000,
+        });
+      }
+    } else if (candidateSeed?.hasMore && !catalog.next) {
+      // A pre-ranked shortlist may not include page two. Keep its previously
+      // observed presentation-only next-page hint, never rights information.
+      catalog.next = "/api/fore/catalog?page=2&sort=popular";
+    }
+    if (env.COVE_SSR_DIAGNOSTICS === "1") timings.catalog_seeded = candidateSeed ? 1 : 0;
+    if (env.COVE_SSR_DIAGNOSTICS === "1")
+      timings.catalog_presentation_reused = reusePresentation ? 1 : 0;
+  }
   if (context.rightsCountry !== trustedCountry)
     throw new Error("Anonymous country mismatch; refuse to render a legal-rights shelf.");
   // Only the presentation projection is combined. No entitlement data comes

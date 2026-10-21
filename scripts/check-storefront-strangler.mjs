@@ -70,6 +70,9 @@ try {
     COVE_SSR_STAGING: "1",
     COVE_STRANGLER_MODE: "isolated-evaluation",
     COVE_STRANGLER_EXPERIENCE: "1",
+    COVE_THIN_RIGHTS_SHORTLIST: "1",
+    COVE_THIN_PRESENTATION_CACHE: "1",
+    COVE_SSR_DIAGNOSTICS: "1",
     COVE_STRANGLER_DATABASE_ID: STAGE_DB,
     COVE_SSR_STAGING_GATE_KEY: "a".repeat(64),
     COVE_STOREFRONT_READ_LIMITER: {
@@ -293,6 +296,25 @@ try {
     ).status,
     503,
   );
+  // Test the real-preview read-only wrapper against a local synthetic fixture,
+  // proving its stable identity permits presentation reuse while each new
+  // request still performs an authoritative primary rights query.
+  const realPreviewEnv = {
+    ...env,
+    COVE_STRANGLER_MODE: "production-acceptance",
+    COVE_STRANGLER_DATABASE_ID: PROD_DB,
+    COVE_THIN_RIGHTS_SHORTLIST: "1",
+    COVE_THIN_PRESENTATION_CACHE: "1",
+    COVE_SSR_DIAGNOSTICS: "1",
+  };
+  const firstRealPreview = await worker.fetch(request(), realPreviewEnv);
+  const secondRealPreview = await worker.fetch(request(), realPreviewEnv);
+  assert.equal(firstRealPreview.status, 200);
+  assert.equal(secondRealPreview.status, 200);
+  assert.match(
+    secondRealPreview.headers.get("server-timing") || "",
+    /cove_catalog_presentation_reused;dur=1\.0/,
+  );
   assert.ok(firstBootstrap.catalog.results.length > 1);
   // The real seeded, rights-checked synthetic HTML is reused for interaction
   // testing in Chromium rather than testing a disconnected hand-written page.
@@ -302,6 +324,24 @@ try {
     renderStranglerStorefront(firstBootstrap, "http://127.0.0.1", true),
   );
 
+  // A presentation-only shortlist may persist, but every request must
+  // revalidate each visible title against the current D1 rights view.
+  const seedFirst = await worker.fetch(request(), env);
+  assert.equal(seedFirst.status, 200);
+  const seedSecond = await worker.fetch(request(), env);
+  assert.equal(seedSecond.status, 200);
+  assert.match(seedSecond.headers.get("server-timing") || "", /cove_catalog_seeded;dur=1/);
+  assert.match(
+    seedSecond.headers.get("server-timing") || "",
+    /cove_catalog_presentation_reused;dur=1/,
+  );
+  const productIds = (html) =>
+    [...html.matchAll(/data-product="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(
+    productIds(await seedSecond.text()),
+    productIds(await seedFirst.text()),
+    "Warm presentation must retain canonical first-paint book ordering",
+  );
   const first = firstBootstrap.catalog.results[0];
   await env.DB.prepare("UPDATE products SET storefront_status='inactive' WHERE id=?")
     .bind(first.productId)

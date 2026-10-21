@@ -90,6 +90,18 @@ function readOnlyStageD1<T extends object>(db: T, approved = new WeakMap<object,
   });
 }
 
+// Preserve the strictly read-only D1 proxy's isolate identity between
+// requests. This enables stage-only presentation reuse without ever caching
+// a territorial grant or weakening SQL validation.
+const stableReadOnlyStageBindings = new WeakMap<object, object>();
+function stableReadOnlyStageD1<T extends object>(db: T): T {
+  const existing = stableReadOnlyStageBindings.get(db);
+  if (existing) return existing as T;
+  const wrapped = readOnlyStageD1(db);
+  stableReadOnlyStageBindings.set(db, wrapped);
+  return wrapped;
+}
+
 export default {
   async fetch(request: Request, env: StorefrontStranglerEnv): Promise<Response> {
     // Fail closed even under an accidental deployment or config substitution.
@@ -219,7 +231,9 @@ export default {
       // No presentation cache or independent authorizer is activated here.
       // Main's authoritative live territorial-rights bootstrap remains unchanged.
       const bootstrapEnv =
-        productionAcceptance || customerGateway ? { ...env, DB: readOnlyStageD1(env.DB) } : env;
+        productionAcceptance || customerGateway
+          ? { ...env, DB: stableReadOnlyStageD1(env.DB) }
+          : env;
       const response = await serveLeanAnonymousBootstrap(
         bootstrapRequest,
         bootstrapEnv,

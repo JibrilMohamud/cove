@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - "src/storefront-strangler/**"
+      - "src/features/fore/search.server.ts"
+      - "src/features/fore/catalog-model.server.ts"
       - "scripts/build-storefront-strangler.mjs"
       - "scripts/check-storefront-strangler.mjs"
       - "scripts/test-storefront-strangler-browser.mjs"
@@ -81,7 +83,7 @@ jobs:
     needs: isolated-evaluation-only
     # Only the reviewed same-repository release candidate may receive a
     # scoped Cloudflare token. Forked PRs and other branches cannot deploy.
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 253 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'release/fast-storefront-live-parity-20261021'
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 261 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'perf/stage-rights-shortlist-20261021'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -98,6 +100,16 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Install pinned Wrangler once (avoid per-deploy npm network resolution)
+        run: |
+          for attempt in 1 2 3; do
+            if npm install --no-save --no-package-lock --no-audit --no-fund wrangler@4.151.0; then
+              break
+            fi
+            sleep "$((attempt * 3))"
+          done
+          test -x node_modules/.bin/wrangler
+          node_modules/.bin/wrangler --version
       - name: Install Chromium for deployed stage mobile-LCP measurements
         run: npx playwright install --with-deps chromium
       - name: Build immutable, isolated interactive Worker

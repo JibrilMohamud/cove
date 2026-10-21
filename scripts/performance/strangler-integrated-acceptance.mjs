@@ -27,6 +27,10 @@ config.preview_urls = false;
 // exercised with a fake CORE by the same-SHA local integration suite.
 config.services = [];
 config.vars.FORE_PUBLIC_URL = origin;
+config.vars.COVE_THIN_METADATA_COALESCE = "1";
+config.vars.COVE_THIN_RIGHTS_SHORTLIST = "1";
+config.vars.COVE_THIN_PRESENTATION_CACHE = "1";
+config.vars.COVE_SSR_DIAGNOSTICS = "1";
 const configString = JSON.stringify(config, null, 2);
 assert.ok(!configString.includes(prodDbId), "Production D1 must never be bound");
 assert.ok(!config.routes && !config.route && !config.r2_buckets && !config.queues);
@@ -51,16 +55,12 @@ const save = () =>
   );
 let stageKey = "";
 function command(args, input) {
-  const run = spawnSync(
-    "npm",
-    ["exec", "--yes", "--package=wrangler@4.151.0", "--", "wrangler", ...args],
-    {
-      input,
-      encoding: "utf8",
-      timeout: 180_000,
-      env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" },
-    },
-  );
+  const run = spawnSync("./node_modules/.bin/wrangler", args, {
+    input,
+    encoding: "utf8",
+    timeout: 180_000,
+    env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" },
+  });
   if (run.status !== 0 || run.error)
     throw Error(
       "Wrangler " +
@@ -128,6 +128,15 @@ async function sample() {
       failure: response.headers.get("x-cove-stage-failure") || null,
       observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
       renderer: response.headers.get("x-cove-renderer"),
+      serverTiming: response.headers.get("server-timing"),
+      edgeError:
+        [404, 503].includes(response.status) && !response.headers.has("x-cove-renderer")
+          ? {
+              ray: response.headers.get("cf-ray"),
+              contentType: response.headers.get("content-type"),
+              bodyPrefix: html.slice(0, 240),
+            }
+          : null,
     };
   } catch (error) {
     return { ok: false, ms: performance.now() - start, error: error.name };
@@ -167,7 +176,23 @@ async function deployFresh(round) {
       Date.parse(latest.created_on) >= rotatedAt - 3000 &&
       latest.versions?.some((version) => version.percentage === 100)
     ) {
-      await new Promise((resolve) => setTimeout(resolve, 3500));
+      // A 100%-deployed script is not necessarily reachable through its
+      // newly created workers.dev hostname. Allow control-plane DNS and edge
+      // propagation to settle WITHOUT issuing a request that warms the
+      // Worker: the next sample remains a genuine first execution.
+      const subdomain = await cloudflare(
+        "GET",
+        `/accounts/${account}/workers/scripts/${name}/subdomain`,
+      );
+      assert.equal(subdomain.enabled, true, "Workers.dev route has not been enabled");
+      const publishedAt = Date.parse(latest.created_on);
+      assert.ok(Number.isFinite(publishedAt), "Deployment timestamp unavailable");
+      const remaining = Math.max(0, publishedAt + 25_000 - Date.now());
+      console.log(
+        "ROUTE_PROPAGATION_GRACE",
+        JSON.stringify({ round, waitMs: remaining, firstRequestStillCold: true }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, remaining));
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 1800));
@@ -189,10 +214,7 @@ try {
     console.log("COLD_PROBE", JSON.stringify({ round: i + 1, ...cold }));
     save();
   }
-  assert.ok(
-    evidence.cold.every((cold) => cold.ok && cold.ms < 800),
-    "Independent cold visits failed validity or 800ms bound",
-  );
+  evidence.coldPass = evidence.cold.every((cold) => cold.ok && cold.ms < 800);
   const unauthorized = await fetch(origin, { signal: AbortSignal.timeout(6000) });
   assert.equal(unauthorized.status, 401, "Stage gate must reject requests without bearer");
   for (const concurrency of [1, 4, 8, 16, 32]) {
@@ -201,8 +223,8 @@ try {
     evidence.bursts.push({ concurrency, ...summary });
     console.log("BURST_RESULT", JSON.stringify({ concurrency, ...summary }));
     save();
-    assert.equal(summary.valid, concurrency, "Concurrent request failed");
-    assert.ok(summary.max < 800, "Concurrent maximum exceeded 800ms");
+    // Preserve the exact bounds, but continue gathering sustained-load
+    // attribution when an earlier burst has failed.
   }
   const offered = 2000;
   const inFlight = new Set();
@@ -246,8 +268,34 @@ try {
     maxOutstanding,
     ...summary,
   };
+  const timing = (sample, metric) => {
+    const match = (sample.serverTiming || "").match(
+      new RegExp("(?:^|,\\s*)" + metric + ";dur=([0-9.]+)"),
+    );
+    return match ? Number(match[1]) : null;
+  };
+  const latency95 = (metric) => {
+    const values = results.map((entry) => timing(entry, metric)).filter(Number.isFinite);
+    return percentile(values, 0.95);
+  };
+  evidence.sustained.rightsSeed = {
+    used: results.filter((result) => timing(result, "cove_catalog_seeded") === 1).length,
+    reusedPresentation: results.filter(
+      (result) => timing(result, "cove_catalog_presentation_reused") === 1,
+    ).length,
+    measured: results.filter((result) => timing(result, "cove_catalog_seeded") !== null).length,
+    p95CatalogD1Ms: latency95("cove_catalog"),
+    p95CatalogSqlMs: latency95("cove_catalog_sql"),
+    p95ContextD1Ms: latency95("cove_context"),
+    p95ContextSqlMs: latency95("cove_context_sql"),
+  };
   console.log("SUSTAINED_RESULT", JSON.stringify(evidence.sustained));
   save();
+  assert.ok(evidence.coldPass, "Independent cold visits failed validity or 800ms bound");
+  assert.ok(
+    evidence.bursts.every((burst) => burst.valid === burst.concurrency && burst.max < 800),
+    "Concurrent requests failed validity or 800ms bound",
+  );
   assert.equal(dropped, 0, "Offered arrivals dropped");
   assert.equal(summary.valid, offered, "Sustained requests failed");
   assert.ok(
