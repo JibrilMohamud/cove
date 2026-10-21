@@ -214,10 +214,14 @@ export default {
       // Main's authoritative live territorial-rights bootstrap remains unchanged.
       const bootstrapEnv =
         productionAcceptance || customerGateway ? { ...env, DB: readOnlyStageD1(env.DB) } : env;
-      const response = await serveLeanAnonymousBootstrap(bootstrapRequest, bootstrapEnv, (phase, error) => {
-        bootstrapSubphase = ["context", "catalog", "limit"].includes(phase) ? phase : "unknown";
-        bootstrapSubkind = bootstrapFailureKind(error);
-      });
+      const response = await serveLeanAnonymousBootstrap(
+        bootstrapRequest,
+        bootstrapEnv,
+        (phase, error) => {
+          bootstrapSubphase = ["context", "catalog", "limit"].includes(phase) ? phase : "unknown";
+          bootstrapSubkind = bootstrapFailureKind(error);
+        },
+      );
       if (!response.ok) return finish(new Response(null, { status: response.status }));
       const bootstrap = (await response.json()) as StorefrontBootstrap;
       if (bootstrap.context.rightsCountry !== headers.get("x-cove-client-country"))
