@@ -6,6 +6,7 @@ on:
       - "scripts/build-storefront-strangler.mjs"
       - "scripts/check-storefront-strangler.mjs"
       - "scripts/check-storefront-prepared-catalog.mjs"
+      - "wrangler.storefront-candidate-producer.stage.jsonc"
       - "wrangler.storefront-strangler.stage.jsonc"
       - ".github/workflows/storefront-strangler-architecture.yml"
       - "docs/architecture/STRANGLER_STOREFRONT_M1.md"
@@ -43,6 +44,7 @@ jobs:
             "scripts/check-storefront-prepared-catalog.mjs",
             "src/storefront-strangler/prepared-catalog.server.ts",
             "src/features/fore/catalog-model.server.ts",
+            "src/storefront-strangler/producer.worker.ts",
           ]) {
             const raw = fs.readFileSync(path, "utf8");
             const settings = await prettier.resolveConfig(path);

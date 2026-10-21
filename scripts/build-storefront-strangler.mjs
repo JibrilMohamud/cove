@@ -41,3 +41,15 @@ console.log(
     productionRouted: false,
   }),
 );
+
+await build({
+  entryPoints: ["src/storefront-strangler/producer.worker.ts"],
+  outfile: ".output/strangler/producer.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});

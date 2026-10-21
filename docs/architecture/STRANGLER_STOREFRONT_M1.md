@@ -80,3 +80,14 @@ closed without falling back to 50,000-row D1 rankings. The legacy unflagged
 bootstrap remains untouched. The candidate shortlist may not include every
 newly ranked book until refresh, so ranking/pagination parity must be proven
 before the opt-in can serve customers. This is NOT a rights or LCP certification.
+
+## M2 dedicated producer execution
+
+A separate `producer.worker.ts` now consumes the private snapshot writer and
+reads a bounded active-market list in an **out-of-band scheduled execution**.
+It cannot handle HTTP storefront requests and its checked deployment
+configuration has no public routes, preview URL, or automatic cron. The
+producer's synthetic D1 and private R2 binding have no production data; the
+named R2 staging bucket is a required resource to provision before deployment
+and is not assumed to exist. Only explicitly scheduled operator testing can
+publish candidate projections. End-to-end live capacity is still unproven.

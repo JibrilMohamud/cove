@@ -14,6 +14,7 @@ try {
       prepared: "src/storefront-strangler/prepared-catalog.server.ts",
       canonical: "src/features/fore/search.server.ts",
       worker: "src/storefront-strangler/worker.ts",
+      producer: "src/storefront-strangler/producer.worker.ts",
     },
     bundle: true,
     platform: "node",
@@ -89,6 +90,30 @@ try {
     return req;
   }
   assert.equal((await worker.fetch(request(), env)).status, 503, "no fallback on missing model");
+
+  // No Worker route can invoke the out-of-band candidate publisher.
+  const producer = (await import(path.join(root, "producer.js"))).default;
+  const config = JSON.parse(
+    fs.readFileSync("wrangler.storefront-candidate-producer.stage.jsonc", "utf8"),
+  );
+  assert.equal(config.workers_dev, false);
+  assert.equal(config.preview_urls, false);
+  assert.ok(!config.routes && !config.route && !config.triggers);
+  assert.equal(config.d1_databases.length, 1);
+  assert.equal(config.d1_databases[0].database_id, env.COVE_STRANGLER_DATABASE_ID);
+  assert.equal(config.r2_buckets.length, 1);
+  assert.equal(config.r2_buckets[0].binding, "PRESENTATION");
+  assert.equal((await producer.fetch()).status, 404);
+  const pending = [];
+  const ctx = { waitUntil(promise) { pending.push(promise); } };
+  assert.throws(() => producer.scheduled({ cron: "* * * * *" }, env, ctx));
+  assert.throws(() => producer.scheduled({ cron: "*/5 * * * *" }, {
+    ...env, COVE_STRANGLER_DATABASE_ID: "4bd657ac-8789-403e-a28c-93aba8d0a989",
+  }, ctx));
+  producer.scheduled({ cron: "*/5 * * * *" }, env, ctx);
+  await Promise.all(pending);
+  assert.ok(objects.has(privateCandidateKey("US")));
+
   for (const country of ["US", "CA", "SA", "JP"]) {
     const result = await produceCandidateSnapshot(db, country, store);
     const projected = await servePreparedCatalog(db, store, country);
