@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-const source = JSON.parse(
-  fs.readFileSync("wrangler.storefront-strangler.stage.jsonc", "utf8"),
-);
+const source = JSON.parse(fs.readFileSync("wrangler.storefront-strangler.stage.jsonc", "utf8"));
 const producer = JSON.parse(
   fs.readFileSync("wrangler.storefront-candidate-producer.stage.jsonc", "utf8"),
 );
@@ -27,8 +25,7 @@ ephemeral.main = "index.mjs";
 ephemeral.preview_urls = false;
 ephemeral.r2_buckets = [{ binding: "PRESENTATION", bucket_name: bucket }];
 ephemeral.vars.COVE_STRANGLER_READ_MODEL = "0";
-ephemeral.vars.FORE_PUBLIC_URL =
-  "https://cove-strangler-m1-staging.cove-jibrilmohamud.workers.dev";
+ephemeral.vars.FORE_PUBLIC_URL = "https://cove-strangler-m1-staging.cove-jibrilmohamud.workers.dev";
 // One CI runner shares a source IP. Lift the synthetic-only per-IP limiter
 // in this transient config so it measures capacity instead of abuse controls.
 // Canonical production limiter behavior remains separately covered by tests.
@@ -36,4 +33,6 @@ ephemeral.ratelimits[0].simple.limit = 10000;
 fs.mkdirSync(".output/strangler", { recursive: true });
 const file = path.join(".output", "strangler", "protected-capacity.stage.jsonc");
 fs.writeFileSync(file, JSON.stringify(ephemeral, null, 2));
-console.log("COVE_STAGE_CAPACITY_CONFIG: synthetic D1, private R2, gated ingress; production config unchanged.");
+console.log(
+  "COVE_STAGE_CAPACITY_CONFIG: synthetic D1, private R2, gated ingress; production config unchanged.",
+);
