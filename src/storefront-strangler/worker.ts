@@ -50,7 +50,13 @@ function readOnlyStageD1<T extends object>(db: T, approved = new WeakMap<object,
       if (key === "prepare") {
         return (sql: string) => {
           const trimmed = sql.trim();
-          if (!/^(?:SELECT|WITH|EXPLAIN)\s/i.test(trimmed) || /;\s*\S/.test(trimmed))
+          if (
+            !/^(?:SELECT|WITH)\s/i.test(trimmed) ||
+            /;\s*\S/.test(trimmed) ||
+            /\b(?:INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|ATTACH|DETACH|PRAGMA|VACUUM)\b/i.test(
+              trimmed,
+            )
+          )
             throw new Error("Production catalog acceptance is read-only");
           const real = (target as { prepare(sql: string): object }).prepare(sql);
           return wrapStatement(real);
