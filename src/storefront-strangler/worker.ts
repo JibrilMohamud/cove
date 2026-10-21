@@ -27,6 +27,39 @@ export type StorefrontStranglerEnv = CoveEnv & {
   CORE: { fetch(request: Request): Promise<Response> };
 };
 
+/** Hard prohibit D1 writes by the real-catalog, credential-gated preview. */
+function readOnlyStageD1<T extends object>(db: T): T {
+  return new Proxy(db, {
+    get(target, key) {
+      if (key === "prepare") {
+        return (sql: string) => {
+          const trimmed = sql.trim();
+          if (
+            !/^(?:SELECT|WITH|EXPLAIN)\s/i.test(trimmed) ||
+            /;\s*\S/.test(trimmed)
+          )
+            throw new Error("Production catalog acceptance is read-only");
+          return (target as { prepare(sql: string): unknown }).prepare(sql);
+        };
+      }
+      if (key === "withSession") {
+        return (constraint: string) => {
+          const session = (target as { withSession(arg: string): object }).withSession(
+            constraint,
+          );
+          return readOnlyStageD1(session);
+        };
+      }
+      if (key === "batch" || key === "exec")
+        return () => {
+          throw new Error("Production catalog acceptance cannot batch or mutate D1");
+        };
+      const value = Reflect.get(target, key, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+
 export default {
   async fetch(request: Request, env: StorefrontStranglerEnv): Promise<Response> {
     // Fail closed even under an accidental deployment or config substitution.
@@ -109,7 +142,10 @@ export default {
       // Preserve it unchanged; all failures remain fail-closed and classified.
       // No presentation cache or independent authorizer is activated here.
       // Main's authoritative live territorial-rights bootstrap remains unchanged.
-      const response = await serveLeanAnonymousBootstrap(bootstrapRequest, env);
+      const bootstrapEnv = productionAcceptance
+        ? { ...env, DB: readOnlyStageD1(env.DB) }
+        : env;
+      const response = await serveLeanAnonymousBootstrap(bootstrapRequest, bootstrapEnv);
       if (!response.ok) return finish(new Response(null, { status: response.status }));
       const bootstrap = (await response.json()) as StorefrontBootstrap;
       if (bootstrap.context.rightsCountry !== headers.get("x-cove-client-country"))
