@@ -132,13 +132,14 @@ async function sample() {
       observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
       renderer: response.headers.get("x-cove-renderer"),
       serverTiming: response.headers.get("server-timing"),
-      edgeError: response.status === 503 && !response.headers.has("x-cove-renderer")
-        ? {
-            ray: response.headers.get("cf-ray"),
-            contentType: response.headers.get("content-type"),
-            bodyPrefix: html.slice(0, 240),
-          }
-        : null,
+      edgeError:
+        response.status === 503 && !response.headers.has("x-cove-renderer")
+          ? {
+              ray: response.headers.get("cf-ray"),
+              contentType: response.headers.get("content-type"),
+              bodyPrefix: html.slice(0, 240),
+            }
+          : null,
     };
   } catch (error) {
     return { ok: false, ms: performance.now() - start, error: error.name };
