@@ -79,3 +79,15 @@ The diagnostic branch now sums the four context D1 batch statements'
 are enabled; no SQL, rights checks, or normal response data have changed.
 High context wall time with low `context_sql` is evidence of dispatch,
 replica-selection, queueing or other service waits, not proof of one cause.
+
+## Experiment: isolated in-flight metadata coalescing
+
+`COVE_THIN_METADATA_COALESCE=1` is enabled only in the synthetic-stage thin
+worker. It merges *pending* identical anonymous context batches on the same
+Worker isolate and D1 binding. The key includes trusted territory, network
+provenance, fallback and exact Accept-Language. It cannot share any completed
+result or rights decision. Every request still executes an independent
+live-primary rights/catalog query and limiter check; authenticated requests
+never enter this path. Tests cover simultaneous same-locale requests, locale
+isolation, no settlement caching and failed-promise cleanup. Reject the
+optimization unless the full 50/75/90/100 RPS and cold/rights gates pass.

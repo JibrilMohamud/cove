@@ -253,6 +253,50 @@ try {
     assert.match(html, /role="search"/);
     assert.doesNotMatch(html, /<script/);
   }
+  // The isolated metadata batch may be coalesced in flight, but cannot
+  // reuse an already completed or failed promise; rights remain independent.
+  const originalDb = env.DB;
+  let batches = 0;
+  const countedDb = {
+    prepare(sql) { return originalDb.prepare(sql); },
+    async batch(stmts) {
+      batches++;
+      await new Promise((resolve) => setTimeout(resolve, 35));
+      return originalDb.batch(stmts);
+    },
+  };
+  const singleflight = {
+    ...env, DB: countedDb,
+    COVE_THIN_METADATA_COALESCE: "1",
+    COVE_SSR_DIAGNOSTICS: "1",
+  };
+  const together = await Promise.all([
+    worker.fetch(request("US"), singleflight),
+    worker.fetch(request("US"), singleflight),
+  ]);
+  assert.deepEqual(together.map((response) => response.status), [200, 200]);
+  assert.equal(batches, 1, "Same-market concurrent anonymous reads share only the metadata batch");
+  assert.match(together[1].headers.get("server-timing") || "", /cove_context_joined;dur=1/);
+  const shelves = await Promise.all(together.map((response) => response.text()));
+  assert.deepEqual(
+    [...shelves[0].matchAll(/data-product="([^"]+)"/g)].map((x) => x[1]),
+    [...shelves[1].matchAll(/data-product="([^"]+)"/g)].map((x) => x[1]),
+  );
+  assert.equal((await worker.fetch(request("US"), singleflight)).status, 200);
+  assert.equal(batches, 2, "Completed context metadata must not be cached");
+  const langs = await Promise.all([
+    worker.fetch(request("US", { "accept-language": "fr-FR" }), singleflight),
+    worker.fetch(request("US", { "accept-language": "en-US" }), singleflight),
+  ]);
+  assert.deepEqual(langs.map((x) => x.status), [200, 200]);
+  assert.equal(batches, 4, "Different language preferences must not share a batch");
+  const failingDb = {
+    ...countedDb,
+    async batch() { batches++; throw Error("synthetic context outage"); },
+  };
+  assert.equal((await worker.fetch(request("US"), { ...singleflight, DB: failingDb })).status, 503);
+  assert.equal((await worker.fetch(request("US"), { ...singleflight, DB: failingDb })).status, 503);
+  assert.equal(batches, 6, "Failed context promise must not be reused");
   const initial = await (
     await serveLeanAnonymousBootstrap(
       new Request("https://cove.test/api/fore/storefront/bootstrap", {

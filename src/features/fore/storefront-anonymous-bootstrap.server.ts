@@ -47,6 +47,30 @@ export function canUseLeanAnonymousBootstrap(
  * country-filtered retail availability STILL queries env.DB (primary).
  * A new session is created for each independent presentation read.
  */
+// Promise-level coalescing only: isolate-local; no settled metadata or rights cache.
+const pendingAnonymousMetadata = new WeakMap<
+  object, Map<string, Promise<Awaited<ReturnType<typeof resolveAnonymousHomepageContext>>>>
+>();
+function anonymousMetadataFlight(
+  binding: object,
+  key: string,
+  create: () => Promise<Awaited<ReturnType<typeof resolveAnonymousHomepageContext>>>,
+) {
+  let pending = pendingAnonymousMetadata.get(binding);
+  if (!pending) {
+    pending = new Map();
+    pendingAnonymousMetadata.set(binding, pending);
+  }
+  const existing = pending.get(key);
+  if (existing) return { task: existing, joined: true };
+  const task = Promise.resolve().then(create);
+  pending.set(key, task);
+  task.then(
+    () => { if (pending!.get(key) === task) pending!.delete(key); },
+    () => { if (pending!.get(key) === task) pending!.delete(key); },
+  );
+  return { task, joined: false };
+}
 export async function serveLeanAnonymousBootstrap(
   request: Request,
   env: CoveEnv,
@@ -88,15 +112,26 @@ export async function serveLeanAnonymousBootstrap(
   // Launch the authoritative primary-rights query *before* waiting for
   // independent replica presentation reads. No book leaves the Worker until
   // the rate limiter, markets, context, page and rights checks ALL succeed.
-  const contextPromise = timed(
-    "context",
+  const fetchContext = () =>
     resolveAnonymousHomepageContext(
-      readMetadata(),
-      request,
-      env.FORE_DEFAULT_TERRITORY || "US",
-      contextMetrics,
-    ),
-  );
+      readMetadata(), request, env.FORE_DEFAULT_TERRITORY || "US", contextMetrics,
+    );
+  const countrySource = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").source;
+  const coalesce =
+    env.COVE_SSR_STAGING === "1" &&
+    env.COVE_THIN_METADATA_COALESCE === "1" &&
+    (request.headers.get("accept-language") || "").length <= 512;
+  const flight = coalesce
+    ? anonymousMetadataFlight(
+        rawDb,
+        JSON.stringify([
+          trustedCountry, countrySource, env.FORE_DEFAULT_TERRITORY || "US",
+          request.headers.get("accept-language") || "",
+        ]),
+        fetchContext,
+      )
+    : { task: fetchContext(), joined: false };
+  const contextPromise = timed("context", flight.task);
   // The read-only metadata batch now also performs the active market/locale
   // lookup. No second dependent D1 service call is needed for anonymous SSR.
   const [context, , catalog] = await Promise.all([
@@ -127,6 +162,7 @@ export async function serveLeanAnonymousBootstrap(
   }
   // Keep measured actual primary SQL duration, rows read and retries separate
   // from the full D1 service/network request duration.
+  if (env.COVE_SSR_DIAGNOSTICS === "1" && flight.joined) timings.context_joined = 1;
   if (d1Metrics.sqlDurationMs !== undefined) timings.catalog_sql = d1Metrics.sqlDurationMs;
   if (env.COVE_SSR_DIAGNOSTICS === "1" && contextMetrics.sqlDurationMs !== undefined)
     timings.context_sql = contextMetrics.sqlDurationMs;
