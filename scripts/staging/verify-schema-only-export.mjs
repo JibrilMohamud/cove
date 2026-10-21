@@ -4,10 +4,18 @@ import fs from "node:fs";
 const file = process.argv[2];
 if (!file || !fs.existsSync(file)) throw Error("Missing protected schema export");
 const sql = fs.readFileSync(file, "utf8");
-const tables = [...sql.matchAll(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?["\x60\[]?([a-z_][a-z0-9_]*)/gi)]
-  .map((match) => match[1].toLowerCase());
-const known = ["products","rights_grants","auth_accounts","commerce_orders",
-  "soundtrack_recordings","literary_profiles","gutenberg_source_cache"];
+const tables = [
+  ...sql.matchAll(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?["\x60\[]?([a-z_][a-z0-9_]*)/gi),
+].map((match) => match[1].toLowerCase());
+const known = [
+  "products",
+  "rights_grants",
+  "auth_accounts",
+  "commerce_orders",
+  "soundtrack_recordings",
+  "literary_profiles",
+  "gutenberg_source_cache",
+];
 for (const table of known) {
   assert.ok(tables.includes(table), "Missing production schema table: " + table);
 }
@@ -22,10 +30,12 @@ assert.doesNotMatch(
   "Schema-only export unexpectedly includes customer/content data",
 );
 const unique = new Set(tables);
-console.log(JSON.stringify({
-  schemaOnly: true,
-  tableDeclarations: tables.length,
-  uniqueTables: unique.size,
-  expectedTablesPresent: known.length,
-  bytes: sql.length,
-}));
+console.log(
+  JSON.stringify({
+    schemaOnly: true,
+    tableDeclarations: tables.length,
+    uniqueTables: unique.size,
+    expectedTablesPresent: known.length,
+    bytes: sql.length,
+  }),
+);

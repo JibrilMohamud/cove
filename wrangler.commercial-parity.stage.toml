@@ -1,14 +1,16 @@
 # Never route customers or reuse prod DB/R2. This staging deployment has no cron.
 # Gate must be installed before use. Do not associate a custom domain.
 name = "cove-commercial-parity-ssr-staging-20261020"
-main = ".output/server/index.mjs"
+main = "scripts/staging/observed-ssr-entry.mjs"
 compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 minify = false
+upload_source_maps = true
 workers_dev = true
-# Controlled stage-only test: Worker compute colocated toward D1 if Cloudflare learns the dependency.
+# Controlled staging experiment: the isolated D1 primary reports ENAM/IAD.
+# Use an explicit nearby region rather than waiting for Smart Placement training.
 [placement]
-mode = "smart"
+region = "aws:us-east-1"
 [assets]
 directory = "./.output/public"
 binding = "ASSETS"
@@ -39,7 +41,9 @@ FORE_CONTENT_HANDOFF_ENABLED = "0"
 FORE_LITERARY_PREPARED_IMPORT_ENABLED = "0"
 FORE_CONTENT_BUDGET_MODE = "primary"
 # Experiment only: share pending presentation D1 calls, never cache rights.
-FORE_ANON_CONTEXT_SINGLEFLIGHT = "1"
+FORE_ANON_CONTEXT_SINGLEFLIGHT = "0"
+FORE_ANON_CONTEXT_ONE_READ = "1"
+FORE_ANON_BOOTSTRAP_BATCH = "1"
 # Stage only; normal/production public API remains on its existing adapter.
 FORE_LEAN_ANON_PUBLIC_API = "1"
 FORE_LEAN_ANON_CATALOG = "1"

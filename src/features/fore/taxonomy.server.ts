@@ -242,16 +242,19 @@ export async function taxonomyTree(
  */
 export async function prefetchAnonymousHomepageCandidates(db: CatalogDB, territory: string) {
   if (!/^[A-Z]{2}$/.test(territory)) throw new ApiError(400, "Invalid homepage territory.");
-  const result = await db.prepare(
-    "SELECT * FROM storefront_pages WHERE path='/' AND status='published'" +
-      " AND (territory_code IS NULL OR territory_code=?)" +
-      " AND (starts_at IS NULL OR starts_at<=datetime('now'))" +
-      " AND (ends_at IS NULL OR ends_at>datetime('now')) LIMIT 2",
-  ).bind(territory).all<any>();
+  const result = await db
+    .prepare(
+      "SELECT * FROM storefront_pages WHERE path='/' AND status='published'" +
+        " AND (territory_code IS NULL OR territory_code=?)" +
+        " AND (starts_at IS NULL OR starts_at<=datetime('now'))" +
+        " AND (ends_at IS NULL OR ends_at>datetime('now')) LIMIT 2",
+    )
+    .bind(territory)
+    .all<Record<string, unknown>>();
   return result.results;
 }
 
-function materializeHomepagePage(path: string, row: any) {
+function materializeHomepagePage(path: string, row: Record<string, unknown> | null) {
   if (!row) {
     if (["/", "/store", "/search"].includes(path)) {
       return {
@@ -289,16 +292,18 @@ function materializeHomepagePage(path: string, row: any) {
  * use original live D1 locale-filtered selector for ambiguous page sets. */
 export async function resolvePrefetchedAnonymousHomepage(
   db: CatalogDB,
-  candidates: any[],
+  candidates: Record<string, unknown>[],
   territory: string,
   language: string,
   locale: string,
 ) {
-  if (candidates.length > 1)
-    return resolveStorefrontPage(db, "/", territory, language, locale);
+  if (candidates.length > 1) return resolveStorefrontPage(db, "/", territory, language, locale);
   const row = candidates[0];
-  if (row && row.language_code != null &&
-      String(row.language_code).toLowerCase() !== language.toLowerCase())
+  if (
+    row &&
+    row.language_code != null &&
+    String(row.language_code).toLowerCase() !== language.toLowerCase()
+  )
     return materializeHomepagePage("/", null);
   return materializeHomepagePage("/", row ?? null);
 }

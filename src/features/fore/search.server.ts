@@ -1733,12 +1733,9 @@ export async function searchCatalog(
   // Skip loading the recommendation/ingestion dependency graph for ordinary
   // unpersonalized catalog pages. Rights filtering below is still mandatory.
   const personalizationEligible = !!input.query && input.sort === "relevance";
-  const recommendations = personalizationEligible
-    ? await import("./recommendations.server")
-    : null;
+  const recommendations = personalizationEligible ? await import("./recommendations.server") : null;
   const personalizeWindow =
-    personalizationEligible &&
-    (await recommendations!.personalizedSearchEnabled(env.DB, userId));
+    personalizationEligible && (await recommendations!.personalizedSearchEnabled(env.DB, userId));
   const start = (input.page - 1) * input.limit,
     windowLimit = Math.min(200, Math.max(input.limit * 5, start + input.limit));
   const searchInputForBackend =

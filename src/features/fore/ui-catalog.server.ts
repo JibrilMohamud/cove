@@ -12,12 +12,18 @@ const catalogs: Record<string, Record<string, string>> = {
   "ar-SA": ar,
 };
 // English source phrases and invariant labels need no duplicate wire value.
-const selected = Object.fromEntries(
-  Object.entries(catalogs).map(([locale, catalog]) => [
-    locale,
-    Object.fromEntries(Object.entries(catalog).filter(([source, value]) => source !== value)),
-  ]),
-);
+// These catalogs are immutable build inputs. Project only the requested
+// language, rather than preparing all five during the first public request.
+// The cache has at most one entry per bundled locale and contains no D1 data.
+const selected = new Map<string, Record<string, string>>();
 export function selectedUiCatalog(locale: string): Record<string, string> {
-  return selected[locale] ?? selected["en-US"];
+  const key = Object.hasOwn(catalogs, locale) ? locale : "en-US";
+  let projection = selected.get(key);
+  if (!projection) {
+    projection = Object.fromEntries(
+      Object.entries(catalogs[key]).filter(([source, value]) => source !== value),
+    );
+    selected.set(key, projection);
+  }
+  return projection;
 }

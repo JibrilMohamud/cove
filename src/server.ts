@@ -1,3 +1,4 @@
+import type { CoveEnv } from "./features/fore/api.server";
 import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
@@ -61,6 +62,7 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     const requestStarted = performance.now();
+    const incomingPlacement = request.headers.get("cf-placement") || "";
     try {
       const suppliedEnv =
         env && typeof env === "object" ? env : typeof process !== "undefined" ? process.env : {};
@@ -124,6 +126,31 @@ export default {
           );
         request = safe;
       }
+      // Synthetic transport floor: independently quantify Cloudflare ingress,
+      // scheduling and client transit without SSR, SQL, R2 or rights output.
+      // The protected staging gate and trusted-country validation above are
+      // mandatory; this endpoint never exists in production.
+      if (
+        staging &&
+        request.method === "GET" &&
+        new URL(request.url).pathname === "/__cove/stage/transport-floor"
+      ) {
+        return stageNoStore(
+          applySecurityHeaders(
+            request,
+            new Response(JSON.stringify({ kind: "transport_floor" }), {
+              headers: {
+                "content-type": "application/json; charset=utf-8",
+                "cache-control": "private, no-store",
+                "x-content-type-options": "nosniff",
+                "server-timing": "cove_edge_floor;dur=0",
+              },
+            }),
+            foreEnv,
+          ),
+          true,
+        );
+      }
       if (staging) {
         // Authenticated stage transport must never forward its ephemeral
         // bearer token into any application/session/backend handler.
@@ -148,8 +175,8 @@ export default {
         new URL(request.url).pathname === "/api/fore/storefront/bootstrap"
       ) {
         const lean = await import("./features/fore/storefront-anonymous-bootstrap.server");
-        if (lean.canUseLeanAnonymousBootstrap(request, foreEnv as any)) {
-          const response = await lean.serveLeanAnonymousBootstrap(request, foreEnv as any);
+        if (lean.canUseLeanAnonymousBootstrap(request, foreEnv as CoveEnv)) {
+          const response = await lean.serveLeanAnonymousBootstrap(request, foreEnv as CoveEnv);
           return stageNoStore(applySecurityHeaders(request, response, foreEnv), true);
         }
       }
@@ -162,8 +189,8 @@ export default {
         new URL(request.url).pathname === "/api/fore/catalog"
       ) {
         const lean = await import("./features/fore/storefront-anonymous-catalog.server");
-        if (lean.canUseLeanAnonymousCatalog(request, foreEnv as any)) {
-          const response = await lean.serveLeanAnonymousCatalog(request, foreEnv as any);
+        if (lean.canUseLeanAnonymousCatalog(request, foreEnv as CoveEnv)) {
+          const response = await lean.serveLeanAnonymousCatalog(request, foreEnv as CoveEnv);
           return stageNoStore(applySecurityHeaders(request, response, foreEnv), true);
         }
       }
@@ -172,7 +199,7 @@ export default {
       const apiResponse = new URL(request.url).pathname.startsWith("/api/fore/")
         ? await (
             await import("./features/fore/api.server")
-          ).handleCoveApi(request, foreEnv as any, execution)
+          ).handleCoveApi(request, foreEnv as CoveEnv, execution)
         : null;
       if (apiResponse) {
         return stageNoStore(applySecurityHeaders(request, apiResponse, foreEnv), staging);
@@ -180,7 +207,17 @@ export default {
       const securityDocument = securityTxt(request, foreEnv);
       if (securityDocument)
         return stageNoStore(applySecurityHeaders(request, securityDocument, foreEnv), staging);
-      if (foreEnv.DB) {
+      // Robots and sitemap documents are the SEO handler's only routes.
+      // Do not import/initialize it on every rights-scoped homepage SSR: the
+      // ordinary storefront needs no SEO service code before first paint.
+      // This changes no sitemap behavior or legal-rights authorization.
+      const seoPath = new URL(request.url).pathname;
+      if (
+        foreEnv.DB &&
+        (seoPath === "/robots.txt" ||
+          seoPath === "/sitemap.xml" ||
+          seoPath.startsWith("/sitemaps/"))
+      ) {
         const { handleSeoDocumentRequest } = await import("./features/fore/seo.server");
         const seo = await handleSeoDocumentRequest(request, foreEnv.DB, foreEnv.FORE_PUBLIC_URL);
         if (seo) return stageNoStore(applySecurityHeaders(request, seo, foreEnv), staging);
@@ -229,6 +266,8 @@ export default {
         secured.headers.get("content-type")?.includes("text/html")
       ) {
         const headers = new Headers(secured.headers);
+        if (staging && /^(?:local|remote)-[A-Z]{3}$/.test(incomingPlacement))
+          headers.set("X-Cove-Stage-Placement", incomingPlacement);
         headers.append(
           "Server-Timing",
           [

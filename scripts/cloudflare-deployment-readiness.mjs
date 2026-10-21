@@ -38,7 +38,9 @@ export async function waitForCloudflareStageDeployment(
   const maxWaitMs = options.maxWaitMs ?? 110_000;
   const settleMs = options.settleMs ?? 30_000;
   const deadline = now() + maxWaitMs;
-  const endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/cove-storefront-ssr-staging/deployments`;
+  const workerName = options.workerName ?? "cove-storefront-ssr-staging";
+  assert.match(workerName, /^[a-z0-9][a-z0-9-]{0,62}$/);
+  const endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/${workerName}/deployments`;
   while (now() < deadline) {
     const result = await fetcher(endpoint, {
       headers: { Authorization: `Bearer ${token}` },

@@ -63,7 +63,14 @@ const leanEntries = [...closure(entry, true)].filter((file) =>
 );
 assert.equal(leanEntries.length, 1, "Must locate the reachable anonymous bootstrap artifact");
 const lean = closure(leanEntries[0]);
-for (const files of [eager, lean])
+// The framework's start module is loaded on the first actual SSR request,
+// after the outer Worker has already started. Guard that import closure too.
+const startEntries = [...closure(entry, true)].filter((file) =>
+  /^start-[^/]+\.mjs$/.test(path.basename(file)),
+);
+assert.equal(startEntries.length, 1, "Must locate the reachable SSR middleware artifact");
+const start = closure(startEntries[0]);
+for (const files of [eager, lean, start])
   for (const file of files)
     assert.doesNotMatch(
       path.basename(file),
@@ -78,6 +85,7 @@ console.log(
     publicRoutesEnabled: false,
     eagerEntryModules: eager.size,
     eagerEntryBytes: [...eager].reduce((sum, file) => sum + fs.statSync(file).size, 0),
+    middlewareStartupBytes: [...start].reduce((sum, file) => sum + fs.statSync(file).size, 0),
     anonymousBootstrapBytes: [...lean].reduce((sum, file) => sum + fs.statSync(file).size, 0),
     reachableWorkerBytes: [...deployedGraph].reduce((sum, file) => sum + fs.statSync(file).size, 0),
   }),

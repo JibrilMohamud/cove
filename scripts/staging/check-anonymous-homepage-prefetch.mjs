@@ -50,7 +50,11 @@ try {
   async function parity(territory, language, locale) {
     const candidates = await prefetchAnonymousHomepageCandidates(db, territory);
     const optimized = await resolvePrefetchedAnonymousHomepage(
-      db, candidates, territory, language, locale,
+      db,
+      candidates,
+      territory,
+      language,
+      locale,
     );
     const original = await resolveStorefrontPage(db, "/", territory, language, locale);
     assert.deepEqual(optimized, original, "No localization/merchandising/page regression");
@@ -60,11 +64,29 @@ try {
       " 'campaign', ?, ?, 'Featured', 'Hand-picked', ?, ?, 0, ?)",
   );
   await parity("US", "en", "en-US"); // no published homepage
-  insert.run("us_en", "US", "en", "US-English", "US-English", "US-SEO", "US-summary", '{"sort":"popular"}');
+  insert.run(
+    "us_en",
+    "US",
+    "en",
+    "US-English",
+    "US-English",
+    "US-SEO",
+    "US-summary",
+    '{"sort":"popular"}',
+  );
   await parity("US", "en", "en-US");
   await parity("US", "fr", "fr-FR"); // only one row but wrong language, defaults
   await parity("AU", "en", "en-AU"); // only US page, defaults
-  insert.run("us_fr", "US", "fr", "US-French", "US-French", "US-fr", "French summary", '{"sort":"new"}');
+  insert.run(
+    "us_fr",
+    "US",
+    "fr",
+    "US-French",
+    "US-French",
+    "US-fr",
+    "French summary",
+    '{"sort":"new"}',
+  );
   await parity("US", "en", "en-US"); // multiple candidates; exact SQL fallback
   await parity("US", "fr", "fr-FR");
   sqlite.prepare("UPDATE storefront_pages SET ends_at='2000-01-01' WHERE id='us_fr'").run();
@@ -72,10 +94,13 @@ try {
   sqlite.prepare("UPDATE storefront_pages SET status='archived' WHERE id='us_en'").run();
   await parity("US", "en", "en-US"); // withdrawn page not served
   await assert.rejects(
-    prefetchAnonymousHomepageCandidates(db, "ZZZ"), /Invalid homepage territory/,
+    prefetchAnonymousHomepageCandidates(db, "ZZZ"),
+    /Invalid homepage territory/,
   );
   assert.ok(reads >= 18);
-  console.log("Anonymous home page prefetch: no/one/ambiguous/wrong-locale/wrong-country/expired/archived parity passed.");
+  console.log(
+    "Anonymous home page prefetch: no/one/ambiguous/wrong-locale/wrong-country/expired/archived parity passed.",
+  );
 } finally {
   sqlite.close();
   fs.rmSync(dir, { recursive: true, force: true });

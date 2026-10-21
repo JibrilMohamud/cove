@@ -27,7 +27,8 @@ export function singleflightAnonymousPresentation<T>(
     h.has("oai-authenticated-user-id") ||
     h.has("x-fore-authenticated-user-id") ||
     h.has("x-fore-authenticated-user-email")
-  ) return operation();
+  )
+    return operation();
 
   const key = [trustedCountry, includeMarkets ? "all" : "one", language].join("|");
   let pending = inflight.get(dbIdentity);

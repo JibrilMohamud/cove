@@ -74,14 +74,19 @@ const triggers = all.filter((o) => o.type === "trigger");
 const definitions = [...normal, ...regularVirtual, ...vocab, ...indexes, ...views, ...triggers];
 assert.ok(definitions.length > 1000);
 const names = new Set(all.map((o) => o.name));
-for (const required of ["products", "rights_grants", "commerce_orders", "auth_accounts", "soundtrack_recordings", "catalog_search_fts"]) {
+for (const required of [
+  "products",
+  "rights_grants",
+  "commerce_orders",
+  "auth_accounts",
+  "soundtrack_recordings",
+  "catalog_search_fts",
+]) {
   assert.ok(names.has(required), `Missing known production table ${required}`);
 }
 for (const object of definitions) {
   assert.ok(
-    /^(CREATE\s+(?:UNIQUE\s+)?(?:VIRTUAL\s+)?(?:TABLE|INDEX|VIEW|TRIGGER)\b)/i.test(
-      object.sql,
-    ),
+    /^(CREATE\s+(?:UNIQUE\s+)?(?:VIRTUAL\s+)?(?:TABLE|INDEX|VIEW|TRIGGER)\b)/i.test(object.sql),
     `Unexpected schema SQL for ${object.name}`,
   );
 }
@@ -93,16 +98,18 @@ const result = [
   ...definitions.map((o) => o.sql.trim().replace(/;\s*$/, "") + ";"),
 ].join("\n\n");
 fs.writeFileSync(process.argv[2], result, { mode: 0o600 });
-console.log(JSON.stringify({
-  sourceNonSystemTables: sourceCount[0].n,
-  normalTables: normal.length,
-  ftsVirtual: regularVirtual.length,
-  vocabVirtual: vocab.length,
-  skippedGeneratedFtsShadow: shadow.length,
-  indexes: indexes.length,
-  views: views.length,
-  triggers: triggers.length,
-  ddlStatements: definitions.length,
-  exportBytes: Buffer.byteLength(result),
-  containsData: false,
-}));
+console.log(
+  JSON.stringify({
+    sourceNonSystemTables: sourceCount[0].n,
+    normalTables: normal.length,
+    ftsVirtual: regularVirtual.length,
+    vocabVirtual: vocab.length,
+    skippedGeneratedFtsShadow: shadow.length,
+    indexes: indexes.length,
+    views: views.length,
+    triggers: triggers.length,
+    ddlStatements: definitions.length,
+    exportBytes: Buffer.byteLength(result),
+    containsData: false,
+  }),
+);

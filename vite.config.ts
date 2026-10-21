@@ -25,6 +25,23 @@ const cloudflarePilotConfig = {
   // the first SSR entry eagerly evaluate reader/XML dependencies
   // before our request timer even starts.
   unenv: { inject: { performance: false } },
+  // React Router and the lazy Realtime SDK share this tiny global shim.
+  // Give it its own chunk so Router cannot pull in the account SDK through
+  // an unrelated polyfill, while retaining Nitro's compatibility behavior.
+  rolldownConfig: {
+    output: {
+      codeSplitting: {
+        groups: [
+          {
+            name: "cove-global-runtime",
+            test: /[/\\]unenv[/\\].*[/\\]polyfill[/\\]globalthis(?:-global)?\.mjs$/,
+            priority: 20,
+            includeDependenciesRecursively: false,
+          },
+        ],
+      },
+    },
+  },
 } satisfies NitroConfig;
 
 export default defineConfig({

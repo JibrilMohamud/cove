@@ -2,12 +2,35 @@ name: commercial-parity-ssr-smoke
 on:
   push:
     branches:
+      - perf/anonymous-context-one-read-20261020
       - perf/commercial-parity-isolated-stage-20261020
     paths:
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "src/integrations/supabase/auth-attacher.ts"
+      - "src/features/fore/ui-catalog.server.ts"
+      - "scripts/check-auth-attacher.mjs"
+      - "scripts/check-cloudflare-ssr-pilot.mjs"
+      - "scripts/performance/cloudflare-browser.mjs"
+      - "scripts/staging/check-commercial-parity-live-rights.mjs"
+      - "scripts/check-storefront-bootstrap.mjs"
+      - "scripts/staging/profile-commercial-parity-cpu.mjs"
+      - "scripts/cloudflare-deployment-readiness.mjs"
+      - "scripts/check-cloudflare-deployment-readiness.mjs"
+      - "scripts/staging/wait-commercial-parity-deployment.mjs"
+      - "scripts/staging/observed-ssr-entry.mjs"
+      - "src/server.ts"
+      - "scripts/staging/stage-http-transport.mjs"
+      - "src/features/fore/localization.server.ts"
+      - "src/features/fore/storefront-anonymous-catalog.server.ts"
+      - "scripts/staging/check-anonymous-context-one-read.mjs"
       - "scripts/staging/check-commercial-parity-ssr.mjs"
       - "scripts/staging/check-commercial-parity-rps.mjs"
+      - "scripts/staging/check-commercial-parity-failure-retention.mjs"
+      - "scripts/staging/check-commercial-parity-state.mjs"
       - "scripts/staging/check-anonymous-homepage-prefetch.mjs"
       - "src/features/fore/storefront-anonymous-bootstrap.server.ts"
+      - "src/features/fore/anonymous-bootstrap-read-batch.server.ts"
       - "src/features/fore/api.server.ts"
       - "src/features/fore/anonymous-context-singleflight.server.ts"
       - "scripts/staging/check-anonymous-context-singleflight.mjs"
@@ -38,6 +61,103 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Validate literal Bash blocks before deployment work
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import { spawnSync } from "node:child_process";
+          const lines = fs.readFileSync(".github/workflows/commercial-parity-ssr-smoke.yml", "utf8").split("\n");
+          let checked = 0;
+          for (let index = 0; index < lines.length; index++) {
+            const match = /^(\s*)(?:-\s+)?run:\s*(.*)$/.exec(lines[index]);
+            if (!match) continue;
+            let script = match[2];
+            if (script === "|" || script === "|-") {
+              const indent = lines[index].indexOf("run:") + 2;
+              const body = [];
+              while (index + 1 < lines.length) {
+                const line = lines[index + 1];
+                if (line.trim() && !line.startsWith(" ".repeat(indent))) break;
+                body.push(line.slice(indent));
+                index++;
+              }
+              script = body.join("\n");
+            }
+            const result = spawnSync("bash", ["-n"], { input: script, encoding: "utf8" });
+            if (result.status !== 0) throw Error("Invalid Bash run block: " + result.stderr);
+            checked++;
+          }
+          if (checked < 10) throw Error("Missing expected deployment run blocks");
+          console.log("Protected deployment Bash blocks parsed: " + checked);
+          NODE
+      - name: Report canonical formatting for changed sources
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import prettier from "prettier";
+          const files = [
+            "src/integrations/supabase/auth-attacher.ts",
+            "src/features/fore/ui-catalog.server.ts",
+            "scripts/check-auth-attacher.mjs",
+            "scripts/check-cloudflare-ssr-pilot.mjs",
+            "scripts/staging/profile-commercial-parity-cpu.mjs",
+            "scripts/cloudflare-deployment-readiness.mjs",
+            "scripts/check-cloudflare-deployment-readiness.mjs",
+            "scripts/staging/wait-commercial-parity-deployment.mjs",
+            "scripts/staging/observed-ssr-entry.mjs",
+            "scripts/staging/check-commercial-parity-live-rights.mjs",
+            "scripts/performance/cloudflare-browser.mjs",
+            "src/features/fore/storefront-anonymous-catalog.server.ts",
+            "scripts/staging/stage-http-transport.mjs",
+            "scripts/staging/check-anonymous-context-singleflight.mjs",
+            "scripts/staging/check-anonymous-homepage-prefetch.mjs",
+            "scripts/staging/check-commercial-parity-rps.mjs",
+            "scripts/staging/check-commercial-parity-failure-retention.mjs",
+            "scripts/staging/check-commercial-parity-ssr.mjs",
+            "scripts/staging/check-commercial-parity-state.mjs",
+            "scripts/staging/reconstruct-d1-schema-only.mjs",
+            "scripts/staging/seed-commercial-parity.mjs",
+            "scripts/staging/verify-schema-only-export.mjs",
+            "src/features/fore/anonymous-context-singleflight.server.ts",
+            "src/features/fore/api.server.ts",
+            "src/features/fore/search.server.ts",
+            "src/features/fore/taxonomy.server.ts",
+            "src/server.ts",
+            "src/features/fore/storefront-anonymous-bootstrap.server.ts",
+            "src/features/fore/anonymous-bootstrap-read-batch.server.ts",
+            "scripts/check-storefront-bootstrap.mjs",
+            ".github/workflows/commercial-parity-ssr-smoke.yml"
+          ];
+          for (const path of files) {
+            const source = fs.readFileSync(path, "utf8");
+            const options = await prettier.resolveConfig(path);
+            const formatted = await prettier.format(source, { ...options, filepath: path });
+            if (source !== formatted)
+              {
+                let start = 0;
+                while (start < source.length && source[start] === formatted[start]) start++;
+                let suffix = 0;
+                while (suffix < source.length - start &&
+                  source[source.length - 1 - suffix] === formatted[formatted.length - 1 - suffix]) suffix++;
+                console.log("COVE_FORMAT_DELTA " + JSON.stringify({
+                  path, start, end: source.length - suffix,
+                  encodedContent: encodeURIComponent(formatted.slice(start, formatted.length - suffix))
+                }));
+              }
+          }
+          NODE
+      - name: Verify deployment control-plane readiness boundaries
+        run: node scripts/check-cloudflare-deployment-readiness.mjs
+      - name: Retain every fast invalid response without weakening load gates
+        run: node scripts/staging/check-commercial-parity-failure-retention.mjs
+      - name: Verify browser session forwarding and UI catalog parity
+        run: |
+          node scripts/check-auth-attacher.mjs
+          node scripts/check-ui-catalog-wire.mjs
+      - name: Check canonical localization parity and one-read context
+        run: node scripts/staging/check-anonymous-context-one-read.mjs
+      - name: Verify full catalog parity, private guards and live denial
+        run: node scripts/check-storefront-bootstrap.mjs
       - name: Guard merchandising and locale parity of parallel page read
         run: node scripts/staging/check-anonymous-homepage-prefetch.mjs
       - name: Verify strict in-flight only presentation deduplication
@@ -51,38 +171,110 @@ jobs:
           ! grep -q '4bd657ac-8789-403e-a28c-93aba8d0a989' wrangler.commercial-parity.stage.toml
           grep -q 'bucket_name = "cove-commercial-parity-media-20261020"' wrangler.commercial-parity.stage.toml
           grep -q 'COVE_SSR_STAGING = "1"' wrangler.commercial-parity.stage.toml
+      - name: Install isolated Chromium for browser LCP and hydration
+        run: npx playwright install --with-deps chromium
       - name: Build current candidate Cloudflare-native SSR
         run: npm run build
-      - name: Deploy protected ephemeral stage and run strict rights/TTFB probes
+      - name: Guard actual first-request middleware imports
+        run: node scripts/check-cloudflare-ssr-pilot.mjs
+      - name: Profile local Worker startup without warming the remote stage
+        continue-on-error: true
+        run: npx wrangler@4.151.3 check startup --config wrangler.commercial-parity.stage.toml
+      - name: Compare baseline and one-read candidate on protected isolated resources
         shell: bash
         run: |
           set -euo pipefail
           cleanup() {
-            npx wrangler@4.151.0 delete --config wrangler.commercial-parity.stage.toml --force || true
+            npx wrangler@4.151.3 delete --config wrangler.commercial-parity.stage.toml --force || true
           }
           trap cleanup EXIT
-          npx wrangler@4.151.0 deploy --config wrangler.commercial-parity.stage.toml
           STAGE_TOKEN=$(openssl rand -hex 32)
-          printf %s "$STAGE_TOKEN" | npx wrangler@4.151.0 secret put COVE_SSR_STAGING_GATE_KEY \
-            --config wrangler.commercial-parity.stage.toml
           export COVE_SSR_STAGING_GATE_KEY="$STAGE_TOKEN"
-          # Both measurements must run on the SAME protected isolated
-          # deployment, even if the strict burst SLO fails. Report failures
-          # without concealing one test by aborting the other prematurely.
+          cp wrangler.commercial-parity.stage.toml /tmp/cove-parity-original.toml
+          run_arm() {
+            local arm="$1"
+            local one_read="$2"
+            echo "COVE_STAGE_ARM $arm"
+            cp /tmp/cove-parity-original.toml wrangler.commercial-parity.stage.toml
+            sed -i "s/FORE_ANON_CONTEXT_ONE_READ = \"1\"/FORE_ANON_CONTEXT_ONE_READ = \"$one_read\"/" wrangler.commercial-parity.stage.toml
+            grep -q "FORE_ANON_CONTEXT_ONE_READ = \"$one_read\"" wrangler.commercial-parity.stage.toml || return 1
+            npx wrangler@4.151.3 deploy --config wrangler.commercial-parity.stage.toml || return 1
+            export COVE_STAGE_SECRET_ROTATION_EPOCH_MS="$(node -p 'Date.now()')"
+            printf %s "$STAGE_TOKEN" | npx wrangler@4.151.3 secret put COVE_SSR_STAGING_GATE_KEY \
+              --config wrangler.commercial-parity.stage.toml || return 1
+            node scripts/staging/wait-commercial-parity-deployment.mjs || return 1
+            export COVE_STAGE_EXPERIMENT_ARM="$arm"
+            local profile_status=0
+            # Every arm validates real responses and keeps the same hard SLO.
+            # This is a warm A/B experiment, never a cold certification.
+            node scripts/staging/check-commercial-parity-ssr.mjs
+            local burst_status=$?
+            COVE_STAGE_TRANSPORT_FLOOR=1 node scripts/staging/check-commercial-parity-rps.mjs
+            local mixed_status=$?
+            COVE_STAGE_HTTP2=1 node scripts/staging/check-commercial-parity-ssr.mjs
+            local h2_burst_status=$?
+            COVE_STAGE_HTTP2=1 COVE_STAGE_TRANSPORT_FLOOR=1 node scripts/staging/check-commercial-parity-rps.mjs
+            local h2_mixed_status=$?
+            COVE_SSR_STAGING_ORIGIN="https://cove-commercial-parity-ssr-staging-20261020.cove-jibrilmohamud.workers.dev" \
+              node scripts/performance/cloudflare-browser.mjs
+            local browser_status=$?
+            local rights_status=0
+            if [ "$arm" = "one-read" ]; then
+              node scripts/staging/check-commercial-parity-live-rights.mjs
+              rights_status=$?
+              # Diagnostics run after every measured request, so profiling
+              # cannot prewarm either the HTTP or browser comparison.
+              COVE_STAGE_HTTP2=1 node scripts/staging/profile-commercial-parity-cpu.mjs
+              profile_status=$?
+              echo "COVE_STAGE_CPU_DIAGNOSTIC_STATUS $profile_status"
+            fi
+            node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const arm = process.env.COVE_STAGE_EXPERIMENT_ARM;
+          if (!["baseline", "one-read"].includes(arm)) throw Error("Unknown stage arm");
+          fs.mkdirSync("artifacts/" + arm, { recursive: true });
+          for (const name of fs.readdirSync("artifacts")) {
+            if (!/^(?:commercial-parity|cloudflare-browser).*\.json$/.test(name)) continue;
+            const source = "artifacts/" + name;
+            const result = JSON.parse(fs.readFileSync(source, "utf8"));
+            result.experiment = {
+              arm, oneRead: arm === "one-read",
+              bootstrapTransport: arm === "one-read" ? "primary-batch" : "individual",
+              sha: process.env.GITHUB_SHA,
+              requestedEncodings: ["br", "gzip", "deflate"],
+              boundary: "Warm sequential A/B, same code/schema/resources; no background writers or accounts"
+            };
+            fs.writeFileSync(source, JSON.stringify(result, null, 2));
+            fs.renameSync(source, "artifacts/" + arm + "/" + name);
+          }
+          NODE
+            local artifact_status=$?
+            # An idle-only provider profile is unusable attribution, not an
+            # end-user latency result. Preserve its separate diagnostic status.
+            if [ "$burst_status" -ne 0 ] || [ "$mixed_status" -ne 0 ] || \
+               [ "$h2_burst_status" -ne 0 ] || [ "$h2_mixed_status" -ne 0 ] || \
+               [ "$rights_status" -ne 0 ] || [ "$browser_status" -ne 0 ] || \
+               [ "$artifact_status" -ne 0 ]; then return 1; fi
+          }
           set +e
-          node scripts/staging/check-commercial-parity-ssr.mjs
-          burst_status=$?
-          node scripts/staging/check-commercial-parity-rps.mjs
-          mixed_status=$?
+          run_arm baseline 0
+          baseline_status=$?
+          run_arm one-read 1
+          candidate_status=$?
           set -e
-          if [ "$burst_status" -ne 0 ] || [ "$mixed_status" -ne 0 ]; then exit 1; fi
+          cp /tmp/cove-parity-original.toml wrangler.commercial-parity.stage.toml
+          echo "Baseline gate status: $baseline_status; one-read gate status: $candidate_status"
+          exit "$candidate_status"
       - name: Retain sanitized aggregate results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: isolated-commercial-parity-ssr
           path: |
-            artifacts/commercial-parity-ssr-smoke.json
-            artifacts/commercial-parity-mixed-rps.json
+            artifacts/baseline/*.json
+            artifacts/one-read/*.json
+            artifacts/commercial-parity-cpu.pprof
+            artifacts/commercial-parity-cpu-top.txt
+            worker-startup.cpuprofile
           if-no-files-found: warn
           retention-days: 14
