@@ -67,4 +67,6 @@ if (!marketData.success || !Number.isSafeInteger(total) || total < 1)
   throw Error("Isolated stage market configuration unavailable");
 console.log("COVE_PRODUCER_MARKET_COUNT " + JSON.stringify({ markets: total, limit: 32 }));
 if (total > 32)
-  throw Error("Private projection producer cannot cover all active markets within its configured limit");
+  throw Error(
+    "Private projection producer cannot cover all active markets within its configured limit",
+  );
