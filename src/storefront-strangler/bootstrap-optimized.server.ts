@@ -245,7 +245,8 @@ export async function serveLeanAnonymousBootstrap(
       catalog.next = "/api/fore/catalog?page=2&sort=popular";
     }
     if (env.COVE_SSR_DIAGNOSTICS === "1") timings.catalog_seeded = candidateSeed ? 1 : 0;
-    if (env.COVE_SSR_DIAGNOSTICS === "1") timings.catalog_presentation_reused = reusePresentation ? 1 : 0;
+    if (env.COVE_SSR_DIAGNOSTICS === "1")
+      timings.catalog_presentation_reused = reusePresentation ? 1 : 0;
   }
   if (context.rightsCountry !== trustedCountry)
     throw new Error("Anonymous country mismatch; refuse to render a legal-rights shelf.");
