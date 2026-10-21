@@ -28,18 +28,13 @@ export type StorefrontStranglerEnv = CoveEnv & {
 };
 
 /** Hard prohibit D1 writes by the real-catalog, credential-gated preview. */
-function readOnlyStageD1<T extends object>(
-  db: T,
-  approved = new WeakMap<object, object>(),
-): T {
+function readOnlyStageD1<T extends object>(db: T, approved = new WeakMap<object, object>()): T {
   const wrapStatement = (statement: object): object => {
     const proxy = new Proxy(statement, {
       get(target, key) {
         if (key === "bind")
           return (...args: unknown[]) =>
-            wrapStatement(
-              (target as { bind(...values: unknown[]): object }).bind(...args),
-            );
+            wrapStatement((target as { bind(...values: unknown[]): object }).bind(...args));
         const value = Reflect.get(target, key, target);
         return typeof value === "function" ? value.bind(target) : value;
       },
