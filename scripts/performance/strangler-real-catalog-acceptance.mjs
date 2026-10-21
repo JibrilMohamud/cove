@@ -112,7 +112,6 @@ async function sample() {
     const response = await fetch(origin + "/", {
       headers: {
         authorization: "Bearer " + stageKey,
-    
       },
       signal: AbortSignal.timeout(10_000),
     });
@@ -350,15 +349,11 @@ try {
     const stageScreenshot = await candidate.screenshot({
       path: "artifacts/strangler-acceptance/real-catalog-preview-mobile.png",
     });
-    const mismatchPercent = await pixelMismatch(
-      candidate,
-      baselineScreenshot,
-      stageScreenshot,
-    );
+    const mismatchPercent = await pixelMismatch(candidate, baselineScreenshot, stageScreenshot);
     const links = async (page) =>
-      page.locator("article.book-card a[href^='/edition/']").evaluateAll(
-        (els) => [...new Set(els.map((el) => el.getAttribute("href")))],
-      );
+      page
+        .locator("article.book-card a[href^='/edition/']")
+        .evaluateAll((els) => [...new Set(els.map((el) => el.getAttribute("href")))]);
     const liveLinks = await links(live);
     const stageLinks = await links(candidate);
     evidence.realCatalogParity = {
