@@ -66,8 +66,7 @@ export default {
       });
       // Any cookie/identity hint uses the established application; preferences
       // and account state cannot leak into an anonymous response.
-      if (!canUseLeanAnonymousBootstrap(bootstrapRequest, env))
-        return await delegate();
+      if (!canUseLeanAnonymousBootstrap(bootstrapRequest, env)) return await delegate();
       failurePhase = "bootstrap";
       // The current main-branch canonical bootstrap has a two-argument API.
       // Preserve it unchanged; all failures remain fail-closed and classified.
