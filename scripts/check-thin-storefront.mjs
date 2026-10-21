@@ -257,8 +257,12 @@ try {
   // reuse an already completed or failed promise; rights remain independent.
   const originalDb = env.DB;
   let batches = 0;
+  let primaryRightsReads = 0;
   const countedDb = {
-    prepare(sql) { return originalDb.prepare(sql); },
+    prepare(sql) {
+      if (String(sql).startsWith("WITH first_paint")) primaryRightsReads++;
+      return originalDb.prepare(sql);
+    },
     async batch(stmts) {
       batches++;
       await new Promise((resolve) => setTimeout(resolve, 35));
@@ -276,6 +280,7 @@ try {
   ]);
   assert.deepEqual(together.map((response) => response.status), [200, 200]);
   assert.equal(batches, 1, "Same-market concurrent anonymous reads share only the metadata batch");
+  assert.equal(primaryRightsReads, 2, "Every joined request must still execute its own primary rights SQL");
   assert.match(together[1].headers.get("server-timing") || "", /cove_context_joined;dur=1/);
   const shelves = await Promise.all(together.map((response) => response.text()));
   assert.deepEqual(
@@ -297,6 +302,30 @@ try {
   assert.equal((await worker.fetch(request("US"), { ...singleflight, DB: failingDb })).status, 503);
   assert.equal((await worker.fetch(request("US"), { ...singleflight, DB: failingDb })).status, 503);
   assert.equal(batches, 6, "Failed context promise must not be reused");
+  // Exercise a real rights revocation WITH coalescing enabled, not just
+  // the unoptimized path; metadata reuse must never preserve stale offers.
+  const firstJoinedProduct = /data-product="([^"]+)"/.exec(shelves[0])?.[1];
+  assert.ok(firstJoinedProduct);
+  const record = await originalDb.prepare(
+    "SELECT edition_id FROM products WHERE id=?"
+  ).bind(firstJoinedProduct).first();
+  assert.ok(record?.edition_id);
+  await originalDb.prepare(
+    "UPDATE rights_grants SET status='revoked' WHERE edition_id=? AND decision='allow'"
+  ).bind(record.edition_id).run();
+  const afterRevocation = await worker.fetch(request("US"), singleflight);
+  assert.equal(afterRevocation.status, 200);
+  assert.doesNotMatch(
+    await afterRevocation.text(),
+    new RegExp('data-product="' + firstJoinedProduct + '"'),
+    "Live primary rights revocation must apply with metadata singleflight enabled",
+  );
+  await originalDb.prepare(
+    "UPDATE rights_grants SET status='active' WHERE edition_id=? AND decision='allow'"
+  ).bind(record.edition_id).run();
+  const restored = await worker.fetch(request("US"), singleflight);
+  assert.equal(restored.status, 200);
+  assert.match(await restored.text(), new RegExp('data-product="' + firstJoinedProduct + '"'));
   const initial = await (
     await serveLeanAnonymousBootstrap(
       new Request("https://cove.test/api/fore/storefront/bootstrap", {
