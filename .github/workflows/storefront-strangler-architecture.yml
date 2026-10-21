@@ -5,6 +5,7 @@ on:
       - "src/storefront-strangler/**"
       - "scripts/build-storefront-strangler.mjs"
       - "scripts/check-storefront-strangler.mjs"
+      - "scripts/check-storefront-prepared-catalog.mjs"
       - "wrangler.storefront-strangler.stage.jsonc"
       - ".github/workflows/storefront-strangler-architecture.yml"
       - "docs/architecture/STRANGLER_STOREFRONT_M1.md"
@@ -26,6 +27,8 @@ jobs:
       - run: npm ci
       - name: Assert protected stage config and canonical legal parity
         run: node scripts/check-storefront-strangler.mjs
+      - name: Check independently prepared models against live rights and revocation
+        run: node scripts/check-storefront-prepared-catalog.mjs
       - name: Compile isolated Worker and exclude full application runtime
         run: node scripts/build-storefront-strangler.mjs
       - name: Emit safe formatter deltas for architecture scripts
