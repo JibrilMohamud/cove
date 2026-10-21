@@ -12,7 +12,8 @@ on:
       - "scripts/check-catalog-ingestion-backpressure.mjs"
       - "src/features/fore/**"
       - "src/lib/persistence-backend.ts"
-      - "src/server.ts"
+      # src/server.ts is the Vercel frontend gateway, not persistence code.
+      # Frontend-only releases must not auto-run production D1 migrations.
       - "scripts/build-persistence-backend.mjs"
       - "drizzle/*.sql"
       - "wrangler.backend.production.toml"
