@@ -855,7 +855,16 @@ try {
     evidence.contentParity &&
     evidence.remoteRevocation?.pass &&
     evidence.matchedColo;
-  if (!evidence.architecturalGate) failed = true;
+  // Success at 100 RPS is a necessary capacity result, not proof that
+  // the new singleflight actually caused the improvement. Reject this
+  // experimental optimization unless the counterfactual is measurable:
+  // same colo, all offered responses valid, nonzero joined metadata reads
+  // only in ON, and p95 at least 10% better than BOTH OFF bookends.
+  evidence.optimizationGate =
+    evidence.architecturalGate &&
+    evidence.singleflightCausal.measurementComplete &&
+    evidence.singleflightCausal.improvementSupported;
+  if (!evidence.optimizationGate) failed = true;
   evidence.finishedAt = new Date().toISOString();
   evidence.workerPlatform = {};
   for (const role of ["baseline", "thin", "core"])
