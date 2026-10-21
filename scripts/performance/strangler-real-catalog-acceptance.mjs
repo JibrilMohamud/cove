@@ -130,6 +130,10 @@ async function sample() {
       failure: response.headers.get("x-cove-stage-failure") || null,
       observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
       renderer: response.headers.get("x-cove-renderer"),
+      serverTiming: response.headers.get("server-timing"),
+      failureSubphase: response.headers.get("x-cove-stage-failure-subphase"),
+      failureKind: response.headers.get("x-cove-stage-failure-kind"),
+      serverTiming: response.headers.get("server-timing"),
     };
   } catch (error) {
     return { ok: false, ms: performance.now() - start, error: error.name };
@@ -243,7 +247,8 @@ async function settleCatalog(page) {
         const covers = [...document.querySelectorAll("article.book-card img")];
         return (
           covers.length >= 6 &&
-          covers.filter((img) => img.complete && img.naturalWidth > 0).length >= 6
+          covers.filter((img) => img.complete && img.naturalWidth > 0).length >=
+            Math.ceil(covers.length * 0.9)
         );
       },
       null,
@@ -256,7 +261,11 @@ async function settleCatalog(page) {
   return page.evaluate(() => {
     const covers = [...document.querySelectorAll("article.book-card img")];
     const loaded = covers.filter((img) => img.complete && img.naturalWidth > 0).length;
-    return { count: covers.length, loaded, settled: covers.length >= 6 && loaded >= 6 };
+    return {
+      count: covers.length,
+      loaded,
+      settled: covers.length >= 6 && loaded >= Math.ceil(covers.length * 0.9),
+    };
   });
 }
 const startedAt = performance.now();
@@ -267,9 +276,19 @@ try {
   assert.ok(Number(fixture?.[0]?.results?.[0]?.n) >= 40_000);
 
   evidence.fixtureProducts = Number(fixture[0].results[0].n);
-  for (let i = 0; i < 1; i++) {
+  for (let i = 0; i < 3; i++) {
     await deployFresh(i + 1);
+    // The first homepage MUST remain the first fetch to this Worker identity.
+    // Transport control AFTER it diagnoses ingress without warming the cold probe.
     const cold = await sample();
+    const transportStart = performance.now();
+    const control = await fetch(origin + "/__cove_perf/transport", {
+      headers: { authorization: "Bearer " + stageKey },
+      signal: AbortSignal.timeout(6000),
+    });
+    const transportMs = performance.now() - transportStart;
+    assert.equal(control.status, 200, "Post-cold transport control must succeed");
+    console.log("TRANSPORT_CONTROL", JSON.stringify({ round: i + 1, transportMs }));
     evidence.cold.push(cold);
     console.log("COLD_PROBE", JSON.stringify({ round: i + 1, ...cold }));
     save();
