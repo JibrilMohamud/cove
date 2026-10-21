@@ -706,11 +706,28 @@ export async function canonicalFirstPaintShelfByRightsQuery(
     limit: number;
     /** Trusted country only; activates an authoritative currency preflight CTE. */
     currencyCountry?: string;
+    /** Untrusted presentation candidates; authoritative rights are rechecked on D1. */
+    seedProductIds?: string[];
   },
   diagnostics?: FirstPaintD1QueryMetrics,
 ): Promise<{ books: CatalogBook[]; hasMore: boolean }> {
   if (!Number.isInteger(selection.limit) || selection.limit < 1 || selection.limit > 100)
     throw new ApiError(400, "Invalid storefront shelf limit.");
+  // A warmed shortlist contains only presentation candidate IDs. It NEVER
+  // grants access: the full live retail_product_availability_rows predicate
+  // remains in selection.where on the authoritative primary database.
+  const seeds = selection.seedProductIds;
+  if (seeds && (!seeds.length || seeds.length > 60 || new Set(seeds).size !== seeds.length))
+    throw new ApiError(400, "Invalid untrusted first-paint candidates.");
+  const seedPrelude = seeds
+    ? `wanted(product_id) AS MATERIALIZED (VALUES ${seeds.map(() => "(?)").join(",")}), `
+    : "";
+  const seededFrom = seeds
+    ? `wanted seed CROSS JOIN catalog_search_documents d ON d.product_id=seed.product_id
+         CROSS JOIN products p ON p.id=d.product_id
+         CROSS JOIN editions e ON e.id=p.edition_id
+         LEFT JOIN publishers pub ON pub.id=e.publisher_id`
+    : selection.from;
   // Nested scalar currency resolution plus the complex legally-scoped
   // retail view overflowed SQLite's 100-level expression tree in production.
   // Keep currency resolution and indexed existence checks in separate,
@@ -729,17 +746,17 @@ export async function canonicalFirstPaintShelfByRightsQuery(
          WHERE currency_probe.currency=(SELECT currency FROM first_paint_currency)
            AND currency_probe.availability='available'
            AND currency_probe.suppressed=0 LIMIT 1
-       ), eligible AS MATERIALIZED (`
-    : "WITH eligible AS MATERIALIZED (";
+       ), ${seedPrelude}eligible AS MATERIALIZED (`
+    : `WITH ${seedPrelude}eligible AS MATERIALIZED (`;
   const bindings = selection.currencyCountry
-    ? [selection.currencyCountry, ...selection.binds, selection.limit + 1]
-    : [...selection.binds, selection.limit + 1];
+    ? [selection.currencyCountry, ...(seeds || []), ...selection.binds, selection.limit + 1]
+    : [...(seeds || []), ...selection.binds, selection.limit + 1];
   const rows = await db
     .prepare(
       `${currencyPrelude}
          SELECT d.product_id,d.fore_bestseller_score AS sort_score,
            d.external_book_id AS sort_source
-         FROM ${selection.from}
+         FROM ${seededFrom}
          WHERE ${selection.where}
          ORDER BY ${selection.order},d.product_id ASC LIMIT ?
        )
