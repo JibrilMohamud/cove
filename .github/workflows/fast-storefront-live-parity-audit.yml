@@ -1,0 +1,39 @@
+name: fast-storefront-live-parity-audit
+on:
+  pull_request:
+    paths:
+      - "src/storefront-strangler/**"
+      - "scripts/audit-fast-storefront-parity.mjs"
+      - ".github/workflows/fast-storefront-live-parity-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-guest-vs-rights-checked-stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Build rights-checked synthetic storefront HTML
+        run: node scripts/check-storefront-strangler.mjs
+      - name: Compare against real Cove guest visual and interaction surface
+        run: node scripts/audit-fast-storefront-parity.mjs
+      - name: Archive actual mobile and desktop screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cove-fast-storefront-parity
+          path: artifacts/fast-storefront-parity/
+          retention-days: 30
+# For production cutover set COVE_REQUIRE_CERTIFIED_PARITY=1 after the
+# authenticated production-equivalent deployment and LCP checks exist.
