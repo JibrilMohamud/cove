@@ -310,19 +310,30 @@ try {
     "SELECT edition_id FROM products WHERE id=?"
   ).bind(firstJoinedProduct).first();
   assert.ok(record?.edition_id);
-  await originalDb.prepare(
-    "UPDATE rights_grants SET status='revoked' WHERE edition_id=? AND decision='allow'"
-  ).bind(record.edition_id).run();
-  const afterRevocation = await worker.fetch(request("US"), singleflight);
-  assert.equal(afterRevocation.status, 200);
-  assert.doesNotMatch(
-    await afterRevocation.text(),
-    new RegExp('data-product="' + firstJoinedProduct + '"'),
-    "Live primary rights revocation must apply with metadata singleflight enabled",
-  );
-  await originalDb.prepare(
-    "UPDATE rights_grants SET status='active' WHERE edition_id=? AND decision='allow'"
-  ).bind(record.edition_id).run();
+  const activeGrants = await originalDb.prepare(
+    "SELECT id FROM rights_grants WHERE edition_id=? AND decision='allow' AND status='active'"
+  ).bind(record.edition_id).all();
+  assert.ok(activeGrants.results.length);
+  try {
+    for (const grant of activeGrants.results) {
+      await originalDb.prepare(
+        "UPDATE rights_grants SET status='revoked' WHERE id=?"
+      ).bind(grant.id).run();
+    }
+    const afterRevocation = await worker.fetch(request("US"), singleflight);
+    assert.equal(afterRevocation.status, 200);
+    assert.doesNotMatch(
+      await afterRevocation.text(),
+      new RegExp('data-product="' + firstJoinedProduct + '"'),
+      "Live primary rights revocation must apply with metadata singleflight enabled",
+    );
+  } finally {
+    for (const grant of activeGrants.results) {
+      await originalDb.prepare(
+        "UPDATE rights_grants SET status='active' WHERE id=?"
+      ).bind(grant.id).run();
+    }
+  }
   const restored = await worker.fetch(request("US"), singleflight);
   assert.equal(restored.status, 200);
   assert.match(await restored.text(), new RegExp('data-product="' + firstJoinedProduct + '"'));
