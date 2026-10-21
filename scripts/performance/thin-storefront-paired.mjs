@@ -477,9 +477,7 @@ async function capacity(
     for (let windowIndex = 0; windowIndex < count; windowIndex++) {
       const first = Math.ceil((windowIndex * 10_000) / interval);
       const last = Math.min(offered, Math.ceil(((windowIndex + 1) * 10_000) / interval));
-      const subset = rows.filter(
-        (row) => row.scheduledIndex >= first && row.scheduledIndex < last,
-      );
+      const subset = rows.filter((row) => row.scheduledIndex >= first && row.scheduledIndex < last);
       const period = summary(subset);
       windows.push({
         second: windowIndex * 10,
