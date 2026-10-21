@@ -1,0 +1,43 @@
+name: thin-100rps-unit-regressions
+on:
+  push:
+    branches: [perf/pr227-100rps-causal-20261020]
+    paths:
+      - "src/storefront-thin/**"
+      - "src/features/fore/storefront-anonymous-bootstrap.server.ts"
+      - "src/features/fore/localization.server.ts"
+      - "src/features/fore/api.server.ts"
+      - "scripts/check-thin-storefront.mjs"
+      - "wrangler.storefront-thin.jsonc"
+      - ".github/workflows/thin-100rps-unit-regressions.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-rights-and-singleflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CI: "1"
+      VERCEL: "0"
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Strict typecheck
+        run: npm run typecheck
+      - name: Test cloned synthetic storefront, rights revocation and metadata coalescing
+        run: node scripts/check-thin-storefront.mjs
+      - name: Re-check canonical first-paint rights and rate limiting
+        run: |
+          node scripts/check-rights.mjs
+          node scripts/check-storefront-bootstrap.mjs
+          node scripts/check-storefront-firstpaint-rate-limit.mjs
+# Fast, local synthetic tests only; never deploys, queries production D1,
+# modifies Cloudflare resources, or bypasses the commercial-release gate.

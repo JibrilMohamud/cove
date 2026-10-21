@@ -40,5 +40,6 @@
     "FORE_DEFAULT_TERRITORY": "US",
     "FORE_PUBLIC_URL": "https://cove-thin-pilot-staging.cove-jibrilmohamud.workers.dev",
     "COVE_PERF_DATABASE_ID": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+    "COVE_THIN_METADATA_COALESCE": "1",
   },
 }

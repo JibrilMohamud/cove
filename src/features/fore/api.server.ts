@@ -470,6 +470,8 @@ export type CoveEnv = {
     limit(input: { key: string }): Promise<{ success: boolean }>;
   };
   COVE_SSR_STAGING?: string;
+  COVE_SSR_DIAGNOSTICS?: string;
+  COVE_THIN_METADATA_COALESCE?: string;
   BUCKET?: {
     get(key: string, options?: any): Promise<any>;
     head?(key: string): Promise<any>;

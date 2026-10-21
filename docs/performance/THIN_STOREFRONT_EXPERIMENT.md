@@ -41,3 +41,100 @@ The follow-up uses a shared, database-free benchmark ingress Worker and connecti
 The thin bootstrap diagnostic now executes the actual thin bootstrap, rather than delegating to the full application. Both diagnostic validity and its 750 ms 32-request maximum are required. Failed requests retain a bounded staging error body, ray ID and timestamp; server logs report only a fixed failure category and the bootstrap phase, never error text, SQL, tokens or visitor data. No error retry policy or authorization fallback is added without identifying the failing dependency.
 
 Capacity exploration now stops scheduling on the first invalid response and records unscheduled arrivals separately. A candidate HTTP/transport failure blocks the architectural gate. A baseline latency failure remains recorded but does not by itself mark a healthy candidate as failed. All 650/750/800 ms targets, mobile comparison, rights tests and release blockers remain in force. `releaseApproved` remains false even if the architectural comparison passes.
+
+## October 20 forensic 100-RPS diagnostic branch
+
+Frozen serving implementation from PR #227 remains the comparator. The only
+serving-code modification is a bearer-gated no-D1 control that executes inside
+the SAME thin destination behind the SAME public synthetic benchmark ingress.
+It returns constant text and does not touch catalog or legal authorization.
+Successful control requests **cannot** count as successful storefront traffic.
+
+The paired 20-second campaign now tries 75/90 RPS before 100 (and 125 only
+if the 100-RPS gate passes). The 100-RPS stage has before/after fully valid
+data-free 100-RPS controls, per-colo p50/p95/max, parsed Server-Timing
+catalog/sql/bootstrap/context/page spans, offered/scheduled/dropped and client
+arrival-delay metrics. The original 650-ms cold, 750-ms burst, 600-ms capacity
+p95, 750-ms capacity p99, 800-ms absolute max and rights/UI/LCP checks remain.
+
+**Pre-registered decisions**: If same-path no-D1 controls also fail 100 RPS,
+fix client/transport/ingress and repeat before touching SQL. If controls pass,
+compare catalog wall time to actual D1 SQL time and colo-specific tails:
+high catalog wall/low SQL points toward binding queue/service latency; high
+SQL indicates an execution-plan problem; low catalog wall/high TTFB suggests
+transport, scheduling or uninstrumented Worker latency. If all three forms
+are healthy but offered arrivals drop, isolate/scale the generator. Reject
+any code change that worsens 50-RPS, cold or 32-request rights-correct tails.
+A green 100-RPS synthetic result is NOT full storefront feature parity,
+mixed checkout/reader/audio certification or production-release permission.
+
+### Independent context SQL-vs-wall-clock attribution
+
+Existing raw PR #227 artifacts show campaign A at 100 RPS has ORD
+`cove_context` p50 ~741 ms while `cove_catalog` is only ~46 ms;
+campaign B IAD has both context/catalog ~637 ms while `cove_catalog_sql`
+is ~4.9 ms. A single global query-plan fix does not explain these facts.
+The diagnostic branch now sums the four context D1 batch statements'
+`meta.duration` into `cove_context_sql` when synthetic staging diagnostics
+are enabled; no SQL, rights checks, or normal response data have changed.
+High context wall time with low `context_sql` is evidence of dispatch,
+replica-selection, queueing or other service waits, not proof of one cause.
+
+## Experiment: isolated in-flight metadata coalescing
+
+`COVE_THIN_METADATA_COALESCE=1` is enabled only in the synthetic-stage thin
+worker. It merges *pending* identical anonymous context batches on the same
+Worker isolate and D1 binding. The key includes trusted territory, network
+provenance, fallback and exact Accept-Language. It cannot share any completed
+result or rights decision. Every request still executes an independent
+live-primary rights/catalog query and limiter check; authenticated requests
+never enter this path. Tests cover simultaneous same-locale requests, locale
+isolation, no settlement caching and failed-promise cleanup. Reject the
+optimization unless the full 50/75/90/100 RPS and cold/rights gates pass.
+
+## Controlled same-deployment 100-RPS singleflight comparison
+
+The attribution runner now runs OFF/ON/OFF at 100 offered RPS on the
+same stage-only thin Worker, isolated D1, ingest hostname, request shape
+(except one experimental header), and shared client agent. The opt-out header
+can disable **only anonymous context metadata coalescing** and is honored
+only when both the existing stage gate and staging-only coalescing flag are
+active. Rights SQL, authentication and rate limiting are unchanged. Every
+stage records raw measurements and output colos. An improvement is explicitly
+reported **only** when all runs share a colo, the ON run passes and both
+independent OFF controls have over 10% greater p95 than ON with zero drops.
+No outcome is inferred from one favorable regional load campaign.
+This does not authorize production rollout; security audit and full interface
+parity remain release blockers.
+
+## October 21: benchmark Worker deployment lifecycle hardening
+
+The first singleflight OFF/ON/OFF CI attempt **did not benchmark anything**.
+[Run 39541802055](https://github.com/JibrilMohamud/cove/actions/runs/39541802055)
+failed deploying a fixed-name `cove-thin-ingress-staging` with Cloudflare error
+10007 (nonexistent Worker/subdomain), after seeding synthetic fixtures. No
+cold/burst/capacity outcomes can be attributed to that run. Earlier workflows
+also deleted the fixed Worker names during unconditional cleanup.
+
+The experiment now generates unique Worker identities from the numeric
+`GITHUB_RUN_ID` for baseline, thin, CORE, and ingress. Wrangler's temporary
+thin and ingress configs rewrite only the names/service bindings, while
+keeping the same isolated D1, request code, and benchmark topology. Cleanup
+can delete **only its own four generated staging names**; fixed names and
+production services cannot be deleted by this workflow. Validation fails
+closed on malformed run IDs, changed binding topology or production DB IDs.
+Newly deployed credentials remain independently rotated and ephemeral.
+
+## October 21: measured singleflight join attribution, no inference from absent headers
+
+The passing ORD campaign did not enable `COVE_SSR_DIAGNOSTICS` on the thin
+Worker, so absence of `cove_context_joined` in earlier response artifacts
+**does not establish that no requests joined**. The new run-specific private
+Worker config enables diagnostics without changing the checked-in base config.
+Every synthetic response emits a 0/1 eligibility counter and a 0/1 join
+counter through Server-Timing; the benchmark records counts, denominator and
+join percentage for each phase. OFF phases must have zero eligible/joined;
+ON must have full coverage and observed joins. An OFF/ON/OFF latency win
+without recorded joining is explicitly **not** attributed to coalescing.
+Rights authorization remains per-request, primary-D1 and uncached; no
+business logic or storefront SQL is changed by this instrumentation.

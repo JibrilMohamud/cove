@@ -1,0 +1,97 @@
+name: thin-lockfile-security-repair
+on:
+  push:
+    branches: [perf/pr227-100rps-causal-20261020]
+    paths:
+      - ".github/workflows/thin-lockfile-security-repair.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: cove-pr250-lockfile-security-repair
+  cancel-in-progress: false
+jobs:
+  audited-semver-safe-lockfile:
+    if: github.ref == 'refs/heads/perf/pr227-100rps-causal-20261020'
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    env:
+      CI: "1"
+      VERCEL: "0"
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Fix vulnerable installed lock resolutions without force or manifest changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          # npm audit fix exits nonzero when unfixable *moderate* transitive
+          # advisories remain, even after resolving every high advisory.
+          # Do not confuse that status with the strict high-severity audit gate.
+          npm audit fix --package-lock-only --ignore-scripts --no-fund || true
+          git diff --exit-code -- package.json
+          test "$(git diff --name-only | grep -Ev '^package-lock.json$' | wc -l)" -eq 0
+          npm ci --no-audit --no-fund
+          npm audit --audit-level=high
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+          const lock = JSON.parse(fs.readFileSync("package-lock.json", "utf8"));
+          if (lock.packages[""].dependencies.vite !== pkg.dependencies.vite &&
+              lock.packages[""].devDependencies.vite !== pkg.devDependencies.vite)
+            throw Error("Manifest and lock mismatch");
+          console.log("COVE_SECURITY_LOCKFILE_SAFE: semver constraint unchanged");
+          NODE
+      - name: Validate identical runtime code with patched dependency resolution
+        run: |
+          npm run typecheck
+          node scripts/check-thin-storefront.mjs
+          node scripts/check-rights.mjs
+          node scripts/check-storefront-firstpaint-rate-limit.mjs
+          npm run build
+      - name: Format only the five newly edited diagnostic sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx prettier --write \
+            scripts/check-thin-storefront.mjs \
+            scripts/performance/thin-storefront-paired.mjs \
+            src/features/fore/localization.server.ts \
+            src/features/fore/storefront-anonymous-bootstrap.server.ts \
+            src/storefront-thin/worker.ts
+          npm run lint
+          npm run typecheck
+          node scripts/check-thin-storefront.mjs
+      - name: Commit vetted lock resolution to this experiment only
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- package-lock.json \
+            scripts/check-thin-storefront.mjs \
+            scripts/performance/thin-storefront-paired.mjs \
+            src/features/fore/localization.server.ts \
+            src/features/fore/storefront-anonymous-bootstrap.server.ts \
+            src/storefront-thin/worker.ts; then
+            echo "No lockfile or formatting changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- package-lock.json \
+            scripts/check-thin-storefront.mjs \
+            scripts/performance/thin-storefront-paired.mjs \
+            src/features/fore/localization.server.ts \
+            src/features/fore/storefront-anonymous-bootstrap.server.ts \
+            src/storefront-thin/worker.ts
+          git diff --cached --check
+          git commit -m "fix(deps): secure lockfile and format validated PR227 performance diagnostics"
+          git push origin "HEAD:refs/heads/perf/pr227-100rps-causal-20261020"
+# This workflow changes only the resolved dependency lock and formatting of five
+# diagnosed performance sources, after verifying audit, types, tests, build and lint. No database, deployment, routing, or production changes.

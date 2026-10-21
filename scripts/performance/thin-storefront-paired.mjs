@@ -9,6 +9,7 @@ import { Agent, fetch as httpFetch } from "undici";
 import { chromium, devices } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { parseThinConfig, parseBenchmarkConfig } from "./thin-config.mjs";
+import { thinRunWorkerNames, scopedStageConfigs } from "./thin-stage-run-scope.mjs";
 import { PERFORMANCE_D1, isolatedD1Config, verifySyntheticD1 } from "./isolated-d1-gate.mjs";
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const token = process.env.CLOUDFLARE_API_TOKEN;
@@ -34,12 +35,8 @@ const evidence = {
 };
 const save = () =>
   fs.writeFileSync(path.join(output, "results.json"), JSON.stringify(evidence, null, 2));
-const workers = {
-  baseline: "cove-thin-control-staging",
-  core: "cove-thin-core-staging",
-  thin: "cove-thin-pilot-staging",
-  ingress: "cove-thin-ingress-staging",
-};
+const workers = thinRunWorkerNames(process.env.GITHUB_RUN_ID);
+evidence.configuration.scopedStageRunId = process.env.GITHUB_RUN_ID;
 const origin = () => `https://${workers.ingress}.cove-jibrilmohamud.workers.dev`;
 const keys = { baseline: randomBytes(32).toString("hex"), core: randomBytes(32).toString("hex") };
 keys.thin = keys.core;
@@ -101,12 +98,26 @@ for (const role of ["baseline", "core"]) {
 const thinConfig = parseThinConfig(fs.readFileSync("wrangler.storefront-thin.jsonc", "utf8"));
 assert.equal(thinConfig.d1_databases.length, 1);
 assert.equal(thinConfig.d1_databases[0].database_id, PERFORMANCE_D1.current.id);
-assert.equal(thinConfig.services[0].service, workers.core);
+// The checked-in config deliberately keeps the original fixed CORE name.
+// Only the transient run-scoped copy may reference this job's private CORE.
+assert.equal(thinConfig.services[0].service, "cove-thin-core-staging");
 assert.equal(thinConfig.vars.COVE_SSR_STAGING, "1");
 assert.equal(thinConfig.vars.COVE_PERF_DATABASE_ID, PERFORMANCE_D1.current.id);
 assert.ok(!thinConfig.routes);
 assert.ok(!thinConfig.r2_buckets);
 assert.ok(!thinConfig.placement);
+const ingressConfig = parseBenchmarkConfig(
+  fs.readFileSync("wrangler.storefront-benchmark.jsonc", "utf8"),
+);
+const scoped = scopedStageConfigs(thinConfig, ingressConfig, workers, PERFORMANCE_D1.current.id);
+assert.equal(scoped.thin.services[0].service, workers.core);
+assert.equal(scoped.ingress.services.find((x) => x.binding === "THIN")?.service, workers.thin);
+assert.equal(
+  scoped.ingress.services.find((x) => x.binding === "BASELINE")?.service,
+  workers.baseline,
+);
+fs.writeFileSync("wrangler.thin-run.jsonc", JSON.stringify(scoped.thin, null, 2));
+fs.writeFileSync("wrangler.thin-ingress-run.jsonc", JSON.stringify(scoped.ingress, null, 2));
 async function readiness() {
   const query = async (id, sql) => {
     assert.ok(Object.values(PERFORMANCE_D1).some((x) => x.id === id));
@@ -122,7 +133,7 @@ async function readiness() {
 parseBenchmarkConfig(fs.readFileSync("wrangler.storefront-benchmark.jsonc", "utf8"));
 const lastDeployments = {};
 async function deploy(role) {
-  const config = role === "thin" ? "wrangler.storefront-thin.jsonc" : `wrangler.thin-${role}.toml`;
+  const config = role === "thin" ? "wrangler.thin-run.jsonc" : `wrangler.thin-${role}.toml`;
   command(["deploy", "--config", config]);
   // An identical upload alone may reuse a loaded environment. Rotate the
   // binding on EVERY round to force a distinct Worker environment. Thin and
@@ -159,7 +170,57 @@ function pct(values, p) {
 }
 function summary(rows) {
   const valid = rows.filter((x) => x.valid);
+  const byColo = Object.fromEntries(
+    [...new Set(valid.map((row) => row.colo || "unknown"))].map((colo) => {
+      const subset = valid.filter((row) => (row.colo || "unknown") === colo);
+      return [
+        colo,
+        {
+          count: subset.length,
+          p50: pct(
+            subset.map((row) => row.ttfb),
+            0.5,
+          ),
+          p95: pct(
+            subset.map((row) => row.ttfb),
+            0.95,
+          ),
+          max: Math.max(...subset.map((row) => row.ttfb)),
+        },
+      ];
+    }),
+  );
+  const spans = {};
+  for (const name of [
+    "cove_catalog",
+    "cove_catalog_sql",
+    "cove_context",
+    "cove_context_sql",
+    "cove_context_joined",
+    "cove_context_flight_eligible",
+    "cove_page",
+    "cove_bootstrap",
+  ]) {
+    const values = valid.map((row) => row.timings?.[name]).filter(Number.isFinite);
+    if (values.length)
+      spans[name] = { count: values.length, p95: pct(values, 0.95), max: Math.max(...values) };
+  }
+  const instrumented = valid.filter((row) =>
+    Number.isFinite(row.timings?.cove_context_flight_eligible),
+  );
+  const eligible = instrumented.filter(
+    (row) => row.timings.cove_context_flight_eligible === 1,
+  ).length;
+  const joined = instrumented.filter((row) => row.timings.cove_context_joined === 1).length;
   return {
+    byColo,
+    spans,
+    coalescing: {
+      instrumented: instrumented.length,
+      eligible,
+      joined,
+      joinPercent: eligible > 0 ? Math.round((1000 * joined) / eligible) / 10 : null,
+    },
     requested: rows.length,
     valid: valid.length,
     errors: rows.length - valid.length,
@@ -184,7 +245,7 @@ function summary(rows) {
   };
 }
 let client = 0;
-async function sample(role, { fresh = false, route = "/" } = {}) {
+async function sample(role, { fresh = false, route = "/", benchmarkHeaders = {} } = {}) {
   const dispatcher = fresh ? new Agent({ connections: 1, pipelining: 1 }) : agents[role];
   const started = performance.now();
   try {
@@ -194,6 +255,7 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
         authorization: `Bearer ${keys[role]}`,
         "x-cove-perf-client": String(client++ % 1024),
         "x-cove-perf-renderer": role,
+        ...benchmarkHeaders,
       },
       signal: AbortSignal.timeout(8000),
     });
@@ -212,6 +274,13 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
         diagnosticValid = false;
       }
     }
+    if (route === "/__cove_perf/transport")
+      diagnosticValid = body === "ok" && r.headers.get("x-cove-perf-control") === "thin-no-d1";
+    const timings = {};
+    for (const m of (r.headers.get("server-timing") || "").matchAll(
+      /(cove_[a-z_]+);dur=([0-9]+(?:\.[0-9]+)?)/g,
+    ))
+      timings[m[1]] = Number(m[2]);
     const valid =
       r.status === 200 &&
       diagnosticValid &&
@@ -231,6 +300,7 @@ async function sample(role, { fresh = false, route = "/" } = {}) {
       rightsCountry: /data-rights-country="([A-Z]{2})"/.exec(body)?.[1],
       colo: r.headers.get("cf-ray")?.split("-").at(-1),
       serverTiming: r.headers.get("server-timing"),
+      timings,
       rayId: r.headers.get("cf-ray"),
       observedAt: new Date().toISOString(),
       ...(valid ? {} : { failureBody: body.slice(0, 300) }),
@@ -357,30 +427,39 @@ async function browserCheck(role) {
     await browser.close();
   }
 }
-async function capacity(role, rate) {
-  const duration = 20_000,
+async function capacity(
+  role,
+  rate,
+  { route = "/", duration = 20_000, benchmarkHeaders = {} } = {},
+) {
+  const offered = Math.round((rate * duration) / 1000),
     interval = 1000 / rate,
     start = performance.now(),
     rows = [],
-    pending = new Set();
+    pending = new Set(),
+    arrivalDelayMs = [];
   let dropped = 0,
     late = 0,
+    peakPending = 0,
     stop = false,
     scheduled = 0;
-  for (let n = 0; n < (rate * duration) / 1000; n++) {
+  for (let n = 0; n < offered; n++) {
     const due = start + n * interval,
       delay = due - performance.now();
     if (delay > 0) await new Promise((r) => setTimeout(r, delay));
     if (stop) break;
     scheduled++;
-    if (performance.now() - due > 100) late++;
+    const behind = Math.max(0, performance.now() - due);
+    arrivalDelayMs.push(behind);
+    if (behind > 100) late++;
+    peakPending = Math.max(peakPending, pending.size);
     if (pending.size >= 128) {
       dropped++;
       continue;
     }
-    const task = sample(role)
+    const task = sample(role, { route, benchmarkHeaders })
       .then((r) => {
-        rows.push(r);
+        rows.push({ ...r, scheduledIndex: n });
         if (!r.valid) stop = true;
       })
       .finally(() => pending.delete(task));
@@ -389,17 +468,65 @@ async function capacity(role, rate) {
   await Promise.all(pending);
   const elapsed = performance.now() - start,
     s = summary(rows);
+  // Group by scheduled arrival index, not completion time; otherwise a
+  // growing D1 queue moves slow responses into later windows and hides
+  // when load first exceeded service capacity.
+  const windows = [];
+  if (duration >= 60_000) {
+    const count = Math.ceil(duration / 10_000);
+    for (let windowIndex = 0; windowIndex < count; windowIndex++) {
+      const first = Math.ceil((windowIndex * 10_000) / interval);
+      const last = Math.min(offered, Math.ceil(((windowIndex + 1) * 10_000) / interval));
+      const subset = rows.filter((row) => row.scheduledIndex >= first && row.scheduledIndex < last);
+      const period = summary(subset);
+      windows.push({
+        second: windowIndex * 10,
+        offered: last - first,
+        delivered: subset.length,
+        valid: period.valid,
+        p95Ms: period.p95,
+        p99Ms: period.p99,
+        maxMs: period.max,
+        catalogP95Ms: period.spans.cove_catalog?.p95 ?? null,
+        contextP95Ms: period.spans.cove_context?.p95 ?? null,
+        catalogSqlP95Ms: period.spans.cove_catalog_sql?.p95 ?? null,
+        colos: period.colos,
+        pass:
+          subset.length === last - first &&
+          period.valid === last - first &&
+          period.p95 <= 600 &&
+          period.p99 <= 750 &&
+          period.max < 800,
+      });
+    }
+  }
   return {
     role,
     offeredRps: rate,
+    route,
     durationMs: elapsed,
+    offered,
+    peakPending,
+    arrivalDelayP95Ms: pct(arrivalDelayMs, 0.95),
+    arrivalDelayMaxMs: arrivalDelayMs.length ? Math.max(...arrivalDelayMs) : 0,
     completedRps: rows.length / (elapsed / 1000),
     scheduled,
-    unscheduled: (rate * duration) / 1000 - scheduled,
+    unscheduled: offered - scheduled,
     dropped,
     late,
     summary: s,
-    pass: !stop && !dropped && !late && !s.errors && s.p95 <= 600 && s.p99 <= 750 && s.max < 800,
+    windows,
+    pass:
+      !stop &&
+      !dropped &&
+      !late &&
+      !s.errors &&
+      scheduled === offered &&
+      s.valid === offered &&
+      s.p95 <= 600 &&
+      s.p99 <= 750 &&
+      s.max < 800 &&
+      windows.every((window) => window.pass),
     rows,
   };
 }
@@ -508,7 +635,27 @@ try {
   await deploy("core");
   await deploy("baseline");
   await deploy("thin");
-  command(["deploy", "--config", "wrangler.storefront-benchmark.jsonc"]);
+  command(["deploy", "--config", "wrangler.thin-ingress-run.jsonc"]);
+  // Wrangler upload completion does not guarantee that a newly created
+  // workers.dev ingress/service graph is visible immediately. Confirm its
+  // current 100% control-plane deployment without making an HTTP request to
+  // the Worker (which would warm the very cold path being benchmarked).
+  let ingressReady = false;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const deployments = await api(
+      "GET",
+      `/accounts/${account}/workers/scripts/${workers.ingress}/deployments`,
+    );
+    const current = deployments.deployments?.[0];
+    if (current?.versions?.some((version) => version.percentage === 100)) {
+      ingressReady = true;
+      evidence.configuration.ingressDeploymentId = current.id;
+      save();
+      break;
+    }
+    await new Promise((done) => setTimeout(done, 1500));
+  }
+  assert.ok(ingressReady, "New run-scoped staging ingress did not become active");
   for (let round = 1; round <= 3; round++) {
     await deploy("core");
     for (const role of round % 2 ? ["baseline", "thin"] : ["thin", "baseline"]) {
@@ -569,24 +716,191 @@ try {
   // Any HTTP/transport error stops the entire shared-D1 campaign immediately.
   const active = new Set(["baseline", "thin"]);
   evidence.capacityStoppedByRole = {};
-  for (const rate of [10, 25, 50, 100, 250, 500]) {
+  for (const rate of [10, 25, 50, 75, 90, 100, 125]) {
     let unsafe = false;
+    // The 100-RPS no-D1 control uses exactly the same hostname, ingress,
+    // thin service binding, bearer gate, Undici agent and offered schedule.
+    // It must not be confused with a valid authorized storefront response.
+    if (rate === 100) {
+      const control = await capacity("thin", 100, {
+        route: "/__cove_perf/transport",
+        duration: 20_000,
+      });
+      evidence.transportControls ??= [];
+      evidence.transportControls.push({ position: "before-100", ...control });
+      save();
+      console.log(
+        "control",
+        "before-100",
+        JSON.stringify({
+          ...control.summary,
+          dropped: control.dropped,
+          late: control.late,
+          peakPending: control.peakPending,
+          byColo: control.summary.byColo,
+        }),
+      );
+      if (!control.pass)
+        evidence.errors.push({
+          phase: "transport-control",
+          message: "Data-free 100-RPS control failed; storefront attribution inconclusive",
+        });
+    }
     for (const role of [...active]) {
       const result = await capacity(role, rate);
       evidence.capacity.push(result);
       save();
-      console.log("capacity", role, rate, JSON.stringify(result.summary));
+      console.log(
+        "capacity",
+        role,
+        rate,
+        JSON.stringify({
+          ...result.summary,
+          scheduled: result.scheduled,
+          unscheduled: result.unscheduled,
+          dropped: result.dropped,
+          late: result.late,
+          peakPending: result.peakPending,
+          arrivalDelayP95Ms: result.arrivalDelayP95Ms,
+        }),
+      );
       if (!result.pass) {
         active.delete(role);
         evidence.capacityStoppedByRole[role] = rate;
       }
-      if (result.summary.errors) {
+      // A broken full-SSR comparator is valuable failure evidence, but
+      // must NEVER abort the thin candidate's own capacity campaign.
+      // The previous harness silently skipped thin at 10 RPS after a
+      // single unrelated baseline error. Thin HTTP/transport errors still
+      // stop all further synthetic load immediately.
+      if (result.summary.errors && role === "thin") {
         unsafe = true;
         break;
       }
     }
-    if (unsafe || !active.size) break;
+    if (rate === 100 && evidence.transportControls?.length) {
+      const control = await capacity("thin", 100, {
+        route: "/__cove_perf/transport",
+        duration: 20_000,
+      });
+      evidence.transportControls.push({ position: "after-100", ...control });
+      save();
+      console.log(
+        "control",
+        "after-100",
+        JSON.stringify({
+          ...control.summary,
+          dropped: control.dropped,
+          late: control.late,
+          peakPending: control.peakPending,
+          byColo: control.summary.byColo,
+        }),
+      );
+      if (!control.pass)
+        evidence.errors.push({
+          phase: "transport-control",
+          message: "Post-100 data-free control failed; storefront attribution inconclusive",
+        });
+    }
+    // The rights-checked candidate can be retired at 90 RPS. Still execute
+    // the protected 100-RPS no-D1 controls to distinguish transport capacity
+    // from the exhausted shared-D1 path; never run more catalog load after an
+    // unsafe HTTP failure.
+    if (unsafe || (!active.size && rate >= 100)) break;
   }
+  // Hold the same deployed Worker, synthetic D1, ingress, rights view,
+  // agent, and schedule fixed. Only metadata singleflight changes.
+  // OFF/ON/OFF reveals whether a regional shift or warmup masquerades as
+  // a coalescing gain. Never score OFF runs as authorized storefront success
+  // for the optimized serving configuration.
+  evidence.singleflightControlled = [];
+  for (const mode of ["off-before", "on", "off-after"]) {
+    const result = await capacity("thin", 100, {
+      benchmarkHeaders: mode.startsWith("off") ? { "x-cove-perf-no-metadata-flight": "1" } : {},
+    });
+    evidence.singleflightControlled.push({ mode, ...result });
+    save();
+    console.log(
+      "singleflight-controlled",
+      mode,
+      JSON.stringify({
+        ...result.summary,
+        offered: result.offered,
+        valid: result.summary.valid,
+        dropped: result.dropped,
+        late: result.late,
+        peakPending: result.peakPending,
+      }),
+    );
+  }
+  const sameColo = evidence.singleflightControlled.every(
+    (run) =>
+      run.summary.colos.length === 1 &&
+      run.summary.colos[0] === evidence.singleflightControlled[0].summary.colos[0],
+  );
+  const middle = evidence.singleflightControlled[1];
+  const controls = [evidence.singleflightControlled[0], evidence.singleflightControlled[2]];
+  evidence.singleflightCausal = {
+    sameColo,
+    offP95Ms: controls.map((run) => run.summary.p95),
+    onP95Ms: middle.summary.p95,
+    offMaxMs: controls.map((run) => run.summary.max),
+    onMaxMs: middle.summary.max,
+    onPassed: middle.pass,
+    onJoinTelemetry: middle.summary.coalescing,
+    offJoinTelemetry: controls.map((run) => run.summary.coalescing),
+    // Every response must be instrumented and ON must demonstrably join at
+    // least one actual metadata batch; otherwise no attribution is allowed.
+    measurementComplete:
+      middle.summary.coalescing.instrumented === middle.offered &&
+      middle.summary.coalescing.eligible === middle.offered &&
+      middle.summary.coalescing.joined > 0 &&
+      controls.every(
+        (run) =>
+          run.summary.coalescing.instrumented === run.offered &&
+          run.summary.coalescing.eligible === 0 &&
+          run.summary.coalescing.joined === 0,
+      ),
+    // Improvement is a measured outcome, not an assumption just because
+    // the flag was enabled. Comparison cannot be certified across colos.
+    improvementSupported:
+      sameColo &&
+      middle.pass &&
+      middle.summary.coalescing.instrumented === middle.offered &&
+      middle.summary.coalescing.eligible === middle.offered &&
+      middle.summary.coalescing.joined > 0 &&
+      controls.every(
+        (run) =>
+          run.summary.coalescing.instrumented === run.offered &&
+          run.summary.coalescing.eligible === 0 &&
+          run.summary.coalescing.joined === 0,
+      ) &&
+      controls.every(
+        (run) =>
+          run.summary.valid === run.offered &&
+          run.dropped === 0 &&
+          run.summary.p95 > middle.summary.p95 * 1.1,
+      ),
+  };
+  save();
+  // A 20-second 100-RPS burst does not establish sustainable capacity. A
+  // full two-minute offered-load period with independent 10-second cohorts
+  // detects late-stage D1 queue buildup while leaving the serving path alone.
+  evidence.sustained100 = await capacity("thin", 100, { duration: 120_000 });
+  save();
+  console.log(
+    "sustained-100-rps",
+    JSON.stringify({
+      offered: evidence.sustained100.offered,
+      valid: evidence.sustained100.summary.valid,
+      dropped: evidence.sustained100.dropped,
+      unscheduled: evidence.sustained100.unscheduled,
+      pass: evidence.sustained100.pass,
+      p95Ms: evidence.sustained100.summary.p95,
+      maxMs: evidence.sustained100.summary.max,
+      windows: evidence.sustained100.windows,
+    }),
+  );
   const mobile = evidence.browser.find((x) => x.role === "thin"),
     controlMobile = evidence.browser.find((x) => x.role === "baseline");
   evidence.mobileGate =
@@ -614,10 +928,25 @@ try {
     evidence.bootstrap.filter((x) => x.role === "thin").every((x) => x.pass) &&
     evidence.capacity.some((x) => x.role === "thin" && x.pass) &&
     !evidence.capacity.some((x) => x.role === "thin" && x.summary.errors) &&
+    // The historical architecture gate is preserved; capacity >=100 RPS
+    // is a distinct hard SLO and cannot be inferred from 50-RPS success.
+    evidence.capacity.some((x) => x.role === "thin" && x.offeredRps === 100 && x.pass) &&
+    (evidence.transportControls || []).filter((x) => x.position.includes("100")).length === 2 &&
+    evidence.transportControls.every((control) => control.pass) &&
     evidence.contentParity &&
     evidence.remoteRevocation?.pass &&
     evidence.matchedColo;
-  if (!evidence.architecturalGate) failed = true;
+  // Success at 100 RPS is a necessary capacity result, not proof that
+  // the new singleflight actually caused the improvement. Reject this
+  // experimental optimization unless the counterfactual is measurable:
+  // same colo, all offered responses valid, nonzero joined metadata reads
+  // only in ON, and p95 at least 10% better than BOTH OFF bookends.
+  evidence.optimizationGate =
+    evidence.architecturalGate &&
+    evidence.sustained100?.pass === true &&
+    evidence.singleflightCausal.measurementComplete &&
+    evidence.singleflightCausal.improvementSupported;
+  if (!evidence.optimizationGate) failed = true;
   evidence.finishedAt = new Date().toISOString();
   evidence.workerPlatform = {};
   for (const role of ["baseline", "thin", "core"])
