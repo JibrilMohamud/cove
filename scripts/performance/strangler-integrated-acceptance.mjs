@@ -264,7 +264,9 @@ try {
   };
   evidence.sustained.rightsSeed = {
     used: results.filter((result) => timing(result, "cove_catalog_seeded") === 1).length,
-    reusedPresentation: results.filter((result) => timing(result, "cove_catalog_presentation_reused") === 1).length,
+    reusedPresentation: results.filter(
+      (result) => timing(result, "cove_catalog_presentation_reused") === 1,
+    ).length,
     measured: results.filter((result) => timing(result, "cove_catalog_seeded") !== null).length,
     p95CatalogD1Ms: latency95("cove_catalog"),
     p95CatalogSqlMs: latency95("cove_catalog_sql"),
