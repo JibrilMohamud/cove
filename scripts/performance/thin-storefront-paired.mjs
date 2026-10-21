@@ -666,7 +666,11 @@ try {
         phase:"transport-control",message:"Post-100 data-free control failed; storefront attribution inconclusive",
       });
     }
-    if (unsafe || !active.size) break;
+    // The rights-checked candidate can be retired at 90 RPS. Still execute
+    // the protected 100-RPS no-D1 controls to distinguish transport capacity
+    // from the exhausted shared-D1 path; never run more catalog load after an
+    // unsafe HTTP failure.
+    if (unsafe || (!active.size && rate >= 100)) break;
   }
   const mobile = evidence.browser.find((x) => x.role === "thin"),
     controlMobile = evidence.browser.find((x) => x.role === "baseline");
