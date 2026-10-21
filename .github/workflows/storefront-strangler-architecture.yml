@@ -28,6 +28,25 @@ jobs:
         run: node scripts/check-storefront-strangler.mjs
       - name: Compile isolated Worker and exclude full application runtime
         run: node scripts/build-storefront-strangler.mjs
+      - name: Emit safe formatter deltas for architecture scripts
+        if: always()
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import prettier from "prettier";
+          for (const path of [
+            "scripts/build-storefront-strangler.mjs",
+            "scripts/check-storefront-strangler.mjs",
+          ]) {
+            const raw = fs.readFileSync(path, "utf8");
+            const settings = await prettier.resolveConfig(path);
+            const formatted = await prettier.format(raw, { ...settings, filepath: path });
+            if (formatted !== raw)
+              console.log("COVE_STRANGLER_FORMAT " + JSON.stringify({
+                path, content: encodeURIComponent(formatted),
+              }));
+          }
+          NODE
       - name: Strict typecheck (existing baseline)
         run: npm run typecheck
 
