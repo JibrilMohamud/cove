@@ -1,0 +1,60 @@
+name: thin-superseded-benchmark-queue-cleanup
+on:
+  push:
+    branches: [perf/pr227-100rps-causal-20261020]
+    paths:
+      - ".github/workflows/thin-superseded-benchmark-queue-cleanup.yml"
+permissions:
+  contents: read
+  actions: write
+jobs:
+  cancel-only-obsolete-queued-stage-benchmarks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Free queue without cancelling an active Worker deployment
+        shell: bash
+        env:
+          GH_API_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const repo = process.env.GH_REPO;
+          if (repo !== "JibrilMohamud/cove") throw Error("Repository scope mismatch");
+          const base = "https://api.github.com/repos/" + repo;
+          const headers = {
+            authorization: "Bearer " + process.env.GH_API_TOKEN,
+            accept: "application/vnd.github+json",
+            "x-github-api-version": "2022-11-28",
+          };
+          const target = "a54c0dc39d8bcf2058a143a90e3d3448f394635a";
+          const endpoint = base +
+            "/actions/workflows/cloudflare-thin-storefront-100rps-attribution.yml/runs" +
+            "?branch=perf%2Fpr227-100rps-causal-20261020&per_page=100";
+          const response = await fetch(endpoint, { headers });
+          if (!response.ok) throw Error("Unable to inspect exact benchmark queue");
+          const body = await response.json();
+          const candidates = (body.workflow_runs || []).filter((run) =>
+            ["queued", "pending", "waiting", "requested"].includes(run.status) &&
+            run.head_sha !== target &&
+            run.head_branch === "perf/pr227-100rps-causal-20261020" &&
+            run.event === "push",
+          );
+          for (const run of candidates) {
+            const result = await fetch(
+              base + "/actions/runs/" + run.id + "/cancel",
+              { method: "POST", headers },
+            );
+            console.log("COVE_SUPERSEDED_STAGE_QUEUE " + JSON.stringify({
+              runId: run.id,
+              action: "cancel_queued_only",
+              httpStatus: result.status,
+            }));
+            if (![202, 409].includes(result.status))
+              throw Error("Superseded queued run could not be cancelled");
+          }
+          console.log("COVE_STAGE_QUEUE: kept active runs and target A/B " + target);
+          NODE
+# Does not cancel active, in-progress, or newest controlled benchmark.
+# No staging Worker, production Cloudflare, D1, DNS, or deployment changes.
