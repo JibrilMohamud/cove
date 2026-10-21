@@ -54,16 +54,12 @@ const save = () =>
   );
 let stageKey = "";
 function command(args, input) {
-  const run = spawnSync(
-    "./node_modules/.bin/wrangler",
-    args,
-    {
-      input,
-      encoding: "utf8",
-      timeout: 180_000,
-      env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" },
-    },
-  );
+  const run = spawnSync("./node_modules/.bin/wrangler", args, {
+    input,
+    encoding: "utf8",
+    timeout: 180_000,
+    env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" },
+  });
   if (run.status !== 0 || run.error)
     throw Error(
       "Wrangler " +
