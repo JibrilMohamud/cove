@@ -176,7 +176,13 @@ export async function serveLeanAnonymousBootstrap(
   }
   // Keep measured actual primary SQL duration, rows read and retries separate
   // from the full D1 service/network request duration.
-  if (env.COVE_SSR_DIAGNOSTICS === "1" && flight.joined) timings.context_joined = 1;
+  // A sampled join marker alone is not an attribution denominator. Stage-only
+  // responses must report both the eligible cohort and join outcome (0 or 1)
+  // so one favorable colo cannot be mistaken for a coalescing improvement.
+  if (env.COVE_SSR_STAGING === "1" && env.COVE_SSR_DIAGNOSTICS === "1") {
+    timings.context_flight_eligible = coalesce ? 1 : 0;
+    timings.context_joined = flight.joined ? 1 : 0;
+  }
   if (d1Metrics.sqlDurationMs !== undefined) timings.catalog_sql = d1Metrics.sqlDurationMs;
   if (env.COVE_SSR_DIAGNOSTICS === "1" && contextMetrics.sqlDurationMs !== undefined)
     timings.context_sql = contextMetrics.sqlDurationMs;

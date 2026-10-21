@@ -197,6 +197,7 @@ function summary(rows) {
     "cove_context",
     "cove_context_sql",
     "cove_context_joined",
+    "cove_context_flight_eligible",
     "cove_page",
     "cove_bootstrap",
   ]) {
@@ -204,9 +205,22 @@ function summary(rows) {
     if (values.length)
       spans[name] = { count: values.length, p95: pct(values, 0.95), max: Math.max(...values) };
   }
+  const instrumented = valid.filter((row) =>
+    Number.isFinite(row.timings?.cove_context_flight_eligible),
+  );
+  const eligible = instrumented.filter((row) =>
+    row.timings.cove_context_flight_eligible === 1,
+  ).length;
+  const joined = instrumented.filter((row) => row.timings.cove_context_joined === 1).length;
   return {
     byColo,
     spans,
+    coalescing: {
+      instrumented: instrumented.length,
+      eligible,
+      joined,
+      joinPercent: eligible > 0 ? Math.round((1000 * joined) / eligible) / 10 : null,
+    },
     requested: rows.length,
     valid: valid.length,
     errors: rows.length - valid.length,
@@ -770,11 +784,32 @@ try {
     offMaxMs: controls.map((run) => run.summary.max),
     onMaxMs: middle.summary.max,
     onPassed: middle.pass,
+    onJoinTelemetry: middle.summary.coalescing,
+    offJoinTelemetry: controls.map((run) => run.summary.coalescing),
+    // Every response must be instrumented and ON must demonstrably join at
+    // least one actual metadata batch; otherwise no attribution is allowed.
+    measurementComplete:
+      middle.summary.coalescing.instrumented === middle.offered &&
+      middle.summary.coalescing.eligible === middle.offered &&
+      middle.summary.coalescing.joined > 0 &&
+      controls.every((run) =>
+        run.summary.coalescing.instrumented === run.offered &&
+        run.summary.coalescing.eligible === 0 &&
+        run.summary.coalescing.joined === 0,
+      ),
     // Improvement is a measured outcome, not an assumption just because
     // the flag was enabled. Comparison cannot be certified across colos.
     improvementSupported:
       sameColo &&
       middle.pass &&
+      middle.summary.coalescing.instrumented === middle.offered &&
+      middle.summary.coalescing.eligible === middle.offered &&
+      middle.summary.coalescing.joined > 0 &&
+      controls.every((run) =>
+        run.summary.coalescing.instrumented === run.offered &&
+        run.summary.coalescing.eligible === 0 &&
+        run.summary.coalescing.joined === 0,
+      ) &&
       controls.every(
         (run) =>
           run.summary.valid === run.offered &&

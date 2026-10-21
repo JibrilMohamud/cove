@@ -44,6 +44,9 @@ export function scopedStageConfigs(thin, ingress, names, expectedD1) {
   const scopedThin = structuredClone(thin);
   scopedThin.name = names.thin;
   scopedThin.services[0].service = names.core;
+  // Only the transient synthetic benchmark enables diagnostics. The checked-in
+  // production-side configuration is never rewritten or activated by this.
+  scopedThin.vars.COVE_SSR_DIAGNOSTICS = "1";
   const scopedIngress = structuredClone(ingress);
   scopedIngress.name = names.ingress;
   for (const service of scopedIngress.services)

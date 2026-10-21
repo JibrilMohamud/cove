@@ -18,6 +18,8 @@ const expected = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
 const result = scopedStageConfigs(thin, ingress, first, expected);
 assert.equal(result.thin.name, first.thin);
 assert.equal(result.thin.services[0].service, first.core);
+assert.equal(result.thin.vars.COVE_SSR_DIAGNOSTICS, "1");
+assert.equal(thin.vars.COVE_SSR_DIAGNOSTICS, undefined);
 assert.equal(result.ingress.name, first.ingress);
 assert.equal(result.ingress.services.find((x) => x.binding === "THIN").service, first.thin);
 assert.equal(result.ingress.services.find((x) => x.binding === "BASELINE").service, first.baseline);

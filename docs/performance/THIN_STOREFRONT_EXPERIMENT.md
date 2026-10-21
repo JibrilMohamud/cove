@@ -124,3 +124,17 @@ can delete **only its own four generated staging names**; fixed names and
 production services cannot be deleted by this workflow. Validation fails
 closed on malformed run IDs, changed binding topology or production DB IDs.
 Newly deployed credentials remain independently rotated and ephemeral.
+
+## October 21: measured singleflight join attribution, no inference from absent headers
+
+The passing ORD campaign did not enable `COVE_SSR_DIAGNOSTICS` on the thin
+Worker, so absence of `cove_context_joined` in earlier response artifacts
+**does not establish that no requests joined**. The new run-specific private
+Worker config enables diagnostics without changing the checked-in base config.
+Every synthetic response emits a 0/1 eligibility counter and a 0/1 join
+counter through Server-Timing; the benchmark records counts, denominator and
+join percentage for each phase. OFF phases must have zero eligible/joined;
+ON must have full coverage and observed joins. An OFF/ON/OFF latency win
+without recorded joining is explicitly **not** attributed to coalescing.
+Rights authorization remains per-request, primary-D1 and uncached; no
+business logic or storefront SQL is changed by this instrumentation.
