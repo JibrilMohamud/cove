@@ -40,6 +40,9 @@ jobs:
           for (const path of [
             "scripts/build-storefront-strangler.mjs",
             "scripts/check-storefront-strangler.mjs",
+            "scripts/check-storefront-prepared-catalog.mjs",
+            "src/storefront-strangler/prepared-catalog.server.ts",
+            "src/features/fore/catalog-model.server.ts",
           ]) {
             const raw = fs.readFileSync(path, "utf8");
             const settings = await prettier.resolveConfig(path);
