@@ -275,15 +275,17 @@ try {
   evidence.fixtureProducts = Number(fixture[0].results[0].n);
   for (let i = 0; i < 3; i++) {
     await deployFresh(i + 1);
+    // The first homepage MUST remain the first fetch to this Worker identity.
+    // Transport control AFTER it diagnoses ingress without warming the cold probe.
+    const cold = await sample();
     const transportStart = performance.now();
     const control = await fetch(origin + "/__cove_perf/transport", {
       headers: { authorization: "Bearer " + stageKey },
       signal: AbortSignal.timeout(6000),
     });
     const transportMs = performance.now() - transportStart;
-    assert.equal(control.status, 200, "Pre-cold transport control must succeed");
+    assert.equal(control.status, 200, "Post-cold transport control must succeed");
     console.log("TRANSPORT_CONTROL", JSON.stringify({ round: i + 1, transportMs }));
-    const cold = await sample();
     evidence.cold.push(cold);
     console.log("COLD_PROBE", JSON.stringify({ round: i + 1, ...cold }));
     save();
