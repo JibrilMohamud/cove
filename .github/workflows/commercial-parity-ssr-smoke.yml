@@ -209,11 +209,11 @@ jobs:
             # This is a warm A/B experiment, never a cold certification.
             node scripts/staging/check-commercial-parity-ssr.mjs
             local burst_status=$?
-            node scripts/staging/check-commercial-parity-rps.mjs
+            COVE_STAGE_TRANSPORT_FLOOR=1 node scripts/staging/check-commercial-parity-rps.mjs
             local mixed_status=$?
             COVE_STAGE_HTTP2=1 node scripts/staging/check-commercial-parity-ssr.mjs
             local h2_burst_status=$?
-            COVE_STAGE_HTTP2=1 node scripts/staging/check-commercial-parity-rps.mjs
+            COVE_STAGE_HTTP2=1 COVE_STAGE_TRANSPORT_FLOOR=1 node scripts/staging/check-commercial-parity-rps.mjs
             local h2_mixed_status=$?
             COVE_SSR_STAGING_ORIGIN="https://cove-commercial-parity-ssr-staging-20261020.cove-jibrilmohamud.workers.dev" \
               node scripts/performance/cloudflare-browser.mjs
