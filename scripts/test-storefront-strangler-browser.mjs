@@ -38,7 +38,13 @@ const server = http.createServer(async (request, response) => {
     assert.equal(request.method, "GET");
     json({
       suggestions: [
-        { type: "book", productId: "prd_1", bookId: "ed_1", label: "Jane Austen", sublabel: "Author" },
+        {
+          type: "book",
+          productId: "prd_1",
+          bookId: "ed_1",
+          label: "Jane Austen",
+          sublabel: "Author",
+        },
       ],
     });
   } else if (url.pathname === "/api/fore/library") {
