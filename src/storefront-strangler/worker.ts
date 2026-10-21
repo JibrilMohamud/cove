@@ -12,6 +12,7 @@ import {
 import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap";
 import { renderStranglerStorefront } from "./render";
 import { bootstrapFailureKind } from "./failure";
+import { syntheticBenchmarkClient } from "./synthetic-client";
 
 /** Build-isolated serving boundary. No auth, orders, reader or background code.
  * Existing domain logic is reused through type-only references. This pilot is
@@ -77,7 +78,7 @@ export default {
             },
           }),
         );
-      const safe = isolateWorkerCountry(request);
+      const safe = isolateWorkerCountry(syntheticBenchmarkClient(request, env));
       if (!safe)
         return finish(new Response("Unable to verify storefront territory.", { status: 503 }));
       const headers = new Headers(safe.headers);
