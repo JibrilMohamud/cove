@@ -593,6 +593,26 @@ try {
   await deploy("baseline");
   await deploy("thin");
   command(["deploy", "--config", "wrangler.thin-ingress-run.jsonc"]);
+  // Wrangler upload completion does not guarantee that a newly created
+  // workers.dev ingress/service graph is visible immediately. Confirm its
+  // current 100% control-plane deployment without making an HTTP request to
+  // the Worker (which would warm the very cold path being benchmarked).
+  let ingressReady = false;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const deployments = await api(
+      "GET",
+      `/accounts/${account}/workers/scripts/${workers.ingress}/deployments`,
+    );
+    const current = deployments.deployments?.[0];
+    if (current?.versions?.some((version) => version.percentage === 100)) {
+      ingressReady = true;
+      evidence.configuration.ingressDeploymentId = current.id;
+      save();
+      break;
+    }
+    await new Promise((done) => setTimeout(done, 1500));
+  }
+  assert.ok(ingressReady, "New run-scoped staging ingress did not become active");
   for (let round = 1; round <= 3; round++) {
     await deploy("core");
     for (const role of round % 2 ? ["baseline", "thin"] : ["thin", "baseline"]) {
