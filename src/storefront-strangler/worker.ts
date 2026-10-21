@@ -125,14 +125,21 @@ export default {
       }
       failurePhase = "render";
       return finish(
-        new Response(renderStranglerStorefront(bootstrap, env.FORE_PUBLIC_URL || url.origin, env.COVE_STRANGLER_EXPERIENCE === "1"), {
-          headers: {
-            "content-type": "text/html; charset=utf-8",
-            "cache-control": "private, no-store",
-            "x-cove-renderer": "strangler-evaluation",
-            "server-timing": response.headers.get("server-timing") || "",
+        new Response(
+          renderStranglerStorefront(
+            bootstrap,
+            env.FORE_PUBLIC_URL || url.origin,
+            env.COVE_STRANGLER_EXPERIENCE === "1",
+          ),
+          {
+            headers: {
+              "content-type": "text/html; charset=utf-8",
+              "cache-control": "private, no-store",
+              "x-cove-renderer": "strangler-evaluation",
+              "server-timing": response.headers.get("server-timing") || "",
+            },
           },
-        }),
+        ),
       );
     } catch (error) {
       // A failed live-rights read never becomes a cached offer or success page.
