@@ -174,16 +174,17 @@ for (const parent of secondLevel) {
     thirdLevel.push({ importedFrom: parent.imported, imported, staticClosure: closure });
   }
 }
-// Explicitly gate the new client-only auth boundary when requested by CI.
-// Earlier production revisions are measured but do not have this budget.
-if (process.env.COVE_ENFORCE_CLIENT_AUTH_SPLIT === "1") {
-  const start = thirdLevel.find((item) => item.imported.startsWith("_ssr/start-"));
-  assert.ok(start, "Cannot verify the built SSR Start module");
-  assert.ok(
-    start.staticClosure.bytes < 150_000,
-    "SSR Start must not eagerly import the browser Supabase authentication SDK",
-  );
-}
+// Preserve the strict startup budget but record its exact module graph
+// BEFORE asserting; otherwise a failure destroys the evidence needed to
+// distinguish an auth SDK import from ordinary TanStack or bundler changes.
+const auditedStart = thirdLevel.find((item) => item.imported.startsWith("_ssr/start-"));
+const coldAuthBudget = {
+  enforced: process.env.COVE_ENFORCE_CLIENT_AUTH_SPLIT === "1",
+  startFound: Boolean(auditedStart),
+  staticClosureBytes: auditedStart?.staticClosure.bytes ?? null,
+  maxExclusiveBytes: 150_000,
+  heaviestStaticModules: auditedStart?.staticClosure.heaviest.slice(0, 12) ?? [],
+};
 const staticBytes = detail.reduce((n, d) => n + d.bytes, 0);
 const allBytes = allFiles.reduce((n, file) => n + fs.statSync(file).size, 0);
 const report = {
@@ -203,8 +204,17 @@ const report = {
   dynamicEntrypoints,
   secondLevel,
   thirdLevel,
+  coldAuthBudget,
 };
 fs.mkdirSync("artifacts", { recursive: true });
 fs.writeFileSync("artifacts/cloudflare-entry-import-graph.json", JSON.stringify(report, null, 2));
 process.stdout.write("COVE_COLD_IMPORT_GRAPH " + JSON.stringify(report) + "\n");
 if (errors.length) process.exitCode = 1;
+
+if (coldAuthBudget.enforced) {
+  assert.ok(coldAuthBudget.startFound, "Cannot verify the built SSR Start module");
+  assert.ok(
+    coldAuthBudget.staticClosureBytes < coldAuthBudget.maxExclusiveBytes,
+    "SSR Start static closure exceeds the auth-boundary budget; see coldAuthBudget evidence",
+  );
+}
