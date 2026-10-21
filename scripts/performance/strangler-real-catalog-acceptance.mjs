@@ -220,12 +220,11 @@ async function pixelMismatch(page, baseline, candidate) {
 async function stageBrowserRoute(route) {
   const resource = new URL(route.request().url());
   if (resource.origin !== origin) return route.continue();
-  if (
-    route.request().method() === "GET" &&
-    (["/covers/", "/assets/", "/images/", "/fonts/"].some((prefix) =>
+  const forwardedAsset =
+    ["/covers/", "/assets/", "/images/", "/fonts/"].some((prefix) =>
       resource.pathname.startsWith(prefix),
-    ) || resource.pathname.startsWith("/api/fore/"))
-  ) {
+    ) || resource.pathname.startsWith("/api/fore/");
+  if (route.request().method() === "GET" && forwardedAsset) {
     const publicUrl = "https://cove-puce-theta.vercel.app" + resource.pathname + resource.search;
     const response = await route.fetch({
       url: publicUrl,
