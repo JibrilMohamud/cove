@@ -254,6 +254,83 @@ try {
     summary.p95 < 600 && summary.p99 < 750 && summary.max < 800,
     "Integrated 100-RPS tails exceeded release envelope",
   );
+  // Report actual rendered LCP of this deployed, bearer-gated Worker,
+  // never equate a synthetic preview with the public Vercel release.
+  const { chromium } = await import("@playwright/test");
+  const browser = await chromium.launch({ headless: true });
+  const mobileSamples = [];
+  try {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const context = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+        deviceScaleFactor: 2,
+        isMobile: true,
+        hasTouch: true,
+      });
+      const page = await context.newPage();
+      const pageErrors = [];
+      page.on("pageerror", (error) => pageErrors.push(error.message));
+      await page.route("**/*", (route) => {
+        const url = new URL(route.request().url());
+        if (url.origin !== origin) return route.continue();
+        return route.continue({
+          headers: {
+            ...route.request().headers(),
+            authorization: "Bearer " + stageKey,
+          },
+        });
+      });
+      await page.addInitScript(() => {
+        window.__coveVitals = { lcp: null, cls: 0 };
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries())
+            window.__coveVitals.lcp = entry.startTime;
+        }).observe({ type: "largest-contentful-paint", buffered: true });
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            if (!entry.hadRecentInput) window.__coveVitals.cls += entry.value;
+          }
+        }).observe({ type: "layout-shift", buffered: true });
+      });
+      const cdp = await context.newCDPSession(page);
+      await cdp.send("Network.emulateNetworkConditions", {
+        offline: false,
+        latency: 150,
+        downloadThroughput: 200_000,
+        uploadThroughput: 90_000,
+      });
+      await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+      const response = await page.goto(origin + "/", {
+        waitUntil: "domcontentloaded",
+        timeout: 20_000,
+      });
+      await page.waitForTimeout(1500);
+      const vitals = await page.evaluate(() => window.__coveVitals);
+      mobileSamples.push({
+        status: response?.status(),
+        lcpMs: vitals.lcp,
+        cls: vitals.cls,
+        pageErrors,
+      });
+      await context.close();
+    }
+  } finally {
+    await browser.close();
+  }
+  const mobileLcp = mobileSamples.map((s) => s.lcpMs).filter(Number.isFinite);
+  evidence.stageMobileLcp = {
+    description: "Synthetic-only deployed Worker, Chromium 390x844, 4x CPU, 150ms RTT",
+    samples: mobileSamples,
+    p75Ms: percentile(mobileLcp, 0.75),
+  };
+  console.log("STAGE_MOBILE_LCP", JSON.stringify(evidence.stageMobileLcp));
+  save();
+  assert.equal(mobileLcp.length, 5, "Stage mobile LCP observations must exist");
+  assert.ok(
+    evidence.stageMobileLcp.p75Ms < 2500 &&
+      mobileSamples.every((sample) => sample.status === 200 && !sample.pageErrors.length),
+    "Stage mobile LCP or browser errors exceeded the preview acceptance gate",
+  );
   evidence.pass = true;
   console.log(
     "PASS integrated thin performance acceptance",

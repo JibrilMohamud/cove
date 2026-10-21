@@ -98,6 +98,8 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Install Chromium for deployed stage mobile-LCP measurements
+        run: npx playwright install --with-deps chromium
       - name: Build immutable, isolated interactive Worker
         run: node scripts/build-storefront-strangler.mjs
       - name: Independently verify 3 cold, 1/4/8/16/32 and 100 RPS
