@@ -55,6 +55,7 @@ jobs:
             "scripts/staging/prepare-strangler-capacity-config.mjs",
             "scripts/staging/wait-strangler-private-model.mjs",
             "scripts/staging/wait-strangler-secret-deployment.mjs",
+            "scripts/staging/seed-strangler-private-stage.mjs",
             "src/features/fore/anonymous-http-metric.server.ts",
             "scripts/check-isolated-http-metric.mjs",
             "src/features/fore/api.server.ts",
