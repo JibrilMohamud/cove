@@ -293,6 +293,21 @@ try {
     ).status,
     503,
   );
+  // All synthetic requests enter before their shared primary rights query
+  // starts; a later request after revocation must get a NEW legal decision.
+  const microEnv = {
+    ...env,
+    COVE_THIN_PRIMARY_MICROBATCH: "1",
+  };
+  const grouped = await Promise.all(
+    Array.from({ length: 6 }, () => worker.fetch(request(), microEnv)),
+  );
+  assert.ok(grouped.every((response) => response.status === 200));
+  assert.ok(
+    grouped.some((response) =>
+      /cove_primary_microbatch_joined;dur=1\.0/.test(response.headers.get("server-timing") || ""),
+    ),
+  );
   assert.ok(firstBootstrap.catalog.results.length > 1);
   // The real seeded, rights-checked synthetic HTML is reused for interaction
   // testing in Chromium rather than testing a disconnected hand-written page.
@@ -321,6 +336,12 @@ try {
     !(await (await worker.fetch(request(), env)).text()).includes(
       'data-product="' + second.productId + '"',
     ),
+  );
+  assert.ok(
+    !(await (await worker.fetch(request(), microEnv)).text()).includes(
+      'data-product="' + second.productId + '"',
+    ),
+    "A new request after revocation must not reuse a completed primary rights result",
   );
   const down = await worker.fetch(request(), {
     ...env,
