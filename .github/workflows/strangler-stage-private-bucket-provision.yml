@@ -1,9 +1,5 @@
 name: strangler-stage-private-bucket-provision
 on:
-  pull_request:
-    paths:
-      - "scripts/staging/provision-strangler-private-r2.mjs"
-      - ".github/workflows/strangler-stage-private-bucket-provision.yml"
   workflow_dispatch:
 
 permissions:
@@ -15,10 +11,6 @@ concurrency:
 
 jobs:
   provision-strictly-named-staging-bucket:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.head.repo.full_name == github.repository &&
-       github.event.pull_request.head.ref == 'architecture/strangler-storefront-m1-20261020')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
