@@ -91,3 +91,14 @@ producer's synthetic D1 and private R2 binding have no production data; the
 named R2 staging bucket is a required resource to provision before deployment
 and is not assumed to exist. Only explicitly scheduled operator testing can
 publish candidate projections. End-to-end live capacity is still unproven.
+
+## Staging delegation and sparse-market candidate correctness
+
+The producer now filters candidate hints by the current territorial retail
+availability view **before** taking the top 128, preventing licensed books
+from disappearing behind a global popularity cap in sparse countries.
+This derived candidate data never grants rights: the serving Worker still
+performs one fresh bounded authoritative primary-D1 validation, including
+immediate revocation. The gateway also strips its staging operator bearer
+before delegating account, reader, checkout, or navigation to CORE while
+preserving customer session cookies. Dedicated regressions cover both.

@@ -60,6 +60,7 @@ try {
   );
   const { renderStranglerStorefront } = await import(path.join(root, "render.js"));
   let delegated = 0;
+  const forwarded = [];
   const env = {
     ...localBindings(root),
     FORE_ENVIRONMENT: "production",
@@ -75,6 +76,10 @@ try {
     CORE: {
       async fetch(req) {
         delegated++;
+        forwarded.push({
+          authorization: req.headers.get("authorization"),
+          cookie: req.headers.get("cookie"),
+        });
         return new Response("core:" + new URL(req.url).pathname);
       },
     },
@@ -131,12 +136,20 @@ try {
     );
   }
   assert.ok(delegated >= 6);
+  assert.ok(
+    forwarded.every((entry) => entry.authorization === null),
+    "Stage bearer must never leave the gateway",
+  );
   for (const hint of ["cookie", "oai-authenticated-user-id", "x-fore-authenticated-user-id"]) {
     assert.equal(
       await (await worker.fetch(request("US", { [hint]: "private" }), env)).text(),
       "core:/",
     );
   }
+  assert.ok(
+    forwarded.some((entry) => entry.cookie === "private"),
+    "Existing customer session cookies must survive delegation",
+  );
   const diagnostic = await worker.fetch(request("US", {}, "/__cove_perf/bootstrap"), env);
   assert.equal(diagnostic.status, 200);
   const probe = await diagnostic.json();

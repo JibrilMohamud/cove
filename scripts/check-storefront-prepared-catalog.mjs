@@ -183,6 +183,11 @@ try {
   assert.ok(
     !(await (await worker.fetch(request(), env)).text()).includes('data-product="' + first + '"'),
   );
+  await produceCandidateSnapshot(db, "US", store);
+  assert.ok(
+    !JSON.parse(objects.get(usKey)).productIds.includes(first),
+    "Regenerated candidate set must exclude revoked products",
+  );
   await db
     .prepare("UPDATE products SET storefront_status='inactive' WHERE id=?")
     .bind(valid.productIds[1])

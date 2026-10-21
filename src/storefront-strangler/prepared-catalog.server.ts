@@ -87,6 +87,9 @@ export async function produceCandidateSnapshot(
     .first<{ currency: string }>();
   const currency = String(selected?.currency || "");
   if (!currencyCode(currency)) throw Error("Active currency is unavailable.");
+  // Territorial eligibility here is only a producer-side ranking hint.
+  // Every served ID is reauthorized against current PRIMARY-D1 retail rights.
+  // It avoids losing sparse-market books outside the globally ranked top 128.
   const result = await db
     .prepare(
       `SELECT d.product_id FROM catalog_search_documents d INDEXED BY idx_search_popular_stable
@@ -94,9 +97,13 @@ export async function produceCandidateSnapshot(
        WHERE d.currency=? AND d.availability='available' AND d.suppressed=0
          AND p.storefront_status='active' AND p.source_name<>'upload'
          AND e.release_status IN ('available','preorder')
+         AND EXISTS (
+           SELECT 1 FROM retail_product_availability_rows rpa
+           WHERE rpa.product_id=p.id AND rpa.territory_code=?
+         )
        ORDER BY d.fore_bestseller_score DESC,d.external_book_id ASC,d.product_id ASC LIMIT ?`,
     )
-    .bind(currency, MAX_CANDIDATES)
+    .bind(currency, country, MAX_CANDIDATES)
     .all<{ product_id: string }>();
   const snapshot: CandidateSnapshot = {
     schema: MODEL_VERSION,

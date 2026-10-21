@@ -41,6 +41,12 @@ export default {
     if (rejected) return rejected;
     const finish = (response: Response) =>
       stageNoStore(applySecurityHeaders(request, response, env), true);
+    // Stage bearer authorizes this gateway, not a customer session at CORE.
+    const delegate = () => {
+      const headers = new Headers(request.headers);
+      headers.delete("authorization");
+      return env.CORE.fetch(new Request(request, { headers }));
+    };
     let failurePhase = "entry";
     try {
       const url = new URL(request.url);
@@ -48,7 +54,7 @@ export default {
       // Service binding preserves existing account/reader/API/filtered paths.
       // Production routing is disabled in the checked Wrangler configuration.
       if (request.method !== "GET" || (!diagnostic && (url.pathname !== "/" || url.search)))
-        return await env.CORE.fetch(request);
+        return await delegate();
       const safe = isolateWorkerCountry(request);
       if (!safe)
         return finish(new Response("Unable to verify storefront territory.", { status: 503 }));
@@ -61,7 +67,7 @@ export default {
       // Any cookie/identity hint uses the established application; preferences
       // and account state cannot leak into an anonymous response.
       if (!canUseLeanAnonymousBootstrap(bootstrapRequest, env))
-        return await env.CORE.fetch(request);
+        return await delegate();
       failurePhase = "bootstrap";
       // The current main-branch canonical bootstrap has a two-argument API.
       // Preserve it unchanged; all failures remain fail-closed and classified.
