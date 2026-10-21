@@ -1,0 +1,49 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "cove-strangler-m1-staging",
+  "main": ".output/strangler/index.mjs",
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "services": [
+    {
+      "binding": "CORE",
+      "service": "cove-thin-core-staging"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cove-perf-isolated-candidate-20261019",
+      "database_id": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "COVE_STOREFRONT_READ_LIMITER",
+      "namespace_id": "732031",
+      "simple": {
+        "limit": 180,
+        "period": 60
+      }
+    }
+  ],
+  "vars": {
+    "COVE_SSR_STAGING": "1",
+    "COVE_STRANGLER_MODE": "isolated-evaluation",
+    "COVE_STRANGLER_EXPERIENCE": "1",
+    "COVE_SSR_DIAGNOSTICS": "1",
+    "COVE_STRANGLER_DATABASE_ID": "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",
+    "FORE_ENVIRONMENT": "production",
+    "FORE_DEFAULT_TERRITORY": "US",
+    "FORE_PUBLIC_URL": "https://cove-puce-theta.vercel.app"
+  }
+}
