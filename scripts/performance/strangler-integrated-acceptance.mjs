@@ -11,8 +11,10 @@ const prodDbId = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const token = process.env.CLOUDFLARE_API_TOKEN;
 assert.ok(token && token.length > 16, "Isolated hosted acceptance requires Cloudflare credentials");
 assert.match(process.env.GITHUB_RUN_ID || "", /^\d+$/);
-const name = "cove-strangler-perf-" + process.env.GITHUB_RUN_ID;
-const origin = `https://${name}.cove-jibrilmohamud.workers.dev`;
+const namePrefix = "cove-strangler-perf-" + process.env.GITHUB_RUN_ID;
+let name = namePrefix + "-1";
+let origin = `https://${name}.cove-jibrilmohamud.workers.dev`;
+const createdWorkers = [];
 const configPath = "wrangler.strangler-perf-run.jsonc";
 const config = JSON.parse(fs.readFileSync("wrangler.storefront-strangler.stage.jsonc", "utf8"));
 assert.equal(config.d1_databases[0].database_id, dbId);
@@ -32,6 +34,7 @@ fs.writeFileSync(configPath, configString);
 const evidence = {
   sha: process.env.GITHUB_SHA,
   worker: name,
+  workers: createdWorkers,
   syntheticD1: dbId,
   productionRouted: false,
   fixtureProducts: null,
@@ -130,14 +133,28 @@ async function sample() {
     return { ok: false, ms: performance.now() - start, error: error.name };
   }
 }
-let lastDeploymentId = null;
-async function deployFresh() {
+async function deployFresh(round) {
+  // A unique Worker identity prevents stale encrypted secrets from previous
+  // deployments in remote POPs contaminating an independent cold observation.
+  name = namePrefix + "-" + round;
+  origin = `https://${name}.cove-jibrilmohamud.workers.dev`;
+  createdWorkers.push(name);
+  config.name = name;
+  config.vars.FORE_PUBLIC_URL = origin;
+  const scopedConfig = JSON.stringify(config, null, 2);
+  assert.ok(!scopedConfig.includes(prodDbId));
+  fs.writeFileSync(configPath, scopedConfig);
   command(["deploy", "--config", configPath]);
+  const before = await cloudflare(
+    "GET",
+    `/accounts/${account}/workers/scripts/${name}/deployments`,
+  );
+  const beforeId = before.deployments?.[0]?.id;
+  assert.ok(beforeId, "Initial Worker deployment is unavailable");
   stageKey = randomBytes(32).toString("hex");
   const rotatedAt = Date.now();
   command(["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", configPath], stageKey);
-  // Confirm the new fully active deployment via Cloudflare control plane only:
-  // an unauthenticated fetch here would prewarm and invalidate the cold trial.
+  // Only a distinct post-secret 100% rollout is eligible for testing.
   for (let attempt = 0; attempt < 18; attempt++) {
     const result = await cloudflare(
       "GET",
@@ -146,17 +163,16 @@ async function deployFresh() {
     const latest = result.deployments?.[0];
     if (
       latest &&
-      latest.id !== lastDeploymentId &&
-      Date.parse(latest.created_on) >= rotatedAt - 5000 &&
+      latest.id !== beforeId &&
+      Date.parse(latest.created_on) >= rotatedAt - 3000 &&
       latest.versions?.some((version) => version.percentage === 100)
     ) {
-      lastDeploymentId = latest.id;
-      await new Promise((resolve) => setTimeout(resolve, 1600));
+      await new Promise((resolve) => setTimeout(resolve, 3500));
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 1800));
   }
-  throw new Error("Fresh fully active synthetic stage deployment not confirmed");
+  throw new Error("Fresh post-secret Worker deployment not confirmed");
 }
 const startedAt = performance.now();
 try {
@@ -167,7 +183,7 @@ try {
   assert.equal(Number(fixture?.[0]?.results?.[0]?.bad), 0);
   evidence.fixtureProducts = Number(fixture[0].results[0].n);
   for (let i = 0; i < 3; i++) {
-    await deployFresh();
+    await deployFresh(i + 1);
     const cold = await sample();
     evidence.cold.push(cold);
     console.log("COLD_PROBE", JSON.stringify({ round: i + 1, ...cold }));
@@ -253,9 +269,11 @@ try {
 } finally {
   evidence.elapsedMs = Math.round(performance.now() - startedAt);
   save();
-  try {
-    await cloudflare("DELETE", `/accounts/${account}/workers/scripts/${name}?force=true`);
-  } catch {
-    console.error("Stage cleanup not confirmed; remove only " + name);
+  for (const workerName of createdWorkers) {
+    try {
+      await cloudflare("DELETE", `/accounts/${account}/workers/scripts/${workerName}?force=true`);
+    } catch {
+      console.error("Stage cleanup not confirmed; remove only " + workerName);
+    }
   }
 }
