@@ -1619,6 +1619,8 @@ export async function firstPaintStorefrontShelf(
   currency: string | null,
   territory: string,
   diagnostics?: FirstPaintD1QueryMetrics,
+  /** Pre-ranked but legally untrusted; every ID still needs live primary-D1 validation. */
+  seedProductIds?: string[],
 ) {
   const started = performance.now();
   const url = new URL("https://internal.invalid/api/fore/catalog");
@@ -1671,6 +1673,7 @@ export async function firstPaintStorefrontShelf(
       binds: part.binds,
       limit: input.limit,
       currencyCountry: currency === null ? input.territory : undefined,
+      seedProductIds,
     },
     diagnostics,
   );
