@@ -70,6 +70,8 @@ try {
     COVE_SSR_STAGING: "1",
     COVE_STRANGLER_MODE: "isolated-evaluation",
     COVE_STRANGLER_EXPERIENCE: "1",
+    COVE_THIN_RIGHTS_SHORTLIST: "1",
+    COVE_SSR_DIAGNOSTICS: "1",
     COVE_STRANGLER_DATABASE_ID: STAGE_DB,
     COVE_SSR_STAGING_GATE_KEY: "a".repeat(64),
     COVE_STOREFRONT_READ_LIMITER: {
@@ -302,6 +304,13 @@ try {
     renderStranglerStorefront(firstBootstrap, "http://127.0.0.1", true),
   );
 
+  // A presentation-only shortlist may persist, but every request must
+  // revalidate each visible title against the current D1 rights view.
+  const seedFirst = await worker.fetch(request(), env);
+  assert.equal(seedFirst.status, 200);
+  const seedSecond = await worker.fetch(request(), env);
+  assert.equal(seedSecond.status, 200);
+  assert.match(seedSecond.headers.get("server-timing") || "", /cove_catalog_seeded;dur=1/);
   const first = firstBootstrap.catalog.results[0];
   await env.DB.prepare("UPDATE products SET storefront_status='inactive' WHERE id=?")
     .bind(first.productId)
