@@ -380,6 +380,38 @@ try {
     };
     console.log("REAL_CATALOG_PARITY", JSON.stringify(evidence.realCatalogParity));
     await auditCtx.close();
+    const desktopContext = await audit.newContext({
+      viewport: { width: 1440, height: 900 },
+      deviceScaleFactor: 1,
+    });
+    const desktopCandidate = await desktopContext.newPage();
+    await desktopCandidate.route("**/*", stageBrowserRoute);
+    const desktopLive = await desktopContext.newPage();
+    const [desktopBaselineResponse, desktopStageResponse] = await Promise.all([
+      desktopLive.goto("https://cove-puce-theta.vercel.app/", {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      }),
+      desktopCandidate.goto(origin, { waitUntil: "domcontentloaded", timeout: 30000 }),
+    ]);
+    assert.equal(desktopBaselineResponse?.status(), 200);
+    assert.equal(desktopStageResponse?.status(), 200);
+    await Promise.all([desktopLive.waitForTimeout(1200), desktopCandidate.waitForTimeout(1200)]);
+    const desktopBaseline = await desktopLive.screenshot({
+      path: "artifacts/strangler-acceptance/live-desktop.png",
+    });
+    const desktopStage = await desktopCandidate.screenshot({
+      path: "artifacts/strangler-acceptance/real-catalog-preview-desktop.png",
+    });
+    evidence.realCatalogParity.desktopMismatchPercent = await pixelMismatch(
+      desktopCandidate,
+      desktopBaseline,
+      desktopStage,
+    );
+    console.log("REAL_CATALOG_DESKTOP_PARITY", JSON.stringify({
+      mismatchPercent: evidence.realCatalogParity.desktopMismatchPercent,
+    }));
+    await desktopContext.close();
   } finally {
     await audit.close();
   }
