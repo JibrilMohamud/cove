@@ -7,6 +7,17 @@ import {
 export type PrivatePresentationStore = {
   get(key: string): Promise<{ size: number; text(): Promise<string> } | null>;
 };
+
+/** Independent campaigns/releases must never overwrite another deployment's
+ * advisory candidate set. The namespace is deployment-owned, not a header. */
+export function namespacedPresentationStore(
+  store: PrivatePresentationStore,
+  prefix = "",
+): PrivatePresentationStore {
+  if (prefix && !/^[a-z0-9][a-z0-9/_-]{0,159}\/$/.test(prefix))
+    throw Error("Invalid private presentation namespace");
+  return { get: (key) => store.get(prefix + key) };
+}
 // These are fixed, intentionally low-cardinality staging diagnostics only.
 export class PreparedCatalogUnavailable extends Error {
   constructor(

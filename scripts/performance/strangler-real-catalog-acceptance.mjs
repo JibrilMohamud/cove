@@ -31,9 +31,22 @@ config.preview_urls = false;
 // exercised with a fake CORE by the same-SHA local integration suite.
 config.services = [];
 config.vars.FORE_PUBLIC_URL = origin;
+// Measure the guarded real-data optimization rather than silently testing
+// the unoptimized main path. All statements remain read-only; no 100-RPS
+// campaign is offered against production D1.
+const v2 = process.env.COVE_REAL_ACCEPTANCE_V2 === "1";
+if (v2) {
+  config.vars.COVE_STRANGLER_READ_MODEL = "2";
+  config.vars.COVE_PRESENTATION_PREFIX = `campaign/${process.env.GITHUB_RUN_ID}/real/`;
+  config.r2_buckets = [
+    { binding: "PRESENTATION", bucket_name: "cove-strangler-private-presentation-stage" },
+  ];
+}
+config.vars.COVE_SSR_DIAGNOSTICS = "1";
 const configString = JSON.stringify(config, null, 2);
 assert.ok(configString.includes(prodDbId), "Real-data preview must bind the expected D1");
-assert.ok(!config.routes && !config.route && !config.r2_buckets && !config.queues);
+assert.ok(!config.routes && !config.route && !config.queues);
+assert.equal(!!config.r2_buckets, v2);
 fs.writeFileSync(configPath, configString);
 const evidence = {
   sha: process.env.GITHUB_SHA,
@@ -117,10 +130,16 @@ async function sample() {
     });
     const ms = performance.now() - start;
     const html = await response.text();
+    // Geography comes from the actual Cloudflare request.cf of this runner,
+    // not a user-controlled header. GitHub's egress may be US, MX, CA, etc.
+    // Test every observed territory, never falsely label a correct MX rights
+    // shelf invalid because the runner moved since the previous campaign.
+    const observedCountry = /data-rights-country="([A-Z]{2})"/.exec(html)?.[1] || null;
     const ok =
       response.status === 200 &&
+      !!observedCountry &&
+      !["XX", "ZZ", "T1"].includes(observedCountry) &&
       html.includes('id="thin-discovery-form"') &&
-      html.includes('data-rights-country="US"') &&
       html.includes('id="thin-merchandising"') &&
       /class="book-card"/.test(html);
     return {
@@ -128,8 +147,15 @@ async function sample() {
       ms,
       status: response.status,
       failure: response.headers.get("x-cove-stage-failure") || null,
-      observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
+      observedCountry,
       renderer: response.headers.get("x-cove-renderer"),
+      serverTiming: response.headers.get("server-timing"),
+      failureSubphase: response.headers.get("x-cove-stage-failure-subphase"),
+      failureKind: response.headers.get("x-cove-stage-failure-kind"),
+      edgeError:
+        [404, 503].includes(response.status) && !response.headers.has("x-cove-renderer")
+          ? { status: response.status, ray: response.headers.get("cf-ray") }
+          : null,
     };
   } catch (error) {
     return { ok: false, ms: performance.now() - start, error: error.name };
@@ -169,7 +195,21 @@ async function deployFresh(round) {
       Date.parse(latest.created_on) >= rotatedAt - 3000 &&
       latest.versions?.some((version) => version.percentage === 100)
     ) {
-      await new Promise((resolve) => setTimeout(resolve, 3500));
+      // Confirm workers.dev enablement and allow route propagation without
+      // warming the isolate: the subsequent measured GET is truly cold.
+      const subdomain = await cloudflare(
+        "GET",
+        `/accounts/${account}/workers/scripts/${name}/subdomain`,
+      );
+      assert.equal(subdomain.enabled, true, "Workers.dev route has not been enabled");
+      const publishedAt = Date.parse(latest.created_on);
+      assert.ok(Number.isFinite(publishedAt), "Deployment timestamp unavailable");
+      const remaining = Math.max(0, publishedAt + 25_000 - Date.now());
+      console.log(
+        "ROUTE_PROPAGATION_GRACE",
+        JSON.stringify({ round, waitMs: remaining, firstRequestStillCold: true }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, remaining));
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 1800));
@@ -237,26 +277,53 @@ async function stageBrowserRoute(route) {
   });
 }
 async function settleCatalog(page) {
+  // Avoid comparing a settled document with a partially painted font/cover.
+  // Only images intersecting the actual viewport must decode: below-fold
+  // lazy images legitimately need not load for a viewport screenshot.
+  await page.evaluate(() => document.fonts.ready);
   try {
     await page.waitForFunction(
       () => {
         const covers = [...document.querySelectorAll("article.book-card img")];
+        const visible = covers.filter((img) => {
+          const box = img.getBoundingClientRect();
+          return box.width > 0 && box.height > 0 && box.top < window.innerHeight && box.bottom > 0;
+        });
         return (
           covers.length >= 6 &&
-          covers.filter((img) => img.complete && img.naturalWidth > 0).length >= 6
+          visible.every((img) => img.complete && img.naturalWidth > 0) &&
+          !/Finding books(?:\.{3}|…)/.test(
+            document.querySelector(".catalog-count")?.textContent || "",
+          )
         );
       },
       null,
       { timeout: 14000 },
     );
   } catch {
-    // The live React page can still be showing loading skeletons; never
-    // interpret a screenshot of placeholders as proof of visual divergence.
+    // Never treat an unfinished Vercel hydration/loading state as a
+    // comparable baseline. The strict visual gate below fails closed.
   }
   return page.evaluate(() => {
     const covers = [...document.querySelectorAll("article.book-card img")];
     const loaded = covers.filter((img) => img.complete && img.naturalWidth > 0).length;
-    return { count: covers.length, loaded, settled: covers.length >= 6 && loaded >= 6 };
+    const visible = covers.filter((img) => {
+      const box = img.getBoundingClientRect();
+      return box.width > 0 && box.height > 0 && box.top < window.innerHeight && box.bottom > 0;
+    });
+    const loadedVisible = visible.filter((img) => img.complete && img.naturalWidth > 0).length;
+    const pendingCatalog =
+      /Finding books(?:\.{3}|…)/.test(
+        document.querySelector(".catalog-count")?.textContent || "",
+      ) || false;
+    return {
+      count: covers.length,
+      loaded,
+      visible: visible.length,
+      loadedVisible,
+      pendingCatalog,
+      settled: covers.length >= 6 && visible.length === loadedVisible && !pendingCatalog,
+    };
   });
 }
 const startedAt = performance.now();
@@ -267,16 +334,33 @@ try {
   assert.ok(Number(fixture?.[0]?.results?.[0]?.n) >= 40_000);
 
   evidence.fixtureProducts = Number(fixture[0].results[0].n);
-  for (let i = 0; i < 1; i++) {
+  if (v2) {
+    const { seedReadOnlyPresentation } = await import("../staging/seed-versioned-presentation.mjs");
+    await seedReadOnlyPresentation({
+      token,
+      source: dbId,
+      prefix: config.vars.COVE_PRESENTATION_PREFIX,
+      directory: "artifacts/strangler-acceptance",
+    });
+  }
+  // Each cold round uses a brand-new script name and credential, never a warm retry.
+  for (let i = 0; i < 3; i++) {
     await deployFresh(i + 1);
     const cold = await sample();
     evidence.cold.push(cold);
     console.log("COLD_PROBE", JSON.stringify({ round: i + 1, ...cold }));
     save();
   }
-  assert.ok(
-    evidence.cold.every((cold) => cold.ok && cold.ms < 800),
-    "Independent cold visits failed validity or 800ms bound",
+  // Keep the hard gate, but finish the independent visual and LCP checks
+  // even if a legitimate cold outlier occurs. One failed condition still
+  // fails the entire run; this prevents lost root-cause evidence.
+  evidence.coldGatePass = evidence.cold.every((cold) => cold.ok && cold.ms < 800);
+  save();
+  evidence.observedColdCountries = [...new Set(evidence.cold.map((cold) => cold.observedCountry))];
+  assert.equal(
+    evidence.observedColdCountries.length,
+    1,
+    "The runner's trusted network territory changed within a cold campaign",
   );
   const unauthorized = await fetch(origin, { signal: AbortSignal.timeout(6000) });
   assert.equal(unauthorized.status, 401, "Stage gate must reject requests without bearer");
@@ -455,6 +539,16 @@ try {
     await audit.close();
   }
   save();
+  assert.ok(evidence.coldGatePass, "Independent cold visits failed validity or 800ms bound");
+  assert.ok(
+    evidence.realCatalogParity.comparableMobileState &&
+      evidence.realCatalogParity.comparableDesktopState &&
+      Number.isFinite(evidence.realCatalogParity.mismatchPercent) &&
+      evidence.realCatalogParity.mismatchPercent < 10 &&
+      Number.isFinite(evidence.realCatalogParity.desktopMismatchPercent) &&
+      evidence.realCatalogParity.desktopMismatchPercent < 10,
+    "Comparable settled mobile and desktop catalogs must each have <10% pixel mismatch",
+  );
   evidence.pass = true;
   console.log(
     "PASS bearer-gated read-only real-catalog preview",
@@ -474,7 +568,10 @@ try {
     try {
       await cloudflare("DELETE", `/accounts/${account}/workers/scripts/${workerName}?force=true`);
     } catch {
+      evidence.cleanupFailed = true;
       console.error("Stage cleanup not confirmed; remove only " + workerName);
     }
   }
+  save();
+  if (evidence.cleanupFailed) throw Error("Protected preview cleanup failed");
 }

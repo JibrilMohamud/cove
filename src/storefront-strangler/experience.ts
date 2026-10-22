@@ -398,18 +398,18 @@ a:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible{ou
   .eyebrow{margin:0 0 17px}
   .eyebrow span{display:none}
   .heading{margin:0 0 24px}
-  .heading h1{font-size:38px;line-height:1.15;letter-spacing:-1px}
-  .heading p{margin:12px 0 0;font-size:14px;line-height:1.5}
+  .heading h1{font-size:37px;line-height:1.18;letter-spacing:-1px}
+  .heading p{margin:12px 0 0;font-size:13px;line-height:1.6}
   .heading>a{display:none}
   .catalog-search{margin:0;min-height:56px;padding:0 12px}
   .catalog-search button[type="submit"]{position:absolute;width:1px;height:1px;padding:0;clip-path:inset(50%);overflow:hidden}
-  .search-field input{width:100%;padding:16px 0 16px 29px;text-overflow:ellipsis}
+  .search-field input{width:100%;padding:16px 0 16px 27px;font-size:14px}.search-field input::placeholder{color:#8392a6}
   .commercial-shortcuts{margin:16px 0 14px;flex-wrap:nowrap;overflow:auto;white-space:nowrap}
   .commercial-shortcuts a{flex-shrink:0;padding:9px 12px}
   .thin-category-browse{margin-bottom:19px}
   .catalog-controls{margin:0}
   .topic-tabs{gap:22px}
-  .topic-tabs a{font-size:13px;padding:9px 0 16px}
+  .topic-tabs a{font-size:14px;padding:9px 0 16px}
   .filter-row{align-items:flex-start;gap:10px;margin:20px 0 12px}
   .catalog-count{flex:0 0 52px;font-size:12px;line-height:18px}
   .filter-selects{flex:1;gap:8px;overflow:hidden}
@@ -439,7 +439,7 @@ a:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible{ou
   .thin-facet-field.max{flex:0 0 134px}
 }
 @media(max-width:800px){
-  .topbar nav[aria-label="Account"] a:first-child{max-width:24px;white-space:normal}
+  .topbar nav[aria-label="Account"] a:first-child{max-width:24px;white-space:normal;color:var(--gold)}
   .thin-facet-field:has(input[name="minPrice"]){flex:0 0 133px;max-width:133px;min-width:0}
   .thin-facet-field input[name="minPrice"]{width:65px;min-width:0}
   .thin-facet-field.max{flex:0 0 134px}

@@ -157,6 +157,7 @@ async function deploy(round) {
   });
   Object.assign(c.vars, {
     COVE_STRANGLER_READ_MODEL: "2",
+    COVE_PRESENTATION_PREFIX: `campaign/${runId}/synthetic/`,
     COVE_SSR_DIAGNOSTICS: "1",
     FORE_PUBLIC_URL: origin,
   });
@@ -285,7 +286,15 @@ try {
     async put(key, body) {
       const file = directory + "/presentation.json";
       fs.writeFileSync(file, body);
-      cli(["r2", "object", "put", bucket + "/" + key, "--remote", "--file", file]);
+      cli([
+        "r2",
+        "object",
+        "put",
+        bucket + `/campaign/${runId}/synthetic/` + key,
+        "--remote",
+        "--file",
+        file,
+      ]);
     },
   });
   for (let round = 1; round <= 3; round++) {

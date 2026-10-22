@@ -1,6 +1,7 @@
 import {
   servePreparedCatalog,
   authorizePreparedCatalog,
+  namespacedPresentationStore,
   type PrivatePresentationStore,
 } from "./prepared-catalog.server";
 import { readHomepagePresentation } from "./homepage-presentation.server";
@@ -15,6 +16,7 @@ type OptimizedEnv = CoveEnv & {
   COVE_THIN_METADATA_COALESCE?: string;
   COVE_STRANGLER_READ_MODEL?: string;
   PRESENTATION?: PrivatePresentationStore;
+  COVE_PRESENTATION_PREFIX?: string;
 };
 
 /**
@@ -147,6 +149,9 @@ export async function serveLeanAnonymousBootstrap(
     request.headers.get("x-cove-perf-no-metadata-flight") !== "1" &&
     (request.headers.get("accept-language") || "").length <= 512;
   const model = env.COVE_STRANGLER_READ_MODEL;
+  const presentationStore = env.PRESENTATION
+    ? namespacedPresentationStore(env.PRESENTATION, env.COVE_PRESENTATION_PREFIX)
+    : undefined;
   if ((model === "1" || model === "2") && !env.PRESENTATION)
     throw Error("Private presentation binding required");
   // v2 loads locale/page presentation with candidates in one private R2 read.
@@ -154,7 +159,7 @@ export async function serveLeanAnonymousBootstrap(
   // catalog fallback. Rate admission starts concurrently with the R2 read.
   const projection =
     model === "2"
-      ? timed("presentation", readHomepagePresentation(env.PRESENTATION!, request, trustedCountry))
+      ? timed("presentation", readHomepagePresentation(presentationStore!, request, trustedCountry))
       : null;
   const flight = projection
     ? { task: projection.then((p) => p.context), joined: false }
@@ -180,7 +185,7 @@ export async function serveLeanAnonymousBootstrap(
       : model === "1"
         ? timed(
             "catalog",
-            servePreparedCatalog(rawDb, env.PRESENTATION!, trustedCountry, Date.now(), d1Metrics),
+            servePreparedCatalog(rawDb, presentationStore!, trustedCountry, Date.now(), d1Metrics),
           )
         : timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics)),
   ]);

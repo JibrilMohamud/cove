@@ -162,6 +162,15 @@ try {
       },
     }),
   );
+  objects.set("campaign/123/real/" + key("US"), saved);
+  assert.equal(
+    (await serve(request("US"), { ...env, COVE_PRESENTATION_PREFIX: "campaign/123/real/" })).status,
+    200,
+  );
+  await assert.rejects(() =>
+    serve(request("US"), { ...env, COVE_PRESENTATION_PREFIX: "campaign/other/" }),
+  );
+  await assert.rejects(() => serve(request("US"), { ...env, COVE_PRESENTATION_PREFIX: "../" }));
   const events = [];
   const msg = {
     body: { schema: "cove.literary.prepare.v1", jobId: "a".repeat(64) },

@@ -15,7 +15,10 @@ import { renderStranglerStorefront } from "./render";
 import { bootstrapFailureKind } from "./failure";
 import { syntheticBenchmarkClient } from "./synthetic-client";
 import { readHomepagePresentation } from "./homepage-presentation.server";
-import type { PrivatePresentationStore } from "./prepared-catalog.server";
+import {
+  namespacedPresentationStore,
+  type PrivatePresentationStore,
+} from "./prepared-catalog.server";
 
 /** Build-isolated serving boundary. No auth, orders, reader or background code.
  * Existing domain logic is reused through type-only references. This pilot is
@@ -31,6 +34,7 @@ export type StorefrontStranglerEnv = CoveEnv & {
   COVE_INTERNAL_CORE_STAGE_GATE_KEY?: string;
   COVE_STRANGLER_READ_MODEL?: string;
   PRESENTATION?: PrivatePresentationStore;
+  COVE_PRESENTATION_PREFIX?: string;
   CORE: { fetch(request: Request): Promise<Response> };
 };
 
@@ -226,7 +230,7 @@ export default {
         const started = performance.now();
         if (!env.PRESENTATION) throw Error("Private presentation binding required");
         const snapshot = await readHomepagePresentation(
-          env.PRESENTATION,
+          namespacedPresentationStore(env.PRESENTATION, env.COVE_PRESENTATION_PREFIX),
           bootstrapRequest,
           headers.get("x-cove-client-country")!,
         );
