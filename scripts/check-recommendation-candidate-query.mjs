@@ -10,6 +10,8 @@ const start = source.indexOf("async function activeCandidateIds(");
 const end = source.indexOf("\nfunction addFeature(", start);
 assert.ok(start >= 0 && end > start, "Cannot locate production candidate selector");
 const isolated = `const MAX_CANDIDATES = 500;
+const replicaEligiblePresentationRead = (db) =>
+  typeof db.withSession === "function" ? db.withSession("first-unconstrained") : db;
 ${source.slice(start, end).replace("async function activeCandidateIds", "export async function activeCandidateIds")}`;
 const compiled = await transform(isolated, { loader: "ts", format: "esm", target: "es2022" });
 const { activeCandidateIds } = await import(
@@ -105,6 +107,43 @@ for (const territory of ["US", "CA", "GB"]) {
     if (limit === 0) assert.equal(calls.length, 0, "Empty request must not call D1");
   }
 }
+// Simulate a lagging read replica that ranks a revoked book inside the
+// full-page candidate window. The primary check must reject it and fall back.
+const base = adapter([]);
+const replicaReads = [];
+base.withSession = (constraint) => {
+  assert.equal(constraint, "first-unconstrained");
+  return {
+    prepare(statement) {
+      const prepared = adapter(replicaReads).prepare(statement);
+      return {
+        bind(...parameters) {
+          const bound = prepared.bind(...parameters);
+          return {
+            async all() {
+              const rows = await bound.all();
+              if (statement.includes("WITH ranked AS MATERIALIZED") && rows.results.length) {
+                rows.results[0] = { id: "book-001" };
+              }
+              return rows;
+            },
+          };
+        },
+      };
+    },
+  };
+};
+const liveReference = reference.all("US", "US", 5).map((row) => row.id);
+assert.deepEqual(
+  await activeCandidateIds(base, "US", 5),
+  liveReference,
+  "Stale replica recommendations must never authorize a revoked book",
+);
+assert.ok(
+  replicaReads.some((statement) => statement.includes("WITH ranked AS MATERIALIZED")),
+  "The expensive ranking query must run on the replica-eligible read session",
+);
+
 assert.match(source.slice(start, end), /retail_product_availability_rows/);
 assert.match(source.slice(start, end), /rights_grant_territories/);
 assert.match(source.slice(start, end), /grantCount\?\.grant_count/);
