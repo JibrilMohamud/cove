@@ -272,7 +272,7 @@ async function settleCatalog(page) {
         return (
           covers.length >= 6 &&
           covers.filter((img) => img.complete && img.naturalWidth > 0).length >= 6 &&
-          !document.body.textContent?.includes("Finding books...")
+          !/Finding books(?:\.{3}|…)/.test(document.body.textContent || "")
         );
       },
       null,
@@ -285,7 +285,7 @@ async function settleCatalog(page) {
   return page.evaluate(() => {
     const covers = [...document.querySelectorAll("article.book-card img")];
     const loaded = covers.filter((img) => img.complete && img.naturalWidth > 0).length;
-    const pendingCatalog = document.body.textContent?.includes("Finding books...") || false;
+    const pendingCatalog = /Finding books(?:\.{3}|…)/.test(document.body.textContent || "") || false;
     return {
       count: covers.length,
       loaded,
