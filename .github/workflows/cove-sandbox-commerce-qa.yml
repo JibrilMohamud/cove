@@ -1,0 +1,56 @@
+name: cove-sandbox-commerce-qa
+on:
+  pull_request:
+    paths:
+      - "scripts/check-stripe-sandbox-fulfillment.mjs"
+      - "scripts/check-reader-recovery.mjs"
+      - "scripts/check-soundtrack-library.mjs"
+      - ".github/workflows/cove-sandbox-commerce-qa.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sandbox-fulfillment:
+    # Absolutely no fork-sourced code gets access to the sandbox credentials.
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY }}
+      COVE_SANDBOX_PUBLISHABLE_KEY: ${{ secrets.COVE_SANDBOX_PUBLISHABLE_KEY }}
+      COVE_SANDBOX_REPORT: artifacts/cove-sandbox-commerce/report.json
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Validate test-only credentials (without exposing them)
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${COVE_SANDBOX_SECRET_KEY}" == sk_test_* || "${COVE_SANDBOX_SECRET_KEY}" == rk_test_* || "${COVE_SANDBOX_SECRET_KEY}" == rkcs_test_* ]] || { echo "::error::Cove test secret missing or invalid"; exit 1; }
+          [[ "${COVE_SANDBOX_PUBLISHABLE_KEY}" == pk_test_* ]] || { echo "::error::Cove test publishable key missing or invalid"; exit 1; }
+          echo "Cove test-mode credentials have the expected formats."
+      - run: npm ci
+      - name: Install official Stripe CLI
+        run: |
+          npm install --global @stripe/cli
+          stripe version
+      - name: Exercise real Cove Stripe TEST fulfillment and signed webhook
+        run: node scripts/check-stripe-sandbox-fulfillment.mjs
+      - name: Independently check reader recovery and audio rights gates
+        if: success()
+        run: |
+          node scripts/check-reader-recovery.mjs
+          node scripts/check-soundtrack-library.mjs
+          node scripts/check-commercial-audio-accounts-support.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cove-sandbox-commerce-${{ github.sha }}
+          path: artifacts/cove-sandbox-commerce/report.json
+          if-no-files-found: ignore
+          retention-days: 7
