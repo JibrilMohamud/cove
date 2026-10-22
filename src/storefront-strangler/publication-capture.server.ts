@@ -114,15 +114,18 @@ export async function capturePublicSource(env: CaptureEnv) {
       const sha = await digest(body);
       // Both the body and its digest are stored atomically as one D1 row.
       // Publication verifies it independently before writing private R2.
-      await env.PUBLIC_SOURCE_DB.prepare(
+      const wrote = await env.PUBLIC_SOURCE_DB.prepare(
         `INSERT INTO cove_publication_source_snapshots(country,generation,body,sha256,created_at,expires_at)
-         VALUES(?,1,?,?,?,?)
+         SELECT ?,1,?,?,?,?
+         WHERE EXISTS(SELECT 1 FROM cove_publication_source_progress
+                      WHERE id=1 AND owner=? AND lease_until>?)
          ON CONFLICT(country) DO UPDATE SET
            generation=generation+1,body=excluded.body,sha256=excluded.sha256,
            created_at=excluded.created_at,expires_at=excluded.expires_at`,
       )
-        .bind(country, body, sha, now, snapshot.expiresAt)
+        .bind(country, body, sha, now, snapshot.expiresAt, owner, Date.now())
         .run();
+      if (wrote.meta?.changes !== 1) throw Error("capture_lease_lost");
       const endOfCycle = position === markets.length - 1;
       const acknowledged = await env.PUBLIC_SOURCE_DB.prepare(
         "UPDATE cove_publication_source_progress SET cursor=?,expected_markets=?,last_full_cycle_at=CASE WHEN ? THEN ? ELSE last_full_cycle_at END WHERE id=1 AND owner=? AND lease_until>? RETURNING id",
