@@ -6,6 +6,10 @@ import type { CoveEnv } from "../features/fore/api.server";
 type OptimizedEnv = CoveEnv & {
   COVE_SSR_DIAGNOSTICS?: string;
   COVE_THIN_METADATA_COALESCE?: string;
+  COVE_THIN_METADATA_HEDGE?: string;
+  COVE_THIN_PRIMARY_MICROBATCH?: string;
+  COVE_STRANGLER_DATABASE_ID?: string;
+  COVE_STRANGLER_MODE?: string;
 };
 
 /**
@@ -80,6 +84,35 @@ function anonymousMetadataFlight(
   );
   return { task, joined: false };
 }
+// Rights decisions are never cached, even for one millisecond. A 64-ms
+// admission window groups only requests that arrived BEFORE primary D1's
+// authoritative SELECT begins. After admission closes the flight is removed
+// immediately, so later arrivals must initiate a fresh legal check.
+// This experimental path is strictly limited to the synthetic stage database.
+type FirstPaintShelf = Awaited<ReturnType<typeof firstPaintStorefrontShelf>>;
+const pendingPreReadShelves = new WeakMap<object, Map<string, Promise<FirstPaintShelf>>>();
+function preReadPrimaryBatch(
+  binding: object,
+  country: string,
+  create: () => Promise<FirstPaintShelf>,
+): { task: Promise<FirstPaintShelf>; joined: boolean } {
+  let flights = pendingPreReadShelves.get(binding);
+  if (!flights) {
+    flights = new Map();
+    pendingPreReadShelves.set(binding, flights);
+  }
+  const existing = flights.get(country);
+  if (existing) return { task: existing, joined: true };
+  const task = new Promise<FirstPaintShelf>((resolve, reject) => {
+    setTimeout(() => {
+      // Do not admit requests after the primary check has begun.
+      if (flights!.get(country) === task) flights!.delete(country);
+      Promise.resolve().then(create).then(resolve, reject);
+    }, 64);
+  });
+  flights.set(country, task);
+  return { task, joined: false };
+}
 export async function serveLeanAnonymousBootstrap(
   request: Request,
   env: OptimizedEnv,
@@ -121,13 +154,52 @@ export async function serveLeanAnonymousBootstrap(
   // Launch the authoritative primary-rights query *before* waiting for
   // independent replica presentation reads. No book leaves the Worker until
   // the rate limiter, markets, context, page and rights checks ALL succeed.
-  const fetchContext = () =>
-    resolveAnonymousHomepageContext(
-      readMetadata(),
-      request,
-      env.FORE_DEFAULT_TERRITORY || "US",
-      contextMetrics,
-    );
+  // A cold D1 read replica can occasionally spend seconds in service wait
+  // even though the four market/locale SQL statements take <10 ms. After a
+  // bounded 200 ms delay, hedge PRESENTATION ONLY against direct primary D1.
+  // Neither attempt can select legal product IDs or authorize a purchase.
+  // Keep the experiment disabled for every customer-facing gateway.
+  const hedgeEligible =
+    env.COVE_SSR_STAGING === "1" &&
+    env.COVE_THIN_METADATA_HEDGE === "1" &&
+    typeof configDb.withSession === "function" &&
+    (env.COVE_STRANGLER_DATABASE_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" ||
+      (env.COVE_STRANGLER_MODE === "production-acceptance" &&
+        env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989"));
+  let hedgeStarted = false;
+  let hedgeWon = false;
+  const fetchContext = () => {
+    const query = (db: typeof rawDb, metrics: typeof contextMetrics) =>
+      resolveAnonymousHomepageContext(db, request, env.FORE_DEFAULT_TERRITORY || "US", metrics);
+    if (!hedgeEligible) return query(readMetadata(), contextMetrics);
+    const replicaMetrics: typeof contextMetrics = {};
+    const primaryMetrics: typeof contextMetrics = {};
+    const replica = query(readMetadata(), replicaMetrics).then((context) => ({
+      context,
+      metrics: replicaMetrics,
+      primary: false,
+    }));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const primary = new Promise<Awaited<typeof replica>>((resolve) => {
+      timer = setTimeout(() => {
+        hedgeStarted = true;
+        resolve(
+          query(rawDb, primaryMetrics).then((context) => ({
+            context,
+            metrics: primaryMetrics,
+            primary: true,
+          })),
+        );
+      }, 200);
+    });
+    return Promise.any([replica, primary])
+      .then(({ context, metrics, primary }) => {
+        Object.assign(contextMetrics, metrics);
+        hedgeWon = primary;
+        return context;
+      })
+      .finally(() => clearTimeout(timer));
+  };
   const countrySource = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").source;
   const coalesce =
     env.COVE_SSR_STAGING === "1" &&
@@ -152,12 +224,27 @@ export async function serveLeanAnonymousBootstrap(
   const contextPromise = timed("context", flight.task);
   // The read-only metadata batch now also performs the active market/locale
   // lookup. No second dependent D1 service call is needed for anonymous SSR.
+  // Allow a real-data experiment only behind the existing bearer-gated,
+  // read-only production-acceptance preview. Never activate for customers:
+  // they still use a fresh rights SELECT for every individual request.
+  const microbatchAllowedDatabase =
+    env.COVE_STRANGLER_DATABASE_ID === "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3" ||
+    (env.COVE_STRANGLER_MODE === "production-acceptance" &&
+      env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989");
+  const microbatchEnabled =
+    env.COVE_SSR_STAGING === "1" &&
+    microbatchAllowedDatabase &&
+    env.COVE_THIN_PRIMARY_MICROBATCH === "1";
+  const createShelf = () => firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics);
+  const shelfFlight = microbatchEnabled
+    ? preReadPrimaryBatch(rawDb, trustedCountry, createShelf)
+    : { task: createShelf(), joined: false };
   const [context, , catalog] = await Promise.all([
     contextPromise,
     timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
     // NULL currency means active-market currency is looked up in this SAME
     // live primary D1 statement with the full retail-grant view.
-    timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics)),
+    timed("catalog", shelfFlight.task),
   ]);
   if (context.rightsCountry !== trustedCountry)
     throw new Error("Anonymous country mismatch; refuse to render a legal-rights shelf.");
@@ -186,6 +273,11 @@ export async function serveLeanAnonymousBootstrap(
   if (env.COVE_SSR_STAGING === "1" && env.COVE_SSR_DIAGNOSTICS === "1") {
     timings.context_flight_eligible = coalesce ? 1 : 0;
     timings.context_joined = flight.joined ? 1 : 0;
+    timings.metadata_hedge_eligible = hedgeEligible ? 1 : 0;
+    timings.metadata_hedge_started = hedgeStarted ? 1 : 0;
+    timings.metadata_hedge_won = hedgeWon ? 1 : 0;
+    timings.primary_microbatch_eligible = microbatchEnabled ? 1 : 0;
+    timings.primary_microbatch_joined = shelfFlight.joined ? 1 : 0;
   }
   if (d1Metrics.sqlDurationMs !== undefined) timings.catalog_sql = d1Metrics.sqlDurationMs;
   if (env.COVE_SSR_DIAGNOSTICS === "1" && contextMetrics.sqlDurationMs !== undefined)

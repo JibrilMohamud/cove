@@ -2,11 +2,17 @@ name: fast-storefront-real-catalog-acceptance
 on:
   pull_request:
     paths: ["src/storefront-strangler/**", "scripts/performance/strangler-real-catalog-acceptance.mjs", ".github/workflows/fast-storefront-real-catalog-acceptance.yml"]
+# All guarded production-primary D1 cold experiments share one database.
+# Prevent competing CI campaigns from manufacturing service-queue outliers.
+# Any latency failure observed without this test interference still fails gate.
+concurrency:
+  group: cove-real-d1-preview-serial
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
   protected-real-catalog-acceptance:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && (github.event.pull_request.head.ref == 'release/fast-storefront-prod-acceptance-20261021' || github.event.pull_request.head.ref == 'release/verified-geo-fast-storefront-relay-20261021')
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && (github.event.pull_request.head.ref == 'release/fast-storefront-prod-acceptance-20261021' || github.event.pull_request.head.ref == 'release/verified-geo-fast-storefront-relay-20261021' || github.event.pull_request.head.ref == 'perf/split-rights-authorization-presentation-20261021')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

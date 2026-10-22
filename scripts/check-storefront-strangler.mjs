@@ -293,6 +293,76 @@ try {
     ).status,
     503,
   );
+  // All synthetic requests enter before their shared primary rights query
+  // starts; a later request after revocation must get a NEW legal decision.
+  const microEnv = {
+    ...env,
+    COVE_THIN_PRIMARY_MICROBATCH: "1",
+    COVE_SSR_DIAGNOSTICS: "1",
+  };
+  const grouped = await Promise.all(
+    Array.from({ length: 6 }, () => worker.fetch(request(), microEnv)),
+  );
+  assert.ok(grouped.every((response) => response.status === 200));
+  assert.ok(
+    grouped.some((response) =>
+      /cove_primary_microbatch_joined;dur=1\.0/.test(response.headers.get("server-timing") || ""),
+    ),
+  );
+  // A synthetic 650ms replica service stall must be rescued by the
+  // 200ms primary presentation hedge, without ever changing live rights.
+  const slowMetadataDb = {
+    prepare(sql) {
+      return env.DB.prepare(sql);
+    },
+    batch(statements) {
+      return env.DB.batch(statements);
+    },
+    withSession(constraint) {
+      assert.equal(constraint, "first-unconstrained");
+      return {
+        prepare(sql) {
+          return env.DB.prepare(sql);
+        },
+        async batch(statements) {
+          await new Promise((resolve) => setTimeout(resolve, 650));
+          return env.DB.batch(statements);
+        },
+      };
+    },
+  };
+  const hedgedResponse = await worker.fetch(request(), {
+    ...microEnv,
+    DB: slowMetadataDb,
+    COVE_THIN_METADATA_HEDGE: "1",
+  });
+  assert.equal(hedgedResponse.status, 200);
+  assert.match(
+    hedgedResponse.headers.get("server-timing") || "",
+    /cove_metadata_hedge_started;dur=1\.0/,
+  );
+  assert.match(
+    hedgedResponse.headers.get("server-timing") || "",
+    /cove_metadata_hedge_won;dur=1\.0/,
+  );
+  // Real-data preview must coalesce only pre-SELECT stage requests despite
+  // the strict read-only D1 proxy; a fresh incoming request must not reuse a
+  // completed grant decision. This test uses the local fixture, not production.
+  const productionPreviewEnv = {
+    ...microEnv,
+    COVE_STRANGLER_MODE: "production-acceptance",
+    COVE_STRANGLER_DATABASE_ID: PROD_DB,
+  };
+  const productionPreviewGroup = await Promise.all(
+    Array.from({ length: 6 }, () => worker.fetch(request(), productionPreviewEnv)),
+  );
+  assert.ok(productionPreviewGroup.every((response) => response.status === 200));
+  assert.ok(
+    productionPreviewGroup.some((response) =>
+      /cove_primary_microbatch_joined;dur=1\.0/.test(response.headers.get("server-timing") || ""),
+    ),
+    "Real-data preview must share a stable read-only D1 binding for pre-SELECT joins",
+  );
   assert.ok(firstBootstrap.catalog.results.length > 1);
   // The real seeded, rights-checked synthetic HTML is reused for interaction
   // testing in Chromium rather than testing a disconnected hand-written page.
@@ -321,6 +391,18 @@ try {
     !(await (await worker.fetch(request(), env)).text()).includes(
       'data-product="' + second.productId + '"',
     ),
+  );
+  assert.ok(
+    !(await (await worker.fetch(request(), microEnv)).text()).includes(
+      'data-product="' + second.productId + '"',
+    ),
+    "A new request after revocation must not reuse a completed primary rights result",
+  );
+  assert.ok(
+    !(await (await worker.fetch(request(), productionPreviewEnv)).text()).includes(
+      'data-product="' + second.productId + '"',
+    ),
+    "Read-only real-data preview must recheck a grant after revocation",
   );
   const down = await worker.fetch(request(), {
     ...env,

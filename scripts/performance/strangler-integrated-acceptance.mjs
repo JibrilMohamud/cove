@@ -27,6 +27,9 @@ config.preview_urls = false;
 // exercised with a fake CORE by the same-SHA local integration suite.
 config.services = [];
 config.vars.FORE_PUBLIC_URL = origin;
+config.vars.COVE_THIN_METADATA_COALESCE = "1";
+config.vars.COVE_THIN_METADATA_HEDGE = "1";
+config.vars.COVE_THIN_PRIMARY_MICROBATCH = "1";
 const configString = JSON.stringify(config, null, 2);
 assert.ok(!configString.includes(prodDbId), "Production D1 must never be bound");
 assert.ok(!config.routes && !config.route && !config.r2_buckets && !config.queues);
@@ -104,34 +107,59 @@ function summarize(results) {
 let client = 0;
 async function sample() {
   const start = performance.now();
-  try {
-    const response = await fetch(origin + "/", {
-      headers: {
-        authorization: "Bearer " + stageKey,
-        "x-cove-perf-client": String(client++ % 2048),
-      },
-      signal: AbortSignal.timeout(10_000),
-    });
-    const ms = performance.now() - start;
-    const html = await response.text();
-    const ok =
-      response.status === 200 &&
-      html.includes('id="thin-discovery-form"') &&
-      html.includes('data-rights-country="US"') &&
-      html.includes('id="thin-merchandising"') &&
-      !html.includes('data-product="perf-synth-000107"') &&
-      !html.includes('data-product="perf-synth-000097"');
-    return {
-      ok,
-      ms,
-      status: response.status,
-      failure: response.headers.get("x-cove-stage-failure") || null,
-      observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
-      renderer: response.headers.get("x-cove-renderer"),
-    };
-  } catch (error) {
-    return { ok: false, ms: performance.now() - start, error: error.name };
+  const virtualClient = String(client++ % 2048);
+  let transportRetries = 0;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(origin + "/", {
+        headers: {
+          authorization: "Bearer " + stageKey,
+          "x-cove-perf-client": virtualClient,
+        },
+        signal: AbortSignal.timeout(10_000),
+      });
+      const html = await response.text();
+      const ok =
+        response.status === 200 &&
+        html.includes('id="thin-discovery-form"') &&
+        html.includes('data-rights-country="US"') &&
+        html.includes('id="thin-merchandising"') &&
+        !html.includes('data-product="perf-synth-000107"') &&
+        !html.includes('data-product="perf-synth-000097"');
+      return {
+        ok,
+        ms: performance.now() - start,
+        transportRetries,
+        status: response.status,
+        failure: response.headers.get("x-cove-stage-failure") || null,
+        observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
+        renderer: response.headers.get("x-cove-renderer"),
+        serverTiming: response.headers.get("server-timing"),
+        failureSubphase: response.headers.get("x-cove-stage-failure-subphase"),
+        failureKind: response.headers.get("x-cove-stage-failure-kind"),
+      };
+    } catch (error) {
+      // One bounded idempotent GET retry is permitted only for immediate
+      // client transport errors, never for D1 503s, timeouts, HTTP errors,
+      // invalid rights checks, or a slow response. Include retry time in TTFB.
+      if (attempt === 0 && error instanceof TypeError && performance.now() - start < 200) {
+        transportRetries = 1;
+        continue;
+      }
+      const code =
+        error instanceof Error && "cause" in error && error.cause
+          ? String(error.cause.code || error.cause.errno || "")
+          : "";
+      return {
+        ok: false,
+        ms: performance.now() - start,
+        transportRetries,
+        error: error.name || "Error",
+        errorCode: /^[A-Z_0-9]{2,30}$/.test(code) ? code : null,
+      };
+    }
   }
+  throw new Error("Unreachable transport attempt");
 }
 async function deployFresh(round) {
   // A unique Worker identity prevents stale encrypted secrets from previous
@@ -167,7 +195,22 @@ async function deployFresh(round) {
       Date.parse(latest.created_on) >= rotatedAt - 3000 &&
       latest.versions?.some((version) => version.percentage === 100)
     ) {
-      await new Promise((resolve) => setTimeout(resolve, 3500));
+      // Control-plane publication is not equivalent to Workers.dev route
+      // propagation. Do not warm this Worker with an HTTP probe: keep the
+      // following homepage as its first genuine execution.
+      const subdomain = await cloudflare(
+        "GET",
+        `/accounts/${account}/workers/scripts/${name}/subdomain`,
+      );
+      assert.equal(subdomain.enabled, true, "Workers.dev route has not been enabled");
+      const activatedAt = Date.parse(latest.created_on);
+      assert.ok(Number.isFinite(activatedAt), "Deployment activation timestamp missing");
+      const remaining = Math.max(0, activatedAt + 25000 - Date.now());
+      console.log(
+        "ROUTE_PROPAGATION_GRACE",
+        JSON.stringify({ round, waitMs: remaining, firstRequestStillCold: true }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, remaining));
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 1800));
@@ -182,6 +225,12 @@ try {
   assert.ok(Number(fixture?.[0]?.results?.[0]?.n) >= 40_000);
   assert.equal(Number(fixture?.[0]?.results?.[0]?.bad), 0);
   evidence.fixtureProducts = Number(fixture[0].results[0].n);
+  // Only this dedicated synthetic D1 may be written by acceptance. A small
+  // background ingestion queue simulates independent writer/read traffic
+  // concurrently with the 100-RPS storefront; production D1 is never bound.
+  await cloudflare("POST", `/accounts/${account}/d1/database/${dbId}/query`, {
+    sql: "CREATE TABLE IF NOT EXISTS perf_ingestion_background(run_id TEXT NOT NULL, seq INTEGER NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(run_id, seq))",
+  });
   for (let i = 0; i < 3; i++) {
     await deployFresh(i + 1);
     const cold = await sample();
@@ -189,10 +238,7 @@ try {
     console.log("COLD_PROBE", JSON.stringify({ round: i + 1, ...cold }));
     save();
   }
-  assert.ok(
-    evidence.cold.every((cold) => cold.ok && cold.ms < 800),
-    "Independent cold visits failed validity or 800ms bound",
-  );
+  evidence.coldPass = evidence.cold.every((cold) => cold.ok && cold.ms < 800);
   const unauthorized = await fetch(origin, { signal: AbortSignal.timeout(6000) });
   assert.equal(unauthorized.status, 401, "Stage gate must reject requests without bearer");
   for (const concurrency of [1, 4, 8, 16, 32]) {
@@ -201,16 +247,43 @@ try {
     evidence.bursts.push({ concurrency, ...summary });
     console.log("BURST_RESULT", JSON.stringify({ concurrency, ...summary }));
     save();
-    assert.equal(summary.valid, concurrency, "Concurrent request failed");
-    assert.ok(summary.max < 800, "Concurrent maximum exceeded 800ms");
+    // Continue diagnostic campaign after a failed gate to attribute the
+    // independently sampled 100-RPS bottleneck; never waive the gate.
   }
   const offered = 2000;
+  const background = { offered: 40, reads: 0, writes: 0, failed: 0, maxMs: 0 };
   const inFlight = new Set();
   const results = [];
   let dropped = 0;
   let maxSchedulerLagMs = 0;
   let maxOutstanding = 0;
   const start = performance.now();
+  const syntheticRunId = String(process.env.GITHUB_RUN_ID);
+  const backgroundTasks = Array.from(
+    { length: background.offered },
+    (_, i) =>
+      new Promise((resolve) => {
+        setTimeout(async () => {
+          const began = performance.now();
+          const write = i % 2 === 0;
+          try {
+            await cloudflare("POST", `/accounts/${account}/d1/database/${dbId}/query`, {
+              sql: write
+                ? "INSERT OR IGNORE INTO perf_ingestion_background(run_id, seq, status) VALUES (?, ?, ?)"
+                : "SELECT COUNT(*) AS n FROM perf_ingestion_background WHERE run_id=?",
+              params: write ? [syntheticRunId, i, "processed"] : [syntheticRunId],
+            });
+            if (write) background.writes++;
+            else background.reads++;
+          } catch (error) {
+            background.failed++;
+          } finally {
+            background.maxMs = Math.max(background.maxMs, performance.now() - began);
+            resolve();
+          }
+        }, i * 500);
+      }),
+  );
   // Schedule all offered arrivals independently. A sequential await loop
   // could itself drift under runner GC and falsely count missing arrivals.
   const scheduled = Array.from(
@@ -235,7 +308,7 @@ try {
         }, 10 * i);
       }),
   );
-  await Promise.all(scheduled);
+  await Promise.all([...scheduled, ...backgroundTasks]);
   const summary = summarize(results);
   evidence.sustained = {
     targetRps: 100,
@@ -245,9 +318,78 @@ try {
     maxSchedulerLagMs,
     maxOutstanding,
     ...summary,
+    background,
   };
+  // Every request returns a bounded, stage-only duration breakdown.
+  // Compare Worker/D1 service wait against SQL execution and runner transport.
+  const timing = (sample, key) => {
+    const match = (sample.serverTiming || "").match(
+      new RegExp("(?:^|,\\s*)" + key + ";dur=([0-9.]+)"),
+    );
+    return match ? Number(match[1]) : null;
+  };
+  const counts = (values) =>
+    Object.fromEntries(
+      [...new Set(values)].map((key) => [key, values.filter((x) => x === key).length]),
+    );
+  const p95Timing = (key) => {
+    const durations = results.map((x) => timing(x, key)).filter(Number.isFinite);
+    return percentile(durations, 0.95);
+  };
+  evidence.sustained.attribution = {
+    statuses: counts(results.map((x) => String(x.status || x.error || "unknown"))),
+    failurePhases: counts(
+      results.filter((x) => !x.ok).map((x) => x.failureSubphase || x.failure || "unknown"),
+    ),
+    p95CatalogServiceMs: p95Timing("cove_catalog"),
+    eligiblePrimaryMicrobatches: results.filter(
+      (x) => timing(x, "cove_primary_microbatch_eligible") === 1,
+    ).length,
+    joinedPrimaryMicrobatches: results.filter(
+      (x) => timing(x, "cove_primary_microbatch_joined") === 1,
+    ).length,
+    transportRetriedResponses: results.filter((x) => x.transportRetries === 1).length,
+    p95CatalogSqlMs: p95Timing("cove_catalog_sql"),
+    p95ContextServiceMs: p95Timing("cove_context"),
+    p95ContextSqlMs: p95Timing("cove_context_sql"),
+    p95BootstrapMs: p95Timing("cove_bootstrap"),
+    eligibleMetadataFlights: results.filter((x) => timing(x, "cove_context_flight_eligible") === 1)
+      .length,
+    joinedMetadataFlights: results.filter((x) => timing(x, "cove_context_joined") === 1).length,
+  };
+  evidence.sustained.failedSamples = results
+    .filter((x) => !x.ok)
+    .map((x) => ({
+      status: x.status ?? null,
+      error: x.error ?? null,
+      errorCode: x.errorCode ?? null,
+      transportRetries: x.transportRetries ?? 0,
+      ms: Math.round(x.ms),
+      kind: x.failureKind ?? null,
+      phase: x.failureSubphase ?? null,
+    }));
+  evidence.sustained.attribution.failureKinds = counts(
+    results.filter((x) => !x.ok).map((x) => x.failureKind || x.error || "unknown"),
+  );
   console.log("SUSTAINED_RESULT", JSON.stringify(evidence.sustained));
   save();
+  assert.ok(evidence.coldPass, "Independent cold visits failed validity or 800ms bound");
+  assert.ok(
+    evidence.bursts.every((burst) => burst.valid === burst.concurrency && burst.max < 800),
+    "Concurrent request invalid or maximum exceeded 800ms",
+  );
+  assert.equal(
+    evidence.sustained.attribution.eligiblePrimaryMicrobatches,
+    summary.total,
+    "Expected every synthetic request to use a post-admission live rights query",
+  );
+  assert.ok(
+    evidence.sustained.attribution.transportRetriedResponses <= 3,
+    "Too many transient transport retries were needed",
+  );
+  assert.equal(background.failed, 0, "Synthetic ingestion-like background D1 operations failed");
+  assert.equal(background.writes, 20, "Synthetic background write cadence incomplete");
+  assert.equal(background.reads, 20, "Synthetic background read cadence incomplete");
   assert.equal(dropped, 0, "Offered arrivals dropped");
   assert.equal(summary.valid, offered, "Sustained requests failed");
   assert.ok(
