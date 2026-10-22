@@ -6,6 +6,7 @@ on:
       - "scripts/check-reader-recovery.mjs"
       - "scripts/check-soundtrack-library.mjs"
       - "scripts/check-qa-synthetic-audio.mjs"
+      - "src/features/fore/commercial-audio.server.ts"
       - ".github/workflows/cove-sandbox-commerce-qa.yml"
   workflow_dispatch:
 permissions:
