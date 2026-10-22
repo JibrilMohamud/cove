@@ -23,7 +23,7 @@ function anonymousWithOnlyPreviewProtection(request: Request, env: FastStorefron
   const parts = raw.split(";").map((x) => x.trim());
   return (
     parts.length === 1 &&
-    /^_vercel_jwt=[A-Za-z0-9._~+/-]{16,8192}$/.test(parts[0]) &&
+    /^_vercel_jwt=[A-Za-z0-9._~-]{16,8192}$/.test(parts[0]) &&
     !request.headers.has("authorization")
   );
 }
