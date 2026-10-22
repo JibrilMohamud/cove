@@ -281,8 +281,7 @@ async function settleCatalog(page) {
         const covers = [...document.querySelectorAll("article.book-card img")];
         const visible = covers.filter((img) => {
           const box = img.getBoundingClientRect();
-          return box.width > 0 && box.height > 0 &&
-            box.top < window.innerHeight && box.bottom > 0;
+          return box.width > 0 && box.height > 0 && box.top < window.innerHeight && box.bottom > 0;
         });
         return (
           covers.length >= 6 &&
@@ -304,8 +303,7 @@ async function settleCatalog(page) {
     const loaded = covers.filter((img) => img.complete && img.naturalWidth > 0).length;
     const visible = covers.filter((img) => {
       const box = img.getBoundingClientRect();
-      return box.width > 0 && box.height > 0 &&
-        box.top < window.innerHeight && box.bottom > 0;
+      return box.width > 0 && box.height > 0 && box.top < window.innerHeight && box.bottom > 0;
     });
     const loadedVisible = visible.filter((img) => img.complete && img.naturalWidth > 0).length;
     const pendingCatalog =
@@ -318,9 +316,7 @@ async function settleCatalog(page) {
       visible: visible.length,
       loadedVisible,
       pendingCatalog,
-      settled: covers.length >= 6 &&
-        visible.length === loadedVisible &&
-        !pendingCatalog,
+      settled: covers.length >= 6 && visible.length === loadedVisible && !pendingCatalog,
     };
   });
 }
