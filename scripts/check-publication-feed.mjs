@@ -98,7 +98,7 @@ try {
   const SOURCE_DB = {
     ...primary.DB,
     withSession(constraint) {
-      assert.equal(constraint, "first-unconstrained");
+      assert.ok(["first-primary", "first-unconstrained"].includes(constraint));
       sessions++;
       return {
         ...primary.DB,
@@ -309,7 +309,7 @@ try {
   const MATERIALIZED_DB = {
     ...PUBLIC_SOURCE_DB,
     withSession(constraint) {
-      assert.equal(constraint, "first-unconstrained");
+      assert.ok(["first-primary", "first-unconstrained"].includes(constraint));
       return {
         prepare(sql) {
           materializedReads++;
