@@ -290,7 +290,10 @@ try {
   const firstCapture = await capturePublicSource(capturing);
   assert.equal(firstCapture.countries.length, 2);
   assert.equal(firstCapture.complete, false);
-  assert.equal(sourceDomain.prepare("SELECT COUNT(*) n FROM cove_publication_source_identity").get().n, 0);
+  assert.equal(
+    sourceDomain.prepare("SELECT COUNT(*) n FROM cove_publication_source_identity").get().n,
+    0,
+  );
   const secondCapture = await capturePublicSource(capturing);
   assert.equal(secondCapture.countries.length, 2);
   assert.equal(secondCapture.complete, true);
@@ -312,7 +315,7 @@ try {
           materializedReads++;
           assert.doesNotMatch(
             sql,
-            /\\b(?:rights_grants|commerce_orders|entitlements|storefront_markets|catalog_search_documents)\\b/i,
+            /\b(?:rights_grants|commerce_orders|entitlements|storefront_markets|catalog_search_documents)\b/i,
           );
           return PUBLIC_SOURCE_DB.prepare(sql);
         },
