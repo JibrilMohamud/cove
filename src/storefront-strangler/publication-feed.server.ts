@@ -237,88 +237,88 @@ export async function exportPublicPresentation(env: ExportEnv) {
   // Do not even open a source DB session when another exporter owns the lane.
   if (!ownsLane) return { results: [], source: null, skipped: true };
   try {
-  const metrics = {
-    statements: 0,
-    primary: 0,
-    replica: 0,
-    unknown: 0,
-    rows: 0,
-    sqlMs: 0,
-    retries: 0,
-  };
-  const source = presentationSource(env.SOURCE_DB, metrics);
-  const markets = await source
-    .prepare(
-      "SELECT country_code FROM storefront_markets WHERE market_status='active' ORDER BY country_code LIMIT 33",
-    )
-    .all<{ country_code: string }>();
-  const countries = markets.results.map((m) => m.country_code);
-  if (!countries.length || countries.length > 32 || countries.some((c) => !/^[A-Z]{2}$/.test(c)))
-    throw Error("publication_invalid_markets");
-  await env.DISCOVERY_DB.prepare(
-    `INSERT OR IGNORE INTO discovery_publications(country)
-    SELECT value FROM json_each(?)`,
-  )
-    .bind(JSON.stringify(countries))
-    .run();
-  await env.DISCOVERY_DB.prepare(
-    `UPDATE discovery_publications SET active=CASE
-    WHEN country IN (SELECT value FROM json_each(?)) THEN 1 ELSE 0 END`,
-  )
-    .bind(JSON.stringify(countries))
-    .run();
-  const results = [];
-  for (let n = 0; n < 4; n++) {
-    const token = crypto.randomUUID(),
-      now = Date.now();
-    await refreshExportLease(env.DISCOVERY_DB, owner);
-    const job = await claim(env, "export", token, now);
-    if (!job) break;
-    try {
-      let body = "";
-      const summary = await produceHomepagePresentation(
-        source,
-        job.country,
-        {
-          async get() {
-            throw Error("export_does_not_read_serving_data");
-          },
-          async put(_key, value) {
-            body = value;
-          },
-        },
-        now,
-      );
-      if (!body || new TextEncoder().encode(body).length > MAX_BYTES)
-        throw Error("publication_invalid_body");
-      const sha = await hash(body);
-      const ack = await env.DISCOVERY_DB.prepare(
-        `UPDATE discovery_publications SET
-        body=?,sha256=?,expires_at=?,source_metrics=?,status='ready',attempts=0,
-        lease_token='',lease_until=0,due_at=?,last_error=''
-        WHERE country=? AND generation=? AND lease_token=? AND lease_until>?
-        RETURNING country`,
+    const metrics = {
+      statements: 0,
+      primary: 0,
+      replica: 0,
+      unknown: 0,
+      rows: 0,
+      sqlMs: 0,
+      retries: 0,
+    };
+    const source = presentationSource(env.SOURCE_DB, metrics);
+    const markets = await source
+      .prepare(
+        "SELECT country_code FROM storefront_markets WHERE market_status='active' ORDER BY country_code LIMIT 33",
       )
-        .bind(
-          body,
-          sha,
-          summary.expiresAt,
-          JSON.stringify(metrics),
-          Date.now(),
+      .all<{ country_code: string }>();
+    const countries = markets.results.map((m) => m.country_code);
+    if (!countries.length || countries.length > 32 || countries.some((c) => !/^[A-Z]{2}$/.test(c)))
+      throw Error("publication_invalid_markets");
+    await env.DISCOVERY_DB.prepare(
+      `INSERT OR IGNORE INTO discovery_publications(country)
+      SELECT value FROM json_each(?)`,
+    )
+      .bind(JSON.stringify(countries))
+      .run();
+    await env.DISCOVERY_DB.prepare(
+      `UPDATE discovery_publications SET active=CASE
+      WHEN country IN (SELECT value FROM json_each(?)) THEN 1 ELSE 0 END`,
+    )
+      .bind(JSON.stringify(countries))
+      .run();
+    const results = [];
+    for (let n = 0; n < 4; n++) {
+      const token = crypto.randomUUID(),
+        now = Date.now();
+      await refreshExportLease(env.DISCOVERY_DB, owner);
+      const job = await claim(env, "export", token, now);
+      if (!job) break;
+      try {
+        let body = "";
+        const summary = await produceHomepagePresentation(
+          source,
           job.country,
-          job.generation,
-          token,
-          Date.now(),
+          {
+            async get() {
+              throw Error("export_does_not_read_serving_data");
+            },
+            async put(_key, value) {
+              body = value;
+            },
+          },
+          now,
+        );
+        if (!body || new TextEncoder().encode(body).length > MAX_BYTES)
+          throw Error("publication_invalid_body");
+        const sha = await hash(body);
+        const ack = await env.DISCOVERY_DB.prepare(
+          `UPDATE discovery_publications SET
+          body=?,sha256=?,expires_at=?,source_metrics=?,status='ready',attempts=0,
+          lease_token='',lease_until=0,due_at=?,last_error=''
+          WHERE country=? AND generation=? AND lease_token=? AND lease_until>?
+          RETURNING country`,
         )
-        .first();
-      if (!ack) throw Error("publication_export_lease_lost");
-      results.push({ country: job.country, generation: job.generation, exported: true });
-    } catch (error) {
-      await failed(env, job, token, "export", error);
-      results.push({ country: job.country, exported: false });
+          .bind(
+            body,
+            sha,
+            summary.expiresAt,
+            JSON.stringify(metrics),
+            Date.now(),
+            job.country,
+            job.generation,
+            token,
+            Date.now(),
+          )
+          .first();
+        if (!ack) throw Error("publication_export_lease_lost");
+        results.push({ country: job.country, generation: job.generation, exported: true });
+      } catch (error) {
+        await failed(env, job, token, "export", error);
+        results.push({ country: job.country, exported: false });
+      }
     }
-  }
-  return { results, source: metrics, skipped: false };
+    return { results, source: metrics, skipped: false };
   } finally {
     await releaseExportLease(env.DISCOVERY_DB, owner);
   }
