@@ -202,26 +202,31 @@ async function failed(
 // production-rights lock. This prevents concurrent scheduled invocations from
 // multiplying load against the large source D1.
 async function holdExportLease(db: Domain, owner: string, now: number) {
-  await db.prepare("INSERT OR IGNORE INTO discovery_publications(country,active) VALUES('ZZ',0)").run();
-  return db.prepare(
-    "UPDATE discovery_publications SET lease_token=?,lease_until=? WHERE country='ZZ' AND active=0 AND lease_until<=? RETURNING country",
-  )
+  await db
+    .prepare("INSERT OR IGNORE INTO discovery_publications(country,active) VALUES('ZZ',0)")
+    .run();
+  return db
+    .prepare(
+      "UPDATE discovery_publications SET lease_token=?,lease_until=? WHERE country='ZZ' AND active=0 AND lease_until<=? RETURNING country",
+    )
     .bind(owner, now + LEASE_MS, now)
     .first();
 }
 async function refreshExportLease(db: Domain, owner: string) {
   const now = Date.now();
-  const current = await db.prepare(
-    "UPDATE discovery_publications SET lease_until=? WHERE country='ZZ' AND active=0 AND lease_token=? AND lease_until>? RETURNING country",
-  )
+  const current = await db
+    .prepare(
+      "UPDATE discovery_publications SET lease_until=? WHERE country='ZZ' AND active=0 AND lease_token=? AND lease_until>? RETURNING country",
+    )
     .bind(now + LEASE_MS, owner, now)
     .first();
   if (!current) throw Error("publication_export_owner_lost");
 }
 async function releaseExportLease(db: Domain, owner: string) {
-  await db.prepare(
-    "UPDATE discovery_publications SET lease_until=0,lease_token='' WHERE country='ZZ' AND lease_token=?",
-  )
+  await db
+    .prepare(
+      "UPDATE discovery_publications SET lease_until=0,lease_token='' WHERE country='ZZ' AND lease_token=?",
+    )
     .bind(owner)
     .run();
 }
