@@ -138,12 +138,18 @@ const qa = {
   COVE_FAST_STOREFRONT_ORIGIN: "https://cove-fast-gateway.cove-jibrilmohamud.workers.dev/",
 };
 const actualFetch = globalThis.fetch;
-const makeResponse = (status, renderer = "strangler-live", type = "text/html") =>
-  new Response("<main>Signed QA storefront</main>", {
+const validHtml =
+  '<!doctype html><html><body><main><form id="thin-discovery-form"></form>' +
+  '<div data-rights-country="US"></div>Signed QA storefront</main></body></html>';
+const makeResponse = (status, renderer = "strangler-live", type = "text/html", html = validHtml) =>
+  new Response(html, {
     status,
     headers: {
       "x-cove-renderer": renderer,
       "content-type": type,
+      // Undici may return decompressed bytes with original encoding headers.
+      "content-encoding": "br",
+      "content-length": "65",
       "set-cookie": "session=should-not-forward",
     },
   });
@@ -167,12 +173,19 @@ try {
   assert.equal(success?.status, 200);
   assert.equal(success.headers.get("cache-control"), "private, no-store");
   assert.equal(success.headers.get("set-cookie"), null);
+  assert.equal(success.headers.get("content-encoding"), null);
+  assert.equal(success.headers.get("content-length"), null);
   assert.match(await success.text(), /Signed QA storefront/);
   assert.equal(called, 1);
   notEligible(
     req("https://cove-puce-theta.vercel.app/", { headers: { cookie: "fore-auth=test" } }),
     qa,
   );
+  globalThis.fetch = async () => makeResponse(200, "strangler-live", "text/html", "");
+  assert.equal(await proxy.maybeProxyFastHomepage(req(), qa), null, "empty HTML must fail closed");
+  globalThis.fetch = async () =>
+    makeResponse(200, "strangler-live", "text/html", "<html>looks valid</html>");
+  assert.equal(await proxy.maybeProxyFastHomepage(req(), qa), null, "invalid renderer markup");
   globalThis.fetch = async () => makeResponse(503);
   assert.equal(await proxy.maybeProxyFastHomepage(req(), qa), null, "503 falls back to CORE");
   globalThis.fetch = async () => makeResponse(200, "unverified-renderer");
