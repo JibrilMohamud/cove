@@ -97,6 +97,72 @@ for (const percent of ["-1", "0", "2", "3", "4", "5", "6", "100", "abc"]) {
   };
   notEligible(req(), canary);
 }
+// A complete HMAC-signed QA proxy response must never become an
+// authorization source for cookies, checkout or a forged territory. The
+// unchanged SSR application owns the fallback whenever the Worker is ill.
+const qa = {
+  ...preview,
+  COVE_FAST_RELAY_KEY: secret,
+  COVE_FAST_STOREFRONT_ORIGIN: "https://cove-fast-gateway.cove-jibrilmohamud.workers.dev/",
+};
+const actualFetch = globalThis.fetch;
+const makeResponse = (status, renderer = "strangler-live", type = "text/html") =>
+  new Response("<main>Signed QA storefront</main>", {
+    status,
+    headers: {
+      "x-cove-renderer": renderer,
+      "content-type": type,
+      "set-cookie": "session=should-not-forward",
+    },
+  });
+try {
+  let called = 0;
+  globalThis.fetch = async (target, options) => {
+    called++;
+    assert.equal(target, qa.COVE_FAST_STOREFRONT_ORIGIN);
+    assert.equal(options.method, "GET");
+    assert.equal(options.redirect, "manual");
+    assert.ok(options.signal);
+    assert.deepEqual(await relay.verifyFastCountryClaim(options.headers, secret), {
+      country: "US",
+      ip: "198.51.100.6",
+      timestamp: Number(options.headers.get("x-cove-fast-timestamp")),
+      nonce: options.headers.get("x-cove-fast-nonce"),
+    });
+    return makeResponse(200);
+  };
+  const success = await proxy.maybeProxyFastHomepage(req(), qa);
+  assert.equal(success?.status, 200);
+  assert.equal(success.headers.get("cache-control"), "private, no-store");
+  assert.equal(success.headers.get("set-cookie"), null);
+  assert.match(await success.text(), /Signed QA storefront/);
+  assert.equal(called, 1);
+  notEligible(
+    req("https://cove-puce-theta.vercel.app/", { headers: { cookie: "fore-auth=test" } }),
+    qa,
+  );
+  globalThis.fetch = async () => makeResponse(503);
+  assert.equal(await proxy.maybeProxyFastHomepage(req(), qa), null, "503 falls back to CORE");
+  globalThis.fetch = async () => makeResponse(200, "unverified-renderer");
+  assert.equal(await proxy.maybeProxyFastHomepage(req(), qa), null, "renderer spoof fails closed");
+  globalThis.fetch = async () => makeResponse(200, "strangler-live", "application/json");
+  assert.equal(await proxy.maybeProxyFastHomepage(req(), qa), null, "non-HTML fails closed");
+  globalThis.fetch = async () => {
+    throw new Error("gateway_unreachable");
+  };
+  assert.equal(await proxy.maybeProxyFastHomepage(req(), qa), null, "network error falls back");
+  assert.equal(
+    await proxy.maybeProxyFastHomepage(req(), {
+      ...qa,
+      COVE_FAST_STOREFRONT_RELEASE_CERTIFIED: "0",
+    }),
+    null,
+    "rollback flag removes routing immediately",
+  );
+} finally {
+  globalThis.fetch = actualFetch;
+}
+
 console.log(
-  "PASS: zero-default signed-country relay, expired/tampered geo rejection, bounded canary, authenticated-route bypass, origin allowlist",
+  "PASS: zero-default signed-country relay, expired/tampered geo rejection, bounded canary, authenticated-route bypass, origin allowlist, valid signed relay, SSR rollback",
 );
