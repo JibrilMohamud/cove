@@ -32,19 +32,25 @@ function template(lane) {
     config.vars.COVE_PUBLICATION_CAPTURE_ENABLED = "1";
   } else {
     assert.equal(config.vars.COVE_PUBLICATION_ENABLED, "0");
-    assert.equal(config.d1_databases.find((b) => b.binding === "DISCOVERY_DB").database_id,
-      "b299be94-f885-47a5-9d0b-3a3ac494065a");
+    assert.equal(
+      config.d1_databases.find((b) => b.binding === "DISCOVERY_DB").database_id,
+      "b299be94-f885-47a5-9d0b-3a3ac494065a",
+    );
     config.d1_databases.find((b) => b.binding === "DISCOVERY_DB").database_id = ledger;
     config.d1_databases.find((b) => b.binding === "DISCOVERY_DB").database_name =
       "cove-publication-continuous-ledger-qa-20261022";
     if (lane === "export") {
-      assert.equal(config.d1_databases.find((b) => b.binding === "SOURCE_DB").database_id,
-        source);
+      assert.equal(config.d1_databases.find((b) => b.binding === "SOURCE_DB").database_id, source);
       assert.ok(!config.r2_buckets);
     } else {
-      assert.deepEqual(config.d1_databases.map((b) => b.binding), ["DISCOVERY_DB"]);
-      assert.equal(config.r2_buckets?.[0]?.bucket_name,
-        "cove-strangler-private-presentation-stage");
+      assert.deepEqual(
+        config.d1_databases.map((b) => b.binding),
+        ["DISCOVERY_DB"],
+      );
+      assert.equal(
+        config.r2_buckets?.[0]?.bucket_name,
+        "cove-strangler-private-presentation-stage",
+      );
     }
     config.vars.COVE_PUBLICATION_ENABLED = "1";
     config.vars.COVE_PRESENTATION_PREFIX = prefix;
@@ -69,11 +75,15 @@ async function api(path) {
 
 function deploy(path) {
   for (let attempt = 1; attempt <= 3; attempt++) {
-    const run = spawnSync("npm",
-      ["exec", "--yes", "--package=wrangler@4.151.0", "--", "wrangler",
-        "deploy", "--config", path],
-      { encoding: "utf8", timeout: 180000,
-        env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" } });
+    const run = spawnSync(
+      "npm",
+      ["exec", "--yes", "--package=wrangler@4.151.0", "--", "wrangler", "deploy", "--config", path],
+      {
+        encoding: "utf8",
+        timeout: 180000,
+        env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" },
+      },
+    );
     if (run.status === 0) return;
     const output = (run.stderr || "").replace(/Bearer\\s+\\S+/g, "Bearer [redacted]");
     if (attempt === 3 || !/Worker does not exist|code:\\s*10007/i.test(output))
@@ -93,14 +103,26 @@ for (const lane of ["capture", "export", "publish"]) {
   const schedules = await api(`/accounts/${account}/workers/scripts/${config.name}/schedules`);
   const bindings = settings.bindings || [];
   assert.ok(
-    bindings.some((b) => b.name === (lane === "capture"
-      ? "COVE_PUBLICATION_CAPTURE_ENABLED" : "COVE_PUBLICATION_ENABLED") && b.text === "1"),
+    bindings.some(
+      (b) =>
+        b.name ===
+          (lane === "capture" ? "COVE_PUBLICATION_CAPTURE_ENABLED" : "COVE_PUBLICATION_ENABLED") &&
+        b.text === "1",
+    ),
   );
   assert.ok(schedules.schedules?.some((s) => s.cron === "* * * * *"));
   assert.equal(settings.routes?.length || 0, 0);
-  console.log("CONTINUOUS_QA_DEPLOYED", JSON.stringify({
-    lane, worker: config.name, cron: "* * * * *", workersDev: false,
-    productionRouted: false,
-  }));
+  console.log(
+    "CONTINUOUS_QA_DEPLOYED",
+    JSON.stringify({
+      lane,
+      worker: config.name,
+      cron: "* * * * *",
+      workersDev: false,
+      productionRouted: false,
+    }),
+  );
 }
-console.log("PASS: nonpublic continuous QA capture/export/publish, independent ledger, fenced rights-primary reader.");
+console.log(
+  "PASS: nonpublic continuous QA capture/export/publish, independent ledger, fenced rights-primary reader.",
+);
