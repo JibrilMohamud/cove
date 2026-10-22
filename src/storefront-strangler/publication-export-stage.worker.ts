@@ -6,8 +6,6 @@ export default {
   async fetch(request: Request, env: ExportEnv) {
     if (request.method !== "POST" || new URL(request.url).pathname !== "/run")
       return new Response(null, { status: 404 });
-    return Response.json(
-      await exportPublicPresentation(env, { allowCanonicalStageFixture: true }),
-    );
+    return Response.json(await exportPublicPresentation(env, { allowCanonicalStageFixture: true }));
   },
 };
