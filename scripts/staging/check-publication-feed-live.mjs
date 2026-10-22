@@ -110,6 +110,22 @@ try {
     "UPDATE discovery_publications SET status='delivered',attempts=0,due_at=0,lease_token='',lease_until=0",
   );
   const prefix = `feed/campaign/${run}/`;
+  const capture = JSON.parse(fs.readFileSync("wrangler.publication-capture.stage.jsonc", "utf8"));
+  assert.equal(capture.workers_dev, false);
+  assert.equal(capture.preview_urls, false);
+  assert.ok(!capture.routes && !capture.route && !capture.triggers);
+  assert.equal(capture.vars.COVE_PUBLICATION_CAPTURE_ENABLED, "0");
+  assert.equal(capture.d1_databases.find((x) => x.binding === "SOURCE_DB").database_id, source);
+  assert.equal(
+    capture.d1_databases.find((x) => x.binding === "PUBLIC_SOURCE_DB").database_id,
+    "1825b4a1-0329-408d-9cc2-a40e6a17c822",
+  );
+  capture.name = `cove-pub-${run}-capture`;
+  capture.main = "publication-capture.mjs";
+  capture.vars.COVE_PUBLICATION_CAPTURE_ENABLED = "1";
+  names.push(capture.name);
+  fs.writeFileSync(".output/strangler/live-capture.jsonc", JSON.stringify(capture));
+  cli(["deploy", "--config", ".output/strangler/live-capture.jsonc"]);
   for (const lane of ["export", "publish"]) {
     const fileName = `wrangler.publication-${lane}.stage.jsonc`;
     const parsed = ts.parseConfigFileTextToJson(fileName, fs.readFileSync(fileName, "utf8"));
@@ -154,8 +170,9 @@ try {
     compatibility_date: "2026-10-22",
     compatibility_flags: ["nodejs_compat"],
     services: [
-      { binding: "EXPORTER", service: names[0] },
-      { binding: "PUBLISHER", service: names[1] },
+      { binding: "CAPTURE", service: names[0] },
+      { binding: "EXPORTER", service: names[1] },
+      { binding: "PUBLISHER", service: names[2] },
     ],
     r2_buckets: [
       { binding: "PRESENTATION", bucket_name: "cove-strangler-private-presentation-stage" },
@@ -180,9 +197,39 @@ try {
     assert.equal(r.status, 200, body.slice(0, 200));
     return JSON.parse(body);
   }
+  // Backfill and refresh are separate and bounded: the SOURCE_DB bound to
+  // export is physically independent of the authoritative rights/catalog D1.
+  // The capture worker alone reads public presentation source fields.
+  const captured = [];
+  for (let turn = 0; turn < 20; turn++) {
+    const result = await invoke("/capture");
+    assert.equal(result.busy, false);
+    captured.push(...result.countries);
+    if (result.complete && captured.length >= result.expected) break;
+  }
+  const sourceState = await api(
+    "POST",
+    `/accounts/${account}/d1/database/1825b4a1-0329-408d-9cc2-a40e6a17c822/query`,
+    {
+      sql: "SELECT (SELECT COUNT(*) FROM cove_publication_source_snapshots) available,(SELECT expected_markets FROM cove_publication_source_progress WHERE id=1) expected,(SELECT last_synced_at FROM cove_publication_source_identity WHERE id=1) last_synced",
+    },
+  );
+  const sourceRow = sourceState[0].results[0];
+  assert.ok(sourceRow.expected >= 1 && sourceRow.expected <= 32);
+  assert.equal(sourceRow.available, sourceRow.expected, "Incomplete physical source backfill");
+  assert.ok(sourceRow.last_synced > Date.now() - 120_000);
+  console.log(
+    "PUBLICATION_SOURCE_CAPTURE_PASS",
+    JSON.stringify({ captured: captured.length, markets: sourceRow.expected, separateSource: true }),
+  );
   for (let cycle = 1; cycle <= 2; cycle++) {
-    if (cycle === 2)
+    if (cycle === 2) {
+      // Refresh a bounded capture lease to keep the independent source fresh
+      // while the second generation is published. This operation is never
+      // performed by the export/publish workers.
+      await invoke("/capture");
       await sql("UPDATE discovery_publications SET due_at=0 WHERE status='delivered'");
+    }
     const calls = [];
     for (let turn = 0; turn < 20; turn++) {
       const exported = await invoke("/export");
@@ -235,6 +282,15 @@ try {
             r.generation > evidence.cycles[0].rows.find((p) => p.country === r.country).generation,
         ),
       );
+    assert.ok(
+      calls.every(
+        (x) =>
+          !x.exported.source ||
+          x.exported.source.statements ===
+            x.exported.source.primary + x.exported.source.replica + x.exported.source.unknown,
+      ),
+      "Publication source routing metrics incomplete",
+    );
     evidence.cycles.push({ calls, rows: rows.results });
     save();
     console.log(
