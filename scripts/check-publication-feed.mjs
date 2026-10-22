@@ -227,6 +227,18 @@ try {
   );
   assert.equal(sessions, 2, "a single transport failure uses exactly one fresh session");
   assert.equal(exported.source.retries, 1, "validated publication reads retry transport loss once");
+  // The production entrypoint must refuse a canonical-source binding even
+  // when the stage correctness entrypoint is deliberately allowed to read it.
+  // Only the small identity lookup may run; no catalog/publication scan follows.
+  const beforeGuardedSource = sourceSql.length;
+  await assert.rejects(
+    () => productionExport({ ...base, SOURCE_DB }),
+    /publication_independent_source_required/,
+  );
+  const deniedStatements = sourceSql.slice(beforeGuardedSource);
+  assert.equal(deniedStatements.length, 1);
+  assert.match(deniedStatements[0], /cove_publication_source_identity/);
+
   assert.ok(exported.source.statements > 4);
   assert.equal(
     exported.source.unknown,
