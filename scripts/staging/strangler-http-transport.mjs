@@ -10,6 +10,13 @@ let origin = "https://cove-strangler-m1-staging.cove-jibrilmohamud.workers.dev";
 let session;
 let connecting;
 const spans = new WeakMap();
+let newConnections = 0;
+let receivedGoaway = 0;
+let abortedBeforeHeaders = 0;
+
+export function stageTransportCounters() {
+  return { newConnections, receivedGoaway, abortedBeforeHeaders };
+}
 
 // Only pre-approved Cove stage origins can receive the benchmark bearer.
 export function setStageTransportOrigin(url) {
@@ -27,26 +34,47 @@ export function setStageTransportOrigin(url) {
   origin = target.origin;
 }
 
+function retireSession(client) {
+  if (session === client) {
+    session = undefined;
+    connecting = undefined;
+  }
+}
+
 async function getSession() {
+  // HTTP/2 GOAWAY forbids creating new streams, even while earlier streams
+  // finish successfully. Never reuse an ended/rejecting connect promise.
+  if (session?.closed || session?.destroyed) retireSession(session);
   if (!connecting) {
     const client = connect(origin);
+    newConnections++;
     session = client;
     client.setTimeout(15000, () => client.destroy(new Error("Protected stage session timed out")));
-    // Always install an error listener; per-request failures remain visible.
+    // Individual streams record their own errors; protect the event emitter.
     client.on("error", () => {});
-    connecting = new Promise((resolve, reject) => {
+    client.on("goaway", () => {
+      receivedGoaway++;
+      retireSession(client);
+      client.close();
+    });
+    client.on("close", () => retireSession(client));
+    const pending = new Promise((resolve, reject) => {
       client.once("connect", () => {
         if (client.alpnProtocol !== "h2") {
+          retireSession(client);
           client.destroy();
           reject(new Error("Protected stage did not negotiate HTTP2"));
         } else resolve(client);
       });
-      client.once("error", reject);
+      client.once("error", (error) => {
+        retireSession(client);
+        reject(error);
+      });
       client.once("close", () => {
-        connecting = undefined;
-        session = undefined;
+        if (client.connecting) reject(new Error("Protected stage closed before connection"));
       });
     });
+    connecting = pending;
   }
   return connecting;
 }
@@ -55,15 +83,25 @@ export async function stageFetch(url, options = {}) {
   assert.equal(new URL(url).origin, origin, "Never send stage credentials to another origin");
   if (stageTransport !== "http2") return fetch(url, options);
   const started = performance.now();
-  const client = await getSession();
+  const parsed = new URL(url);
+  const outgoing = {
+    ":method": options.method || "GET",
+    ":path": parsed.pathname + parsed.search,
+    ...Object.fromEntries(new Headers(options.headers)),
+  };
+  let client = await getSession();
+  let stream;
+  try {
+    stream = client.request(outgoing);
+  } catch (error) {
+    // Retry only an attempt that could not create an HTTP/2 stream. Do not
+    // replay sent requests, unexpected failures, or response-bearing errors.
+    if (!client.closed && !client.destroyed) throw error;
+    retireSession(client);
+    client = await getSession();
+    stream = client.request(outgoing);
+  }
   return new Promise((resolve, reject) => {
-    const parsed = new URL(url);
-    const outgoing = {
-      ":method": options.method || "GET",
-      ":path": parsed.pathname + parsed.search,
-      ...Object.fromEntries(new Headers(options.headers)),
-    };
-    const stream = client.request(outgoing);
     const span = { created: started };
     if (!stream.pending) span.sent = performance.now();
     stream.once("ready", () => {
@@ -140,6 +178,7 @@ export async function stageFetch(url, options = {}) {
     });
     stream.once("error", (error) => {
       cleanup();
+      if (!responded) abortedBeforeHeaders++;
       bodyReject(error);
       if (!responded) reject(error);
     });
@@ -160,5 +199,7 @@ export function stageTransportSpan(response) {
 }
 
 export function closeStageTransport() {
-  session?.close();
+  const live = session;
+  retireSession(live);
+  live?.close();
 }
