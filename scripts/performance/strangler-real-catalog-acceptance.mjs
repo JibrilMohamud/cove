@@ -185,7 +185,22 @@ async function deployFresh(round) {
   const scopedConfig = JSON.stringify(config, null, 2);
   assert.ok(scopedConfig.includes(prodDbId));
   fs.writeFileSync(configPath, scopedConfig);
-  command(["deploy", "--config", configPath]);
+  // Cloudflare occasionally returns 10007 while provisioning a brand-new
+  // Worker name. This is a control-plane creation race, not a cold sample;
+  // retry that exact error only and fail closed for every other deploy error.
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      command(["deploy", "--config", configPath]);
+      break;
+    } catch (error) {
+      if (!/\\[code:\\s*10007\\]/.test(String(error)) || attempt === 3) throw error;
+      const delayMs = 2000 * attempt;
+      evidence.provisioningRetries ||= [];
+      evidence.provisioningRetries.push({ round, attempt, code: 10007, delayMs });
+      save();
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
   const before = await cloudflare(
     "GET",
     `/accounts/${account}/workers/scripts/${name}/deployments`,
