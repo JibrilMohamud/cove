@@ -149,6 +149,8 @@ export async function serveLeanAnonymousBootstrap(
     request.headers.get("x-cove-perf-no-metadata-flight") !== "1" &&
     (request.headers.get("accept-language") || "").length <= 512;
   const model = env.COVE_STRANGLER_READ_MODEL;
+  if (model !== undefined && !["0", "1", "2"].includes(model))
+    throw Error("Unknown storefront read model");
   const presentationStore = env.PRESENTATION
     ? namespacedPresentationStore(env.PRESENTATION, env.COVE_PRESENTATION_PREFIX)
     : undefined;
@@ -175,11 +177,12 @@ export async function serveLeanAnonymousBootstrap(
           fetchContext,
         )
       : { task: fetchContext(), joined: false };
+  const admission = timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180));
   const [context, , catalog] = await Promise.all([
     timed("context", flight.task),
-    timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
+    admission,
     model === "2"
-      ? projection!.then((p) =>
+      ? Promise.all([projection!, admission]).then(([p]) =>
           timed("catalog", authorizePreparedCatalog(rawDb, p.candidates, d1Metrics)),
         )
       : model === "1"

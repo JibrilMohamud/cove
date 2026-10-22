@@ -1,6 +1,9 @@
 import { produceHomepagePresentation } from "./homepage-presentation.server";
 import type { StorefrontDB } from "./localization-optimized.server";
-import type { PrivatePresentationStore } from "./prepared-catalog.server";
+import {
+  namespacedPresentationStore,
+  type PrivatePresentationStore,
+} from "./prepared-catalog.server";
 
 type Env = {
   // This deployment has no binding to the rights/transaction primary.
@@ -14,6 +17,7 @@ type Env = {
   };
   COVE_DISCOVERY_DATABASE_ID: string;
   COVE_DISCOVERY_PRODUCER_ENABLED?: string;
+  COVE_PRESENTATION_PREFIX?: string;
 };
 
 export async function publishIsolatedHomepage(env: Env) {
@@ -28,10 +32,14 @@ export async function publishIsolatedHomepage(env: Env) {
   if (!markets.results.length || markets.results.length > 32)
     throw Error("Unbounded market configuration");
   const results = [];
+  const prefix = env.COVE_PRESENTATION_PREFIX || "";
+  const store = {
+    ...namespacedPresentationStore(env.PRESENTATION, prefix),
+    put: (key: string, body: string, options: { httpMetadata: { contentType: string } }) =>
+      env.PRESENTATION.put(prefix + key, body, options),
+  };
   for (const m of markets.results)
-    results.push(
-      await produceHomepagePresentation(env.DISCOVERY_DB, m.country_code, env.PRESENTATION),
-    );
+    results.push(await produceHomepagePresentation(env.DISCOVERY_DB, m.country_code, store));
   return results;
 }
 

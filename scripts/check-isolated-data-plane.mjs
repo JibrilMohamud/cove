@@ -171,6 +171,25 @@ try {
     serve(request("US"), { ...env, COVE_PRESENTATION_PREFIX: "campaign/other/" }),
   );
   await assert.rejects(() => serve(request("US"), { ...env, COVE_PRESENTATION_PREFIX: "../" }));
+  const beforeDenied = reads.length;
+  await assert.rejects(() =>
+    serve(request("US"), {
+      ...env,
+      COVE_STOREFRONT_READ_LIMITER: {
+        async limit() {
+          return { success: false };
+        },
+      },
+    }),
+  );
+  assert.equal(
+    reads.length,
+    beforeDenied,
+    "rate-limited arrivals must not consume primary rights capacity",
+  );
+  await assert.rejects(() =>
+    serve(request("US"), { ...env, COVE_STRANGLER_READ_MODEL: "invalid" }),
+  );
   const events = [];
   const msg = {
     body: { schema: "cove.literary.prepare.v1", jobId: "a".repeat(64) },
