@@ -194,6 +194,18 @@ try {
     COVE_PRESENTATION_PREFIX: "feed/test/",
   };
   Date.now = () => clock;
+  // Overlapping scheduled export attempts must not start any source read,
+  // even when there are due markets waiting to be published.
+  ledger.prepare("INSERT OR IGNORE INTO discovery_publications(country,active) VALUES('ZZ',0)").run();
+  ledger.prepare(
+    "UPDATE discovery_publications SET lease_token='busy',lease_until=? WHERE country='ZZ'",
+  ).run(clock + 30_000);
+  const busy = await exportFeed({ ...base, SOURCE_DB });
+  assert.equal(busy.skipped, true);
+  assert.equal(sessions, 0, "fenced exporter must not open a source session");
+  ledger.prepare(
+    "UPDATE discovery_publications SET lease_token='',lease_until=0 WHERE country='ZZ'",
+  ).run();
   const exported = await exportFeed({ ...base, SOURCE_DB });
   assert.equal(exported.results.length, 4, JSON.stringify(exported));
   assert.ok(
@@ -201,6 +213,11 @@ try {
     JSON.stringify(ledger.prepare("SELECT country,last_error FROM discovery_publications").all()),
   );
   assert.equal(puts, 0, "source exporter cannot publish");
+  assert.equal(
+    ledger.prepare("SELECT lease_token FROM discovery_publications WHERE country='ZZ'").get().lease_token,
+    "",
+    "successful export releases independent writer lease",
+  );
   assert.equal(sessions, 2, "a single transport failure uses exactly one fresh session");
   assert.equal(exported.source.retries, 1, "validated publication reads retry transport loss once");
   assert.ok(exported.source.statements > 4);

@@ -197,12 +197,46 @@ async function failed(
     .run();
 }
 
-/** Max four markets per cron. Full bounded rebuilds provide replay/recovery
- * without depending on every catalog write site emitting an event. Only the
- * independent discovery ledger is mutated; grants are never published. */
+// A publisher owns the independent ledger only. The reserved inactive ZZ row
+// acts as an atomic cross-Worker export lease, not a storefront market or a
+// production-rights lock. This prevents concurrent scheduled invocations from
+// multiplying load against the large source D1.
+async function holdExportLease(db: Domain, owner: string, now: number) {
+  await db.prepare("INSERT OR IGNORE INTO discovery_publications(country,active) VALUES('ZZ',0)").run();
+  return db.prepare(
+    "UPDATE discovery_publications SET lease_token=?,lease_until=? WHERE country='ZZ' AND active=0 AND lease_until<=? RETURNING country",
+  )
+    .bind(owner, now + LEASE_MS, now)
+    .first();
+}
+async function refreshExportLease(db: Domain, owner: string) {
+  const now = Date.now();
+  const current = await db.prepare(
+    "UPDATE discovery_publications SET lease_until=? WHERE country='ZZ' AND active=0 AND lease_token=? AND lease_until>? RETURNING country",
+  )
+    .bind(now + LEASE_MS, owner, now)
+    .first();
+  if (!current) throw Error("publication_export_owner_lost");
+}
+async function releaseExportLease(db: Domain, owner: string) {
+  await db.prepare(
+    "UPDATE discovery_publications SET lease_until=0,lease_token='' WHERE country='ZZ' AND lease_token=?",
+  )
+    .bind(owner)
+    .run();
+}
+
+/** Max four markets per cron and only one exporter across all Worker isolates.
+ * Every export runs outside the customer hot path and snapshots remain untrusted
+ * display data; checkout and reader still revalidate the canonical D1. */
 export async function exportPublicPresentation(env: ExportEnv) {
   await identity(env);
   if (env.SOURCE_DB === env.DISCOVERY_DB) throw Error("publication_source_not_isolated");
+  const owner = crypto.randomUUID();
+  const ownsLane = await holdExportLease(env.DISCOVERY_DB, owner, Date.now());
+  // Do not even open a source DB session when another exporter owns the lane.
+  if (!ownsLane) return { results: [], source: null, skipped: true };
+  try {
   const metrics = {
     statements: 0,
     primary: 0,
@@ -237,6 +271,7 @@ export async function exportPublicPresentation(env: ExportEnv) {
   for (let n = 0; n < 4; n++) {
     const token = crypto.randomUUID(),
       now = Date.now();
+    await refreshExportLease(env.DISCOVERY_DB, owner);
     const job = await claim(env, "export", token, now);
     if (!job) break;
     try {
@@ -283,7 +318,10 @@ export async function exportPublicPresentation(env: ExportEnv) {
       results.push({ country: job.country, exported: false });
     }
   }
-  return { results, source: metrics };
+  return { results, source: metrics, skipped: false };
+  } finally {
+    await releaseExportLease(env.DISCOVERY_DB, owner);
+  }
 }
 
 /** This consumer has no source/primary binding. CAS plus generation metadata
