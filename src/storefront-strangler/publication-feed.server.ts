@@ -111,7 +111,10 @@ function presentationSource(source: Source, metrics: Record<string, number>) {
           // A fresh session avoids reusing a broken D1 transport.
           if (!/\bNetwork connection lost\b/i.test(String(error))) throw error;
           metrics.retries++;
-          const retry = source.withSession("first-unconstrained").prepare(sql).bind(...values);
+          const retry = source
+            .withSession("first-unconstrained")
+            .prepare(sql)
+            .bind(...values);
           const result = await retry.all<T>();
           record(result);
           return result;
@@ -200,7 +203,15 @@ async function failed(
 export async function exportPublicPresentation(env: ExportEnv) {
   await identity(env);
   if (env.SOURCE_DB === env.DISCOVERY_DB) throw Error("publication_source_not_isolated");
-  const metrics = { statements: 0, primary: 0, replica: 0, unknown: 0, rows: 0, sqlMs: 0, retries: 0 };
+  const metrics = {
+    statements: 0,
+    primary: 0,
+    replica: 0,
+    unknown: 0,
+    rows: 0,
+    sqlMs: 0,
+    retries: 0,
+  };
   const source = presentationSource(env.SOURCE_DB, metrics);
   const markets = await source
     .prepare(
