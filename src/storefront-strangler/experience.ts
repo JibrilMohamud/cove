@@ -551,6 +551,9 @@ a:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible{ou
   /* Match the live search-field clipping and native chevron instead of
      appending an ellipsis or a font-dependent text-glyph arrow. */
   .search-field input{text-overflow:clip}
+  /* The live storefront separates the top filter row from the detailed
+     facet row by 17px at 390px; keep card placement and hit targets aligned. */
+  .filter-row{margin-top:20px;margin-bottom:17px}
   .thin-category-browse summary{font-size:12px}
   .thin-category-browse summary:after{
     content:"";width:7px;height:7px;display:inline-block;
