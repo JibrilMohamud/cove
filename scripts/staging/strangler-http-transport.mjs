@@ -9,7 +9,9 @@ export const stageTransport = process.env.COVE_STAGE_HTTP2 === "1" ? "http2" : "
 let origin = "https://cove-strangler-m1-staging.cove-jibrilmohamud.workers.dev";
 // Bounded, isolated load-client pool: one congested HTTP/2 connection must
 // not skew the D1-free control and storefront latency measurements together.
-const sessionPool = Array.from({ length: 8 }, () => ({ client: undefined, connecting: undefined }));
+// Sixteen independent TLS connections bound each stream's queueing depth
+// during a 100-RPS trial. No request is replayed after a stream is created.
+const sessionPool = Array.from({ length: 16 }, () => ({ client: undefined, connecting: undefined }));
 let nextSession = 0;
 const spans = new WeakMap();
 let newConnections = 0;
@@ -91,7 +93,7 @@ export async function stageFetch(url, options = {}) {
     ":path": parsed.pathname + parsed.search,
     ...Object.fromEntries(new Headers(options.headers)),
   };
-  // Fair dispatch across eight TLS/h2 sessions reduces connection-level
+  // Fair dispatch across sixteen TLS/h2 sessions reduces connection-level
   // flow-control head-of-line blocking. Each request is still measured, not retried.
   const slot = sessionPool[nextSession++ % sessionPool.length];
   let client = await getSession(slot);
@@ -125,7 +127,11 @@ export async function stageFetch(url, options = {}) {
     const chunks = [];
     let bytes = 0;
     let encoding = "identity";
-    const abort = () => stream.destroy(new Error("Protected stage request timed out"));
+    const abort = () => {
+      const error = new Error("Protected stage request timed out");
+      error.code = "STAGE_HTTP2_DEADLINE";
+      stream.destroy(error);
+    };
     const cleanup = () => options.signal?.removeEventListener("abort", abort);
     if (options.signal?.aborted) {
       stream.destroy();
@@ -191,6 +197,7 @@ export async function stageFetch(url, options = {}) {
       cleanup();
       if (!finished) {
         const error = new Error("Protected stage stream closed before complete response");
+        error.code = "STAGE_HTTP2_PREMATURE_CLOSE";
         bodyReject(error);
         if (!responded) reject(error);
       }
