@@ -34,7 +34,10 @@ async function api(method, path, body) {
     signal: AbortSignal.timeout(30000),
   });
   const b = await r.json();
-  assert.ok(r.ok && b.success, `Cloudflare ${method} ${r.status}`);
+  assert.ok(
+    r.ok && b.success,
+    `Cloudflare ${method} ${r.status} ${JSON.stringify(b.errors || []).slice(0, 500)}`,
+  );
   return b.result;
 }
 async function sql(query, params = []) {
@@ -85,8 +88,13 @@ for (const signal of ["SIGINT", "SIGTERM"])
   });
 try {
   const tables = await sql("SELECT name FROM sqlite_master WHERE type='table'");
-  if (!tables.results.length)
+  if (!tables.results.some((r) => r.name === "discovery_domain_identity")) {
+    assert.ok(
+      tables.results.every((r) => r.name === "_cf_KV"),
+      "Unexpected tables in publication staging domain",
+    );
     await sql(fs.readFileSync("infra/discovery/0001_publication_feed.sql", "utf8"));
+  }
   const identity = await sql(
     "SELECT domain,schema_version FROM discovery_domain_identity WHERE id=1",
   );
