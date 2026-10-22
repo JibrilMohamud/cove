@@ -613,7 +613,7 @@ try {
   save();
   for (const workerName of createdWorkers) {
     try {
-      await cloudflare("DELETE", `/accounts/${account}/workers/scripts/${workerName}?force=true`);
+      await cloudflare("DELETE", `/accounts/${account}/workers/workers/${workerName}?force=true`);
     } catch {
       evidence.cleanupFailed = true;
       console.error("Stage cleanup not confirmed; remove only " + workerName);
