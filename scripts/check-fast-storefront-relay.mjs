@@ -88,7 +88,7 @@ const missingKey = {
   COVE_FAST_STOREFRONT_ORIGIN: "https://cove-fast-gateway.cove-jibrilmohamud.workers.dev/",
 };
 assert.equal(await proxy.maybeProxyFastHomepage(req(), missingKey), null);
-for (const percent of ["-1", "0", "6", "100", "abc"]) {
+for (const percent of ["-1", "0", "2", "3", "4", "5", "6", "100", "abc"]) {
   const canary = {
     ...preview,
     VERCEL_ENV: "production",
