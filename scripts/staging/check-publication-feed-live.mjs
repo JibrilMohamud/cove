@@ -67,6 +67,23 @@ function cli(args, input) {
         .slice(-600),
   );
 }
+// Some freshly provisioned Workers are briefly absent from Cloudflare's
+// versions API (10007). Retry only this pre-traffic provisioning race. No
+// benchmark request or app error is replayed or ignored.
+async function deployStage(config) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      cli(["deploy", "--config", config]);
+      return;
+    } catch (error) {
+      if (attempt === 3 || !/Worker does not exist|code:\s*10007/i.test(String(error)))
+        throw error;
+      console.warn("Stage Worker provisioning delayed; retry " + attempt);
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+    }
+  }
+}
+
 const names = evidence.workers;
 let cleanupPromise;
 function cleanup() {
@@ -125,7 +142,7 @@ try {
   capture.vars.COVE_PUBLICATION_CAPTURE_ENABLED = "1";
   names.push(capture.name);
   fs.writeFileSync(".output/strangler/live-capture.jsonc", JSON.stringify(capture));
-  cli(["deploy", "--config", ".output/strangler/live-capture.jsonc"]);
+  await deployStage(".output/strangler/live-capture.jsonc");
   for (const lane of ["export", "publish"]) {
     const fileName = `wrangler.publication-${lane}.stage.jsonc`;
     const parsed = ts.parseConfigFileTextToJson(fileName, fs.readFileSync(fileName, "utf8"));
@@ -153,7 +170,7 @@ try {
     const file = `.output/strangler/live-${lane}.jsonc`;
     c.main = `publication-${lane}.mjs`;
     fs.writeFileSync(file, JSON.stringify(c));
-    cli(["deploy", "--config", file]);
+    await deployStage(file);
   }
   const gate = randomBytes(32).toString("hex");
   const name = `cove-pub-${run}-driver`;
@@ -177,7 +194,7 @@ try {
   };
   const configPath = ".output/strangler/publication-driver.jsonc";
   fs.writeFileSync(configPath, JSON.stringify(config));
-  cli(["deploy", "--config", configPath]);
+  await deployStage(configPath);
   cli(["secret", "put", "GATE", "--config", configPath], gate);
   // Propagation only; these are publication control calls, never storefront
   // cold/performance samples. Retry failures are retained in the evidence.
