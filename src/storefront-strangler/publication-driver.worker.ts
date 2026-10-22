@@ -6,6 +6,7 @@ import type { PrivatePresentationStore } from "./prepared-catalog.server";
 type Env = {
   GATE: string;
   PREFIX: string;
+  CAPTURE?: { fetch(r: Request): Promise<Response> };
   EXPORTER: { fetch(r: Request): Promise<Response> };
   PUBLISHER: { fetch(r: Request): Promise<Response> };
   PRESENTATION: PrivatePresentationStore;
@@ -18,8 +19,13 @@ export default {
     if (actual.length !== expected.length || !timingSafeEqual(actual, expected))
       return new Response(null, { status: 401 });
     const path = new URL(request.url).pathname;
-    if (request.method === "POST" && (path === "/export" || path === "/publish")) {
-      const service = path === "/export" ? env.EXPORTER : env.PUBLISHER;
+    if (
+      request.method === "POST" &&
+      (path === "/capture" || path === "/export" || path === "/publish")
+    ) {
+      const service =
+        path === "/capture" ? env.CAPTURE : path === "/export" ? env.EXPORTER : env.PUBLISHER;
+      if (!service) return new Response(null, { status: 503 });
       return service.fetch(new Request("https://private/run", { method: "POST" }));
     }
     if (request.method === "GET" && path === "/verify") {
