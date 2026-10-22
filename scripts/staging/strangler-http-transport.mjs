@@ -28,9 +28,9 @@ export function setStageTransportOrigin(url) {
   );
   assert.equal(target.port, "");
   if (target.origin === origin) return;
-  session?.close();
-  session = undefined;
-  connecting = undefined;
+  const previous = session;
+  retireSession(previous);
+  previous?.close();
   origin = target.origin;
 }
 
@@ -59,7 +59,9 @@ async function getSession() {
     });
     client.on("close", () => retireSession(client));
     const pending = new Promise((resolve, reject) => {
+      let established = false;
       client.once("connect", () => {
+        established = true;
         if (client.alpnProtocol !== "h2") {
           retireSession(client);
           client.destroy();
@@ -71,7 +73,7 @@ async function getSession() {
         reject(error);
       });
       client.once("close", () => {
-        if (client.connecting) reject(new Error("Protected stage closed before connection"));
+        if (!established) reject(new Error("Protected stage closed before connection"));
       });
     });
     connecting = pending;

@@ -10,6 +10,7 @@ import {
   stageFetch,
   stageTransport,
   stageTransportSpan,
+  stageTransportCounters,
 } from "../staging/strangler-http-transport.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
@@ -184,7 +185,13 @@ async function sample(model = "projection", path = "/") {
       placement: r.headers.get("x-cove-stage-placement"),
     };
   } catch (e) {
-    return { ok: false, ms: performance.now() - started, error: e.name };
+    return {
+      ok: false,
+      ms: performance.now() - started,
+      error: e.name,
+      transportCode:
+        typeof e.code === "string" && /^[A-Z0-9_]{3,60}$/.test(e.code) ? e.code : null,
+    };
   }
 }
 async function deploy(round) {
@@ -236,6 +243,7 @@ async function phase(model) {
   const rows = [],
     background = [],
     transportControls = [],
+    beforeConnections = stageTransportCounters(),
     inflight = new Set();
   let dropped = 0,
     maxSchedulerLagMs = 0,
@@ -314,6 +322,12 @@ async function phase(model) {
     ...summary(rows),
     background,
     transportControls: { ...summary(transportControls), rows: transportControls },
+    connectionDelta: Object.fromEntries(
+      Object.entries(stageTransportCounters()).map(([key, value]) => [
+        key,
+        value - beforeConnections[key],
+      ]),
+    ),
     rows,
   };
   evidence.phases.push(result);
@@ -327,6 +341,7 @@ async function phase(model) {
         ...summary(transportControls),
         failed: transportControls.filter((x) => !x.ok).length,
       },
+      connectionDelta: result.connectionDelta,
       rows: undefined,
     }),
   );
