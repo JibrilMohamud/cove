@@ -38,6 +38,8 @@ export type StorefrontContext = {
   // Only present for the explicit anonymous homepage combined metadata read.
   // Never used to authorize a sale, download, or content delivery.
   availableMarkets?: Awaited<ReturnType<typeof storefrontMarkets>>;
+  // Internal, presentation-only root page record for explicit anonymous bootstrap.
+  homepagePageRow?: Record<string, unknown> | null;
 };
 
 const countrySchema = z
@@ -248,6 +250,7 @@ export async function resolveStorefrontContext(
   userId: string | null,
   fallbackCountry = "US",
   includeMarkets = false,
+  includeHomepagePage = false,
 ): Promise<StorefrontContext> {
   const network = networkCountry(request, fallbackCountry);
   const pref = await preference(db, userId);
@@ -325,7 +328,7 @@ export async function resolveStorefrontContext(
   // other. D1.batch sends them in ONE database service round trip instead
   // of two independent session requests; SQL executes sequentially under
   // one consistent D1 session. This read-only batch cannot grant rights.
-  const [paymentMethods, translationRows] = (await db.batch([
+  const [paymentMethods, translationRows, homepageRows] = (await db.batch([
     db
       .prepare(
         `SELECT payment_method,provider,currency,availability,priority FROM storefront_payment_methods
@@ -333,6 +336,22 @@ export async function resolveStorefrontContext(
       )
       .bind(effectiveCountry, currency),
     messageStatement(db, String(loc.locale)),
+    // Fold the published root-page presentation read into the existing D1
+    // batch. Only used after provable anonymity; its territory remains
+    // anchored to the trusted network market (never spoofable preferences).
+    ...(includeHomepagePage
+      ? [
+          db
+            .prepare(
+              `SELECT * FROM storefront_pages WHERE path='/' AND status='published'
+          AND (territory_code IS NULL OR territory_code=?)
+          AND (language_code IS NULL OR lower(language_code)=lower(?))
+          AND (starts_at IS NULL OR starts_at<=datetime('now'))
+          AND (ends_at IS NULL OR ends_at>datetime('now')) LIMIT 1`,
+            )
+            .bind(network.country, String(loc.language_code)),
+        ]
+      : []),
   ])) as [
     {
       results: {
@@ -344,6 +363,7 @@ export async function resolveStorefrontContext(
       }[];
     },
     { results: { message_key: string; message_value: string }[] },
+    { results: Record<string, unknown>[] } | undefined,
   ];
   const messages = mergeMessages(translationRows.results);
   const methods = paymentMethods.results;
@@ -380,6 +400,7 @@ export async function resolveStorefrontContext(
     requestedCountry:
       requestedCountry && requestedCountry !== effectiveCountry ? requestedCountry : null,
     ...(includeMarkets ? { availableMarkets: availableMarkets || [] } : {}),
+    ...(includeHomepagePage ? { homepagePageRow: homepageRows?.results[0] ?? null } : {}),
   };
 }
 

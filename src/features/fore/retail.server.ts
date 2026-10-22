@@ -7,6 +7,7 @@ import {
   type CatalogDB,
 } from "./catalog-model.server";
 import { resolvePricingDecision } from "./pricing.server";
+import { productChannelFlagsSql } from "./secondary-channel-query";
 import { resolveProductRights, resolveRightsDecision } from "./rights.server";
 import { assertPreorderPurchaseAllowed, preorderPurchaseState } from "./preorder.server";
 import { recordRetailEvent } from "./retail-intelligence.server";
@@ -91,16 +92,13 @@ export async function activeEntitlement(db: CatalogDB, userId: string | null, pr
 }
 
 async function territorialChannelFlags(db: CatalogDB, productId: string, territory: string) {
-  const rows = await db
-    .prepare(
-      `SELECT sales_channel FROM product_channel_availability WHERE product_id=? AND territory_code=upper(?) AND sales_channel IN ('subscription','library')`,
-    )
-    .bind(productId, territory)
-    .all<any>();
-  const channels = new Set(rows.results.map((r: any) => String(r.sales_channel)));
+  const flags = await db
+    .prepare(productChannelFlagsSql)
+    .bind(productId, productId, territory, productId, territory)
+    .first<{ subscription_eligible: number; library_eligible: number }>();
   return {
-    subscriptionEligible: channels.has("subscription"),
-    libraryEligible: channels.has("library"),
+    subscriptionEligible: !!flags?.subscription_eligible,
+    libraryEligible: !!flags?.library_eligible,
   };
 }
 

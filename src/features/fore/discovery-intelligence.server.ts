@@ -212,6 +212,108 @@ async function rightsExactTaxonomyCandidates(
   return complete.results.map((r) => r.id);
 }
 
+/**
+ * Exact live-rights literary-feature retrieval with a bounded indexed ranking.
+ *
+ * Ranking by max feature confidence is independent of retail eligibility.
+ * Therefore, if the first 120 feature-ranked books contain 40 currently
+ * licensed works, those works ARE the original query's exact top 40 (with
+ * identical product-id tie breaks). Otherwise execute the complete query.
+ *
+ * Sparse markets are seeded by live territory grants, which are only a
+ * superset: the authoritative retail_product_availability_rows view still
+ * validates every returned work. Never cache an entitlement or bypass deny,
+ * contract, DRM, format, language or date constraints.
+ */
+async function rightsExactLiteraryFeatureCandidates(
+  db: CatalogDB,
+  dimension: string,
+  features: string[],
+  territory: string,
+): Promise<string[]> {
+  if (!features.length) return [];
+  const marks = features.map(() => "?").join(",");
+  const grantRows = await db
+    .prepare(
+      "SELECT COUNT(*) grants FROM (SELECT 1 FROM rights_grant_territories WHERE territory_code=upper(?) LIMIT 1001)",
+    )
+    .bind(territory)
+    .first<{ grants: number }>();
+
+  if (Number(grantRows?.grants || 0) > 1000) {
+    const shortlist = await db
+      .prepare(
+        `WITH ranked AS MATERIALIZED (
+          SELECT f.product_id,MAX(f.confidence) confidence
+          FROM recommendation_book_features f INDEXED BY idx_rec_literary_lookup
+          WHERE f.dimension=? AND f.feature IN (${marks})
+          GROUP BY f.product_id
+          ORDER BY confidence DESC,f.product_id LIMIT 120
+        )
+        SELECT ranked.product_id FROM ranked
+        CROSS JOIN products p ON p.id=ranked.product_id
+        WHERE p.storefront_status='active'
+          AND EXISTS(
+            SELECT 1 FROM retail_product_availability_rows live
+            WHERE live.product_id=ranked.product_id
+              AND live.territory_code=upper(?)
+          )
+        ORDER BY ranked.confidence DESC,ranked.product_id LIMIT 40`,
+      )
+      .bind(dimension, ...features, territory)
+      .all<{ product_id: string }>();
+    if (shortlist.results.length === 40) return shortlist.results.map((r) => r.product_id);
+
+    // If fewer than 40 passed live territorial rights, the bounded ranking
+    // cannot prove that every later eligible result was included.
+    const complete = await db
+      .prepare(
+        `SELECT f.product_id,MAX(f.confidence) confidence
+         FROM recommendation_book_features f
+         JOIN products p ON p.id=f.product_id
+         WHERE f.dimension=? AND f.feature IN (${marks})
+           AND p.storefront_status='active'
+           AND EXISTS(
+             SELECT 1 FROM retail_product_availability_rows live
+             WHERE live.product_id=f.product_id AND live.territory_code=upper(?)
+           )
+         GROUP BY f.product_id
+         ORDER BY confidence DESC,f.product_id LIMIT 40`,
+      )
+      .bind(dimension, ...features, territory)
+      .all<{ product_id: string }>();
+    return complete.results.map((r) => r.product_id);
+  }
+
+  // Candidate grants are not permissions. The live rights view below always
+  // makes the final positive decision, including after revocation.
+  const sparse = await db
+    .prepare(
+      `WITH territory_seed AS MATERIALIZED (
+         SELECT DISTINCT seeded.id FROM rights_grant_territories rt
+         JOIN rights_grants rg ON rg.id=rt.grant_id
+         JOIN products seeded ON seeded.edition_id=rg.edition_id
+         WHERE rt.territory_code=upper(?)
+           AND rg.sales_channel='retail' AND rg.status='active'
+       )
+       SELECT f.product_id,MAX(f.confidence) confidence
+       FROM territory_seed seed
+       CROSS JOIN recommendation_book_features f ON f.product_id=seed.id
+       CROSS JOIN products p ON p.id=f.product_id
+       WHERE f.dimension=? AND f.feature IN (${marks})
+         AND p.storefront_status='active'
+         AND EXISTS(
+           SELECT 1 FROM retail_product_availability_rows live
+           WHERE live.product_id=f.product_id AND live.territory_code=upper(?)
+         )
+       GROUP BY f.product_id
+       ORDER BY confidence DESC,f.product_id LIMIT 40`,
+    )
+    .bind(territory, dimension, ...features, territory)
+    .all<{ product_id: string }>();
+  return sparse.results.map((r) => r.product_id);
+}
+
 export async function retrieveLiteraryCandidates(
   db: CatalogDB,
   terms: LiteraryFeature[],
@@ -249,13 +351,13 @@ export async function retrieveLiteraryCandidates(
     const features = [
       ...new Set(terms.filter((t) => t.dimension === dimension).map((t) => t.feature)),
     ].slice(0, 20);
-    const rows = await db
-      .prepare(
-        `SELECT f.product_id,MAX(f.confidence) confidence FROM recommendation_book_features f JOIN products p ON p.id=f.product_id WHERE f.dimension=? AND f.feature IN (${features.map(() => "?").join(",")}) AND p.storefront_status='active' AND EXISTS(SELECT 1 FROM retail_product_availability a WHERE a.product_id=f.product_id AND a.territory_code=upper(?)) GROUP BY f.product_id ORDER BY confidence DESC,f.product_id LIMIT 40`,
-      )
-      .bind(dimension, ...features, territory)
-      .all<{ product_id: string }>();
-    for (const row of rows.results) ids.add(row.product_id);
+    const candidates = await rightsExactLiteraryFeatureCandidates(
+      db,
+      dimension,
+      features,
+      territory,
+    );
+    for (const productId of candidates) ids.add(productId);
   }
   return [...ids].slice(0, 200);
 }
