@@ -76,8 +76,7 @@ async function deployStage(config) {
       cli(["deploy", "--config", config]);
       return;
     } catch (error) {
-      if (attempt === 3 || !/Worker does not exist|code:\s*10007/i.test(String(error)))
-        throw error;
+      if (attempt === 3 || !/Worker does not exist|code:\s*10007/i.test(String(error))) throw error;
       console.warn("Stage Worker provisioning delayed; retry " + attempt);
       await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
     }
