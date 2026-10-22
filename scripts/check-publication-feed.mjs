@@ -6,6 +6,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { build } from "esbuild";
 import { localBindings } from "./local-api.mjs";
+import ts from "typescript";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cove-publication-"));
 const ledger = new DatabaseSync(":memory:");
@@ -13,12 +14,28 @@ const realNow = Date.now;
 let clock = realNow();
 try {
   ledger.exec(fs.readFileSync("infra/discovery/0001_publication_feed.sql", "utf8"));
+  for (const lane of ["export", "publish"]) {
+    const file = `wrangler.publication-${lane}.stage.jsonc`;
+    const parsed = ts.parseConfigFileTextToJson(file, fs.readFileSync(file, "utf8"));
+    assert.ok(!parsed.error);
+    const c = parsed.config;
+    assert.equal(c.workers_dev, false);
+    assert.equal(c.preview_urls, false);
+    assert.equal(c.vars.COVE_PUBLICATION_ENABLED, "0");
+    assert.ok(!c.triggers && !c.routes && !c.route && !c.queues);
+    if (lane === "publish") {
+      assert.equal(c.d1_databases.length, 1);
+      assert.equal(c.d1_databases[0].binding, "DISCOVERY_DB");
+      assert.ok(!JSON.stringify(c).includes("4bd657ac-8789-403e-a28c-93aba8d0a989"));
+    }
+  }
   fs.cpSync("drizzle", path.join(dir, "drizzle"), { recursive: true });
   await build({
     entryPoints: {
       feed: "src/storefront-strangler/publication-feed.server.ts",
       api: "src/features/fore/api.server.ts",
       presentation: "src/storefront-strangler/homepage-presentation.server.ts",
+      driver: "src/storefront-strangler/publication-driver.worker.ts",
     },
     outdir: dir,
     bundle: true,
@@ -35,6 +52,35 @@ try {
     homepagePresentationKey: key,
   } = await import(path.join(dir, "presentation.js"));
   const { handleCoveApi } = await import(path.join(dir, "api.js"));
+  const { default: driver } = await import(path.join(dir, "driver.js"));
+  let invoked = 0;
+  const control = {
+    GATE: "a".repeat(64),
+    EXPORTER: {
+      async fetch() {
+        invoked++;
+        return Response.json({ ok: true });
+      },
+    },
+  };
+  assert.equal(
+    (await driver.fetch(new Request("https://private/export", { method: "POST" }), control)).status,
+    401,
+  );
+  assert.equal(invoked, 0);
+  assert.equal(
+    (
+      await driver.fetch(
+        new Request("https://private/export", {
+          method: "POST",
+          headers: { authorization: "Bearer " + control.GATE },
+        }),
+        control,
+      )
+    ).status,
+    200,
+  );
+  assert.equal(invoked, 1);
   const primary = localBindings(dir);
   const initial = await handleCoveApi(new Request("https://test/api/fore/storefront/bootstrap"), {
     ...primary,

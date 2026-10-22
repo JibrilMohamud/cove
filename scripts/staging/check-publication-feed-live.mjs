@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { build } from "esbuild";
+import ts from "typescript";
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const ledger = "b299be94-f885-47a5-9d0b-3a3ac494065a";
 const source = "4bd657ac-8789-403e-a28c-93aba8d0a989";
@@ -111,7 +111,10 @@ try {
   );
   const prefix = `feed/campaign/${run}/`;
   for (const lane of ["export", "publish"]) {
-    const c = JSON.parse(fs.readFileSync(`wrangler.publication-${lane}.stage.jsonc`));
+    const fileName = `wrangler.publication-${lane}.stage.jsonc`;
+    const parsed = ts.parseConfigFileTextToJson(fileName, fs.readFileSync(fileName, "utf8"));
+    assert.ok(!parsed.error, "Invalid publication config");
+    const c = parsed.config;
     assert.equal(c.workers_dev, false);
     assert.equal(c.preview_urls, false);
     assert.ok(!c.routes && !c.route && !c.triggers && !c.queues);
@@ -133,36 +136,6 @@ try {
     fs.writeFileSync(file, JSON.stringify(c));
     cli(["deploy", "--config", file]);
   }
-  const driver = `.output/strangler/publication-driver.mjs`;
-  await build({
-    stdin: {
-      contents: `
- import { timingSafeEqual } from 'node:crypto';
- import { readHomepagePresentation } from '../../src/storefront-strangler/homepage-presentation.server.ts';
- export default {async fetch(request,env){
- const actual=new TextEncoder().encode(request.headers.get('authorization')||'');
- const expected=new TextEncoder().encode('Bearer '+env.GATE);
- if(actual.length!==expected.length||!timingSafeEqual(actual,expected))return new Response(null,{status:401});
- const path=new URL(request.url).pathname;
- if(request.method==='POST'&&(path==='/export'||path==='/publish')){
- const service=path==='/export'?env.EXPORTER:env.PUBLISHER;
- return service.fetch(new Request('https://private/run',{method:'POST'}));}
- if(request.method==='GET'&&path==='/verify'){
- const result=[];for(const country of ['US','CA','SA','JP']){
- const p=await readHomepagePresentation({get:key=>env.PRESENTATION.get(env.PREFIX+key)},new Request('https://private/'),country);
- result.push({country:p.candidates.country,candidates:p.candidates.productIds.length,expires:p.candidates.expiresAt,display:p.displayBooks.length});}
- return Response.json(result);}
- return new Response(null,{status:404});}};`,
-      resolveDir: ".output/strangler",
-      sourcefile: "publication-driver.js",
-    },
-    outfile: driver,
-    bundle: true,
-    format: "esm",
-    platform: "node",
-    external: ["node:*", "cloudflare:*"],
-    logLevel: "silent",
-  });
   const gate = randomBytes(32).toString("hex");
   const name = `cove-pub-${run}-driver`;
   names.push(name);
