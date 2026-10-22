@@ -160,3 +160,40 @@ is not certification. The regular catalog now preserves its loaded count
 while background revalidation is pending, instead of labeling already
 rendered data as an initial load. This source change does not retroactively
 alter the deployed public baseline or its failed evidence.
+
+## Live public presentation feed
+
+The new `publication-export` / `publication-publish` pair supplies a bounded
+live-source alternative to the relational discovery fixture. It rebuilds the
+public anonymous snapshot from the canonical catalog through a read-only,
+`first-unconstrained` session, then durably hands it to a physically independent
+presentation ledger (`b299be94-f885-47a5-9d0b-3a3ac494065a`). Source statement,
+rows, SQL time and actual primary/replica/unknown counts are retained: session
+eligibility alone is never represented as a replica observation. All claims,
+leases, refresh timing, replay and retry writes occur in that ledger.
+
+Each tick exports at most four markets (32 configured markets maximum), with
+128 candidates, 16 locales and 512KiB per snapshot. Delivered markets become
+due after five minutes; failed jobs back off with jitter and four attempts,
+and final-attempt crashes become eligible for a delayed rebuild. Full bounded
+rebuilds pick up edits without requiring every existing catalog write site to
+emit an event. They do not constitute a full catalog replica, and the source
+read load must still be measured alongside production background ownership.
+
+The separate publisher has no primary/source binding. It verifies the payload
+hash, country and expiry before conditional R2 replacement. Monotonic per-market
+generations, lease fences and R2 ETag conditions prevent stale publishers from
+replacing newer presentation; lost ACKs can finish without rewriting identical
+versions. The consumer never publishes an entitlement, delivery URL, live offer
+or cached legal grant. The storefront still validates each snapshot and queries
+current primary authority on every request, including after source revocation.
+
+Checked configurations are disabled, have no cron/public ingress/routes and
+expose only a fixed service-binding `/run` operation when explicitly enabled.
+The hosted proof temporarily deploys both private services plus a bearer-gated
+driver, performs two complete source-refresh/publication cycles against real
+public catalog data, verifies private R2 in US/CA/SA/JP, retains routing metrics,
+and removes all test Workers. Empty legal shelves are valid outside the US.
+No production catalog, authority, entitlement or routing setting is mutated.
+A successful proof establishes live feed mechanics, not production ownership
+cutover, primary-service tail latency, or authenticated release certification.

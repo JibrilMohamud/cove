@@ -1,0 +1,21 @@
+{
+  "name": "cove-publication-publish-stage",
+  "main": ".output/strangler/publication-publish.mjs",
+  "compatibility_date": "2026-10-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DISCOVERY_DB",
+      "database_name": "cove-discovery-publication-stage-20261022",
+      "database_id": "b299be94-f885-47a5-9d0b-3a3ac494065a",
+      "migrations_dir": "infra/discovery",
+    },
+  ],
+  "r2_buckets": [
+    { "binding": "PRESENTATION", "bucket_name": "cove-strangler-private-presentation-stage" },
+  ],
+  "vars": { "COVE_PUBLICATION_ENABLED": "0", "COVE_PRESENTATION_PREFIX": "feed/stage/" },
+}

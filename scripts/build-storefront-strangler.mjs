@@ -74,3 +74,16 @@ await build({
   external: ["node:*", "cloudflare:*"],
   logLevel: "silent",
 });
+for (const lane of ["export", "publish"]) {
+  await build({
+    entryPoints: [`src/storefront-strangler/publication-${lane}.worker.ts`],
+    outfile: `.output/strangler/publication-${lane}.mjs`,
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    target: "es2022",
+    conditions: ["workerd", "worker", "browser", "import", "default"],
+    external: ["node:*", "cloudflare:*"],
+    logLevel: "silent",
+  });
+}
