@@ -30,7 +30,6 @@ assert.match(facetQueries, /await facetDb\s+\.prepare\(/);
 assert.doesNotMatch(facetQueries, /\bdb\s*\.prepare\(/);
 assert.match(facetScope, /writeCatalogCache\(\s*db,/);
 
-
 const result = await build({
   entryPoints: ["src/features/fore/search-counts-cache.server.ts"],
   bundle: true,
