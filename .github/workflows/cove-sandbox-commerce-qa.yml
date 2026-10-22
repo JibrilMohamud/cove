@@ -17,10 +17,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      # Allow legacy naming conventions; the script still verifies test-only
-      # values AND the exact Cove account before any payment is created.
-      COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SECRET_KEY }}
-      COVE_SANDBOX_PUBLISHABLE_KEY: ${{ secrets.COVE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_TEST_PUBLISHABLE_KEY || secrets.STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.STRIPE_TEST_PUBLISHABLE_KEY || secrets.STRIPE_PUBLISHABLE_KEY }}
       COVE_SANDBOX_REPORT: artifacts/cove-sandbox-commerce/report.json
     steps:
       - uses: actions/checkout@v6
@@ -30,19 +26,36 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-      - name: Validate test-only credentials (without exposing them)
-        shell: bash
-        run: |
-          set -euo pipefail
-          [[ "${COVE_SANDBOX_SECRET_KEY}" == sk_test_* || "${COVE_SANDBOX_SECRET_KEY}" == rk_test_* || "${COVE_SANDBOX_SECRET_KEY}" == rkcs_test_* ]] || { echo "::error::Cove test secret missing or invalid"; exit 1; }
-          [[ "${COVE_SANDBOX_PUBLISHABLE_KEY}" == pk_test_* ]] || { echo "::error::Cove test publishable key missing or invalid"; exit 1; }
-          echo "Cove test-mode credentials have the expected formats."
       - run: npm ci
-      - name: Install official Stripe CLI
+      - name: Install official Stripe CLI (no payment credentials)
         run: |
           npm install --global @stripe/cli
           stripe version
+      - name: Validate test-only credentials (never print key values)
+        shell: bash
+        env:
+        # Supplied only to the validation and runtime steps, never npm ci,
+        # setup actions, or the unpinned Stripe CLI installer.
+        COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SECRET_KEY }}
+        COVE_SANDBOX_PUBLISHABLE_KEY: ${{ secrets.COVE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_TEST_PUBLISHABLE_KEY || secrets.STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.STRIPE_TEST_PUBLISHABLE_KEY || secrets.STRIPE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${COVE_SANDBOX_SECRET_KEY}" ]]; then
+            echo "::error::No Cove test secret reached this job. Confirm repository Actions secret name, or declare the correct protected GitHub Environment."
+            exit 1
+          fi
+          if [[ "${COVE_SANDBOX_SECRET_KEY}" != sk_test_* && "${COVE_SANDBOX_SECRET_KEY}" != rk_test_* && "${COVE_SANDBOX_SECRET_KEY}" != rkcs_test_* ]]; then
+            echo "::error::Cove test secret exists but is not a raw TEST API key (sk_test_/rk_test_/rkcs_test_)."
+            exit 1
+          fi
+          [[ "${COVE_SANDBOX_PUBLISHABLE_KEY}" == pk_test_* ]] || { echo "::error::Cove TEST publishable key missing or not raw pk_test_ key"; exit 1; }
+          echo "Cove test-only key formats validated; account identity is checked by the test script before payment."
       - name: Exercise real Cove Stripe TEST fulfillment and signed webhook
+        env:
+        # Supplied only to the validation and runtime steps, never npm ci,
+        # setup actions, or the unpinned Stripe CLI installer.
+        COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SECRET_KEY }}
+        COVE_SANDBOX_PUBLISHABLE_KEY: ${{ secrets.COVE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_TEST_PUBLISHABLE_KEY || secrets.STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.STRIPE_TEST_PUBLISHABLE_KEY || secrets.STRIPE_PUBLISHABLE_KEY }}
         run: node scripts/check-stripe-sandbox-fulfillment.mjs
       - uses: actions/upload-artifact@v4
         if: always()
