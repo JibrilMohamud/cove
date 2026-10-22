@@ -58,6 +58,38 @@ const preview = {
 };
 const notEligible = (request, env) => assert.equal(proxy.eligibleFastHomepage(request, env), false);
 assert.equal(proxy.eligibleFastHomepage(req(), preview), true);
+const protectedPreviewRequest = req("https://cove-puce-theta.vercel.app/", {
+  headers: { cookie: "_vercel_jwt=" + "a".repeat(64) },
+});
+assert.equal(
+  proxy.eligibleFastHomepage(protectedPreviewRequest, preview),
+  true,
+  "the Vercel-protected preview login is not a Cove customer session",
+);
+notEligible(protectedPreviewRequest, {
+  ...preview,
+  VERCEL_ENV: "production",
+  COVE_FAST_STOREFRONT_MODE: "canary",
+  COVE_FAST_STOREFRONT_PERCENT: "1",
+});
+notEligible(
+  req("https://cove-puce-theta.vercel.app/", {
+    headers: { cookie: "_vercel_jwt=" + "a".repeat(64) + "; fore-auth=customer" },
+  }),
+  preview,
+);
+notEligible(
+  req("https://cove-puce-theta.vercel.app/", {
+    headers: { cookie: "fore-auth=customer; _vercel_jwt=" + "a".repeat(64) },
+  }),
+  preview,
+);
+notEligible(
+  req("https://cove-puce-theta.vercel.app/", {
+    headers: { cookie: "_vercel_jwt=invalid" },
+  }),
+  preview,
+);
 notEligible(req(), { ...preview, COVE_FAST_STOREFRONT_RELEASE_CERTIFIED: "0" });
 notEligible(req(), { ...preview, VERCEL_ENV: "production" });
 notEligible(req("https://cove-puce-theta.vercel.app/search"), preview);
