@@ -141,10 +141,6 @@ try {
         c.d1_databases.find((x) => x.binding === "SOURCE_DB").database_id,
         "1825b4a1-0329-408d-9cc2-a40e6a17c822",
       );
-      // Historical real-source QA only: a separate stage-only exporter
-      // intentionally samples canonical public data but cannot schedule or route.
-      c.d1_databases.find((x) => x.binding === "SOURCE_DB").database_id = source;
-      c.d1_databases.find((x) => x.binding === "SOURCE_DB").database_name = "cove-production";
       assert.ok(!c.r2_buckets);
     } else {
       assert.equal(c.d1_databases.length, 1);
@@ -155,7 +151,7 @@ try {
     c.vars.COVE_PUBLICATION_ENABLED = "1";
     c.vars.COVE_PRESENTATION_PREFIX = prefix;
     const file = `.output/strangler/live-${lane}.jsonc`;
-    c.main = lane === "export" ? "publication-export-stage.mjs" : `publication-${lane}.mjs`;
+    c.main = `publication-${lane}.mjs`;
     fs.writeFileSync(file, JSON.stringify(c));
     cli(["deploy", "--config", file]);
   }
