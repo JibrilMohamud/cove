@@ -80,6 +80,13 @@ export async function capturePublicSource(env: CaptureEnv) {
     const markets = active.results.map((x) => x.country_code);
     if (!markets.length || markets.length > 32 || markets.some((x) => !/^[A-Z]{2}$/.test(x)))
       throw Error("capture_market_config_invalid");
+    // A removed market must not strand a never-completing backfill. This
+    // changes only the separate public snapshot source, never canonical D1.
+    await env.PUBLIC_SOURCE_DB.prepare(
+      "DELETE FROM cove_publication_source_snapshots WHERE country NOT IN (SELECT value FROM json_each(?))",
+    )
+      .bind(JSON.stringify(markets))
+      .run();
     // A cursor is deterministic across crashes; already committed markets
     // can safely be captured again. Each invocation does at most two markets.
     const previous = locked.cursor || "";
@@ -118,11 +125,11 @@ export async function capturePublicSource(env: CaptureEnv) {
         .run();
       const endOfCycle = position === markets.length - 1;
       const acknowledged = await env.PUBLIC_SOURCE_DB.prepare(
-        "UPDATE cove_publication_source_progress SET cursor=?,expected_markets=?,last_full_cycle_at=CASE WHEN ? THEN ? ELSE last_full_cycle_at END WHERE id=1 AND owner=? AND lease_until>?",
+        "UPDATE cove_publication_source_progress SET cursor=?,expected_markets=?,last_full_cycle_at=CASE WHEN ? THEN ? ELSE last_full_cycle_at END WHERE id=1 AND owner=? AND lease_until>? RETURNING id",
       )
         .bind(country, markets.length, endOfCycle ? 1 : 0, now, owner, Date.now())
-        .run();
-      if (acknowledged.meta?.changes === 0) throw Error("capture_lease_lost");
+        .first<{ id: number }>();
+      if (!acknowledged) throw Error("capture_lease_lost");
       countries.push(country);
       position = (position + 1) % markets.length;
     }
