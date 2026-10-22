@@ -89,6 +89,23 @@ function cli(args, input) {
           .slice(-600),
     );
 }
+// Some freshly provisioned Workers are briefly absent from Cloudflare's
+// versions API (10007). Retry only this pre-traffic provisioning race. No
+// benchmark request or app error is replayed or ignored.
+async function deployStage(config) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await deployStage(config);
+      return;
+    } catch (error) {
+      if (attempt === 3 || !/Worker does not exist|code:\s*10007/i.test(String(error)))
+        throw error;
+      console.warn("Stage Worker provisioning delayed; retry " + attempt);
+      await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
+    }
+  }
+}
+
 async function api(method, path, body) {
   const r = await fetch("https://api.cloudflare.com/client/v4" + path, {
     method,
