@@ -124,10 +124,16 @@ async function sample() {
     });
     const ms = performance.now() - start;
     const html = await response.text();
+    // Geography comes from the actual Cloudflare request.cf of this runner,
+    // not a user-controlled header. GitHub's egress may be US, MX, CA, etc.
+    // Test every observed territory, never falsely label a correct MX rights
+    // shelf invalid because the runner moved since the previous campaign.
+    const observedCountry = /data-rights-country="([A-Z]{2})"/.exec(html)?.[1] || null;
     const ok =
       response.status === 200 &&
+      !!observedCountry &&
+      !["XX", "ZZ", "T1"].includes(observedCountry) &&
       html.includes('id="thin-discovery-form"') &&
-      html.includes('data-rights-country="US"') &&
       html.includes('id="thin-merchandising"') &&
       /class="book-card"/.test(html);
     return {
@@ -135,7 +141,7 @@ async function sample() {
       ms,
       status: response.status,
       failure: response.headers.get("x-cove-stage-failure") || null,
-      observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
+      observedCountry,
       renderer: response.headers.get("x-cove-renderer"),
       serverTiming: response.headers.get("server-timing"),
       failureSubphase: response.headers.get("x-cove-stage-failure-subphase"),
@@ -318,6 +324,12 @@ try {
   assert.ok(
     evidence.cold.every((cold) => cold.ok && cold.ms < 800),
     "Independent cold visits failed validity or 800ms bound",
+  );
+  evidence.observedColdCountries = [...new Set(evidence.cold.map((cold) => cold.observedCountry))];
+  assert.equal(
+    evidence.observedColdCountries.length,
+    1,
+    "The runner's trusted network territory changed within a cold campaign",
   );
   const unauthorized = await fetch(origin, { signal: AbortSignal.timeout(6000) });
   assert.equal(unauthorized.status, 401, "Stage gate must reject requests without bearer");
