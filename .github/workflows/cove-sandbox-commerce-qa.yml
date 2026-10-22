@@ -5,6 +5,7 @@ on:
       - "scripts/check-stripe-sandbox-fulfillment.mjs"
       - "scripts/check-reader-recovery.mjs"
       - "scripts/check-soundtrack-library.mjs"
+      - "scripts/check-qa-synthetic-audio.mjs"
       - ".github/workflows/cove-sandbox-commerce-qa.yml"
   workflow_dispatch:
 permissions:
@@ -68,4 +69,5 @@ jobs:
         run: |
           node scripts/check-reader-recovery.mjs
           node scripts/check-soundtrack-library.mjs
+          node scripts/check-qa-synthetic-audio.mjs
           node scripts/check-commercial-audio-accounts-support.mjs
