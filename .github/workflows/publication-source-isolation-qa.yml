@@ -1,0 +1,43 @@
+name: publication-source-isolation-qa
+on:
+  pull_request:
+    paths:
+      - "scripts/staging/check-publication-feed-live.mjs"
+      - "src/storefront-strangler/publication-capture.server.ts"
+      - "src/storefront-strangler/publication-capture.worker.ts"
+      - "src/storefront-strangler/publication-feed.server.ts"
+      - "src/storefront-strangler/publication-driver.worker.ts"
+      - "infra/publication-source/**"
+      - "wrangler.publication-capture.stage.jsonc"
+      - "wrangler.publication-export.stage.jsonc"
+      - ".github/workflows/publication-source-isolation-qa.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cove-publication-source-isolation-qa
+  cancel-in-progress: true
+jobs:
+  physically-isolated-publication:
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - run: node scripts/build-storefront-strangler.mjs
+      - name: Backfill an independent source and publish two fenced R2 generations
+        run: node scripts/staging/check-publication-feed-live.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: publication-source-isolation-${{ github.sha }}
+          path: artifacts/publication-feed/
+          retention-days: 30
