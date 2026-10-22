@@ -327,11 +327,19 @@ try {
   const independent = await productionExport({ ...base, SOURCE_DB: MATERIALIZED_DB });
   assert.equal(independent.results.length, 4);
   assert.ok(independent.results.every((row) => row.exported));
-  assert.equal(sourceSql.length, primaryReadsBeforeExport, "normal publisher must never query canonical D1");
+  assert.equal(
+    sourceSql.length,
+    primaryReadsBeforeExport,
+    "normal publisher must never query canonical D1",
+  );
   assert.ok(materializedReads >= 6);
-  assert.equal((await publish({ ...base, PRESENTATION })).filter((r) => r.published).length, 4);
-  sourceDomain.prepare("UPDATE cove_publication_source_identity SET last_synced_at=?")
-    .run(clock - 180_000);
+  assert.equal(
+    (await publish({ ...base, PRESENTATION })).filter((r) => r.published).length,
+    4,
+  );
+  sourceDomain.prepare("UPDATE cove_publication_source_identity SET last_synced_at=?").run(
+    clock - 180_000,
+  );
   await assert.rejects(
     () => productionExport({ ...base, SOURCE_DB: MATERIALIZED_DB }),
     /publication_independent_source_stale/,
