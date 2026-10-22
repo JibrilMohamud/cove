@@ -9,8 +9,8 @@
   "d1_databases": [
     {
       "binding": "SOURCE_DB",
-      "database_name": "cove-production",
-      "database_id": "4bd657ac-8789-403e-a28c-93aba8d0a989",
+      "database_name": "cove-publication-source-stage-20261022",
+      "database_id": "1825b4a1-0329-408d-9cc2-a40e6a17c822",
     },
     {
       "binding": "DISCOVERY_DB",
