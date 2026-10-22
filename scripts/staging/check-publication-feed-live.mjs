@@ -121,7 +121,14 @@ try {
     assert.equal(c.vars.COVE_PUBLICATION_ENABLED, "0");
     assert.equal(c.d1_databases.find((x) => x.binding === "DISCOVERY_DB").database_id, ledger);
     if (lane === "export") {
-      assert.equal(c.d1_databases.find((x) => x.binding === "SOURCE_DB").database_id, source);
+      assert.equal(
+        c.d1_databases.find((x) => x.binding === "SOURCE_DB").database_id,
+        "1825b4a1-0329-408d-9cc2-a40e6a17c822",
+      );
+      // Historical real-source QA only: a separate stage-only exporter
+      // intentionally samples canonical public data but cannot schedule or route.
+      c.d1_databases.find((x) => x.binding === "SOURCE_DB").database_id = source;
+      c.d1_databases.find((x) => x.binding === "SOURCE_DB").database_name = "cove-production";
       assert.ok(!c.r2_buckets);
     } else {
       assert.equal(c.d1_databases.length, 1);
