@@ -501,11 +501,11 @@ a:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible{ou
   .topic-tabs a:nth-child(n+5){display:none}
 }
  
-/* The live Cove home has one "All books" rail: duplicate nested category
-   browsing displaced every above-fold filter and book-card at all sizes.
-   The actual categorization remains available in the accessible facet form. */
-.thin-category-browse{display:none}
-.topic-tabs a:not([aria-current="page"]){display:none}
+/* The full Cove bookstore keeps Browse categories and the featured category
+   rail visible on desktop AND mobile. Removing them made the fast SSR layout
+   materially different and pushed its first row of books into view too soon. */
+.thin-category-browse summary{font-weight:600;justify-content:flex-start;gap:12px}
+.thin-category-browse summary:after{margin-left:0}
 @media(min-width:801px){
   .topic-tabs{min-height:26px}
   .topic-tabs a[aria-current="page"]{padding-bottom:12px}
@@ -531,6 +531,41 @@ a:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible{ou
     flex:0 0 170px;width:170px;min-height:36px;margin-top:16px;
     border:1px solid #2447a9;background:#2447a9;color:#f2f5ff;
   }
+}
+/* Bring the controls into the same proportions as the hydrated Cove app,
+   avoiding oversized default flex columns that displace the first book row. */
+@media(min-width:801px){
+  .thin-category-browse{margin-bottom:22px}
+  .thin-advanced-facets>select{flex:0 0 154px;min-width:154px}
+  .thin-facet-field:has(input[name="minPrice"]){flex:0 0 132px}
+  .thin-facet-field.max{flex:0 0 134px}
+  .thin-facet-field.date{flex:0 0 248px}
+  .thin-facet-field.date:has(input[name="publishedBefore"]){flex:0 0 201px}
+}
+@media(max-width:800px){
+  .heading{margin-bottom:22px}
+  .commercial-shortcuts{margin-top:13px}
+  .thin-category-browse{margin-bottom:16px}
+  .filter-row{margin-top:18px}
+  .topbar nav[aria-label="Account"] a.button{padding-left:20px;padding-right:20px;font-weight:600}
+  /* Match the live search-field clipping and native chevron instead of
+     appending an ellipsis or a font-dependent text-glyph arrow. */
+  .search-field input{text-overflow:clip}
+  .thin-category-browse summary{font-size:12px}
+  .thin-category-browse summary:after{
+    content:"";width:7px;height:7px;display:inline-block;
+    border-right:1.5px solid #c4d0e1;border-bottom:1.5px solid #c4d0e1;
+    transform:rotate(45deg);margin-left:3px;margin-top:-3px;
+  }
+  .thin-category-browse[open] summary:after{transform:rotate(225deg);margin-top:3px}
+}
+/* Match the live navigation rhythm and desktop category typography. */
+@media(min-width:801px){
+  .main-nav{gap:4px}
+  .main-nav a{padding:12px}
+  .heading{margin-bottom:25px}
+  .catalog-controls .topic-tabs{gap:22px}
+  .topic-tabs a{font-size:14px}
 }
 </style></head><body><a class="skip" href="#main">Skip to books</a><div class="fore-app"><aside class="sidebar"><a class="logo" href="/"><span class="logo-book" aria-hidden="true">▯</span>cove<span>.</span></a><p class="nav-label">YOUR READING ROOM</p><nav class="main-nav" aria-label="Main">${nav}</nav><div class="sidebar-bottom">Find your next great read.</div></aside><div class="main-shell"><header class="topbar"><div class="thin-crumb"><strong>Cove</strong><span class="thin-crumb-separator"> / </span>Bookstore</div><nav aria-label="Account"><a href="/?storefront=full&amp;auth=login">Log in</a><a class="button gold" href="/?storefront=full&amp;auth=signup">Create account</a></nav><details class="mobile-menu"><summary aria-label="Open navigation">Menu</summary><nav aria-label="Mobile">${nav}</nav></details><label class="locale">Storefront language<select id="thin-locale" aria-label="Storefront language">${options}</select></label><span id="thin-locale-status" role="status" class="sr-only"></span></header><main id="main" class="content"><div class="eyebrow">${escape(eyebrow)} <span>Good books. Open to everyone.</span></div><div class="heading"><div><h1>${escape(headline)}<span>.</span></h1><p>${escape(description)}</p></div><a href="/library">Your library ↗</a></div><form class="catalog-search" action="/search" method="get" role="search"><label class="sr-only" for="thin-search">Search books by title, author, series, ISBN, publisher, or catalog ID</label><div class="search-field"><input id="thin-search" type="search" name="q" autocomplete="off" aria-label="Search books by title, author, series, ISBN, publisher, or catalog ID" aria-controls="thin-search-suggestions" aria-expanded="false" placeholder="Search titles, authors, series, ISBNs, publishers…"><div id="thin-search-suggestions" role="listbox" aria-label="Book suggestions" hidden></div></div><button type="submit">Search</button></form><nav class="commercial-shortcuts" aria-label="Bookstore destinations"><a href="/bestsellers">Bestsellers</a><a href="/new-releases">New releases</a><a href="/preorders">Coming soon</a><a href="/deals">Deals</a></nav><details class="thin-category-browse"><summary>Browse categories</summary><nav aria-label="Browse categories"><a href="/ebooks">Fiction &amp; Literature</a><a href="/ebooks?taxonomy=classics">Classics</a><a href="/ebooks?taxonomy=adventure">Adventure</a><a href="/store">All categories</a></nav></details><div class="catalog-controls"><nav class="topic-tabs" aria-label="Featured book categories"><a href="/store" aria-current="page">All books</a><a href="/ebooks?taxonomy=fiction">Fiction &amp; Literature</a><a href="/ebooks?taxonomy=classics">Classics</a><a href="/ebooks?taxonomy=adventure">Adventure</a><a href="/ebooks?taxonomy=mystery">Mystery &amp; Thriller</a><a href="/ebooks?taxonomy=romance">Romance</a><a href="/ebooks?taxonomy=fantasy">Fantasy</a><a href="/ebooks?taxonomy=science-fiction">Science Fiction</a><a href="/ebooks?taxonomy=young-adult">Young Adult</a><a href="/ebooks?taxonomy=children">Children’s Books</a></nav><span>Books available to read</span></div><div class="filter-row"><span class="catalog-count">${bootstrap.catalog.results.length} books</span><div class="filter-selects"><select data-thin-filter="language" aria-label="Languages"><option value="all">All languages</option><option value="en">English</option><option value="fr">French</option><option value="es">Spanish</option></select><select data-thin-filter="format" aria-label="Formats"><option value="all">All formats</option><option value="epub">EPUB</option><option value="pdf">PDF</option></select><span class="thin-sort-wrapper"><span aria-hidden="true">☷</span><select data-thin-filter="sort" aria-label="Sort books"><option value="popular">Popular</option><option value="bestselling">Bestselling on Cove</option><option value="released">Recently released</option><option value="price_asc">Price: low to high</option><option value="title">Title A–Z</option></select></span></div></div><form class="thin-advanced-facets" action="/store" method="get"><select name="taxonomy" aria-label="Categories"><option value="">All categories</option><option value="fiction">Fiction &amp; Literature</option><option value="classics">Classics</option><option value="adventure">Adventure</option></select><select name="publisher" aria-label="Publishers"><option value="">All publishers</option></select><select name="series" aria-label="Series"><option value="">All series</option></select><div class="filters" aria-label="Search filters"><button type="button" class="facet-toggle" data-thin-href="/deals">Deals</button><button type="button" class="facet-toggle" data-thin-href="/new-releases">New releases</button><button type="button" class="facet-toggle" data-thin-href="/preorders">Preorders</button><button type="button" class="facet-toggle" data-thin-href="/store?subscription=true">Subscription</button><button type="button" class="facet-toggle" data-thin-href="/store?library=true">Library eligible</button></div><select name="minRating" aria-label="Minimum rating"><option value="">Any rating</option><option value="4">4 stars &amp; up</option><option value="3">3 stars &amp; up</option></select><label class="thin-facet-field"><span>Min $</span><input type="number" step="0.01" min="0" name="minPrice" aria-label="Minimum price" placeholder="0"></label><label class="thin-facet-field max"><span>Max $</span><input type="number" step="0.01" min="0" name="maxPrice" aria-label="Maximum price" placeholder="Any"></label><label class="thin-facet-field date"><span>Published after</span><input type="date" name="publishedAfter" aria-label="Published after"></label><label class="thin-facet-field date"><span>Published before</span><input type="date" name="publishedBefore" aria-label="Published before"></label><button class="thin-apply-filters" type="submit">Apply filters</button></form><div class="book-grid" data-rights-country="${escape(context.rightsCountry)}">${cardsMarkup}</div><div class="pagination"><a href="${bootstrap.catalog.next ? "/store?page=2" : "/store"}" aria-label="Browse the complete catalog">Browse more books ↗</a></div><div id="thin-merchandising" aria-label="Featured storefront campaigns"></div><section class="discovery" aria-labelledby="literary-discovery-title"><h2 id="literary-discovery-title">What would you love to read next?</h2><p>Explore by theme, mood, style or setting. Results use available book evidence.</p><form id="thin-discovery-form"><label for="thin-discovery-query">For this search<input id="thin-discovery-query" maxlength="500" placeholder="mystery, reflective, less violence"></label><div class="two"><label for="thin-discovery-likes">More of (comma-separated)<input id="thin-discovery-likes" maxlength="1000" placeholder="friendship, witty"></label><label for="thin-discovery-dislikes">Avoid known themes or styles<input id="thin-discovery-dislikes" maxlength="1000" placeholder="war, melancholic"></label><label for="thin-discovery-minutes">Maximum reading time in minutes<input id="thin-discovery-minutes" type="number" min="5" max="10000" placeholder="Any length"></label><label for="thin-discovery-adventure">Discovery adventure<input id="thin-discovery-adventure" type="range" min="0" max="1" step="0.1" value="0.3"></label></div><p>Avoid filters exclude books tagged with those terms; incomplete profiles may have unrecorded content.</p><div class="actions"><button type="submit" class="gold">Discover books</button><button type="reset">Clear preferences</button><a class="button" href="/?storefront=full#literary-discovery-title">Full literary discovery</a></div></form><p id="thin-discovery-status" role="status" aria-live="polite"></p><div id="thin-discovery-results"></div></section><section class="thin-placement"><h3>Read anywhere</h3><p>Keep your library and reading tools close, online or offline.</p><button id="thin-install" type="button">Install Cove</button><a href="/downloads">Offline reading and downloads</a></section><footer><span>Cove · Read something that stays with you.</span><a href="/publishing-policy">Publishing &amp; AI policy</a><a href="/copyright">Copyright / DMCA</a><a href="/privacy">Privacy</a><span>Availability follows the rights determination for your storefront country.</span></footer></main></div></div><script type="module">${behavior}</script></body></html>`;
 }
