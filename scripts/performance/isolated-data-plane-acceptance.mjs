@@ -331,6 +331,28 @@ async function phase(model) {
   };
   evidence.phases.push(result);
   save();
+  // Tail attribution is diagnostic only. The acceptance rule below still
+  // fails on the absolute slowest response; no outlier is discarded.
+  console.log(
+    "ARCH_PHASE_TAIL",
+    JSON.stringify({
+      model,
+      slowest: [...rows]
+        .sort((a, b) => b.ms - a.ms)
+        .slice(0, 8)
+        .map((row) => ({
+          ms: row.ms,
+          ok: row.ok,
+          status: row.status,
+          colo: row.colo,
+          transportSpan: row.transportSpan,
+          timing: row.timing,
+          failure: row.failure,
+          placement: row.placement,
+          transportCode: row.transportCode,
+        })),
+    }),
+  );
   console.log(
     "ARCH_PHASE",
     JSON.stringify({
