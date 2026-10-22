@@ -38,8 +38,14 @@ export function eligibleFastHomepage(request: Request, env: FastStorefrontVercel
 
 // Preview-only, non-sensitive routing diagnostics. Never log the signing
 // secret, geographic claim, IP address, auth headers, or URL query.
-function reportPreviewRelay(env: FastStorefrontVercelEnv, reason: string, status?: number) {
+function reportPreviewRelay(
+  env: FastStorefrontVercelEnv,
+  reason: string,
+  status?: number,
+  diagnostic?: (reason: string) => void,
+) {
   if (env.VERCEL_ENV !== "preview" || env.COVE_FAST_STOREFRONT_RELEASE_CERTIFIED !== "1") return;
+  diagnostic?.(reason);
   console.info(
     JSON.stringify({ event: "cove_fast_preview_relay", reason, ...(status ? { status } : {}) }),
   );
@@ -48,27 +54,28 @@ function reportPreviewRelay(env: FastStorefrontVercelEnv, reason: string, status
 export async function maybeProxyFastHomepage(
   request: Request,
   env: FastStorefrontVercelEnv,
+  onPreviewDiagnostic?: (reason: string) => void,
 ): Promise<Response | null> {
   if (!eligibleFastHomepage(request, env)) {
-    reportPreviewRelay(env, "ineligible");
+    reportPreviewRelay(env, "ineligible", undefined, onPreviewDiagnostic);
     return null;
   }
   const client = verifiedVercelClient(request);
   if (!client) {
-    reportPreviewRelay(env, "missing_verified_ingress");
+    reportPreviewRelay(env, "missing_verified_ingress", undefined, onPreviewDiagnostic);
     return null;
   }
   const secret = env.COVE_FAST_RELAY_KEY;
   const origin = env.COVE_FAST_STOREFRONT_ORIGIN;
   if (!secret || !/^[a-f0-9]{64}$/.test(secret) || !origin) {
-    reportPreviewRelay(env, "invalid_preview_configuration");
+    reportPreviewRelay(env, "invalid_preview_configuration", undefined, onPreviewDiagnostic);
     return null;
   }
   let target: URL;
   try {
     target = new URL(origin);
   } catch {
-    reportPreviewRelay(env, "invalid_preview_origin");
+    reportPreviewRelay(env, "invalid_preview_origin", undefined, onPreviewDiagnostic);
     return null;
   }
   // Never make a user-supplied URL into a privileged signed fetch target.
@@ -80,7 +87,7 @@ export async function maybeProxyFastHomepage(
     target.search ||
     target.hash
   ) {
-    reportPreviewRelay(env, "disallowed_preview_origin");
+    reportPreviewRelay(env, "disallowed_preview_origin", undefined, onPreviewDiagnostic);
     return null;
   }
   const nonce = crypto.randomUUID().replace(/-/g, "");
@@ -100,10 +107,10 @@ export async function maybeProxyFastHomepage(
       response.headers.get("x-cove-renderer") !== "strangler-live" ||
       !response.headers.get("content-type")?.includes("text/html")
     ) {
-      reportPreviewRelay(env, "gateway_rejected", response.status);
+      reportPreviewRelay(env, "gateway_rejected", response.status, onPreviewDiagnostic);
       return null;
     }
-    reportPreviewRelay(env, "signed_gateway_success", response.status);
+    reportPreviewRelay(env, "signed_gateway_success", response.status, onPreviewDiagnostic);
     const forwarded = new Headers(response.headers);
     forwarded.set("cache-control", "private, no-store");
     forwarded.delete("set-cookie");
@@ -112,7 +119,7 @@ export async function maybeProxyFastHomepage(
       headers: forwarded,
     });
   } catch {
-    reportPreviewRelay(env, "gateway_transport_or_signing_error");
+    reportPreviewRelay(env, "gateway_transport_or_signing_error", undefined, onPreviewDiagnostic);
     return null;
   }
 }
