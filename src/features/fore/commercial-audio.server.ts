@@ -1240,9 +1240,9 @@ async function publicCommercialEdition(
     preview = frozen.preview || null,
     offer = await db
       .prepare(
-        "SELECT currency,amount_minor,offer_type FROM offers WHERE product_id=? AND active=1 AND (territory_code=? OR territory_code IS NULL) AND (starts_at IS NULL OR starts_at<=?) AND (ends_at IS NULL OR ends_at>?) ORDER BY CASE WHEN territory_code=? THEN 0 ELSE 1 END,created_at DESC LIMIT 1",
+        "SELECT currency,amount_minor,offer_type FROM offers WHERE product_id=? AND sales_channel='retail' AND active=1 AND (starts_at IS NULL OR starts_at<=?) AND (ends_at IS NULL OR ends_at>?) ORDER BY created_at DESC LIMIT 1",
       )
-      .bind(row.product_id, territory, now(), now(), territory)
+      .bind(row.product_id, now(), now())
       .first<any>(),
     link = await db
       .prepare(
