@@ -213,9 +213,18 @@ try {
   // export is physically independent of the authoritative rights/catalog D1.
   // The capture worker alone reads public presentation source fields.
   const captured = [];
-  for (let turn = 0; turn < 20; turn++) {
+  let busyAttempts = 0;
+  // Multiple immutable QA runs can overlap while earlier capture leases are
+  // still held. The real producer must never steal a live lease. Wait for its
+  // bounded 120-second expiry, then prove a *complete* new backfill.
+  for (let turn = 0; turn < 55; turn++) {
     const result = await invoke("/capture");
-    assert.equal(result.busy, false);
+    if (result.busy) {
+      busyAttempts++;
+      if (busyAttempts > 27) throw Error("publication_capture_lease_starvation");
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      continue;
+    }
     captured.push(...result.countries);
     if (result.complete && captured.length >= result.expected) break;
   }
@@ -234,6 +243,7 @@ try {
     "PUBLICATION_SOURCE_CAPTURE_PASS",
     JSON.stringify({
       captured: captured.length,
+      busyAttempts,
       markets: sourceRow.expected,
       separateSource: true,
     }),
