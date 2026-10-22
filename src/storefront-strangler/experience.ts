@@ -501,13 +501,11 @@ a:focus-visible,input:focus-visible,select:focus-visible,button:focus-visible{ou
   .topic-tabs a:nth-child(n+5){display:none}
 }
  
-/* Desktop keeps its condensed navigation. On mobile, live Cove displays
-   an accessible Browse categories disclosure and the featured category rail.
-   Those controls must not disappear in the fast HTML experience. */
-@media(min-width:801px){
-  .thin-category-browse{display:none}
-  .topic-tabs a:not([aria-current="page"]){display:none}
-}
+/* The full Cove bookstore keeps Browse categories and the featured category
+   rail visible on desktop AND mobile. Removing them made the fast SSR layout
+   materially different and pushed its first row of books into view too soon. */
+.thin-category-browse summary{font-weight:600;justify-content:flex-start;gap:12px}
+.thin-category-browse summary:after{margin-left:0}
 @media(min-width:801px){
   .topic-tabs{min-height:26px}
   .topic-tabs a[aria-current="page"]{padding-bottom:12px}
