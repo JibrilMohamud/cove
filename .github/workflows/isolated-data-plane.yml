@@ -1,5 +1,6 @@
 name: isolated-data-plane
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - "src/storefront-strangler/**"
@@ -68,7 +69,10 @@ jobs:
           retention-days: 30
   publication-feed-live:
     needs: correctness
-    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022'
+    # This archived real-catalog proof reads the canonical D1 on purpose.
+    # Do not rescan production on every PR commit while its replica routing
+    # remains non-deterministic. Manual branch-scoped runs only.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-data-plane-20261022'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
