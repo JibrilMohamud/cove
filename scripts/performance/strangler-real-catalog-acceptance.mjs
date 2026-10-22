@@ -131,6 +131,13 @@ async function sample() {
     });
     const ms = performance.now() - start;
     const html = await response.text();
+    const completeMs = performance.now() - start;
+    const timing = response.headers.get("server-timing") || "";
+    const handlerTime = /(?:^|,\s*)cove_handler;dur=([0-9.]+)/.exec(timing);
+    const handlerMs = handlerTime ? Number(handlerTime[1]) : null;
+    // This residual includes CDN/edge routing, isolate startup, transport
+    // establishment, and possible client scheduling. It is not D1 time.
+    const nonHandlerMs = Number.isFinite(handlerMs) ? Math.max(0, ms - handlerMs) : null;
     // Geography comes from the actual Cloudflare request.cf of this runner,
     // not a user-controlled header. GitHub's egress may be US, MX, CA, etc.
     // Test every observed territory, never falsely label a correct MX rights
@@ -146,6 +153,10 @@ async function sample() {
     return {
       ok,
       ms,
+      completeMs,
+      handlerMs,
+      nonHandlerMs,
+      cfRay: response.headers.get("cf-ray"),
       status: response.status,
       failure: response.headers.get("x-cove-stage-failure") || null,
       observedCountry,

@@ -100,6 +100,8 @@ function readOnlyStageD1<T extends object>(db: T, approved = new WeakMap<object,
 
 export default {
   async fetch(request: Request, env: StorefrontStranglerEnv): Promise<Response> {
+    // Never classify client/edge ingress time as database time.
+    const enteredAt = performance.now();
     // Fail closed even under an accidental deployment or config substitution.
     // The reviewed config must also contain only the dedicated synthetic D1.
     const syntheticEvaluation =
@@ -145,6 +147,18 @@ export default {
         headers: { "cache-control": "no-store" },
       });
     const finish = (response: Response) => {
+      // Stage-only total handler clock: excludes pre-isolate edge queueing.
+      // This never exposes private SQL, identities, or grant decisions.
+      if (!customerGateway) {
+        const headers = new Headers(response.headers);
+        headers.set(
+          "server-timing",
+          [headers.get("server-timing"), `cove_handler;dur=${(performance.now() - enteredAt).toFixed(1)}`]
+            .filter(Boolean)
+            .join(", "),
+        );
+        response = new Response(response.body, { status: response.status, headers });
+      }
       const secured = applySecurityHeaders(request, response, env);
       if (!customerGateway) {
         const headers = new Headers(secured.headers);
