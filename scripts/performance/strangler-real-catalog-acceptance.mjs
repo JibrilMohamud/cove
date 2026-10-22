@@ -470,11 +470,29 @@ try {
     });
     assert.equal(liveResponse?.status(), 200);
     assert.equal(stageResponse?.status(), 200);
-    const [liveCatalogPaint, stageCatalogPaint] = await Promise.all([
+    let [liveCatalogPaint, stageCatalogPaint] = await Promise.all([
       settleCatalog(live),
       settleCatalog(candidate),
     ]);
-    console.log("MOBILE_CATALOG_PAINT", JSON.stringify({ liveCatalogPaint, stageCatalogPaint }));
+    // The live Vercel baseline sometimes stalls on "Finding books…" even
+    // though the staged page is already fully painted. Never compare against
+    // the live loading skeleton, but do not waive a candidate mismatch.
+    // Retry ONLY an incomplete reference navigation, with a hard bound.
+    let liveBaselineReloads = 0;
+    while (!liveCatalogPaint.settled && liveBaselineReloads < 2) {
+      liveBaselineReloads++;
+      console.log(
+        "LIVE_BASELINE_UNSETTLED",
+        JSON.stringify({ attempt: liveBaselineReloads, paint: liveCatalogPaint }),
+      );
+      const retried = await live.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
+      assert.equal(retried?.status(), 200, "Live baseline reload must return HTTP 200");
+      liveCatalogPaint = await settleCatalog(live);
+    }
+    console.log(
+      "MOBILE_CATALOG_PAINT",
+      JSON.stringify({ liveCatalogPaint, stageCatalogPaint, liveBaselineReloads }),
+    );
     fs.mkdirSync("artifacts/strangler-acceptance", { recursive: true });
     const baselineScreenshot = await live.screenshot({
       path: "artifacts/strangler-acceptance/live-mobile.png",
@@ -499,6 +517,7 @@ try {
     evidence.realCatalogParity = {
       mismatchPercent,
       comparableMobileState: liveCatalogPaint.settled && stageCatalogPaint.settled,
+      liveBaselineReloads,
       covers,
       liveEditionCount: liveLinks.length,
       stageEditionCount: stageLinks.length,
