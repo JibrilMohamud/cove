@@ -129,11 +129,37 @@ export async function maybeProxyFastHomepage(
       reportPreviewRelay(env, "gateway_rejected", response.status, onPreviewDiagnostic);
       return null;
     }
+    // Fetch transparently decodes compressed Worker bytes while leaving the
+    // upstream Content-Encoding/Content-Length headers intact. Reusing those
+    // headers with decoded bytes can produce a blank/broken browser document.
+    // Bound and validate the anonymous HTML before forwarding success.
+    const announced = Number(response.headers.get("content-length") || 0);
+    if (Number.isFinite(announced) && announced > 512 * 1024) {
+      reportPreviewRelay(env, "gateway_oversized", response.status, onPreviewDiagnostic);
+      return null;
+    }
+    const html = await response.text();
+    if (
+      new TextEncoder().encode(html).length > 512 * 1024 ||
+      !/^<!doctype html>/i.test(html.slice(0, 30)) ||
+      !html.includes('id="thin-discovery-form"') ||
+      !html.includes('data-rights-country="' + client.country + '"')
+    ) {
+      reportPreviewRelay(env, "gateway_invalid_html", response.status, onPreviewDiagnostic);
+      return null;
+    }
     reportPreviewRelay(env, "signed_gateway_success", response.status, onPreviewDiagnostic);
     const forwarded = new Headers(response.headers);
     forwarded.set("cache-control", "private, no-store");
-    forwarded.delete("set-cookie");
-    return new Response(response.body, {
+    for (const name of [
+      "set-cookie",
+      "content-encoding",
+      "content-length",
+      "transfer-encoding",
+      "etag",
+    ])
+      forwarded.delete(name);
+    return new Response(html, {
       status: response.status,
       headers: forwarded,
     });
