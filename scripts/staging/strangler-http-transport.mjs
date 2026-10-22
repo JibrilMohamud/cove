@@ -6,10 +6,26 @@ import { brotliDecompressSync, gunzipSync, inflateSync } from "node:zlib";
 // A separate diagnostic arm. Default requests retain native fetch/HTTP1.
 // Both arms enforce identical status, body, rights and hard latency checks.
 export const stageTransport = process.env.COVE_STAGE_HTTP2 === "1" ? "http2" : "native-fetch";
-const origin = "https://cove-strangler-m1-staging.cove-jibrilmohamud.workers.dev";
+let origin = "https://cove-strangler-m1-staging.cove-jibrilmohamud.workers.dev";
 let session;
 let connecting;
 const spans = new WeakMap();
+
+// Only pre-approved Cove stage origins can receive the benchmark bearer.
+export function setStageTransportOrigin(url) {
+  const target = new URL(url);
+  assert.equal(target.protocol, "https:");
+  assert.match(
+    target.hostname,
+    /^(?:cove-arch-[0-9]+-[0-9]+|cove-strangler-m1-staging)\.cove-jibrilmohamud\.workers\.dev$/,
+  );
+  assert.equal(target.port, "");
+  if (target.origin === origin) return;
+  session?.close();
+  session = undefined;
+  connecting = undefined;
+  origin = target.origin;
+}
 
 async function getSession() {
   if (!connecting) {

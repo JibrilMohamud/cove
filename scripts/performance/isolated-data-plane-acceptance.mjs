@@ -4,6 +4,13 @@ import fs from "node:fs";
 import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { produceHomepagePresentation } from "../../.output/strangler/presentation.mjs";
+import {
+  closeStageTransport,
+  setStageTransportOrigin,
+  stageFetch,
+  stageTransport,
+  stageTransportSpan,
+} from "../staging/strangler-http-transport.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const primary = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
@@ -28,6 +35,7 @@ const evidence = {
   controls: [],
   phases: [],
   pass: false,
+  transport: stageTransport,
 };
 const save = () => fs.writeFileSync(directory + "/results.json", JSON.stringify(evidence, null, 2));
 const names = [];
@@ -36,6 +44,7 @@ evidence.workers = names;
 let shutdown;
 function cleanup() {
   return (shutdown ||= (async () => {
+    closeStageTransport();
     for (const name of names) {
       try {
         await api("DELETE", `/accounts/${account}/workers/scripts/${name}`);
@@ -135,7 +144,7 @@ function summary(rows) {
 async function sample(model = "projection", path = "/") {
   const started = performance.now();
   try {
-    const r = await fetch(origin + path, {
+    const r = await stageFetch(origin + path, {
       headers: {
         authorization: "Bearer " + gate,
         "x-cove-perf-client": String(Math.floor(started) % 2048),
@@ -144,6 +153,7 @@ async function sample(model = "projection", path = "/") {
       signal: AbortSignal.timeout(10000),
     });
     const ms = performance.now() - started;
+    const transportSpan = stageTransportSpan(r);
     const body = await r.text();
     const ok =
       r.status === 200 &&
@@ -159,6 +169,15 @@ async function sample(model = "projection", path = "/") {
       ok,
       ms,
       status: r.status,
+      transportSpan: transportSpan
+        ? {
+            connectionMs: transportSpan.sent ? transportSpan.sent - transportSpan.created : null,
+            responseMs:
+              transportSpan.sent && transportSpan.received
+                ? transportSpan.received - transportSpan.sent
+                : null,
+          }
+        : null,
       colo: r.headers.get("cf-ray")?.split("-").at(-1),
       timing: r.headers.get("server-timing"),
       failure: r.headers.get("x-cove-stage-failure"),
@@ -172,6 +191,7 @@ async function deploy(round) {
   const name = `cove-arch-${runId}-${round}`;
   names.push(name);
   origin = `https://${name}.cove-jibrilmohamud.workers.dev`;
+  setStageTransportOrigin(origin);
   gate = randomBytes(32).toString("hex");
   const c = JSON.parse(fs.readFileSync("wrangler.storefront-strangler.stage.jsonc"));
   assert.equal(c.d1_databases[0].database_id, primary);
@@ -215,6 +235,7 @@ async function deploy(round) {
 async function phase(model) {
   const rows = [],
     background = [],
+    transportControls = [],
     inflight = new Set();
   let dropped = 0,
     maxSchedulerLagMs = 0,
@@ -249,6 +270,14 @@ async function phase(model) {
       await new Promise((r) => setTimeout(r, 1000));
     }
   })();
+  // Run D1-free transport controls on the same ingress/client connection
+  // throughout each 120-second phase. Never exclude a failed control.
+  const controlLoop = (async () => {
+    while (!stopped) {
+      transportControls.push(await sample("projection", "/__cove_perf/transport"));
+      if (!stopped) await new Promise((r) => setTimeout(r, 1500));
+    }
+  })();
   const start = performance.now();
   await Promise.all(
     Array.from(
@@ -274,7 +303,7 @@ async function phase(model) {
     ),
   );
   stopped = true;
-  await bg;
+  await Promise.all([bg, controlLoop]);
   const result = {
     model,
     seconds: 120,
@@ -284,6 +313,7 @@ async function phase(model) {
     maxSchedulerLagMs,
     ...summary(rows),
     background,
+    transportControls: { ...summary(transportControls), rows: transportControls },
     rows,
   };
   evidence.phases.push(result);
@@ -293,6 +323,10 @@ async function phase(model) {
     JSON.stringify({
       ...result,
       background: summary(background.map((x) => ({ ...x, ms: x.ms ?? 0 }))),
+      transportControls: {
+        ...summary(transportControls),
+        failed: transportControls.filter((x) => !x.ok).length,
+      },
       rows: undefined,
     }),
   );
@@ -356,6 +390,8 @@ try {
         p.p95 < 600 &&
         p.p99 < 750 &&
         p.max < 800 &&
+        p.transportControls.valid === p.transportControls.total &&
+        p.transportControls.max < 800 &&
         p.background.every((r) => r.ok),
     );
   save();
