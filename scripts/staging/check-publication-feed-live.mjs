@@ -216,7 +216,11 @@ try {
   assert.ok(sourceRow.last_synced > Date.now() - 120_000);
   console.log(
     "PUBLICATION_SOURCE_CAPTURE_PASS",
-    JSON.stringify({ captured: captured.length, markets: sourceRow.expected, separateSource: true }),
+    JSON.stringify({
+      captured: captured.length,
+      markets: sourceRow.expected,
+      separateSource: true,
+    }),
   );
   for (let cycle = 1; cycle <= 2; cycle++) {
     if (cycle === 2) {
