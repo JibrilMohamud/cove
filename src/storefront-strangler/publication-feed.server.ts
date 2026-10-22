@@ -134,8 +134,12 @@ function presentationSource(source: Source, metrics: Record<string, number>) {
     prepare,
     async batch(batch: ReturnType<typeof prepare>[]) {
       if (batch.some((s) => !statements.has(s))) throw Error("publication_unvalidated_batch");
-      // Bounded source hydration; no synchronous primary write batch.
-      return Promise.all(batch.map((s) => s.all()));
+      // D1 batches are ordered. Never fan out independent D1 HTTP calls
+      // from a background exporter: they compete with customer rights
+      // service on the same source primary when replicas are unavailable.
+      const results = [];
+      for (const statement of batch) results.push(await statement.all());
+      return results;
     },
   } satisfies Domain;
 }
