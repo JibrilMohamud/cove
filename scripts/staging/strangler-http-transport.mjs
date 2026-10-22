@@ -7,8 +7,10 @@ import { brotliDecompressSync, gunzipSync, inflateSync } from "node:zlib";
 // Both arms enforce identical status, body, rights and hard latency checks.
 export const stageTransport = process.env.COVE_STAGE_HTTP2 === "1" ? "http2" : "native-fetch";
 let origin = "https://cove-strangler-m1-staging.cove-jibrilmohamud.workers.dev";
-let session;
-let connecting;
+// Bounded, isolated load-client pool: one congested HTTP/2 connection must
+// not skew the D1-free control and storefront latency measurements together.
+const sessionPool = Array.from({ length: 8 }, () => ({ client: undefined, connecting: undefined }));
+let nextSession = 0;
 const spans = new WeakMap();
 let newConnections = 0;
 let receivedGoaway = 0;
@@ -28,57 +30,55 @@ export function setStageTransportOrigin(url) {
   );
   assert.equal(target.port, "");
   if (target.origin === origin) return;
-  const previous = session;
-  retireSession(previous);
-  previous?.close();
+  closeStageTransport();
   origin = target.origin;
 }
 
-function retireSession(client) {
-  if (session === client) {
-    session = undefined;
-    connecting = undefined;
+function retireSession(slot, client) {
+  if (slot.client === client) {
+    slot.client = undefined;
+    slot.connecting = undefined;
   }
 }
 
-async function getSession() {
+async function getSession(slot) {
   // HTTP/2 GOAWAY forbids creating new streams, even while earlier streams
   // finish successfully. Never reuse an ended/rejecting connect promise.
-  if (session?.closed || session?.destroyed) retireSession(session);
-  if (!connecting) {
+  if (slot.client?.closed || slot.client?.destroyed) retireSession(slot, slot.client);
+  if (!slot.connecting) {
     const client = connect(origin);
     newConnections++;
-    session = client;
+    slot.client = client;
     client.setTimeout(15000, () => client.destroy(new Error("Protected stage session timed out")));
     // Individual streams record their own errors; protect the event emitter.
     client.on("error", () => {});
     client.on("goaway", () => {
       receivedGoaway++;
-      retireSession(client);
+      retireSession(slot, client);
       client.close();
     });
-    client.on("close", () => retireSession(client));
+    client.on("close", () => retireSession(slot, client));
     const pending = new Promise((resolve, reject) => {
       let established = false;
       client.once("connect", () => {
         established = true;
         if (client.alpnProtocol !== "h2") {
-          retireSession(client);
+          retireSession(slot, client);
           client.destroy();
           reject(new Error("Protected stage did not negotiate HTTP2"));
         } else resolve(client);
       });
       client.once("error", (error) => {
-        retireSession(client);
+        retireSession(slot, client);
         reject(error);
       });
       client.once("close", () => {
         if (!established) reject(new Error("Protected stage closed before connection"));
       });
     });
-    connecting = pending;
+    slot.connecting = pending;
   }
-  return connecting;
+  return slot.connecting;
 }
 
 export async function stageFetch(url, options = {}) {
@@ -91,7 +91,10 @@ export async function stageFetch(url, options = {}) {
     ":path": parsed.pathname + parsed.search,
     ...Object.fromEntries(new Headers(options.headers)),
   };
-  let client = await getSession();
+  // Fair dispatch across eight TLS/h2 sessions reduces connection-level
+  // flow-control head-of-line blocking. Each request is still measured, not retried.
+  const slot = sessionPool[nextSession++ % sessionPool.length];
+  let client = await getSession(slot);
   let stream;
   try {
     stream = client.request(outgoing);
@@ -99,8 +102,8 @@ export async function stageFetch(url, options = {}) {
     // Retry only an attempt that could not create an HTTP/2 stream. Do not
     // replay sent requests, unexpected failures, or response-bearing errors.
     if (!client.closed && !client.destroyed) throw error;
-    retireSession(client);
-    client = await getSession();
+    retireSession(slot, client);
+    client = await getSession(slot);
     stream = client.request(outgoing);
   }
   return new Promise((resolve, reject) => {
@@ -201,7 +204,9 @@ export function stageTransportSpan(response) {
 }
 
 export function closeStageTransport() {
-  const live = session;
-  retireSession(live);
-  live?.close();
+  for (const slot of sessionPool) {
+    const live = slot.client;
+    retireSession(slot, live);
+    live?.close();
+  }
 }
