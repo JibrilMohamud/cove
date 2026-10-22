@@ -99,6 +99,9 @@ export default {
           ? { waitUntil: (work) => workerContext.waitUntil!(work) }
           : undefined;
       const staging = foreEnv.COVE_SSR_STAGING === "1";
+      // Only branch-scoped preview diagnostics may reveal a coarse fallback
+      // category. Never attach these headers in production or on API paths.
+      let qaFastFallbackReason: string | null = null;
       const rejected = await rejectUnauthenticatedStagingRequest(request, foreEnv);
       if (rejected) return rejected;
       // All static assets use Worker-first routing in staging so a missing
@@ -146,7 +149,9 @@ export default {
         foreEnv.COVE_FAST_STOREFRONT_RELEASE_CERTIFIED === "1"
       ) {
         const { maybeProxyFastHomepage } = await import("./lib/fast-storefront-proxy.server");
-        const fast = await maybeProxyFastHomepage(request, foreEnv);
+        const fast = await maybeProxyFastHomepage(request, foreEnv, (reason) => {
+          qaFastFallbackReason = reason;
+        });
         if (fast) return applySecurityHeaders(request, fast, foreEnv);
       }
       const ingestionControl = await handleVercelIngestionControl(request, foreEnv);
@@ -217,6 +222,8 @@ export default {
         secured.headers.get("content-type")?.includes("text/html")
       ) {
         const headers = new Headers(secured.headers);
+        if (foreEnv.VERCEL_ENV === "preview" && qaFastFallbackReason)
+          headers.set("x-cove-qa-fast-fallback", qaFastFallbackReason);
         headers.append(
           "Server-Timing",
           [
