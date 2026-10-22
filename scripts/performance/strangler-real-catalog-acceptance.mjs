@@ -271,13 +271,22 @@ async function stageBrowserRoute(route) {
   });
 }
 async function settleCatalog(page) {
+  // Avoid comparing a settled document with a partially painted font/cover.
+  // Only images intersecting the actual viewport must decode: below-fold
+  // lazy images legitimately need not load for a viewport screenshot.
+  await page.evaluate(() => document.fonts.ready);
   try {
     await page.waitForFunction(
       () => {
         const covers = [...document.querySelectorAll("article.book-card img")];
+        const visible = covers.filter((img) => {
+          const box = img.getBoundingClientRect();
+          return box.width > 0 && box.height > 0 &&
+            box.top < window.innerHeight && box.bottom > 0;
+        });
         return (
           covers.length >= 6 &&
-          covers.filter((img) => img.complete && img.naturalWidth > 0).length >= 6 &&
+          visible.every((img) => img.complete && img.naturalWidth > 0) &&
           !/Finding books(?:\.{3}|…)/.test(
             document.querySelector(".catalog-count")?.textContent || "",
           )
@@ -293,6 +302,12 @@ async function settleCatalog(page) {
   return page.evaluate(() => {
     const covers = [...document.querySelectorAll("article.book-card img")];
     const loaded = covers.filter((img) => img.complete && img.naturalWidth > 0).length;
+    const visible = covers.filter((img) => {
+      const box = img.getBoundingClientRect();
+      return box.width > 0 && box.height > 0 &&
+        box.top < window.innerHeight && box.bottom > 0;
+    });
+    const loadedVisible = visible.filter((img) => img.complete && img.naturalWidth > 0).length;
     const pendingCatalog =
       /Finding books(?:\.{3}|…)/.test(
         document.querySelector(".catalog-count")?.textContent || "",
@@ -300,8 +315,12 @@ async function settleCatalog(page) {
     return {
       count: covers.length,
       loaded,
+      visible: visible.length,
+      loadedVisible,
       pendingCatalog,
-      settled: covers.length >= 6 && loaded >= 6 && !pendingCatalog,
+      settled: covers.length >= 6 &&
+        visible.length === loadedVisible &&
+        !pendingCatalog,
     };
   });
 }
@@ -321,10 +340,11 @@ try {
     console.log("COLD_PROBE", JSON.stringify({ round: i + 1, ...cold }));
     save();
   }
-  assert.ok(
-    evidence.cold.every((cold) => cold.ok && cold.ms < 800),
-    "Independent cold visits failed validity or 800ms bound",
-  );
+  // Keep the hard gate, but finish the independent visual and LCP checks
+  // even if a legitimate cold outlier occurs. One failed condition still
+  // fails the entire run; this prevents lost root-cause evidence.
+  evidence.coldGatePass = evidence.cold.every((cold) => cold.ok && cold.ms < 800);
+  save();
   evidence.observedColdCountries = [...new Set(evidence.cold.map((cold) => cold.observedCountry))];
   assert.equal(
     evidence.observedColdCountries.length,
@@ -508,6 +528,7 @@ try {
     await audit.close();
   }
   save();
+  assert.ok(evidence.coldGatePass, "Independent cold visits failed validity or 800ms bound");
   assert.ok(
     evidence.realCatalogParity.comparableMobileState &&
       evidence.realCatalogParity.comparableDesktopState &&
