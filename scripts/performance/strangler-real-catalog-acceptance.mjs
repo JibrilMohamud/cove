@@ -285,7 +285,8 @@ async function settleCatalog(page) {
   return page.evaluate(() => {
     const covers = [...document.querySelectorAll("article.book-card img")];
     const loaded = covers.filter((img) => img.complete && img.naturalWidth > 0).length;
-    const pendingCatalog = /Finding books(?:\.{3}|…)/.test(document.body.textContent || "") || false;
+    const pendingCatalog =
+      /Finding books(?:\.{3}|…)/.test(document.body.textContent || "") || false;
     return {
       count: covers.length,
       loaded,
