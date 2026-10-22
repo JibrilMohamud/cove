@@ -271,9 +271,7 @@ try {
               sql: write
                 ? "INSERT OR IGNORE INTO perf_ingestion_background(run_id, seq, status) VALUES (?, ?, ?)"
                 : "SELECT COUNT(*) AS n FROM perf_ingestion_background WHERE run_id=?",
-              params: write
-                ? [syntheticRunId, i, "processed"]
-                : [syntheticRunId],
+              params: write ? [syntheticRunId, i, "processed"] : [syntheticRunId],
             });
             if (write) background.writes++;
             else background.reads++;
