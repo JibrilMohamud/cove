@@ -8,15 +8,53 @@ export type PrivatePresentationStore = {
   get(key: string): Promise<{ size: number; text(): Promise<string> } | null>;
 };
 
+// Only completed display bytes are retained. Never store a pending promise or
+// a primary authority result; every caller still validates expiry and rights.
+const completedPresentation = new WeakMap<
+  PrivatePresentationStore,
+  Map<string, { body: string; size: number; until: number }>
+>();
+const PRESENTATION_REUSE_MS = 30_000;
+const MAX_REUSED_OBJECTS = 8;
+const MAX_REUSED_BYTES = 512 * 1024;
+
 /** Independent campaigns/releases must never overwrite another deployment's
  * advisory candidate set. The namespace is deployment-owned, not a header. */
 export function namespacedPresentationStore(
   store: PrivatePresentationStore,
   prefix = "",
+  reuseCompleted = false,
 ): PrivatePresentationStore {
   if (prefix && !/^[a-z0-9][a-z0-9/_-]{0,159}\/$/.test(prefix))
     throw Error("Invalid private presentation namespace");
-  return { get: (key) => store.get(prefix + key) };
+  return {
+    async get(key) {
+      const scopedKey = prefix + key;
+      if (!reuseCompleted) return store.get(scopedKey);
+      let entries = completedPresentation.get(store);
+      if (!entries) {
+        entries = new Map();
+        completedPresentation.set(store, entries);
+      }
+      const cached = entries.get(scopedKey);
+      if (cached && cached.until > Date.now())
+        return { size: cached.size, text: async () => cached.body };
+      entries.delete(scopedKey);
+      const until = Date.now() + PRESENTATION_REUSE_MS;
+      const object = await store.get(scopedKey);
+      if (!object || object.size < 2 || object.size > MAX_REUSED_BYTES) return object;
+      const body = await object.text();
+      const size = new TextEncoder().encode(body).length;
+      if (size !== object.size || size > MAX_REUSED_BYTES)
+        throw Error("Invalid presentation object size");
+      // Bound age from the beginning of the read, so slow I/O cannot extend it.
+      if (until > Date.now()) {
+        if (entries.size >= MAX_REUSED_OBJECTS) entries.delete(entries.keys().next().value!);
+        entries.set(scopedKey, { body, size, until });
+      }
+      return { size, text: async () => body };
+    },
+  };
 }
 // These are fixed, intentionally low-cardinality staging diagnostics only.
 export class PreparedCatalogUnavailable extends Error {

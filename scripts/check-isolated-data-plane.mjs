@@ -17,6 +17,7 @@ try {
     entryPoints: {
       api: "src/features/fore/api.server.ts",
       presentation: "src/storefront-strangler/homepage-presentation.server.ts",
+      prepared: "src/storefront-strangler/prepared-catalog.server.ts",
       bootstrap: "src/storefront-strangler/bootstrap-optimized.server.ts",
       queue: "src/lib/literary-preparation-queue.server.ts",
     },
@@ -27,9 +28,12 @@ try {
     logLevel: "silent",
   });
   const { handleCoveApi } = await import(path.join(root, "api.js"));
-  const { produceHomepagePresentation: produce, homepagePresentationKey: key } = await import(
-    path.join(root, "presentation.js")
-  );
+  const {
+    produceHomepagePresentation: produce,
+    homepagePresentationKey: key,
+    readHomepagePresentation: read,
+  } = await import(path.join(root, "presentation.js"));
+  const { namespacedPresentationStore: scoped } = await import(path.join(root, "prepared.js"));
   const { serveLeanAnonymousBootstrap: serve } = await import(path.join(root, "bootstrap.js"));
   const { consumePreparationQueue: consume } = await import(path.join(root, "queue.js"));
   const domains = [];
@@ -167,6 +171,31 @@ try {
     "stale discovery grants cannot survive live revocation",
   );
   const saved = objects.get(key("US"));
+  // Reuse only completed bytes, bounded by binding/key/age; validation of an
+  // expired snapshot still fails even when its bytes are available in memory.
+  let objectReads = 0;
+  const countedStore = {
+    async get(k) {
+      objectReads++;
+      return store.get(k);
+    },
+  };
+  await read(scoped(countedStore, "", true), request("US"), "US");
+  await read(scoped(countedStore, "", true), request("US"), "US");
+  assert.equal(objectReads, 1);
+  await assert.rejects(() => read(scoped(countedStore, "other/", true), request("US"), "US"));
+  assert.equal(objectReads, 2, "cache must respect deployment namespace");
+  await assert.rejects(() =>
+    read(scoped(countedStore, "", true), request("US"), "US", us.candidates.expiresAt),
+  );
+  const realNow = Date.now;
+  try {
+    Date.now = () => realNow() + 30_001;
+    await read(scoped(countedStore, "", true), request("US"), "US");
+    assert.equal(objectReads, 3, "completed presentation must refresh within 30 seconds");
+  } finally {
+    Date.now = realNow;
+  }
   for (const bad of [
     { ...us, candidates: { ...us.candidates, expiresAt: Date.now() - 1 } },
     { ...us, candidates: { ...us.candidates, country: "CA" } },
@@ -175,11 +204,11 @@ try {
   ]) {
     objects.set(key("US"), JSON.stringify(bad));
     const before = reads.length;
-    await assert.rejects(() => serve(request("US"), env));
+    await assert.rejects(() => serve(request("US"), { ...env, PRESENTATION: { ...store } }));
     assert.equal(reads.length, before, "bad snapshots must not launch catalog fallback");
   }
   objects.delete(key("US"));
-  await assert.rejects(() => serve(request("US"), env));
+  await assert.rejects(() => serve(request("US"), { ...env, PRESENTATION: { ...store } }));
   objects.set(key("US"), saved);
   await assert.rejects(() =>
     serve(request("US"), {

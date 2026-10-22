@@ -1507,7 +1507,7 @@ export function StorePage({
         </div>
         <div className="filter-row">
           <span className="catalog-count">
-            {result.isFetching
+            {result.isFetching && !result.data
               ? "Finding books…"
               : result.data?.preview
                 ? "Books available to read"

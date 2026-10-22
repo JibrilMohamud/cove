@@ -130,3 +130,33 @@ The connected Supabase Cove project currently has one registered user and no
 user marked as dedicated Cove QA. The connected Stripe sandbox is named Ko-fi,
 not Cove; no checkout is charged to that unrelated account. No reusable QA login
 session or Cove sandbox checkout/entitlement journey has been certified.
+
+## Lean-authority campaign and presentation reuse
+
+Source e5744c62, hosted run 39724067330: all three cold executions passed
+(666/414/371ms), and all bursts through 32 passed (maximum 380ms). Both
+projection phases delivered 12,000/12,000 with zero drops, p95 249/244ms,
+p99 362/330ms, but maxima 1,321/812ms: FAIL. The worst request spent 1,226ms
+in private R2 presentation versus 17ms in fresh primary authority (3.9ms SQL).
+The second phase's worst was 695ms presentation / 46ms primary. Canonical
+phases saturated, dropping 480/174 arrivals. These results do not justify
+routing or a canonical rights migration based on this run alone.
+
+The v2 path now reuses completed private presentation bytes in each isolate
+for at most 30 seconds, bounded to eight objects of at most 512KiB each per
+binding, with separate full namespace keys. It stores no pending promise,
+rights result, customer identity or entitlement. Each read parses independent
+objects and validates snapshot/page expiry; every displayed shelf still gets
+one fresh primary authority query. Missing/oversized reads are not cached.
+The presentation-only diagnostic deliberately bypasses reuse to retain an
+independent R2 control. New full campaigns are required after this change.
+
+Real-catalog run 39724067276 on e5744c62 passed its first attempt: cold
+370/316/255ms, mobile LCP p75 476ms / CLS 0, visual mismatch 9.76% mobile and
+5.27% desktop, 24/24 edition links. Its repeat had cold 455/343/387ms and LCP
+448ms, but failed comparability because the live mobile baseline remained in
+“Finding books…” after 14 seconds. That failure is retained; a green sample
+is not certification. The regular catalog now preserves its loaded count
+while background revalidation is pending, instead of labeling already
+rendered data as an initial load. This source change does not retroactively
+alter the deployed public baseline or its failed evidence.

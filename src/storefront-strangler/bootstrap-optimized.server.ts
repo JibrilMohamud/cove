@@ -154,7 +154,7 @@ export async function serveLeanAnonymousBootstrap(
   if (model !== undefined && !["0", "1", "2"].includes(model))
     throw Error("Unknown storefront read model");
   const presentationStore = env.PRESENTATION
-    ? namespacedPresentationStore(env.PRESENTATION, env.COVE_PRESENTATION_PREFIX)
+    ? namespacedPresentationStore(env.PRESENTATION, env.COVE_PRESENTATION_PREFIX, model === "2")
     : undefined;
   if ((model === "1" || model === "2") && !env.PRESENTATION)
     throw Error("Private presentation binding required");
