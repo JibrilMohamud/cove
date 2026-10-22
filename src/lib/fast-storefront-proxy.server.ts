@@ -39,9 +39,10 @@ export function eligibleFastHomepage(request: Request, env: FastStorefrontVercel
 // Preview-only, non-sensitive routing diagnostics. Never log the signing
 // secret, geographic claim, IP address, auth headers, or URL query.
 function reportPreviewRelay(env: FastStorefrontVercelEnv, reason: string, status?: number) {
-  if (env.VERCEL_ENV !== "preview" || env.COVE_FAST_STOREFRONT_RELEASE_CERTIFIED !== "1")
-    return;
-  console.info(JSON.stringify({ event: "cove_fast_preview_relay", reason, ...(status ? { status } : {}) }));
+  if (env.VERCEL_ENV !== "preview" || env.COVE_FAST_STOREFRONT_RELEASE_CERTIFIED !== "1") return;
+  console.info(
+    JSON.stringify({ event: "cove_fast_preview_relay", reason, ...(status ? { status } : {}) }),
+  );
 }
 
 export async function maybeProxyFastHomepage(
