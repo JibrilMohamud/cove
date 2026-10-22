@@ -36,6 +36,7 @@ try {
       api: "src/features/fore/api.server.ts",
       presentation: "src/storefront-strangler/homepage-presentation.server.ts",
       driver: "src/storefront-strangler/publication-driver.worker.ts",
+      capture: "src/storefront-strangler/publication-capture.server.ts",
     },
     outdir: dir,
     bundle: true,
@@ -53,6 +54,7 @@ try {
   } = await import(path.join(dir, "presentation.js"));
   const { handleCoveApi } = await import(path.join(dir, "api.js"));
   const { default: driver } = await import(path.join(dir, "driver.js"));
+  const { capturePublicSource } = await import(path.join(dir, "capture.js"));
   let invoked = 0;
   const control = {
     GATE: "a".repeat(64),
@@ -252,6 +254,89 @@ try {
     JSON.stringify(ledger.prepare("SELECT country,last_error FROM discovery_publications").all()),
   );
   assert.equal(puts, 4);
+
+  // A distinct, PUBLIC-ONLY source D1 owns the materialized presentation.
+  // The canonical public catalog is read only by bounded capture; normal
+  // export and R2 publication cannot access the canonical source at all.
+  const sourceDomain = new DatabaseSync(":memory:");
+  sourceDomain.exec(fs.readFileSync("infra/publication-source/0001_identity.sql", "utf8"));
+  const PUBLIC_SOURCE_DB = {
+    prepare(sql) {
+      function stmt(values = []) {
+        return {
+          bind(...params) {
+            return stmt(params);
+          },
+          async first() {
+            return sourceDomain.prepare(sql).get(...values) ?? null;
+          },
+          async all() {
+            return { results: sourceDomain.prepare(sql).all(...values) };
+          },
+          async run() {
+            const result = sourceDomain.prepare(sql).run(...values);
+            return { meta: { changes: result.changes } };
+          },
+        };
+      }
+      return stmt();
+    },
+  };
+  await assert.rejects(
+    () => capturePublicSource({ SOURCE_DB, PUBLIC_SOURCE_DB }),
+    /capture_disabled/,
+  );
+  const capturing = { SOURCE_DB, PUBLIC_SOURCE_DB, COVE_PUBLICATION_CAPTURE_ENABLED: "1" };
+  const firstCapture = await capturePublicSource(capturing);
+  assert.equal(firstCapture.countries.length, 2);
+  assert.equal(firstCapture.complete, false);
+  assert.equal(sourceDomain.prepare("SELECT COUNT(*) n FROM cove_publication_source_identity").get().n, 0);
+  const secondCapture = await capturePublicSource(capturing);
+  assert.equal(secondCapture.countries.length, 2);
+  assert.equal(secondCapture.complete, true);
+  assert.equal(
+    sourceDomain.prepare("SELECT COUNT(*) n FROM cove_publication_source_snapshots").get().n,
+    4,
+  );
+  assert.equal(
+    sourceDomain.prepare("SELECT COUNT(*) n FROM cove_publication_source_identity").get().n,
+    1,
+  );
+  let materializedReads = 0;
+  const MATERIALIZED_DB = {
+    ...PUBLIC_SOURCE_DB,
+    withSession(constraint) {
+      assert.equal(constraint, "first-unconstrained");
+      return {
+        prepare(sql) {
+          materializedReads++;
+          assert.doesNotMatch(
+            sql,
+            /\\b(?:rights_grants|commerce_orders|entitlements|storefront_markets|catalog_search_documents)\\b/i,
+          );
+          return PUBLIC_SOURCE_DB.prepare(sql);
+        },
+      };
+    },
+  };
+  ledger.prepare("UPDATE discovery_publications SET due_at=0 WHERE country<>'ZZ'").run();
+  const primaryReadsBeforeExport = sourceSql.length;
+  const independent = await productionExport({ ...base, SOURCE_DB: MATERIALIZED_DB });
+  assert.equal(independent.results.length, 4);
+  assert.ok(independent.results.every((row) => row.exported));
+  assert.equal(sourceSql.length, primaryReadsBeforeExport, "normal publisher must never query canonical D1");
+  assert.ok(materializedReads >= 6);
+  assert.equal((await publish({ ...base, PRESENTATION })).filter((r) => r.published).length, 4);
+  sourceDomain.prepare("UPDATE cove_publication_source_identity SET last_synced_at=?")
+    .run(clock - 180_000);
+  await assert.rejects(
+    () => productionExport({ ...base, SOURCE_DB: MATERIALIZED_DB }),
+    /publication_independent_source_stale/,
+  );
+  sourceDomain.prepare("UPDATE cove_publication_source_identity SET last_synced_at=?")
+    .run(clock);
+  sourceDomain.close();
+
   const request = new Request("https://test/", { headers: { "accept-language": "en-US" } });
   const scoped = { get: (k) => PRESENTATION.get(base.COVE_PRESENTATION_PREFIX + k) };
   const snapshot = await read(scoped, request, "US", clock);
