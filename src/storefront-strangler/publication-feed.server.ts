@@ -235,12 +235,47 @@ async function releaseExportLease(db: Domain, owner: string) {
     .run();
 }
 
+// The production exporter must never scan the canonical rights D1, even if
+// D1 read replication is set to auto. A first-unconstrained session is not a
+// physical replica guarantee. Require an independently owned, recently synced
+// source domain before performing ANY catalog query. The real-source CI fixture
+// uses a separate, non-routable stage-only entrypoint to test correctness.
+async function assertIndependentPublicationSource(source: Source) {
+  let identity: {
+    domain?: string;
+    last_synced_at?: number;
+  } | null = null;
+  try {
+    identity = await source
+      .withSession("first-unconstrained")
+      .prepare(
+        "SELECT domain,last_synced_at FROM cove_publication_source_identity WHERE id=1",
+      )
+      .first<{ domain: string; last_synced_at: number }>();
+  } catch {
+    throw Error("publication_independent_source_required");
+  }
+  if (
+    identity?.domain !== "cove-independent-publication-source" ||
+    !Number.isFinite(identity.last_synced_at) ||
+    Number(identity.last_synced_at) > Date.now() + 30_000 ||
+    Number(identity.last_synced_at) < Date.now() - 120_000
+  )
+    throw Error("publication_independent_source_stale");
+}
+
 /** Max four markets per cron and only one exporter across all Worker isolates.
  * Every export runs outside the customer hot path and snapshots remain untrusted
  * display data; checkout and reader still revalidate the canonical D1. */
-export async function exportPublicPresentation(env: ExportEnv) {
+export async function exportPublicPresentation(
+  env: ExportEnv,
+  stageOnly?: { readonly allowCanonicalStageFixture: true },
+) {
   await identity(env);
   if (env.SOURCE_DB === env.DISCOVERY_DB) throw Error("publication_source_not_isolated");
+  // The production entrypoint never passes this stage-only capability.
+  if (!stageOnly?.allowCanonicalStageFixture)
+    await assertIndependentPublicationSource(env.SOURCE_DB);
   const owner = crypto.randomUUID();
   const ownsLane = await holdExportLease(env.DISCOVERY_DB, owner, Date.now());
   // Do not even open a source DB session when another exporter owns the lane.
