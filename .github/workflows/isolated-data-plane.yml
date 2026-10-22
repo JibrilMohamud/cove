@@ -13,7 +13,7 @@ permissions:
   contents: read
 concurrency:
   group: cove-isolated-data-plane
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   correctness:
     runs-on: ubuntu-latest

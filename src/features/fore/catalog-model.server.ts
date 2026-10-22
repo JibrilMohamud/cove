@@ -778,6 +778,67 @@ export type FirstPaintD1QueryMetrics = {
   servedByPrimary?: boolean;
 };
 
+export type PrimaryStorefrontAuthorityRow = {
+  product_id: string;
+  product_public_id: string | null;
+  edition_id: string;
+  edition_public_id: string | null;
+  offer_json: string | null;
+};
+
+/** Presentation DTOs are independently materialized. This live authority
+ * statement deliberately never hydrates authors, covers, works or series. */
+export async function authorizeStorefrontPresentationIds(
+  db: DB,
+  ids: string[],
+  territory: string,
+  currency: string,
+  diagnostics?: FirstPaintD1QueryMetrics,
+) {
+  if (
+    !/^[A-Z]{2}$/.test(territory) ||
+    !/^[A-Z]{3}$/.test(currency) ||
+    ids.length > 128 ||
+    ids.some((id) => !/^[A-Za-z0-9][A-Za-z0-9_-]{1,159}$/.test(id)) ||
+    new Set(ids).size !== ids.length
+  )
+    throw new ApiError(400, "Invalid storefront presentation candidates.");
+  const result = await db
+    .prepare(
+      `WITH market(currency) AS MATERIALIZED (
+      SELECT COALESCE(
+        (SELECT default_currency FROM storefront_markets WHERE country_code=? AND market_status='active'),
+        (SELECT default_currency FROM storefront_markets WHERE country_code='US' AND market_status='active'))
+    ), candidates AS MATERIALIZED (
+      SELECT value product_id,CAST(key AS INTEGER) position FROM json_each(?)
+    ), authorized AS MATERIALIZED (
+      SELECT p.id product_id,p.public_id product_public_id,p.edition_id,
+        e.public_id edition_public_id,c.position,d.currency
+      FROM candidates c CROSS JOIN products p ON p.id=c.product_id
+      JOIN editions e ON e.id=p.edition_id
+      JOIN catalog_search_documents d ON d.product_id=p.id
+      WHERE p.storefront_status='active' AND p.source_name<>'upload'
+        AND e.release_status IN ('available','preorder')
+        AND d.suppressed=0 AND d.availability='available'
+        AND d.currency=? AND ?=(SELECT currency FROM market)
+        AND EXISTS (SELECT 1 FROM retail_product_availability_rows rpa
+          WHERE rpa.product_id=p.id AND rpa.territory_code=?)
+      ORDER BY c.position LIMIT 25
+    ) SELECT a.product_id,a.product_public_id,a.edition_id,a.edition_public_id,
+      (SELECT json_object('type',o.offer_type,'currency',o.currency,'amountMinor',o.amount_minor)
+        FROM offers o WHERE o.product_id=a.product_id AND o.sales_channel='retail'
+          AND o.currency=a.currency AND o.active=1
+          AND (o.starts_at IS NULL OR o.starts_at<=datetime('now'))
+          AND (o.ends_at IS NULL OR o.ends_at>datetime('now'))
+        ORDER BY o.created_at DESC LIMIT 1) offer_json
+      FROM authorized a ORDER BY a.position`,
+    )
+    .bind(territory, JSON.stringify(ids), currency, currency, territory)
+    .all<PrimaryStorefrontAuthorityRow>();
+  if (diagnostics) recordFirstPaintD1Metrics(result, diagnostics);
+  return result.results;
+}
+
 function recordFirstPaintD1Metrics(result: unknown, diagnostics: FirstPaintD1QueryMetrics) {
   const meta = (
     result as {

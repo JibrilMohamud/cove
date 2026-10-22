@@ -125,8 +125,37 @@ try {
     !plan.results.some((r) => /SCAN (?:p|d|e)\b/.test(r.detail)),
     "Bounded candidates must drive indexed lookup",
   );
+  assert.doesNotMatch(
+    query.sql,
+    /edition_contributors|edition_subjects|series_memberships|asset_versions|JOIN works/i,
+    "primary must not hydrate presentation metadata",
+  );
   const us = JSON.parse(objects.get(key("US")));
   const first = us.candidates.productIds[0];
+  // Cached offers/channel claims have no authority. Display metadata can
+  // remain stale while the live primary offer changes on the next request.
+  for (const b of us.displayBooks) {
+    b.offer = { currency: "USD", amountMinor: 999999 };
+    b.formats["application/epub+zip"] = "https://untrusted.invalid/book.epub";
+    b.libraryEligible = true;
+    b.subscriptionEligible = true;
+  }
+  objects.set(key("US"), JSON.stringify(us));
+  const offer = await primary.DB.prepare(
+    "SELECT id FROM offers WHERE product_id=? AND currency='USD' AND active=1 ORDER BY created_at DESC LIMIT 1",
+  )
+    .bind(first)
+    .first();
+  assert.ok(offer);
+  await primary.DB.prepare("UPDATE offers SET amount_minor=123,offer_type='purchase' WHERE id=?")
+    .bind(offer.id)
+    .run();
+  const fresh = await (await serve(request("US"), env)).json();
+  const priced = fresh.catalog.results.find((b) => b.productId === first);
+  assert.equal(priced.offer.amountMinor, 123);
+  assert.equal(priced.formats["application/epub+zip"], undefined);
+  assert.equal(priced.libraryEligible, undefined);
+  assert.equal(priced.subscriptionEligible, undefined);
   await primary.DB.prepare(
     "UPDATE rights_grants SET status='revoked' WHERE edition_id=(SELECT edition_id FROM products WHERE id=?) AND decision='allow'",
   )

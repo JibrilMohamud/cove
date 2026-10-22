@@ -146,7 +146,13 @@ export default {
       });
     const finish = (response: Response) => {
       const secured = applySecurityHeaders(request, response, env);
-      if (!customerGateway) return stageNoStore(secured, true);
+      if (!customerGateway) {
+        const headers = new Headers(secured.headers);
+        const placement = request.headers.get("cf-placement") || "";
+        if (/^(?:remote|local)-[A-Z]{3}$/.test(placement))
+          headers.set("x-cove-stage-placement", placement);
+        return stageNoStore(new Response(secured.body, { status: secured.status, headers }), true);
+      }
       const headers = new Headers(secured.headers);
       headers.set("cache-control", "private, no-store");
       return new Response(secured.body, { status: secured.status, headers });

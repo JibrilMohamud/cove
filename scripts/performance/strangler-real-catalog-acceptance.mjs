@@ -30,6 +30,7 @@ config.preview_urls = false;
 // All protected commerce, account, and reader delegation is separately
 // exercised with a fake CORE by the same-SHA local integration suite.
 config.services = [];
+config.placement = { region: "aws:us-east-1" };
 config.vars.FORE_PUBLIC_URL = origin;
 // Measure the guarded real-data optimization rather than silently testing
 // the unoptimized main path. All statements remain read-only; no 100-RPS
@@ -150,6 +151,7 @@ async function sample() {
       observedCountry,
       renderer: response.headers.get("x-cove-renderer"),
       serverTiming: response.headers.get("server-timing"),
+      placement: response.headers.get("x-cove-stage-placement"),
       failureSubphase: response.headers.get("x-cove-stage-failure-subphase"),
       failureKind: response.headers.get("x-cove-stage-failure-kind"),
       edgeError:

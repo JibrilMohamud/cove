@@ -1,10 +1,12 @@
 import {
   servePreparedCatalog,
-  authorizePreparedCatalog,
   namespacedPresentationStore,
   type PrivatePresentationStore,
 } from "./prepared-catalog.server";
-import { readHomepagePresentation } from "./homepage-presentation.server";
+import {
+  readHomepagePresentation,
+  authorizeHomepagePresentation,
+} from "./homepage-presentation.server";
 import type { FirstPaintD1QueryMetrics } from "../features/fore/catalog-model.server";
 import { networkCountry, resolveAnonymousHomepageContext } from "./localization-optimized.server";
 import { formatGenericStorefrontPageRecord } from "./page-record";
@@ -183,7 +185,7 @@ export async function serveLeanAnonymousBootstrap(
     admission,
     model === "2"
       ? Promise.all([projection!, admission]).then(([p]) =>
-          timed("catalog", authorizePreparedCatalog(rawDb, p.candidates, d1Metrics)),
+          timed("catalog", authorizeHomepagePresentation(rawDb, p, d1Metrics)),
         )
       : model === "1"
         ? timed(

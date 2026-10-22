@@ -7,6 +7,13 @@ import {
 } from "./localization-optimized.server";
 import { selectedUiCatalog } from "../features/fore/ui-catalog.server";
 import {
+  canonicalFirstPaintBooksByProductIds,
+  authorizeStorefrontPresentationIds,
+  type CatalogDB,
+  type FirstPaintD1QueryMetrics,
+} from "../features/fore/catalog-model.server";
+import type { CatalogBook } from "../features/fore/client";
+import {
   privateCandidateKey,
   produceCandidateSnapshot,
   validateCandidateSnapshot,
@@ -20,6 +27,7 @@ type Snapshot = {
   schema: typeof SCHEMA;
   candidates: ReturnType<typeof validateCandidateSnapshot>;
   contexts: PublicContext[];
+  displayBooks: CatalogBook[];
 };
 type WritableStore = PrivatePresentationStore & {
   put(
@@ -55,6 +63,33 @@ export async function produceHomepagePresentation(
     now,
   );
   const candidates = validateCandidateSnapshot(JSON.parse(candidateBody), country, now);
+  const displayBooks: CatalogBook[] = [];
+  for (let offset = 0; offset < candidates.productIds.length; offset += 64) {
+    const books = await canonicalFirstPaintBooksByProductIds(
+      discovery,
+      candidates.productIds.slice(offset, offset + 64),
+    );
+    for (const b of books)
+      displayBooks.push({
+        id: b.id,
+        productId: b.productId,
+        editionId: b.editionId,
+        publicProductId: b.publicProductId,
+        publicEditionId: b.publicEditionId,
+        sourceExternalId: b.sourceExternalId,
+        title: b.title.slice(0, 512),
+        authors: b.authors.slice(0, 8).map((a) => ({ ...a, name: a.name.slice(0, 256) })),
+        subjects: b.subjects.slice(0, 4).map((x) => x.slice(0, 256)),
+        bookshelves: b.bookshelves.slice(0, 4).map((x) => x.slice(0, 256)),
+        languages: b.languages.slice(0, 4),
+        download_count: b.download_count,
+        formats: Object.fromEntries(
+          Object.entries(b.formats).filter(
+            ([kind, url]) => ["image/jpeg", "image/png"].includes(kind) && url.length <= 2048,
+          ),
+        ),
+      });
+  }
   const resolve = (locale = "") =>
     resolveAnonymousHomepageContext(
       discovery,
@@ -87,7 +122,7 @@ export async function produceHomepagePresentation(
       candidates.expiresAt = Math.min(candidates.expiresAt, expires);
     }
   }
-  const snapshot: Snapshot = { schema: SCHEMA, candidates, contexts };
+  const snapshot: Snapshot = { schema: SCHEMA, candidates, contexts, displayBooks };
   const body = JSON.stringify(snapshot);
   if (new TextEncoder().encode(body).length > MAX_BYTES || candidates.expiresAt <= now)
     throw Error("Unusable presentation snapshot");
@@ -123,6 +158,22 @@ export async function readHomepagePresentation(
   )
     throw Error("Invalid presentation schema");
   const candidates = validateCandidateSnapshot(raw.candidates, country, now);
+  if (
+    !Array.isArray(raw.displayBooks) ||
+    raw.displayBooks.length > 128 ||
+    new Set(raw.displayBooks.map((b) => b?.productId)).size !== raw.displayBooks.length ||
+    raw.displayBooks.some(
+      (b) =>
+        !b ||
+        !candidates.productIds.includes(b.productId || "") ||
+        typeof b.title !== "string" ||
+        !Array.isArray(b.authors) ||
+        !Array.isArray(b.subjects) ||
+        !Array.isArray(b.bookshelves) ||
+        !b.formats,
+    )
+  )
+    throw Error("Invalid display metadata");
   const unique = new Set<string>();
   for (const c of raw.contexts) {
     if (
@@ -148,5 +199,65 @@ export async function readHomepagePresentation(
     parseAcceptLanguage((request.headers.get("accept-language") || "").slice(0, 512)),
   );
   const context = raw.contexts.find((c) => c.locale === locale?.locale)!;
-  return { candidates, context: { ...context, uiMessages: selectedUiCatalog(context.locale) } };
+  return {
+    candidates,
+    displayBooks: raw.displayBooks,
+    context: { ...context, uiMessages: selectedUiCatalog(context.locale) },
+  };
+}
+
+export async function authorizeHomepagePresentation(
+  primary: CatalogDB,
+  presentation: Awaited<ReturnType<typeof readHomepagePresentation>>,
+  metrics?: FirstPaintD1QueryMetrics,
+) {
+  const { candidates, displayBooks } = presentation;
+  const rows = await authorizeStorefrontPresentationIds(
+    primary,
+    candidates.productIds,
+    candidates.country,
+    candidates.currency,
+    metrics,
+  );
+  const metadata = new Map(displayBooks.map((b) => [b.productId, b]));
+  const books: CatalogBook[] = [];
+  for (const row of rows) {
+    const b = metadata.get(row.product_id);
+    if (!b || b.editionId !== row.edition_id) continue;
+    // Only explicitly selected presentation fields leave the snapshot. A
+    // malicious/stale cached offer or channel flag cannot become authority.
+    books.push({
+      id: row.product_public_id || row.product_id,
+      productId: row.product_id,
+      publicProductId: row.product_public_id || undefined,
+      editionId: row.edition_id,
+      publicEditionId: row.edition_public_id || undefined,
+      sourceExternalId: b.sourceExternalId,
+      title: b.title,
+      authors: b.authors,
+      subjects: b.subjects,
+      bookshelves: b.bookshelves,
+      languages: b.languages,
+      formats: Object.fromEntries(
+        Object.entries(b.formats).filter(
+          ([kind, url]) =>
+            ["image/jpeg", "image/png"].includes(kind) &&
+            typeof url === "string" &&
+            url.length <= 2048,
+        ),
+      ),
+      download_count: b.download_count,
+      offer: row.offer_json ? JSON.parse(row.offer_json) : undefined,
+    });
+  }
+  return {
+    results: books.slice(0, 24),
+    count: Math.min(books.length, 24),
+    next:
+      books.length > 24
+        ? `/api/fore/catalog?search=&sort=popular&page=2&currency=${candidates.currency}`
+        : null,
+    preview: true as const,
+    search: { queryId: null, backend: "d1-fts5" as const, processingTimeMs: 0, pageSize: 24 },
+  };
 }

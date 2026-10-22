@@ -32,6 +32,32 @@ const evidence = {
 const save = () => fs.writeFileSync(directory + "/results.json", JSON.stringify(evidence, null, 2));
 const names = [];
 let origin, gate;
+evidence.workers = names;
+let shutdown;
+function cleanup() {
+  return (shutdown ||= (async () => {
+    for (const name of names) {
+      try {
+        await api("DELETE", `/accounts/${account}/workers/scripts/${name}`);
+      } catch {
+        evidence.cleanupFailed = true;
+      }
+    }
+    try {
+      await sql(content, "DELETE FROM cove_arch_load WHERE run_id=?", [runId]);
+    } catch {
+      evidence.cleanupFailed = true;
+    }
+    save();
+  })());
+}
+for (const signal of ["SIGINT", "SIGTERM"])
+  process.once(signal, () => {
+    evidence.cancelled = true;
+    evidence.pass = false;
+    void cleanup().finally(() => process.exit(130));
+  });
+
 function cli(args, input) {
   const r = spawnSync(
     "npm",
@@ -136,6 +162,7 @@ async function sample(model = "projection", path = "/") {
       colo: r.headers.get("cf-ray")?.split("-").at(-1),
       timing: r.headers.get("server-timing"),
       failure: r.headers.get("x-cove-stage-failure"),
+      placement: r.headers.get("x-cove-stage-placement"),
     };
   } catch (e) {
     return { ok: false, ms: performance.now() - started, error: e.name };
@@ -153,6 +180,7 @@ async function deploy(round) {
     workers_dev: true,
     preview_urls: false,
     services: [],
+    placement: { region: "aws:us-east-1" },
     r2_buckets: [{ binding: "PRESENTATION", bucket_name: bucket }],
   });
   Object.assign(c.vars, {
@@ -336,18 +364,6 @@ try {
     "Isolated architecture has not passed absolute release performance gates; inspect all raw evidence",
   );
 } finally {
-  for (const name of names) {
-    try {
-      await api("DELETE", `/accounts/${account}/workers/scripts/${name}`);
-    } catch {
-      evidence.cleanupFailed = true;
-    }
-  }
-  try {
-    await sql(content, "DELETE FROM cove_arch_load WHERE run_id=?", [runId]);
-  } catch {
-    evidence.cleanupFailed = true;
-  }
-  save();
+  await cleanup();
   if (evidence.cleanupFailed) throw Error("Stage cleanup failed");
 }
