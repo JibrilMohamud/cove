@@ -11,7 +11,10 @@ let origin = "https://cove-strangler-m1-staging.cove-jibrilmohamud.workers.dev";
 // not skew the D1-free control and storefront latency measurements together.
 // Sixteen independent TLS connections bound each stream's queueing depth
 // during a 100-RPS trial. No request is replayed after a stream is created.
-const sessionPool = Array.from({ length: 16 }, () => ({ client: undefined, connecting: undefined }));
+const sessionPool = Array.from({ length: 16 }, () => ({
+  client: undefined,
+  connecting: undefined,
+}));
 let nextSession = 0;
 const spans = new WeakMap();
 let newConnections = 0;
