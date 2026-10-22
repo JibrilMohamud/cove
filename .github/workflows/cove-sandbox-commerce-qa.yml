@@ -43,12 +43,6 @@ jobs:
           stripe version
       - name: Exercise real Cove Stripe TEST fulfillment and signed webhook
         run: node scripts/check-stripe-sandbox-fulfillment.mjs
-      - name: Independently check reader recovery and audio rights gates
-        if: success()
-        run: |
-          node scripts/check-reader-recovery.mjs
-          node scripts/check-soundtrack-library.mjs
-          node scripts/check-commercial-audio-accounts-support.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -56,3 +50,22 @@ jobs:
           path: artifacts/cove-sandbox-commerce/report.json
           if-no-files-found: ignore
           retention-days: 7
+  protected-media-fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # This isolated fixture job must run even when Stripe secrets are absent.
+    # It cannot access GitHub Actions sandbox payment secrets.
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Exercise reader recovery, original-media storage, rights and playback gates
+        run: |
+          node scripts/check-reader-recovery.mjs
+          node scripts/check-soundtrack-library.mjs
+          node scripts/check-commercial-audio-accounts-support.mjs
