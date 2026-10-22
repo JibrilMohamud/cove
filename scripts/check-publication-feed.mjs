@@ -43,9 +43,11 @@ try {
     platform: "node",
     logLevel: "silent",
   });
-  const { exportPublicPresentation: exportFeed, publishPublicPresentation: publish } = await import(
+  const { exportPublicPresentation: productionExport, publishPublicPresentation: publish } = await import(
     path.join(dir, "feed.js")
   );
+  const exportFeed = (env) =>
+    productionExport(env, { allowCanonicalStageFixture: true });
   const {
     readHomepagePresentation: read,
     authorizeHomepagePresentation: authorize,
