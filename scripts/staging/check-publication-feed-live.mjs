@@ -184,8 +184,8 @@ try {
       const failedExport = exported.results.filter((r) => !r.exported);
       const failedPublish = published.filter((r) => !r.published);
       if (failedExport.length || failedPublish.length)
-        evidence.transientFailures = (evidence.transientFailures || 0) +
-          failedExport.length + failedPublish.length;
+        evidence.transientFailures =
+          (evidence.transientFailures || 0) + failedExport.length + failedPublish.length;
       // The ledger owns bounded retries: a transient transport fault must
       // recover through its lease/backoff, not bypass the fence in CI.
       // Any permanent failure still fails the final all-markets gate.
