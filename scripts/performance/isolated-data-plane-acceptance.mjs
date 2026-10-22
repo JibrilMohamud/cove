@@ -189,8 +189,7 @@ async function sample(model = "projection", path = "/") {
       ok: false,
       ms: performance.now() - started,
       error: e.name,
-      transportCode:
-        typeof e.code === "string" && /^[A-Z0-9_]{3,60}$/.test(e.code) ? e.code : null,
+      transportCode: typeof e.code === "string" && /^[A-Z0-9_]{3,60}$/.test(e.code) ? e.code : null,
     };
   }
 }
