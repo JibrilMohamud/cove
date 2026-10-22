@@ -200,7 +200,9 @@ try {
     .prepare("INSERT OR IGNORE INTO discovery_publications(country,active) VALUES('ZZ',0)")
     .run();
   ledger
-    .prepare("UPDATE discovery_publications SET lease_token='busy',lease_until=? WHERE country='ZZ'")
+    .prepare(
+      "UPDATE discovery_publications SET lease_token='busy',lease_until=? WHERE country='ZZ'",
+    )
     .run(clock + 30_000);
   const busy = await exportFeed({ ...base, SOURCE_DB });
   assert.equal(busy.skipped, true);
