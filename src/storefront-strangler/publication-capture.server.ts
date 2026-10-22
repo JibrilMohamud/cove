@@ -24,15 +24,21 @@ async function digest(body: string) {
 }
 function checkedSource(db: StorefrontDB): StorefrontDB {
   function prepare(sql: string, args: unknown[] = []) {
-    if (!/^(SELECT|WITH)\s/i.test(sql.trim()) ||
-        /;\s*\S|\b(INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|ATTACH|DETACH|PRAGMA|VACUUM|users|orders|entitlements|sessions)\b/i.test(sql))
+    if (
+      !/^(SELECT|WITH)\s/i.test(sql.trim()) ||
+      /;\s*\S|\b(INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|ATTACH|DETACH|PRAGMA|VACUUM|users|orders|entitlements|sessions)\b/i.test(
+        sql,
+      )
+    )
       throw Error("capture_canonical_read_only");
     const stmt = db.prepare(sql).bind(...args);
     return {
       bind: (...next: unknown[]) => prepare(sql, next),
       all: <T>() => stmt.all<T>(),
       first: <T>() => stmt.first<T>(),
-      async run() { throw Error("capture_canonical_read_only"); },
+      async run() {
+        throw Error("capture_canonical_read_only");
+      },
     };
   }
   return {
@@ -59,14 +65,18 @@ export async function capturePublicSource(env: CaptureEnv) {
   const started = Date.now();
   const locked = await env.PUBLIC_SOURCE_DB.prepare(
     "UPDATE cove_publication_source_progress SET owner=?,lease_until=? WHERE id=1 AND lease_until<=? RETURNING cursor,expected_markets",
-  ).bind(owner, started + LEASE_MS, started).first<{ cursor: string; expected_markets: number }>();
+  )
+    .bind(owner, started + LEASE_MS, started)
+    .first<{ cursor: string; expected_markets: number }>();
   if (!locked) return { busy: true, countries: [] };
   const countries: string[] = [];
   try {
     const canonical = checkedSource(env.SOURCE_DB.withSession("first-unconstrained"));
-    const active = await canonical.prepare(
-      "SELECT country_code FROM storefront_markets WHERE market_status='active' ORDER BY country_code LIMIT 33",
-    ).all<{ country_code: string }>();
+    const active = await canonical
+      .prepare(
+        "SELECT country_code FROM storefront_markets WHERE market_status='active' ORDER BY country_code LIMIT 33",
+      )
+      .all<{ country_code: string }>();
     const markets = active.results.map((x) => x.country_code);
     if (!markets.length || markets.length > 32 || markets.some((x) => !/^[A-Z]{2}$/.test(x)))
       throw Error("capture_market_config_invalid");
@@ -83,8 +93,12 @@ export async function capturePublicSource(env: CaptureEnv) {
         canonical,
         country,
         {
-          async get() { throw Error("capture_does_not_read_serving_r2"); },
-          async put(_key, value) { body = value; },
+          async get() {
+            throw Error("capture_does_not_read_serving_r2");
+          },
+          async put(_key, value) {
+            body = value;
+          },
         },
         now,
       );
@@ -99,11 +113,15 @@ export async function capturePublicSource(env: CaptureEnv) {
          ON CONFLICT(country) DO UPDATE SET
            generation=generation+1,body=excluded.body,sha256=excluded.sha256,
            created_at=excluded.created_at,expires_at=excluded.expires_at`,
-      ).bind(country, body, sha, now, snapshot.expiresAt).run();
+      )
+        .bind(country, body, sha, now, snapshot.expiresAt)
+        .run();
       const endOfCycle = position === markets.length - 1;
       const acknowledged = await env.PUBLIC_SOURCE_DB.prepare(
         "UPDATE cove_publication_source_progress SET cursor=?,expected_markets=?,last_full_cycle_at=CASE WHEN ? THEN ? ELSE last_full_cycle_at END WHERE id=1 AND owner=? AND lease_until>?",
-      ).bind(country, markets.length, endOfCycle ? 1 : 0, now, owner, Date.now()).run();
+      )
+        .bind(country, markets.length, endOfCycle ? 1 : 0, now, owner, Date.now())
+        .run();
       if (acknowledged.meta?.changes === 0) throw Error("capture_lease_lost");
       countries.push(country);
       position = (position + 1) % markets.length;
@@ -118,12 +136,21 @@ export async function capturePublicSource(env: CaptureEnv) {
         `INSERT INTO cove_publication_source_identity(id,domain,last_synced_at)
          VALUES(1,'cove-independent-publication-source',?)
          ON CONFLICT(id) DO UPDATE SET last_synced_at=excluded.last_synced_at`,
-      ).bind(Date.now()).run();
+      )
+        .bind(Date.now())
+        .run();
     }
-    return { busy: false, countries, expected: markets.length, complete: coverage?.n === markets.length };
+    return {
+      busy: false,
+      countries,
+      expected: markets.length,
+      complete: coverage?.n === markets.length,
+    };
   } finally {
     await env.PUBLIC_SOURCE_DB.prepare(
       "UPDATE cove_publication_source_progress SET owner='',lease_until=0 WHERE id=1 AND owner=?",
-    ).bind(owner).run();
+    )
+      .bind(owner)
+      .run();
   }
 }
