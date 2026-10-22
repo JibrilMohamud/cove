@@ -1,3 +1,10 @@
+import {
+  servePreparedCatalog,
+  authorizePreparedCatalog,
+  type PrivatePresentationStore,
+} from "./prepared-catalog.server";
+import { readHomepagePresentation } from "./homepage-presentation.server";
+import type { FirstPaintD1QueryMetrics } from "../features/fore/catalog-model.server";
 import { networkCountry, resolveAnonymousHomepageContext } from "./localization-optimized.server";
 import { formatGenericStorefrontPageRecord } from "./page-record";
 import { firstPaintStorefrontShelf } from "../features/fore/search.server";
@@ -6,6 +13,8 @@ import type { CoveEnv } from "../features/fore/api.server";
 type OptimizedEnv = CoveEnv & {
   COVE_SSR_DIAGNOSTICS?: string;
   COVE_THIN_METADATA_COALESCE?: string;
+  COVE_STRANGLER_READ_MODEL?: string;
+  PRESENTATION?: PrivatePresentationStore;
 };
 
 /**
@@ -112,7 +121,7 @@ export async function serveLeanAnonymousBootstrap(
   // No cookie/account data is present. This same canonical resolver also
   // drives resolveStorefrontContext's country for anonymous visitors.
   const trustedCountry = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country;
-  const d1Metrics: { sqlDurationMs?: number; rowsRead?: number; attempts?: number } = {};
+  const d1Metrics: FirstPaintD1QueryMetrics = {};
   const contextMetrics: {
     sqlDurationMs?: number;
     rowsRead?: number;
@@ -137,27 +146,43 @@ export async function serveLeanAnonymousBootstrap(
     // rate limiter and has no effect in a live customer deployment.
     request.headers.get("x-cove-perf-no-metadata-flight") !== "1" &&
     (request.headers.get("accept-language") || "").length <= 512;
-  const flight = coalesce
-    ? anonymousMetadataFlight(
-        rawDb,
-        JSON.stringify([
-          trustedCountry,
-          countrySource,
-          env.FORE_DEFAULT_TERRITORY || "US",
-          request.headers.get("accept-language") || "",
-        ]),
-        fetchContext,
-      )
-    : { task: fetchContext(), joined: false };
-  const contextPromise = timed("context", flight.task);
-  // The read-only metadata batch now also performs the active market/locale
-  // lookup. No second dependent D1 service call is needed for anonymous SSR.
+  const model = env.COVE_STRANGLER_READ_MODEL;
+  if ((model === "1" || model === "2") && !env.PRESENTATION)
+    throw Error("Private presentation binding required");
+  // v2 loads locale/page presentation with candidates in one private R2 read.
+  // It never performs the old metadata batch, speculative reads, or a global
+  // catalog fallback. Rate admission starts concurrently with the R2 read.
+  const projection =
+    model === "2"
+      ? timed("presentation", readHomepagePresentation(env.PRESENTATION!, request, trustedCountry))
+      : null;
+  const flight = projection
+    ? { task: projection.then((p) => p.context), joined: false }
+    : coalesce
+      ? anonymousMetadataFlight(
+          rawDb,
+          JSON.stringify([
+            trustedCountry,
+            countrySource,
+            env.FORE_DEFAULT_TERRITORY || "US",
+            request.headers.get("accept-language") || "",
+          ]),
+          fetchContext,
+        )
+      : { task: fetchContext(), joined: false };
   const [context, , catalog] = await Promise.all([
-    contextPromise,
+    timed("context", flight.task),
     timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
-    // NULL currency means active-market currency is looked up in this SAME
-    // live primary D1 statement with the full retail-grant view.
-    timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics)),
+    model === "2"
+      ? projection!.then((p) =>
+          timed("catalog", authorizePreparedCatalog(rawDb, p.candidates, d1Metrics)),
+        )
+      : model === "1"
+        ? timed(
+            "catalog",
+            servePreparedCatalog(rawDb, env.PRESENTATION!, trustedCountry, Date.now(), d1Metrics),
+          )
+        : timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics)),
   ]);
   if (context.rightsCountry !== trustedCountry)
     throw new Error("Anonymous country mismatch; refuse to render a legal-rights shelf.");
@@ -215,6 +240,12 @@ export async function serveLeanAnonymousBootstrap(
             : []),
           ...(d1Metrics.attempts !== undefined
             ? [`cove_catalog_attempts;desc="${Math.round(d1Metrics.attempts)}"`]
+            : []),
+          ...(env.COVE_SSR_DIAGNOSTICS === "1" && d1Metrics.servedByRegion
+            ? [`cove_catalog_region;desc="${d1Metrics.servedByRegion}"`]
+            : []),
+          ...(env.COVE_SSR_DIAGNOSTICS === "1" && d1Metrics.servedByPrimary !== undefined
+            ? [`cove_catalog_primary;desc="${Number(d1Metrics.servedByPrimary)}"`]
             : []),
         ].join(", "),
       },

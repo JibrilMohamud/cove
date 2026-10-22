@@ -14,6 +14,8 @@ import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap"
 import { renderStranglerStorefront } from "./render";
 import { bootstrapFailureKind } from "./failure";
 import { syntheticBenchmarkClient } from "./synthetic-client";
+import { readHomepagePresentation } from "./homepage-presentation.server";
+import type { PrivatePresentationStore } from "./prepared-catalog.server";
 
 /** Build-isolated serving boundary. No auth, orders, reader or background code.
  * Existing domain logic is reused through type-only references. This pilot is
@@ -27,6 +29,8 @@ export type StorefrontStranglerEnv = CoveEnv & {
   COVE_FAST_RELAY_KEY?: string;
   COVE_SSR_STAGING_GATE_KEY?: string;
   COVE_INTERNAL_CORE_STAGE_GATE_KEY?: string;
+  COVE_STRANGLER_READ_MODEL?: string;
+  PRESENTATION?: PrivatePresentationStore;
   CORE: { fetch(request: Request): Promise<Response> };
 };
 
@@ -169,12 +173,17 @@ export default {
       const url = new URL(request.url);
       const diagnostic = url.pathname === "/__cove_perf/bootstrap" && !url.search;
       const transportControl = url.pathname === "/__cove_perf/transport" && !url.search;
+      const presentationControl =
+        syntheticEvaluation && url.pathname === "/__cove_perf/presentation" && !url.search;
       // Authenticated transport control intentionally bypasses D1 and R2.
       // It establishes a same-gateway transport/runtime floor, not a claim
       // that the residual latency is all network time.
       if (
         request.method !== "GET" ||
-        (!diagnostic && !transportControl && (url.pathname !== "/" || url.search))
+        (!diagnostic &&
+          !transportControl &&
+          !presentationControl &&
+          (url.pathname !== "/" || url.search))
       )
         return await delegate();
       if (transportControl)
@@ -213,13 +222,40 @@ export default {
       // Any cookie/identity hint uses the established application; preferences
       // and account state cannot leak into an anonymous response.
       if (!canUseLeanAnonymousBootstrap(bootstrapRequest, env)) return await delegate();
+      if (presentationControl) {
+        const started = performance.now();
+        if (!env.PRESENTATION) throw Error("Private presentation binding required");
+        const snapshot = await readHomepagePresentation(
+          env.PRESENTATION,
+          bootstrapRequest,
+          headers.get("x-cove-client-country")!,
+        );
+        return finish(
+          new Response(
+            JSON.stringify({
+              country: snapshot.candidates.country,
+              candidates: snapshot.candidates.productIds.length,
+            }),
+            {
+              headers: {
+                "content-type": "application/json",
+                "server-timing": `cove_presentation;dur=${(performance.now() - started).toFixed(1)}`,
+              },
+            },
+          ),
+        );
+      }
       failurePhase = "bootstrap";
       // The current main-branch canonical bootstrap has a two-argument API.
       // Preserve it unchanged; all failures remain fail-closed and classified.
       // No presentation cache or independent authorizer is activated here.
       // Main's authoritative live territorial-rights bootstrap remains unchanged.
-      const bootstrapEnv =
+      let bootstrapEnv =
         productionAcceptance || customerGateway ? { ...env, DB: readOnlyStageD1(env.DB) } : env;
+      // Matched ABBA experiment: only the bearer-protected synthetic Worker
+      // can select the canonical control. No client-controlled legal bypass.
+      if (syntheticEvaluation && request.headers.get("x-cove-perf-serving-model") === "canonical")
+        bootstrapEnv = { ...bootstrapEnv, COVE_STRANGLER_READ_MODEL: "0" };
       const response = await serveLeanAnonymousBootstrap(
         bootstrapRequest,
         bootstrapEnv,

@@ -1,0 +1,28 @@
+# Dedicated literary inference domain candidate — STAGING ONLY.
+# Never bind CONTENT_DB to cove-production. Rights/product/job queue stay in DB.
+name = "cove-literary-budget-isolated-staging"
+main = "content-dist/worker.js"
+compatibility_date = "2026-10-09"
+workers_dev = true
+[limits]
+cpu_ms = 300_000
+[[d1_databases]]
+binding = "DB"
+database_name = "REPLACE_WITH_STAGING_PRIMARY_FIXTURE"
+database_id = "REPLACE_WITH_STAGING_PRIMARY_UUID"
+[[d1_databases]]
+binding = "CONTENT_DB"
+database_name = "REPLACE_WITH_INDEPENDENT_CONTENT_BUDGET_D1"
+database_id = "REPLACE_WITH_CONTENT_BUDGET_UUID"
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "REPLACE_WITH_PRIVATE_STAGING_R2"
+[ai]
+binding = "AI"
+[vars]
+FORE_CONTENT_PROCESSOR_ENABLED = "0"
+FORE_CONTENT_PROCESSOR_ROLE = "literary"
+FORE_CONTENT_BUDGET_MODE = "isolated"
+FORE_CONTENT_D1_ADMISSION_MAX_MS = "300"
+[triggers]
+crons = ["* * * * *"]

@@ -1,0 +1,43 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cove-literary-queue-stage",
+  "main": "content-dist/worker.js",
+  "compatibility_date": "2026-10-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cove-commercial-parity-stage-20261020",
+      "database_id": "ce0e67b7-692d-44c6-94dc-7f324e7c5421",
+    },
+    {
+      "binding": "CONTENT_DB",
+      "database_name": "cove-literary-budget-stage-20261020",
+      "database_id": "7a26c27d-966c-468a-a3ad-d06cfff68010",
+    },
+  ],
+  "r2_buckets": [
+    { "binding": "BUCKET", "bucket_name": "cove-strangler-private-presentation-stage" },
+  ],
+  "queues": {
+    "consumers": [
+      {
+        "queue": "cove-literary-preparation-stage",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_concurrency": 1,
+        "max_retries": 4,
+        "retry_delay": 60,
+        "dead_letter_queue": "cove-literary-preparation-stage-dlq",
+      },
+    ],
+  },
+  "vars": {
+    "FORE_CONTENT_PROCESSOR_ENABLED": "0",
+    "FORE_CONTENT_PREPARE_ENABLED": "0",
+    "FORE_CONTENT_PROCESSOR_ROLE": "literary-prepare",
+  },
+}

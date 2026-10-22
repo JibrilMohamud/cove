@@ -12,6 +12,11 @@ import {
   type MatchingContext,
 } from "./matching.server";
 import { resolveProduct } from "./catalog-model.server";
+import { settleLiteraryOutputReservation } from "../../lib/literary-budget-settlement";
+import {
+  reserveLiteraryBudget,
+  resolveLiteraryBudgetDb,
+} from "../../lib/literary-budget-domain.server";
 import { extractLiterarySections } from "./literary-extract.server";
 import {
   emptyLiteraryProfile,
@@ -28,6 +33,11 @@ import {
 
 export type LiteraryEnv = CoveEnv & {
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
+  FORE_LITERARY_ACTUAL_UNIT_SETTLEMENT?: string;
+  CONTENT_DB?: CoveEnv["DB"];
+  FORE_CONTENT_BUDGET_MODE?: string;
+  FORE_CONTENT_PROCESSOR_ENABLED?: string;
+  FORE_CONTENT_PROCESSOR_ROLE?: string;
 };
 type BookInput = {
   id: string;
@@ -455,13 +465,18 @@ async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
   const units = prompt.system.length + prompt.user.length + reservedOutput;
   const day = at().slice(0, 10),
     budget = Math.max(0, Math.min(100_000_000, await config(env, "daily_units", 2_000_000)));
+  // The ledger domain is selected before a new inference. Cached R2 results
+  // do not consume a second allowance; uncached reservations must be fenced.
+  const budgetDb = cached ? null : await resolveLiteraryBudgetDb(env, day);
   const reserved = cached
     ? true
-    : await env.DB.prepare(
-        `INSERT INTO literary_profile_budget(day,reserved_units,calls) SELECT ?,?,1 WHERE ?<=? ON CONFLICT(day) DO UPDATE SET reserved_units=reserved_units+excluded.reserved_units,calls=calls+1 WHERE reserved_units+excluded.reserved_units<=? RETURNING calls`,
-      )
-        .bind(day, units, units, budget, budget)
-        .first();
+    : await reserveLiteraryBudget(
+        budgetDb!,
+        day,
+        units,
+        budget,
+        env.FORE_CONTENT_BUDGET_MODE === "isolated",
+      );
   if (!reserved) throw new Error("daily_budget_exhausted");
   const raw = cached
     ? { response: await cached.text() }
@@ -483,6 +498,29 @@ async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
     await env.BUCKET.put(cacheKey, JSON.stringify(profile), {
       httpMetadata: { contentType: "application/json" },
     });
+  // The pessimistic output allowance is only a reservation. Once a real,
+  // validated response is safely stored in content-addressed R2, refund the
+  // unused characters on an opt-in basis without increasing daily_units.
+  // The R2 hit on a crash/retry prevents a second refund.
+  if (!cached && env.FORE_LITERARY_ACTUAL_UNIT_SETTLEMENT === "1") {
+    try {
+      const outputCharacters = Math.max(
+        JSON.stringify(profile).length,
+        typeof response === "string" ? response.length : JSON.stringify(response).length,
+      );
+      await settleLiteraryOutputReservation(
+        budgetDb!,
+        day,
+        prompt.system.length + prompt.user.length,
+        outputCharacters,
+        reservedOutput,
+      );
+    } catch (error) {
+      // A settlement failure must never invalidate a successfully cached
+      // inference, double-spend, or cause a retry to refund the same work.
+      console.warn("Literary unit settlement unavailable", String(error).slice(0, 140));
+    }
+  }
   const encoded = JSON.stringify(profile),
     time = at();
   const guard = `EXISTS(SELECT 1 FROM literary_profile_jobs j JOIN literary_profiles p ON p.product_id=j.product_id AND p.fingerprint=j.fingerprint WHERE j.id=? AND j.lease_token=? AND j.status='running' AND j.lease_until>?)`;
@@ -717,7 +755,18 @@ export function literaryPreparationCapacity(
 export function preferLiterarySection(turn: number) {
   return Number.isSafeInteger(turn) && ((turn % 4) + 4) % 4 === 3;
 }
-export async function runLiteraryProfileTick(env: LiteraryEnv) {
+export type LiteraryTickCaps = {
+  maxSeeds?: number;
+  maxPrepares?: number;
+  maxDeferredSections?: number;
+  maxInferences?: number;
+};
+export function boundedLiteraryTickCap(value: number | undefined, fallback: number) {
+  return Number.isSafeInteger(value) && value! >= 0 ? Math.min(fallback, value!) : fallback;
+}
+/** Explicit caps are used only by the isolated content Worker. The original
+ * scheduler receives the same unmodified limits as before. */
+export async function runLiteraryProfileTick(env: LiteraryEnv, caps: LiteraryTickCaps = {}) {
   if (!(await config(env, "enabled", 1))) return { skipped: "disabled" };
   // A catalog sweep can generate 50 new durable preparation jobs each minute.
   // Stop enumerating once that backlog is saturated; the already-seeded titles
@@ -735,7 +784,11 @@ export async function runLiteraryProfileTick(env: LiteraryEnv) {
   // Always maintain provisional metadata profiles and estimated reading
   // times for new editions. Suppress ONLY costly preparation claims while
   // overloaded, then enqueue deferred books on the next keyset sweep.
-  const seeded = await seedLiteraryProfiles(env, 50, queuedPrepares < maxQueuedPrepares);
+  const seeded = await seedLiteraryProfiles(
+    env,
+    boundedLiteraryTickCap(caps.maxSeeds, 50),
+    queuedPrepares < maxQueuedPrepares,
+  );
   const jobs = [];
   // Source preparation writes extracted EPUB sections and queues many costly
   // inference jobs. Respect the backlog instead of endlessly creating more
@@ -754,21 +807,32 @@ export async function runLiteraryProfileTick(env: LiteraryEnv) {
     1024,
     Math.min(16384, await config(env, "max_total_pending_analysis", 4096)),
   );
-  const prepares = literaryOverviewPreparationCapacity(
+  const eligiblePrepares = literaryOverviewPreparationCapacity(
     await config(env, "prepares_per_tick", 2),
     Number(analysisCounts?.overviews || 0),
     Number(analysisCounts?.total || 0),
     maxPendingOverviews,
     maxTotalPending,
   );
+  const prepares = Math.min(eligiblePrepares, boundedLiteraryTickCap(caps.maxPrepares, 4));
   for (let n = 0; n < prepares; n++) jobs.push(await processLiteraryJob(env, false, "prepare"));
   // The section lane remains independently capped; filling deferred chapters
   // must never block creation of distinct literary book overviews.
   const sectionsPending = Number(analysisCounts?.sections || 0) + prepares * 3;
   const sectionHeadroom = Math.max(0, 2048 - sectionsPending);
-  const deferredSections = await enqueueDeferredLiterarySections(env, Math.min(2, sectionHeadroom));
+  const deferredSections = await enqueueDeferredLiterarySections(
+    env,
+    Math.min(2, sectionHeadroom, boundedLiteraryTickCap(caps.maxDeferredSections, 2)),
+  );
   if (!env.AI) return { seeded, jobs, skipped: "missing_ai" };
-  const limit = Math.max(0, Math.min(4, await config(env, "jobs_per_tick", 2)));
+  const limit = Math.max(
+    0,
+    Math.min(
+      4,
+      await config(env, "jobs_per_tick", 2),
+      boundedLiteraryTickCap(caps.maxInferences, 4),
+    ),
+  );
   // Persistent alternation also works when configured to one inference per tick.
   const turn = await env.DB.prepare(
     "UPDATE literary_profile_state SET inference_turn=inference_turn+? WHERE id=1 RETURNING inference_turn",
