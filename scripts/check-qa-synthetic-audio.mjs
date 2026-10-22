@@ -26,7 +26,9 @@ function originalWave() {
   out.writeUInt32LE(samples * 2, 40);
   for (let i = 0; i < samples; i++) {
     const taper = Math.min(1, i / 400, (samples - i) / 400);
-    const value = Math.round(3500 * Math.max(0, taper) * Math.sin((i * 2 * Math.PI * 440) / sampleRate));
+    const value = Math.round(
+      3500 * Math.max(0, taper) * Math.sin((i * 2 * Math.PI * 440) / sampleRate),
+    );
     out.writeInt16LE(value, 44 + i * 2);
   }
   return out;
@@ -64,9 +66,9 @@ try {
   const api = await import(path.join(root, "api.mjs"));
   const env = localBindings(root);
   await api.handleCoveApi(new Request("https://cove.qa/api/fore/catalog"), env);
-  const product = await env.DB
-    .prepare("SELECT id FROM products WHERE source_external_id='1342'")
-    .first();
+  const product = await env.DB.prepare(
+    "SELECT id FROM products WHERE source_external_id='1342'",
+  ).first();
   assert.ok(product, "fixture must seed a known local catalog product");
   const userId = "qa_original_audio_" + randomUUID();
   const otherId = "qa_other_reader_" + randomUUID();
@@ -94,10 +96,9 @@ try {
   await assert.rejects(protectedRead(userId), /protected_audio_access_denied/);
   await assert.rejects(protectedRead(otherId), /protected_audio_access_denied/);
   const stamp = new Date().toISOString();
-  await env.DB
-    .prepare(
-      "INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,granted_at,updated_at) VALUES(?,?,?,'purchase','active','qa-original-fixture',?,?)",
-    )
+  await env.DB.prepare(
+    "INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,granted_at,updated_at) VALUES(?,?,?,'purchase','active','qa-original-fixture',?,?)",
+  )
     .bind("ent_qa_" + randomUUID(), userId, product.id, stamp, stamp)
     .run();
   assert.equal(await audio.hasAudioAccess(env.DB, userId, product.id, "US"), true);
@@ -112,8 +113,7 @@ try {
   assert.equal(partial.headers.get("content-range"), `bytes 0-63/${bytes.length}`);
   assert.deepEqual(Buffer.from(await partial.arrayBuffer()), bytes.subarray(0, 64));
   await assert.rejects(protectedRead(otherId), /protected_audio_access_denied/);
-  await env.DB
-    .prepare("UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=?")
+  await env.DB.prepare("UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=?")
     .bind(new Date().toISOString(), userId)
     .run();
   await assert.rejects(protectedRead(userId), /protected_audio_access_denied/);
