@@ -101,9 +101,21 @@ function presentationSource(source: Source, metrics: Record<string, number>) {
     const wrapped = {
       bind: (...args: unknown[]) => prepare(sql, args),
       async all<T>() {
-        const result = await raw.all<T>();
-        record(result);
-        return result;
+        try {
+          const result = await raw.all<T>();
+          record(result);
+          return result;
+        } catch (error) {
+          // Only a failed, validated read-only query may be replayed, once.
+          // Publication output is never a legal authority or a side effect.
+          // A fresh session avoids reusing a broken D1 transport.
+          if (!/\bNetwork connection lost\b/i.test(String(error))) throw error;
+          metrics.retries++;
+          const retry = source.withSession("first-unconstrained").prepare(sql).bind(...values);
+          const result = await retry.all<T>();
+          record(result);
+          return result;
+        }
       },
       async first<T>() {
         return (await wrapped.all<T>()).results[0] ?? null;
@@ -188,7 +200,7 @@ async function failed(
 export async function exportPublicPresentation(env: ExportEnv) {
   await identity(env);
   if (env.SOURCE_DB === env.DISCOVERY_DB) throw Error("publication_source_not_isolated");
-  const metrics = { statements: 0, primary: 0, replica: 0, unknown: 0, rows: 0, sqlMs: 0 };
+  const metrics = { statements: 0, primary: 0, replica: 0, unknown: 0, rows: 0, sqlMs: 0, retries: 0 };
   const source = presentationSource(env.SOURCE_DB, metrics);
   const markets = await source
     .prepare(

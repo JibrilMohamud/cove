@@ -177,23 +177,36 @@ try {
     if (cycle === 2)
       await sql("UPDATE discovery_publications SET due_at=0 WHERE status='delivered'");
     const calls = [];
-    for (let turn = 0; turn < 10; turn++) {
+    for (let turn = 0; turn < 20; turn++) {
       const exported = await invoke("/export");
       const published = await invoke("/publish");
       calls.push({ exported, published });
-      assert.ok(
-        exported.results.every((r) => r.exported),
-        JSON.stringify(exported),
-      );
-      assert.ok(
-        published.every((r) => r.published),
-        JSON.stringify(published),
-      );
+      const failedExport = exported.results.filter((r) => !r.exported);
+      const failedPublish = published.filter((r) => !r.published);
+      if (failedExport.length || failedPublish.length)
+        evidence.transientFailures = (evidence.transientFailures || 0) +
+          failedExport.length + failedPublish.length;
+      // The ledger owns bounded retries: a transient transport fault must
+      // recover through its lease/backoff, not bypass the fence in CI.
+      // Any permanent failure still fails the final all-markets gate.
       const pending = await sql(
         "SELECT COUNT(*) n FROM discovery_publications WHERE active=1 AND (status<>'delivered' OR due_at<=?)",
         [Date.now()],
       );
       if (pending.results[0].n === 0) break;
+      if (failedExport.length || failedPublish.length) {
+        const retry = await sql(
+          "SELECT MIN(lease_until) due FROM discovery_publications WHERE active=1 AND last_error<>'' AND lease_until>?",
+          [Date.now()],
+        );
+        const next = Number(retry.results[0]?.due || 0);
+        if (next > Date.now()) {
+          const delay = Math.min(45_000, next - Date.now() + 250);
+          evidence.retryWaitMs = (evidence.retryWaitMs || 0) + delay;
+          assert.ok(evidence.retryWaitMs < 150_000, "Bounded publication retry budget exceeded");
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
     }
     const rows = await sql(
       "SELECT country,generation,status,sha256,expires_at,source_metrics,published_at,last_error FROM discovery_publications WHERE active=1 ORDER BY country",

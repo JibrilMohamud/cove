@@ -92,6 +92,7 @@ try {
   ).run();
   const sourceSql = [];
   let sessions = 0;
+  let failOneRead = true;
   const SOURCE_DB = {
     ...primary.DB,
     withSession(constraint) {
@@ -102,6 +103,18 @@ try {
         prepare(sql) {
           sourceSql.push(sql);
           assert.match(sql.trim(), /^(SELECT|WITH)\b/i);
+          if (failOneRead) {
+            failOneRead = false;
+            return {
+              bind() {
+                return {
+                  async all() {
+                    throw Error("D1_ERROR: Network connection lost");
+                  },
+                };
+              },
+            };
+          }
           return primary.DB.prepare(sql);
         },
       };
@@ -188,7 +201,8 @@ try {
     JSON.stringify(ledger.prepare("SELECT country,last_error FROM discovery_publications").all()),
   );
   assert.equal(puts, 0, "source exporter cannot publish");
-  assert.equal(sessions, 1);
+  assert.equal(sessions, 2, "a single transport failure uses exactly one fresh session");
+  assert.equal(exported.source.retries, 1, "validated publication reads retry transport loss once");
   assert.ok(exported.source.statements > 4);
   assert.equal(
     exported.source.unknown,
