@@ -303,7 +303,9 @@ export async function exportPublicPresentation(
           )
           .all<{ country_code: string }>();
     const countries = markets.results.map((m) =>
-      materialized ? (m as { country: string }).country : (m as { country_code: string }).country_code,
+      materialized
+        ? (m as { country: string }).country
+        : (m as { country_code: string }).country_code,
     );
     if (materialized) {
       const progress = await source
@@ -347,7 +349,7 @@ export async function exportPublicPresentation(
             throw Error("publication_source_snapshot_missing");
           body = snapshot.body;
           expiresAt = snapshot.expires_at;
-          if (await hash(body) !== snapshot.sha256)
+          if ((await hash(body)) !== snapshot.sha256)
             throw Error("publication_source_digest_mismatch");
           await readHomepagePresentation(
             {
