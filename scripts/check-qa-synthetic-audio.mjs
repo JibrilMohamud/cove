@@ -140,15 +140,26 @@ try {
       offlineEligible: false,
     },
     narrators: [{ id: "narrator_qa", displayName: "Synthetic QA", narrationType: "synthetic" }],
-    agreements: [{
-      id: "agreement_qa", narrator_id: "narrator_qa", status: "active",
-      permittedUses: ["retail", "preview"], territories: ["WORLD"],
-    }],
-    chapters: [{
-      id: "intro", title: "Synthetic test tone", duration_ms: 500,
-      object_key: objectKey, mime_type: "audio/wav", size_bytes: bytes.length,
-      sha256: "synthetic-fixture",
-    }],
+    agreements: [
+      {
+        id: "agreement_qa",
+        narrator_id: "narrator_qa",
+        status: "active",
+        permittedUses: ["retail", "preview"],
+        territories: ["WORLD"],
+      },
+    ],
+    chapters: [
+      {
+        id: "intro",
+        title: "Synthetic test tone",
+        duration_ms: 500,
+        object_key: objectKey,
+        mime_type: "audio/wav",
+        size_bytes: bytes.length,
+        sha256: "synthetic-fixture",
+      },
+    ],
   };
   const fixtureEnv = {
     ...env,
@@ -195,7 +206,9 @@ try {
   const grantedAt = new Date().toISOString();
   await env.DB.prepare(
     "INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,granted_at,updated_at) VALUES(?,?,?,'purchase','active','qa-http-original-fixture',?,?)",
-  ).bind("ent_http_" + randomUUID(), publishedUser, product.id, grantedAt, grantedAt).run();
+  )
+    .bind("ent_http_" + randomUUID(), publishedUser, product.id, grantedAt, grantedAt)
+    .run();
   const published200 = await callTrack(publishedUser);
   assert.equal(published200.status, 200);
   assert.equal(published200.headers.get("cache-control"), "private, no-store");
@@ -207,7 +220,8 @@ try {
   assert.equal(invalidRange.status, 416);
   await assert.rejects(callTrack(otherId), /entitlement|purchase|subscription/i);
   await env.DB.prepare("UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=?")
-    .bind(new Date().toISOString(), publishedUser).run();
+    .bind(new Date().toISOString(), publishedUser)
+    .run();
   await assert.rejects(callTrack(publishedUser), /entitlement|purchase|subscription/i);
   console.log(
     "PASS: synthetic private R2 200/206, range denial, live handler rights/entitlement checks, cross-user denial, published-manifest fixture and revocation (disposable environment, not deployed browser).",
