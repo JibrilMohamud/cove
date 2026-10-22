@@ -289,12 +289,29 @@ export async function exportPublicPresentation(
       retries: 0,
     };
     const source = presentationSource(env.SOURCE_DB, metrics);
-    const markets = await source
-      .prepare(
-        "SELECT country_code FROM storefront_markets WHERE market_status='active' ORDER BY country_code LIMIT 33",
-      )
-      .all<{ country_code: string }>();
-    const countries = markets.results.map((m) => m.country_code);
+    const materialized = !stageOnly?.allowCanonicalStageFixture;
+    const markets = materialized
+      ? await source
+          .prepare(
+            "SELECT country FROM cove_publication_source_snapshots WHERE expires_at>? ORDER BY country LIMIT 33",
+          )
+          .bind(Date.now())
+          .all<{ country: string }>()
+      : await source
+          .prepare(
+            "SELECT country_code FROM storefront_markets WHERE market_status='active' ORDER BY country_code LIMIT 33",
+          )
+          .all<{ country_code: string }>();
+    const countries = markets.results.map((m) =>
+      materialized ? (m as { country: string }).country : (m as { country_code: string }).country_code,
+    );
+    if (materialized) {
+      const progress = await source
+        .prepare("SELECT expected_markets FROM cove_publication_source_progress WHERE id=1")
+        .first<{ expected_markets: number }>();
+      if (!progress || progress.expected_markets !== countries.length)
+        throw Error("publication_incomplete_source_backfill");
+    }
     if (!countries.length || countries.length > 32 || countries.some((c) => !/^[A-Z]{2}$/.test(c)))
       throw Error("publication_invalid_markets");
     await env.DISCOVERY_DB.prepare(
@@ -318,19 +335,49 @@ export async function exportPublicPresentation(
       if (!job) break;
       try {
         let body = "";
-        const summary = await produceHomepagePresentation(
-          source,
-          job.country,
-          {
-            async get() {
-              throw Error("export_does_not_read_serving_data");
+        let expiresAt = 0;
+        if (materialized) {
+          const snapshot = await source
+            .prepare(
+              "SELECT body,sha256,expires_at FROM cove_publication_source_snapshots WHERE country=?",
+            )
+            .bind(job.country)
+            .first<{ body: string; sha256: string; expires_at: number }>();
+          if (!snapshot || snapshot.expires_at <= now)
+            throw Error("publication_source_snapshot_missing");
+          body = snapshot.body;
+          expiresAt = snapshot.expires_at;
+          if (await hash(body) !== snapshot.sha256)
+            throw Error("publication_source_digest_mismatch");
+          await readHomepagePresentation(
+            {
+              async get() {
+                return {
+                  size: new TextEncoder().encode(body).length,
+                  text: async () => body,
+                };
+              },
             },
-            async put(_key, value) {
-              body = value;
+            new Request("https://publication.invalid/"),
+            job.country,
+            now,
+          );
+        } else {
+          const summary = await produceHomepagePresentation(
+            source,
+            job.country,
+            {
+              async get() {
+                throw Error("export_does_not_read_serving_data");
+              },
+              async put(_key, value) {
+                body = value;
+              },
             },
-          },
-          now,
-        );
+            now,
+          );
+          expiresAt = summary.expiresAt;
+        }
         if (!body || new TextEncoder().encode(body).length > MAX_BYTES)
           throw Error("publication_invalid_body");
         const sha = await hash(body);
@@ -344,7 +391,7 @@ export async function exportPublicPresentation(
           .bind(
             body,
             sha,
-            summary.expiresAt,
+            expiresAt,
             JSON.stringify(metrics),
             Date.now(),
             job.country,
