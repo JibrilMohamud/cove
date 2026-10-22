@@ -74,7 +74,7 @@ await build({
   external: ["node:*", "cloudflare:*"],
   logLevel: "silent",
 });
-for (const lane of ["export", "export-stage", "publish", "driver"]) {
+for (const lane of ["capture", "export", "export-stage", "publish", "driver"]) {
   await build({
     entryPoints: [`src/storefront-strangler/publication-${lane}.worker.ts`],
     outfile: `.output/strangler/publication-${lane}.mjs`,
