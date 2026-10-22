@@ -270,20 +270,27 @@ async function settleCatalog(page) {
         const covers = [...document.querySelectorAll("article.book-card img")];
         return (
           covers.length >= 6 &&
-          covers.filter((img) => img.complete && img.naturalWidth > 0).length >= 6
+          covers.filter((img) => img.complete && img.naturalWidth > 0).length >= 6 &&
+          !document.body.textContent?.includes("Finding books...")
         );
       },
       null,
       { timeout: 14000 },
     );
   } catch {
-    // The live React page can still be showing loading skeletons; never
-    // interpret a screenshot of placeholders as proof of visual divergence.
+    // Never treat an unfinished Vercel hydration/loading state as a
+    // comparable baseline. The strict visual gate below fails closed.
   }
   return page.evaluate(() => {
     const covers = [...document.querySelectorAll("article.book-card img")];
     const loaded = covers.filter((img) => img.complete && img.naturalWidth > 0).length;
-    return { count: covers.length, loaded, settled: covers.length >= 6 && loaded >= 6 };
+    const pendingCatalog = document.body.textContent?.includes("Finding books...") || false;
+    return {
+      count: covers.length,
+      loaded,
+      pendingCatalog,
+      settled: covers.length >= 6 && loaded >= 6 && !pendingCatalog,
+    };
   });
 }
 const startedAt = performance.now();
@@ -483,6 +490,15 @@ try {
     await audit.close();
   }
   save();
+  assert.ok(
+    evidence.realCatalogParity.comparableMobileState &&
+      evidence.realCatalogParity.comparableDesktopState &&
+      Number.isFinite(evidence.realCatalogParity.mismatchPercent) &&
+      evidence.realCatalogParity.mismatchPercent < 10 &&
+      Number.isFinite(evidence.realCatalogParity.desktopMismatchPercent) &&
+      evidence.realCatalogParity.desktopMismatchPercent < 10,
+    "Comparable settled mobile and desktop catalogs must each have <10% pixel mismatch",
+  );
   evidence.pass = true;
   console.log(
     "PASS bearer-gated read-only real-catalog preview",
