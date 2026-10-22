@@ -193,7 +193,7 @@ async function deployFresh(round) {
       command(["deploy", "--config", configPath]);
       break;
     } catch (error) {
-      if (!/\\[code:\\s*10007\\]/.test(String(error)) || attempt === 3) throw error;
+      if (!/\[code:\s*10007\]/.test(String(error)) || attempt === 3) throw error;
       const delayMs = 2000 * attempt;
       evidence.provisioningRetries ||= [];
       evidence.provisioningRetries.push({ round, attempt, code: 10007, delayMs });
