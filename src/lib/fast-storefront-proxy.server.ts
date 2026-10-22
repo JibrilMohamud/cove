@@ -23,7 +23,9 @@ export function eligibleFastHomepage(request: Request, env: FastStorefrontVercel
   if (env.VERCEL_ENV === "preview" && env.COVE_FAST_STOREFRONT_MODE === "preview") return true;
   if (env.VERCEL_ENV !== "production" || env.COVE_FAST_STOREFRONT_MODE !== "canary") return false;
   const percent = Number(env.COVE_FAST_STOREFRONT_PERCENT);
-  if (!Number.isInteger(percent) || percent < 1 || percent > 5) return false;
+  // Enforce release policy in code: automatic deployment can NEVER enlarge the
+  // anonymous canary above 1%, even with a misconfigured production variable.
+  if (!Number.isInteger(percent) || percent !== 1) return false;
   const client = verifiedVercelClient(request);
   if (!client) return false;
   // A stable bounded canary assigns at most 5/100 fingerprint buckets.
