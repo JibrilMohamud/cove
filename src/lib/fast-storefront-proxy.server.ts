@@ -9,11 +9,30 @@ export type FastStorefrontVercelEnv = {
   COVE_FAST_RELAY_KEY?: string;
 };
 
+/**
+ * Vercel Authentication may add its own preview deployment protection JWT
+ * before the application sees a request. This cookie grants access to the
+ * staging deployment, not to a Cove customer identity. It is never forwarded
+ * to Cloudflare and is never permitted in the production canary. Any other
+ * cookie (including a second cookie) keeps the established SSR/auth route.
+ */
+function anonymousWithOnlyPreviewProtection(request: Request, env: FastStorefrontVercelEnv) {
+  const raw = request.headers.get("cookie");
+  if (!raw) return true;
+  if (env.VERCEL_ENV !== "preview" || env.COVE_FAST_STOREFRONT_MODE !== "preview") return false;
+  const parts = raw.split(";").map((x) => x.trim());
+  return (
+    parts.length === 1 &&
+    /^_vercel_jwt=[A-Za-z0-9._~+/-]{16,8192}$/.test(parts[0]) &&
+    !request.headers.has("authorization")
+  );
+}
+
 export function eligibleFastHomepage(request: Request, env: FastStorefrontVercelEnv): boolean {
   if (request.method !== "GET" || new URL(request.url).pathname !== "/") return false;
   if (new URL(request.url).search) return false;
   if (
-    request.headers.has("cookie") ||
+    !anonymousWithOnlyPreviewProtection(request, env) ||
     request.headers.has("authorization") ||
     request.headers.has("oai-authenticated-user-id") ||
     request.headers.has("x-fore-authenticated-user-id")
