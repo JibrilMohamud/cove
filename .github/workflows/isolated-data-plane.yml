@@ -10,6 +10,7 @@ on:
       - "scripts/staging/check-publication-feed-live.mjs"
       - "infra/discovery/**"
       - "scripts/performance/isolated-data-plane-acceptance.mjs"
+      - "scripts/staging/strangler-http-transport.mjs"
       - "wrangler.*.stage.jsonc"
       - ".github/workflows/isolated-data-plane.yml"
 permissions:
