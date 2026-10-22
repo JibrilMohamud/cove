@@ -225,6 +225,12 @@ try {
   assert.ok(Number(fixture?.[0]?.results?.[0]?.n) >= 40_000);
   assert.equal(Number(fixture?.[0]?.results?.[0]?.bad), 0);
   evidence.fixtureProducts = Number(fixture[0].results[0].n);
+  // Only this dedicated synthetic D1 may be written by acceptance. A small
+  // background ingestion queue simulates independent writer/read traffic
+  // concurrently with the 100-RPS storefront; production D1 is never bound.
+  await cloudflare("POST", `/accounts/${account}/d1/database/${dbId}/query`, {
+    sql: "CREATE TABLE IF NOT EXISTS perf_ingestion_background(run_id TEXT NOT NULL, seq INTEGER NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(run_id, seq))",
+  });
   for (let i = 0; i < 3; i++) {
     await deployFresh(i + 1);
     const cold = await sample();
@@ -245,12 +251,41 @@ try {
     // independently sampled 100-RPS bottleneck; never waive the gate.
   }
   const offered = 2000;
+  const background = { offered: 40, reads: 0, writes: 0, failed: 0, maxMs: 0 };
   const inFlight = new Set();
   const results = [];
   let dropped = 0;
   let maxSchedulerLagMs = 0;
   let maxOutstanding = 0;
   const start = performance.now();
+  const syntheticRunId = String(process.env.GITHUB_RUN_ID);
+  const backgroundTasks = Array.from(
+    { length: background.offered },
+    (_, i) =>
+      new Promise((resolve) => {
+        setTimeout(async () => {
+          const began = performance.now();
+          const write = i % 2 === 0;
+          try {
+            await cloudflare("POST", `/accounts/${account}/d1/database/${dbId}/query`, {
+              sql: write
+                ? "INSERT OR IGNORE INTO perf_ingestion_background(run_id, seq, status) VALUES (?, ?, ?)"
+                : "SELECT COUNT(*) AS n FROM perf_ingestion_background WHERE run_id=?",
+              params: write
+                ? [syntheticRunId, i, "processed"]
+                : [syntheticRunId],
+            });
+            if (write) background.writes++;
+            else background.reads++;
+          } catch (error) {
+            background.failed++;
+          } finally {
+            background.maxMs = Math.max(background.maxMs, performance.now() - began);
+            resolve();
+          }
+        }, i * 500);
+      }),
+  );
   // Schedule all offered arrivals independently. A sequential await loop
   // could itself drift under runner GC and falsely count missing arrivals.
   const scheduled = Array.from(
@@ -275,7 +310,7 @@ try {
         }, 10 * i);
       }),
   );
-  await Promise.all(scheduled);
+  await Promise.all([...scheduled, ...backgroundTasks]);
   const summary = summarize(results);
   evidence.sustained = {
     targetRps: 100,
@@ -285,6 +320,7 @@ try {
     maxSchedulerLagMs,
     maxOutstanding,
     ...summary,
+    background,
   };
   // Every request returns a bounded, stage-only duration breakdown.
   // Compare Worker/D1 service wait against SQL execution and runner transport.
@@ -353,6 +389,9 @@ try {
     evidence.sustained.attribution.transportRetriedResponses <= 3,
     "Too many transient transport retries were needed",
   );
+  assert.equal(background.failed, 0, "Synthetic ingestion-like background D1 operations failed");
+  assert.equal(background.writes, 20, "Synthetic background write cadence incomplete");
+  assert.equal(background.reads, 20, "Synthetic background read cadence incomplete");
   assert.equal(dropped, 0, "Offered arrivals dropped");
   assert.equal(summary.valid, offered, "Sustained requests failed");
   assert.ok(
