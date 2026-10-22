@@ -117,8 +117,100 @@ try {
     .bind(new Date().toISOString(), userId)
     .run();
   await assert.rejects(protectedRead(userId), /protected_audio_access_denied/);
+  // Exercise the actual published commercial-audio HTTP handler, not just the
+  // storage primitive. Only the publisher/manifest lookup is fixture-backed:
+  // entitlements, risk holds, live territorial rights and R2 reads all use the
+  // real disposable Cove database. This is not a deployed-browser certification.
+  const publishedUser = "qa_http_audio_" + randomUUID();
+  const publishedId = "qa-original-published";
+  const publishedRow = {
+    edition_id: publishedId,
+    product_id: product.id,
+    title: "Cove original synthetic sound",
+    language: "en",
+    library_permitted: 0,
+    source_external_id: "qa-original-published",
+    authors_json: "[]",
+  };
+  const frozen = {
+    profile: {
+      performanceRightsBasis: "Synthetic original test recording",
+      territoryScope: { mode: "worldwide" },
+      subscriptionEligible: false,
+      offlineEligible: false,
+    },
+    narrators: [{ id: "narrator_qa", displayName: "Synthetic QA", narrationType: "synthetic" }],
+    agreements: [{
+      id: "agreement_qa", narrator_id: "narrator_qa", status: "active",
+      permittedUses: ["retail", "preview"], territories: ["WORLD"],
+    }],
+    chapters: [{
+      id: "intro", title: "Synthetic test tone", duration_ms: 500,
+      object_key: objectKey, mime_type: "audio/wav", size_bytes: bytes.length,
+      sha256: "synthetic-fixture",
+    }],
+  };
+  const fixtureEnv = {
+    ...env,
+    DB: {
+      ...env.DB,
+      prepare(sql) {
+        const plain = String(sql);
+        if (plain.includes("FROM commercial_audio_profiles cap JOIN publishing_edition_drafts")) {
+          return {
+            bind(id) {
+              assert.equal(id, publishedId);
+              return { first: async () => publishedRow };
+            },
+          };
+        }
+        if (plain.includes("FROM publishing_publications pp")) {
+          return {
+            bind(id) {
+              assert.equal(id, product.id);
+              return {
+                first: async () => ({
+                  manifest_json: JSON.stringify({ sourceSnapshot: { commercialAudio: frozen } }),
+                }),
+              };
+            },
+          };
+        }
+        if (plain.includes("FROM narration_agreement_terminations")) {
+          return { bind: () => ({ all: async () => ({ results: [] }) }) };
+        }
+        return env.DB.prepare(sql);
+      },
+    },
+  };
+  const trackPath = "/audio/ca_" + publishedId + "/tracks/intro";
+  const trackRequest = (range) =>
+    new Request("https://cove.qa/api/fore" + trackPath, {
+      headers: range ? { range } : undefined,
+    });
+  const callTrack = (reader, range) =>
+    audio.handleCommercialAudio(trackRequest(range), fixtureEnv, trackPath, reader, "US");
+  await assert.rejects(callTrack(null), /entitlement|purchase|subscription/i);
+  await assert.rejects(callTrack(publishedUser), /entitlement|purchase|subscription/i);
+  const grantedAt = new Date().toISOString();
+  await env.DB.prepare(
+    "INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,granted_at,updated_at) VALUES(?,?,?,'purchase','active','qa-http-original-fixture',?,?)",
+  ).bind("ent_http_" + randomUUID(), publishedUser, product.id, grantedAt, grantedAt).run();
+  const published200 = await callTrack(publishedUser);
+  assert.equal(published200.status, 200);
+  assert.equal(published200.headers.get("cache-control"), "private, no-store");
+  assert.deepEqual(Buffer.from(await published200.arrayBuffer()), bytes);
+  const published206 = await callTrack(publishedUser, "bytes=0-63");
+  assert.equal(published206.status, 206);
+  assert.deepEqual(Buffer.from(await published206.arrayBuffer()), bytes.subarray(0, 64));
+  const invalidRange = await callTrack(publishedUser, "bytes=999999-");
+  assert.equal(invalidRange.status, 416);
+  await assert.rejects(callTrack(otherId), /entitlement|purchase|subscription/i);
+  await env.DB.prepare("UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=?")
+    .bind(new Date().toISOString(), publishedUser).run();
+  await assert.rejects(callTrack(publishedUser), /entitlement|purchase|subscription/i);
   console.log(
-    "PASS: original PCM audio, private R2 bytes/ranges, entitlement denial, granted-only streaming and revocation (component-level fixture).",
+    "PASS: synthetic private R2 200/206, range denial, live handler rights/entitlement checks, cross-user denial, published-manifest fixture and revocation (disposable environment, not deployed browser).",
   );
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
