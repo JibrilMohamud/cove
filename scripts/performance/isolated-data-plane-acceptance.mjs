@@ -95,11 +95,10 @@ function cli(args, input) {
 async function deployStage(config) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      await deployStage(config);
+      cli(["deploy", "--config", config]);
       return;
     } catch (error) {
-      if (attempt === 3 || !/Worker does not exist|code:\s*10007/i.test(String(error)))
-        throw error;
+      if (attempt === 3 || !/Worker does not exist|code:\s*10007/i.test(String(error))) throw error;
       console.warn("Stage Worker provisioning delayed; retry " + attempt);
       await new Promise((resolve) => setTimeout(resolve, attempt * 1500));
     }
@@ -237,7 +236,7 @@ async function deploy(round) {
   assert.ok(!JSON.stringify(c).includes(production));
   const config = "wrangler.arch-campaign.jsonc";
   fs.writeFileSync(config, JSON.stringify(c));
-  cli(["deploy", "--config", config]);
+  await deployStage(config);
   const before = (await api("GET", `/accounts/${account}/workers/scripts/${name}/deployments`))
     .deployments[0].id;
   cli(["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", config], gate);
