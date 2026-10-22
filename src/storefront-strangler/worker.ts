@@ -153,7 +153,10 @@ export default {
         const headers = new Headers(response.headers);
         headers.set(
           "server-timing",
-          [headers.get("server-timing"), `cove_handler;dur=${(performance.now() - enteredAt).toFixed(1)}`]
+          [
+            headers.get("server-timing"),
+            `cove_handler;dur=${(performance.now() - enteredAt).toFixed(1)}`,
+          ]
             .filter(Boolean)
             .join(", "),
         );
