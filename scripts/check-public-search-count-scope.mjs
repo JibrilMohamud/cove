@@ -15,6 +15,20 @@ assert.match(search, /const presentationDb = replicaEligiblePresentationRead\(en
 assert.match(search, /const row = await presentationDb\s+\.prepare\(/);
 assert.match(search, /return env.DB\.prepare\(sql\)/);
 assert.match(search, /canonicalBooksByProductIds\(env.DB, ids\)/);
+// Large facet GROUP BY reads are presentation-only; the cached result is
+// never a right to show, sell, deliver, or grant a product.
+const facetScope = search.slice(
+  search.indexOf("async function d1Facets("),
+  search.indexOf("\nfunction levenshtein("),
+);
+assert.match(facetScope, /const facetDb = replicaEligiblePresentationRead\(db\)/);
+const facetQueries = facetScope.slice(
+  facetScope.indexOf("const shared = commonCandidates"),
+  facetScope.indexOf("const values = (rows:"),
+);
+assert.match(facetQueries, /await facetDb\s+\.prepare\(/);
+assert.doesNotMatch(facetQueries, /\bdb\s*\.prepare\(/);
+assert.match(facetScope, /writeCatalogCache\(\s*db,/);
 
 const result = await build({
   entryPoints: ["src/features/fore/search-counts-cache.server.ts"],

@@ -703,6 +703,10 @@ async function d1Facets(
   } catch {
     /* Cache availability never decides search availability. */
   }
+  // Ten-minute cached facets are display-only. Query misses on a replica
+  // eligible session, never replacing the primary rights checks for books,
+  // checkout, downloads, or reading.
+  const facetDb = replicaEligiblePresentationRead(db);
   // Disjunctive facets intentionally omit their own active filter so shoppers can switch/add
   // facet values without first clearing the current selection. Other filters remain applied.
   const categoryCandidate = d1FacetCandidate(input, expression, "categories");
@@ -727,7 +731,7 @@ async function d1Facets(
     (part) => part.cte === baseCte && JSON.stringify(part.binds) === JSON.stringify(base.binds),
   );
   const shared = commonCandidates
-    ? await db
+    ? await facetDb
         .prepare(
           `${baseCte.replace("candidate AS (", "candidate AS MATERIALIZED (")}
     SELECT
@@ -774,43 +778,43 @@ async function d1Facets(
         },
       ]
     : await Promise.all([
-        db
+        facetDb
           .prepare(
             `${categoryCandidate.cte} SELECT c.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_categories ec ON ec.edition_id=x.edition_id JOIN categories c ON c.id=ec.category_id GROUP BY c.name ORDER BY count DESC,c.name LIMIT 40`,
           )
           .bind(...categoryCandidate.binds)
           .all<any>(),
-        db
+        facetDb
           .prepare(
             `${languageCandidate.cte} SELECT el.language_code value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN edition_languages el ON el.edition_id=x.edition_id AND el.kind='content' GROUP BY el.language_code ORDER BY count DESC,el.language_code LIMIT 30`,
           )
           .bind(...languageCandidate.binds)
           .all<any>(),
-        db
+        facetDb
           .prepare(
             `${formatCandidate.cte} SELECT format value,COUNT(*) count FROM candidate GROUP BY format ORDER BY count DESC,value LIMIT 20`,
           )
           .bind(...formatCandidate.binds)
           .all<any>(),
-        db
+        facetDb
           .prepare(
             `${publisherCandidate.cte} SELECT publisher_name value,COUNT(*) count FROM candidate WHERE publisher_name IS NOT NULL AND publisher_name<>'' GROUP BY publisher_name ORDER BY count DESC,publisher_name LIMIT 30`,
           )
           .bind(...publisherCandidate.binds)
           .all<any>(),
-        db
+        facetDb
           .prepare(
             `${seriesCandidate.cte} SELECT s.name value,COUNT(DISTINCT x.product_id) count FROM candidate x JOIN series_memberships sm ON sm.edition_id=x.edition_id JOIN series s ON s.id=sm.series_id GROUP BY s.name ORDER BY count DESC,s.name LIMIT 30`,
           )
           .bind(...seriesCandidate.binds)
           .all<any>(),
-        db
+        facetDb
           .prepare(
             `${baseCte} SELECT availability value,COUNT(*) count FROM candidate GROUP BY availability ORDER BY count DESC,value LIMIT 10`,
           )
           .bind(...base.binds)
           .all<any>(),
-        db
+        facetDb
           .prepare(
             `${priceCandidate.cte} SELECT MIN(price_minor) min_price,MAX(price_minor) max_price,MAX(currency) currency FROM candidate`,
           )
