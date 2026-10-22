@@ -345,7 +345,7 @@ try {
     hedgedResponse.headers.get("server-timing") || "",
     /cove_metadata_hedge_won;dur=1\.0/,
   );
-    // Real-data preview must coalesce only pre-SELECT stage requests despite
+  // Real-data preview must coalesce only pre-SELECT stage requests despite
   // the strict read-only D1 proxy; a fresh incoming request must not reuse a
   // completed grant decision. This test uses the local fixture, not production.
   const productionPreviewEnv = {

@@ -169,16 +169,8 @@ export async function serveLeanAnonymousBootstrap(
   let hedgeStarted = false;
   let hedgeWon = false;
   const fetchContext = () => {
-    const query = (
-      db: typeof rawDb,
-      metrics: typeof contextMetrics,
-    ) =>
-      resolveAnonymousHomepageContext(
-        db,
-        request,
-        env.FORE_DEFAULT_TERRITORY || "US",
-        metrics,
-      );
+    const query = (db: typeof rawDb, metrics: typeof contextMetrics) =>
+      resolveAnonymousHomepageContext(db, request, env.FORE_DEFAULT_TERRITORY || "US", metrics);
     if (!hedgeEligible) return query(readMetadata(), contextMetrics);
     const replicaMetrics: typeof contextMetrics = {};
     const primaryMetrics: typeof contextMetrics = {};
@@ -188,20 +180,18 @@ export async function serveLeanAnonymousBootstrap(
       primary: false,
     }));
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const primary = new Promise<typeof replica extends Promise<infer T> ? T : never>(
-      (resolve) => {
-        timer = setTimeout(() => {
-          hedgeStarted = true;
-          resolve(
-            query(rawDb, primaryMetrics).then((context) => ({
-              context,
-              metrics: primaryMetrics,
-              primary: true,
-            })),
-          );
-        }, 200);
-      },
-    );
+    const primary = new Promise<Awaited<typeof replica>>((resolve) => {
+      timer = setTimeout(() => {
+        hedgeStarted = true;
+        resolve(
+          query(rawDb, primaryMetrics).then((context) => ({
+            context,
+            metrics: primaryMetrics,
+            primary: true,
+          })),
+        );
+      }, 200);
+    });
     return Promise.any([replica, primary])
       .then(({ context, metrics, primary }) => {
         Object.assign(contextMetrics, metrics);
