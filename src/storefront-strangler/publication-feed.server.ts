@@ -248,7 +248,7 @@ async function assertIndependentPublicationSource(source: Source) {
   try {
     identity = await source
       .withSession("first-unconstrained")
-.prepare("SELECT domain,last_synced_at FROM cove_publication_source_identity WHERE id=1")
+      .prepare("SELECT domain,last_synced_at FROM cove_publication_source_identity WHERE id=1")
       .first<{ domain: string; last_synced_at: number }>();
   } catch {
     throw Error("publication_independent_source_required");
