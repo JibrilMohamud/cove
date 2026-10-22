@@ -73,7 +73,7 @@ function cleanup() {
   return (cleanupPromise ||= (async () => {
     for (const name of [...names].reverse()) {
       try {
-        await api("DELETE", `/accounts/${account}/workers/scripts/${name}`);
+        await api("DELETE", `/accounts/${account}/workers/workers/${name}`);
       } catch {
         evidence.cleanupFailed = true;
       }
