@@ -33,6 +33,10 @@ jobs:
       - run: npm run test:rights && npm run test:commerce
       - run: npm run typecheck
       - run: node scripts/build-storefront-strangler.mjs && npm run build:content-processing
+  restore-private-core:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022'
+    uses: ./.github/workflows/strangler-stage-core-deploy.yml
+    secrets: inherit
   hosted-capacity:
     needs: correctness
     if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022'

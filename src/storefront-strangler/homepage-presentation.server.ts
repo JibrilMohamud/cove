@@ -81,7 +81,7 @@ export async function produceHomepagePresentation(
     const end = context.homepagePageRow?.ends_at;
     if (end) {
       const expires = Date.parse(
-        String(end).replace(" ", "T") + (String(end).includes("Z") ? "" : "Z"),
+        String(end).replace(" ", "T") + (/(?:Z|[+-]\d{2}:\d{2})$/i.test(String(end)) ? "" : "Z"),
       );
       if (!Number.isFinite(expires)) throw Error("Invalid presentation page expiry");
       candidates.expiresAt = Math.min(candidates.expiresAt, expires);

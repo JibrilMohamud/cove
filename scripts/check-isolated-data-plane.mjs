@@ -3,6 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { build } from "esbuild";
+import ts from "typescript";
+function config(file) {
+  const parsed = ts.parseConfigFileTextToJson(file, fs.readFileSync(file, "utf8"));
+  assert.ok(!parsed.error);
+  return parsed.config;
+}
 import { localBindings } from "./local-api.mjs";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "cove-data-plane-"));
@@ -187,12 +193,11 @@ try {
   await assert.rejects(() =>
     consume({ messages: [msg] }, { ...qe, FORE_CONTENT_PROCESSOR_ENABLED: "0" }),
   );
-  const producer = JSON.parse(fs.readFileSync("wrangler.discovery-isolated.stage.jsonc"));
+  const producer = config("wrangler.discovery-isolated.stage.jsonc");
   assert.equal(producer.d1_databases.length, 1);
   assert.equal(producer.d1_databases[0].binding, "DISCOVERY_DB");
   assert.notEqual(producer.d1_databases[0].database_id, "4bd657ac-8789-403e-a28c-93aba8d0a989");
-  const queue = JSON.parse(fs.readFileSync("wrangler.content-queue.stage.jsonc")).queues
-    .consumers[0];
+  const queue = config("wrangler.content-queue.stage.jsonc").queues.consumers[0];
   assert.equal(queue.max_concurrency, 1);
   assert.equal(queue.max_batch_size, 1);
   assert.equal(queue.max_retries, 4);
