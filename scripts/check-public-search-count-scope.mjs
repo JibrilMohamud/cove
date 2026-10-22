@@ -11,6 +11,11 @@ assert.match(search, /!input.query && !part.hasFts/);
 assert.match(search, /rightsScopedCachedPageQuery\(part, cached.ids\)/);
 assert.match(search, /retail_product_availability_rows/);
 assert.match(search, /const runIds = async/);
+assert.match(search, /const presentationDb = replicaEligiblePresentationRead\(env.DB\)/);
+assert.match(search, /const row = await presentationDb\s+\.prepare\(/);
+assert.match(search, /return env.DB\.prepare\(sql\)/);
+assert.match(search, /canonicalBooksByProductIds\(env.DB, ids\)/);
+
 const result = await build({
   entryPoints: ["src/features/fore/search-counts-cache.server.ts"],
   bundle: true,
@@ -21,6 +26,45 @@ const result = await build({
 const { publicSearchCountIdentity, presentationSearchCount } = await import(
   "data:text/javascript;base64," + Buffer.from(result.outputFiles[0].text).toString("base64")
 );
+
+const replicaBundle = await build({
+  entryPoints: ["src/features/fore/presentation-replica.server.ts"],
+  bundle: true,
+  platform: "neutral",
+  format: "esm",
+  write: false,
+});
+const { replicaEligiblePresentationRead } = await import(
+  "data:text/javascript;base64," + Buffer.from(replicaBundle.outputFiles[0].text).toString("base64")
+);
+let selected = null;
+const replica = {
+  prepare() {
+    return {
+      bind() {
+        return this;
+      },
+      async first() {
+        return { count: 17 };
+      },
+    };
+  },
+  async batch() {},
+};
+const primary = {
+  prepare() {
+    throw Error("The presentation COUNT must not hit primary when D1 Sessions exist");
+  },
+  async batch() {},
+  withSession(mode) {
+    selected = mode;
+    return replica;
+  },
+};
+assert.equal(replicaEligiblePresentationRead(primary), replica);
+assert.equal(selected, "first-unconstrained");
+const fallback = { prepare() {}, async batch() {} };
+assert.equal(replicaEligiblePresentationRead(fallback), fallback);
 
 const scope = {
   query: "",

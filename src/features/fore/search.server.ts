@@ -9,6 +9,7 @@ import { ApiError } from "./service";
 import { normalizeTerritoryCode } from "./rights.server";
 import { writeCatalogCache } from "./catalog-cache.server";
 import { presentationSearchCount } from "./search-counts-cache.server";
+import { replicaEligiblePresentationRead } from "./presentation-replica.server";
 import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
 
 type SearchEnv = {
@@ -983,6 +984,9 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
   } catch {
     // Corrupt/unavailable cache or changed rights always return to live search.
   }
+  // Count totals are non-authoritative presentation metadata. Results,
+  // book hydration and retail-rights selection still use primary env.DB.
+  const presentationDb = replicaEligiblePresentationRead(env.DB);
   let correctedQuery: string | undefined;
   let expression = await ftsExpression(env.DB, input);
   let part = candidateParts(input, expression);
@@ -1011,9 +1015,10 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
   };
   const runCount = async () => {
     const countLive = async () => {
-      const row = await env.DB.prepare(
-        `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
-      )
+      const row = await presentationDb
+        .prepare(
+          `${part.prefix} SELECT COUNT(*) count FROM ${part.from} WHERE ${part.where.join(" AND ")}`,
+        )
         .bind(...part.binds)
         .first<{ count: number }>();
       return Number(row?.count || 0);
