@@ -7,7 +7,9 @@ import {
 import { namespacedPresentationStore } from "./prepared-catalog.server";
 
 type Domain = StorefrontDB;
-type Source = Domain & { withSession(constraint: "first-unconstrained"): Domain };
+type Source = Domain & {
+  withSession(constraint: "first-unconstrained" | "first-primary"): Domain;
+};
 type ObjectMetadata = { etag: string; customMetadata?: Record<string, string> };
 type Bucket = {
   head(key: string): Promise<ObjectMetadata | null>;
@@ -70,8 +72,12 @@ async function identity(env: CommonEnv) {
 /** A source session is presentation-only. No mutation, exec, unvalidated batch,
  * primary lease or customer table is available through this adapter. Routing
  * metadata is retained; session eligibility is not called proof of a replica. */
-function presentationSource(source: Source, metrics: Record<string, number>) {
-  const session = source.withSession("first-unconstrained");
+function presentationSource(
+  source: Source,
+  metrics: Record<string, number>,
+  constraint: "first-primary" | "first-unconstrained" = "first-unconstrained",
+) {
+  const session = source.withSession(constraint);
   const statements = new WeakMap<object, object>();
   function record(value: unknown) {
     const result = value as {
@@ -112,7 +118,7 @@ function presentationSource(source: Source, metrics: Record<string, number>) {
           if (!/\bNetwork connection lost\b/i.test(String(error))) throw error;
           metrics.retries++;
           const retry = source
-            .withSession("first-unconstrained")
+            .withSession(constraint)
             .prepare(sql)
             .bind(...values);
           const result = await retry.all<T>();
@@ -247,7 +253,7 @@ async function assertIndependentPublicationSource(source: Source) {
   } | null = null;
   try {
     identity = await source
-      .withSession("first-unconstrained")
+      .withSession("first-primary")
       .prepare("SELECT domain,last_synced_at FROM cove_publication_source_identity WHERE id=1")
       .first<{ domain: string; last_synced_at: number }>();
   } catch {
@@ -288,8 +294,14 @@ export async function exportPublicPresentation(
       sqlMs: 0,
       retries: 0,
     };
-    const source = presentationSource(env.SOURCE_DB, metrics);
     const materialized = !stageOnly?.allowCanonicalStageFixture;
+    // These reads hit only the small independent source D1. Prefer its current
+    // primary to avoid replica propagation races just after capture ACK.
+    const source = presentationSource(
+      env.SOURCE_DB,
+      metrics,
+      materialized ? "first-primary" : "first-unconstrained",
+    );
     const markets = materialized
       ? await source
           .prepare(
