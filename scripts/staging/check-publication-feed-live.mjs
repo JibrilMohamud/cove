@@ -132,7 +132,7 @@ try {
     c.vars.COVE_PUBLICATION_ENABLED = "1";
     c.vars.COVE_PRESENTATION_PREFIX = prefix;
     const file = `.output/strangler/live-${lane}.jsonc`;
-    c.main = `publication-${lane}.mjs`;
+    c.main = lane === "export" ? "publication-export-stage.mjs" : `publication-${lane}.mjs`;
     fs.writeFileSync(file, JSON.stringify(c));
     cli(["deploy", "--config", file]);
   }
