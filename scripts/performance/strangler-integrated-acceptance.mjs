@@ -28,6 +28,7 @@ config.preview_urls = false;
 config.services = [];
 config.vars.FORE_PUBLIC_URL = origin;
 config.vars.COVE_THIN_METADATA_COALESCE = "1";
+config.vars.COVE_THIN_METADATA_HEDGE = "1";
 config.vars.COVE_THIN_PRIMARY_MICROBATCH = "1";
 const configString = JSON.stringify(config, null, 2);
 assert.ok(!configString.includes(prodDbId), "Production D1 must never be bound");

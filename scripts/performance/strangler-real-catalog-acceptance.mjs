@@ -36,6 +36,7 @@ config.vars.FORE_PUBLIC_URL = origin;
 // campaign is offered against production D1.
 config.vars.COVE_THIN_PRIMARY_MICROBATCH = "1";
 config.vars.COVE_THIN_METADATA_COALESCE = "1";
+config.vars.COVE_THIN_METADATA_HEDGE = "1";
 config.vars.COVE_SSR_DIAGNOSTICS = "1";
 const configString = JSON.stringify(config, null, 2);
 assert.ok(configString.includes(prodDbId), "Real-data preview must bind the expected D1");

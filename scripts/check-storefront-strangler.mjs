@@ -309,7 +309,43 @@ try {
       /cove_primary_microbatch_joined;dur=1\.0/.test(response.headers.get("server-timing") || ""),
     ),
   );
-  // Real-data preview must coalesce only pre-SELECT stage requests despite
+  // A synthetic 650ms replica service stall must be rescued by the
+  // 200ms primary presentation hedge, without ever changing live rights.
+  const slowMetadataDb = {
+    prepare(sql) {
+      return env.DB.prepare(sql);
+    },
+    batch(statements) {
+      return env.DB.batch(statements);
+    },
+    withSession(constraint) {
+      assert.equal(constraint, "first-unconstrained");
+      return {
+        prepare(sql) {
+          return env.DB.prepare(sql);
+        },
+        async batch(statements) {
+          await new Promise((resolve) => setTimeout(resolve, 650));
+          return env.DB.batch(statements);
+        },
+      };
+    },
+  };
+  const hedgedResponse = await worker.fetch(request(), {
+    ...microEnv,
+    DB: slowMetadataDb,
+    COVE_THIN_METADATA_HEDGE: "1",
+  });
+  assert.equal(hedgedResponse.status, 200);
+  assert.match(
+    hedgedResponse.headers.get("server-timing") || "",
+    /cove_metadata_hedge_started;dur=1\.0/,
+  );
+  assert.match(
+    hedgedResponse.headers.get("server-timing") || "",
+    /cove_metadata_hedge_won;dur=1\.0/,
+  );
+    // Real-data preview must coalesce only pre-SELECT stage requests despite
   // the strict read-only D1 proxy; a fresh incoming request must not reuse a
   // completed grant decision. This test uses the local fixture, not production.
   const productionPreviewEnv = {
