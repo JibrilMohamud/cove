@@ -183,8 +183,8 @@ async function sample(model = "projection", path = "/") {
     const ms = performance.now() - started;
     const transportSpan = stageTransportSpan(r);
     const serverTiming = r.headers.get("server-timing") || "";
-    const handlerMs = /(?:^|, )cove_handler;dur=(\\d+(?:\\.\\d+)?)/.exec(serverTiming);
-    const catalogMs = /(?:^|, )cove_catalog;dur=(\\d+(?:\\.\\d+)?)/.exec(serverTiming);
+    const handlerMs = /(?:^|, )cove_handler;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
+    const catalogMs = /(?:^|, )cove_catalog;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
     const body = await r.text();
     const ok =
       r.status === 200 &&
