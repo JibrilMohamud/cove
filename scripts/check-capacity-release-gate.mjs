@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { projectedRequestFailure, strictProjectionPhasePass } from "./performance/capacity-release-gate.mjs";
+import {
+  projectedRequestFailure,
+  strictProjectionPhasePass,
+} from "./performance/capacity-release-gate.mjs";
 const ok = { ok: true, ms: 799.999, status: 200 };
 assert.equal(projectedRequestFailure(ok), null);
 for (const [row, code] of [
@@ -9,7 +12,8 @@ for (const [row, code] of [
   [{ ...ok, ms: NaN }, "invalid-duration"],
   [{ ...ok, ok: false, ms: 15, status: 503 }, "invalid-response"],
   [null, "invalid-response"],
-]) assert.equal(projectedRequestFailure(row), code);
+])
+  assert.equal(projectedRequestFailure(row), code);
 const phase = {
   model: "projection",
   offered: 12000,
