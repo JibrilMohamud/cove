@@ -250,16 +250,10 @@ try {
   );
   kvObjects.set("campaign/123/real/" + key("US"), "{bad-json");
   const beforeInvalidKv = reads.length;
-  await assert.rejects(() =>
-    serve(request("US"), { ...accelerated, PRESENTATION: { ...store } }),
-  );
+  await assert.rejects(() => serve(request("US"), { ...accelerated, PRESENTATION: { ...store } }));
   assert.equal(reads.length, beforeInvalidKv, "invalid KV bytes cannot authorize retail access");
-  await assert.rejects(() =>
-    serve(request("US"), { ...accelerated, COVE_SSR_STAGING: "0" }),
-  );
-  await assert.rejects(() =>
-    serve(request("US"), { ...accelerated, PRESENTATION_KV: undefined }),
-  );
+  await assert.rejects(() => serve(request("US"), { ...accelerated, COVE_SSR_STAGING: "0" }));
+  await assert.rejects(() => serve(request("US"), { ...accelerated, PRESENTATION_KV: undefined }));
   assert.equal(
     (await serve(request("US"), { ...env, COVE_PRESENTATION_PREFIX: "campaign/123/real/" })).status,
     200,
