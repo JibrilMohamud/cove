@@ -187,9 +187,7 @@ async function failed(
   // the next refresh interval; exhausted/expired publications are discarded.
   const exhausted = job.attempts >= MAX_ATTEMPTS;
   const state = exhausted ? "delivered" : lane === "export" ? "exporting" : "ready";
-  const delay = exhausted
-    ? REFRESH_MS
-    : 15_000 * 2 ** job.attempts + (unbiasedCryptoInt(10_000));
+  const delay = exhausted ? REFRESH_MS : 15_000 * 2 ** job.attempts + unbiasedCryptoInt(10_000);
   await env.DISCOVERY_DB.prepare(
     `UPDATE discovery_publications SET status=?,
     attempts=CASE WHEN ? THEN 0 ELSE attempts END,due_at=?,lease_until=?,lease_token='',last_error=?
