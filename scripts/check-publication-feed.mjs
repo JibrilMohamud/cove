@@ -287,7 +287,38 @@ try {
     /capture_disabled/,
   );
   const capturing = { SOURCE_DB, PUBLIC_SOURCE_DB, COVE_PUBLICATION_CAPTURE_ENABLED: "1" };
-  const firstCapture = await capturePublicSource(capturing);
+  let captureLostOnce = true;
+  let captureSessions = 0;
+  const RESILIENT_CAPTURE_DB = {
+    ...SOURCE_DB,
+    withSession(constraint) {
+      captureSessions++;
+      const session = SOURCE_DB.withSession(constraint);
+      return {
+        ...session,
+        prepare(sql) {
+          const stmt = session.prepare(sql);
+          if (!captureLostOnce || !sql.includes("storefront_markets")) return stmt;
+          return {
+            ...stmt,
+            async all() {
+              if (captureLostOnce) {
+                captureLostOnce = false;
+                throw Error("D1_ERROR: Network connection lost");
+              }
+              return stmt.all();
+            },
+          };
+        },
+      };
+    },
+  };
+  const firstCapture = await capturePublicSource({
+    ...capturing,
+    SOURCE_DB: RESILIENT_CAPTURE_DB,
+  });
+  assert.equal(captureLostOnce, false, "the read-only capture retry was actually exercised");
+  assert.equal(captureSessions, 2, "failed source read reopens exactly one fresh D1 session");
   assert.equal(firstCapture.countries.length, 2);
   assert.equal(firstCapture.complete, false);
   assert.equal(
