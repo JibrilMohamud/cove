@@ -80,7 +80,7 @@ async function until(check, label, duration = 60000) {
   }
   throw Error(label + " failed or timed out on deployed QA (no synthetic shortcut)");
 }
-async function openUser(email, password) {
+function qaIngressHeaders() {
   const headers = {};
   if (q.COVE_QA_VERCEL_PROTECTION_BYPASS)
     headers["x-vercel-protection-bypass"] = q.COVE_QA_VERCEL_PROTECTION_BYPASS;
@@ -88,8 +88,11 @@ async function openUser(email, password) {
     assert.match(q.COVE_QA_STAGE_BEARER, /^[a-f0-9]{64}$/);
     headers.authorization = "Bearer " + q.COVE_QA_STAGE_BEARER;
   }
+  return headers;
+}
+async function openUser(email, password) {
   const context = await browser.newContext({
-    extraHTTPHeaders: headers,
+    extraHTTPHeaders: qaIngressHeaders(),
     locale: "en-US",
   });
   contexts.push(context);
@@ -197,7 +200,7 @@ try {
   report.buyerAuthenticated = true;
   report.outsiderAuthenticated = true;
   await verifyConfig(buyer);
-  const anonymous = await browser.newContext();
+  const anonymous = await browser.newContext({ extraHTTPHeaders: qaIngressHeaders() });
   contexts.push(anonymous);
   const guest = await anonymous.newPage();
   await guest.goto(origin.href, { waitUntil: "domcontentloaded" });
