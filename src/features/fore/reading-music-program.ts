@@ -74,12 +74,12 @@ export function planDiverseReadingMusic(
       const eligible = pool.filter((t) => {
         if (usedIds.has(t.id) || usedMasters.has(t.masterFingerprint)) return false;
         if (relax < 2 && t.workKey && usedWorks.has(t.workKey)) return false;
-        if (relax < 1 && t.workKey && recentWorks.has(t.workKey)) return false;
-        if (relax < 1 && (recentIds.has(t.id) || recentMasters.has(t.masterFingerprint)))
+        if (relax < 2 && t.workKey && recentWorks.has(t.workKey)) return false;
+        if (relax < 2 && (recentIds.has(t.id) || recentMasters.has(t.masterFingerprint)))
           return false;
         const composer = normalize(t.composer);
         const newSeconds = (composers.get(composer) ?? 0) + t.durationSeconds;
-        if (relax < 2 && (composers.get(composer) ?? 0) > 0 && newSeconds / (duration + t.durationSeconds) > maxShare)
+        if (relax < 1 && (composers.get(composer) ?? 0) > 0 && newSeconds / (duration + t.durationSeconds) > maxShare)
           return false;
         return true;
       });
