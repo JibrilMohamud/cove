@@ -20,29 +20,30 @@ jobs:
           HEAD_REF: ${{ github.head_ref || github.ref_name }}
         run: |
           node --input-type=module <<'NODE'
-          const ref = "refs/heads/" + process.env.HEAD_REF;
-          const url = new URL(`https://api.github.com/repos/${process.env.REPO}/code-scanning/alerts`);
-          url.searchParams.set("state", "open");
-          url.searchParams.set("ref", ref);
-          url.searchParams.set("per_page", "100");
-          const response = await fetch(url, {headers: {
-            authorization: "Bearer " + process.env.GH_TOKEN,
-            accept: "application/vnd.github+json",
-            "x-github-api-version": "2022-11-28",
-          }});
-          if (!response.ok) {
-            console.error("CodeQL alert read unavailable", response.status);
-            process.exitCode = 1;
-          } else {
-            const alerts = await response.json();
-            for (const alert of alerts.filter(a => a.tool?.name === "CodeQL").slice(0, 100)) {
-              const location = alert.most_recent_instance?.location || {};
-              console.log(JSON.stringify({
-                number: alert.number, rule: alert.rule?.id, severity: alert.rule?.security_severity_level,
-                path: location.path, start_line: location.start_line,
-                message: alert.most_recent_instance?.message?.text?.slice(0, 350),
-              }));
+          const refs = [null, "refs/heads/" + process.env.HEAD_REF, "refs/pull/266/head", "refs/pull/266/merge"];
+          for (const ref of refs) {
+            for (const state of ["open","dismissed","fixed"]) {
+              const url = new URL(`https://api.github.com/repos/${process.env.REPO}/code-scanning/alerts`);
+              url.searchParams.set("state", state);
+              if (ref) url.searchParams.set("ref", ref);
+              url.searchParams.set("per_page", "100");
+              const response = await fetch(url, {headers: {
+                authorization: "Bearer " + process.env.GH_TOKEN,
+                accept: "application/vnd.github+json",
+                "x-github-api-version": "2022-11-28",
+              }});
+              if (!response.ok) {console.log("SCOPED_CODEQL_READ", ref, state, response.status);continue;}
+              const alerts = await response.json();
+              console.log("SCOPED_CODEQL_COUNT", ref || "default", state, alerts.length);
+              for (const a of alerts.slice(0,30)) {
+                const loc = a.most_recent_instance?.location || {};
+                console.log(JSON.stringify({
+                  number:a.number, tool:a.tool?.name, rule:a.rule?.id,
+                  severity:a.rule?.security_severity_level, path:loc.path,
+                  line:loc.start_line, ref:a.most_recent_instance?.ref,
+                  message:a.most_recent_instance?.message?.text?.slice(0,220)
+                }));
+              }
             }
-            console.log("OPEN_CODEQL_BRANCH_ALERTS", alerts.filter(a => a.tool?.name === "CodeQL").length);
           }
           NODE
