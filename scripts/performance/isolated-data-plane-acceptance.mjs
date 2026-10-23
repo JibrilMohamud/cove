@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { randomBytes } from "node:crypto";
+import { monitorEventLoopDelay } from "node:perf_hooks";
 import { spawnSync } from "node:child_process";
 import { produceHomepagePresentation } from "../../.output/strangler/presentation.mjs";
 import {
@@ -181,6 +182,9 @@ async function sample(model = "projection", path = "/") {
     });
     const ms = performance.now() - started;
     const transportSpan = stageTransportSpan(r);
+    const serverTiming = r.headers.get("server-timing") || "";
+    const handlerMs = /(?:^|, )cove_handler;dur=(\\d+(?:\\.\\d+)?)/.exec(serverTiming);
+    const catalogMs = /(?:^|, )cove_catalog;dur=(\\d+(?:\\.\\d+)?)/.exec(serverTiming);
     const body = await r.text();
     const ok =
       r.status === 200 &&
@@ -206,7 +210,13 @@ async function sample(model = "projection", path = "/") {
           }
         : null,
       colo: r.headers.get("cf-ray")?.split("-").at(-1),
-      timing: r.headers.get("server-timing"),
+      ray: /^[a-f0-9]{12,30}(?:-[A-Z]{3})?$/.test(r.headers.get("cf-ray") || "")
+        ? r.headers.get("cf-ray")
+        : null,
+      handlerMs: handlerMs ? Number(handlerMs[1]) : null,
+      catalogServiceMs: catalogMs ? Number(catalogMs[1]) : null,
+      outsideHandlerMs: handlerMs ? Math.max(0, ms - Number(handlerMs[1])) : null,
+      timing: serverTiming,
       failure: r.headers.get("x-cove-stage-failure"),
       placement: r.headers.get("x-cove-stage-placement"),
     };
@@ -280,6 +290,8 @@ async function phase(model) {
     cancelledUnsent = 0,
     irreversibleFailure = null;
   const pendingTimers = new Map();
+  const loopDelay = monitorEventLoopDelay({ resolution: 10 });
+  loopDelay.enable();
   const stopOnViolation = (code, row) => {
     if (!failFast || model !== "projection" || irreversibleFailure) return;
     irreversibleFailure = {
@@ -377,7 +389,10 @@ async function phase(model) {
   );
   stopped = true;
   await Promise.all([bg, controlLoop]);
+  loopDelay.disable();
   const result = {
+    clientEventLoopMaxMs: loopDelay.max / 1e6,
+    clientEventLoopP99Ms: loopDelay.percentile(99) / 1e6,
     model,
     seconds: 120,
     targetRps: 100,
@@ -422,6 +437,10 @@ async function phase(model) {
           colo: row.colo,
           transportSpan: row.transportSpan,
           timing: row.timing,
+          ray: row.ray,
+          handlerMs: row.handlerMs,
+          catalogServiceMs: row.catalogServiceMs,
+          outsideHandlerMs: row.outsideHandlerMs,
           failure: row.failure,
           placement: row.placement,
           transportCode: row.transportCode,
