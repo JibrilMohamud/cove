@@ -303,11 +303,9 @@ try {
   // Audio activation is a real browser click, never a synthetic autoplay
   // exception or a HEAD-only media check.
   await buyer.click("#cove-qa-begin-audio");
-  await buyer.waitForFunction(
-    () => window.__coveQaPlayback !== "pending",
-    null,
-    { timeout: 10000 },
-  );
+  await buyer.waitForFunction(() => window.__coveQaPlayback !== "pending", null, {
+    timeout: 10000,
+  });
   assert.equal(
     await buyer.evaluate(() => window.__coveQaPlayback),
     "playing",
