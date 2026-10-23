@@ -296,6 +296,14 @@ try {
     const button = document.createElement("button");
     button.type = "button";
     button.id = "cove-qa-begin-audio";
+    button.textContent = "Start QA audio playback";
+    // Keep the input visible and clickable even when Cove's application
+    // stylesheet hides empty or unstyled buttons. Playwright must dispatch
+    // an actual user click; no synthetic autoplay exemption is acceptable.
+    button.style.cssText =
+      "position:fixed;inset:12px auto auto 12px;z-index:2147483647;" +
+      "display:block;visibility:visible;opacity:1;pointer-events:auto;" +
+      "padding:12px;background:#fff;color:#000;border:2px solid #000;";
     audio.preload = "auto";
     window.__coveQaAudio = audio;
     window.__coveQaAudioUrl = blobUrl;
