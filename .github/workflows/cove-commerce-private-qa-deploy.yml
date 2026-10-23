@@ -3,6 +3,9 @@ on:
   pull_request:
     paths:
       - "wrangler.commerce-qa.stage.toml"
+      - "scripts/staging/upload-original-commerce-qa-media.mjs"
+      - "scripts/staging/seed-original-commerce-qa-catalog.mjs"
+      - "scripts/staging/verify-commerce-private-qa-stage.mjs"
       - ".github/workflows/cove-commerce-private-qa-deploy.yml"
   workflow_dispatch:
 permissions:
@@ -58,6 +61,8 @@ jobs:
           printf "%s" "$QA_STRIPE_PUBLIC" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put STRIPE_PUBLISHABLE_KEY --config wrangler.commerce-qa.stage.toml
       - name: Generate and upload original synthetic EPUB and WAV to private QA R2
         run: node scripts/staging/upload-original-commerce-qa-media.mjs
+      - name: Seed idempotent paid synthetic ebook and US rights into private QA D1
+        run: node scripts/staging/seed-original-commerce-qa-catalog.mjs
       - name: Preserve fixture checksums
         uses: actions/upload-artifact@v4
         with:
