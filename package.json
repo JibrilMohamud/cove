@@ -75,6 +75,7 @@
     "test:regional-epub-repair": "node scripts/check-regional-epub-asset-repair.mjs",
     "test:regional-epub-operator": "node scripts/check-regional-epub-operator.mjs",
     "test:quiet-music-inventory": "node scripts/check-quiet-music-inventory.mjs",
+    "test:quiet-reading-score": "node scripts/check-quiet-reading-score.mjs",
     "test:literary-budget-settlement": "node scripts/check-literary-budget-settlement.mjs",
     "test:literary-budget-domain": "node scripts/check-literary-budget-domain.mjs",
     "test:literary-preparation-domain": "node scripts/check-literary-preparation-domain.mjs",
