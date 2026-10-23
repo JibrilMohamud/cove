@@ -1,6 +1,20 @@
 name: isolated-data-plane
 on:
   workflow_dispatch:
+    inputs:
+      diagnostic_full:
+        description: "Collect all ABBA phases even after an irreversible failure (non-release diagnostic)"
+        type: boolean
+        required: true
+        default: false
+      placement:
+        description: "Private QA placement arm; never affects production"
+        type: choice
+        required: true
+        default: ingress-local
+        options:
+          - ingress-local
+          - primary-pinned
   pull_request:
     paths:
       - "src/storefront-strangler/**"
@@ -44,12 +58,12 @@ jobs:
       - run: npm run typecheck
       - run: node scripts/build-storefront-strangler.mjs && npm run build:content-processing
   restore-private-core:
-    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022'
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
     uses: ./.github/workflows/strangler-stage-core-deploy.yml
     secrets: inherit
   hosted-capacity:
     needs: correctness
-    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022'
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -63,11 +77,11 @@ jobs:
       COVE_STAGE_HTTP2: "1"
       # Strict mode stops when a required projection request cannot pass.
       # For archived ABBA diagnostics only, manually set this to "0".
-      COVE_CAPACITY_FAIL_FAST: "1"
+      COVE_CAPACITY_FAIL_FAST: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic_full && '0' || '1' }}
       # Dedicated isolated comparison: remove forced primary-region placement
       # to separate ingress/edge forwarding stalls from real primary D1 tails.
       # Baseline was pinned to aws:us-east-1; no production Worker is changed.
-      COVE_CAPACITY_PLACEMENT: "ingress-local"
+      COVE_CAPACITY_PLACEMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.placement || 'ingress-local' }}
     steps:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
