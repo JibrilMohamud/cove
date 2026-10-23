@@ -323,12 +323,15 @@ async function settleCatalog(page) {
           const box = img.getBoundingClientRect();
           return box.width > 0 && box.height > 0 && box.top < window.innerHeight && box.bottom > 0;
         });
+        const count = document.querySelector(".catalog-count")?.textContent || "";
+        const categoriesReady = [...document.querySelectorAll("button, summary")].some((control) =>
+          /Browse categories/i.test(control.textContent || ""),
+        );
         return (
           covers.length >= 6 &&
+          categoriesReady &&
           visible.every((img) => img.complete && img.naturalWidth > 0) &&
-          !/Finding books(?:\.{3}|…)/.test(
-            document.querySelector(".catalog-count")?.textContent || "",
-          )
+          !/(?:Finding books(?:\.{3}|…)|Catalog updating)/i.test(count)
         );
       },
       null,
@@ -346,17 +349,24 @@ async function settleCatalog(page) {
       return box.width > 0 && box.height > 0 && box.top < window.innerHeight && box.bottom > 0;
     });
     const loadedVisible = visible.filter((img) => img.complete && img.naturalWidth > 0).length;
-    const pendingCatalog =
-      /Finding books(?:\.{3}|…)/.test(
-        document.querySelector(".catalog-count")?.textContent || "",
-      ) || false;
+    const pendingCatalog = /(?:Finding books(?:\.{3}|…)|Catalog updating)/i.test(
+      document.querySelector(".catalog-count")?.textContent || "",
+    );
+    const categoriesReady = [...document.querySelectorAll("button, summary")].some((control) =>
+      /Browse categories/i.test(control.textContent || ""),
+    );
     return {
       count: covers.length,
       loaded,
       visible: visible.length,
       loadedVisible,
+      categoriesReady,
       pendingCatalog,
-      settled: covers.length >= 6 && visible.length === loadedVisible && !pendingCatalog,
+      settled:
+        covers.length >= 6 &&
+        categoriesReady &&
+        visible.length === loadedVisible &&
+        !pendingCatalog,
     };
   });
 }
@@ -565,11 +575,30 @@ try {
     ]);
     assert.equal(desktopBaselineResponse?.status(), 200);
     assert.equal(desktopStageResponse?.status(), 200);
-    const [desktopLivePaint, desktopStagePaint] = await Promise.all([
+    let [desktopLivePaint, desktopStagePaint] = await Promise.all([
       settleCatalog(desktopLive),
       settleCatalog(desktopCandidate),
     ]);
-    console.log("DESKTOP_CATALOG_PAINT", JSON.stringify({ desktopLivePaint, desktopStagePaint }));
+    // The public reference sometimes returns 200 with cards while the
+    // "Catalog updating" loading UI is still visible. Such a screenshot is
+    // not a stable design baseline. Retry only that incomplete reference;
+    // never retry, suppress, or alter an incorrect staged candidate.
+    let desktopBaselineReloads = 0;
+    while (!desktopLivePaint.settled && desktopBaselineReloads < 2) {
+      desktopBaselineReloads++;
+      console.log(
+        "DESKTOP_LIVE_BASELINE_UNSETTLED",
+        JSON.stringify({ attempt: desktopBaselineReloads, paint: desktopLivePaint }),
+      );
+      const retried = await desktopLive.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
+      assert.equal(retried?.status(), 200, "Desktop live baseline reload must return HTTP 200");
+      desktopLivePaint = await settleCatalog(desktopLive);
+    }
+    evidence.realCatalogParity.desktopBaselineReloads = desktopBaselineReloads;
+    console.log(
+      "DESKTOP_CATALOG_PAINT",
+      JSON.stringify({ desktopLivePaint, desktopStagePaint, desktopBaselineReloads }),
+    );
     const desktopBaseline = await desktopLive.screenshot({
       path: "artifacts/strangler-acceptance/live-desktop.png",
     });
