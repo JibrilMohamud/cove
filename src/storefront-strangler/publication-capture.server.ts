@@ -45,7 +45,11 @@ function checkedSource(db: CanonicalDB): StorefrontDB {
         console.warn(
           JSON.stringify({ event: "capture_source_read_retry", reason: "d1_connection_lost" }),
         );
-        return db.withSession("first-unconstrained").prepare(sql).bind(...args).all<T>();
+        return db
+          .withSession("first-unconstrained")
+          .prepare(sql)
+          .bind(...args)
+          .all<T>();
       }
     };
     return {
