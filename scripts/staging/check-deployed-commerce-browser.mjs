@@ -139,7 +139,10 @@ async function openUser(email, password) {
 }
 async function request(page, method, route, body) {
   assert.ok(
-    route.startsWith("/") && !route.startsWith("//") && !route.includes("..") && !route.includes("#"),
+    route.startsWith("/") &&
+      !route.startsWith("//") &&
+      !route.includes("..") &&
+      !route.includes("#"),
     "QA API route must be local",
   );
   // BrowserContext.request shares the actual browser cookie jar (including
