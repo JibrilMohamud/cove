@@ -31,6 +31,30 @@ function validateConfig(raw) {
   assert.equal(c.ratelimits[0].simple.limit, 180);
 }
 validateConfig(source);
+
+// The production-equivalent shadow is a distinct, unroutable service.
+// Unlike the old customer config, it is wired for the exact KV/R2 v2 model
+// that passed capacity tests, but remains certification=0 by construction.
+const shadowPath = "wrangler.storefront-strangler.production-shadow.jsonc";
+const shadowParsed = ts.parseConfigFileTextToJson(shadowPath, fs.readFileSync(shadowPath, "utf8"));
+assert.equal(shadowParsed.error, undefined);
+const shadow = shadowParsed.config;
+assert.equal(shadow.name, "cove-fast-customer-gateway-shadow");
+assert.equal(shadow.workers_dev, false);
+assert.equal(shadow.preview_urls, false);
+assert.ok(!shadow.routes && !shadow.route && !shadow.triggers);
+assert.ok(!shadow.services && !shadow.queues);
+assert.equal(shadow.vars?.COVE_STRANGLER_MODE, "customer-gateway");
+assert.equal(shadow.vars?.COVE_STRANGLER_RELEASE_CERTIFIED, "0");
+assert.equal(shadow.vars?.COVE_STRANGLER_READ_MODEL, "2");
+assert.equal(shadow.vars?.COVE_PRESENTATION_KV_ACCELERATE, "1");
+assert.equal(shadow.vars?.COVE_PRESENTATION_PREFIX, "production/current/");
+assert.equal(shadow.d1_databases?.[0]?.database_id, PROD_DB);
+assert.equal(shadow.r2_buckets?.[0]?.bucket_name, "cove-production-private-presentation");
+assert.equal(shadow.kv_namespaces?.[0]?.id, "ecf4b257ad3c47309cd4d116746966f6");
+assert.equal(shadow.vars?.COVE_FAST_RELAY_KEY, undefined);
+assert.equal(shadow.ratelimits?.[0]?.simple?.limit, 180);
+
 assert.throws(() => validateConfig(source.replace(STAGE_DB, PROD_DB)));
 assert.throws(() => validateConfig(source.replace('"workers_dev": false', '"workers_dev": true')));
 assert.throws(() => validateConfig(source.replace('"isolated-evaluation"', '"production"')));
@@ -48,6 +72,7 @@ try {
         "src/features/fore/storefront-anonymous-bootstrap.server.ts",
       render: "src/storefront-strangler/render.ts",
       "fast-country": "src/lib/fast-storefront-relay.server.ts",
+      "homepage-presentation": "src/storefront-strangler/homepage-presentation.server.ts",
     },
     bundle: true,
     platform: "node",
@@ -62,6 +87,7 @@ try {
   );
   const { renderStranglerStorefront } = await import(path.join(root, "render.js"));
   const { signFastCountryClaim } = await import(path.join(root, "fast-country.js"));
+  const { produceHomepagePresentation } = await import(path.join(root, "homepage-presentation.js"));
   let delegated = 0;
   const forwarded = [];
   const env = {
@@ -244,6 +270,29 @@ try {
   // authorize books for that region. The HMAC-verified client territory
   // must win, and the independently enforced primary D1 retail view remains.
   const relaySecret = "b".repeat(64);
+  // Synthetic production-namespaced publication. Test data comes from the
+  // fixture database, not customer production. KV holds display bytes only.
+  const publication = new Map();
+  const livePrefix = "production/current/";
+  const producerStore = {
+    async put(key, body) {
+      publication.set(livePrefix + key, body);
+    },
+  };
+  for (const market of ["US", "CA", "SA", "JP"])
+    await produceHomepagePresentation(env.DB, market, producerStore);
+  const privatePresentation = {
+    async get(key) {
+      const body = publication.get(key);
+      return body === undefined ? null : { size: Buffer.byteLength(body), text: async () => body };
+    },
+  };
+  const privateKv = {
+    async get(key, options) {
+      assert.deepEqual(options, { type: "text", cacheTtl: 30 });
+      return publication.get(key) ?? null;
+    },
+  };
   const customerEnv = {
     ...env,
     COVE_SSR_STAGING: "0",
@@ -251,6 +300,11 @@ try {
     COVE_STRANGLER_RELEASE_CERTIFIED: "1",
     COVE_STRANGLER_DATABASE_ID: PROD_DB,
     COVE_FAST_RELAY_KEY: relaySecret,
+    COVE_STRANGLER_READ_MODEL: "2",
+    COVE_PRESENTATION_KV_ACCELERATE: "1",
+    COVE_PRESENTATION_PREFIX: livePrefix,
+    PRESENTATION: privatePresentation,
+    PRESENTATION_KV: privateKv,
   };
   const relayHeaders = await signFastCountryClaim(
     {
@@ -273,6 +327,17 @@ try {
   assert.equal(liveSigned.status, 200);
   assert.equal(liveSigned.headers.get("x-cove-renderer"), "strangler-live");
   assert.match(await liveSigned.text(), /data-rights-country="CA"/);
+  // Neither an unaccelerated production gateway nor a QA namespace can be
+  // promoted by setting the release flag alone.
+  for (const bad of [
+    { COVE_STRANGLER_READ_MODEL: "0" },
+    { PRESENTATION: undefined },
+    { PRESENTATION_KV: undefined },
+    { COVE_PRESENTATION_KV_ACCELERATE: "0" },
+    { COVE_PRESENTATION_PREFIX: "campaign/stage/" },
+  ]) {
+    assert.equal((await worker.fetch(relayRequest(), { ...customerEnv, ...bad })).status, 503);
+  }
   assert.equal((await worker.fetch(relayRequest(new Headers()), customerEnv)).status, 401);
   const forgedRelay = new Headers(relayHeaders);
   forgedRelay.set("x-cove-fast-country", "US");

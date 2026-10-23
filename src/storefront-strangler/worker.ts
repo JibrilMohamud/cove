@@ -35,6 +35,10 @@ export type StorefrontStranglerEnv = CoveEnv & {
   COVE_INTERNAL_CORE_STAGE_GATE_KEY?: string;
   COVE_STRANGLER_READ_MODEL?: string;
   PRESENTATION?: PrivatePresentationStore;
+  PRESENTATION_KV?: {
+    get(key: string, options: { type: "text"; cacheTtl: number }): Promise<string | null>;
+  };
+  COVE_PRESENTATION_KV_ACCELERATE?: string;
   COVE_PRESENTATION_PREFIX?: string;
   CORE: { fetch(request: Request): Promise<Response> };
 };
@@ -115,7 +119,15 @@ export default {
       env.COVE_SSR_STAGING !== "1" &&
       env.COVE_STRANGLER_MODE === "customer-gateway" &&
       env.COVE_STRANGLER_RELEASE_CERTIFIED === "1" &&
-      env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989";
+      env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989" &&
+      // A certified deployment must use the same v2 private presentation
+      // pipeline as acceptance: defaulting to the canonical SQL fallback is
+      // NOT a certified production configuration.
+      env.COVE_STRANGLER_READ_MODEL === "2" &&
+      env.COVE_PRESENTATION_KV_ACCELERATE === "1" &&
+      typeof env.PRESENTATION?.get === "function" &&
+      typeof env.PRESENTATION_KV?.get === "function" &&
+      /^production\/[a-z0-9._-]+\/$/.test(env.COVE_PRESENTATION_PREFIX || "");
     if (
       (!customerGateway && env.COVE_SSR_STAGING !== "1") ||
       (!customerGateway && !syntheticEvaluation && !productionAcceptance)

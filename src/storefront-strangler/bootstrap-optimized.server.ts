@@ -23,6 +23,8 @@ type OptimizedEnv = CoveEnv & {
   };
   COVE_PRESENTATION_KV_ACCELERATE?: string;
   COVE_PRESENTATION_PREFIX?: string;
+  COVE_STRANGLER_MODE?: string;
+  COVE_STRANGLER_RELEASE_CERTIFIED?: string;
 };
 
 // Preserve the exact serialized JSON from this freshly authorized bootstrap.
@@ -201,8 +203,22 @@ export async function serveLeanAnonymousBootstrap(
   if (model !== undefined && !["0", "1", "2"].includes(model))
     throw Error("Unknown storefront read model");
   const kvStage = env.COVE_PRESENTATION_KV_ACCELERATE === "1";
-  if (kvStage && (env.COVE_SSR_STAGING !== "1" || model !== "2" || !env.PRESENTATION_KV))
-    throw Error("Stage presentation accelerator requires isolated KV and model v2");
+  // The same presentation accelerator is available to the strictly certified
+  // customer gateway, never to an arbitrary production or public Worker.
+  // Display bytes are untrusted: primary D1 re-authorizes every response.
+  const certifiedPublishedGateway =
+    env.COVE_SSR_STAGING !== "1" &&
+    env.COVE_STRANGLER_MODE === "customer-gateway" &&
+    env.COVE_STRANGLER_RELEASE_CERTIFIED === "1" &&
+    /^production\/[a-z0-9._-]+\/$/.test(env.COVE_PRESENTATION_PREFIX || "");
+  if (
+    kvStage &&
+    (model !== "2" ||
+      !env.PRESENTATION ||
+      !env.PRESENTATION_KV ||
+      (env.COVE_SSR_STAGING !== "1" && !certifiedPublishedGateway))
+  )
+    throw Error("Presentation accelerator requires certified KV/R2 v2 bindings");
   const presentationBinding =
     kvStage && env.PRESENTATION && env.PRESENTATION_KV
       ? stageAcceleratedPresentation(env.PRESENTATION, env.PRESENTATION_KV)

@@ -254,6 +254,33 @@ try {
   assert.equal(reads.length, beforeInvalidKv, "invalid KV bytes cannot authorize retail access");
   await assert.rejects(() => serve(request("US"), { ...accelerated, COVE_SSR_STAGING: "0" }));
   await assert.rejects(() => serve(request("US"), { ...accelerated, PRESENTATION_KV: undefined }));
+  // A production customer gateway may use private KV display bytes only when
+  // certified, versioned and still performing a fresh primary D1 rights query.
+  const prodNamespace = "production/current/";
+  objects.set(prodNamespace + key("US"), saved);
+  const production = {
+    ...accelerated,
+    COVE_SSR_STAGING: "0",
+    COVE_STRANGLER_MODE: "customer-gateway",
+    COVE_STRANGLER_RELEASE_CERTIFIED: "1",
+    COVE_PRESENTATION_PREFIX: prodNamespace,
+    PRESENTATION: { ...store },
+    PRESENTATION_KV: {
+      async get(key, options) {
+        assert.deepEqual(options, { type: "text", cacheTtl: 30 });
+        return objects.get(key) ?? null;
+      },
+    },
+  };
+  const beforeProduction = reads.length;
+  assert.equal((await serve(request("US"), production)).status, 200);
+  assert.equal(reads.length - beforeProduction, 1, "production KV cannot cache rights");
+  await assert.rejects(() =>
+    serve(request("US"), { ...production, COVE_STRANGLER_RELEASE_CERTIFIED: "0" }),
+  );
+  await assert.rejects(() =>
+    serve(request("US"), { ...production, COVE_PRESENTATION_PREFIX: "campaign/stage/" }),
+  );
   assert.equal(
     (await serve(request("US"), { ...env, COVE_PRESENTATION_PREFIX: "campaign/123/real/" })).status,
     200,
