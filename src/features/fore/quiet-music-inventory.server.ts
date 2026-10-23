@@ -116,7 +116,8 @@ export async function getQuietMusicInventory(db: CoveEnv["DB"], market = "US") {
     reviews,
     shortlist: shortlist.results,
     disclaimer:
-      "Acoustic scoring is automatically computed from complete signal evidence; it is not a legal-rights grant or a validated user-outcome probability. " +
+      "Acoustic screening is not a human focus-suitability or legal-rights approval. " +
+      "Automated acoustic labels are not validated user-outcome probabilities. " +
       "Reviewers must verify the exact master, recording and composition rights, " +
       "source revisions, attribution, quality, territory, and listening suitability.",
   };
