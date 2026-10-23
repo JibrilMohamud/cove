@@ -11,7 +11,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: cove-deployed-commerce-qa
+  group: cove-exclusive-commerce-qa-worker
   cancel-in-progress: false
 jobs:
   authenticated-commerce:
