@@ -36,8 +36,8 @@ for (const invariant of [
   'bucket_name = "cove-commerce-original-media-qa-20261022"',
   'COVE_SSR_STAGING = "1"',
   'STRIPE_LIVEMODE = "false"',
-  'workers_dev = false',
-  'preview_urls = false',
+  "workers_dev = false",
+  "preview_urls = false",
 ])
   assert.ok(src.includes(invariant), "QA environment invariant absent");
 assert.doesNotMatch(src, /^\s*(?:route|routes)\s*=/m);
