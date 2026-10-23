@@ -114,16 +114,7 @@ async function openUser(email, password) {
   const login = await request(page, "POST", "/auth/login", { login: email, password });
   // Log status only: never echo account email, password, session cookies or
   // arbitrary provider error responses into CI logs.
-  console.log("QA_AUTH_LOGIN", JSON.stringify({
-    stage: email === q.COVE_QA_BUYER_EMAIL ? "buyer" : "outsider",
-    httpStatus: login.status,
-    signedIn: login.data?.signedIn === true,
-    class: login.status >= 500 ? "server_failure" :
-      login.status === 401 ? "credentials_or_verification" :
-      login.status === 403 ? "access_denied" :
-      login.status === 429 ? "rate_limited" :
-      login.status === 200 ? "success" : "unexpected_response",
-  }));
+  console.log("QA_AUTH_LOGIN", login.status, login.data?.signedIn === true);
   assert.equal(login.status, 200, "Real Supabase password sign-in through deployed Cove failed");
   assert.equal(login.data.signedIn, true);
   assert.notEqual(login.data.mfaRequired, true, "MFA QA login requires a genuine second factor");
@@ -177,15 +168,7 @@ const billingAddress = {
 };
 async function purchase(page, productId) {
   const cart = await request(page, "GET", "/cart");
-  console.log("QA_CART_PROBE", JSON.stringify({
-    status: cart.status,
-    appHeader: cart.appHeader,
-    finalPath: cart.finalPath,
-    redirected: cart.redirected,
-    mime: cart.mime,
-    responseKeys: cart.data && typeof cart.data === "object" ?
-      Object.keys(cart.data).slice(0, 8) : [],
-  }));
+  console.log("QA_CART_PROBE", cart.status, cart.appHeader, cart.finalPath, cart.mime);
   assert.equal(cart.status, 200);
   assert.ok(
     !cart.data?.items?.length,
