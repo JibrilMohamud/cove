@@ -56,8 +56,13 @@ jobs:
           [[ "${QA_STRIPE_PUBLIC:-}" == pk_test_* ]] || { echo "::error::Missing Cove TEST publishable key"; exit 1; }
           printf "%s" "$QA_STRIPE_SECRET" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put STRIPE_SECRET_KEY --config wrangler.commerce-qa.stage.toml
           printf "%s" "$QA_STRIPE_PUBLIC" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put STRIPE_PUBLISHABLE_KEY --config wrangler.commerce-qa.stage.toml
-      - name: Optional QA publishable Auth key
-        if: ${{ env.COVE_QA_AUTH_KEY_READY == '1' }}
-        run: echo "Cove QA Auth key is installed separately; never output it."
+      - name: Generate and upload original synthetic EPUB and WAV to private QA R2
+        run: node scripts/staging/upload-original-commerce-qa-media.mjs
+      - name: Preserve fixture checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-commerce-qa-${{ github.sha }}
+          path: artifacts/deployed-commerce/original-media.json
+          retention-days: 14
       - name: Confirm worker remains non-public
         run: node scripts/staging/verify-commerce-private-qa-stage.mjs
