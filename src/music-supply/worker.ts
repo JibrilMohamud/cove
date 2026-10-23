@@ -307,7 +307,11 @@ export default {
     catch(error) {
       // No tokens, legal docs, master URLs or body content are logged.
       const code = String(error instanceof Error ? error.message : error);
-      const status = /payload|source|expired|rights_layers|quality|invalid|covered|mismatch/.test(code) ? 422 : 500;
+      const status = /not_active|not_staged|not_pending/.test(code)
+        ? 409
+        : /payload|source|expired|rights_layers|quality|invalid|covered|mismatch/.test(code)
+          ? 422
+          : 500;
       return response({ error: code.startsWith("music_") ? code : "music_processing_failed" },status);
     }
   },
