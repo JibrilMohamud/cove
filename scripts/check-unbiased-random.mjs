@@ -15,24 +15,22 @@ const { unbiasedCryptoInt } = await import(
 );
 
 for (const bound of [1, 2, 30, 10_000, 65_536, 0x1_0000_0000]) {
-  const upperLimit = Math.floor(0x1_0000_0000 / bound) * bound;
-  const values = [0, bound - 1, bound, Math.max(0, upperLimit - 1)].filter(
-    (sample) => sample < upperLimit,
-  );
+  const mask = 2 ** Math.ceil(Math.log2(bound)) - 1;
+  const values = [0, bound - 1, mask === bound - 1 ? 0xffff_ffff : 0];
   for (const sample of values) {
     const result = unbiasedCryptoInt(bound, () => sample);
     assert.ok(Number.isInteger(result) && result >= 0 && result < bound);
   }
-  if (upperLimit < 0x1_0000_0000) {
+  if (mask >= bound) {
     let draws = 0;
     const expected = bound - 1;
     assert.equal(
       unbiasedCryptoInt(bound, () => {
         draws++;
-        return draws === 1 ? upperLimit : expected;
+        return draws === 1 ? mask : expected;
       }),
       expected,
-      "Reject the nonuniform remainder before using a secure sample",
+      "Reject the high partial power-of-two bucket before accepting entropy",
     );
     assert.equal(draws, 2);
   }
