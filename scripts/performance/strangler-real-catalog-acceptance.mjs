@@ -552,7 +552,11 @@ try {
     });
     const mobileComparable = stageCatalogPaint.settled && (v2 || liveCatalogPaint.settled);
     const mismatchPercent = mobileComparable
-      ? await pixelMismatch(candidate, visualReference("mobile", baselineScreenshot), stageScreenshot)
+      ? await pixelMismatch(
+          candidate,
+          visualReference("mobile", baselineScreenshot),
+          stageScreenshot,
+        )
       : null;
     const links = async (page) =>
       page

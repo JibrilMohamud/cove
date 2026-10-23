@@ -19,8 +19,14 @@ jobs:
   protected-real-catalog-acceptance:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && (github.event.pull_request.head.ref == 'release/fast-storefront-prod-acceptance-20261021' || github.event.pull_request.head.ref == 'release/verified-geo-fast-storefront-relay-20261021' || github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022')
     runs-on: ubuntu-latest
+    # Identical pinned runtime successfully certified all six browsers on
+    # 39927023349 and 39931555965. Avoid apt-mirror stalls on Chromium too.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.0-noble
+      options: --ipc=host
     timeout-minutes: 30
     env:
+      HOME: /root
       CI: "1"
       COVE_REAL_ACCEPTANCE_V2: ${{ github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022' && '1' || '0' }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -57,6 +63,10 @@ jobs:
             # Populate this private QA-only bucket once from an independently
             # passing run. Never use current-PR screenshots as their own goldens.
             mkdir -p "$baseline/approved"
+            if ! command -v gh >/dev/null 2>&1; then
+              echo "::error::Approved reference missing from private QA R2; restore via the pinned successful Actions artifact before proceeding"
+              exit 1
+            fi
             gh run download 39922882111 -R "$GITHUB_REPOSITORY" \
               -n real-data-parity-fb265e21f31cb59fd9dfe8403eedbe1c3131aa2f \
               -D "$baseline/approved"
@@ -70,7 +80,14 @@ jobs:
           # Fail closed if the remote fixture has ever changed.
           echo "ef0214c40ec039eafb207bd96f3cf21724aa3dd12dc431899930a27e640d6b49  $baseline/live-mobile.png" | sha256sum -c -
           echo "32f02dbf2c43015b87d18cff2c10ddd2b5b35e119d55fcd8179633bc15843c73  $baseline/live-desktop.png" | sha256sum -c -
-      - run: npx playwright install --with-deps chromium
+      - name: Assert pinned Chromium is runnable (no Ubuntu apt downloads)
+        run: |
+          node --input-type=module - <<'NODE'
+          import { chromium } from "@playwright/test";
+          const b = await chromium.launch({ headless: true });
+          console.log("REAL_CATALOG_BROWSER_READY", b.version());
+          await b.close();
+          NODE
       - run: node scripts/check-storefront-strangler.mjs
       - run: node scripts/build-storefront-strangler.mjs
       - name: Read-only, bearer-gated real-data mobile and visual preview
