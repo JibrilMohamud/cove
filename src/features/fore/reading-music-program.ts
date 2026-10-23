@@ -13,6 +13,8 @@ export type ReadingTrack = {
   composer: string;
   performer: string;
   masterFingerprint: string;
+  /** Canonical composition/work identifier if known; never infer it from title. */
+  workKey?: string;
   era?: string;
   affinity?: number;
   playsLast30Days?: number;
@@ -22,6 +24,7 @@ export type ReadingProgramOptions = {
   desiredMinutes?: number;
   recentRecordingIds?: readonly string[];
   recentMasterFingerprints?: readonly string[];
+  recentWorkKeys?: readonly string[];
   maxComposerShare?: number;
 };
 
@@ -51,8 +54,10 @@ export function planDiverseReadingMusic(
   const maxShare = Math.max(0.2, Math.min(0.8, options.maxComposerShare ?? 0.3));
   const recentIds = new Set(options.recentRecordingIds ?? []);
   const recentMasters = new Set(options.recentMasterFingerprints ?? []);
+  const recentWorks = new Set(options.recentWorkKeys ?? []);
   const selected: ReadingTrack[] = [];
   const usedMasters = new Set<string>();
+  const usedWorks = new Set<string>();
   const usedIds = new Set<string>();
   const composers = new Map<string, number>();
   const pool = tracks.filter(
@@ -68,6 +73,8 @@ export function planDiverseReadingMusic(
     while (duration < target) {
       const eligible = pool.filter((t) => {
         if (usedIds.has(t.id) || usedMasters.has(t.masterFingerprint)) return false;
+        if (relax < 2 && t.workKey && usedWorks.has(t.workKey)) return false;
+        if (relax < 1 && t.workKey && recentWorks.has(t.workKey)) return false;
         if (relax < 1 && (recentIds.has(t.id) || recentMasters.has(t.masterFingerprint)))
           return false;
         const composer = normalize(t.composer);
@@ -92,6 +99,7 @@ export function planDiverseReadingMusic(
       selected.push(next);
       usedIds.add(next.id);
       usedMasters.add(next.masterFingerprint);
+      if (next.workKey) usedWorks.add(next.workKey);
       const c = normalize(next.composer);
       composers.set(c, (composers.get(c) ?? 0) + next.durationSeconds);
       duration += next.durationSeconds;
