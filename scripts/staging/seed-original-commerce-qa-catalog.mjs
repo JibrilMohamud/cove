@@ -57,7 +57,9 @@ const audioManifest = JSON.stringify({
           sha256: "synthetic-stage-tone",
         },
       ],
-      narrators: [{ id: "qa-tone", displayName: "Cove Original Synth Tone", narrationType: "synthetic" }],
+      narrators: [
+        { id: "qa-tone", displayName: "Cove Original Synth Tone", narrationType: "synthetic" },
+      ],
       agreements: [
         {
           id: "qa-original-tone-agreement",
@@ -107,4 +109,6 @@ const audio = await api("POST", "/accounts/" + account + "/d1/database/" + db + 
 assert.equal(audio[0].results?.length, 1, "Original published-audio fixture missing");
 assert.equal(audio[0].results[0].release_state, "live");
 assert.equal(audio[0].results[0].amount_minor, 100);
-console.log("PASS: original US-only, $1 test EPUB and published WAV fixtures seeded in isolated QA D1.");
+console.log(
+  "PASS: original US-only, $1 test EPUB and published WAV fixtures seeded in isolated QA D1.",
+);
