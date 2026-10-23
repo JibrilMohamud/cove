@@ -28,6 +28,10 @@ const directory = "artifacts/isolated-data-plane";
 // Only an explicit diagnostic rerun collects all phases after an irreversible
 // projected arrival failure. Neither mode may reclassify a failure as a pass.
 const failFast = process.env.COVE_CAPACITY_FAIL_FAST !== "0";
+// Compare pinned-primary execution with ingress-local execution on the SAME
+// isolated DB, offered load and strict absolute gates. Never alter production.
+const stagePlacement = process.env.COVE_CAPACITY_PLACEMENT || "primary-pinned";
+assert.ok(["primary-pinned", "ingress-local"].includes(stagePlacement));
 fs.mkdirSync(directory, { recursive: true });
 const evidence = {
   sha: process.env.GITHUB_SHA,
@@ -42,6 +46,7 @@ const evidence = {
   pass: false,
   transport: stageTransport,
   failFastEnabled: failFast,
+  stagePlacement,
 };
 const save = () => fs.writeFileSync(directory + "/results.json", JSON.stringify(evidence, null, 2));
 const names = [];
@@ -227,9 +232,12 @@ async function deploy(round) {
     workers_dev: true,
     preview_urls: false,
     services: [],
-    placement: { region: "aws:us-east-1" },
     r2_buckets: [{ binding: "PRESENTATION", bucket_name: bucket }],
   });
+  // Explicit placement can add an inter-colo hop even when the primary D1
+  // query itself is fast. Ingress-local is an isolated test arm only.
+  if (stagePlacement === "ingress-local") delete c.placement;
+  else c.placement = { region: "aws:us-east-1" };
   Object.assign(c.vars, {
     COVE_STRANGLER_READ_MODEL: "2",
     COVE_PRESENTATION_PREFIX: `campaign/${runId}/synthetic/`,
