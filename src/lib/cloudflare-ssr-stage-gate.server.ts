@@ -1,6 +1,7 @@
 type StagingEnvironment = {
   COVE_SSR_STAGING?: string;
   COVE_SSR_STAGING_GATE_KEY?: string;
+  COVE_SSR_STAGING_COMMERCE_QA?: string;
 };
 
 /**
@@ -35,8 +36,27 @@ export async function rejectUnauthenticatedStagingRequest(
   const b = new Uint8Array(received);
   for (let i = 0; i < a.length; i++) difference |= a[i] ^ b[i];
   if (difference !== 0) return new Response("Unauthorized", { status: 401, headers });
-  if (request.method !== "GET" && request.method !== "HEAD")
-    return new Response("Read-only staging", { status: 405, headers });
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    // The real checkout/reader QA uses its *own* D1, R2, TEST Stripe, and
+    // exact workers.dev hostname. Never grant writes to the read-only
+    // real-catalog, capacity, capture or production Workers.
+    const uri = new URL(request.url);
+    const allowedQaWrite =
+      env.COVE_SSR_STAGING_COMMERCE_QA === "1" &&
+      uri.hostname ===
+        "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev" &&
+      request.method === "POST" &&
+      new Set([
+        "/api/fore/auth/login",
+        "/api/fore/cart/item",
+        "/api/fore/checkout/quote",
+        "/api/fore/checkout/payment",
+        "/api/fore/delivery/epub/grant",
+        "/api/fore/stripe/webhook",
+      ]).has(uri.pathname);
+    if (!allowedQaWrite)
+      return new Response("Read-only staging", { status: 405, headers });
+  }
   return null;
 }
 
