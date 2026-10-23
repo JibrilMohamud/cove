@@ -10,7 +10,11 @@ export function bootstrapFailureKind(error: unknown): string {
   if (/read limiter is unavailable/i.test(message)) return "limiter-unavailable";
   if (/presentation unavailable|missing candidate projection/i.test(message))
     return "presentation-absent";
-  if (/invalid (?:presentation|display metadata|or expired private candidate projection)|unusable presentation snapshot/i.test(message))
+  if (
+    /invalid (?:presentation|display metadata|or expired private candidate projection)|unusable presentation snapshot/i.test(
+      message,
+    )
+  )
     return "presentation-invalid";
   if (/private presentation binding required/i.test(message)) return "presentation-binding";
   if (/Please wait a minute/i.test(message)) return "rate-limited";
