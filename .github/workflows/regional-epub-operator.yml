@@ -17,14 +17,15 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Installation can exceed 10 minutes when upstream packages are slow;
+    # the isolated checks themselves retain their original strict assertions.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+      - run: npm ci --no-audit --no-fund
       - run: npm run test:regional-epub-operator
       - run: npx prettier --check scripts/operate-regional-epub-backfill.mjs scripts/check-regional-epub-operator.mjs
       - name: Verify dry-run cannot call production
