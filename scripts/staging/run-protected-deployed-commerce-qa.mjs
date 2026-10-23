@@ -42,7 +42,9 @@ for (const invariant of [
   assert.ok(src.includes(invariant), "QA environment invariant absent");
 assert.doesNotMatch(src, /^\s*(?:route|routes)\s*=/m);
 fs.mkdirSync(".output", { recursive: true });
-const publicConfig = ".output/temporary-authenticated-qa.toml";
+// Keep this temporary config at the repository root: Wrangler resolves both
+// main and assets paths relative to its config file.
+const publicConfig = ".wrangler.commerce-qa.temporary.toml";
 fs.writeFileSync(publicConfig, src.replace("workers_dev = false", "workers_dev = true"));
 const wrangler = (args, input) => {
   const p = spawnSync(
