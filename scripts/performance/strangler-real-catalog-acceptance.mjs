@@ -43,9 +43,7 @@ if (v2) {
     { binding: "PRESENTATION", bucket_name: "cove-strangler-private-presentation-stage" },
   ];
   // Isolated experiment only; no customer gateway has this binding/flag.
-  config.kv_namespaces = [
-    { binding: "PRESENTATION_KV", id: "8245d5f2116a445d9571405b41b7c8c3" },
-  ];
+  config.kv_namespaces = [{ binding: "PRESENTATION_KV", id: "8245d5f2116a445d9571405b41b7c8c3" }];
   config.vars.COVE_PRESENTATION_KV_ACCELERATE = "1";
 }
 config.vars.COVE_SSR_DIAGNOSTICS = "1";
