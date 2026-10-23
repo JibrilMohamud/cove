@@ -1,7 +1,7 @@
 // Immutable-SHA hosted acceptance. Dedicated synthetic D1 only; no customer traffic.
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 
@@ -36,6 +36,24 @@ config.vars.FORE_PUBLIC_URL = origin;
 // the unoptimized main path. All statements remain read-only; no 100-RPS
 // campaign is offered against production D1.
 const v2 = process.env.COVE_REAL_ACCEPTANCE_V2 === "1";
+// Reviewed, immutable screenshots from the last verified visual-parity pass,
+// GitHub Actions run 39922882111 (24 matching edition cards). This pins only
+// the visual design reference; live D1 catalog/rights and real browser LCP are
+// still queried below. A mismatched/missing fixture fails closed.
+const approvedGoldenSha256 = {
+  mobile: "ef0214c40ec039eafb207bd96f3cf21724aa3dd12dc431899930a27e640d6b49",
+  desktop: "32f02dbf2c43015b87d18cff2c10ddd2b5b35e119d55fcd8179633bc15843c73",
+};
+function visualReference(kind, liveScreenshot) {
+  if (!v2) return liveScreenshot;
+  const buffer = fs.readFileSync(`artifacts/strangler-acceptance/reference/live-${kind}.png`);
+  assert.equal(
+    createHash("sha256").update(buffer).digest("hex"),
+    approvedGoldenSha256[kind],
+    "Approved frozen visual baseline changed; review and pin a new reference",
+  );
+  return buffer;
+}
 if (v2) {
   config.vars.COVE_STRANGLER_READ_MODEL = "2";
   config.vars.COVE_PRESENTATION_PREFIX = `campaign/${process.env.GITHUB_RUN_ID}/real/`;
@@ -511,7 +529,7 @@ try {
     // the live loading skeleton, but do not waive a candidate mismatch.
     // Retry ONLY an incomplete reference navigation, with a hard bound.
     let liveBaselineReloads = 0;
-    while (!liveCatalogPaint.settled && liveBaselineReloads < 2) {
+    while (!v2 && !liveCatalogPaint.settled && liveBaselineReloads < 2) {
       liveBaselineReloads++;
       console.log(
         "LIVE_BASELINE_UNSETTLED",
@@ -532,10 +550,10 @@ try {
     const stageScreenshot = await candidate.screenshot({
       path: "artifacts/strangler-acceptance/real-catalog-preview-mobile.png",
     });
-    const mismatchPercent =
-      liveCatalogPaint.settled && stageCatalogPaint.settled
-        ? await pixelMismatch(candidate, baselineScreenshot, stageScreenshot)
-        : null;
+    const mobileComparable = stageCatalogPaint.settled && (v2 || liveCatalogPaint.settled);
+    const mismatchPercent = mobileComparable
+      ? await pixelMismatch(candidate, visualReference("mobile", baselineScreenshot), stageScreenshot)
+      : null;
     const links = async (page) =>
       page
         .locator("article.book-card a[href^='/edition/']")
@@ -548,7 +566,9 @@ try {
     }));
     evidence.realCatalogParity = {
       mismatchPercent,
-      comparableMobileState: liveCatalogPaint.settled && stageCatalogPaint.settled,
+      comparableMobileState: mobileComparable,
+      visualReference: v2 ? "checksum-pinned-approved-2026-10-23" : "live-vercel",
+      liveReferenceSettled: liveCatalogPaint.settled,
       liveBaselineReloads,
       covers,
       liveEditionCount: liveLinks.length,
@@ -557,6 +577,14 @@ try {
       authenticatedCheckout: "not tested",
       protectedReader: "not tested",
     };
+    if (v2) {
+      assert.equal(stageLinks.length, 24, "Frozen visual fixture expects all 24 staged editions");
+      assert.equal(
+        evidence.realCatalogParity.matchedEditionCount,
+        stageLinks.length,
+        "Every staged real-catalog edition must remain available in the live catalog",
+      );
+    }
     console.log("REAL_CATALOG_PARITY", JSON.stringify(evidence.realCatalogParity));
     await auditCtx.close();
     const desktopContext = await audit.newContext({
@@ -584,7 +612,7 @@ try {
     // not a stable design baseline. Retry only that incomplete reference;
     // never retry, suppress, or alter an incorrect staged candidate.
     let desktopBaselineReloads = 0;
-    while (!desktopLivePaint.settled && desktopBaselineReloads < 2) {
+    while (!v2 && !desktopLivePaint.settled && desktopBaselineReloads < 2) {
       desktopBaselineReloads++;
       console.log(
         "DESKTOP_LIVE_BASELINE_UNSETTLED",
@@ -605,12 +633,16 @@ try {
     const desktopStage = await desktopCandidate.screenshot({
       path: "artifacts/strangler-acceptance/real-catalog-preview-desktop.png",
     });
-    evidence.realCatalogParity.desktopMismatchPercent =
-      desktopLivePaint.settled && desktopStagePaint.settled
-        ? await pixelMismatch(desktopCandidate, desktopBaseline, desktopStage)
-        : null;
-    evidence.realCatalogParity.comparableDesktopState =
-      desktopLivePaint.settled && desktopStagePaint.settled;
+    const desktopComparable = desktopStagePaint.settled && (v2 || desktopLivePaint.settled);
+    evidence.realCatalogParity.desktopMismatchPercent = desktopComparable
+      ? await pixelMismatch(
+          desktopCandidate,
+          visualReference("desktop", desktopBaseline),
+          desktopStage,
+        )
+      : null;
+    evidence.realCatalogParity.comparableDesktopState = desktopComparable;
+    evidence.realCatalogParity.liveDesktopReferenceSettled = desktopLivePaint.settled;
     console.log(
       "REAL_CATALOG_DESKTOP_PARITY",
       JSON.stringify({

@@ -9,6 +9,7 @@ on:
       ]
 permissions:
   contents: read
+  actions: read
 # Do not overlap read-only cold campaigns against the shared canonical D1.
 # Preserve cleanup on cancellation by letting one run finish before the next.
 concurrency:
@@ -34,6 +35,41 @@ jobs:
       # Avoid a 100MB Actions cache restore that can stall at the account
       # egress limit; preserve all cold, mobile LCP and visual assertions.
       - run: npm ci --no-audit --no-fund
+      - name: Retrieve immutable, previously approved real-catalog visual reference
+        if: env.COVE_REAL_ACCEPTANCE_V2 == '1'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          baseline="artifacts/strangler-acceptance/reference"
+          bucket="cove-strangler-private-presentation-stage"
+          prefix="ci/approved-real-catalog-visual/39922882111"
+          mkdir -p "$baseline"
+          wr() { npm exec --yes --package=wrangler@4.151.0 -- wrangler "$@"; }
+          missing=0
+          for screen in mobile desktop; do
+            if ! wr r2 object get "$bucket/$prefix/live-$screen.png" --remote --file "$baseline/live-$screen.png" >/dev/null 2>&1; then
+              missing=1
+            fi
+          done
+          if [[ "$missing" = 1 ]]; then
+            # Populate this private QA-only bucket once from an independently
+            # passing run. Never use current-PR screenshots as their own goldens.
+            mkdir -p "$baseline/approved"
+            gh run download 39922882111 -R "$GITHUB_REPOSITORY" \
+              -n real-data-parity-fb265e21f31cb59fd9dfe8403eedbe1c3131aa2f \
+              -D "$baseline/approved"
+            echo "ef0214c40ec039eafb207bd96f3cf21724aa3dd12dc431899930a27e640d6b49  $baseline/approved/live-mobile.png" | sha256sum -c -
+            echo "32f02dbf2c43015b87d18cff2c10ddd2b5b35e119d55fcd8179633bc15843c73  $baseline/approved/live-desktop.png" | sha256sum -c -
+            for screen in mobile desktop; do
+              wr r2 object put "$bucket/$prefix/live-$screen.png" --remote --file "$baseline/approved/live-$screen.png" >/dev/null
+              cp "$baseline/approved/live-$screen.png" "$baseline/live-$screen.png"
+            done
+          fi
+          # Fail closed if the remote fixture has ever changed.
+          echo "ef0214c40ec039eafb207bd96f3cf21724aa3dd12dc431899930a27e640d6b49  $baseline/live-mobile.png" | sha256sum -c -
+          echo "32f02dbf2c43015b87d18cff2c10ddd2b5b35e119d55fcd8179633bc15843c73  $baseline/live-desktop.png" | sha256sum -c -
       - run: npx playwright install --with-deps chromium
       - run: node scripts/check-storefront-strangler.mjs
       - run: node scripts/build-storefront-strangler.mjs
