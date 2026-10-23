@@ -79,7 +79,11 @@ export function planDiverseReadingMusic(
           return false;
         const composer = normalize(t.composer);
         const newSeconds = (composers.get(composer) ?? 0) + t.durationSeconds;
-        if (relax < 1 && (composers.get(composer) ?? 0) > 0 && newSeconds / (duration + t.durationSeconds) > maxShare)
+        if (
+          relax < 1 &&
+          (composers.get(composer) ?? 0) > 0 &&
+          newSeconds / (duration + t.durationSeconds) > maxShare
+        )
           return false;
         return true;
       });
@@ -91,9 +95,12 @@ export function planDiverseReadingMusic(
           const affinity = Math.max(0, Math.min(1, t.affinity ?? 0.5));
           return 0.5 * affinity + 0.35 * freshness + quietness;
         };
-        const da = priority(a), db = priority(b);
+        const da = priority(a),
+          db = priority(b);
         if (db !== da) return db - da;
-        return hash(options.sessionSeed + ":" + a.id) - hash(options.sessionSeed + ":" + b.id);
+        return (
+          hash(options.sessionSeed + ":" + a.id) - hash(options.sessionSeed + ":" + b.id)
+        );
       });
       const next = eligible[0];
       selected.push(next);
