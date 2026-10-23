@@ -52,6 +52,7 @@ export async function rejectUnauthenticatedStagingRequest(
         "/api/fore/checkout/payment",
         "/api/fore/delivery/epub/grant",
         "/api/fore/stripe/webhook",
+        "/api/fore/admin/commerce/refund",
       ]).has(uri.pathname);
     if (!allowedQaWrite) return new Response("Read-only staging", { status: 405, headers });
   }
