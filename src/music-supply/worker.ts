@@ -21,6 +21,7 @@ type D1 = {
 type R2Object = { size: number; checksums?: { sha256?: ArrayBuffer | string } };
 type R2 = {
   head(key: string): Promise<R2Object | null>;
+  get(key: string): Promise<{ body: ReadableStream; size: number } | null>;
   put(key: string, content: ReadableStream | string | Uint8Array, opts?: unknown): Promise<unknown>;
 };
 export type MusicSupplyEnv = {
@@ -226,6 +227,53 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
       ).bind(eventId, JSON.stringify({ reference: payload.reviewReference }), at, activate[1], at),
     ]);
     return response({ contractId: activate[1], status: "active" });
+  }
+
+  // The ingestion credential cannot impersonate QA. The independent audio
+  // analyst has read-only access to staged originals, never to customer media.
+  if (path === "/v1/qa/staged" && method === "GET") {
+    if (!qa) return response({ error: "music_qa_identity_required" }, 401);
+    const query = new URL(request.url).searchParams;
+    const after = query.get("after") || "";
+    if (after.length > 120 || (after && !idPattern.test(after)))
+      return response({ error: "music_invalid_cursor" }, 400);
+    const rows = (
+      await env.MUSIC_DB.prepare(
+        "SELECT m.id,m.sha256,m.bytes,m.mime,m.manifest_json FROM music_masters m" +
+          " JOIN music_contracts c ON c.id=m.contract_id" +
+          " WHERE m.status='staged' AND c.status='active' AND c.expires_at>? AND m.id>?" +
+          " ORDER BY m.id LIMIT ?",
+      )
+        .bind(now(), after, MUSIC_SUPPLY_MAX_BATCH)
+        .all<Record<string, unknown>>()
+    ).results;
+    return response({
+      items: rows,
+      nextCursor: rows.length ? String(rows[rows.length - 1].id) : after,
+    });
+  }
+  const qaMasterAudio = /^\\/v1\\/qa\\/masters\\/([a-zA-Z0-9._:-]{3,120})\\/audio$/.exec(path);
+  if (qaMasterAudio && method === "GET") {
+    if (!qa) return response({ error: "music_qa_identity_required" }, 401);
+    const r = await master(env, qaMasterAudio[1]);
+    if (!r || r.status !== "staged" || !r.storage_key)
+      return response({ error: "music_qa_master_unavailable" }, 404);
+    const c = await contract(env, r.contract_id);
+    if (!c || c.status !== "active" || Date.parse(c.expiresAt) <= Date.now())
+      return response({ error: "music_qa_master_unavailable" }, 404);
+    await requireObject(env.MUSIC_BUCKET, r.storage_key, r.bytes, r.sha256);
+    const object = await env.MUSIC_BUCKET.get(r.storage_key);
+    if (!object || object.size !== r.bytes)
+      return response({ error: "music_qa_master_unavailable" }, 404);
+    return new Response(object.body, {
+      status: 200,
+      headers: {
+        "content-type": r.mime,
+        "content-length": String(r.bytes),
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
+      },
+    });
   }
 
   if (path === "/v1/masters" && method === "POST") {
