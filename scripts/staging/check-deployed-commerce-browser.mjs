@@ -112,6 +112,18 @@ async function openUser(email, password) {
   const navigated = await page.goto(origin.href, { waitUntil: "domcontentloaded" });
   assert.equal(navigated.status(), 200, "QA preview must be browser-accessible");
   const login = await request(page, "POST", "/auth/login", { login: email, password });
+  // Log status only: never echo account email, password, session cookies or
+  // arbitrary provider error responses into CI logs.
+  console.log("QA_AUTH_LOGIN", JSON.stringify({
+    stage: email === q.COVE_QA_BUYER_EMAIL ? "buyer" : "outsider",
+    httpStatus: login.status,
+    signedIn: login.data?.signedIn === true,
+    class: login.status >= 500 ? "server_failure" :
+      login.status === 401 ? "credentials_or_verification" :
+      login.status === 403 ? "access_denied" :
+      login.status === 429 ? "rate_limited" :
+      login.status === 200 ? "success" : "unexpected_response",
+  }));
   assert.equal(login.status, 200, "Real Supabase password sign-in through deployed Cove failed");
   assert.equal(login.data.signedIn, true);
   assert.notEqual(login.data.mfaRequired, true, "MFA QA login requires a genuine second factor");
