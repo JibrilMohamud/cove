@@ -25,6 +25,15 @@ type OptimizedEnv = CoveEnv & {
   COVE_PRESENTATION_PREFIX?: string;
 };
 
+// Preserve the exact serialized JSON from this freshly authorized bootstrap.
+// The caller is in the SAME Worker isolate; consuming its own Response body
+// asynchronously adds an unnecessary stream scheduling boundary at 100 RPS.
+// Weak keys cannot outlive the internal response or authorize a new request.
+const trustedBootstrapBodies = new WeakMap<Response, string>();
+export function readTrustedLeanBootstrapJson(response: Response): string | undefined {
+  return trustedBootstrapBodies.get(response);
+}
+
 /**
  * Cloudflare Worker-only, read-only bootstrap for a *provably anonymous*
  * homepage visit. The existing all-purpose API imports payments, ingestion,
@@ -273,37 +282,37 @@ export async function serveLeanAnonymousBootstrap(
 
   timings.bootstrap = performance.now() - started;
   timings.lean = 0;
-  return new Response(
-    JSON.stringify({
-      context: { ...publicContext, availableMarkets },
-      page,
-      catalog,
-      catalogQuery: query,
-      at: Date.now(),
-    }),
-    {
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "no-store",
-        "X-Content-Type-Options": "nosniff",
-        "Server-Timing": [
-          ...Object.entries(timings).map(([name, ms]) => `cove_${name};dur=${ms.toFixed(1)}`),
-          // These are counts, not milliseconds. Expose as numeric descriptions
-          // so browser tooling never mistakes rows read for elapsed time.
-          ...(d1Metrics.rowsRead !== undefined
-            ? [`cove_catalog_rows;desc="${Math.round(d1Metrics.rowsRead)}"`]
-            : []),
-          ...(d1Metrics.attempts !== undefined
-            ? [`cove_catalog_attempts;desc="${Math.round(d1Metrics.attempts)}"`]
-            : []),
-          ...(env.COVE_SSR_DIAGNOSTICS === "1" && d1Metrics.servedByRegion
-            ? [`cove_catalog_region;desc="${d1Metrics.servedByRegion}"`]
-            : []),
-          ...(env.COVE_SSR_DIAGNOSTICS === "1" && d1Metrics.servedByPrimary !== undefined
-            ? [`cove_catalog_primary;desc="${Number(d1Metrics.servedByPrimary)}"`]
-            : []),
-        ].join(", "),
-      },
+  const serialized = JSON.stringify({
+    context: { ...publicContext, availableMarkets },
+    page,
+    catalog,
+    catalogQuery: query,
+    at: Date.now(),
+  });
+  const response = new Response(serialized, {
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+      "Server-Timing": [
+        ...Object.entries(timings).map(([name, ms]) => `cove_${name};dur=${ms.toFixed(1)}`),
+        // These are counts, not milliseconds. Expose as numeric descriptions
+        // so browser tooling never mistakes rows read for elapsed time.
+        ...(d1Metrics.rowsRead !== undefined
+          ? [`cove_catalog_rows;desc="${Math.round(d1Metrics.rowsRead)}"`]
+          : []),
+        ...(d1Metrics.attempts !== undefined
+          ? [`cove_catalog_attempts;desc="${Math.round(d1Metrics.attempts)}"`]
+          : []),
+        ...(env.COVE_SSR_DIAGNOSTICS === "1" && d1Metrics.servedByRegion
+          ? [`cove_catalog_region;desc="${d1Metrics.servedByRegion}"`]
+          : []),
+        ...(env.COVE_SSR_DIAGNOSTICS === "1" && d1Metrics.servedByPrimary !== undefined
+          ? [`cove_catalog_primary;desc="${Number(d1Metrics.servedByPrimary)}"`]
+          : []),
+      ].join(", "),
     },
-  );
+  });
+  trustedBootstrapBodies.set(response, serialized);
+  return response;
 }

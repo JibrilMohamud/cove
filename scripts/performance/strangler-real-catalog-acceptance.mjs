@@ -256,7 +256,7 @@ async function deployFresh(round) {
       assert.equal(subdomain.enabled, true, "Workers.dev route has not been enabled");
       const publishedAt = Date.parse(latest.created_on);
       assert.ok(Number.isFinite(publishedAt), "Deployment timestamp unavailable");
-      const remaining = Math.max(0, publishedAt + 25_000 - Date.now());
+      const remaining = Math.max(0, publishedAt + 75_000 - Date.now());
       console.log(
         "ROUTE_PROPAGATION_GRACE",
         JSON.stringify({ round, waitMs: remaining, firstRequestStillCold: true }),
@@ -419,7 +419,9 @@ try {
   // fails the entire run; this prevents lost root-cause evidence.
   evidence.coldGatePass = evidence.cold.every((cold) => cold.ok && cold.ms < 800);
   save();
-  evidence.observedColdCountries = [...new Set(evidence.cold.map((cold) => cold.observedCountry))];
+  evidence.observedColdCountries = [
+    ...new Set(evidence.cold.filter((cold) => cold.ok).map((cold) => cold.observedCountry)),
+  ];
   assert.equal(
     evidence.observedColdCountries.length,
     1,

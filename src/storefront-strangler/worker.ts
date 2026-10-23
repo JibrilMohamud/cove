@@ -8,6 +8,7 @@ import {
 import { applySecurityHeaders } from "../lib/security-headers";
 import {
   canUseLeanAnonymousBootstrap,
+  readTrustedLeanBootstrapJson,
   serveLeanAnonymousBootstrap,
 } from "./bootstrap-optimized.server";
 import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap";
@@ -302,7 +303,12 @@ export default {
         },
       );
       if (!response.ok) return finish(new Response(null, { status: response.status }));
-      const bootstrap = (await response.json()) as StorefrontBootstrap;
+      // This Response was assembled from the freshly checked authority result
+      // in this same isolate. Parse its identical serialized JSON directly,
+      // avoiding an extra asynchronous workerd body-stream roundtrip.
+      // Foreign/unexpected Responses still use the original body-read path.
+      const serialized = readTrustedLeanBootstrapJson(response);
+      const bootstrap = JSON.parse(serialized ?? (await response.text())) as StorefrontBootstrap;
       if (bootstrap.context.rightsCountry !== headers.get("x-cove-client-country"))
         throw new Error("Thin storefront territorial mismatch");
       if (diagnostic) {
