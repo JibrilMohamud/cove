@@ -175,7 +175,23 @@ try {
   assert.equal(result.code, 0, "Authenticated deployed browser QA did not pass");
   console.log("PASS: protected QA customer journey ran against real nonproduction Worker.");
 } finally {
-  listener?.kill("SIGTERM");
+  // Stripe CLI sometimes leaves its piped stdout/stderr open after SIGTERM,
+  // keeping Actions Node alive even after protected QA ingress is restored.
+  // Bound teardown; never leave a webhook listener on the test runner.
+  if (listener) {
+    const closed = new Promise((resolve) => {
+      if (listener.exitCode !== null) return resolve(true);
+      const deadline = setTimeout(() => resolve(false), 3000);
+      listener.once("close", () => {
+        clearTimeout(deadline);
+        resolve(true);
+      });
+    });
+    listener.kill("SIGTERM");
+    if (!(await closed)) listener.kill("SIGKILL");
+    listener.stdout?.destroy();
+    listener.stderr?.destroy();
+  }
   if (opened) {
     // Teardown also runs as a separate always() CI step in case Node aborts.
     wrangler(["deploy", "--config", "wrangler.commerce-qa.stage.toml"]);
