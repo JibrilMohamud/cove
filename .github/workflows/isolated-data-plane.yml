@@ -64,6 +64,10 @@ jobs:
       # Strict mode stops when a required projection request cannot pass.
       # For archived ABBA diagnostics only, manually set this to "0".
       COVE_CAPACITY_FAIL_FAST: "1"
+      # Dedicated isolated comparison: remove forced primary-region placement
+      # to separate ingress/edge forwarding stalls from real primary D1 tails.
+      # Baseline was pinned to aws:us-east-1; no production Worker is changed.
+      COVE_CAPACITY_PLACEMENT: "ingress-local"
     steps:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
