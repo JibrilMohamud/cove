@@ -138,32 +138,41 @@ async function openUser(email, password) {
   return page;
 }
 async function request(page, method, route, body) {
-  return page.evaluate(
-    async ({ method, route, body }) => {
-      const response = await fetch("/api/fore" + route, {
-        method,
-        credentials: "include",
-        headers: body ? { "content-type": "application/json" } : {},
-        ...(body ? { body: JSON.stringify(body) } : {}),
-      });
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = null;
-      }
-      return {
-        status: response.status,
-        data,
-        mime: response.headers.get("content-type"),
-        appHeader: response.headers.has("x-fore-request-id"),
-        finalPath: new URL(response.url).pathname,
-        redirected: response.redirected,
-      };
-    },
-    { method, route, body },
+  assert.ok(
+    route.startsWith("/") && !route.startsWith("//") && !route.includes("..") && !route.includes("#"),
+    "QA API route must be local",
   );
+  // BrowserContext.request shares the actual browser cookie jar (including
+  // Supabase session cookies), but survives page navigation or hydration.
+  // Never replay a checkout, signed payment or refund after it was dispatched.
+  const url = new URL("/api/fore" + route, origin);
+  assert.equal(url.origin, origin.origin, "QA API must remain same-origin");
+  const response = await page.context().request.fetch(url.toString(), {
+    method,
+    headers: {
+      ...qaIngressHeaders(),
+      origin: origin.origin,
+      ...(body !== undefined ? { "content-type": "application/json" } : {}),
+    },
+    ...(body !== undefined ? { data: JSON.stringify(body) } : {}),
+    maxRedirects: 0,
+    timeout: 30000,
+  });
+  const raw = await response.text();
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    data = null;
+  }
+  return {
+    status: response.status(),
+    data,
+    mime: response.headers()["content-type"] || null,
+    appHeader: Object.hasOwn(response.headers(), "x-fore-request-id"),
+    finalPath: new URL(response.url()).pathname,
+    redirected: response.status() >= 300 && response.status() < 400,
+  };
 }
 function expectDenied(out, label) {
   assert.ok([401, 403, 404].includes(out.status), label + " must deny (status " + out.status + ")");
