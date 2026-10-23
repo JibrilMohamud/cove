@@ -41,7 +41,11 @@ try {
     },
     semantics: {
       sampledSeconds: 30,
-      windows: [{ start: 0, end: 10 }, { start: 40, end: 50 }, { start: 90, end: 100 }],
+      windows: [
+        { start: 0, end: 10 },
+        { start: 40, end: 50 },
+        { start: 90, end: 100 },
+      ],
       dimensions: { vocalPresence: 0.05, arousal: 0.1 },
     },
   };
@@ -51,23 +55,42 @@ try {
   assert.equal(a.suitable, true);
   assert.equal(a.vocalEvidence, "instrumental_metadata_and_model");
   const noSemantics = assessQuietReading({ ...quiet, semantics: null }, false);
-  assert.equal(noSemantics.suitable, true, "complete instrumental DSP does not require model service");
-  assert.equal(noSemantics.evidence, "full_signal_only");
-  assert.equal(assessQuietReading({ ...quiet, semantics: null }, null).tier, "needs_vocal_evidence");
-  assert.equal(assessQuietReading(quiet, true).tier, "distracting");
   assert.equal(
-    assessQuietReading({ ...quiet, semantics: { ...quiet.semantics, dimensions: { vocalPresence: 0.75, arousal: 0.1 } } }, false).tier,
+    noSemantics.suitable,
+    true,
+    "complete instrumental DSP does not require model service",
+  );
+  assert.equal(noSemantics.evidence, "full_signal_only");
+  assert.equal(
+    assessQuietReading({ ...quiet, semantics: null }, null).tier,
+    "needs_vocal_evidence",
+  );
+  assert.equal(assessQuietReading(quiet, true).tier, "distracting");
+  const vocalsPresent = assessQuietReading(
+    {
+      ...quiet,
+      semantics: {
+        ...quiet.semantics,
+        dimensions: { vocalPresence: 0.75, arousal: 0.1 },
+      },
+    },
+    false,
+  );
+  assert.equal(
+    vocalsPresent.tier,
     "distracting",
     "semantic vocal detection vetoes inaccurate instrumental tags",
   );
-  assert.equal(
-    assessQuietReading({ ...quiet, signal: { ...quiet.signal, energy: 0.95 } }, false).tier,
-    "distracting",
+  const highEnergy = assessQuietReading(
+    { ...quiet, signal: { ...quiet.signal, energy: 0.95 } },
+    false,
   );
-  assert.equal(
-    assessQuietReading({ ...quiet, signal: { ...quiet.signal, abruptTransitionRate: 0.8 } }, false).tier,
-    "distracting",
+  assert.equal(highEnergy.tier, "distracting");
+  const abrupt = assessQuietReading(
+    { ...quiet, signal: { ...quiet.signal, abruptTransitionRate: 0.8 } },
+    false,
   );
+  assert.equal(abrupt.tier, "distracting");
   assert.equal(
     assessQuietReading({ ...quiet, structure: { ...quiet.structure, climaxes: [[0, 70]] } }, false).tier,
     "distracting",
