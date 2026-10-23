@@ -141,12 +141,26 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
   assert.ok(ingressReady, "QA ingress never reached an authenticated HTML-ready state");
-  const run = spawnSync("node", ["scripts/staging/check-deployed-commerce-browser.mjs"], {
-    env,
-    stdio: "inherit",
-    timeout: 650000,
+  // A synchronous child blocks this parent's event loop. Stripe CLI's piped
+  // stdout/stderr then cannot drain while the browser exercises webhooks,
+  // eventually deadlocking the listener and fulfillment/refund verification.
+  // Keep the parent asynchronous so the signed webhook listener stays live.
+  const result = await new Promise((resolve, reject) => {
+    const child = spawn("node", ["scripts/staging/check-deployed-commerce-browser.mjs"], {
+      env,
+      stdio: "inherit",
+    });
+    const timeout = setTimeout(() => child.kill("SIGKILL"), 650000);
+    child.once("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.once("close", (code, signal) => {
+      clearTimeout(timeout);
+      resolve({ code, signal });
+    });
   });
-  assert.equal(run.status, 0, "Authenticated deployed browser QA did not pass");
+  assert.equal(result.code, 0, "Authenticated deployed browser QA did not pass");
   console.log("PASS: protected QA customer journey ran against real nonproduction Worker.");
 } finally {
   listener?.kill("SIGTERM");
