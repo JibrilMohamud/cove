@@ -145,7 +145,14 @@ async function request(page, method, route, body) {
       } catch {
         data = null;
       }
-      return { status: response.status, data, mime: response.headers.get("content-type") };
+      return {
+        status: response.status,
+        data,
+        mime: response.headers.get("content-type"),
+        appHeader: response.headers.has("x-fore-request-id"),
+        finalPath: new URL(response.url).pathname,
+        redirected: response.redirected,
+      };
     },
     { method, route, body },
   );
@@ -170,6 +177,15 @@ const billingAddress = {
 };
 async function purchase(page, productId) {
   const cart = await request(page, "GET", "/cart");
+  console.log("QA_CART_PROBE", JSON.stringify({
+    status: cart.status,
+    appHeader: cart.appHeader,
+    finalPath: cart.finalPath,
+    redirected: cart.redirected,
+    mime: cart.mime,
+    responseKeys: cart.data && typeof cart.data === "object" ?
+      Object.keys(cart.data).slice(0, 8) : [],
+  }));
   assert.equal(cart.status, 200);
   assert.ok(
     !cart.data?.items?.length,
