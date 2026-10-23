@@ -147,15 +147,18 @@ async function putPrivateStageKv(key, body) {
   assert.ok(key.startsWith(`campaign/${runId}/synthetic/private/presentation/v2/`));
   assert.ok(Buffer.byteLength(body, "utf8") < 512 * 1024);
   const path = `/accounts/${account}/storage/kv/namespaces/${presentationKv}/values/${encodeURIComponent(key)}`;
-  const response = await fetch("https://api.cloudflare.com/client/v4" + path + "?expiration_ttl=1800", {
-    method: "PUT",
-    headers: {
-      authorization: "Bearer " + token,
-      "content-type": "application/octet-stream",
+  const response = await fetch(
+    "https://api.cloudflare.com/client/v4" + path + "?expiration_ttl=1800",
+    {
+      method: "PUT",
+      headers: {
+        authorization: "Bearer " + token,
+        "content-type": "application/octet-stream",
+      },
+      body,
+      signal: AbortSignal.timeout(30000),
     },
-    body,
-    signal: AbortSignal.timeout(30000),
-  });
+  );
   const receipt = await response.json();
   assert.ok(response.ok && receipt.success, "Isolated QA KV seed failed");
   kvKeys.push(key);
