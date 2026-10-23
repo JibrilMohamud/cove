@@ -36,10 +36,7 @@ validateConfig(source);
 // Unlike the old customer config, it is wired for the exact KV/R2 v2 model
 // that passed capacity tests, but remains certification=0 by construction.
 const shadowPath = "wrangler.storefront-strangler.production-shadow.jsonc";
-const shadowParsed = ts.parseConfigFileTextToJson(
-  shadowPath,
-  fs.readFileSync(shadowPath, "utf8"),
-);
+const shadowParsed = ts.parseConfigFileTextToJson(shadowPath, fs.readFileSync(shadowPath, "utf8"));
 assert.equal(shadowParsed.error, undefined);
 const shadow = shadowParsed.config;
 assert.equal(shadow.name, "cove-fast-customer-gateway-shadow");
