@@ -40,6 +40,8 @@ try {
       climaxes: [],
     },
     semantics: {
+      sampledSeconds: 30,
+      windows: [{ start: 0, end: 10 }, { start: 40, end: 50 }, { start: 90, end: 100 }],
       dimensions: { vocalPresence: 0.05, arousal: 0.1 },
     },
   };
