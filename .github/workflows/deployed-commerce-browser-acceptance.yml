@@ -1,0 +1,71 @@
+name: deployed-commerce-browser-acceptance
+# Manual diagnostic reruns only: PRs run in cove-commerce-private-qa-deploy,
+# sequentially after the isolated private fixture has been provisioned.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cove-exclusive-commerce-qa-worker
+  cancel-in-progress: false
+jobs:
+  authenticated-commerce:
+    if: >-
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') ||
+      (github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_SEND_METRICS: "false"
+      COVE_QA_BUYER_EMAIL: ${{ secrets.COVE_QA_BUYER_EMAIL }}
+      COVE_QA_BUYER_PASSWORD: ${{ secrets.COVE_QA_BUYER_PASSWORD }}
+      COVE_QA_OUTSIDER_EMAIL: ${{ secrets.COVE_QA_OUTSIDER_EMAIL }}
+      COVE_QA_OUTSIDER_PASSWORD: ${{ secrets.COVE_QA_OUTSIDER_PASSWORD }}
+      COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - name: Reject missing QA identities before opening any ingress
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in CLOUDFLARE_API_TOKEN COVE_QA_BUYER_EMAIL COVE_QA_BUYER_PASSWORD COVE_QA_OUTSIDER_EMAIL COVE_QA_OUTSIDER_PASSWORD COVE_SANDBOX_SECRET_KEY; do
+            if [[ -z "${!name:-}" ]]; then missing+=("$name"); fi
+          done
+          if (( ${#missing[@]} )); then
+            printf "::error::Protected QA prerequisites missing: %s\n" "${missing[*]}"
+            exit 1
+          fi
+          [[ "$COVE_SANDBOX_SECRET_KEY" == sk_test_* || "$COVE_SANDBOX_SECRET_KEY" == rk_test_* || "$COVE_SANDBOX_SECRET_KEY" == rkcs_test_* ]] || { echo "::error::Only Stripe TEST API keys accepted"; exit 1; }
+          echo "Protected QA identities provided; no credential value printed."
+      - run: node scripts/staging/check-commerce-private-qa-stage.mjs
+      - run: node scripts/staging/check-commerce-qa-stage-write-gate.mjs
+      - run: npm run build
+      - run: npm install --global @stripe/cli
+      - run: npx playwright install --with-deps chromium
+      - name: Signed webhook, two genuine accounts, EPUB/audio, refund and revocation
+        run: node scripts/staging/run-protected-deployed-commerce-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deployed-commerce-browser-${{ github.sha }}
+          path: artifacts/deployed-commerce/report.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Restore isolated QA Worker to private-only (even on failed acceptance)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -f ".output/server/index.mjs" ]]; then
+            npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.commerce-qa.stage.toml
+          fi

@@ -1,0 +1,87 @@
+name: cove-sandbox-commerce-qa
+on:
+  pull_request:
+    paths:
+      - "scripts/check-stripe-sandbox-fulfillment.mjs"
+      - "scripts/check-reader-recovery.mjs"
+      - "scripts/check-soundtrack-library.mjs"
+      - "scripts/check-qa-synthetic-audio.mjs"
+      - "src/features/fore/commercial-audio.server.ts"
+      - ".github/workflows/cove-sandbox-commerce-qa.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sandbox-fulfillment:
+    # Absolutely no fork-sourced code gets access to the sandbox credentials.
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      COVE_SANDBOX_REPORT: artifacts/cove-sandbox-commerce/report.json
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Install official Stripe CLI (no payment credentials)
+        run: |
+          npm install --global @stripe/cli
+          stripe version
+      - name: Validate test-only credentials (never print key values)
+        shell: bash
+        env:
+          # Supplied only to the validation and runtime steps, never npm ci,
+          # setup actions, or the unpinned Stripe CLI installer.
+          COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SECRET_KEY }}
+          COVE_SANDBOX_PUBLISHABLE_KEY: ${{ secrets.COVE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_TEST_PUBLISHABLE_KEY || secrets.STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.STRIPE_TEST_PUBLISHABLE_KEY || secrets.STRIPE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${COVE_SANDBOX_SECRET_KEY}" ]]; then
+            echo "::error::No Cove test secret reached this job. Confirm repository Actions secret name, or declare the correct protected GitHub Environment."
+            exit 1
+          fi
+          if [[ "${COVE_SANDBOX_SECRET_KEY}" != sk_test_* && "${COVE_SANDBOX_SECRET_KEY}" != rk_test_* && "${COVE_SANDBOX_SECRET_KEY}" != rkcs_test_* ]]; then
+            echo "::error::Cove test secret exists but is not a raw TEST API key (sk_test_/rk_test_/rkcs_test_)."
+            exit 1
+          fi
+          [[ "${COVE_SANDBOX_PUBLISHABLE_KEY}" == pk_test_* ]] || { echo "::error::Cove TEST publishable key missing or not raw pk_test_ key"; exit 1; }
+          echo "Cove test-only key formats validated; account identity is checked by the test script before payment."
+      - name: Exercise real Cove Stripe TEST fulfillment and signed webhook
+        env:
+          # Supplied only to the validation and runtime steps, never npm ci,
+          # setup actions, or the unpinned Stripe CLI installer.
+          COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SECRET_KEY }}
+          COVE_SANDBOX_PUBLISHABLE_KEY: ${{ secrets.COVE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_TEST_PUBLISHABLE_KEY || secrets.STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.STRIPE_TEST_PUBLISHABLE_KEY || secrets.STRIPE_PUBLISHABLE_KEY }}
+        run: node scripts/check-stripe-sandbox-fulfillment.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cove-sandbox-commerce-${{ github.sha }}
+          path: artifacts/cove-sandbox-commerce/report.json
+          if-no-files-found: ignore
+          retention-days: 7
+  protected-media-fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # This isolated fixture job must run even when Stripe secrets are absent.
+    # It cannot access GitHub Actions sandbox payment secrets.
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Exercise reader recovery, original-media storage, rights and playback gates
+        run: |
+          node scripts/check-reader-recovery.mjs
+          node scripts/check-soundtrack-library.mjs
+          node scripts/check-qa-synthetic-audio.mjs
+          node scripts/check-commercial-audio-accounts-support.mjs

@@ -1,0 +1,128 @@
+name: strangler-hosted-capacity-evaluation
+on:
+  pull_request:
+    paths:
+      - "scripts/staging/prepare-strangler-capacity-config.mjs"
+      - "scripts/staging/seed-strangler-private-stage.mjs"
+      - "scripts/staging/strangler-http-transport.mjs"
+      - "scripts/staging/check-strangler-live-capacity.mjs"
+      - "scripts/staging/assert-strangler-capacity-evidence.mjs"
+      - "src/storefront-strangler/worker.ts"
+      - "scripts/staging/wait-strangler-secret-deployment.mjs"
+      - ".github/workflows/strangler-hosted-capacity-evaluation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-strangler-ephemeral-capacity-stage
+  cancel-in-progress: false
+
+jobs:
+  protected-staging-only:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.head.ref == 'architecture/strangler-storefront-m1-20261020')
+    runs-on: ubuntu-latest
+    timeout-minutes: 42
+    env:
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify production routing and stage DB isolation
+        run: |
+          node scripts/check-storefront-strangler.mjs
+          node scripts/check-storefront-prepared-catalog.mjs
+          node scripts/staging/check-strangler-core-stage.mjs
+      - name: Compile independent thin Worker and snapshot publisher
+        run: node scripts/build-storefront-strangler.mjs
+      - name: Prepare protected, transient, synthetic-only ingress config
+        run: node scripts/staging/prepare-strangler-capacity-config.mjs
+      - name: Verify existing real CORE Worker, isolated DB and private R2
+        run: node scripts/staging/check-strangler-data-plane-preflight.mjs
+      - name: Compile and deploy transient protected ingress
+        run: |
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --dry-run --config .output/strangler/protected-capacity.stage.jsonc
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config .output/strangler/protected-capacity.stage.jsonc
+      - name: Assign distinct random staging ingress and internal CORE credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          CORE_GATE="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          INGRESS_GATE="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          echo "::add-mask::$CORE_GATE"
+          echo "::add-mask::$INGRESS_GATE"
+          test "$CORE_GATE" != "$INGRESS_GATE"
+          printf '%s' "$CORE_GATE" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.storefront-core.stage.toml
+          printf '%s' "$CORE_GATE" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_INTERNAL_CORE_STAGE_GATE_KEY --config .output/strangler/protected-capacity.stage.jsonc
+          printf '%s' "$INGRESS_GATE" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config .output/strangler/protected-capacity.stage.jsonc
+          echo "COVE_STRANGLER_STAGE_KEY=$INGRESS_GATE" >> "$GITHUB_ENV"
+          unset CORE_GATE INGRESS_GATE
+      - name: Verify producer access path against isolated stage data only
+        run: node scripts/staging/check-strangler-synthetic-producer-sql.mjs
+      - name: Seed isolated R2 presentation without depending on new cron propagation
+        run: node scripts/staging/seed-strangler-private-stage.mjs
+      - name: Enable private read model on ephemeral ingress only
+        run: |
+          node scripts/staging/enable-strangler-private-read-model.mjs
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config .output/strangler/protected-capacity.stage.jsonc
+      - name: Require a genuinely generated private candidate snapshot
+        run: node scripts/staging/wait-strangler-private-model.mjs
+      - name: Repeat three independently rotated cold deployment suites
+        id: cold
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          failures=0
+          for trial in 1 2 3; do
+            KEY="$COVE_STRANGLER_STAGE_KEY"
+            export COVE_STAGE_SECRET_ROTATION_EPOCH_MS="$(node -p 'Date.now()')"
+            printf '%s' "$KEY" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config .output/strangler/protected-capacity.stage.jsonc
+            node scripts/staging/wait-strangler-secret-deployment.mjs
+            if ! COVE_STRANGLER_MODE=cold node scripts/staging/check-strangler-live-capacity.mjs; then
+              failures=$((failures + 1))
+            fi
+            cp artifacts/strangler-cold-native-fetch.json "artifacts/strangler-cold-trial-${trial}.json"
+          done
+          test "$failures" -eq 0
+      - name: Strict native 1/4/8/16/32 plus 25/50/100 RPS gate
+        id: native
+        continue-on-error: true
+        run: node scripts/staging/check-strangler-live-capacity.mjs
+      - name: Strict HTTP2 1/4/8/16/32 plus 25/50/100 RPS gate
+        id: http2
+        continue-on-error: true
+        run: COVE_STAGE_HTTP2=1 node scripts/staging/check-strangler-live-capacity.mjs
+      - name: Enforce unchanged hard latency, correctness and evidence gates
+        if: always()
+        run: node scripts/staging/assert-strangler-capacity-evidence.mjs
+      - name: Close protected ephemeral ingress after testing
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [ -f ".output/strangler/index.mjs" ]; then
+            npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.storefront-strangler.stage.jsonc
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: strangler-protected-stage-capacity
+          path: artifacts/strangler-*.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+# No production D1/R2, production routing, DNS, payment credentials or merge.
+# The public test ingress is always protected by 256-bit bearer and is removed.

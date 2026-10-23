@@ -1,0 +1,148 @@
+name: cove-commerce-private-qa-deploy
+on:
+  pull_request:
+    paths:
+      - "wrangler.commerce-qa.stage.toml"
+      - "src/lib/cloudflare-ssr-stage-gate.server.ts"
+      - "scripts/staging/check-commerce-qa-stage-write-gate.mjs"
+      - "scripts/staging/upload-original-commerce-qa-media.mjs"
+      - "scripts/staging/seed-original-commerce-qa-catalog.mjs"
+      - "scripts/staging/verify-commerce-private-qa-stage.mjs"
+      - ".github/workflows/cove-commerce-private-qa-deploy.yml"
+      - "scripts/staging/check-deployed-commerce-browser.mjs"
+      - "scripts/staging/qa-refund-operator.mjs"
+      - "scripts/staging/cleanup-qa-refund-operators.mjs"
+      - "scripts/staging/run-protected-deployed-commerce-qa.mjs"
+      - ".github/workflows/deployed-commerce-browser-acceptance.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cove-exclusive-commerce-qa-worker
+  cancel-in-progress: false
+jobs:
+  private-commerce:
+    if: >-
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') ||
+      (github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - name: Verify all remote bindings remain isolated and private
+        run: node scripts/staging/check-commerce-private-qa-stage.mjs
+      - run: node scripts/staging/check-commerce-qa-stage-write-gate.mjs
+      - name: Apply full app schema to disposable QA D1 ONLY
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler d1 migrations apply DB --remote --config wrangler.commerce-qa.stage.toml
+      - run: npm run build
+      - name: Deploy private Cloudflare application, never workers.dev
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.commerce-qa.stage.toml
+      - name: Install fresh stage-only ingress gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          COVE_GATE="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          echo "::add-mask::$COVE_GATE"
+          printf "%s" "$COVE_GATE" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.commerce-qa.stage.toml
+          unset COVE_GATE
+      - name: Install Cove sandbox keys only, never production Stripe
+        shell: bash
+        env:
+          QA_STRIPE_SECRET: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY }}
+          QA_STRIPE_PUBLIC: ${{ secrets.COVE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_TEST_PUBLISHABLE_KEY || secrets.STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.STRIPE_TEST_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          [[ "${QA_STRIPE_SECRET:-}" == sk_test_* || "${QA_STRIPE_SECRET:-}" == rk_test_* || "${QA_STRIPE_SECRET:-}" == rkcs_test_* ]] || { echo "::error::Missing Cove TEST secret; do not install live Stripe keys"; exit 1; }
+          [[ "${QA_STRIPE_PUBLIC:-}" == pk_test_* ]] || { echo "::error::Missing Cove TEST publishable key"; exit 1; }
+          printf "%s" "$QA_STRIPE_SECRET" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put STRIPE_SECRET_KEY --config wrangler.commerce-qa.stage.toml
+          printf "%s" "$QA_STRIPE_PUBLIC" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put STRIPE_PUBLISHABLE_KEY --config wrangler.commerce-qa.stage.toml
+      - name: Generate and upload original synthetic EPUB and WAV to private QA R2
+        run: node scripts/staging/upload-original-commerce-qa-media.mjs
+      - name: Seed idempotent paid synthetic ebook and US rights into private QA D1
+        run: node scripts/staging/seed-original-commerce-qa-catalog.mjs
+      - name: Preserve fixture checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-commerce-qa-${{ github.sha }}
+          path: artifacts/deployed-commerce/original-media.json
+          retention-days: 14
+      - name: Confirm worker remains non-public
+        run: node scripts/staging/verify-commerce-private-qa-stage.mjs
+
+  # Same workflow run, after the private fixture is fully provisioned. This
+  # avoids separate queued workflows cancelling one another at the shared gate.
+  authenticated-commerce:
+    needs: private-commerce
+    if: >-
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') ||
+      (github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_SEND_METRICS: "false"
+      COVE_QA_BUYER_EMAIL: ${{ secrets.COVE_QA_BUYER_EMAIL }}
+      COVE_QA_BUYER_PASSWORD: ${{ secrets.COVE_QA_BUYER_PASSWORD }}
+      COVE_QA_OUTSIDER_EMAIL: ${{ secrets.COVE_QA_OUTSIDER_EMAIL }}
+      COVE_QA_OUTSIDER_PASSWORD: ${{ secrets.COVE_QA_OUTSIDER_PASSWORD }}
+      COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - name: Reject missing QA identities before opening any ingress
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for name in CLOUDFLARE_API_TOKEN COVE_QA_BUYER_EMAIL COVE_QA_BUYER_PASSWORD COVE_QA_OUTSIDER_EMAIL COVE_QA_OUTSIDER_PASSWORD COVE_SANDBOX_SECRET_KEY; do
+            if [[ -z "${!name:-}" ]]; then missing+=("$name"); fi
+          done
+          if (( ${#missing[@]} )); then
+            printf "::error::Protected QA prerequisites missing: %s\n" "${missing[*]}"
+            exit 1
+          fi
+          [[ "$COVE_SANDBOX_SECRET_KEY" == sk_test_* || "$COVE_SANDBOX_SECRET_KEY" == rk_test_* || "$COVE_SANDBOX_SECRET_KEY" == rkcs_test_* ]] || { echo "::error::Only Stripe TEST API keys accepted"; exit 1; }
+          echo "Protected QA identities provided; no credential value printed."
+      - run: node scripts/staging/check-commerce-private-qa-stage.mjs
+      - run: node scripts/staging/check-commerce-qa-stage-write-gate.mjs
+      - run: npm run build
+      - run: npm install --global @stripe/cli
+      - run: npx playwright install --with-deps chromium
+      - name: Signed webhook, two genuine accounts, EPUB/audio, refund and revocation
+        run: node scripts/staging/run-protected-deployed-commerce-qa.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: deployed-commerce-browser-${{ github.sha }}
+          path: artifacts/deployed-commerce/report.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Revoke QA refund role even if Node aborted
+        if: always()
+        run: node scripts/staging/cleanup-qa-refund-operators.mjs
+      - name: Restore isolated QA Worker to private-only (even on failed acceptance)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -f ".output/server/index.mjs" ]]; then
+            npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.commerce-qa.stage.toml
+          fi

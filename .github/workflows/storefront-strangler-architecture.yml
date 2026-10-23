@@ -1,0 +1,77 @@
+name: storefront-strangler-architecture
+on:
+  pull_request:
+    paths:
+      - "src/storefront-strangler/**"
+      - "scripts/build-storefront-strangler.mjs"
+      - "scripts/check-storefront-strangler.mjs"
+      - "scripts/check-storefront-prepared-catalog.mjs"
+      - "scripts/check-isolated-http-metric.mjs"
+      - "src/features/fore/anonymous-http-metric.server.ts"
+      - "src/features/fore/api.server.ts"
+      - "wrangler.storefront-candidate-producer.stage.jsonc"
+      - "wrangler.storefront-strangler.stage.jsonc"
+      - ".github/workflows/storefront-strangler-architecture.yml"
+      - "docs/architecture/STRANGLER_STOREFRONT_M1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-serving-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Assert protected stage config and canonical legal parity
+        run: node scripts/check-storefront-strangler.mjs
+      - name: Check independently prepared models against live rights and revocation
+        run: node scripts/check-storefront-prepared-catalog.mjs
+      - name: Verify opt-in independent anonymous HTTP metrics
+        run: node scripts/check-isolated-http-metric.mjs
+      - name: Compile isolated Worker and exclude full application runtime
+        run: node scripts/build-storefront-strangler.mjs
+      - name: Emit safe formatter deltas for architecture scripts
+        if: always()
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import prettier from "prettier";
+          for (const path of [
+            "scripts/build-storefront-strangler.mjs",
+            "scripts/check-storefront-strangler.mjs",
+            "scripts/check-storefront-prepared-catalog.mjs",
+            "src/storefront-strangler/prepared-catalog.server.ts",
+            "src/features/fore/catalog-model.server.ts",
+            "src/storefront-strangler/producer.worker.ts",
+            "src/storefront-strangler/worker.ts",
+            "scripts/staging/check-strangler-live-capacity.mjs",
+            "scripts/staging/prepare-strangler-capacity-config.mjs",
+            "scripts/staging/wait-strangler-private-model.mjs",
+            "scripts/staging/wait-strangler-secret-deployment.mjs",
+            "scripts/staging/seed-strangler-private-stage.mjs",
+            "scripts/staging/assert-strangler-capacity-evidence.mjs",
+            "src/features/fore/anonymous-http-metric.server.ts",
+            "scripts/check-isolated-http-metric.mjs",
+            "src/features/fore/api.server.ts",
+          ]) {
+            const raw = fs.readFileSync(path, "utf8");
+            const settings = await prettier.resolveConfig(path);
+            const formatted = await prettier.format(raw, { ...settings, filepath: path });
+            if (formatted !== raw)
+              console.log("COVE_STRANGLER_FORMAT " + JSON.stringify({
+                path, content: encodeURIComponent(formatted),
+              }));
+          }
+          NODE
+      - name: Strict typecheck (existing baseline)
+        run: npm run typecheck
+
+# Deliberately no deploy, production token, environment, custom domain,
+# migration, or production Worker publish steps.

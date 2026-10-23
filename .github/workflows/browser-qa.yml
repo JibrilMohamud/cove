@@ -37,15 +37,40 @@ jobs:
             ipad-safari,
           ]
     runs-on: ubuntu-latest
+    # Pinned official image contains browser binaries and OS libraries. Avoid
+    # host apt downloads from the throttled Azure Ubuntu mirror (25m cancels).
+    # This keeps all six original matrix check names and test assertions.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.0-noble
+      options: --ipc=host
+    # GitHub sets /github/home (owned by pwuser) while the image's default
+    # user is root. Firefox refuses that owner mismatch at browser launch.
+    env:
+      HOME: /root
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium firefox webkit
+      # Avoid huge cache restores that exceed Actions cache egress limits.
+      - run: npm ci --no-audit --no-fund
+      - name: Validate preinstalled pinned browser binaries
+        shell: bash
+        env:
+          PROJECT: ${{ matrix.project }}
+        run: |
+          node --input-type=module - <<'NODE'
+          import { chromium, firefox, webkit } from "@playwright/test";
+          const name = process.env.PROJECT;
+          const type = name === "firefox-desktop" ? firefox
+            : ["webkit-desktop", "iphone-safari", "ipad-safari"].includes(name) ? webkit
+            : ["chromium-desktop", "android-chrome"].includes(name) ? chromium : null;
+          if (!type) throw Error("Unknown browser project " + name);
+          const browser = await type.launch({ headless: true });
+          console.log("PLAYWRIGHT_BROWSER_READY", name, browser.version());
+          await browser.close();
+          NODE
       - run: npm run test:browser -- --project=${{ matrix.project }}
       - name: Summarize browser failure snapshots
         if: failure()

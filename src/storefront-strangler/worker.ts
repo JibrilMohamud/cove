@@ -8,12 +8,18 @@ import {
 import { applySecurityHeaders } from "../lib/security-headers";
 import {
   canUseLeanAnonymousBootstrap,
+  readTrustedLeanBootstrapJson,
   serveLeanAnonymousBootstrap,
 } from "./bootstrap-optimized.server";
 import type { StorefrontBootstrap } from "../features/fore/storefront-bootstrap";
 import { renderStranglerStorefront } from "./render";
 import { bootstrapFailureKind } from "./failure";
 import { syntheticBenchmarkClient } from "./synthetic-client";
+import { readHomepagePresentation } from "./homepage-presentation.server";
+import {
+  namespacedPresentationStore,
+  type PrivatePresentationStore,
+} from "./prepared-catalog.server";
 
 /** Build-isolated serving boundary. No auth, orders, reader or background code.
  * Existing domain logic is reused through type-only references. This pilot is
@@ -27,6 +33,9 @@ export type StorefrontStranglerEnv = CoveEnv & {
   COVE_FAST_RELAY_KEY?: string;
   COVE_SSR_STAGING_GATE_KEY?: string;
   COVE_INTERNAL_CORE_STAGE_GATE_KEY?: string;
+  COVE_STRANGLER_READ_MODEL?: string;
+  PRESENTATION?: PrivatePresentationStore;
+  COVE_PRESENTATION_PREFIX?: string;
   CORE: { fetch(request: Request): Promise<Response> };
 };
 
@@ -92,6 +101,8 @@ function readOnlyStageD1<T extends object>(db: T, approved = new WeakMap<object,
 
 export default {
   async fetch(request: Request, env: StorefrontStranglerEnv): Promise<Response> {
+    // Never classify client/edge ingress time as database time.
+    const enteredAt = performance.now();
     // Fail closed even under an accidental deployment or config substitution.
     // The reviewed config must also contain only the dedicated synthetic D1.
     const syntheticEvaluation =
@@ -137,8 +148,29 @@ export default {
         headers: { "cache-control": "no-store" },
       });
     const finish = (response: Response) => {
+      // Stage-only total handler clock: excludes pre-isolate edge queueing.
+      // This never exposes private SQL, identities, or grant decisions.
+      if (!customerGateway) {
+        const headers = new Headers(response.headers);
+        headers.set(
+          "server-timing",
+          [
+            headers.get("server-timing"),
+            `cove_handler;dur=${(performance.now() - enteredAt).toFixed(1)}`,
+          ]
+            .filter(Boolean)
+            .join(", "),
+        );
+        response = new Response(response.body, { status: response.status, headers });
+      }
       const secured = applySecurityHeaders(request, response, env);
-      if (!customerGateway) return stageNoStore(secured, true);
+      if (!customerGateway) {
+        const headers = new Headers(secured.headers);
+        const placement = request.headers.get("cf-placement") || "";
+        if (/^(?:remote|local)-[A-Z]{3}$/.test(placement))
+          headers.set("x-cove-stage-placement", placement);
+        return stageNoStore(new Response(secured.body, { status: secured.status, headers }), true);
+      }
       const headers = new Headers(secured.headers);
       headers.set("cache-control", "private, no-store");
       return new Response(secured.body, { status: secured.status, headers });
@@ -165,16 +197,22 @@ export default {
     let failurePhase = "entry";
     let bootstrapSubphase: string | null = null;
     let bootstrapSubkind: string | null = null;
+    let trustedStageCountry: string | null = null;
     try {
       const url = new URL(request.url);
       const diagnostic = url.pathname === "/__cove_perf/bootstrap" && !url.search;
       const transportControl = url.pathname === "/__cove_perf/transport" && !url.search;
+      const presentationControl =
+        syntheticEvaluation && url.pathname === "/__cove_perf/presentation" && !url.search;
       // Authenticated transport control intentionally bypasses D1 and R2.
       // It establishes a same-gateway transport/runtime floor, not a claim
       // that the residual latency is all network time.
       if (
         request.method !== "GET" ||
-        (!diagnostic && !transportControl && (url.pathname !== "/" || url.search))
+        (!diagnostic &&
+          !transportControl &&
+          !presentationControl &&
+          (url.pathname !== "/" || url.search))
       )
         return await delegate();
       if (transportControl)
@@ -205,6 +243,9 @@ export default {
       if (!safe)
         return finish(new Response("Unable to verify storefront territory.", { status: 503 }));
       const headers = new Headers(safe.headers);
+      // The ingress-gated stage records only the normalized edge-derived country.
+      if (!customerGateway && /^[A-Z]{2}$/.test(headers.get("x-cove-client-country") || ""))
+        trustedStageCountry = headers.get("x-cove-client-country");
       headers.delete("authorization"); // staging gate credential is never an app identity
       const bootstrapRequest = new Request(new URL("/api/fore/storefront/bootstrap", request.url), {
         headers,
@@ -213,23 +254,61 @@ export default {
       // Any cookie/identity hint uses the established application; preferences
       // and account state cannot leak into an anonymous response.
       if (!canUseLeanAnonymousBootstrap(bootstrapRequest, env)) return await delegate();
+      if (presentationControl) {
+        const started = performance.now();
+        if (!env.PRESENTATION) throw Error("Private presentation binding required");
+        const snapshot = await readHomepagePresentation(
+          namespacedPresentationStore(env.PRESENTATION, env.COVE_PRESENTATION_PREFIX),
+          bootstrapRequest,
+          headers.get("x-cove-client-country")!,
+        );
+        return finish(
+          new Response(
+            JSON.stringify({
+              country: snapshot.candidates.country,
+              candidates: snapshot.candidates.productIds.length,
+            }),
+            {
+              headers: {
+                "content-type": "application/json",
+                "server-timing": `cove_presentation;dur=${(performance.now() - started).toFixed(1)}`,
+              },
+            },
+          ),
+        );
+      }
       failurePhase = "bootstrap";
       // The current main-branch canonical bootstrap has a two-argument API.
       // Preserve it unchanged; all failures remain fail-closed and classified.
       // No presentation cache or independent authorizer is activated here.
       // Main's authoritative live territorial-rights bootstrap remains unchanged.
-      const bootstrapEnv =
+      let bootstrapEnv =
         productionAcceptance || customerGateway ? { ...env, DB: readOnlyStageD1(env.DB) } : env;
+      // Matched ABBA experiment: only the bearer-protected synthetic Worker
+      // can select the canonical control. No client-controlled legal bypass.
+      if (syntheticEvaluation && request.headers.get("x-cove-perf-serving-model") === "canonical")
+        bootstrapEnv = { ...bootstrapEnv, COVE_STRANGLER_READ_MODEL: "0" };
       const response = await serveLeanAnonymousBootstrap(
         bootstrapRequest,
         bootstrapEnv,
         (phase, error) => {
-          bootstrapSubphase = ["context", "catalog", "limit"].includes(phase) ? phase : "unknown";
-          bootstrapSubkind = bootstrapFailureKind(error);
+          // A presentation rejection also rejects dependent context/catalog
+          // promises. Keep the original R2 failure rather than its echo.
+          if (bootstrapSubphase === null || phase === "presentation") {
+            bootstrapSubphase = ["presentation", "context", "catalog", "limit"].includes(phase)
+              ? phase
+              : "unknown";
+            bootstrapSubkind = bootstrapFailureKind(error);
+          }
         },
       );
       if (!response.ok) return finish(new Response(null, { status: response.status }));
-      const bootstrap = (await response.json()) as StorefrontBootstrap;
+      // This Response was assembled from the freshly checked authority result
+      // in this same isolate. Parse its identical serialized JSON directly,
+      // avoiding an extra asynchronous workerd body-stream roundtrip.
+      // Foreign/unexpected Responses still use the original body-read path.
+      const serialized = readTrustedLeanBootstrapJson(response);
+      const bootstrap = JSON.parse(serialized ?? (await response.text())) as StorefrontBootstrap;
       if (bootstrap.context.rightsCountry !== headers.get("x-cove-client-country"))
         throw new Error("Thin storefront territorial mismatch");
       if (diagnostic) {
@@ -301,6 +380,7 @@ export default {
             ...(customerGateway
               ? {}
               : {
+                  "x-cove-stage-country": trustedStageCountry || "unknown",
                   "x-cove-stage-failure-subphase": bootstrapSubphase || "unknown",
                   "x-cove-stage-failure-kind": bootstrapSubkind || bootstrapFailureKind(error),
                 }),

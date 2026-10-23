@@ -15,6 +15,17 @@ const secret = process.env.COVE_SANDBOX_SECRET_KEY || "";
 const publishable = process.env.COVE_SANDBOX_PUBLISHABLE_KEY || "";
 assert.match(secret, /^(sk|rk|rkcs)_test_/);
 assert.match(publishable, /^pk_test_/);
+// Prevent a syntactically valid test key for another business from producing
+// a misleading Cove fulfillment certification. The account itself is never
+// mutated by this preflight.
+const provider = await fetch("https://api.stripe.com/v1/account", {
+  headers: { Authorization: `Bearer ${secret}` },
+  signal: AbortSignal.timeout(20000),
+});
+assert.equal(provider.status, 200, "Cove Stripe TEST key must allow account preflight");
+const providerAccount = await provider.json();
+assert.equal(providerAccount.id, "acct_1UTG66ErdufyFpJN", "Sandbox keys must belong to Cove");
+assert.notEqual(providerAccount.charges_enabled, undefined, "Malformed Stripe account response");
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "cove-stripe-integration-"));
 const redact = (s) =>
   String(s).replace(

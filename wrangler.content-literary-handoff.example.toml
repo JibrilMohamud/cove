@@ -1,0 +1,29 @@
+# Dedicated literary handoff Worker — ISOLATED STAGING TEMPLATE, OFF BY DEFAULT.
+# Never bind any placeholder to cove-production until a separately approved cutover.
+# On first deployment create the script without the cron section, then
+# attach the cron on its second deployment (Cloudflare script existence check).
+name = "cove-literary-handoff-isolated-staging"
+main = "content-dist/worker.js"
+compatibility_date = "2026-10-09"
+workers_dev = true
+[limits]
+cpu_ms = 300_000
+[[d1_databases]]
+binding = "DB"
+database_name = "REPLACE_WITH_NONPRODUCTION_CATALOG_DB"
+database_id = "REPLACE_WITH_NONPRODUCTION_CATALOG_UUID"
+[[d1_databases]]
+binding = "CONTENT_DB"
+database_name = "REPLACE_WITH_INDEPENDENT_CONTENT_D1"
+database_id = "REPLACE_WITH_INDEPENDENT_D1_UUID"
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "REPLACE_WITH_NONPRODUCTION_PRIVATE_R2"
+[vars]
+FORE_CONTENT_PROCESSOR_ROLE = "literary-handoff"
+FORE_CONTENT_PROCESSOR_ENABLED = "0"
+FORE_CONTENT_PREPARE_ENABLED = "0"
+FORE_CONTENT_HANDOFF_ENABLED = "0"
+FORE_CONTENT_D1_ADMISSION_MAX_MS = "100"
+[triggers]
+crons = ["* * * * *"]

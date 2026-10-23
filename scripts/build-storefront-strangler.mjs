@@ -41,3 +41,49 @@ console.log(
     productionRouted: false,
   }),
 );
+
+await build({
+  entryPoints: ["src/storefront-strangler/producer.worker.ts"],
+  outfile: ".output/strangler/producer.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
+await build({
+  entryPoints: ["src/storefront-strangler/isolated-producer.worker.ts"],
+  outfile: ".output/strangler/isolated-producer.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
+await build({
+  entryPoints: ["src/storefront-strangler/homepage-presentation.server.ts"],
+  outfile: ".output/strangler/presentation.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
+for (const lane of ["capture", "export", "export-stage", "publish", "driver"]) {
+  await build({
+    entryPoints: [`src/storefront-strangler/publication-${lane}.worker.ts`],
+    outfile: `.output/strangler/publication-${lane}.mjs`,
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    target: "es2022",
+    conditions: ["workerd", "worker", "browser", "import", "default"],
+    external: ["node:*", "cloudflare:*"],
+    logLevel: "silent",
+  });
+}

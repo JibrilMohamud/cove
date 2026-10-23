@@ -89,7 +89,7 @@ export function networkCountry(request: Request, fallback: string) {
   return { country: safe, source: "default" };
 }
 
-function parseAcceptLanguage(value: string) {
+export function parseAcceptLanguage(value: string) {
   return value
     .split(",")
     .map((part, index) => {
@@ -195,7 +195,7 @@ async function marketWithSupportedLocales(
   };
 }
 
-function chooseSupportedLocale(rows: any[], requested: string[]) {
+export function chooseSupportedLocale(rows: any[], requested: string[]) {
   if (!rows.length) return null;
   const exact = new Map(rows.map((r) => [String(r.locale).toLowerCase(), r]));
   for (const raw of requested) {

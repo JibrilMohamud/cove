@@ -1,0 +1,48 @@
+# Private, disposable full-commerce QA application. No production database, R2,
+# custom routes, Workers URL, live Stripe keys, or customer traffic.
+name = "cove-commerce-customer-qa-stage"
+main = ".output/server/index.mjs"
+minify = false
+compatibility_date = "2026-10-19"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = false
+preview_urls = false
+
+[assets]
+directory = "./.output/public"
+binding = "ASSETS"
+run_worker_first = true
+
+[[ratelimits]]
+name = "COVE_STOREFRONT_READ_LIMITER"
+namespace_id = "732042"
+[ratelimits.simple]
+limit = 180
+period = 60
+
+[[d1_databases]]
+binding = "DB"
+database_name = "cove-commerce-customer-qa-20261022"
+database_id = "5be15110-44a6-4090-b0a1-36599d809b28"
+migrations_dir = "drizzle"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "cove-commerce-original-media-qa-20261022"
+
+[vars]
+COVE_SSR_STAGING = "1"
+COVE_SSR_STAGING_COMMERCE_QA = "1"
+FORE_ENVIRONMENT = "production"
+FORE_AUTH_MODE = "supabase"
+FORE_DEFAULT_TERRITORY = "US"
+FORE_PUBLIC_URL = "https://cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev"
+SUPABASE_URL = "https://qhympmfucmfdtylxpfcx.supabase.co"
+STRIPE_LIVEMODE = "false"
+STRIPE_TAX_ENABLED = "false"
+STRIPE_CAPTURE_METHOD = "automatic"
+
+# All signing secrets and the Supabase publishable key are installed out of
+# band as Worker secrets. Both D1 and R2 are isolated QA resources.
+# A separate release-reviewed public gateway is required for browser and
+# signed-webhook tests. Never expose this private stage just to pass QA.

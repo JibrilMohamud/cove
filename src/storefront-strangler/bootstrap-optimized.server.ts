@@ -1,3 +1,13 @@
+import {
+  servePreparedCatalog,
+  namespacedPresentationStore,
+  type PrivatePresentationStore,
+} from "./prepared-catalog.server";
+import {
+  readHomepagePresentation,
+  authorizeHomepagePresentation,
+} from "./homepage-presentation.server";
+import type { FirstPaintD1QueryMetrics } from "../features/fore/catalog-model.server";
 import { networkCountry, resolveAnonymousHomepageContext } from "./localization-optimized.server";
 import { formatGenericStorefrontPageRecord } from "./page-record";
 import { firstPaintStorefrontShelf } from "../features/fore/search.server";
@@ -6,7 +16,23 @@ import type { CoveEnv } from "../features/fore/api.server";
 type OptimizedEnv = CoveEnv & {
   COVE_SSR_DIAGNOSTICS?: string;
   COVE_THIN_METADATA_COALESCE?: string;
+  COVE_STRANGLER_READ_MODEL?: string;
+  PRESENTATION?: PrivatePresentationStore;
+  PRESENTATION_KV?: {
+    get(key: string, options: { type: "text"; cacheTtl: number }): Promise<string | null>;
+  };
+  COVE_PRESENTATION_KV_ACCELERATE?: string;
+  COVE_PRESENTATION_PREFIX?: string;
 };
+
+// Preserve the exact serialized JSON from this freshly authorized bootstrap.
+// The caller is in the SAME Worker isolate; consuming its own Response body
+// asynchronously adds an unnecessary stream scheduling boundary at 100 RPS.
+// Weak keys cannot outlive the internal response or authorize a new request.
+const trustedBootstrapBodies = new WeakMap<Response, string>();
+export function readTrustedLeanBootstrapJson(response: Response): string | undefined {
+  return trustedBootstrapBodies.get(response);
+}
 
 /**
  * Cloudflare Worker-only, read-only bootstrap for a *provably anonymous*
@@ -43,6 +69,40 @@ export function canUseLeanAnonymousBootstrap(
     typeof env.DB.prepare === "function" &&
     typeof env.COVE_STOREFRONT_READ_LIMITER?.limit === "function"
   );
+}
+
+// Stage-only KV holds UNTRUSTED presentation bytes. Rights, prices and
+// entitlements always come from a fresh primary D1 statement. The wrapper is
+// stable per binding so completed 30-second reuse still works per isolate.
+const stageKvStore = new WeakMap<
+  PrivatePresentationStore,
+  {
+    kv: NonNullable<OptimizedEnv["PRESENTATION_KV"]>;
+    adapter: PrivatePresentationStore;
+  }
+>();
+function stageAcceleratedPresentation(
+  r2: PrivatePresentationStore,
+  kv: NonNullable<OptimizedEnv["PRESENTATION_KV"]>,
+): PrivatePresentationStore {
+  const existing = stageKvStore.get(r2);
+  if (existing?.kv === kv) return existing.adapter;
+  const adapter: PrivatePresentationStore = {
+    async get(key) {
+      let body: string | null;
+      try {
+        body = await kv.get(key, { type: "text", cacheTtl: 30 });
+      } catch {
+        // Failure of this advisory read is never a rights/price bypass. R2
+        // remains the verified durable snapshot and still fails closed.
+        return r2.get(key);
+      }
+      if (body === null) return r2.get(key);
+      return { size: new TextEncoder().encode(body).byteLength, text: async () => body };
+    },
+  };
+  stageKvStore.set(r2, { kv, adapter });
+  return adapter;
 }
 
 /**
@@ -112,7 +172,7 @@ export async function serveLeanAnonymousBootstrap(
   // No cookie/account data is present. This same canonical resolver also
   // drives resolveStorefrontContext's country for anonymous visitors.
   const trustedCountry = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country;
-  const d1Metrics: { sqlDurationMs?: number; rowsRead?: number; attempts?: number } = {};
+  const d1Metrics: FirstPaintD1QueryMetrics = {};
   const contextMetrics: {
     sqlDurationMs?: number;
     rowsRead?: number;
@@ -137,27 +197,56 @@ export async function serveLeanAnonymousBootstrap(
     // rate limiter and has no effect in a live customer deployment.
     request.headers.get("x-cove-perf-no-metadata-flight") !== "1" &&
     (request.headers.get("accept-language") || "").length <= 512;
-  const flight = coalesce
-    ? anonymousMetadataFlight(
-        rawDb,
-        JSON.stringify([
-          trustedCountry,
-          countrySource,
-          env.FORE_DEFAULT_TERRITORY || "US",
-          request.headers.get("accept-language") || "",
-        ]),
-        fetchContext,
-      )
-    : { task: fetchContext(), joined: false };
-  const contextPromise = timed("context", flight.task);
-  // The read-only metadata batch now also performs the active market/locale
-  // lookup. No second dependent D1 service call is needed for anonymous SSR.
+  const model = env.COVE_STRANGLER_READ_MODEL;
+  if (model !== undefined && !["0", "1", "2"].includes(model))
+    throw Error("Unknown storefront read model");
+  const kvStage = env.COVE_PRESENTATION_KV_ACCELERATE === "1";
+  if (kvStage && (env.COVE_SSR_STAGING !== "1" || model !== "2" || !env.PRESENTATION_KV))
+    throw Error("Stage presentation accelerator requires isolated KV and model v2");
+  const presentationBinding =
+    kvStage && env.PRESENTATION && env.PRESENTATION_KV
+      ? stageAcceleratedPresentation(env.PRESENTATION, env.PRESENTATION_KV)
+      : env.PRESENTATION;
+  const presentationStore = presentationBinding
+    ? namespacedPresentationStore(presentationBinding, env.COVE_PRESENTATION_PREFIX, model === "2")
+    : undefined;
+  if ((model === "1" || model === "2") && !env.PRESENTATION)
+    throw Error("Private presentation binding required");
+  // v2 loads locale/page presentation with candidates in one private R2 read.
+  // It never performs the old metadata batch, speculative reads, or a global
+  // catalog fallback. Rate admission starts concurrently with the R2 read.
+  const projection =
+    model === "2"
+      ? timed("presentation", readHomepagePresentation(presentationStore!, request, trustedCountry))
+      : null;
+  const flight = projection
+    ? { task: projection.then((p) => p.context), joined: false }
+    : coalesce
+      ? anonymousMetadataFlight(
+          rawDb,
+          JSON.stringify([
+            trustedCountry,
+            countrySource,
+            env.FORE_DEFAULT_TERRITORY || "US",
+            request.headers.get("accept-language") || "",
+          ]),
+          fetchContext,
+        )
+      : { task: fetchContext(), joined: false };
+  const admission = timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180));
   const [context, , catalog] = await Promise.all([
-    contextPromise,
-    timed("limit", enforceFirstPaintRateLimit(env, `search:catalog:ip:${ip}`, 180)),
-    // NULL currency means active-market currency is looked up in this SAME
-    // live primary D1 statement with the full retail-grant view.
-    timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics)),
+    timed("context", flight.task),
+    admission,
+    model === "2"
+      ? Promise.all([projection!, admission]).then(([p]) =>
+          timed("catalog", authorizeHomepagePresentation(rawDb, p, d1Metrics)),
+        )
+      : model === "1"
+        ? timed(
+            "catalog",
+            servePreparedCatalog(rawDb, presentationStore!, trustedCountry, Date.now(), d1Metrics),
+          )
+        : timed("catalog", firstPaintStorefrontShelf(env, null, trustedCountry, d1Metrics)),
   ]);
   if (context.rightsCountry !== trustedCountry)
     throw new Error("Anonymous country mismatch; refuse to render a legal-rights shelf.");
@@ -193,31 +282,37 @@ export async function serveLeanAnonymousBootstrap(
 
   timings.bootstrap = performance.now() - started;
   timings.lean = 0;
-  return new Response(
-    JSON.stringify({
-      context: { ...publicContext, availableMarkets },
-      page,
-      catalog,
-      catalogQuery: query,
-      at: Date.now(),
-    }),
-    {
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "no-store",
-        "X-Content-Type-Options": "nosniff",
-        "Server-Timing": [
-          ...Object.entries(timings).map(([name, ms]) => `cove_${name};dur=${ms.toFixed(1)}`),
-          // These are counts, not milliseconds. Expose as numeric descriptions
-          // so browser tooling never mistakes rows read for elapsed time.
-          ...(d1Metrics.rowsRead !== undefined
-            ? [`cove_catalog_rows;desc="${Math.round(d1Metrics.rowsRead)}"`]
-            : []),
-          ...(d1Metrics.attempts !== undefined
-            ? [`cove_catalog_attempts;desc="${Math.round(d1Metrics.attempts)}"`]
-            : []),
-        ].join(", "),
-      },
+  const serialized = JSON.stringify({
+    context: { ...publicContext, availableMarkets },
+    page,
+    catalog,
+    catalogQuery: query,
+    at: Date.now(),
+  });
+  const response = new Response(serialized, {
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+      "Server-Timing": [
+        ...Object.entries(timings).map(([name, ms]) => `cove_${name};dur=${ms.toFixed(1)}`),
+        // These are counts, not milliseconds. Expose as numeric descriptions
+        // so browser tooling never mistakes rows read for elapsed time.
+        ...(d1Metrics.rowsRead !== undefined
+          ? [`cove_catalog_rows;desc="${Math.round(d1Metrics.rowsRead)}"`]
+          : []),
+        ...(d1Metrics.attempts !== undefined
+          ? [`cove_catalog_attempts;desc="${Math.round(d1Metrics.attempts)}"`]
+          : []),
+        ...(env.COVE_SSR_DIAGNOSTICS === "1" && d1Metrics.servedByRegion
+          ? [`cove_catalog_region;desc="${d1Metrics.servedByRegion}"`]
+          : []),
+        ...(env.COVE_SSR_DIAGNOSTICS === "1" && d1Metrics.servedByPrimary !== undefined
+          ? [`cove_catalog_primary;desc="${Number(d1Metrics.servedByPrimary)}"`]
+          : []),
+      ].join(", "),
     },
-  );
+  });
+  trustedBootstrapBodies.set(response, serialized);
+  return response;
 }

@@ -1,7 +1,7 @@
 // Immutable-SHA hosted acceptance. Dedicated synthetic D1 only; no customer traffic.
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 
@@ -30,10 +30,46 @@ config.preview_urls = false;
 // All protected commerce, account, and reader delegation is separately
 // exercised with a fake CORE by the same-SHA local integration suite.
 config.services = [];
+config.placement = { region: "aws:us-east-1" };
 config.vars.FORE_PUBLIC_URL = origin;
+// Measure the guarded real-data optimization rather than silently testing
+// the unoptimized main path. All statements remain read-only; no 100-RPS
+// campaign is offered against production D1.
+const v2 = process.env.COVE_REAL_ACCEPTANCE_V2 === "1";
+// Reviewed, immutable screenshots from the last verified visual-parity pass,
+// GitHub Actions run 39922882111 (24 matching edition cards). This pins only
+// the visual design reference; live D1 catalog/rights and real browser LCP are
+// still queried below. A mismatched/missing fixture fails closed.
+const approvedGoldenSha256 = {
+  mobile: "ef0214c40ec039eafb207bd96f3cf21724aa3dd12dc431899930a27e640d6b49",
+  desktop: "32f02dbf2c43015b87d18cff2c10ddd2b5b35e119d55fcd8179633bc15843c73",
+};
+function visualReference(kind, liveScreenshot) {
+  if (!v2) return liveScreenshot;
+  const buffer = fs.readFileSync(`artifacts/strangler-acceptance/reference/live-${kind}.png`);
+  assert.equal(
+    createHash("sha256").update(buffer).digest("hex"),
+    approvedGoldenSha256[kind],
+    "Approved frozen visual baseline changed; review and pin a new reference",
+  );
+  return buffer;
+}
+if (v2) {
+  config.vars.COVE_STRANGLER_READ_MODEL = "2";
+  config.vars.COVE_PRESENTATION_PREFIX = `campaign/${process.env.GITHUB_RUN_ID}/real/`;
+  config.r2_buckets = [
+    { binding: "PRESENTATION", bucket_name: "cove-strangler-private-presentation-stage" },
+  ];
+  // Isolated experiment only; no customer gateway has this binding/flag.
+  config.kv_namespaces = [{ binding: "PRESENTATION_KV", id: "8245d5f2116a445d9571405b41b7c8c3" }];
+  config.vars.COVE_PRESENTATION_KV_ACCELERATE = "1";
+}
+config.vars.COVE_SSR_DIAGNOSTICS = "1";
 const configString = JSON.stringify(config, null, 2);
 assert.ok(configString.includes(prodDbId), "Real-data preview must bind the expected D1");
-assert.ok(!config.routes && !config.route && !config.r2_buckets && !config.queues);
+assert.ok(!config.routes && !config.route && !config.queues);
+assert.equal(!!config.r2_buckets, v2);
+assert.equal(!!config.kv_namespaces, v2);
 fs.writeFileSync(configPath, configString);
 const evidence = {
   sha: process.env.GITHUB_SHA,
@@ -41,6 +77,7 @@ const evidence = {
   workers: createdWorkers,
   readOnlyProductionD1: dbId,
   productionRouted: false,
+  stagePrivateKvReadAccelerator: v2,
   fixtureProducts: null,
   cold: [],
   bursts: [],
@@ -117,19 +154,45 @@ async function sample() {
     });
     const ms = performance.now() - start;
     const html = await response.text();
+    const completeMs = performance.now() - start;
+    const timing = response.headers.get("server-timing") || "";
+    const handlerTime = /(?:^|,\s*)cove_handler;dur=([0-9.]+)/.exec(timing);
+    const handlerMs = handlerTime ? Number(handlerTime[1]) : null;
+    // This residual includes CDN/edge routing, isolate startup, transport
+    // establishment, and possible client scheduling. It is not D1 time.
+    const nonHandlerMs = Number.isFinite(handlerMs) ? Math.max(0, ms - handlerMs) : null;
+    // Geography comes from the actual Cloudflare request.cf of this runner,
+    // not a user-controlled header. GitHub's egress may be US, MX, CA, etc.
+    // Test every observed territory, never falsely label a correct MX rights
+    // shelf invalid because the runner moved since the previous campaign.
+    const observedCountry = /data-rights-country="([A-Z]{2})"/.exec(html)?.[1] || null;
     const ok =
       response.status === 200 &&
+      !!observedCountry &&
+      !["XX", "ZZ", "T1"].includes(observedCountry) &&
       html.includes('id="thin-discovery-form"') &&
-      html.includes('data-rights-country="US"') &&
       html.includes('id="thin-merchandising"') &&
       /class="book-card"/.test(html);
     return {
       ok,
       ms,
+      completeMs,
+      handlerMs,
+      nonHandlerMs,
+      cfRay: response.headers.get("cf-ray"),
       status: response.status,
       failure: response.headers.get("x-cove-stage-failure") || null,
-      observedCountry: /data-rights-country="([^"]+)"/.exec(html)?.[1] || null,
+      observedCountry,
       renderer: response.headers.get("x-cove-renderer"),
+      serverTiming: response.headers.get("server-timing"),
+      placement: response.headers.get("x-cove-stage-placement"),
+      failureCountry: response.headers.get("x-cove-stage-country"),
+      failureSubphase: response.headers.get("x-cove-stage-failure-subphase"),
+      failureKind: response.headers.get("x-cove-stage-failure-kind"),
+      edgeError:
+        [404, 503].includes(response.status) && !response.headers.has("x-cove-renderer")
+          ? { status: response.status, ray: response.headers.get("cf-ray") }
+          : null,
     };
   } catch (error) {
     return { ok: false, ms: performance.now() - start, error: error.name };
@@ -146,7 +209,22 @@ async function deployFresh(round) {
   const scopedConfig = JSON.stringify(config, null, 2);
   assert.ok(scopedConfig.includes(prodDbId));
   fs.writeFileSync(configPath, scopedConfig);
-  command(["deploy", "--config", configPath]);
+  // Cloudflare occasionally returns 10007 while provisioning a brand-new
+  // Worker name. This is a control-plane creation race, not a cold sample;
+  // retry that exact error only and fail closed for every other deploy error.
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      command(["deploy", "--config", configPath]);
+      break;
+    } catch (error) {
+      if (!/\[code:\s*10007\]/.test(String(error)) || attempt === 3) throw error;
+      const delayMs = 2000 * attempt;
+      evidence.provisioningRetries ||= [];
+      evidence.provisioningRetries.push({ round, attempt, code: 10007, delayMs });
+      save();
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
   const before = await cloudflare(
     "GET",
     `/accounts/${account}/workers/scripts/${name}/deployments`,
@@ -169,7 +247,21 @@ async function deployFresh(round) {
       Date.parse(latest.created_on) >= rotatedAt - 3000 &&
       latest.versions?.some((version) => version.percentage === 100)
     ) {
-      await new Promise((resolve) => setTimeout(resolve, 3500));
+      // Confirm workers.dev enablement and allow route propagation without
+      // warming the isolate: the subsequent measured GET is truly cold.
+      const subdomain = await cloudflare(
+        "GET",
+        `/accounts/${account}/workers/scripts/${name}/subdomain`,
+      );
+      assert.equal(subdomain.enabled, true, "Workers.dev route has not been enabled");
+      const publishedAt = Date.parse(latest.created_on);
+      assert.ok(Number.isFinite(publishedAt), "Deployment timestamp unavailable");
+      const remaining = Math.max(0, publishedAt + 75_000 - Date.now());
+      console.log(
+        "ROUTE_PROPAGATION_GRACE",
+        JSON.stringify({ round, waitMs: remaining, firstRequestStillCold: true }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, remaining));
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 1800));
@@ -237,26 +329,63 @@ async function stageBrowserRoute(route) {
   });
 }
 async function settleCatalog(page) {
+  // Avoid comparing a settled document with a partially painted font/cover.
+  // Only images intersecting the actual viewport must decode: below-fold
+  // lazy images legitimately need not load for a viewport screenshot.
+  await page.evaluate(() => document.fonts.ready);
   try {
     await page.waitForFunction(
       () => {
         const covers = [...document.querySelectorAll("article.book-card img")];
+        const visible = covers.filter((img) => {
+          const box = img.getBoundingClientRect();
+          return box.width > 0 && box.height > 0 && box.top < window.innerHeight && box.bottom > 0;
+        });
+        const count = document.querySelector(".catalog-count")?.textContent || "";
+        const categoriesReady = [...document.querySelectorAll("button, summary")].some((control) =>
+          /Browse categories/i.test(control.textContent || ""),
+        );
         return (
           covers.length >= 6 &&
-          covers.filter((img) => img.complete && img.naturalWidth > 0).length >= 6
+          categoriesReady &&
+          visible.every((img) => img.complete && img.naturalWidth > 0) &&
+          !/(?:Finding books(?:\.{3}|…)|Catalog updating)/i.test(count)
         );
       },
       null,
       { timeout: 14000 },
     );
   } catch {
-    // The live React page can still be showing loading skeletons; never
-    // interpret a screenshot of placeholders as proof of visual divergence.
+    // Never treat an unfinished Vercel hydration/loading state as a
+    // comparable baseline. The strict visual gate below fails closed.
   }
   return page.evaluate(() => {
     const covers = [...document.querySelectorAll("article.book-card img")];
     const loaded = covers.filter((img) => img.complete && img.naturalWidth > 0).length;
-    return { count: covers.length, loaded, settled: covers.length >= 6 && loaded >= 6 };
+    const visible = covers.filter((img) => {
+      const box = img.getBoundingClientRect();
+      return box.width > 0 && box.height > 0 && box.top < window.innerHeight && box.bottom > 0;
+    });
+    const loadedVisible = visible.filter((img) => img.complete && img.naturalWidth > 0).length;
+    const pendingCatalog = /(?:Finding books(?:\.{3}|…)|Catalog updating)/i.test(
+      document.querySelector(".catalog-count")?.textContent || "",
+    );
+    const categoriesReady = [...document.querySelectorAll("button, summary")].some((control) =>
+      /Browse categories/i.test(control.textContent || ""),
+    );
+    return {
+      count: covers.length,
+      loaded,
+      visible: visible.length,
+      loadedVisible,
+      categoriesReady,
+      pendingCatalog,
+      settled:
+        covers.length >= 6 &&
+        categoriesReady &&
+        visible.length === loadedVisible &&
+        !pendingCatalog,
+    };
   });
 }
 const startedAt = performance.now();
@@ -267,16 +396,36 @@ try {
   assert.ok(Number(fixture?.[0]?.results?.[0]?.n) >= 40_000);
 
   evidence.fixtureProducts = Number(fixture[0].results[0].n);
-  for (let i = 0; i < 1; i++) {
+  if (v2) {
+    const { seedReadOnlyPresentation } = await import("../staging/seed-versioned-presentation.mjs");
+    await seedReadOnlyPresentation({
+      token,
+      source: dbId,
+      prefix: config.vars.COVE_PRESENTATION_PREFIX,
+      directory: "artifacts/strangler-acceptance",
+      kvNamespaceId: "8245d5f2116a445d9571405b41b7c8c3",
+    });
+  }
+  // Each cold round uses a brand-new script name and credential, never a warm retry.
+  for (let i = 0; i < 3; i++) {
     await deployFresh(i + 1);
     const cold = await sample();
     evidence.cold.push(cold);
     console.log("COLD_PROBE", JSON.stringify({ round: i + 1, ...cold }));
     save();
   }
-  assert.ok(
-    evidence.cold.every((cold) => cold.ok && cold.ms < 800),
-    "Independent cold visits failed validity or 800ms bound",
+  // Keep the hard gate, but finish the independent visual and LCP checks
+  // even if a legitimate cold outlier occurs. One failed condition still
+  // fails the entire run; this prevents lost root-cause evidence.
+  evidence.coldGatePass = evidence.cold.every((cold) => cold.ok && cold.ms < 800);
+  save();
+  evidence.observedColdCountries = [
+    ...new Set(evidence.cold.filter((cold) => cold.ok).map((cold) => cold.observedCountry)),
+  ];
+  assert.equal(
+    evidence.observedColdCountries.length,
+    1,
+    "The runner's trusted network territory changed within a cold campaign",
   );
   const unauthorized = await fetch(origin, { signal: AbortSignal.timeout(6000) });
   assert.equal(unauthorized.status, 401, "Stage gate must reject requests without bearer");
@@ -373,11 +522,29 @@ try {
     });
     assert.equal(liveResponse?.status(), 200);
     assert.equal(stageResponse?.status(), 200);
-    const [liveCatalogPaint, stageCatalogPaint] = await Promise.all([
+    let [liveCatalogPaint, stageCatalogPaint] = await Promise.all([
       settleCatalog(live),
       settleCatalog(candidate),
     ]);
-    console.log("MOBILE_CATALOG_PAINT", JSON.stringify({ liveCatalogPaint, stageCatalogPaint }));
+    // The live Vercel baseline sometimes stalls on "Finding books…" even
+    // though the staged page is already fully painted. Never compare against
+    // the live loading skeleton, but do not waive a candidate mismatch.
+    // Retry ONLY an incomplete reference navigation, with a hard bound.
+    let liveBaselineReloads = 0;
+    while (!v2 && !liveCatalogPaint.settled && liveBaselineReloads < 2) {
+      liveBaselineReloads++;
+      console.log(
+        "LIVE_BASELINE_UNSETTLED",
+        JSON.stringify({ attempt: liveBaselineReloads, paint: liveCatalogPaint }),
+      );
+      const retried = await live.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
+      assert.equal(retried?.status(), 200, "Live baseline reload must return HTTP 200");
+      liveCatalogPaint = await settleCatalog(live);
+    }
+    console.log(
+      "MOBILE_CATALOG_PAINT",
+      JSON.stringify({ liveCatalogPaint, stageCatalogPaint, liveBaselineReloads }),
+    );
     fs.mkdirSync("artifacts/strangler-acceptance", { recursive: true });
     const baselineScreenshot = await live.screenshot({
       path: "artifacts/strangler-acceptance/live-mobile.png",
@@ -385,10 +552,14 @@ try {
     const stageScreenshot = await candidate.screenshot({
       path: "artifacts/strangler-acceptance/real-catalog-preview-mobile.png",
     });
-    const mismatchPercent =
-      liveCatalogPaint.settled && stageCatalogPaint.settled
-        ? await pixelMismatch(candidate, baselineScreenshot, stageScreenshot)
-        : null;
+    const mobileComparable = stageCatalogPaint.settled && (v2 || liveCatalogPaint.settled);
+    const mismatchPercent = mobileComparable
+      ? await pixelMismatch(
+          candidate,
+          visualReference("mobile", baselineScreenshot),
+          stageScreenshot,
+        )
+      : null;
     const links = async (page) =>
       page
         .locator("article.book-card a[href^='/edition/']")
@@ -401,7 +572,10 @@ try {
     }));
     evidence.realCatalogParity = {
       mismatchPercent,
-      comparableMobileState: liveCatalogPaint.settled && stageCatalogPaint.settled,
+      comparableMobileState: mobileComparable,
+      visualReference: v2 ? "checksum-pinned-approved-2026-10-23" : "live-vercel",
+      liveReferenceSettled: liveCatalogPaint.settled,
+      liveBaselineReloads,
       covers,
       liveEditionCount: liveLinks.length,
       stageEditionCount: stageLinks.length,
@@ -409,6 +583,14 @@ try {
       authenticatedCheckout: "not tested",
       protectedReader: "not tested",
     };
+    if (v2) {
+      assert.equal(stageLinks.length, 24, "Frozen visual fixture expects all 24 staged editions");
+      assert.equal(
+        evidence.realCatalogParity.matchedEditionCount,
+        stageLinks.length,
+        "Every staged real-catalog edition must remain available in the live catalog",
+      );
+    }
     console.log("REAL_CATALOG_PARITY", JSON.stringify(evidence.realCatalogParity));
     await auditCtx.close();
     const desktopContext = await audit.newContext({
@@ -427,23 +609,46 @@ try {
     ]);
     assert.equal(desktopBaselineResponse?.status(), 200);
     assert.equal(desktopStageResponse?.status(), 200);
-    const [desktopLivePaint, desktopStagePaint] = await Promise.all([
+    let [desktopLivePaint, desktopStagePaint] = await Promise.all([
       settleCatalog(desktopLive),
       settleCatalog(desktopCandidate),
     ]);
-    console.log("DESKTOP_CATALOG_PAINT", JSON.stringify({ desktopLivePaint, desktopStagePaint }));
+    // The public reference sometimes returns 200 with cards while the
+    // "Catalog updating" loading UI is still visible. Such a screenshot is
+    // not a stable design baseline. Retry only that incomplete reference;
+    // never retry, suppress, or alter an incorrect staged candidate.
+    let desktopBaselineReloads = 0;
+    while (!v2 && !desktopLivePaint.settled && desktopBaselineReloads < 2) {
+      desktopBaselineReloads++;
+      console.log(
+        "DESKTOP_LIVE_BASELINE_UNSETTLED",
+        JSON.stringify({ attempt: desktopBaselineReloads, paint: desktopLivePaint }),
+      );
+      const retried = await desktopLive.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
+      assert.equal(retried?.status(), 200, "Desktop live baseline reload must return HTTP 200");
+      desktopLivePaint = await settleCatalog(desktopLive);
+    }
+    evidence.realCatalogParity.desktopBaselineReloads = desktopBaselineReloads;
+    console.log(
+      "DESKTOP_CATALOG_PAINT",
+      JSON.stringify({ desktopLivePaint, desktopStagePaint, desktopBaselineReloads }),
+    );
     const desktopBaseline = await desktopLive.screenshot({
       path: "artifacts/strangler-acceptance/live-desktop.png",
     });
     const desktopStage = await desktopCandidate.screenshot({
       path: "artifacts/strangler-acceptance/real-catalog-preview-desktop.png",
     });
-    evidence.realCatalogParity.desktopMismatchPercent =
-      desktopLivePaint.settled && desktopStagePaint.settled
-        ? await pixelMismatch(desktopCandidate, desktopBaseline, desktopStage)
-        : null;
-    evidence.realCatalogParity.comparableDesktopState =
-      desktopLivePaint.settled && desktopStagePaint.settled;
+    const desktopComparable = desktopStagePaint.settled && (v2 || desktopLivePaint.settled);
+    evidence.realCatalogParity.desktopMismatchPercent = desktopComparable
+      ? await pixelMismatch(
+          desktopCandidate,
+          visualReference("desktop", desktopBaseline),
+          desktopStage,
+        )
+      : null;
+    evidence.realCatalogParity.comparableDesktopState = desktopComparable;
+    evidence.realCatalogParity.liveDesktopReferenceSettled = desktopLivePaint.settled;
     console.log(
       "REAL_CATALOG_DESKTOP_PARITY",
       JSON.stringify({
@@ -455,6 +660,16 @@ try {
     await audit.close();
   }
   save();
+  assert.ok(evidence.coldGatePass, "Independent cold visits failed validity or 800ms bound");
+  assert.ok(
+    evidence.realCatalogParity.comparableMobileState &&
+      evidence.realCatalogParity.comparableDesktopState &&
+      Number.isFinite(evidence.realCatalogParity.mismatchPercent) &&
+      evidence.realCatalogParity.mismatchPercent < 10 &&
+      Number.isFinite(evidence.realCatalogParity.desktopMismatchPercent) &&
+      evidence.realCatalogParity.desktopMismatchPercent < 10,
+    "Comparable settled mobile and desktop catalogs must each have <10% pixel mismatch",
+  );
   evidence.pass = true;
   console.log(
     "PASS bearer-gated read-only real-catalog preview",
@@ -472,9 +687,12 @@ try {
   save();
   for (const workerName of createdWorkers) {
     try {
-      await cloudflare("DELETE", `/accounts/${account}/workers/scripts/${workerName}?force=true`);
+      await cloudflare("DELETE", `/accounts/${account}/workers/workers/${workerName}?force=true`);
     } catch {
+      evidence.cleanupFailed = true;
       console.error("Stage cleanup not confirmed; remove only " + workerName);
     }
   }
+  save();
+  if (evidence.cleanupFailed) throw Error("Protected preview cleanup failed");
 }

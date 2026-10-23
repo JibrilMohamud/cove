@@ -13,6 +13,7 @@ dist-ssr
 .output
 .vercel/
 backend-dist/
+content-dist/
 .vinxi
 .tanstack/**
 .nitro

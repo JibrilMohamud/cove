@@ -1,0 +1,124 @@
+name: isolated-data-plane
+on:
+  workflow_dispatch:
+    inputs:
+      diagnostic_full:
+        description: "Collect all ABBA phases even after an irreversible failure (non-release diagnostic)"
+        type: boolean
+        required: true
+        default: false
+      placement:
+        description: "Private QA placement arm; never affects production"
+        type: choice
+        required: true
+        default: primary-pinned
+        options:
+          - primary-pinned
+          - ingress-local
+  pull_request:
+    paths:
+      - "src/storefront-strangler/**"
+      - "src/lib/literary-*.ts"
+      - "src/content-processing.worker.ts"
+      - "scripts/check-isolated-data-plane.mjs"
+      - "scripts/check-publication-feed.mjs"
+      - "scripts/staging/check-publication-feed-live.mjs"
+      - "infra/discovery/**"
+      - "scripts/performance/isolated-data-plane-acceptance.mjs"
+      - "scripts/performance/capacity-release-gate.mjs"
+      - "scripts/check-capacity-release-gate.mjs"
+      - "scripts/staging/strangler-http-transport.mjs"
+      - "wrangler.*.stage.jsonc"
+      - ".github/workflows/isolated-data-plane.yml"
+permissions:
+  contents: read
+concurrency:
+  group: cove-isolated-data-plane
+  cancel-in-progress: true
+jobs:
+  correctness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - run: npm run test:isolated-data-plane
+      - run: node scripts/check-unbiased-random.mjs
+      - run: node scripts/check-capacity-release-gate.mjs
+      - run: node scripts/check-publication-feed.mjs
+      - run: npm run test:literary-prepare-outbox
+      - run: npm run test:literary-preparation-domain
+      - run: npm run test:literary-prepared-projection
+      - run: node scripts/check-storefront-prepared-catalog.mjs
+      - run: node scripts/check-isolated-http-metric.mjs
+      - run: npm run test:rights && npm run test:commerce
+      - run: npm run typecheck
+      - run: node scripts/build-storefront-strangler.mjs && npm run build:content-processing
+  restore-private-core:
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
+    uses: ./.github/workflows/strangler-stage-core-deploy.yml
+    secrets: inherit
+  hosted-capacity:
+    needs: correctness
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_SEND_METRICS: "false"
+      # Use the bounded 16-session HTTP/2 client for production-like browser
+      # multiplexing. Prior HTTP/1 runs, including all failed tail samples,
+      # remain in immutable release evidence; no failures are discarded and
+      # the exact 12k/phase, zero-drop, <800ms thresholds are unchanged.
+      COVE_STAGE_HTTP2: "1"
+      # Strict mode stops when a required projection request cannot pass.
+      # For archived ABBA diagnostics only, manually set this to "0".
+      COVE_CAPACITY_FAIL_FAST: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic_full && '0' || '1' }}
+      # Pinned primary remains the default after ingress-local SJC worsened
+      # network tails; the alternative remains selectable for diagnostics.
+      # Private KV replaces repeated presentation R2 reads, not D1 authority.
+      COVE_CAPACITY_PLACEMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.placement || 'primary-pinned' }}
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - run: node scripts/build-storefront-strangler.mjs
+      - run: node scripts/performance/isolated-data-plane-acceptance.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: isolated-data-plane-${{ github.sha }}
+          path: artifacts/isolated-data-plane/
+          retention-days: 30
+  publication-feed-live:
+    needs: correctness
+    # This archived real-catalog proof reads the canonical D1 on purpose.
+    # Do not rescan production on every PR commit while its replica routing
+    # remains non-deterministic. Manual branch-scoped runs only.
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-data-plane-20261022'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - run: node scripts/build-storefront-strangler.mjs
+      - run: node scripts/staging/check-publication-feed-live.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: publication-feed-${{ github.sha }}
+          path: artifacts/publication-feed/
+          retention-days: 30

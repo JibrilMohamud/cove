@@ -1,0 +1,21 @@
+# Isolated asset worker. STAGING TEMPLATE ONLY; supply dedicated staging resources.
+name = "cove-content-assets-staging"
+main = "content-dist/worker.js"
+compatibility_date = "2026-10-09"
+workers_dev = true
+[limits]
+cpu_ms = 300_000
+[[d1_databases]]
+binding = "DB"
+database_name = "REPLACE_WITH_STAGING_DATABASE"
+database_id = "REPLACE_WITH_STAGING_D1_UUID"
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "REPLACE_WITH_PRIVATE_STAGING_R2"
+[vars]
+FORE_CONTENT_PROCESSOR_ENABLED = "0"
+FORE_CONTENT_PROCESSOR_ROLE = "assets"
+FORE_CONTENT_D1_ADMISSION_MAX_MS = "300"
+FORE_ASSETS_PER_MINUTE = "8"
+[triggers]
+crons = ["* * * * *"]
