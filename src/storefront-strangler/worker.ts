@@ -196,6 +196,7 @@ export default {
     let failurePhase = "entry";
     let bootstrapSubphase: string | null = null;
     let bootstrapSubkind: string | null = null;
+    let trustedStageCountry: string | null = null;
     try {
       const url = new URL(request.url);
       const diagnostic = url.pathname === "/__cove_perf/bootstrap" && !url.search;
@@ -241,6 +242,9 @@ export default {
       if (!safe)
         return finish(new Response("Unable to verify storefront territory.", { status: 503 }));
       const headers = new Headers(safe.headers);
+      // The ingress-gated stage records only the normalized edge-derived country.
+      if (!customerGateway && /^[A-Z]{2}$/.test(headers.get("x-cove-client-country") || ""))
+        trustedStageCountry = headers.get("x-cove-client-country");
       headers.delete("authorization"); // staging gate credential is never an app identity
       const bootstrapRequest = new Request(new URL("/api/fore/storefront/bootstrap", request.url), {
         headers,
@@ -287,8 +291,14 @@ export default {
         bootstrapRequest,
         bootstrapEnv,
         (phase, error) => {
-          bootstrapSubphase = ["context", "catalog", "limit"].includes(phase) ? phase : "unknown";
-          bootstrapSubkind = bootstrapFailureKind(error);
+          // A presentation rejection also rejects dependent context/catalog
+          // promises. Keep the original R2 failure rather than its echo.
+          if (bootstrapSubphase === null || phase === "presentation") {
+            bootstrapSubphase = ["presentation", "context", "catalog", "limit"].includes(phase)
+              ? phase
+              : "unknown";
+            bootstrapSubkind = bootstrapFailureKind(error);
+          }
         },
       );
       if (!response.ok) return finish(new Response(null, { status: response.status }));
@@ -364,6 +374,7 @@ export default {
             ...(customerGateway
               ? {}
               : {
+                  "x-cove-stage-country": trustedStageCountry || "unknown",
                   "x-cove-stage-failure-subphase": bootstrapSubphase || "unknown",
                   "x-cove-stage-failure-kind": bootstrapSubkind || bootstrapFailureKind(error),
                 }),
