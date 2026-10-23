@@ -184,13 +184,11 @@ try {
   );
   assert.equal(privateRead.status, 200);
   assert.equal(sha(Buffer.from(await privateRead.arrayBuffer())), checksum);
-  assert.equal(
-    (await worker.fetch(
-      new Request("https://music.qa.test/v1/qa/masters/" + manifest.id + "/audio"),
-      env,
-    )).status,
-    401,
+  const unauthorizedRead = await worker.fetch(
+    new Request("https://music.qa.test/v1/qa/masters/" + manifest.id + "/audio"),
+    env,
   );
+  assert.equal(unauthorizedRead.status, 401);
   assert.equal(
     (await invoke("/v1/masters/fixture-master-1/quality", "POST", "operator", {})).status,
     401,
