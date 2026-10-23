@@ -1,0 +1,38 @@
+name: music-supply-branch-format-once
+on:
+  pull_request:
+    paths:
+      - "src/music-supply/**"
+      - "scripts/check-isolated-music-supply.mjs"
+      - ".github/workflows/music-supply-branch-format-once.yml"
+permissions:
+  contents: read
+concurrency:
+  group: music-supply-format-once
+  cancel-in-progress: false
+jobs:
+  format-owned-draft-only:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/isolated-licensed-music-supply-20261023' && github.event.pull_request.user.login == 'JibrilMohamud'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/isolated-licensed-music-supply-20261023
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx prettier --write src/music-supply/*.ts scripts/check-isolated-music-supply.mjs
+      - name: Write formatting-only changes to the isolated draft branch
+        run: |
+          if ! git diff --quiet -- src/music-supply scripts/check-isolated-music-supply.mjs; then
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git add src/music-supply scripts/check-isolated-music-supply.mjs
+            git commit -m "style(music): Prettier-format isolated supply implementation"
+            git push origin HEAD:refs/heads/feat/isolated-licensed-music-supply-20261023
+          fi
