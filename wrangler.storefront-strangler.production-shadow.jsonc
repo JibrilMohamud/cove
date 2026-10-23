@@ -1,0 +1,56 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "cove-fast-customer-gateway-shadow",
+  "main": ".output/strangler/index.mjs",
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cove-production",
+      "database_id": "4bd657ac-8789-403e-a28c-93aba8d0a989",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "PRESENTATION",
+      "bucket_name": "cove-production-private-presentation"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "PRESENTATION_KV",
+      "id": "ecf4b257ad3c47309cd4d116746966f6"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "COVE_STOREFRONT_READ_LIMITER",
+      "namespace_id": "732032",
+      "simple": {
+        "limit": 180,
+        "period": 60
+      }
+    }
+  ],
+  "vars": {
+    "COVE_STRANGLER_MODE": "customer-gateway",
+    "COVE_STRANGLER_RELEASE_CERTIFIED": "0",
+    "COVE_STRANGLER_DATABASE_ID": "4bd657ac-8789-403e-a28c-93aba8d0a989",
+    "COVE_STRANGLER_EXPERIENCE": "1",
+    "COVE_STRANGLER_READ_MODEL": "2",
+    "COVE_PRESENTATION_KV_ACCELERATE": "1",
+    "COVE_PRESENTATION_PREFIX": "production/current/",
+    "FORE_ENVIRONMENT": "production",
+    "FORE_DEFAULT_TERRITORY": "US",
+    "FORE_PUBLIC_URL": "https://cove-puce-theta.vercel.app"
+  }
+}

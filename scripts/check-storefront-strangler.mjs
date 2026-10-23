@@ -31,6 +31,33 @@ function validateConfig(raw) {
   assert.equal(c.ratelimits[0].simple.limit, 180);
 }
 validateConfig(source);
+
+// The production-equivalent shadow is a distinct, unroutable service.
+// Unlike the old customer config, it is wired for the exact KV/R2 v2 model
+// that passed capacity tests, but remains certification=0 by construction.
+const shadowPath = "wrangler.storefront-strangler.production-shadow.jsonc";
+const shadowParsed = ts.parseConfigFileTextToJson(
+  shadowPath,
+  fs.readFileSync(shadowPath, "utf8"),
+);
+assert.equal(shadowParsed.error, undefined);
+const shadow = shadowParsed.config;
+assert.equal(shadow.name, "cove-fast-customer-gateway-shadow");
+assert.equal(shadow.workers_dev, false);
+assert.equal(shadow.preview_urls, false);
+assert.ok(!shadow.routes && !shadow.route && !shadow.triggers);
+assert.ok(!shadow.services && !shadow.queues);
+assert.equal(shadow.vars?.COVE_STRANGLER_MODE, "customer-gateway");
+assert.equal(shadow.vars?.COVE_STRANGLER_RELEASE_CERTIFIED, "0");
+assert.equal(shadow.vars?.COVE_STRANGLER_READ_MODEL, "2");
+assert.equal(shadow.vars?.COVE_PRESENTATION_KV_ACCELERATE, "1");
+assert.equal(shadow.vars?.COVE_PRESENTATION_PREFIX, "production/current/");
+assert.equal(shadow.d1_databases?.[0]?.database_id, PROD_DB);
+assert.equal(shadow.r2_buckets?.[0]?.bucket_name, "cove-production-private-presentation");
+assert.equal(shadow.kv_namespaces?.[0]?.id, "ecf4b257ad3c47309cd4d116746966f6");
+assert.equal(shadow.vars?.COVE_FAST_RELAY_KEY, undefined);
+assert.equal(shadow.ratelimits?.[0]?.simple?.limit, 180);
+
 assert.throws(() => validateConfig(source.replace(STAGE_DB, PROD_DB)));
 assert.throws(() => validateConfig(source.replace('"workers_dev": false', '"workers_dev": true')));
 assert.throws(() => validateConfig(source.replace('"isolated-evaluation"', '"production"')));
