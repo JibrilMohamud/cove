@@ -326,6 +326,33 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
     return response({ id: r.id, status: "quality_passed", canonicalPublished: false }, 202);
   }
 
+  // Explicit per-master withdrawal precedes any R2 cleanup. The future
+  // canonical publisher must consume the durable removal event first.
+  const masterRevoke = /^\/v1\/masters\/([a-zA-Z0-9._:-]{3,120})\/revoke$/.exec(path);
+  if (masterRevoke && method === "POST") {
+    if (!reviewer) return response({ error: "license_reviewer_required" }, 401);
+    const record = await master(env, masterRevoke[1]);
+    if (!record) return response({ error: "music_master_not_found" }, 404);
+    const reason = (await json(request, 1000)) as Record<string, unknown>;
+    if (typeof reason.reason !== "string" || reason.reason.length < 15)
+      return response({ error: "music_revocation_reason_required" }, 422);
+    const at = now(),
+      eventId = crypto.randomUUID();
+    await env.MUSIC_DB.batch([
+      env.MUSIC_DB.prepare(
+        "UPDATE music_masters SET status='revoked',updated_at=? WHERE id=? AND status!='revoked'",
+      ).bind(at, masterRevoke[1]),
+      env.MUSIC_DB.prepare(
+        "INSERT INTO music_publication_outbox(id,contract_id,master_id,action,payload_json,created_at) SELECT ?,contract_id,id,'master_revoked',?,? FROM music_masters WHERE id=? AND status='revoked' AND updated_at=?",
+      ).bind(eventId, JSON.stringify({ reason: reason.reason }), at, masterRevoke[1], at),
+    ]);
+    return response({
+      id: masterRevoke[1],
+      status: "revoked",
+      requiresCanonicalRevocation: true,
+    });
+  }
+
   const contractRevoke = /^\/v1\/contracts\/([a-zA-Z0-9._:-]{3,120})\/revoke$/.exec(path);
   if (contractRevoke && method === "POST") {
     if (!reviewer) return response({ error: "license_reviewer_required" }, 401);
@@ -355,15 +382,22 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
     const after = url.searchParams.get("after") || "0";
     if (!/^(0|[1-9][0-9]{0,14})$/.test(after))
       return response({ error: "music_invalid_cursor" }, 400);
-    const limit = Math.min(
-      MUSIC_SUPPLY_MAX_BATCH,
-      Math.max(1, Number(url.searchParams.get("limit") || 4)),
-    );
+    const requestedLimit = Number(url.searchParams.get("limit") || 4);
+    if (!Number.isSafeInteger(requestedLimit) || requestedLimit < 1)
+      return response({ error: "music_invalid_limit" }, 400);
+    const limit = Math.min(MUSIC_SUPPLY_MAX_BATCH, requestedLimit);
+    // An old qualified event is never independently publishable after its
+    // parent contract has expired or been revoked. The downstream authority
+    // must separately check current rights and consume retraction events.
     const rows = (
       await env.MUSIC_DB.prepare(
-        "SELECT o.* FROM music_publication_outbox o WHERE o.seq>? ORDER BY o.seq LIMIT ?",
+        "SELECT o.*,c.status contract_status,c.expires_at contract_expires_at," +
+          " c.evidence_sha256 contract_evidence_sha256," +
+          " CASE WHEN o.action='master_qualified' AND c.status='active' AND c.expires_at>? THEN 1 ELSE 0 END publishable" +
+          " FROM music_publication_outbox o JOIN music_contracts c ON c.id=o.contract_id" +
+          " WHERE o.seq>? ORDER BY o.seq LIMIT ?",
       )
-        .bind(Number(after), limit)
+        .bind(now(), Number(after), limit)
         .all<Record<string, unknown>>()
     ).results;
     return response({
