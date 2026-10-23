@@ -225,10 +225,7 @@ async function refundAndVerify(adminPage, purchase, checkRevoked) {
   assert.ok(["pending", "succeeded"].includes(returned.data?.status));
   refunded.add(purchase.intentId);
   await until(async () => {
-    const rows = await qaD1(
-      "SELECT status FROM commerce_orders WHERE id=?",
-      [purchase.orderId],
-    );
+    const rows = await qaD1("SELECT status FROM commerce_orders WHERE id=?", [purchase.orderId]);
     return rows[0]?.status === "refunded" && (await checkRevoked());
   }, "Real Cove refund must update order, entitlement and protected access");
 }
@@ -277,8 +274,7 @@ try {
       "GET",
       "/delivery/ownership?productId=" + encodeURIComponent(q.COVE_QA_EPUB_PRODUCT_ID),
     );
-    if (result.status !== 200 || result.data?.entitlement?.status !== "active")
-      return false;
+    if (result.status !== 200 || result.data?.entitlement?.status !== "active") return false;
     const source = await qaD1(
       `SELECT e.status FROM entitlements e
        JOIN commerce_order_items oi ON oi.id=e.order_item_id
@@ -444,7 +440,9 @@ try {
           payment_intent: payment.intentId,
           reason: "requested_by_customer",
         });
-        console.error("QA Stripe-only cleanup performed; Cove entitlement reconciliation needs review");
+        console.error(
+          "QA Stripe-only cleanup performed; Cove entitlement reconciliation needs review",
+        );
       }
     } catch {
       console.error("QA cleanup requires operator review for a TEST payment intent");
