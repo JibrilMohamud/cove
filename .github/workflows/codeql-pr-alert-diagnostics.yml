@@ -1,0 +1,48 @@
+# Temporary read-only diagnostic: prints CodeQL rule IDs, file and line for
+# branch alerts. It never requests source snippets or exposes credentials.
+name: codeql-pr-alert-diagnostics
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/codeql-pr-alert-diagnostics.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  security-events: read
+jobs:
+  current-branch-alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Identify actionable findings from CodeQL branch alerts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+        run: |
+          node --input-type=module <<'NODE'
+          const ref = "refs/heads/" + process.env.HEAD_REF;
+          const url = new URL(`https://api.github.com/repos/${process.env.REPO}/code-scanning/alerts`);
+          url.searchParams.set("state", "open");
+          url.searchParams.set("ref", ref);
+          url.searchParams.set("per_page", "100");
+          const response = await fetch(url, {headers: {
+            authorization: "Bearer " + process.env.GH_TOKEN,
+            accept: "application/vnd.github+json",
+            "x-github-api-version": "2022-11-28",
+          }});
+          if (!response.ok) {
+            console.error("CodeQL alert read unavailable", response.status);
+            process.exitCode = 1;
+          } else {
+            const alerts = await response.json();
+            for (const alert of alerts.filter(a => a.tool?.name === "CodeQL").slice(0, 100)) {
+              const location = alert.most_recent_instance?.location || {};
+              console.log(JSON.stringify({
+                number: alert.number, rule: alert.rule?.id, severity: alert.rule?.security_severity_level,
+                path: location.path, start_line: location.start_line,
+                message: alert.most_recent_instance?.message?.text?.slice(0, 350),
+              }));
+            }
+            console.log("OPEN_CODEQL_BRANCH_ALERTS", alerts.filter(a => a.tool?.name === "CodeQL").length);
+          }
+          NODE
