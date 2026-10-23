@@ -11,6 +11,7 @@ on:
       - ".github/workflows/cove-commerce-private-qa-deploy.yml"
       - "scripts/staging/check-deployed-commerce-browser.mjs"
       - "scripts/staging/qa-refund-operator.mjs"
+      - "scripts/staging/cleanup-qa-refund-operators.mjs"
       - "scripts/staging/run-protected-deployed-commerce-qa.mjs"
       - ".github/workflows/deployed-commerce-browser-acceptance.yml"
   workflow_dispatch:
@@ -134,6 +135,9 @@ jobs:
           path: artifacts/deployed-commerce/report.json
           if-no-files-found: ignore
           retention-days: 14
+      - name: Revoke QA refund role even if Node aborted
+        if: always()
+        run: node scripts/staging/cleanup-qa-refund-operators.mjs
       - name: Restore isolated QA Worker to private-only (even on failed acceptance)
         if: always()
         shell: bash
