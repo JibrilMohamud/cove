@@ -43,6 +43,10 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.64.0-noble
       options: --ipc=host
+    # GitHub sets /github/home (owned by pwuser) while the image's default
+    # user is root. Firefox refuses that owner mismatch at browser launch.
+    env:
+      HOME: /root
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
