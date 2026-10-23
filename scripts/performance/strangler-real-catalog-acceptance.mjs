@@ -42,12 +42,18 @@ if (v2) {
   config.r2_buckets = [
     { binding: "PRESENTATION", bucket_name: "cove-strangler-private-presentation-stage" },
   ];
+  // Isolated experiment only; no customer gateway has this binding/flag.
+  config.kv_namespaces = [
+    { binding: "PRESENTATION_KV", id: "8245d5f2116a445d9571405b41b7c8c3" },
+  ];
+  config.vars.COVE_PRESENTATION_KV_ACCELERATE = "1";
 }
 config.vars.COVE_SSR_DIAGNOSTICS = "1";
 const configString = JSON.stringify(config, null, 2);
 assert.ok(configString.includes(prodDbId), "Real-data preview must bind the expected D1");
 assert.ok(!config.routes && !config.route && !config.queues);
 assert.equal(!!config.r2_buckets, v2);
+assert.equal(!!config.kv_namespaces, v2);
 fs.writeFileSync(configPath, configString);
 const evidence = {
   sha: process.env.GITHUB_SHA,
@@ -55,6 +61,7 @@ const evidence = {
   workers: createdWorkers,
   readOnlyProductionD1: dbId,
   productionRouted: false,
+  stagePrivateKvReadAccelerator: v2,
   fixtureProducts: null,
   cold: [],
   bursts: [],
@@ -370,6 +377,7 @@ try {
       source: dbId,
       prefix: config.vars.COVE_PRESENTATION_PREFIX,
       directory: "artifacts/strangler-acceptance",
+      kvNamespaceId: "8245d5f2116a445d9571405b41b7c8c3",
     });
   }
   // Each cold round uses a brand-new script name and credential, never a warm retry.
