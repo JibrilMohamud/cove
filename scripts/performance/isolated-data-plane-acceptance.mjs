@@ -300,19 +300,30 @@ async function deploy(round) {
   const before = (await api("GET", `/accounts/${account}/workers/scripts/${name}/deployments`))
     .deployments[0].id;
   cli(["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", config], gate);
-  let published = false;
+  let publishedAt = null;
   for (let attempt = 0; attempt < 20; attempt++) {
     const latest = (await api("GET", `/accounts/${account}/workers/scripts/${name}/deployments`))
       .deployments[0];
     if (latest.id !== before && latest.versions.some((v) => v.percentage === 100)) {
-      published = true;
+      publishedAt = Date.parse(latest.created_on);
       break;
     }
     await new Promise((r) => setTimeout(r, 1500));
   }
-  assert.ok(published);
-  // Propagation only; no warming request before the measured first visit.
-  await new Promise((r) => setTimeout(r, 25000));
+  assert.ok(Number.isFinite(publishedAt), "Stage secret rollout timestamp unavailable");
+  const subdomain = await api("GET", `/accounts/${account}/workers/scripts/${name}/subdomain`);
+  assert.equal(subdomain.enabled, true, "Staging route is not enabled");
+  // Brand-new workers.dev routes can still return edge-generated 404 after
+  // the deployment API reports a completed 100% rollout. Wait for route
+  // propagation BEFORE the first actual Worker request. We must not poll the
+  // application route: doing so would warm the isolate and invalidate the
+  // cold-start gate. The first request remains one measured, strict sample.
+  const waitMs = Math.max(0, publishedAt + 75000 - Date.now());
+  evidence.routePropagation ||= [];
+  evidence.routePropagation.push({ round, waitMs, rolloutConfirmed: true });
+  save();
+  console.log("ARCH_ROUTE_PROPAGATION_GRACE", JSON.stringify({ round, waitMs }));
+  await new Promise((r) => setTimeout(r, waitMs));
 }
 async function phase(model) {
   const rows = [],
