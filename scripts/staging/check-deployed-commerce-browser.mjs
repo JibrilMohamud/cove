@@ -421,19 +421,39 @@ try {
     "PASS: genuine deployed browser Auth, signed Stripe fulfillment, EPUB, playable audio, outsider denial and refund revocation",
   );
 } finally {
-  // Never leave succeeded synthetic payments unrefunded after a test assertion.
-  for (const intentId of payments) {
-    if (refunded.has(intentId)) continue;
+  // First clean up *through Cove* so entitlement revocation and the refund
+  // ledger are actually processed; only fall back to a Stripe test-mode
+  // refund if the real Cove admin path itself is unavailable.
+  for (const payment of payments) {
+    if (refunded.has(payment.intentId)) continue;
     try {
-      const intent = await stripe("GET", "payment_intents/" + intentId);
-      if (intent.status === "succeeded")
+      if (refundOperatorPage && refundOperatorId) {
+        const local = await request(refundOperatorPage, "POST", "/admin/commerce/refund", {
+          orderId: payment.orderId,
+          reason: "requested_by_customer",
+          idempotencyKey: "qa-cleanup-" + randomUUID(),
+        });
+        if (local.status === 200 && ["pending", "succeeded"].includes(local.data?.status)) {
+          refunded.add(payment.intentId);
+          continue;
+        }
+      }
+      const intent = await stripe("GET", "payment_intents/" + payment.intentId);
+      if (intent.status === "succeeded") {
         await stripe("POST", "refunds", {
-          payment_intent: intentId,
+          payment_intent: payment.intentId,
           reason: "requested_by_customer",
         });
+        console.error("QA Stripe-only cleanup performed; Cove entitlement reconciliation needs review");
+      }
     } catch {
       console.error("QA cleanup requires operator review for a TEST payment intent");
     }
+  }
+  try {
+    await revokeQaRefundOperator(refundOperatorId);
+  } catch {
+    console.error("QA temporary refund-operator cleanup requires operator review");
   }
   await Promise.all(contexts.map((c) => c.close().catch(() => {})));
   await browser.close();
