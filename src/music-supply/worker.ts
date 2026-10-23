@@ -252,7 +252,7 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
       nextCursor: rows.length ? String(rows[rows.length - 1].id) : after,
     });
   }
-  const qaMasterAudio = /^\\/v1\\/qa\\/masters\\/([a-zA-Z0-9._:-]{3,120})\\/audio$/.exec(path);
+  const qaMasterAudio = /^\/v1\/qa\/masters\/([a-zA-Z0-9._:-]{3,120})\/audio$/.exec(path);
   if (qaMasterAudio && method === "GET") {
     if (!qa) return response({ error: "music_qa_identity_required" }, 401);
     const r = await master(env, qaMasterAudio[1]);
