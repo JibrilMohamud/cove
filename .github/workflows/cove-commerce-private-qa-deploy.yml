@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - "wrangler.commerce-qa.stage.toml"
+      - "src/lib/cloudflare-ssr-stage-gate.server.ts"
+      - "scripts/staging/check-commerce-qa-stage-write-gate.mjs"
       - "scripts/staging/upload-original-commerce-qa-media.mjs"
       - "scripts/staging/seed-original-commerce-qa-catalog.mjs"
       - "scripts/staging/verify-commerce-private-qa-stage.mjs"
@@ -35,6 +37,7 @@ jobs:
       - run: npm ci
       - name: Verify all remote bindings remain isolated and private
         run: node scripts/staging/check-commerce-private-qa-stage.mjs
+      - run: node scripts/staging/check-commerce-qa-stage-write-gate.mjs
       - name: Apply full app schema to disposable QA D1 ONLY
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler d1 migrations apply DB --remote --config wrangler.commerce-qa.stage.toml
       - run: npm run build
