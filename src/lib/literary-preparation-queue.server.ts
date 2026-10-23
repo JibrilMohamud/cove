@@ -1,3 +1,4 @@
+import { unbiasedCryptoInt } from "./unbiased-random";
 import {
   runIsolatedLiteraryPreparationTick,
   type PreparationEnv,
@@ -40,7 +41,7 @@ export async function consumePreparationQueue(
       if (delay) message.retry({ delaySeconds: delay });
       else message.ack();
     } catch {
-      const jitter = crypto.getRandomValues(new Uint8Array(1))[0] % 30;
+      const jitter = unbiasedCryptoInt(30);
       message.retry({
         delaySeconds: Math.min(3600, 30 * 2 ** Math.min(6, message.attempts) + jitter),
       });
