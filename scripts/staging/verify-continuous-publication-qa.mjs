@@ -48,7 +48,7 @@ async function health() {
   );
   const pubs = await sql(
     ledger,
-    "SELECT country,generation,status,expires_at,published_at,last_error FROM discovery_publications",
+    "SELECT country,generation,status,expires_at,published_at,last_error FROM discovery_publications WHERE active=1",
   );
   const s = sourceRows[0];
   const complete =
