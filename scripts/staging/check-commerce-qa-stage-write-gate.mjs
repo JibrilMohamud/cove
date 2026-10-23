@@ -52,9 +52,16 @@ for (const path of [
 for (const method of ["PUT", "DELETE", "PATCH", "OPTIONS"])
   assert.equal((await check(req(allowed[0], method), qaEnv)).status, 405);
 assert.equal(await check(req("/api/fore/catalog", "GET"), qaEnv), null);
-assert.equal((await check(req(allowed[0]), {
-  COVE_SSR_STAGING: "1",
-  COVE_SSR_STAGING_COMMERCE_QA: "1",
-})).status, 503);
+assert.equal(
+  (
+    await check(req(allowed[0]), {
+      COVE_SSR_STAGING: "1",
+      COVE_SSR_STAGING_COMMERCE_QA: "1",
+    })
+  ).status,
+  503,
+);
 assert.equal(await check(req(allowed[0]), {}), null);
-console.log("PASS: only exact QA host + rotating bearer + explicit POST allowlist; all other stages read-only.");
+console.log(
+  "PASS: only exact QA host + rotating bearer + explicit POST allowlist; all other stages read-only.",
+);
