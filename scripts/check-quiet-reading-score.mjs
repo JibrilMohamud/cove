@@ -56,7 +56,7 @@ try {
   assert.equal(assessQuietReading({ ...quiet, semantics: null }, null).tier, "needs_vocal_evidence");
   assert.equal(assessQuietReading(quiet, true).tier, "distracting");
   assert.equal(
-    assessQuietReading({ ...quiet, semantics: { dimensions: { vocalPresence: 0.75, arousal: 0.1 } } }, false).tier,
+    assessQuietReading({ ...quiet, semantics: { ...quiet.semantics, dimensions: { vocalPresence: 0.75, arousal: 0.1 } } }, false).tier,
     "distracting",
     "semantic vocal detection vetoes inaccurate instrumental tags",
   );
