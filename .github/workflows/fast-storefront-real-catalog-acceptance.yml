@@ -9,6 +9,11 @@ on:
       ]
 permissions:
   contents: read
+# Do not overlap read-only cold campaigns against the shared canonical D1.
+# Preserve cleanup on cancellation by letting one run finish before the next.
+concurrency:
+  group: cove-exclusive-real-primary-cold-acceptance
+  cancel-in-progress: false
 jobs:
   protected-real-catalog-acceptance:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && (github.event.pull_request.head.ref == 'release/fast-storefront-prod-acceptance-20261021' || github.event.pull_request.head.ref == 'release/verified-geo-fast-storefront-relay-20261021' || github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022')
