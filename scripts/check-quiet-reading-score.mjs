@@ -115,7 +115,9 @@ try {
   const playlist = planDiverseReadingMusic(tracks, options);
   assert.ok(playlist.length >= 5, "enough new masters for a complete reading session");
   assert.equal(new Set(playlist.map((t) => t.masterFingerprint)).size, playlist.length);
-  assert.ok(playlist.every((t) => !["r0", "r1", "r2", "duplicate"].includes(t.id)));
+  assert.ok(
+    playlist.every((t) => !["r0", "r1", "r2", "duplicate"].includes(t.id)),
+  );
   assert.deepEqual(planDiverseReadingMusic(tracks, options), playlist, "stable within session");
   assert.deepEqual(planDiverseReadingMusic([], options), []);
   assert.ok(
