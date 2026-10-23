@@ -21,6 +21,9 @@ const discovery = "cc842ee5-c526-431e-96ee-5e093fb45e6d";
 const content = "7a26c27d-966c-468a-a3ad-d06cfff68010";
 const production = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const bucket = "cove-strangler-private-presentation-stage";
+// Same private QA-only namespace as the real-catalog presentation accelerator.
+// Every key is isolated by the unique GitHub run ID and expires after 30 min.
+const presentationKv = "8245d5f2116a445d9571405b41b7c8c3";
 const token = process.env.CLOUDFLARE_API_TOKEN;
 const runId = process.env.GITHUB_RUN_ID;
 assert.ok(token && /^\d+$/.test(runId));
@@ -48,15 +51,27 @@ const evidence = {
   transport: stageTransport,
   failFastEnabled: failFast,
   stagePlacement,
+  presentationAccelerator: "private-stage-kv-with-r2-fallback",
 };
 const save = () => fs.writeFileSync(directory + "/results.json", JSON.stringify(evidence, null, 2));
 const names = [];
+const kvKeys = [];
 let origin, gate;
 evidence.workers = names;
 let shutdown;
 function cleanup() {
   return (shutdown ||= (async () => {
     closeStageTransport();
+    for (const key of kvKeys) {
+      try {
+        await api(
+          "DELETE",
+          `/accounts/${account}/storage/kv/namespaces/${presentationKv}/values/${encodeURIComponent(key)}`,
+        );
+      } catch {
+        evidence.cleanupFailed = true;
+      }
+    }
     for (const name of names) {
       try {
         await api("DELETE", `/accounts/${account}/workers/workers/${name}`);
@@ -127,6 +142,23 @@ async function api(method, path, body) {
   if (!r.ok || !j.success)
     throw Error("Cloudflare " + method + " " + r.status + " " + JSON.stringify(j.errors));
   return j.result;
+}
+async function putPrivateStageKv(key, body) {
+  assert.ok(key.startsWith(`campaign/${runId}/synthetic/private/presentation/v2/`));
+  assert.ok(Buffer.byteLength(body, "utf8") < 512 * 1024);
+  const path = `/accounts/${account}/storage/kv/namespaces/${presentationKv}/values/${encodeURIComponent(key)}`;
+  const response = await fetch("https://api.cloudflare.com/client/v4" + path + "?expiration_ttl=1800", {
+    method: "PUT",
+    headers: {
+      authorization: "Bearer " + token,
+      "content-type": "application/octet-stream",
+    },
+    body,
+    signal: AbortSignal.timeout(30000),
+  });
+  const receipt = await response.json();
+  assert.ok(response.ok && receipt.success, "Isolated QA KV seed failed");
+  kvKeys.push(key);
 }
 async function sql(id, query, params = []) {
   assert.notEqual(id, production);
@@ -243,6 +275,7 @@ async function deploy(round) {
     preview_urls: false,
     services: [],
     r2_buckets: [{ binding: "PRESENTATION", bucket_name: bucket }],
+    kv_namespaces: [{ binding: "PRESENTATION_KV", id: presentationKv }],
   });
   // Explicit placement can add an inter-colo hop even when the primary D1
   // query itself is fast. Ingress-local is an isolated test arm only.
@@ -251,6 +284,7 @@ async function deploy(round) {
   Object.assign(c.vars, {
     COVE_STRANGLER_READ_MODEL: "2",
     COVE_PRESENTATION_PREFIX: `campaign/${runId}/synthetic/`,
+    COVE_PRESENTATION_KV_ACCELERATE: "1",
     COVE_SSR_DIAGNOSTICS: "1",
     FORE_PUBLIC_URL: origin,
   });
@@ -489,6 +523,9 @@ try {
         "--file",
         file,
       ]);
+      // R2 remains the durable source. KV is only an untrusted presentation
+      // accelerator; every request still rechecks rights/prices on primary D1.
+      await putPrivateStageKv(`campaign/${runId}/synthetic/` + key, body);
     },
   });
   for (let round = 1; round <= 3; round++) {
@@ -526,10 +563,12 @@ try {
       throw Error("Release failed fast in burst: " + evidence.failFast.code);
     }
   }
-  // ABBA remains intact on a clean run, and in a diagnostic run with
-  // COVE_CAPACITY_FAIL_FAST=0. The release run stops an impossible-to-pass
-  // projection early instead of spending minutes on later controls.
-  for (const model of ["canonical", "projection", "projection", "canonical"]) await phase(model);
+  // Release runs only the two required projection phases. Canonical ABBA
+  // attribution belongs in the explicitly selected full diagnostic workflow.
+  const models = failFast
+    ? ["projection", "projection"]
+    : ["canonical", "projection", "projection", "canonical"];
+  for (const model of models) await phase(model);
   const projected = evidence.phases.filter((p) => p.model === "projection");
   evidence.pass =
     evidence.cold.every((r) => r.ok && r.ms < 800) &&
