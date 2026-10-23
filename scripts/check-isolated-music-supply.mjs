@@ -45,6 +45,10 @@ try {
         ? { size: row.bytes.length, checksums: { sha256: Buffer.from(row.sha256, "hex") } }
         : null;
     },
+    async get(key) {
+      const row = objects.get(key);
+      return row ? { size: row.bytes.length, body: new Blob([row.bytes]).stream() } : null;
+    },
   };
   const keys = {
     operator: "operator-" + "a".repeat(56),
@@ -168,6 +172,25 @@ try {
     body: bytes,
   });
   assert.equal((await worker.fetch(fakeAudio, env)).status, 200);
+  const queue = await invoke("/v1/qa/staged", "GET", "qa");
+  assert.equal(queue.status, 200);
+  assert.equal(queue.result.items[0].id, manifest.id);
+  assert.equal((await invoke("/v1/qa/staged", "GET", "ingest")).status, 401);
+  const privateRead = await worker.fetch(
+    new Request("https://music.qa.test/v1/qa/masters/" + manifest.id + "/audio", {
+      headers: { authorization: "Bearer " + keys.qa },
+    }),
+    env,
+  );
+  assert.equal(privateRead.status, 200);
+  assert.equal(sha(Buffer.from(await privateRead.arrayBuffer())), checksum);
+  assert.equal(
+    (await worker.fetch(
+      new Request("https://music.qa.test/v1/qa/masters/" + manifest.id + "/audio"),
+      env,
+    )).status,
+    401,
+  );
   assert.equal(
     (await invoke("/v1/masters/fixture-master-1/quality", "POST", "operator", {})).status,
     401,
