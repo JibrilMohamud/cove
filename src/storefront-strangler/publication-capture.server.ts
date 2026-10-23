@@ -42,7 +42,9 @@ function checkedSource(db: CanonicalDB): StorefrontDB {
         return await stmt.all<T>();
       } catch (error) {
         if (!/\bNetwork connection lost\b/i.test(String(error))) throw error;
-        console.warn(JSON.stringify({ event: "capture_source_read_retry", reason: "d1_connection_lost" }));
+        console.warn(
+          JSON.stringify({ event: "capture_source_read_retry", reason: "d1_connection_lost" }),
+        );
         return db.withSession("first-unconstrained").prepare(sql).bind(...args).all<T>();
       }
     };
