@@ -6,7 +6,13 @@ import { produceHomepagePresentation } from "../../.output/strangler/presentatio
 /** A bounded, read-only QA seed, never a production publication pipeline.
  * Only public catalog/presentation data is written to the private stage R2.
  * No source database mutation, user identity or access grant is copied. */
-export async function seedReadOnlyPresentation({ token, source, prefix, directory, kvNamespaceId }) {
+export async function seedReadOnlyPresentation({
+  token,
+  source,
+  prefix,
+  directory,
+  kvNamespaceId,
+}) {
   assert.ok(token);
   assert.equal(source, "4bd657ac-8789-403e-a28c-93aba8d0a989");
   assert.match(prefix, /^campaign\/\d+\/real\/$/);
