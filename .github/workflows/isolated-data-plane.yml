@@ -11,6 +11,8 @@ on:
       - "scripts/staging/check-publication-feed-live.mjs"
       - "infra/discovery/**"
       - "scripts/performance/isolated-data-plane-acceptance.mjs"
+      - "scripts/performance/capacity-release-gate.mjs"
+      - "scripts/check-capacity-release-gate.mjs"
       - "scripts/staging/strangler-http-transport.mjs"
       - "wrangler.*.stage.jsonc"
       - ".github/workflows/isolated-data-plane.yml"
@@ -31,6 +33,7 @@ jobs:
       - run: npm ci
       - run: npm run test:isolated-data-plane
       - run: node scripts/check-unbiased-random.mjs
+      - run: node scripts/check-capacity-release-gate.mjs
       - run: node scripts/check-publication-feed.mjs
       - run: npm run test:literary-prepare-outbox
       - run: npm run test:literary-preparation-domain
@@ -58,6 +61,9 @@ jobs:
       # remain in immutable release evidence; no failures are discarded and
       # the exact 12k/phase, zero-drop, <800ms thresholds are unchanged.
       COVE_STAGE_HTTP2: "1"
+      # Strict mode stops when a required projection request cannot pass.
+      # For archived ABBA diagnostics only, manually set this to "0".
+      COVE_CAPACITY_FAIL_FAST: "1"
     steps:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
