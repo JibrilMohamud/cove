@@ -37,6 +37,12 @@ jobs:
             ipad-safari,
           ]
     runs-on: ubuntu-latest
+    # Pinned official image contains browser binaries and OS libraries. Avoid
+    # host apt downloads from the throttled Azure Ubuntu mirror (25m cancels).
+    # This keeps all six original matrix check names and test assertions.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.0-noble
+      options: --ipc=host
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
@@ -45,18 +51,22 @@ jobs:
           node-version: 22
       # Avoid huge cache restores that exceed Actions cache egress limits.
       - run: npm ci --no-audit --no-fund
-      - name: Install only the browser needed by this matrix job
+      - name: Validate preinstalled pinned browser binaries
         shell: bash
         env:
           PROJECT: ${{ matrix.project }}
         run: |
-          case "$PROJECT" in
-            chromium-desktop|android-chrome) browser=chromium ;;
-            firefox-desktop) browser=firefox ;;
-            webkit-desktop|iphone-safari|ipad-safari) browser=webkit ;;
-            *) echo "::error::Unknown browser matrix project"; exit 1 ;;
-          esac
-          npx playwright install --with-deps "$browser"
+          node --input-type=module - <<'NODE'
+          import { chromium, firefox, webkit } from "@playwright/test";
+          const name = process.env.PROJECT;
+          const type = name === "firefox-desktop" ? firefox
+            : ["webkit-desktop", "iphone-safari", "ipad-safari"].includes(name) ? webkit
+            : ["chromium-desktop", "android-chrome"].includes(name) ? chromium : null;
+          if (!type) throw Error("Unknown browser project " + name);
+          const browser = await type.launch({ headless: true });
+          console.log("PLAYWRIGHT_BROWSER_READY", name, browser.version());
+          await browser.close();
+          NODE
       - run: npm run test:browser -- --project=${{ matrix.project }}
       - name: Summarize browser failure snapshots
         if: failure()
