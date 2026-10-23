@@ -1,12 +1,7 @@
 name: deployed-commerce-browser-acceptance
+# Manual diagnostic reruns only: PRs run in cove-commerce-private-qa-deploy,
+# sequentially after the isolated private fixture has been provisioned.
 on:
-  pull_request:
-    paths:
-      - "scripts/staging/check-deployed-commerce-browser.mjs"
-      - "src/lib/cloudflare-ssr-stage-gate.server.ts"
-      - "scripts/staging/check-commerce-qa-stage-write-gate.mjs"
-      - "scripts/staging/run-protected-deployed-commerce-qa.mjs"
-      - ".github/workflows/deployed-commerce-browser-acceptance.yml"
   workflow_dispatch:
 permissions:
   contents: read
