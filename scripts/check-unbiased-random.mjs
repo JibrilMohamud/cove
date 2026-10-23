@@ -16,7 +16,9 @@ const { unbiasedCryptoInt } = await import(
 
 for (const bound of [1, 2, 30, 10_000, 65_536, 0x1_0000_0000]) {
   const upperLimit = Math.floor(0x1_0000_0000 / bound) * bound;
-  const values = [0, bound - 1, bound, Math.max(0, upperLimit - 1)];
+  const values = [0, bound - 1, bound, Math.max(0, upperLimit - 1)].filter(
+    (sample) => sample < upperLimit,
+  );
   for (const sample of values) {
     const result = unbiasedCryptoInt(bound, () => sample);
     assert.ok(Number.isInteger(result) && result >= 0 && result < bound);
