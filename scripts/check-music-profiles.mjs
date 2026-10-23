@@ -209,6 +209,8 @@ try {
   ).json();
   assert.equal(published.status, "analyzed");
   assert.equal(published.profile.audioAnalysis.durationSeconds, 20);
+  assert.equal(published.profile.quietReading.policy, "cove-quiet-reading-v2");
+  assert.ok(["quiet_focus", "gentle_background", "distracting", "needs_vocal_evidence"].includes(published.profile.quietReading.tier));
   assert.equal(
     published.profile.readingSuitability.lyrics,
     null,
