@@ -284,16 +284,17 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
   if (path === "/v1/operator/outbox" && method === "GET") {
     if (!admin) return response({ error: "unauthorized" },401);
     const url = new URL(request.url);
-    const after = url.searchParams.get("after") || "";
-    if (after.length > 150) return response({ error:"music_invalid_cursor" },400);
+    const after = url.searchParams.get("after") || "0";
+    if (!/^(0|[1-9][0-9]{0,14})$/.test(after))
+      return response({ error:"music_invalid_cursor" },400);
     const limit = Math.min(MUSIC_SUPPLY_MAX_BATCH,
       Math.max(1,Number(url.searchParams.get("limit") || 4)));
     const rows = (await env.MUSIC_DB.prepare(
-      "SELECT o.* FROM music_publication_outbox o WHERE o.id>? ORDER BY o.id LIMIT ?",
-    ).bind(after,limit).all<Record<string,unknown>>()).results;
+      "SELECT o.* FROM music_publication_outbox o WHERE o.seq>? ORDER BY o.seq LIMIT ?",
+    ).bind(Number(after),limit).all<Record<string,unknown>>()).results;
     return response({
       items:rows,
-      nextCursor:rows.length ? String(rows[rows.length-1].id) : after,
+      nextCursor:rows.length ? String(rows[rows.length-1].seq) : after,
       note:"Unsigned operator handoff only; canonical publisher MUST recheck rights and revocation.",
     });
   }
