@@ -163,6 +163,7 @@ async function sample() {
       renderer: response.headers.get("x-cove-renderer"),
       serverTiming: response.headers.get("server-timing"),
       placement: response.headers.get("x-cove-stage-placement"),
+      failureCountry: response.headers.get("x-cove-stage-country"),
       failureSubphase: response.headers.get("x-cove-stage-failure-subphase"),
       failureKind: response.headers.get("x-cove-stage-failure-kind"),
       edgeError:
