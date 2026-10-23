@@ -18,6 +18,10 @@ type OptimizedEnv = CoveEnv & {
   COVE_THIN_METADATA_COALESCE?: string;
   COVE_STRANGLER_READ_MODEL?: string;
   PRESENTATION?: PrivatePresentationStore;
+  PRESENTATION_KV?: {
+    get(key: string, options: { type: "text"; cacheTtl: number }): Promise<string | null>;
+  };
+  COVE_PRESENTATION_KV_ACCELERATE?: string;
   COVE_PRESENTATION_PREFIX?: string;
 };
 
@@ -56,6 +60,40 @@ export function canUseLeanAnonymousBootstrap(
     typeof env.DB.prepare === "function" &&
     typeof env.COVE_STOREFRONT_READ_LIMITER?.limit === "function"
   );
+}
+
+// Stage-only KV holds UNTRUSTED presentation bytes. Rights, prices and
+// entitlements always come from a fresh primary D1 statement. The wrapper is
+// stable per binding so completed 30-second reuse still works per isolate.
+const stageKvStore = new WeakMap<
+  PrivatePresentationStore,
+  {
+    kv: NonNullable<OptimizedEnv["PRESENTATION_KV"]>;
+    adapter: PrivatePresentationStore;
+  }
+>();
+function stageAcceleratedPresentation(
+  r2: PrivatePresentationStore,
+  kv: NonNullable<OptimizedEnv["PRESENTATION_KV"]>,
+): PrivatePresentationStore {
+  const existing = stageKvStore.get(r2);
+  if (existing?.kv === kv) return existing.adapter;
+  const adapter: PrivatePresentationStore = {
+    async get(key) {
+      let body: string | null;
+      try {
+        body = await kv.get(key, { type: "text", cacheTtl: 30 });
+      } catch {
+        // Failure of this advisory read is never a rights/price bypass. R2
+        // remains the verified durable snapshot and still fails closed.
+        return r2.get(key);
+      }
+      if (body === null) return r2.get(key);
+      return { size: new TextEncoder().encode(body).byteLength, text: async () => body };
+    },
+  };
+  stageKvStore.set(r2, { kv, adapter });
+  return adapter;
 }
 
 /**
@@ -153,8 +191,15 @@ export async function serveLeanAnonymousBootstrap(
   const model = env.COVE_STRANGLER_READ_MODEL;
   if (model !== undefined && !["0", "1", "2"].includes(model))
     throw Error("Unknown storefront read model");
-  const presentationStore = env.PRESENTATION
-    ? namespacedPresentationStore(env.PRESENTATION, env.COVE_PRESENTATION_PREFIX, model === "2")
+  const kvStage = env.COVE_PRESENTATION_KV_ACCELERATE === "1";
+  if (kvStage && (env.COVE_SSR_STAGING !== "1" || model !== "2" || !env.PRESENTATION_KV))
+    throw Error("Stage presentation accelerator requires isolated KV and model v2");
+  const presentationBinding =
+    kvStage && env.PRESENTATION && env.PRESENTATION_KV
+      ? stageAcceleratedPresentation(env.PRESENTATION, env.PRESENTATION_KV)
+      : env.PRESENTATION;
+  const presentationStore = presentationBinding
+    ? namespacedPresentationStore(presentationBinding, env.COVE_PRESENTATION_PREFIX, model === "2")
     : undefined;
   if ((model === "1" || model === "2") && !env.PRESENTATION)
     throw Error("Private presentation binding required");
