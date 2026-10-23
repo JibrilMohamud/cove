@@ -37,6 +37,40 @@ assert.ok(
   "Remote original synthetic WAV has not been verified",
 );
 const now = new Date().toISOString();
+const audioManifest = JSON.stringify({
+  sourceSnapshot: {
+    commercialAudio: {
+      profile: {
+        performanceRightsBasis: "Original generated tone, no third-party recording",
+        territoryScope: { mode: "worldwide", exclude: [] },
+        offlineEligible: false,
+        subscriptionEligible: false,
+      },
+      chapters: [
+        {
+          id: "intro",
+          title: "Original Generated Test Signal",
+          duration_ms: 3000,
+          object_key: "original-fixtures/cove-synthetic-tone.wav",
+          mime_type: "audio/wav",
+          size_bytes: 48044,
+          sha256: "synthetic-stage-tone",
+        },
+      ],
+      narrators: [{ id: "qa-tone", displayName: "Cove Original Synth Tone", narrationType: "synthetic" }],
+      agreements: [
+        {
+          id: "qa-original-tone-agreement",
+          narrator_id: "qa-tone",
+          status: "active",
+          permittedUses: ["retail", "preview"],
+          territories: ["WORLD"],
+        },
+      ],
+    },
+  },
+}).replaceAll("'", "''");
+
 const sql =
   [
     `INSERT OR IGNORE INTO works(id,title,description,created_at,updated_at) VALUES('qa-original-ebook-work','Cove Original Synthetic QA Edition','An original synthetic QA work with no third-party copyrighted content','${now}','${now}')`,
@@ -46,6 +80,20 @@ const sql =
     `INSERT OR IGNORE INTO offers(id,product_id,offer_type,currency,amount_minor,active,created_at,updated_at) VALUES('qa-original-ebook-offer','qa-original-ebook-product','purchase','USD',100,1,'${now}','${now}')`,
     `INSERT OR IGNORE INTO digital_assets(id,edition_id,kind,current_version_id,created_at,updated_at) VALUES('qa-original-ebook-asset','qa-original-ebook-edition','epub','qa-original-ebook-v1','${now}','${now}')`,
     `INSERT OR IGNORE INTO asset_versions(id,asset_id,version_number,object_key,mime_type,epub_version,created_at) VALUES('qa-original-ebook-v1','qa-original-ebook-asset',1,'original-fixtures/cove-synthetic-qa.epub','application/epub+zip','3.0','${now}')`,
+    `INSERT OR IGNORE INTO works(id,title,created_at,updated_at) VALUES('qa-original-audio-work','Cove Synthetic Audio QA','${now}','${now}')`,
+    `INSERT OR IGNORE INTO editions(id,work_id,title,created_at,updated_at) VALUES('qa-original-audio-edition','qa-original-audio-work','Cove Synthetic Audio QA','${now}','${now}')`,
+    `INSERT OR IGNORE INTO products(id,edition_id,sku,format,source_name,source_external_id,created_at,updated_at) VALUES('qa-original-audio-product','qa-original-audio-edition','QA-AUDIO-ORIGINAL','audiobook','publisher','qa-original-audio','${now}','${now}')`,
+    `INSERT OR IGNORE INTO rights_grants(id,edition_id,territory_code,format,license_type,created_at) VALUES('qa-original-audio-us-retail','qa-original-audio-edition','US','audiobook','license','${now}')`,
+    `INSERT OR IGNORE INTO offers(id,product_id,offer_type,currency,amount_minor,active,created_at,updated_at) VALUES('qa-original-audio-offer','qa-original-audio-product','purchase','USD',100,1,'${now}','${now}')`,
+    `INSERT OR IGNORE INTO publishing_accounts(id,account_type,legal_name,display_name,country_code,status,created_at,updated_at) VALUES('qa-original-publisher','person','Original QA Test','Cove Original QA','US','active','${now}','${now}')`,
+    `INSERT OR IGNORE INTO publishing_titles(id,account_id,title,language,status,catalog_work_id,created_at,updated_at) VALUES('qa-original-audio-title','qa-original-publisher','Cove Original Audio QA','en','published','qa-original-audio-work','${now}','${now}')`,
+    `INSERT OR IGNORE INTO publishing_edition_drafts(id,title_id,format,edition_label,language,status,catalog_edition_id,catalog_product_id,created_at,updated_at) VALUES('qa-original-audio-draft','qa-original-audio-title','audiobook','Test Original Audio','en','published','qa-original-audio-edition','qa-original-audio-product','${now}','${now}')`,
+    `INSERT OR IGNORE INTO commercial_audio_profiles(edition_id,publishing_account_id,active_policy_id,audio_publisher,performance_rights_basis,identifier_type,identifier_value,updated_at,created_at) VALUES('qa-original-audio-draft','qa-original-publisher','audiopol_fore_commercial_audio_v1','Cove QA Only','Owned: original synthetic recording','other','qa-original-tone','${now}','${now}')`,
+    `INSERT OR IGNORE INTO publishing_submission_snapshots(id,edition_id,account_id,revision,snapshot_json,snapshot_sha256,status,submitted_by_user_id,submitted_at) VALUES('qa-original-audio-submission','qa-original-audio-draft','qa-original-publisher',1,'{}','qa-synthetic-snapshot','published','qa-synthetic-publisher','${now}')`,
+    `INSERT OR IGNORE INTO publishing_publications(id,submission_id,publishing_account_id,work_id,edition_id,product_id,offer_id,materialization_key,published_at) VALUES('qa-original-audio-publication','qa-original-audio-submission','qa-original-publisher','qa-original-audio-work','qa-original-audio-edition','qa-original-audio-product','qa-original-audio-offer','qa-original-audio-v1','${now}')`,
+    `INSERT OR IGNORE INTO publishing_release_lifecycles(id,publishing_edition_id,state,created_at,updated_at) VALUES('qa-original-audio-lifecycle','qa-original-audio-draft','live','${now}','${now}')`,
+    `INSERT OR IGNORE INTO publishing_publication_versions(id,lifecycle_id,publication_id,submission_id,version_number,snapshot_sha256,manifest_json,release_state,activated_at,created_by_user_id,created_at) VALUES('qa-original-audio-version','qa-original-audio-lifecycle','qa-original-audio-publication','qa-original-audio-submission',1,'qa-synthetic-snapshot','${audioManifest}','live','${now}','qa-synthetic-publisher','${now}')`,
+    `UPDATE publishing_release_lifecycles SET current_publication_version_id='qa-original-audio-version' WHERE id='qa-original-audio-lifecycle'`,
   ].join(";") + ";";
 await api("POST", "/accounts/" + account + "/d1/database/" + db + "/query", { sql });
 const rows = await api("POST", "/accounts/" + account + "/d1/database/" + db + "/query", {
@@ -53,4 +101,10 @@ const rows = await api("POST", "/accounts/" + account + "/d1/database/" + db + "
 });
 assert.equal(rows[0].results?.length, 1, "Synthetic purchased-book source is not joined");
 assert.equal(rows[0].results[0].amount_minor, 100);
-console.log("PASS: original US-only, $1 TEST EPUB catalog item seeded into isolated QA D1.");
+const audio = await api("POST", "/accounts/" + account + "/d1/database/" + db + "/query", {
+  sql: "SELECT p.id,p.format,o.amount_minor,ped.status,pv.release_state FROM products p JOIN offers o ON o.product_id=p.id JOIN publishing_edition_drafts ped ON ped.catalog_product_id=p.id JOIN publishing_release_lifecycles l ON l.publishing_edition_id=ped.id JOIN publishing_publication_versions pv ON pv.id=l.current_publication_version_id WHERE p.id='qa-original-audio-product'",
+});
+assert.equal(audio[0].results?.length, 1, "Original published-audio fixture missing");
+assert.equal(audio[0].results[0].release_state, "live");
+assert.equal(audio[0].results[0].amount_minor, 100);
+console.log("PASS: original US-only, $1 test EPUB and published WAV fixtures seeded in isolated QA D1.");
