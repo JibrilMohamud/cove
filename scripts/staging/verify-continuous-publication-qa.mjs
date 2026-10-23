@@ -100,11 +100,18 @@ for (let attempt = 1; attempt <= 54; attempt++) {
 }
 assert.ok(healthy?.complete, "Continuous QA has not produced a complete fresh market publication");
 for (const country of ["US", "CA", "JP", "SA"]) {
-  const r = await api(
-    "GET",
-    `/accounts/${account}/r2/buckets/cove-strangler-private-presentation-stage/objects/${prefix}${country}.json`,
+  // The R2 object GET returns the object bytes, not a Cloudflare API envelope.
+  // Querying it through api() incorrectly assumes a `success: true` wrapper.
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${account}/r2/buckets/cove-strangler-private-presentation-stage/objects/${prefix}${country}.json`,
+    {
+      headers: { authorization: "Bearer " + token },
+      signal: AbortSignal.timeout(25000),
+    },
   );
-  assert.ok(snapshotHealthy(r, country, Date.now()), "Stale or invalid QA R2 " + country);
+  assert.equal(response.status, 200, "Private QA R2 object unavailable: " + country);
+  const body = await response.json();
+  assert.ok(snapshotHealthy(body, country, Date.now()), "Stale or invalid QA R2 " + country);
 }
 // Observe an independently recurring source refresh after initial success:
 // a successful published snapshot alone does not certify recurring capture.
