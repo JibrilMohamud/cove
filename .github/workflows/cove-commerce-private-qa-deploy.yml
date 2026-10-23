@@ -1,0 +1,63 @@
+name: cove-commerce-private-qa-deploy
+on:
+  pull_request:
+    paths:
+      - "wrangler.commerce-qa.stage.toml"
+      - ".github/workflows/cove-commerce-private-qa-deploy.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cove-commerce-private-qa-stage
+  cancel-in-progress: false
+jobs:
+  private-commerce:
+    if: >-
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') ||
+      (github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - name: Verify all remote bindings remain isolated and private
+        run: node scripts/staging/check-commerce-private-qa-stage.mjs
+      - name: Apply full app schema to disposable QA D1 ONLY
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler d1 migrations apply DB --remote --config wrangler.commerce-qa.stage.toml --yes
+      - run: npm run build
+      - name: Deploy private Cloudflare application, never workers.dev
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.commerce-qa.stage.toml
+      - name: Install fresh stage-only ingress gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          COVE_GATE="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          echo "::add-mask::$COVE_GATE"
+          printf "%s" "$COVE_GATE" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.commerce-qa.stage.toml
+          unset COVE_GATE
+      - name: Install Cove sandbox keys only, never production Stripe
+        shell: bash
+        env:
+          QA_STRIPE_SECRET: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY }}
+          QA_STRIPE_PUBLIC: ${{ secrets.COVE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.COVE_STRIPE_TEST_PUBLISHABLE_KEY || secrets.STRIPE_SANDBOX_PUBLISHABLE_KEY || secrets.STRIPE_TEST_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          [[ "${QA_STRIPE_SECRET:-}" == sk_test_* || "${QA_STRIPE_SECRET:-}" == rk_test_* || "${QA_STRIPE_SECRET:-}" == rkcs_test_* ]] || { echo "::error::Missing Cove TEST secret; do not install live Stripe keys"; exit 1; }
+          [[ "${QA_STRIPE_PUBLIC:-}" == pk_test_* ]] || { echo "::error::Missing Cove TEST publishable key"; exit 1; }
+          printf "%s" "$QA_STRIPE_SECRET" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put STRIPE_SECRET_KEY --config wrangler.commerce-qa.stage.toml
+          printf "%s" "$QA_STRIPE_PUBLIC" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put STRIPE_PUBLISHABLE_KEY --config wrangler.commerce-qa.stage.toml
+      - name: Optional QA publishable Auth key
+        if: ${{ env.COVE_QA_AUTH_KEY_READY == '1' }}
+        run: echo "Cove QA Auth key is installed separately; never output it."
+      - name: Confirm worker remains non-public
+        run: node scripts/staging/verify-commerce-private-qa-stage.mjs
