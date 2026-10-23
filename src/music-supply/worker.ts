@@ -40,7 +40,9 @@ function response(data: unknown, status = 200) {
 const shaPattern = /^[0-9a-f]{64}$/;
 async function hash(input: string | Uint8Array): Promise<string> {
   const bytes = typeof input === "string" ? new TextEncoder().encode(input) : input;
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const owned = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(owned).set(bytes);
+  const digest = await crypto.subtle.digest("SHA-256", owned);
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 async function authorized(req: Request, expected: string | undefined): Promise<boolean> {
@@ -91,7 +93,13 @@ async function contract(
     .first<Record<string, string>>();
   if (!r) return null;
   const v = JSON.parse(r.rights_json) as MusicSupplyContract;
-  return { ...v, status: r.status, expiresAt: r.expires_at };
+  if (!["pending", "active", "revoked"].includes(r.status))
+    throw Error("music_corrupt_contract_status");
+  return {
+    ...v,
+    status: r.status as MusicSupplyContract["status"],
+    expiresAt: r.expires_at,
+  };
 }
 function objectHash(head: R2Object | null): string | null {
   const h = head?.checksums?.sha256;
