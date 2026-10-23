@@ -33,7 +33,7 @@ jobs:
       - name: Verify all remote bindings remain isolated and private
         run: node scripts/staging/check-commerce-private-qa-stage.mjs
       - name: Apply full app schema to disposable QA D1 ONLY
-        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler d1 migrations apply DB --remote --config wrangler.commerce-qa.stage.toml --yes
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler d1 migrations apply DB --remote --config wrangler.commerce-qa.stage.toml
       - run: npm run build
       - name: Deploy private Cloudflare application, never workers.dev
         run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.commerce-qa.stage.toml
