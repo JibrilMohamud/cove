@@ -23,9 +23,11 @@ async function api(method, path, payload) {
   return body.result;
 }
 async function sql(id, query) {
-  return (await api("POST", `/accounts/${account}/d1/database/${id}/query`, {
-    sql: query,
-  }))[0].results;
+  return (
+    await api("POST", `/accounts/${account}/d1/database/${id}/query`, {
+      sql: query,
+    })
+  )[0].results;
 }
 function snapshotHealthy(body, country, now) {
   return (
@@ -37,23 +39,40 @@ function snapshotHealthy(body, country, now) {
 }
 async function health() {
   const now = Date.now();
-  const sourceRows = await sql(source,
+  const sourceRows = await sql(
+    source,
     "SELECT (SELECT COUNT(*) FROM cove_publication_source_snapshots WHERE expires_at>" +
-    now + ") fresh,(SELECT expected_markets FROM cove_publication_source_progress WHERE id=1) expected," +
-    "(SELECT last_synced_at FROM cove_publication_source_identity WHERE id=1) last_synced");
-  const pubs = await sql(ledger,
-    "SELECT country,generation,status,expires_at,published_at,last_error FROM discovery_publications");
+      now +
+      ") fresh,(SELECT expected_markets FROM cove_publication_source_progress WHERE id=1) expected," +
+      "(SELECT last_synced_at FROM cove_publication_source_identity WHERE id=1) last_synced",
+  );
+  const pubs = await sql(
+    ledger,
+    "SELECT country,generation,status,expires_at,published_at,last_error FROM discovery_publications",
+  );
   const s = sourceRows[0];
   const complete =
-    s?.expected > 0 && s?.expected <= 32 && s.fresh === s.expected &&
+    s?.expected > 0 &&
+    s?.expected <= 32 &&
+    s.fresh === s.expected &&
     s.last_synced > now - 120000 &&
     pubs.length === s.expected &&
-    pubs.every((r) => r.status === "delivered" && r.generation >= 1 &&
-      r.expires_at > now + 60000 && r.published_at > now - 14 * 60000 &&
-      !r.last_error);
-  return { now, complete, expected: s?.expected, fresh: s?.fresh,
+    pubs.every(
+      (r) =>
+        r.status === "delivered" &&
+        r.generation >= 1 &&
+        r.expires_at > now + 60000 &&
+        r.published_at > now - 14 * 60000 &&
+        !r.last_error,
+    );
+  return {
+    now,
+    complete,
+    expected: s?.expected,
+    fresh: s?.fresh,
     sourceLagMs: now - (s?.last_synced || 0),
-    count: pubs.length, delivered: pubs.filter((r) => r.status === "delivered").length,
+    count: pubs.length,
+    delivered: pubs.filter((r) => r.status === "delivered").length,
     latestPublish: pubs.reduce((x, r) => Math.max(x, r.published_at), 0),
     versions: pubs.map((r) => ({ country: r.country, generation: r.generation })),
   };
@@ -65,32 +84,47 @@ let healthy;
 for (let attempt = 1; attempt <= 54; attempt++) {
   healthy = await health();
   if (attempt % 4 === 1 || healthy.complete)
-    console.log("CONTINUOUS_QA_HEALTH", JSON.stringify({
-      complete: healthy.complete, fresh: healthy.fresh, expected: healthy.expected,
-      delivered: healthy.delivered, sourceLagMs: healthy.sourceLagMs,
-      elapsedMs: Date.now() - started,
-    }));
+    console.log(
+      "CONTINUOUS_QA_HEALTH",
+      JSON.stringify({
+        complete: healthy.complete,
+        fresh: healthy.fresh,
+        expected: healthy.expected,
+        delivered: healthy.delivered,
+        sourceLagMs: healthy.sourceLagMs,
+        elapsedMs: Date.now() - started,
+      }),
+    );
   if (healthy.complete) break;
   await new Promise((resolve) => setTimeout(resolve, 30000));
 }
 assert.ok(healthy?.complete, "Continuous QA has not produced a complete fresh market publication");
 for (const country of ["US", "CA", "JP", "SA"]) {
-  const r = await api("GET", `/accounts/${account}/r2/buckets/cove-strangler-private-presentation-stage/objects/${prefix}${country}.json`);
+  const r = await api(
+    "GET",
+    `/accounts/${account}/r2/buckets/cove-strangler-private-presentation-stage/objects/${prefix}${country}.json`,
+  );
   assert.ok(snapshotHealthy(r, country, Date.now()), "Stale or invalid QA R2 " + country);
 }
 // Observe an independently recurring source refresh after initial success:
 // a successful published snapshot alone does not certify recurring capture.
-const initial = await sql(source,
-  "SELECT country,generation FROM cove_publication_source_snapshots");
+const initial = await sql(
+  source,
+  "SELECT country,generation FROM cove_publication_source_snapshots",
+);
 const initialVersions = new Map(initial.map((r) => [r.country, r.generation]));
 let advanced = false;
 for (let attempt = 0; attempt < 5; attempt++) {
   await new Promise((resolve) => setTimeout(resolve, 30000));
-  const later = await sql(source,
-    "SELECT country,generation FROM cove_publication_source_snapshots");
+  const later = await sql(
+    source,
+    "SELECT country,generation FROM cove_publication_source_snapshots",
+  );
   advanced ||= later.some((r) => r.generation > (initialVersions.get(r.country) || 0));
   if (advanced) break;
 }
 assert.ok(advanced, "QA cron capture did not advance a source generation after publication");
-console.log("PASS: 23-market continuous capture and isolated ledger/R2 publication are fresh; " +
-  "recurring cron generation observed; no production routing.");
+console.log(
+  "PASS: 23-market continuous capture and isolated ledger/R2 publication are fresh; " +
+    "recurring cron generation observed; no production routing.",
+);
