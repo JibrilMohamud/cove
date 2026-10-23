@@ -126,14 +126,26 @@ try {
         headers: { authorization: "Bearer " + gate },
         signal: AbortSignal.timeout(5000),
       });
-      const ready =
+      const htmlReady =
         response.status === 200 &&
         (response.headers.get("content-type") || "").includes("text/html");
       await response.body?.cancel();
-      if (ready) {
-        console.log("QA_INGRESS_READY", attempt, 200);
-        ingressReady = true;
-        break;
+      // A 200 homepage may be available before the routed application API.
+      // Prove the same gated deployment serves its real Supabase auth router
+      // before ever attempting credentials, Stripe CLI payment or media.
+      if (htmlReady) {
+        const api = await fetch(origin + "api/fore/auth/options", {
+          headers: { authorization: "Bearer " + gate },
+          signal: AbortSignal.timeout(5000),
+        });
+        const data = api.status === 200 ? await api.json().catch(() => null) : null;
+        await api.body?.cancel().catch(() => {});
+        if (api.status === 200 && data?.available === true) {
+          console.log("QA_INGRESS_READY", attempt, 200, "auth-api-ready");
+          ingressReady = true;
+          break;
+        }
+        console.warn("QA_AUTH_API_NOT_READY", attempt, api.status);
       }
     } catch {
       // The next short attempt may see the new secret/version after routing.
