@@ -44,8 +44,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Ensure FFmpeg
+      - name: Install FFmpeg for isolated full-file decoding
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
           ffmpeg -version
           ffprobe -version
       - name: Synthetic audio correctness and tamper checks
