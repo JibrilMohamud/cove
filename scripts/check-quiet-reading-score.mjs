@@ -12,13 +12,14 @@ try {
       "src/features/fore/reading-music-program.ts",
     ],
     outdir: dir,
+    outExtension: { ".js": ".mjs" },
     platform: "node",
     format: "esm",
     packages: "external",
     logLevel: "silent",
   });
-  const { assessQuietReading } = await import(path.join(dir, "quiet-reading-score.js"));
-  const { planDiverseReadingMusic } = await import(path.join(dir, "reading-music-program.js"));
+  const { assessQuietReading } = await import(path.join(dir, "quiet-reading-score.mjs"));
+  const { planDiverseReadingMusic } = await import(path.join(dir, "reading-music-program.mjs"));
   const quiet = {
     durationSeconds: 100,
     signal: {
@@ -84,7 +85,7 @@ try {
     sessionSeed: "book-1:chapter-2:reader-session",
     desiredMinutes: 45,
     recentRecordingIds: ["r0", "r1"],
-    recentMasterFingerprints: ["sha2"],
+    recentMasterFingerprints: ["sha0", "sha2"],
   };
   const playlist = planDiverseReadingMusic(tracks, options);
   assert.ok(playlist.length >= 5, "enough new masters for a complete reading session");
