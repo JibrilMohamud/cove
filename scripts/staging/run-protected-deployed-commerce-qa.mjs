@@ -126,7 +126,8 @@ try {
         headers: { authorization: "Bearer " + gate },
         signal: AbortSignal.timeout(5000),
       });
-      const ready = response.status === 200 &&
+      const ready =
+        response.status === 200 &&
         (response.headers.get("content-type") || "").includes("text/html");
       await response.body?.cancel();
       if (ready) {
