@@ -41,7 +41,9 @@ export function assessQuietReading(
 ): QuietReadingAssessment {
   const s = report.signal;
   const semantic = report.semantics?.dimensions;
-  const vocal = semantic?.vocalPresence ?? null;
+  const semanticCoverage = !!report.semantics &&
+    report.semantics.windows.length >= 3 && report.semantics.sampledSeconds >= 20;
+  const vocal = semanticCoverage ? (semantic?.vocalPresence ?? null) : null;
   // The timeline and peaks are measured across the whole recording, not just
   // cherry-picked semantic windows or the label in a Commons category.
   const bins = report.structure.timeline;
@@ -57,7 +59,7 @@ export function assessQuietReading(
   const climaxRatio = clamp(climaxSeconds / report.durationSeconds);
   const abruptness = clamp(s.abruptTransitionRate);
   const transients = norm(s.onsetsPerSecond, 0.6, 6);
-  const arousal = semantic?.arousal ?? null;
+  const arousal = semanticCoverage ? (semantic?.arousal ?? null) : null;
   const noise = clamp(s.spectralFlatness);
   const dynamicPenalty = norm(dynamics, 8, 29);
   const score = clamp(
@@ -96,7 +98,7 @@ export function assessQuietReading(
     tier,
     suitable: tier === "quiet_focus" || tier === "gentle_background",
     distraction: Number(score.toFixed(4)),
-    evidence: report.semantics ? "full_signal_plus_sampled_semantics" : "full_signal_only",
+    evidence: semanticCoverage ? "full_signal_plus_sampled_semantics" : "full_signal_only",
     vocalEvidence:
       hasVocals === true || (vocal !== null && vocal >= 0.55)
         ? "possible_vocals"
