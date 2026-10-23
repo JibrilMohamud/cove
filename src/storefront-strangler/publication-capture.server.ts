@@ -22,7 +22,12 @@ async function digest(body: string) {
   const value = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(body)));
   return [...value].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
-function checkedSource(db: StorefrontDB): StorefrontDB {
+function checkedSource(db: CanonicalDB): StorefrontDB {
+  // Reopen only *read-only* source statements after a reported D1 transport
+  // loss. A new session is essential: retrying the broken sticky connection
+  // simply repeats the same error. Never replay writes, rights decisions or
+  // downstream publication acknowledgements.
+  const session = db.withSession("first-unconstrained");
   function prepare(sql: string, args: unknown[] = []) {
     if (
       !/^(SELECT|WITH)\s/i.test(sql.trim()) ||
@@ -31,11 +36,22 @@ function checkedSource(db: StorefrontDB): StorefrontDB {
       )
     )
       throw Error("capture_canonical_read_only");
-    const stmt = db.prepare(sql).bind(...args);
+    const stmt = session.prepare(sql).bind(...args);
+    const all = async <T>() => {
+      try {
+        return await stmt.all<T>();
+      } catch (error) {
+        if (!/\bNetwork connection lost\b/i.test(String(error))) throw error;
+        console.warn(JSON.stringify({ event: "capture_source_read_retry", reason: "d1_connection_lost" }));
+        return db.withSession("first-unconstrained").prepare(sql).bind(...args).all<T>();
+      }
+    };
     return {
       bind: (...next: unknown[]) => prepare(sql, next),
-      all: <T>() => stmt.all<T>(),
-      first: <T>() => stmt.first<T>(),
+      all,
+      async first<T>() {
+        return (await all<T>()).results[0] ?? null;
+      },
       async run() {
         throw Error("capture_canonical_read_only");
       },
@@ -71,7 +87,7 @@ export async function capturePublicSource(env: CaptureEnv) {
   if (!locked) return { busy: true, countries: [] };
   const countries: string[] = [];
   try {
-    const canonical = checkedSource(env.SOURCE_DB.withSession("first-unconstrained"));
+    const canonical = checkedSource(env.SOURCE_DB);
     const active = await canonical
       .prepare(
         "SELECT country_code FROM storefront_markets WHERE market_status='active' ORDER BY country_code LIMIT 33",
