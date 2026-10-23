@@ -43,8 +43,7 @@ export async function rejectUnauthenticatedStagingRequest(
     const uri = new URL(request.url);
     const allowedQaWrite =
       env.COVE_SSR_STAGING_COMMERCE_QA === "1" &&
-      uri.hostname ===
-        "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev" &&
+      uri.hostname === "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev" &&
       request.method === "POST" &&
       new Set([
         "/api/fore/auth/login",
@@ -54,8 +53,7 @@ export async function rejectUnauthenticatedStagingRequest(
         "/api/fore/delivery/epub/grant",
         "/api/fore/stripe/webhook",
       ]).has(uri.pathname);
-    if (!allowedQaWrite)
-      return new Response("Read-only staging", { status: 405, headers });
+    if (!allowedQaWrite) return new Response("Read-only staging", { status: 405, headers });
   }
   return null;
 }
