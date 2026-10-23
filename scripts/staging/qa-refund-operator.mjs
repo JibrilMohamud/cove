@@ -31,11 +31,14 @@ export async function qaD1(sql, params = []) {
 }
 
 export async function provisionQaRefundOperator(userId) {
-  assert.match(userId, /^sb:[a-f0-9-]{36}$/, "Only a verified Supabase QA subject may be provisioned");
-  const profile = await qaD1(
-    "SELECT created_by_user_id FROM staff_principals WHERE user_id=?",
-    [userId],
+  assert.match(
+    userId,
+    /^sb:[a-f0-9-]{36}$/,
+    "Only a verified Supabase QA subject may be provisioned",
   );
+  const profile = await qaD1("SELECT created_by_user_id FROM staff_principals WHERE user_id=?", [
+    userId,
+  ]);
   assert.ok(
     !profile.length || profile[0].created_by_user_id === actor,
     "Existing non-QA staff principal must never be modified",
@@ -84,10 +87,7 @@ export async function provisionQaRefundOperator(userId) {
 export async function revokeQaRefundOperator(userId) {
   if (!userId) return;
   assert.match(userId, /^sb:[a-f0-9-]{36}$/);
-  await qaD1(
-    "DELETE FROM staff_principal_roles WHERE user_id=? AND role_id=?",
-    [userId, role],
-  );
+  await qaD1("DELETE FROM staff_principal_roles WHERE user_id=? AND role_id=?", [userId, role]);
   await qaD1(
     "UPDATE staff_principals SET status='disabled',updated_at=? WHERE user_id=? AND created_by_user_id=?",
     [new Date().toISOString(), userId, actor],
