@@ -223,6 +223,7 @@ async function refundAndVerify(adminPage, purchase, checkRevoked) {
   });
   assert.equal(returned.status, 200, "Authorized Cove refund endpoint rejected QA request");
   assert.ok(["pending", "succeeded"].includes(returned.data?.status));
+  refunded.add(purchase.intentId);
   await until(async () => {
     const rows = await qaD1(
       "SELECT status FROM commerce_orders WHERE id=?",
@@ -230,7 +231,6 @@ async function refundAndVerify(adminPage, purchase, checkRevoked) {
     );
     return rows[0]?.status === "refunded" && (await checkRevoked());
   }, "Real Cove refund must update order, entitlement and protected access");
-  refunded.add(purchase.intentId);
 }
 try {
   const buyer = await openUser(q.COVE_QA_BUYER_EMAIL, q.COVE_QA_BUYER_PASSWORD);
@@ -238,6 +238,20 @@ try {
   report.buyerAuthenticated = true;
   report.outsiderAuthenticated = true;
   await verifyConfig(buyer);
+  const outsiderAccount = await request(outsider, "GET", "/account");
+  assert.equal(outsiderAccount.status, 200);
+  refundOperatorId = outsiderAccount.data?.user?.id || null;
+  await provisionQaRefundOperator(refundOperatorId);
+  refundOperatorPage = outsider;
+  // A normal authenticated buyer is still prohibited from refunding even
+  // their own order. The QA staff subject exists ONLY in the isolated D1.
+  expectDenied(
+    await request(buyer, "POST", "/admin/commerce/refund", {
+      orderId: "ord_" + randomUUID(),
+      idempotencyKey: "qa-denied-" + randomUUID(),
+    }),
+    "Buyer must not have commerce-admin refund privilege",
+  );
   const anonymous = await browser.newContext({ extraHTTPHeaders: qaIngressHeaders() });
   contexts.push(anonymous);
   const guest = await anonymous.newPage();
@@ -263,8 +277,16 @@ try {
       "GET",
       "/delivery/ownership?productId=" + encodeURIComponent(q.COVE_QA_EPUB_PRODUCT_ID),
     );
-    return result.status === 200 && result.data?.entitlement?.status === "active";
-  }, "Signed webhook fulfillment and owner entitlement");
+    if (result.status !== 200 || result.data?.entitlement?.status !== "active")
+      return false;
+    const source = await qaD1(
+      `SELECT e.status FROM entitlements e
+       JOIN commerce_order_items oi ON oi.id=e.order_item_id
+       WHERE oi.order_id=? AND e.product_id=?`,
+      [ebook.orderId, q.COVE_QA_EPUB_PRODUCT_ID],
+    );
+    return source.length === 1 && source[0].status === "active";
+  }, "Signed webhook fulfillment and NEW order-linked owner entitlement");
   const grant = await request(buyer, "POST", "/delivery/epub/grant", {
     productId: q.COVE_QA_EPUB_PRODUCT_ID,
     purpose: "read",
@@ -296,10 +318,16 @@ try {
     "/tracks/" +
     encodeURIComponent(q.COVE_QA_AUDIO_TRACK_ID);
   expectDenied(await request(outsider, "GET", audioPath), "Outsider audio chapter");
-  await until(
-    async () => (await request(buyer, "GET", audioPath)).status === 200,
-    "Signed audio-entitlement fulfillment",
-  );
+  await until(async () => {
+    if ((await request(buyer, "GET", audioPath)).status !== 200) return false;
+    const source = await qaD1(
+      `SELECT e.status FROM entitlements e
+       JOIN commerce_order_items oi ON oi.id=e.order_item_id
+       WHERE oi.order_id=? AND e.product_id=?`,
+      [audiobook.orderId, q.COVE_QA_AUDIO_PRODUCT_ID],
+    );
+    return source.length === 1 && source[0].status === "active";
+  }, "Signed webhook and new audio order-linked entitlement");
   const playable = await buyer.evaluate(async (route) => {
     const response = await fetch("/api/fore" + route, { credentials: "include" });
     if (response.status !== 200) return false;
@@ -363,7 +391,7 @@ try {
   });
   report.playableAudio = true;
   report.outsiderDenied = true;
-  await refundAndVerify(buyer, ebook.intentId, async () => {
+  await refundAndVerify(refundOperatorPage, ebook, async () => {
     const own = await request(
       buyer,
       "GET",
@@ -383,7 +411,7 @@ try {
     grantUrl.pathname + grantUrl.search,
   );
   assert.ok([401, 403, 404].includes(oldGrant), "Refund must revoke existing EPUB grant");
-  await refundAndVerify(buyer, audiobook.intentId, async () =>
+  await refundAndVerify(refundOperatorPage, audiobook, async () =>
     [401, 403, 404].includes((await request(buyer, "GET", audioPath)).status),
   );
   report.refundRevoked = true;
