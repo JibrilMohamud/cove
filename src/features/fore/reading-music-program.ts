@@ -72,7 +72,7 @@ export function planDiverseReadingMusic(
           return false;
         const composer = normalize(t.composer);
         const newSeconds = (composers.get(composer) ?? 0) + t.durationSeconds;
-        if (relax < 2 && selected.length > 0 && newSeconds / (duration + t.durationSeconds) > maxShare)
+        if (relax < 2 && (composers.get(composer) ?? 0) > 0 && newSeconds / (duration + t.durationSeconds) > maxShare)
           return false;
         return true;
       });
