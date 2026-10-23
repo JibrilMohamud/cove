@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - "src/features/fore/quiet-music-inventory.server.ts"
+      - "src/features/fore/quiet-reading-score.ts"
+      - "src/features/fore/reading-music-program.ts"
+      - "src/features/fore/music-profiles.server.ts"
+      - "scripts/check-quiet-reading-score.mjs"
       - "src/features/fore/soundtracks.server.ts"
       - "scripts/check-quiet-music-inventory.mjs"
       - ".github/workflows/quiet-music-inventory.yml"
@@ -11,6 +15,10 @@ on:
     branches: [main]
     paths:
       - "src/features/fore/quiet-music-inventory.server.ts"
+      - "src/features/fore/quiet-reading-score.ts"
+      - "src/features/fore/reading-music-program.ts"
+      - "src/features/fore/music-profiles.server.ts"
+      - "scripts/check-quiet-reading-score.mjs"
       - "src/features/fore/soundtracks.server.ts"
       - "scripts/check-quiet-music-inventory.mjs"
       - ".github/workflows/quiet-music-inventory.yml"
@@ -29,6 +37,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:quiet-music-inventory
+      - run: npm run test:quiet-reading-score
+      - run: npm run test:music-profiles
       - run: npm run test:soundtracks
-      - run: npx eslint src/features/fore/quiet-music-inventory.server.ts scripts/check-quiet-music-inventory.mjs
+      - run: npx eslint src/features/fore/quiet-music-inventory.server.ts src/features/fore/quiet-reading-score.ts src/features/fore/reading-music-program.ts scripts/check-quiet-music-inventory.mjs scripts/check-quiet-reading-score.mjs
       - run: npx prettier --check src/features/fore/quiet-music-inventory.server.ts scripts/check-quiet-music-inventory.mjs
