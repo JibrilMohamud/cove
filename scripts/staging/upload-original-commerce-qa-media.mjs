@@ -27,7 +27,8 @@ zip.file(
   '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Original synthetic chapter</title></head><body><p>Original synthetic content for Cove sandbox fulfillment validation.</p></body></html>',
 );
 const epub = Buffer.from(await zip.generateAsync({ type: "uint8array" }));
-const frames = 8000 * 3, sampleRate = 8000;
+const frames = 8000 * 3,
+  sampleRate = 8000;
 const wav = Buffer.alloc(44 + frames * 2);
 wav.write("RIFF", 0, "ascii");
 wav.writeUInt32LE(wav.length - 8, 4);
@@ -44,20 +45,38 @@ wav.writeUInt32LE(frames * 2, 40);
 for (let i = 0; i < frames; i++)
   wav.writeInt16LE(Math.round(Math.sin((i * Math.PI * 2 * 440) / sampleRate) * 9500), 44 + i * 2);
 const assets = [
-  { name: "epub", key: "original-fixtures/cove-synthetic-qa.epub", data: epub, type: "application/epub+zip" },
+  {
+    name: "epub",
+    key: "original-fixtures/cove-synthetic-qa.epub",
+    data: epub,
+    type: "application/epub+zip",
+  },
   { name: "audio", key: "original-fixtures/cove-synthetic-tone.wav", data: wav, type: "audio/wav" },
 ];
 for (const asset of assets) {
   const filename = path.join(out, asset.name === "epub" ? "original.epub" : "original.wav");
   fs.writeFileSync(filename, asset.data);
-  const proc = spawnSync("npm", [
-    "exec", "--yes", "--package=wrangler@4.151.0", "--", "wrangler",
-    "r2", "object", "put", bucket + "/" + asset.key, "--file", filename,
-  ], {
-    env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" },
-    encoding: "utf8",
-    timeout: 120000,
-  });
+  const proc = spawnSync(
+    "npm",
+    [
+      "exec",
+      "--yes",
+      "--package=wrangler@4.151.0",
+      "--",
+      "wrangler",
+      "r2",
+      "object",
+      "put",
+      bucket + "/" + asset.key,
+      "--file",
+      filename,
+    ],
+    {
+      env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" },
+      encoding: "utf8",
+      timeout: 120000,
+    },
+  );
   if (proc.status !== 0) throw Error("QA original-media R2 upload failed for " + asset.name);
 }
 const report = assets.map((a) => ({
@@ -69,5 +88,10 @@ const report = assets.map((a) => ({
   mimeType: a.type,
 }));
 fs.mkdirSync("artifacts/deployed-commerce", { recursive: true });
-fs.writeFileSync("artifacts/deployed-commerce/original-media.json", JSON.stringify(report, null, 2));
-console.log("PASS: original synthetic QA EPUB and WAV in separate private R2; checksum evidence preserved.");
+fs.writeFileSync(
+  "artifacts/deployed-commerce/original-media.json",
+  JSON.stringify(report, null, 2),
+);
+console.log(
+  "PASS: original synthetic QA EPUB and WAV in separate private R2; checksum evidence preserved.",
+);
