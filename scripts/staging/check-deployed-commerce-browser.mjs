@@ -84,6 +84,10 @@ async function openUser(email, password) {
   const headers = {};
   if (q.COVE_QA_VERCEL_PROTECTION_BYPASS)
     headers["x-vercel-protection-bypass"] = q.COVE_QA_VERCEL_PROTECTION_BYPASS;
+  if (q.COVE_QA_STAGE_BEARER) {
+    assert.match(q.COVE_QA_STAGE_BEARER, /^[a-f0-9]{64}$/);
+    headers.authorization = "Bearer " + q.COVE_QA_STAGE_BEARER;
+  }
   const context = await browser.newContext({
     extraHTTPHeaders: headers,
     locale: "en-US",
@@ -255,42 +259,61 @@ try {
     async () => (await request(buyer, "GET", audioPath)).status === 200,
     "Signed audio-entitlement fulfillment",
   );
-  const played = await buyer.evaluate(async (route) => {
+  const playable = await buyer.evaluate(async (route) => {
     const response = await fetch("/api/fore" + route, { credentials: "include" });
-    if (response.status !== 200) return { status: response.status, started: false };
+    if (response.status !== 200) return false;
     const buffer = await response.arrayBuffer();
-    if (buffer.byteLength < 128) return { status: response.status, started: false };
+    if (buffer.byteLength < 128) return false;
     const mime = response.headers.get("content-type") || "audio/wav";
     const blobUrl = URL.createObjectURL(new Blob([buffer], { type: mime }));
     const audio = new Audio(blobUrl);
-    const started = await new Promise((resolve) => {
-      const timeout = setTimeout(() => resolve(false), 9000);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.id = "cove-qa-begin-audio";
+    audio.preload = "auto";
+    window.__coveQaAudio = audio;
+    window.__coveQaAudioUrl = blobUrl;
+    window.__coveQaPlayback = "pending";
+    button.addEventListener("click", () => {
       audio.addEventListener(
         "playing",
         () => {
-          clearTimeout(timeout);
-          resolve(true);
+          window.__coveQaPlayback = "playing";
         },
         { once: true },
       );
       audio.addEventListener(
         "error",
         () => {
-          clearTimeout(timeout);
-          resolve(false);
+          window.__coveQaPlayback = "error";
         },
         { once: true },
       );
-      audio.play().catch(() => {
-        clearTimeout(timeout);
-        resolve(false);
+      void audio.play().catch(() => {
+        window.__coveQaPlayback = "error";
       });
     });
-    audio.pause();
-    URL.revokeObjectURL(blobUrl);
-    return { status: response.status, started };
+    document.body.appendChild(button);
+    return true;
   }, audioPath);
-  assert.equal(played.started, true, "Actual HTML5 audio playback must start in browser");
+  assert.equal(playable, true, "Audio chapter must return genuine playable bytes");
+  // Audio activation is a real browser click, never a synthetic autoplay
+  // exception or a HEAD-only media check.
+  await buyer.click("#cove-qa-begin-audio");
+  await buyer.waitForFunction(
+    () => window.__coveQaPlayback !== "pending",
+    null,
+    { timeout: 10000 },
+  );
+  assert.equal(
+    await buyer.evaluate(() => window.__coveQaPlayback),
+    "playing",
+    "Actual HTML5 audio playback must start after a user gesture",
+  );
+  await buyer.evaluate(() => {
+    window.__coveQaAudio.pause();
+    URL.revokeObjectURL(window.__coveQaAudioUrl);
+  });
   report.playableAudio = true;
   report.outsiderDenied = true;
   await refundAndVerify(buyer, ebook.intentId, async () => {
