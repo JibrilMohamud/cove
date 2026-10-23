@@ -118,8 +118,21 @@ async function openUser(email, password) {
   const login = await request(page, "POST", "/auth/login", { login: email, password });
   // Log status only: never echo account email, password, session cookies or
   // arbitrary provider error responses into CI logs.
-  console.log("QA_AUTH_LOGIN", login.status, login.data?.signedIn === true);
-  assert.equal(login.status, 200, "Real Supabase password sign-in through deployed Cove failed");
+  console.log(
+    "QA_AUTH_LOGIN",
+    login.status,
+    login.data?.signedIn === true,
+    login.appHeader === true ? "cove-api" : "non-api-response",
+    login.finalPath === "/api/fore/auth/login" ? "expected-route" : "unexpected-route",
+    login.redirected === true ? "redirected" : "direct",
+  );
+  assert.equal(
+    login.status,
+    200,
+    login.status === 401
+      ? "Deployed Cove rejected the QA password or unconfirmed identity; verify Supabase QA users and four GitHub Actions QA credentials"
+      : "Deployed Cove auth routing failed; check API readiness and request status",
+  );
   assert.equal(login.data.signedIn, true);
   assert.notEqual(login.data.mfaRequired, true, "MFA QA login requires a genuine second factor");
   return page;
