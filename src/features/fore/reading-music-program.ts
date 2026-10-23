@@ -98,9 +98,7 @@ export function planDiverseReadingMusic(
         const da = priority(a),
           db = priority(b);
         if (db !== da) return db - da;
-        return (
-          hash(options.sessionSeed + ":" + a.id) - hash(options.sessionSeed + ":" + b.id)
-        );
+        return hash(options.sessionSeed + ":" + a.id) - hash(options.sessionSeed + ":" + b.id);
       });
       const next = eligible[0];
       selected.push(next);
