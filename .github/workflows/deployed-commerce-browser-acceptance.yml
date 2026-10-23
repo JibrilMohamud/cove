@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - "scripts/staging/check-deployed-commerce-browser.mjs"
+      - "src/lib/cloudflare-ssr-stage-gate.server.ts"
+      - "scripts/staging/check-commerce-qa-stage-write-gate.mjs"
       - "scripts/staging/run-protected-deployed-commerce-qa.mjs"
       - ".github/workflows/deployed-commerce-browser-acceptance.yml"
   workflow_dispatch:
@@ -51,6 +53,7 @@ jobs:
           [[ "$COVE_SANDBOX_SECRET_KEY" == sk_test_* || "$COVE_SANDBOX_SECRET_KEY" == rk_test_* || "$COVE_SANDBOX_SECRET_KEY" == rkcs_test_* ]] || { echo "::error::Only Stripe TEST API keys accepted"; exit 1; }
           echo "Protected QA identities provided; no credential value printed."
       - run: node scripts/staging/check-commerce-private-qa-stage.mjs
+      - run: node scripts/staging/check-commerce-qa-stage-write-gate.mjs
       - run: npm run build
       - run: npm install --global @stripe/cli
       - run: npx playwright install --with-deps chromium
