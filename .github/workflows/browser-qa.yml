@@ -43,9 +43,20 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium firefox webkit
+      # Avoid huge cache restores that exceed Actions cache egress limits.
+      - run: npm ci --no-audit --no-fund
+      - name: Install only the browser needed by this matrix job
+        shell: bash
+        env:
+          PROJECT: ${{ matrix.project }}
+        run: |
+          case "$PROJECT" in
+            chromium-desktop|android-chrome) browser=chromium ;;
+            firefox-desktop) browser=firefox ;;
+            webkit-desktop|iphone-safari|ipad-safari) browser=webkit ;;
+            *) echo "::error::Unknown browser matrix project"; exit 1 ;;
+          esac
+          npx playwright install --with-deps "$browser"
       - run: npm run test:browser -- --project=${{ matrix.project }}
       - name: Summarize browser failure snapshots
         if: failure()
