@@ -188,11 +188,23 @@ try {
   );
   const first = await invoke("/v1/operator/outbox?limit=1", "GET", "operator");
   assert.equal(first.result.items[0].action, "master_qualified");
+  assert.equal(first.result.items[0].publishable, 1);
   const cursor = first.result.nextCursor;
   assert.equal(
     (await invoke("/v1/operator/outbox?after=" + cursor, "GET", "operator")).result.items.length,
     0,
   );
+  assert.equal(
+    (
+      await invoke("/v1/masters/fixture-master-1/revoke", "POST", "reviewer", {
+        reason: "Synthetic recording rights withdrawal",
+      })
+    ).status,
+    200,
+  );
+  const removed = await invoke("/v1/operator/outbox?after=" + cursor, "GET", "operator");
+  assert.equal(removed.result.items[0].action, "master_revoked");
+  const masterCursor = removed.result.nextCursor;
   assert.equal(
     (
       await invoke("/v1/contracts/supplier-1/revoke", "POST", "reviewer", {
@@ -201,8 +213,10 @@ try {
     ).status,
     200,
   );
-  const withdrawn = await invoke("/v1/operator/outbox?after=" + cursor, "GET", "operator");
+  const withdrawn = await invoke("/v1/operator/outbox?after=" + masterCursor, "GET", "operator");
   assert.equal(withdrawn.result.items[0].action, "contract_revoked");
+  const historical = await invoke("/v1/operator/outbox?limit=1", "GET", "operator");
+  assert.equal(historical.result.items[0].publishable, 0);
   assert.equal(
     (
       await invoke("/v1/masters", "POST", "ingest", {
@@ -214,6 +228,7 @@ try {
     409,
   );
   assert.equal((await invoke("/v1/operator/outbox?after=abc", "GET", "operator")).status, 400);
+  assert.equal((await invoke("/v1/operator/outbox?limit=NaN", "GET", "operator")).status, 400);
   // Primary customer D1, playback rights, and worker route bindings are absent.
   assert.equal(Object.prototype.hasOwnProperty.call(env, "DB"), false);
   console.log(
