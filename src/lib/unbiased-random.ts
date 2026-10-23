@@ -1,10 +1,11 @@
-/** Return an unbiased cryptographic integer in [0, exclusiveUpperBound).
- * Each 32-bit sample is uniformly distributed. The largest partial interval
- * is rejected before converting the sample to a bounded index, so the final
- * distribution remains uniform even when 2^32 is not divisible by the bound.
+/** Return a uniform cryptographically secure integer in [0, exclusiveUpperBound).
  *
- * An optional sample provider permits deterministic rejection-boundary tests.
- * Production callers must use the default Web Crypto provider.
+ * Masking to the smallest power-of-two bucket yields equally likely integers
+ * in that bucket; rejecting those outside the requested bound preserves an
+ * unbiased distribution. Neither modulo nor division is applied to entropy.
+ *
+ * Optional sample injection permits deterministic boundary testing. Production
+ * callers must use the default Web Crypto provider.
  */
 export function unbiasedCryptoInt(
   exclusiveUpperBound: number,
@@ -17,12 +18,13 @@ export function unbiasedCryptoInt(
     exclusiveUpperBound > range
   )
     throw new RangeError("Invalid cryptographic jitter bound");
-  const limit = Math.floor(range / exclusiveUpperBound) * exclusiveUpperBound;
+  const bits = Math.ceil(Math.log2(exclusiveUpperBound));
+  const mask = 2 ** bits - 1;
   for (;;) {
     const sample = nextUint32();
     if (!Number.isInteger(sample) || sample < 0 || sample >= range)
       throw new RangeError("Invalid cryptographic random sample");
-    if (sample < limit)
-      return sample - Math.floor(sample / exclusiveUpperBound) * exclusiveUpperBound;
+    const candidate = (sample & mask) >>> 0;
+    if (candidate < exclusiveUpperBound) return candidate;
   }
 }
