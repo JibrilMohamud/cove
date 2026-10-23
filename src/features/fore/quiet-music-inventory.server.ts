@@ -1,3 +1,4 @@
+import { QUIET_READING_POLICY } from "./quiet-reading-score";
 import type { CoveEnv } from "./api.server";
 
 /**
@@ -18,6 +19,10 @@ WITH eligible AS (
            THEN json_extract(r.quality_report_json, '$.durationSeconds') END duration_seconds,
          mp.status AS profile_status,
          CASE WHEN json_valid(mp.profile_json)
+           THEN json_extract(mp.profile_json, '$.quietReading.policy') END automated_policy,
+         CASE WHEN json_valid(mp.profile_json)
+           THEN json_extract(mp.profile_json, '$.quietReading.tier') END automated_tier,
+         CASE WHEN json_valid(mp.profile_json)
            THEN json_extract(mp.profile_json, '$.audioAnalysis.signal.energy') END measured_energy,
          CASE WHEN json_valid(mp.profile_json)
            THEN json_extract(mp.profile_json, '$.readingSuitability.distraction') END distraction
@@ -37,6 +42,9 @@ WITH eligible AS (
 )
 SELECT COUNT(*) playable,
        COUNT(DISTINCT composer) distinct_composers,
+       SUM(CASE WHEN profile_status='analyzed' AND automated_policy=? AND automated_tier='quiet_focus' THEN 1 ELSE 0 END) algorithmic_quiet_count,
+       SUM(CASE WHEN profile_status='analyzed' AND automated_policy=? AND automated_tier='gentle_background' THEN 1 ELSE 0 END) algorithmic_gentle_count,
+       SUM(CASE WHEN profile_status='analyzed' AND automated_policy=? AND automated_tier='needs_vocal_evidence' THEN 1 ELSE 0 END) algorithmic_vocal_uncertain_count,
        ROUND(COALESCE(SUM(duration_seconds),0)/60,1) playable_minutes,
        SUM(CASE WHEN has_vocals=0 AND profile_status='analyzed'
                     AND measured_energy<=? THEN 1 ELSE 0 END) strict_screen_count,
@@ -84,6 +92,9 @@ export async function getQuietMusicInventory(db: CoveEnv["DB"], market = "US") {
       .prepare(readyQuery)
       .bind(
         territory,
+        QUIET_READING_POLICY,
+        QUIET_READING_POLICY,
+        QUIET_READING_POLICY,
         t.measuredSignalEnergyStrictMax,
         t.measuredSignalEnergyStrictMax,
         t.measuredSignalEnergyBroadMax,
@@ -99,12 +110,13 @@ export async function getQuietMusicInventory(db: CoveEnv["DB"], market = "US") {
     territory,
     scope: "commons_only",
     reportOnly: true,
+    automatedScreenPolicy: QUIET_READING_POLICY,
     thresholds: t,
     playable: ready,
     reviews,
     shortlist: shortlist.results,
     disclaimer:
-      "Acoustic screening is not a human focus-suitability or legal-rights approval. " +
+      "Acoustic scoring is automatically computed from complete signal evidence; it is not a legal-rights grant or a validated user-outcome probability. " +
       "Reviewers must verify the exact master, recording and composition rights, " +
       "source revisions, attribution, quality, territory, and listening suitability.",
   };
