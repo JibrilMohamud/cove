@@ -12,6 +12,7 @@ import {
   stageTransportSpan,
   stageTransportCounters,
 } from "../staging/strangler-http-transport.mjs";
+import { projectedRequestFailure, strictProjectionPhasePass } from "./capacity-release-gate.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const primary = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
@@ -24,6 +25,9 @@ const runId = process.env.GITHUB_RUN_ID;
 assert.ok(token && /^\d+$/.test(runId));
 assert.equal(new Set([primary, discovery, content, production]).size, 4);
 const directory = "artifacts/isolated-data-plane";
+// Only an explicit diagnostic rerun collects all phases after an irreversible
+// projected arrival failure. Neither mode may reclassify a failure as a pass.
+const failFast = process.env.COVE_CAPACITY_FAIL_FAST !== "0";
 fs.mkdirSync(directory, { recursive: true });
 const evidence = {
   sha: process.env.GITHUB_SHA,
@@ -37,6 +41,7 @@ const evidence = {
   phases: [],
   pass: false,
   transport: stageTransport,
+  failFastEnabled: failFast,
 };
 const save = () => fs.writeFileSync(directory + "/results.json", JSON.stringify(evidence, null, 2));
 const names = [];
@@ -262,7 +267,29 @@ async function phase(model) {
     inflight = new Set();
   let dropped = 0,
     maxSchedulerLagMs = 0,
-    stopped = false;
+    stopped = false,
+    scheduled = 0,
+    cancelledUnsent = 0,
+    irreversibleFailure = null;
+  const pendingTimers = new Map();
+  const stopOnViolation = (code, row) => {
+    if (!failFast || model !== "projection" || irreversibleFailure) return;
+    irreversibleFailure = {
+      code,
+      ms: Number.isFinite(row?.ms) ? row.ms : null,
+      status: row?.status ?? null,
+      sample: rows.length,
+    };
+    stopped = true;
+    // Resolve only unsent scheduled arrivals. Never cancel or replay a
+    // dispatched request; let all in-flight samples finish and be recorded.
+    for (const [timer, resolve] of pendingTimers) {
+      clearTimeout(timer);
+      pendingTimers.delete(timer);
+      cancelledUnsent++;
+      resolve();
+    }
+  };
   const bg = (async () => {
     let n = 0;
     while (!stopped) {
@@ -288,6 +315,7 @@ async function phase(model) {
         });
       } catch (e) {
         background.push({ ok: false, error: e.message });
+        stopOnViolation("background-failed");
       }
       n++;
       await new Promise((r) => setTimeout(r, 1000));
@@ -297,32 +325,44 @@ async function phase(model) {
   // throughout each 120-second phase. Never exclude a failed control.
   const controlLoop = (async () => {
     while (!stopped) {
-      transportControls.push(await sample("projection", "/__cove_perf/transport"));
+      const control = await sample("projection", "/__cove_perf/transport");
+      transportControls.push(control);
+      const failure = projectedRequestFailure(control);
+      if (failure) stopOnViolation("transport-control-" + failure, control);
       if (!stopped) await new Promise((r) => setTimeout(r, 1500));
     }
   })();
   const start = performance.now();
   await Promise.all(
-    Array.from(
-      { length: 12000 },
-      (_, i) =>
-        new Promise((resolve) =>
-          setTimeout(() => {
-            const lag = Math.max(0, performance.now() - start - i * 10);
-            maxSchedulerLagMs = Math.max(maxSchedulerLagMs, lag);
-            if (lag > 100 || inflight.size >= 200) {
-              dropped++;
-              resolve();
-              return;
-            }
-            const task = sample(model).then((row) => {
-              rows.push(row);
-              inflight.delete(task);
-              resolve();
-            });
-            inflight.add(task);
-          }, i * 10),
-        ),
+    Array.from({ length: 12000 }, (_, i) =>
+      new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          pendingTimers.delete(timer);
+          if (irreversibleFailure) {
+            cancelledUnsent++;
+            resolve();
+            return;
+          }
+          scheduled++;
+          const lag = Math.max(0, performance.now() - start - i * 10);
+          maxSchedulerLagMs = Math.max(maxSchedulerLagMs, lag);
+          if (lag > 100 || inflight.size >= 200) {
+            dropped++;
+            stopOnViolation("dropped-arrival");
+            resolve();
+            return;
+          }
+          const task = sample(model).then((row) => {
+            rows.push(row);
+            const failure = projectedRequestFailure(row);
+            if (failure) stopOnViolation(failure, row);
+            inflight.delete(task);
+            resolve();
+          });
+          inflight.add(task);
+        }, i * 10);
+        pendingTimers.set(timer, resolve);
+      }),
     ),
   );
   stopped = true;
@@ -332,6 +372,11 @@ async function phase(model) {
     seconds: 120,
     targetRps: 100,
     offered: 12000,
+    scheduled,
+    cancelledUnsent,
+    earlyStopped: !!irreversibleFailure,
+    earlyStopReason: irreversibleFailure,
+    elapsedSeconds: (performance.now() - start) / 1000,
     dropped,
     maxSchedulerLagMs,
     ...summary(rows),
@@ -346,6 +391,10 @@ async function phase(model) {
     rows,
   };
   evidence.phases.push(result);
+  if (irreversibleFailure) {
+    evidence.failFast = { model, ...irreversibleFailure, scheduled, cancelledUnsent };
+    evidence.pass = false;
+  }
   save();
   // Tail attribution is diagnostic only. The acceptance rule below still
   // fails on the absolute slowest response; no outlier is discarded.
@@ -382,6 +431,8 @@ async function phase(model) {
       rows: undefined,
     }),
   );
+  if (irreversibleFailure)
+    throw Error("Release failed fast: " + irreversibleFailure.code + " (evidence preserved)");
 }
 try {
   const fixture = await sql(
@@ -417,6 +468,12 @@ try {
     evidence.cold.push(cold);
     save();
     console.log("ARCH_COLD", JSON.stringify({ round, ...cold }));
+    const coldFailure = projectedRequestFailure(cold);
+    if (failFast && coldFailure) {
+      evidence.failFast = { stage: "cold", round, code: coldFailure, ms: cold.ms };
+      save();
+      throw Error("Release failed fast in cold deployment: " + coldFailure);
+    }
   }
   for (const path of ["/__cove_perf/transport", "/__cove_perf/presentation"]) {
     const rows = [];
@@ -428,24 +485,28 @@ try {
     const rows = await Promise.all(Array.from({ length: concurrency }, () => sample()));
     evidence.bursts.push({ concurrency, ...summary(rows), rows });
     save();
+    const invalid = rows.find((row) => projectedRequestFailure(row));
+    if (failFast && invalid) {
+      evidence.failFast = {
+        stage: "burst",
+        concurrency,
+        code: projectedRequestFailure(invalid),
+        ms: invalid.ms,
+      };
+      save();
+      throw Error("Release failed fast in burst: " + evidence.failFast.code);
+    }
   }
-  // Matched geography, immutable source, database, ingress, schedule and ABBA.
+  // ABBA remains intact on a clean run, and in a diagnostic run with
+  // COVE_CAPACITY_FAIL_FAST=0. The release run stops an impossible-to-pass
+  // projection early instead of spending minutes on later controls.
   for (const model of ["canonical", "projection", "projection", "canonical"]) await phase(model);
   const projected = evidence.phases.filter((p) => p.model === "projection");
   evidence.pass =
     evidence.cold.every((r) => r.ok && r.ms < 800) &&
     evidence.bursts.every((b) => b.valid === b.concurrency && b.max < 800) &&
-    projected.every(
-      (p) =>
-        p.valid === 12000 &&
-        p.dropped === 0 &&
-        p.p95 < 600 &&
-        p.p99 < 750 &&
-        p.max < 800 &&
-        p.transportControls.valid === p.transportControls.total &&
-        p.transportControls.max < 800 &&
-        p.background.every((r) => r.ok),
-    );
+    projected.length === 2 &&
+    projected.every(strictProjectionPhasePass);
   save();
   assert.ok(
     evidence.pass,
