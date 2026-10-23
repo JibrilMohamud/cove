@@ -29,6 +29,7 @@ const allowed = [
   "/api/fore/checkout/payment",
   "/api/fore/delivery/epub/grant",
   "/api/fore/stripe/webhook",
+  "/api/fore/admin/commerce/refund",
 ];
 for (const path of allowed) {
   assert.equal(await check(req(path), qaEnv), null, "QA endpoint must be available: " + path);
