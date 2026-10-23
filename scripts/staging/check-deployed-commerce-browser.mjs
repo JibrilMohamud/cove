@@ -21,7 +21,8 @@ const required = [
 ];
 const missing = required.filter((name) => !process.env[name]);
 assert.equal(
-  missing.length, 0,
+  missing.length,
+  0,
   "Deployed acceptance requires protected QA configuration: " + missing.join(", "),
 );
 const q = process.env;
@@ -139,7 +140,10 @@ const billingAddress = {
 async function purchase(page, productId) {
   const cart = await request(page, "GET", "/cart");
   assert.equal(cart.status, 200);
-  assert.ok(!cart.data?.items?.length, "QA account cart must start empty; never buy existing items");
+  assert.ok(
+    !cart.data?.items?.length,
+    "QA account cart must start empty; never buy existing items",
+  );
   const item = await request(page, "POST", "/cart/item", { productId });
   assert.ok(item.status >= 200 && item.status < 300);
   const quote = await request(page, "POST", "/checkout/quote", {
@@ -210,8 +214,9 @@ try {
   const ebook = await purchase(buyer, q.COVE_QA_EPUB_PRODUCT_ID);
   await until(async () => {
     const result = await request(
-      buyer, "GET", "/delivery/ownership?productId=" +
-        encodeURIComponent(q.COVE_QA_EPUB_PRODUCT_ID),
+      buyer,
+      "GET",
+      "/delivery/ownership?productId=" + encodeURIComponent(q.COVE_QA_EPUB_PRODUCT_ID),
     );
     return result.status === 200 && result.data?.entitlement?.status === "active";
   }, "Signed webhook fulfillment and owner entitlement");
@@ -240,11 +245,16 @@ try {
     "Outsider EPUB grant after another user purchased",
   );
   const audiobook = await purchase(buyer, q.COVE_QA_AUDIO_PRODUCT_ID);
-  const audioPath = "/audio/" + encodeURIComponent(q.COVE_QA_AUDIO_PUBLIC_ID) +
-    "/tracks/" + encodeURIComponent(q.COVE_QA_AUDIO_TRACK_ID);
+  const audioPath =
+    "/audio/" +
+    encodeURIComponent(q.COVE_QA_AUDIO_PUBLIC_ID) +
+    "/tracks/" +
+    encodeURIComponent(q.COVE_QA_AUDIO_TRACK_ID);
   expectDenied(await request(outsider, "GET", audioPath), "Outsider audio chapter");
-  await until(async () => (await request(buyer, "GET", audioPath)).status === 200,
-    "Signed audio-entitlement fulfillment");
+  await until(
+    async () => (await request(buyer, "GET", audioPath)).status === 200,
+    "Signed audio-entitlement fulfillment",
+  );
   const played = await buyer.evaluate(async (route) => {
     const response = await fetch("/api/fore" + route, { credentials: "include" });
     if (response.status !== 200) return { status: response.status, started: false };
@@ -255,9 +265,26 @@ try {
     const audio = new Audio(blobUrl);
     const started = await new Promise((resolve) => {
       const timeout = setTimeout(() => resolve(false), 9000);
-      audio.addEventListener("playing", () => { clearTimeout(timeout); resolve(true); }, { once: true });
-      audio.addEventListener("error", () => { clearTimeout(timeout); resolve(false); }, { once: true });
-      audio.play().catch(() => { clearTimeout(timeout); resolve(false); });
+      audio.addEventListener(
+        "playing",
+        () => {
+          clearTimeout(timeout);
+          resolve(true);
+        },
+        { once: true },
+      );
+      audio.addEventListener(
+        "error",
+        () => {
+          clearTimeout(timeout);
+          resolve(false);
+        },
+        { once: true },
+      );
+      audio.play().catch(() => {
+        clearTimeout(timeout);
+        resolve(false);
+      });
     });
     audio.pause();
     URL.revokeObjectURL(blobUrl);
@@ -268,25 +295,33 @@ try {
   report.outsiderDenied = true;
   await refundAndVerify(buyer, ebook.intentId, async () => {
     const own = await request(
-      buyer, "GET", "/delivery/ownership?productId=" +
-        encodeURIComponent(q.COVE_QA_EPUB_PRODUCT_ID),
+      buyer,
+      "GET",
+      "/delivery/ownership?productId=" + encodeURIComponent(q.COVE_QA_EPUB_PRODUCT_ID),
     );
     return own.status !== 200 || own.data?.entitlement?.status !== "active";
   });
   expectDenied(
     await request(buyer, "POST", "/delivery/epub/grant", {
-      productId: q.COVE_QA_EPUB_PRODUCT_ID, purpose: "read",
-    }), "Refunded EPUB new grant",
+      productId: q.COVE_QA_EPUB_PRODUCT_ID,
+      purpose: "read",
+    }),
+    "Refunded EPUB new grant",
   );
-  const oldGrant = await buyer.evaluate(async (path) =>
-    (await fetch(path, { credentials: "include" })).status, grantUrl.pathname + grantUrl.search);
+  const oldGrant = await buyer.evaluate(
+    async (path) => (await fetch(path, { credentials: "include" })).status,
+    grantUrl.pathname + grantUrl.search,
+  );
   assert.ok([401, 403, 404].includes(oldGrant), "Refund must revoke existing EPUB grant");
   await refundAndVerify(buyer, audiobook.intentId, async () =>
-    [401, 403, 404].includes((await request(buyer, "GET", audioPath)).status));
+    [401, 403, 404].includes((await request(buyer, "GET", audioPath)).status),
+  );
   report.refundRevoked = true;
   fs.mkdirSync("artifacts/deployed-commerce", { recursive: true });
   fs.writeFileSync("artifacts/deployed-commerce/report.json", JSON.stringify(report, null, 2));
-  console.log("PASS: genuine deployed browser Auth, signed Stripe fulfillment, EPUB, playable audio, outsider denial and refund revocation");
+  console.log(
+    "PASS: genuine deployed browser Auth, signed Stripe fulfillment, EPUB, playable audio, outsider denial and refund revocation",
+  );
 } finally {
   // Never leave succeeded synthetic payments unrefunded after a test assertion.
   for (const intentId of payments) {
@@ -294,7 +329,10 @@ try {
     try {
       const intent = await stripe("GET", "payment_intents/" + intentId);
       if (intent.status === "succeeded")
-        await stripe("POST", "refunds", { payment_intent: intentId, reason: "requested_by_customer" });
+        await stripe("POST", "refunds", {
+          payment_intent: intentId,
+          reason: "requested_by_customer",
+        });
     } catch {
       console.error("QA cleanup requires operator review for a TEST payment intent");
     }
