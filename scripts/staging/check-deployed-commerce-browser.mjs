@@ -30,7 +30,19 @@ const origin = new URL(q.COVE_QA_DEPLOYED_ORIGIN);
 assert.equal(origin.protocol, "https:");
 assert.equal(origin.pathname, "/");
 assert.match(origin.hostname, /(?:^|[.-])(?:qa|staging)(?:[.-])/i);
-assert.ok(!origin.hostname.includes("cove-jibrilmohamud.workers.dev"));
+// Allow only this one disposable, ingress-gated Cloudflare Worker as a
+// temporary test origin. Other workers.dev hosts remain rejected.
+const isEphemeralQaWorker =
+  origin.hostname === "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev";
+if (isEphemeralQaWorker) {
+  assert.match(
+    q.COVE_QA_STAGE_BEARER || "",
+    /^[a-f0-9]{64}$/,
+    "Temporary Cloudflare QA worker requires its rotating ingress bearer",
+  );
+} else {
+  assert.ok(!origin.hostname.endsWith(".workers.dev"), "Untrusted Worker test origin");
+}
 assert.ok(!origin.hostname.includes("www.cove"));
 assert.match(q.COVE_SANDBOX_SECRET_KEY, /^(sk|rk|rkcs)_test_/);
 assert.notEqual(q.COVE_QA_BUYER_EMAIL.toLowerCase(), q.COVE_QA_OUTSIDER_EMAIL.toLowerCase());
