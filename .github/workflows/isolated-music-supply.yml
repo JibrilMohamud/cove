@@ -6,6 +6,8 @@ on:
       - "src/music-supply/**"
       - "infra/music/**"
       - "scripts/check-isolated-music-supply.mjs"
+      - "scripts/music-supply/**"
+      - "scripts/build-isolated-music-supply.mjs"
       - ".github/workflows/isolated-music-supply.yml"
   workflow_dispatch:
 
@@ -24,6 +26,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/check-isolated-music-supply.mjs
+      - run: node --check scripts/music-supply/ingest-reviewed-catalog.mjs
+      - run: node --check scripts/music-supply/qualify-staged-masters.mjs
+      - run: node --check scripts/music-supply/audio-quality.mjs
       - run: node scripts/build-isolated-music-supply.mjs
       - run: npm run typecheck
       - run: npx eslint src/music-supply/*.ts scripts/check-isolated-music-supply.mjs
