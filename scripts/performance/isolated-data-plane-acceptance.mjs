@@ -334,35 +334,37 @@ async function phase(model) {
   })();
   const start = performance.now();
   await Promise.all(
-    Array.from({ length: 12000 }, (_, i) =>
-      new Promise((resolve) => {
-        const timer = setTimeout(() => {
-          pendingTimers.delete(timer);
-          if (irreversibleFailure) {
-            cancelledUnsent++;
-            resolve();
-            return;
-          }
-          scheduled++;
-          const lag = Math.max(0, performance.now() - start - i * 10);
-          maxSchedulerLagMs = Math.max(maxSchedulerLagMs, lag);
-          if (lag > 100 || inflight.size >= 200) {
-            dropped++;
-            stopOnViolation("dropped-arrival");
-            resolve();
-            return;
-          }
-          const task = sample(model).then((row) => {
-            rows.push(row);
-            const failure = projectedRequestFailure(row);
-            if (failure) stopOnViolation(failure, row);
-            inflight.delete(task);
-            resolve();
-          });
-          inflight.add(task);
-        }, i * 10);
-        pendingTimers.set(timer, resolve);
-      }),
+    Array.from(
+      { length: 12000 },
+      (_, i) =>
+        new Promise((resolve) => {
+          const timer = setTimeout(() => {
+            pendingTimers.delete(timer);
+            if (irreversibleFailure) {
+              cancelledUnsent++;
+              resolve();
+              return;
+            }
+            scheduled++;
+            const lag = Math.max(0, performance.now() - start - i * 10);
+            maxSchedulerLagMs = Math.max(maxSchedulerLagMs, lag);
+            if (lag > 100 || inflight.size >= 200) {
+              dropped++;
+              stopOnViolation("dropped-arrival");
+              resolve();
+              return;
+            }
+            const task = sample(model).then((row) => {
+              rows.push(row);
+              const failure = projectedRequestFailure(row);
+              if (failure) stopOnViolation(failure, row);
+              inflight.delete(task);
+              resolve();
+            });
+            inflight.add(task);
+          }, i * 10);
+          pendingTimers.set(timer, resolve);
+        }),
     ),
   );
   stopped = true;
