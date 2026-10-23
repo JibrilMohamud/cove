@@ -221,6 +221,45 @@ try {
     }),
   );
   objects.set("campaign/123/real/" + key("US"), saved);
+  // Stage KV is an advisory presentation accelerator, never an authority.
+  // A missing KV object must use private R2, not a global catalog fallback.
+  const kvObjects = new Map([["campaign/123/real/" + key("US"), saved]]);
+  let kvReads = 0;
+  const kv = {
+    async get(k, options) {
+      kvReads++;
+      assert.deepEqual(options, { type: "text", cacheTtl: 30 });
+      return kvObjects.get(k) ?? null;
+    },
+  };
+  const accelerated = {
+    ...env,
+    PRESENTATION_KV: kv,
+    COVE_PRESENTATION_KV_ACCELERATE: "1",
+    COVE_PRESENTATION_PREFIX: "campaign/123/real/",
+  };
+  const beforeKv = reads.length;
+  assert.equal((await serve(request("US"), accelerated)).status, 200);
+  assert.equal(reads.length - beforeKv, 1, "KV display bytes cannot cache primary authorization");
+  assert.equal(kvReads, 1);
+  kvObjects.clear();
+  assert.equal(
+    (await serve(request("US"), { ...accelerated, PRESENTATION: { ...store } })).status,
+    200,
+    "KV miss must return to the versioned private R2 object",
+  );
+  kvObjects.set("campaign/123/real/" + key("US"), "{bad-json");
+  const beforeInvalidKv = reads.length;
+  await assert.rejects(() =>
+    serve(request("US"), { ...accelerated, PRESENTATION: { ...store } }),
+  );
+  assert.equal(reads.length, beforeInvalidKv, "invalid KV bytes cannot authorize retail access");
+  await assert.rejects(() =>
+    serve(request("US"), { ...accelerated, COVE_SSR_STAGING: "0" }),
+  );
+  await assert.rejects(() =>
+    serve(request("US"), { ...accelerated, PRESENTATION_KV: undefined }),
+  );
   assert.equal(
     (await serve(request("US"), { ...env, COVE_PRESENTATION_PREFIX: "campaign/123/real/" })).status,
     200,
