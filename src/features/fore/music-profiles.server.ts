@@ -1,3 +1,4 @@
+import { assessQuietReading } from "./quiet-reading-score";
 import type { CoveEnv } from "./api.server";
 import type { CoveIdentity } from "./auth.server";
 import { ApiError, json, readBody } from "./service";
@@ -256,9 +257,11 @@ export async function handleMusicProfiles(
     await env.BUCKET.put(key, JSON.stringify(report), {
       httpMetadata: { contentType: "application/json" },
     });
+    const quietReading = assessQuietReading(report, r.has_vocals === null ? null : Boolean(r.has_vocals));
     const profile = {
       ...provisional(r),
       audioAnalysis: report,
+      quietReading,
       analysisCoverage: {
         fullSignal: true,
         semantic: report.semantics ? "sampled" : "unavailable",
