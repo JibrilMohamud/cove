@@ -24,5 +24,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/check-isolated-music-supply.mjs
+      - run: node scripts/build-isolated-music-supply.mjs
+      - run: npm run typecheck
       - run: npx eslint src/music-supply/*.ts scripts/check-isolated-music-supply.mjs
       - run: npx prettier --check src/music-supply/*.ts scripts/check-isolated-music-supply.mjs
