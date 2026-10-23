@@ -33,10 +33,8 @@ export type QuietReadingAssessment = {
   reasons: string[];
 };
 
-const clamp = (n: number) =>
-  Math.max(0, Math.min(1, Number.isFinite(n) ? n : 1));
-const norm = (n: number, low: number, high: number) =>
-  clamp((n - low) / (high - low));
+const clamp = (n: number) => Math.max(0, Math.min(1, Number.isFinite(n) ? n : 1));
+const norm = (n: number, low: number, high: number) => clamp((n - low) / (high - low));
 
 export function assessQuietReading(
   report: MusicReport,
@@ -103,9 +101,7 @@ export function assessQuietReading(
     tier,
     suitable: tier === "quiet_focus" || tier === "gentle_background",
     distraction: Number(score.toFixed(4)),
-    evidence: semanticCoverage
-      ? "full_signal_plus_sampled_semantics"
-      : "full_signal_only",
+    evidence: semanticCoverage ? "full_signal_plus_sampled_semantics" : "full_signal_only",
     vocalEvidence:
       hasVocals === true || (vocal !== null && vocal >= 0.55)
         ? "possible_vocals"
