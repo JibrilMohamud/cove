@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import { chromium } from "playwright";
 import JSZip from "jszip";
+import { qaD1, provisionQaRefundOperator, revokeQaRefundOperator } from "./qa-refund-operator.mjs";
 
 const required = [
   "COVE_QA_DEPLOYED_ORIGIN",
@@ -18,6 +19,7 @@ const required = [
   "COVE_QA_AUDIO_PUBLIC_ID",
   "COVE_QA_AUDIO_TRACK_ID",
   "COVE_SANDBOX_SECRET_KEY",
+  "CLOUDFLARE_API_TOKEN",
 ];
 const missing = required.filter((name) => !process.env[name]);
 assert.equal(
@@ -71,6 +73,8 @@ const browser = await chromium.launch({ headless: true });
 const contexts = [];
 const payments = [];
 const refunded = new Set();
+let refundOperatorId = null;
+let refundOperatorPage = null;
 const report = {
   revision: process.env.GITHUB_SHA || "unreported",
   target: "protected isolated QA origin",
@@ -199,7 +203,7 @@ async function purchase(page, productId) {
   assert.equal(intent.livemode, false);
   assert.ok(intent.amount > 0 && intent.amount <= 500, "Synthetic QA maximum is $5");
   assert.equal(intent.currency, "usd");
-  payments.push(pay.data.paymentIntentId);
+  payments.push({ intentId: pay.data.paymentIntentId, orderId: pay.data.orderId });
   const confirmed = await stripe("POST", "payment_intents/" + intent.id + "/confirm", {
     payment_method: "pm_card_visa",
     return_url: origin.href,
@@ -208,14 +212,25 @@ async function purchase(page, productId) {
   assert.equal(confirmed.livemode, false);
   return { intentId: intent.id, orderId: pay.data.orderId };
 }
-async function refundAndVerify(page, intentId, checkRevoked) {
-  const returned = await stripe("POST", "refunds", {
-    payment_intent: intentId,
+async function refundAndVerify(adminPage, purchase, checkRevoked) {
+  // Run the SAME commerce refund path used by Cove's staff. Directly calling
+  // Stripe refunds does not create Cove's commerce_refunds ledger row and
+  // therefore cannot certify its real revocation behavior.
+  const returned = await request(adminPage, "POST", "/admin/commerce/refund", {
+    orderId: purchase.orderId,
     reason: "requested_by_customer",
+    idempotencyKey: "qa-refund-" + randomUUID(),
   });
-  assert.equal(returned.status, "succeeded");
-  refunded.add(intentId);
-  await until(checkRevoked, "Signed refund event must revoke deployed entitlement");
+  assert.equal(returned.status, 200, "Authorized Cove refund endpoint rejected QA request");
+  assert.ok(["pending", "succeeded"].includes(returned.data?.status));
+  await until(async () => {
+    const rows = await qaD1(
+      "SELECT status FROM commerce_orders WHERE id=?",
+      [purchase.orderId],
+    );
+    return rows[0]?.status === "refunded" && (await checkRevoked());
+  }, "Real Cove refund must update order, entitlement and protected access");
+  refunded.add(purchase.intentId);
 }
 try {
   const buyer = await openUser(q.COVE_QA_BUYER_EMAIL, q.COVE_QA_BUYER_PASSWORD);
