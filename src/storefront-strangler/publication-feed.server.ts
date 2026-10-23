@@ -5,6 +5,7 @@ import {
   homepagePresentationKey,
 } from "./homepage-presentation.server";
 import { namespacedPresentationStore } from "./prepared-catalog.server";
+import { unbiasedCryptoInt } from "../lib/unbiased-random";
 
 type Domain = StorefrontDB;
 type Source = Domain & {
@@ -188,7 +189,7 @@ async function failed(
   const state = exhausted ? "delivered" : lane === "export" ? "exporting" : "ready";
   const delay = exhausted
     ? REFRESH_MS
-    : 15_000 * 2 ** job.attempts + (crypto.getRandomValues(new Uint32Array(1))[0] % 10_000);
+    : 15_000 * 2 ** job.attempts + (unbiasedCryptoInt(10_000));
   await env.DISCOVERY_DB.prepare(
     `UPDATE discovery_publications SET status=?,
     attempts=CASE WHEN ? THEN 0 ELSE attempts END,due_at=?,lease_until=?,lease_token='',last_error=?
