@@ -91,10 +91,11 @@ try {
     false,
   );
   assert.equal(abrupt.tier, "distracting");
-  assert.equal(
-    assessQuietReading({ ...quiet, structure: { ...quiet.structure, climaxes: [[0, 70]] } }, false).tier,
-    "distracting",
+  const longClimax = assessQuietReading(
+    { ...quiet, structure: { ...quiet.structure, climaxes: [[0, 70]] } },
+    false,
   );
+  assert.equal(longClimax.tier, "distracting");
   const tracks = Array.from({ length: 12 }, (_, i) => ({
     id: "r" + i,
     durationSeconds: 600,
@@ -115,9 +116,7 @@ try {
   const playlist = planDiverseReadingMusic(tracks, options);
   assert.ok(playlist.length >= 5, "enough new masters for a complete reading session");
   assert.equal(new Set(playlist.map((t) => t.masterFingerprint)).size, playlist.length);
-  assert.ok(
-    playlist.every((t) => !["r0", "r1", "r2", "duplicate"].includes(t.id)),
-  );
+  assert.ok(playlist.every((t) => !["r0", "r1", "r2", "duplicate"].includes(t.id)));
   assert.deepEqual(planDiverseReadingMusic(tracks, options), playlist, "stable within session");
   assert.deepEqual(planDiverseReadingMusic([], options), []);
   assert.ok(
