@@ -105,7 +105,7 @@ try {
     sourceLicenseId: "signed-line-item-1",
     attribution: "Fixture composer & performer — original test master",
   };
-  assert.equal((await invoke("/v1/masters", "POST", "ingest", manifest)).status, 422);
+  assert.equal((await invoke("/v1/masters", "POST", "ingest", manifest)).status, 409);
   assert.equal((await invoke("/v1/contracts/supplier-1/activate", "POST", "operator", {})).status, 401);
   assert.equal((await invoke("/v1/contracts/supplier-1/activate", "POST", "reviewer", {
     reviewer: "legal-qa",
@@ -155,7 +155,7 @@ try {
   assert.equal(withdrawn.result.items[0].action, "contract_revoked");
   assert.equal((await invoke("/v1/masters", "POST", "ingest", {
     ...manifest, id: "fixture-master-2", sha256: sha(Buffer.from("different")),
-  })).status, 422);
+  })).status, 409);
   assert.equal((await invoke("/v1/operator/outbox?after=abc", "GET", "operator")).status, 400);
   // Primary customer D1, playback rights, and worker route bindings are absent.
   assert.equal(Object.prototype.hasOwnProperty.call(env, "DB"), false);
