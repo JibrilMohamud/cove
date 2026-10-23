@@ -299,16 +299,20 @@ try {
         prepare(sql) {
           const stmt = session.prepare(sql);
           if (!captureLostOnce || !sql.includes("storefront_markets")) return stmt;
-          return {
-            ...stmt,
+          const flakyRead = (statement) => ({
+            ...statement,
+            bind(...values) {
+              return flakyRead(statement.bind(...values));
+            },
             async all() {
               if (captureLostOnce) {
                 captureLostOnce = false;
                 throw Error("D1_ERROR: Network connection lost");
               }
-              return stmt.all();
+              return statement.all();
             },
-          };
+          });
+          return flakyRead(stmt);
         },
       };
     },
