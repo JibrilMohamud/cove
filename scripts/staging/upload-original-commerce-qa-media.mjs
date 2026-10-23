@@ -68,8 +68,11 @@ for (const asset of assets) {
       "object",
       "put",
       bucket + "/" + asset.key,
+      "--remote",
       "--file",
       filename,
+      "--content-type",
+      asset.type,
     ],
     {
       env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" },
@@ -78,6 +81,33 @@ for (const asset of assets) {
     },
   );
   if (proc.status !== 0) throw Error("QA original-media R2 upload failed for " + asset.name);
+  // Never certify uploads just because Wrangler exited 0. Read back the
+  // *remote* private R2 object and compare its bytes with the original.
+  const verified = path.join(out, "r2-verified-" + asset.name);
+  const read = spawnSync(
+    "npm",
+    [
+      "exec",
+      "--yes",
+      "--package=wrangler@4.151.0",
+      "--",
+      "wrangler",
+      "r2",
+      "object",
+      "get",
+      bucket + "/" + asset.key,
+      "--remote",
+      "--file",
+      verified,
+    ],
+    {
+      env: { ...process.env, CLOUDFLARE_SEND_METRICS: "false" },
+      encoding: "utf8",
+      timeout: 120000,
+    },
+  );
+  assert.equal(read.status, 0, "Remote QA R2 readback failed for " + asset.name);
+  assert.ok(fs.readFileSync(verified).equals(asset.data), "Remote QA R2 bytes differ");
 }
 const report = assets.map((a) => ({
   kind: a.name,
