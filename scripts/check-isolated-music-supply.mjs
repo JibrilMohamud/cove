@@ -22,9 +22,7 @@ try {
     outExtension: { ".js": ".mjs" },
     logLevel: "silent",
   });
-  const { validateMusicMaster, validateMusicQuality } = await import(
-    path.join(root, "policy.mjs")
-  );
+  const { validateMusicMaster, validateMusicQuality } = await import(path.join(root, "policy.mjs"));
   const worker = (await import(path.join(root, "worker.mjs"))).default;
   const isolated = localBindings(root);
   const objects = new Map();
@@ -32,12 +30,13 @@ try {
   const bucket = {
     async put(key, body, options = {}) {
       const bytes =
-        typeof body === "string" ? Buffer.from(body) :
-        body?.getReader ? Buffer.from(await new Response(body).arrayBuffer()) :
-        Buffer.from(body);
+        typeof body === "string"
+          ? Buffer.from(body)
+          : body?.getReader
+            ? Buffer.from(await new Response(body).arrayBuffer())
+            : Buffer.from(body);
       const actual = sha(bytes);
-      if (options.sha256 && options.sha256 !== actual)
-        throw Error("Checksum mismatch");
+      if (options.sha256 && options.sha256 !== actual) throw Error("Checksum mismatch");
       objects.set(key, { bytes, sha256: actual });
     },
     async head(key) {
@@ -82,45 +81,77 @@ try {
     contractId: "supplier-1",
     licensor: "Example Rights Holder",
     authorizingInstrument: "Synthetic fixture reviewed distribution agreement",
-    commercialStreaming: true, masterRights: true, compositionRights: true,
+    commercialStreaming: true,
+    masterRights: true,
+    compositionRights: true,
   });
   assert.equal(ref.status, 201);
   const contract = {
-    id: "supplier-1", provider: "Fixture Rights Publisher",
+    id: "supplier-1",
+    provider: "Fixture Rights Publisher",
     licensedOrigin: "https://licensed.example.test/files/",
-    territories: ["US", "CA"], expiresAt: "2035-02-01T00:00:00.000Z",
-    evidenceKey: ref.result.evidenceKey, evidenceSha256: ref.result.evidenceSha256,
-    commercialStreaming: true, masterRights: true, performanceRights: true,
-    compositionRights: true, arrangementRights: true, lyricsRights: true,
+    territories: ["US", "CA"],
+    expiresAt: "2035-02-01T00:00:00.000Z",
+    evidenceKey: ref.result.evidenceKey,
+    evidenceSha256: ref.result.evidenceSha256,
+    commercialStreaming: true,
+    masterRights: true,
+    performanceRights: true,
+    compositionRights: true,
+    arrangementRights: true,
+    lyricsRights: true,
   };
-  assert.equal((await invoke("/v1/contracts", "POST", "operator", contract)).result.status, "pending");
-  const bytes = Buffer.alloc(4096, 44), checksum = sha(bytes);
+  assert.equal(
+    (await invoke("/v1/contracts", "POST", "operator", contract)).result.status,
+    "pending",
+  );
+  const bytes = Buffer.alloc(4096, 44),
+    checksum = sha(bytes);
   const manifest = {
-    id: "fixture-master-1", contractId: contract.id,
+    id: "fixture-master-1",
+    contractId: contract.id,
     title: "Original Instrumental Test",
-    composer: "Fixture Composer", performer: "Fixture Performer",
-    workKey: "fixture-work-1", sha256: checksum, bytes: bytes.length,
-    mime: "audio/ogg", territory: ["US"], hasVocals: false,
+    composer: "Fixture Composer",
+    performer: "Fixture Performer",
+    workKey: "fixture-work-1",
+    sha256: checksum,
+    bytes: bytes.length,
+    mime: "audio/ogg",
+    territory: ["US"],
+    hasVocals: false,
     sourceUrl: "https://licensed.example.test/files/master-1.ogg",
     sourceLicenseId: "signed-line-item-1",
     attribution: "Fixture composer & performer — original test master",
   };
   assert.equal((await invoke("/v1/masters", "POST", "ingest", manifest)).status, 409);
-  assert.equal((await invoke("/v1/contracts/supplier-1/activate", "POST", "operator", {})).status, 401);
-  assert.equal((await invoke("/v1/contracts/supplier-1/activate", "POST", "reviewer", {
-    reviewer: "legal-qa",
-    reviewReference: "signed-evidence-synthetic-2026",
-    evidenceSha256: contract.evidenceSha256,
-    confirmedFiveLayers: true,
-  })).status, 200);
+  assert.equal(
+    (await invoke("/v1/contracts/supplier-1/activate", "POST", "operator", {})).status,
+    401,
+  );
+  assert.equal(
+    (
+      await invoke("/v1/contracts/supplier-1/activate", "POST", "reviewer", {
+        reviewer: "legal-qa",
+        reviewReference: "signed-evidence-synthetic-2026",
+        evidenceSha256: contract.evidenceSha256,
+        confirmedFiveLayers: true,
+      })
+    ).status,
+    200,
+  );
   assert.equal((await invoke("/v1/masters", "POST", "ingest", manifest)).status, 201);
   assert.equal((await invoke("/v1/masters", "POST", "ingest", manifest)).result.created, false);
   assert.throws(
-    () => validateMusicMaster({ ...manifest, territory: ["FR"] }, { ...contract, status: "active" }),
+    () =>
+      validateMusicMaster({ ...manifest, territory: ["FR"] }, { ...contract, status: "active" }),
     /covered/,
   );
   assert.throws(
-    () => validateMusicMaster({ ...manifest, sourceUrl: "https://evil.example/files/1" }, { ...contract, status: "active" }),
+    () =>
+      validateMusicMaster(
+        { ...manifest, sourceUrl: "https://evil.example/files/1" },
+        { ...contract, status: "active" },
+      ),
     /outside/,
   );
   assert.throws(
@@ -137,29 +168,57 @@ try {
     body: bytes,
   });
   assert.equal((await worker.fetch(fakeAudio, env)).status, 200);
-  assert.equal((await invoke("/v1/masters/fixture-master-1/quality", "POST", "operator", {})).status, 401);
+  assert.equal(
+    (await invoke("/v1/masters/fixture-master-1/quality", "POST", "operator", {})).status,
+    401,
+  );
   const report = {
-    sha256: checksum, bytes: bytes.length, decodedFully: true,
-    durationSeconds: 180, integratedLufs: -22,
-    truePeakDbfs: -2, silenceRatio: 0.01, clippedSampleRatio: 0,
+    sha256: checksum,
+    bytes: bytes.length,
+    decodedFully: true,
+    durationSeconds: 180,
+    integratedLufs: -22,
+    truePeakDbfs: -2,
+    silenceRatio: 0.01,
+    clippedSampleRatio: 0,
   };
-  assert.equal((await invoke("/v1/masters/fixture-master-1/quality", "POST", "qa", report)).status, 202);
+  assert.equal(
+    (await invoke("/v1/masters/fixture-master-1/quality", "POST", "qa", report)).status,
+    202,
+  );
   const first = await invoke("/v1/operator/outbox?limit=1", "GET", "operator");
   assert.equal(first.result.items[0].action, "master_qualified");
   const cursor = first.result.nextCursor;
-  assert.equal((await invoke("/v1/operator/outbox?after=" + cursor, "GET", "operator")).result.items.length, 0);
-  assert.equal((await invoke("/v1/contracts/supplier-1/revoke", "POST", "reviewer", {
-    reason: "Synthetic QA contract withdrawn",
-  })).status, 200);
+  assert.equal(
+    (await invoke("/v1/operator/outbox?after=" + cursor, "GET", "operator")).result.items.length,
+    0,
+  );
+  assert.equal(
+    (
+      await invoke("/v1/contracts/supplier-1/revoke", "POST", "reviewer", {
+        reason: "Synthetic QA contract withdrawn",
+      })
+    ).status,
+    200,
+  );
   const withdrawn = await invoke("/v1/operator/outbox?after=" + cursor, "GET", "operator");
   assert.equal(withdrawn.result.items[0].action, "contract_revoked");
-  assert.equal((await invoke("/v1/masters", "POST", "ingest", {
-    ...manifest, id: "fixture-master-2", sha256: sha(Buffer.from("different")),
-  })).status, 409);
+  assert.equal(
+    (
+      await invoke("/v1/masters", "POST", "ingest", {
+        ...manifest,
+        id: "fixture-master-2",
+        sha256: sha(Buffer.from("different")),
+      })
+    ).status,
+    409,
+  );
   assert.equal((await invoke("/v1/operator/outbox?after=abc", "GET", "operator")).status, 400);
   // Primary customer D1, playback rights, and worker route bindings are absent.
   assert.equal(Object.prototype.hasOwnProperty.call(env, "DB"), false);
-  console.log("Isolated supply: contract dual review, exact master, QA, ordered outbox, revoked source, and fail-closed gates passed.");
+  console.log(
+    "Isolated supply: contract dual review, exact master, QA, ordered outbox, revoked source, and fail-closed gates passed.",
+  );
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

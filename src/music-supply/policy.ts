@@ -68,8 +68,11 @@ function url(value: unknown): string {
   return parsed.href;
 }
 function iso(value: unknown): string {
-  if (typeof value !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/.test(value) ||
-      !Number.isFinite(Date.parse(value)))
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/.test(value) ||
+    !Number.isFinite(Date.parse(value))
+  )
     throw new Error("music_invalid_expiry");
   return value;
 }
@@ -77,82 +80,139 @@ function iso(value: unknown): string {
 export function validateMusicContract(value: unknown): MusicSupplyContract {
   if (!value || typeof value !== "object") throw new Error("music_invalid_contract");
   const v = value as Record<string, unknown>;
-  if (typeof v.id !== "string" || !id.test(v.id) ||
-      !isText(v.provider, 160) ||
-      typeof v.licensedOrigin !== "string" ||
-      !countries(v.territories) ||
-      typeof v.evidenceKey !== "string" ||
-      !/^music-supply\/evidence\/[a-zA-Z0-9._:-]{3,120}\/[0-9a-f]{64}\.json$/.test(v.evidenceKey) ||
-      typeof v.evidenceSha256 !== "string" || !sha.test(v.evidenceSha256) ||
-      v.commercialStreaming !== true ||
-      v.masterRights !== true ||
-      v.performanceRights !== true ||
-      v.compositionRights !== true ||
-      v.arrangementRights !== true ||
-      v.lyricsRights !== true)
+  if (
+    typeof v.id !== "string" ||
+    !id.test(v.id) ||
+    !isText(v.provider, 160) ||
+    typeof v.licensedOrigin !== "string" ||
+    !countries(v.territories) ||
+    typeof v.evidenceKey !== "string" ||
+    !/^music-supply\/evidence\/[a-zA-Z0-9._:-]{3,120}\/[0-9a-f]{64}\.json$/.test(v.evidenceKey) ||
+    typeof v.evidenceSha256 !== "string" ||
+    !sha.test(v.evidenceSha256) ||
+    v.commercialStreaming !== true ||
+    v.masterRights !== true ||
+    v.performanceRights !== true ||
+    v.compositionRights !== true ||
+    v.arrangementRights !== true ||
+    v.lyricsRights !== true
+  )
     throw new Error("music_missing_verified_rights_layers");
   url(v.licensedOrigin);
   const expiresAt = iso(v.expiresAt);
   if (Date.parse(expiresAt) <= Date.now()) throw new Error("music_contract_expired");
   return {
-    id: v.id, provider: v.provider, status: "pending", licensedOrigin: v.licensedOrigin,
-    territories: v.territories, expiresAt,
-    evidenceKey: v.evidenceKey, evidenceSha256: v.evidenceSha256,
-    commercialStreaming: true, masterRights: true, performanceRights: true,
-    compositionRights: true, arrangementRights: true, lyricsRights: true,
+    id: v.id,
+    provider: v.provider,
+    status: "pending",
+    licensedOrigin: v.licensedOrigin,
+    territories: v.territories,
+    expiresAt,
+    evidenceKey: v.evidenceKey,
+    evidenceSha256: v.evidenceSha256,
+    commercialStreaming: true,
+    masterRights: true,
+    performanceRights: true,
+    compositionRights: true,
+    arrangementRights: true,
+    lyricsRights: true,
   } as MusicSupplyContract;
 }
 
-export function validateMusicMaster(value: unknown, contract: MusicSupplyContract): MusicMasterManifest {
+export function validateMusicMaster(
+  value: unknown,
+  contract: MusicSupplyContract,
+): MusicMasterManifest {
   if (!value || typeof value !== "object") throw new Error("music_invalid_master");
   const v = value as Record<string, unknown>;
   if (contract.status !== "active" || Date.parse(contract.expiresAt) <= Date.now())
     throw new Error("music_contract_not_active");
   if (
-    typeof v.id !== "string" || !id.test(v.id) ||
+    typeof v.id !== "string" ||
+    !id.test(v.id) ||
     v.contractId !== contract.id ||
-    !isText(v.title) || !isText(v.composer) || !isText(v.performer) ||
+    !isText(v.title) ||
+    !isText(v.composer) ||
+    !isText(v.performer) ||
     !isText(v.workKey) ||
-    typeof v.sha256 !== "string" || !sha.test(v.sha256) ||
-    !Number.isInteger(v.bytes) || Number(v.bytes) < 128 || Number(v.bytes) > 25 * 1024 * 1024 ||
+    typeof v.sha256 !== "string" ||
+    !sha.test(v.sha256) ||
+    !Number.isInteger(v.bytes) ||
+    Number(v.bytes) < 128 ||
+    Number(v.bytes) > 25 * 1024 * 1024 ||
     !["audio/mpeg", "audio/ogg"].includes(String(v.mime)) ||
     !countries(v.territory) ||
     !(v.territory as string[]).every((c) => contract.territories.includes(c)) ||
     ![true, false, null].includes(v.hasVocals as boolean | null) ||
     !isText(v.sourceLicenseId, 160) ||
     !isText(v.attribution, 1000)
-  ) throw new Error("music_master_not_covered_by_contract");
+  )
+    throw new Error("music_master_not_covered_by_contract");
   const sourceUrl = url(v.sourceUrl);
   const source = new URL(sourceUrl);
   const origin = new URL(contract.licensedOrigin);
-  if (source.hostname !== origin.hostname ||
-      source.protocol !== origin.protocol ||
-      !source.pathname.startsWith(origin.pathname))
+  if (
+    source.hostname !== origin.hostname ||
+    source.protocol !== origin.protocol ||
+    !source.pathname.startsWith(origin.pathname)
+  )
     throw new Error("music_source_outside_approved_catalog");
   return {
-    id: v.id, contractId: contract.id, title: v.title, composer: v.composer,
-    performer: v.performer, workKey: v.workKey, sha256: v.sha256,
-    bytes: Number(v.bytes), mime: v.mime as MusicMasterManifest["mime"],
-    territory: v.territory as string[], hasVocals: v.hasVocals as boolean | null,
-    sourceUrl, sourceLicenseId: v.sourceLicenseId, attribution: v.attribution,
+    id: v.id,
+    contractId: contract.id,
+    title: v.title,
+    composer: v.composer,
+    performer: v.performer,
+    workKey: v.workKey,
+    sha256: v.sha256,
+    bytes: Number(v.bytes),
+    mime: v.mime as MusicMasterManifest["mime"],
+    territory: v.territory as string[],
+    hasVocals: v.hasVocals as boolean | null,
+    sourceUrl,
+    sourceLicenseId: v.sourceLicenseId,
+    attribution: v.attribution,
   };
 }
 
 export type MusicQualityAttestation = {
-  sha256: string; bytes: number; decodedFully: true; durationSeconds: number;
-  integratedLufs: number; truePeakDbfs: number; silenceRatio: number;
+  sha256: string;
+  bytes: number;
+  decodedFully: true;
+  durationSeconds: number;
+  integratedLufs: number;
+  truePeakDbfs: number;
+  silenceRatio: number;
   clippedSampleRatio: number;
 };
-export function validateMusicQuality(value: unknown, sha256: string, bytes: number): MusicQualityAttestation {
+export function validateMusicQuality(
+  value: unknown,
+  sha256: string,
+  bytes: number,
+): MusicQualityAttestation {
   if (!value || typeof value !== "object") throw new Error("music_invalid_audio_qa");
   const v = value as Record<string, unknown>;
   const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
-  if (v.sha256 !== sha256 || v.bytes !== bytes || v.decodedFully !== true ||
-      !finite(v.durationSeconds) || v.durationSeconds < 20 || v.durationSeconds > 14400 ||
-      !finite(v.integratedLufs) || v.integratedLufs < -40 || v.integratedLufs > -8 ||
-      !finite(v.truePeakDbfs) || v.truePeakDbfs > 0 || v.truePeakDbfs < -70 ||
-      !finite(v.silenceRatio) || v.silenceRatio < 0 || v.silenceRatio >= 0.25 ||
-      !finite(v.clippedSampleRatio) || v.clippedSampleRatio < 0 || v.clippedSampleRatio >= 0.001)
+  if (
+    v.sha256 !== sha256 ||
+    v.bytes !== bytes ||
+    v.decodedFully !== true ||
+    !finite(v.durationSeconds) ||
+    v.durationSeconds < 20 ||
+    v.durationSeconds > 14400 ||
+    !finite(v.integratedLufs) ||
+    v.integratedLufs < -40 ||
+    v.integratedLufs > -8 ||
+    !finite(v.truePeakDbfs) ||
+    v.truePeakDbfs > 0 ||
+    v.truePeakDbfs < -70 ||
+    !finite(v.silenceRatio) ||
+    v.silenceRatio < 0 ||
+    v.silenceRatio >= 0.25 ||
+    !finite(v.clippedSampleRatio) ||
+    v.clippedSampleRatio < 0 ||
+    v.clippedSampleRatio >= 0.001
+  )
     throw new Error("music_audio_quality_failed");
   return v as MusicQualityAttestation;
 }
