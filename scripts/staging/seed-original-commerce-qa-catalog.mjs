@@ -37,15 +37,16 @@ assert.ok(
   "Remote original synthetic WAV has not been verified",
 );
 const now = new Date().toISOString();
-const sql = [
-  `INSERT OR IGNORE INTO works(id,title,description,created_at,updated_at) VALUES('qa-original-ebook-work','Cove Original Synthetic QA Edition','An original synthetic QA work with no third-party copyrighted content','${now}','${now}')`,
-  `INSERT OR IGNORE INTO editions(id,work_id,title,description,language,release_status,created_at,updated_at) VALUES('qa-original-ebook-edition','qa-original-ebook-work','Cove Synthetic QA Edition','Original QA EPUB chapter','en','available','${now}','${now}')`,
-  `INSERT OR IGNORE INTO products(id,edition_id,sku,format,source_name,source_external_id,created_at,updated_at) VALUES('qa-original-ebook-product','qa-original-ebook-edition','QA-ORIGINAL-EPUB','ebook','publisher','qa-original-ebook','${now}','${now}')`,
-  `INSERT OR IGNORE INTO rights_grants(id,edition_id,territory_code,format,license_type,decision,status,source,notes,created_at) VALUES('qa-original-ebook-us-retail','qa-original-ebook-edition','US','ebook','license','allow','active','sandbox-original-license','Original test material, non-production isolated QA only','${now}')`,
-  `INSERT OR IGNORE INTO offers(id,product_id,offer_type,currency,amount_minor,active,created_at,updated_at) VALUES('qa-original-ebook-offer','qa-original-ebook-product','purchase','USD',100,1,'${now}','${now}')`,
-  `INSERT OR IGNORE INTO digital_assets(id,edition_id,kind,current_version_id,created_at,updated_at) VALUES('qa-original-ebook-asset','qa-original-ebook-edition','epub','qa-original-ebook-v1','${now}','${now}')`,
-  `INSERT OR IGNORE INTO asset_versions(id,asset_id,version_number,object_key,mime_type,epub_version,created_at) VALUES('qa-original-ebook-v1','qa-original-ebook-asset',1,'original-fixtures/cove-synthetic-qa.epub','application/epub+zip','3.0','${now}')`,
-].join(";") + ";";
+const sql =
+  [
+    `INSERT OR IGNORE INTO works(id,title,description,created_at,updated_at) VALUES('qa-original-ebook-work','Cove Original Synthetic QA Edition','An original synthetic QA work with no third-party copyrighted content','${now}','${now}')`,
+    `INSERT OR IGNORE INTO editions(id,work_id,title,description,language,release_status,created_at,updated_at) VALUES('qa-original-ebook-edition','qa-original-ebook-work','Cove Synthetic QA Edition','Original QA EPUB chapter','en','available','${now}','${now}')`,
+    `INSERT OR IGNORE INTO products(id,edition_id,sku,format,source_name,source_external_id,created_at,updated_at) VALUES('qa-original-ebook-product','qa-original-ebook-edition','QA-ORIGINAL-EPUB','ebook','publisher','qa-original-ebook','${now}','${now}')`,
+    `INSERT OR IGNORE INTO rights_grants(id,edition_id,territory_code,format,license_type,decision,status,source,notes,created_at) VALUES('qa-original-ebook-us-retail','qa-original-ebook-edition','US','ebook','license','allow','active','sandbox-original-license','Original test material, non-production isolated QA only','${now}')`,
+    `INSERT OR IGNORE INTO offers(id,product_id,offer_type,currency,amount_minor,active,created_at,updated_at) VALUES('qa-original-ebook-offer','qa-original-ebook-product','purchase','USD',100,1,'${now}','${now}')`,
+    `INSERT OR IGNORE INTO digital_assets(id,edition_id,kind,current_version_id,created_at,updated_at) VALUES('qa-original-ebook-asset','qa-original-ebook-edition','epub','qa-original-ebook-v1','${now}','${now}')`,
+    `INSERT OR IGNORE INTO asset_versions(id,asset_id,version_number,object_key,mime_type,epub_version,created_at) VALUES('qa-original-ebook-v1','qa-original-ebook-asset',1,'original-fixtures/cove-synthetic-qa.epub','application/epub+zip','3.0','${now}')`,
+  ].join(";") + ";";
 await api("POST", "/accounts/" + account + "/d1/database/" + db + "/query", { sql });
 const rows = await api("POST", "/accounts/" + account + "/d1/database/" + db + "/query", {
   sql: "SELECT p.id,o.amount_minor,rg.territory_code,av.object_key FROM products p JOIN offers o ON o.product_id=p.id JOIN rights_grants rg ON rg.edition_id=p.edition_id JOIN digital_assets da ON da.edition_id=p.edition_id JOIN asset_versions av ON av.asset_id=da.id WHERE p.id='qa-original-ebook-product'",
