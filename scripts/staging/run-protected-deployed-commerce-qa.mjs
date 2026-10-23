@@ -115,6 +115,31 @@ try {
   }
   assert.ok(whsec, "Stripe TEST CLI never supplied its webhook signing secret");
   wrangler(["secret", "put", "STRIPE_WEBHOOK_SECRET", "--config", publicConfig], whsec);
+  // Rotating a Worker secret creates a new deployment; a successful Wrangler
+  // response is not proof that every ingress colo serves that deployment yet.
+  // This is browser QA (not a cold performance sample), so wait for a genuine
+  // bearer-gated 200 response before attempting Supabase login and payment.
+  let ingressReady = false;
+  for (let attempt = 1; attempt <= 45; attempt++) {
+    try {
+      const response = await fetch(origin, {
+        headers: { authorization: "Bearer " + gate },
+        signal: AbortSignal.timeout(5000),
+      });
+      const ready = response.status === 200 &&
+        (response.headers.get("content-type") || "").includes("text/html");
+      await response.body?.cancel();
+      if (ready) {
+        console.log("QA_INGRESS_READY", attempt, 200);
+        ingressReady = true;
+        break;
+      }
+    } catch {
+      // The next short attempt may see the new secret/version after routing.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  assert.ok(ingressReady, "QA ingress never reached an authenticated HTML-ready state");
   const run = spawnSync("node", ["scripts/staging/check-deployed-commerce-browser.mjs"], {
     env,
     stdio: "inherit",
