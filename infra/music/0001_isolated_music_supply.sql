@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS music_events (
 CREATE INDEX IF NOT EXISTS music_events_contract
   ON music_events(contract_id,created_at,id);
 CREATE TABLE IF NOT EXISTS music_publication_outbox (
-  id TEXT PRIMARY KEY,
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
   contract_id TEXT NOT NULL,
   master_id TEXT,
   action TEXT NOT NULL CHECK(action IN ('master_qualified','master_revoked','contract_revoked')),
