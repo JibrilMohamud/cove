@@ -6,10 +6,11 @@ import { produceHomepagePresentation } from "../../.output/strangler/presentatio
 /** A bounded, read-only QA seed, never a production publication pipeline.
  * Only public catalog/presentation data is written to the private stage R2.
  * No source database mutation, user identity or access grant is copied. */
-export async function seedReadOnlyPresentation({ token, source, prefix, directory }) {
+export async function seedReadOnlyPresentation({ token, source, prefix, directory, kvNamespaceId }) {
   assert.ok(token);
   assert.equal(source, "4bd657ac-8789-403e-a28c-93aba8d0a989");
   assert.match(prefix, /^campaign\/\d+\/real\/$/);
+  if (kvNamespaceId) assert.equal(kvNamespaceId, "8245d5f2116a445d9571405b41b7c8c3");
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/d26430caa63ec55f6612e32f36aca5e9/d1/database/${source}/query`;
   async function query(sql, params) {
     assert.match(sql.trim(), /^(SELECT|WITH)\b/i);
@@ -80,6 +81,26 @@ export async function seedReadOnlyPresentation({ token, source, prefix, director
         },
       );
       assert.equal(result.status, 0, "Private, namespaced presentation seed upload failed");
+      // Optional stage-only read accelerator. This document contains public
+      // display candidates, never legal grants, orders or private media URLs.
+      // R2 remains the durable independent source and is written first.
+      if (kvNamespaceId) {
+        const objectKey = encodeURIComponent(prefix + key);
+        const kvResponse = await fetch(
+          `https://api.cloudflare.com/client/v4/accounts/d26430caa63ec55f6612e32f36aca5e9/storage/kv/namespaces/${kvNamespaceId}/values/${objectKey}?expiration_ttl=1800`,
+          {
+            method: "PUT",
+            headers: {
+              authorization: "Bearer " + token,
+              "content-type": "application/octet-stream",
+            },
+            body,
+            signal: AbortSignal.timeout(30000),
+          },
+        );
+        const acknowledgment = await kvResponse.json();
+        assert.ok(kvResponse.ok && acknowledgment.success, "Private QA KV upload failed");
+      }
     },
   });
 }
