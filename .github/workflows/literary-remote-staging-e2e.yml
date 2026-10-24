@@ -1,0 +1,54 @@
+name: literary-remote-staging-e2e
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/literary-remote-staging-e2e.yml"
+      - "scripts/staging/certify-literary-remote-synthetic-journey.mjs"
+      - "scripts/check-literary-remote-synthetic-journey.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/literary-remote-staging-e2e.yml"
+      - "scripts/staging/certify-literary-remote-synthetic-journey.mjs"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cove-literary-remote-staging-qa
+  cancel-in-progress: false
+jobs:
+  static-synthetic-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - run: node --check scripts/staging/certify-literary-remote-synthetic-journey.mjs
+      - run: node scripts/check-literary-remote-synthetic-journey.mjs
+  protected-real-d1-r2-canary:
+    needs: static-synthetic-only
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Synthetic end-to-end handoff on dedicated remote D1 and private R2
+        run: node scripts/staging/certify-literary-remote-synthetic-journey.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: literary-remote-staging-synthetic-${{ github.sha }}
+          path: artifacts/literary-cutover/remote-synthetic-e2e.json
+          if-no-files-found: warn
+          retention-days: 30
