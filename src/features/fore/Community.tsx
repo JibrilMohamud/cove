@@ -275,16 +275,16 @@ export function DiscussionThread({
             aria-pressed={threadSort === "top"}
             onClick={() => setThreadSort("top")}
           >
-            Popular
+            {ui("Popular")}
           </button>
           <button
             type="button"
             aria-pressed={threadSort === "new"}
             onClick={() => setThreadSort("new")}
           >
-            Newest
+            {ui("Newest")}
           </button>
-          <span>Only a few replies load at a time. Hearts represent unique reader reactions.</span>
+          <span>{ui("Only a few replies load at a time. Hearts represent unique reader reactions.")}</span>
         </div>
       )}
       {!postId && (contextType !== "margin" || !!parentId) && (
@@ -399,7 +399,7 @@ export function DiscussionThread({
                       className="cove-thread-focus-link"
                       href={`/community?thread=${encodeURIComponent(p.id)}&work=${encodeURIComponent(contextId)}`}
                     >
-                      <MessageCircle size={14} /> {p.replies || 0} · Full thread
+                      <MessageCircle size={14} /> {p.replies || 0} · {ui("Full thread")}
                     </a>
                   ) : (
                     <button
@@ -1249,7 +1249,7 @@ function Journey({ id }: { id: string }) {
                 : ui("Share audience URL")}
             </button>
             <button className="button outline" onClick={shareImage}>
-              <Share2 size={16} /> Share image · Instagram / Stories
+              <Share2 size={16} /> {ui("Share image · Instagram / Stories")}
             </button>
             <button
               className="button outline"
@@ -1259,7 +1259,7 @@ function Journey({ id }: { id: string }) {
                 publicShareAvailable ? "Post this public journey to X" : "Public journeys only"
               }
             >
-              Share to X
+              {ui("Share to X")}
             </button>
             <button
               className="button outline"
@@ -1271,10 +1271,10 @@ function Journey({ id }: { id: string }) {
                   : "Public journeys only"
               }
             >
-              Share to Reddit
+              {ui("Share to Reddit")}
             </button>
             <button className="button outline" onClick={exportPng}>
-              Download PNG
+              {ui("Download PNG")}
             </button>
             <a
               className="button outline"
@@ -2694,17 +2694,17 @@ export function CommunityPage() {
     return (
       <main className="cove-book-thread-focus">
         <a className="text-link" href={`/work/${encodeURIComponent(focusedWork)}`}>
-          ← Back to the book
+          {ui("← Back to the book")}
         </a>
-        <h1>Conversation</h1>
-        <p className="muted">Follow this branch without losing reading width to indentation.</p>
+        <h1>{ui("Conversation")}</h1>
+        <p className="muted">{ui("Follow this branch without losing reading width to indentation.")}</p>
         <DiscussionThread
           contextType="work"
           contextId={focusedWork}
           postId={focusedThread}
           bookThread
           depth={2}
-          title="Parent comment"
+          title={ui("Parent comment")}
         />
         <DiscussionThread
           contextType="work"
