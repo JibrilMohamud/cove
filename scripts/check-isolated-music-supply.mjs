@@ -439,6 +439,8 @@ try {
     paused: false,
     dailyIntake: 1,
     parallelIntake: 1,
+    dailyQa: 1,
+    parallelQa: 1,
     dailyAnalysis: 1,
     parallelAnalysis: 1,
   };
@@ -485,13 +487,50 @@ try {
   assert.equal((await upload3(intakeJob.result.leaseToken)).status, 200);
   assert.equal((await upload3(intakeJob.result.leaseToken)).status, 409);
   assert.equal(
-    (
-      await invoke("/v1/masters/fixture-master-review/quality", "POST", "qa", {
-        ...report,
-        sha256: sha3,
-      })
-    ).status,
-    202,
+    (await invoke("/v1/masters/fixture-master-review/quality", "POST", "qa", {
+      ...report,
+      sha256: sha3,
+    })).status,
+    409,
+    "No full-decode quality attestations may bypass independent lease admission",
+  );
+  assert.equal(
+    (await invoke("/v1/execution/qa/claim", "POST", "ingest", {})).status,
+    401,
+  );
+  const qaLease = await invoke("/v1/execution/qa/claim", "POST", "qa", {});
+  assert.equal(qaLease.status, 200);
+  assert.equal(qaLease.result.masterId, master3.id);
+  assert.equal(
+    (await invoke("/v1/execution/qa/claim", "POST", "qa", {})).result.skipped,
+    "source_caps_or_no_jobs",
+  );
+  const privateQa = (lease) => worker.fetch(
+    new Request("https://music.qa.test/v1/qa/masters/fixture-master-review/audio", {
+      headers: {
+        authorization: "Bearer " + keys.qa,
+        ...(lease ? { "x-cove-music-qa-lease": lease } : {}),
+      },
+    }), env,
+  );
+  assert.equal((await privateQa("")).status, 409);
+  assert.equal((await privateQa(crypto.randomUUID())).status, 409);
+  assert.equal(sha(Buffer.from(await (await privateQa(qaLease.result.leaseToken)).arrayBuffer())), sha3);
+  const qaResponse = await worker.fetch(new Request(
+    "https://music.qa.test/v1/masters/fixture-master-review/quality", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer " + keys.qa,
+        "content-type": "application/json",
+        "x-cove-music-qa-lease": qaLease.result.leaseToken,
+      },
+      body: JSON.stringify({ ...report, sha256: sha3 }),
+    },
+  ), env);
+  assert.equal(qaResponse.status, 202, await qaResponse.text());
+  assert.equal(
+    (await invoke("/v1/execution/qa/claim", "POST", "qa", {})).result.skipped,
+    "source_caps_or_no_jobs",
   );
   const claim3 = await invoke("/v1/analysis/claim", "POST", "analyst", {});
   assert.equal(claim3.result.masterId, master3.id);
@@ -569,6 +608,8 @@ try {
   const queueState = await invoke("/v1/execution/metrics", "GET", "operator");
   assert.equal(queueState.status, 200);
   assert.ok(queueState.result.stages.some((x) => x.stage === "intake_claim" && x.jobs >= 1));
+  assert.ok(queueState.result.stages.some((x) => x.stage === "qa_claim" && x.jobs >= 1));
+  assert.ok(queueState.result.stages.some((x) => x.stage === "qa_complete" && x.jobs >= 1));
   assert.ok(queueState.result.stages.some((x) => x.stage === "analysis_complete" && x.jobs >= 1));
   assert.ok(queueState.result.stages.some((x) => x.stage === "human_approved" && x.jobs >= 1));
   assert.ok(
