@@ -2045,7 +2045,7 @@ export async function handleSocial(
     const rows = (
       await db
         .prepare(
-          `SELECT * FROM social_posts WHERE context_type=? AND context_id=? AND ${parentId ? "parent_id=?" : postId && limitedBookThread ? "1=1" : "parent_id IS NULL"} AND deleted_at IS NULL ${postId ? "AND id=?" : ""}
+          `SELECT * FROM social_posts WHERE context_type=? AND context_id=? AND ${parentId ? "parent_id=?" : postId && limitedBookThread ? "1=1" : "parent_id IS NULL"} AND deleted_at IS NULL AND moderation_status='visible' ${postId ? "AND id=?" : ""}
        ${cursor ? (topSorted ? "AND (reaction_count<? OR (reaction_count=? AND id<?))" : "AND (created_at<? OR (created_at=? AND id<?))") : ""}
        ORDER BY ${topSorted ? 'reaction_count DESC,id DESC' : 'created_at DESC,id DESC'} LIMIT ${threadLimit + 1}`,
         )
@@ -2061,7 +2061,7 @@ export async function handleSocial(
     const posts: (Awaited<ReturnType<typeof visiblePosts>>[number] & {
       replyItems?: Awaited<ReturnType<typeof visiblePosts>>;
       replyNextCursor?: string | null;
-    })[] = await visiblePosts(db, userId, rows.slice(0, threadLimit), viewerProgress, env, threadMode);
+    })[] = await visiblePosts(db, userId, rows.slice(0, threadLimit), viewerProgress, env, limitedBookThread);
     if (!parentId && url.searchParams.get("includeReplies") !== "false")
       for (const post of posts.filter((post) => !post.locked)) {
         const replies = (
