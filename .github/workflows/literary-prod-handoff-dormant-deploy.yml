@@ -30,6 +30,7 @@ jobs:
         with:
           node-version: "22"
       - run: node --check scripts/staging/deploy-literary-handoff-disabled.mjs
+      - run: node --check scripts/staging/verify-literary-dormant-roles.mjs
       - run: node scripts/check-literary-handoff-dormant-config.mjs
   deploy-without-trigger:
     needs: static-dormant-constraints
