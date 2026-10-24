@@ -1,7 +1,7 @@
 import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
 import { contentPipelineOwner } from "./lib/content-processing-owner.server";
 import { contentBudgetLimits, meterContentAssetEnv } from "./lib/content-worker-budget.server";
-import { runLiteraryProfileTick } from "./features/fore/literary-profiles.server";
+import { runLiteraryProfileTick, readLiteraryProcessingOwner } from "./features/fore/literary-profiles.server";
 import { runIsolatedLiteraryPreparationTick } from "./lib/literary-preparation-domain.server";
 import {
   seedOneIsolatedLiteraryInference,
@@ -125,6 +125,14 @@ export async function runContentProcessingTick(
     return { skipped: "isolated_inference_disabled" };
   if (!env.BUCKET) return { skipped: "missing_private_r2", role };
   if (role === "literary-infer" && !env.AI) return { skipped: "missing_ai", role };
+  // The live legacy cron is authoritative until the canonical D1 owner is
+  // explicitly draining or isolated. Even an accidentally enabled schedule
+  // must not seed, prepare or infer work in parallel with the legacy writer.
+  if (role === "literary-prepare" || role === "literary-handoff" || role === "literary-infer") {
+    const owner = await readLiteraryProcessingOwner(env);
+    if (owner !== "draining" && owner !== "isolated")
+      return { skipped: "canonical_literary_owner_not_ready", role };
+  }
   // Meter owner-read admission as well, not only work triggered afterwards.
   // The isolated literary roles have independently budgeted data planes.
   const metered = role === "assets" ? meterContentAssetEnv(env, contentBudgetLimits(env)) : null;
