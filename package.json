@@ -80,7 +80,8 @@
     "test:literary-preparation-domain": "node scripts/check-literary-preparation-domain.mjs",
     "test:literary-prepared-projection": "node scripts/check-literary-prepared-projection.mjs",
     "test:literary-prepare-outbox": "node scripts/check-literary-prepare-outbox.mjs",
-    "test:isolated-data-plane": "node scripts/check-isolated-data-plane.mjs"
+    "test:isolated-data-plane": "node scripts/check-isolated-data-plane.mjs",
+    "test:quiet-reading-score": "node scripts/check-quiet-reading-score.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
