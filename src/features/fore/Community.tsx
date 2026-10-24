@@ -1203,10 +1203,19 @@ function Journey({ id }: { id: string }) {
               {ui("Story")}
             </button>
           </div>
-          <img
-            src={`/api/fore/social/journeys/${encodeURIComponent(id)}/card.svg?format=${format}`}
-            alt={`Shareable Reading Journey for ${j.title_snapshot}`}
-          />
+          <div className="cove-journey-card-stage">
+            {j.show_cover && String(j.cover_url || "").startsWith("/api/fore/assets/") && (
+              <div
+                className="cove-journey-book-backdrop"
+                aria-hidden="true"
+                style={{ backgroundImage: `url("${String(j.cover_url)}")` }}
+              />
+            )}
+            <img
+              src={`/api/fore/social/journeys/${encodeURIComponent(id)}/card.svg?format=${format}`}
+              alt={`Shareable Reading Journey graph and milestones for ${j.title_snapshot}`}
+            />
+          </div>
           <div className="journey-share-row">
             <button className="button gold" onClick={share}>
               <Share2 size={16} />{" "}
