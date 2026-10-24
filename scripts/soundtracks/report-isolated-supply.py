@@ -83,7 +83,7 @@ def main():
         print(json.dumps({"dryRun":True,"customerD1Queried":False}))
         return
     result=collect(os.environ.get("CLOUDFLARE_API_TOKEN",""))
-    pathlib.Path(args.output).write_text(json.dumps(result,indent=2)+"\\n")
+    pathlib.Path(args.output).write_text(json.dumps(result,indent=2)+"\n")
     print(json.dumps({"stages":len(result["stages"]),"backlog":len(result["backlog"]),
                       "customerPlayableCertified":False,"output":args.output}))
 if __name__=="__main__":main()
