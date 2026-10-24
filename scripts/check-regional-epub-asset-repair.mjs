@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -26,7 +27,9 @@ try {
   const { commercialCatalogStatements } = await import(path.join(root, "catalog-model.server.mjs"));
   const env = localBindings(root);
   const at = "2026-10-20T00:00:00.000Z";
-  const hash = "a".repeat(64);
+  const actualEpub = Buffer.from("Test EPUB bytes retained after completed source conversion");
+  const corruptEpub = Buffer.from("X".repeat(actualEpub.length));
+  const hash = createHash("sha256").update(actualEpub).digest("hex");
   await env.DB.prepare(
     "INSERT OR IGNORE INTO territories(code,name) VALUES('AU','Australia')",
   ).run();
@@ -98,11 +101,18 @@ try {
     return edition;
   }
 
+  const corrupt = await seed("pgau_9100000");
   const a = await seed("pgau_9100001");
   const b = await seed("pgau_9100002");
   const c = await seed("pgau_9100003");
   await seed("pgau_9100004", { rights: "pending" });
   const revoked = await seed("pgau_9100006", { grantStatus: "revoked" });
+  const denied = await seed("pgau_9100007");
+  await env.DB.prepare(
+    "INSERT INTO rights_grants(id,edition_id,territory_code,format,license_type,created_at," +
+      "source,sales_channel,status,decision) VALUES(?,?,'AU','ebook','public-domain',?," +
+      "'operator-territory-deny','retail','active','deny')",
+  ).bind("rg_denial_pgau_9100007", denied, at).run();
   const envWithR2 = {
     ...env,
     BUCKET: {
@@ -114,10 +124,14 @@ try {
             .run();
         }
         return {
-          size: 123,
+          size: actualEpub.length,
           customMetadata: { sha256: hash },
           httpMetadata: { contentType: "application/epub+zip" },
         };
+      },
+      async get(key) {
+        const bytes = key.endsWith("9100000.epub") ? corruptEpub : actualEpub;
+        return { size: bytes.length, arrayBuffer: async () => Uint8Array.from(bytes).buffer };
       },
     },
   };
@@ -125,11 +139,15 @@ try {
   const result = await repairRegionalEpubAssets(envWithR2, { limit: 8 });
   assert.equal(
     result.scanned,
-    3,
-    "pending source approval or revoked grants are never repair candidates",
+    4,
+    "pending source approval, revoked grants and overriding territory denies are excluded",
   );
   assert.equal(result.repaired, 1, "verified completed regional EPUB is restored");
-  assert.equal(result.missingOrMismatched, 1, "missing R2 object must fail closed");
+  assert.equal(
+    result.missingOrMismatched,
+    2,
+    "missing and tampered R2 bytes must fail closed despite matching HEAD metadata",
+  );
   assert.equal(result.conflicts, 1, "live grant revocation between HEAD and write blocks repair");
   assert.equal(result.nextAfter, "pgau_9100003");
   assert.equal(
@@ -149,7 +167,7 @@ try {
     .first();
   assert.equal(asset.object_key, "epubs/pgau_9100001.epub");
   assert.equal(asset.sha256, hash);
-  for (const id of [b, c, revoked, "ed_gutenberg_pgau_9100004"]) {
+  for (const id of [corrupt, b, c, revoked, denied, "ed_gutenberg_pgau_9100004"]) {
     assert.equal(
       (
         await env.DB.prepare("SELECT COUNT(*) n FROM digital_assets WHERE edition_id=?")
@@ -191,6 +209,8 @@ try {
   assert.match(repairSource, /INDEXED BY sqlite_autoindex_gutenberg_source_cache_1/);
   assert.match(repairSource, /CROSS JOIN products p ON p.source_external_id=c.id/);
   assert.match(repairSource, /suppliedAfter > "pga"/);
+  assert.match(repairSource, /NOT EXISTS\(SELECT 1 FROM rights_grants deny/);
+  assert.match(repairSource, /crypto\.subtle\.digest\("SHA-256", bytes\)/);
   const workerSource = fs.readFileSync("src/persistence-backend.worker.ts", "utf8");
   const endpoint = workerSource.slice(
     workerSource.indexOf('if (path === "/__cove/ingestion/repair-regional-epubs"'),
