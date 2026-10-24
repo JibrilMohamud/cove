@@ -25,16 +25,28 @@ must enter the isolated pipeline through a separately verified handoff.
 1. Deploy the owner-fencing code to a dedicated staging backend. Keep all
    production cron, Worker, customer routing and `literary-infer` flags OFF.
    Confirm legacy default behavior and dedicated test suite before proceeding.
+**Staging index and owner-fence verification (2026-10-24):** Installed
+`infra/literary-cutover/0001_legacy_reconcile_primary_index.sql` only in
+`cove-commercial-parity-stage-20261020` (independent staging D1). Both keyset
+lookup and lease probe EXPLAIN plans selected their respective named indexes.
+Staging owner transitions `draining` → `isolated` suppressed legacy admission,
+then the absent key was restored. This fixture contains 1,000 products and
+**zero legacy literary jobs**; it is not production backlog-migration evidence.
+The canonical production database remains unmodified, and the isolated
+frontier is disarmed. `cove_runtime_config.updated_at` is mandatory; omission
+causes an actual SQLite NOT NULL failure. The SQL below includes it.
+
 2. Confirm no other deployment writes `literary_profile_jobs` without the new
    owner gate. Disable the old scheduler trigger in **every** legacy deployment
    before writing the cutover key. Observe the off->on dry-run fence in staging.
 3. As an approved off-peak staging operation, insert/update the canonical key:
 
    ```sql
-   INSERT INTO cove_runtime_config(key,value)
-   VALUES ('literary_processing_owner','draining')
-   ON CONFLICT(key) DO UPDATE SET value='draining'
-   WHERE value='legacy';
+   INSERT INTO cove_runtime_config(key,value,updated_at)
+   VALUES ('literary_processing_owner','draining',datetime('now'))
+   ON CONFLICT(key) DO UPDATE SET
+     value='draining',updated_at=datetime('now')
+   WHERE cove_runtime_config.value='legacy';
    ```
 
    If an existing row has any other value, the UPSERT changes nothing. Verify
@@ -83,7 +95,8 @@ must enter the isolated pipeline through a separately verified handoff.
    owner from `draining` to `isolated` using a conditional transaction:
 
    ```sql
-   UPDATE cove_runtime_config SET value='isolated'
+   UPDATE cove_runtime_config
+   SET value='isolated',updated_at=datetime('now')
    WHERE key='literary_processing_owner' AND value='draining';
    ```
 
