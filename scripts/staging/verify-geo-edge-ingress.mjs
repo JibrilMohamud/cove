@@ -9,9 +9,8 @@ export function parseGeoIngressEvidence(measurement, expectedSha) {
   assert.equal(measurement.status, "finished", "Geo measurement is not complete");
   const observations = (measurement.results || []).map((item) => {
     const result = item.result || {};
-    const body = typeof result.rawBody === "string" && !result.truncated
-      ? JSON.parse(result.rawBody)
-      : {};
+    const body =
+      typeof result.rawBody === "string" && !result.truncated ? JSON.parse(result.rawBody) : {};
     const cfRay = Object.entries(result.headers || {}).find(
       ([key]) => key.toLowerCase() === "cf-ray",
     )?.[1];
@@ -61,13 +60,16 @@ export function parseGeoIngressEvidence(measurement, expectedSha) {
 export async function verifyGeoEdgeIngress(origin, expectedSha, fetcher = fetch) {
   const url = new URL(origin);
   assert.equal(url.protocol, "https:");
-  assert.match(url.hostname, /^cove-strangler-real-preview-\d+-\d+\.cove-jibrilmohamud\.workers\.dev$/);
+  assert.match(
+    url.hostname,
+    /^cove-strangler-real-preview-\d+-\d+\.cove-jibrilmohamud\.workers\.dev$/,
+  );
   assert.match(expectedSha, /^[a-f0-9]{40}$/);
   const create = await fetcher(service, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "accept": "application/json",
+      accept: "application/json",
       "user-agent": agent,
     },
     body: JSON.stringify({
