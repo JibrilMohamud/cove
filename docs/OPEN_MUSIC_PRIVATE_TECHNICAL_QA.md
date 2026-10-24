@@ -34,10 +34,17 @@ review, supplier contract, automatic quietness approval, or a customer publisher
 
 CI tests the SQL and boundaries on pull requests with no network credentials.
 Scheduled execution requires a protected-main repository variable
-`COVE_MUSIC_OPEN_QA_ENABLED=1`, scoped
-`CLOUDFLARE_API_TOKEN` for the detached MUSIC_DB and dedicated private R2
-S3 secrets `COVE_MUSIC_R2_ACCESS_KEY_ID` and
-`COVE_MUSIC_R2_SECRET_ACCESS_KEY`. Install migration 0006 **only** in
+`COVE_MUSIC_OPEN_QA_ENABLED=1`. A one-time, explicitly tagged merge commit
+`[one-source-qa]` also authorizes **exactly one** no-publication technical
+cohort on that single `main` push. Both paths use the protected
+`CLOUDFLARE_API_TOKEN` already installed for detached MUSIC_DB and Cloudflare
+R2. `COVE_MUSIC_R2_BACKEND=cloudflare_api` transfers original bytes through
+Cloudflare's account-authenticated private object API and enforces exact,
+content-addressed `music-open-qa/` keys, no redirects and full read-back
+integrity. No persistent R2 S3 credentials are needed. This job may only
+write technical, permanently unapproved receipts; review Cloudflare API token
+privileges before reusing it beyond this bounded cohort. Install migration
+0006 **only** in
 the detached music database and verify D1 and R2 access are limited to that
 environment before enabling. No customer routing, direct R2 access, automatic
 playback or publishing feature flags are changed by this lane.
