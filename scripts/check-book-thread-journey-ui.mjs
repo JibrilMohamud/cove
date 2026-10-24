@@ -19,10 +19,11 @@ for (const expected of [
   }
 }
 assert.ok(social.includes("parentId ? 8 : 12"));
-assert.ok(social.includes("reaction_count DESC,id DESC"));
+assert.ok(social.includes("reaction_count DESC,created_at DESC,id DESC"));
 assert.ok(social.includes("moderation_status='visible'"));
 assert.ok(social.includes("const reactions = new Map<string, string[]>()"));
-assert.ok(social.includes("btoa(JSON.stringify("));
+assert.ok(social.includes("btoa("));
+assert.ok(social.includes("score: Number(rows[threadLimit - 1].reaction_count"));
 assert.ok(social.includes("finishMs - startMs"));
 assert.ok(social.includes("Number.isFinite(recorded)"));
 assert.ok(social.includes(">START</text>"));
