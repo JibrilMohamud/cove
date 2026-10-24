@@ -1214,8 +1214,27 @@ function Journey({ id }: { id: string }) {
                 ? ui("Share anyone-with-link URL")
                 : ui("Share audience URL")}
             </button>
+            <button className="button outline" onClick={shareImage}>
+              <Share2 size={16} /> Share image · Instagram / Stories
+            </button>
+            <button
+              className="button outline"
+              onClick={() => sharePlatform("x")}
+              disabled={!publicShareAvailable}
+              title={publicShareAvailable ? "Post this public journey to X" : "Public journeys only"}
+            >
+              Share to X
+            </button>
+            <button
+              className="button outline"
+              onClick={() => sharePlatform("reddit")}
+              disabled={!publicShareAvailable}
+              title={publicShareAvailable ? "Submit this public journey on Reddit" : "Public journeys only"}
+            >
+              Share to Reddit
+            </button>
             <button className="button outline" onClick={exportPng}>
-              {ui("Export PNG")}
+              Download PNG
             </button>
             <a
               className="button outline"
