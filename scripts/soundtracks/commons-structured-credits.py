@@ -15,15 +15,15 @@ from html.parser import HTMLParser
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 AGENT = "CoveOpenLicenseCurator/1.0 (https://cove-puce-theta.vercel.app/help)"
 BLOCK = re.compile(
-    r"(?i)(?:\\b(?:by[-_ ]?nc(?:[-_/ .]|\\b)|non[- ]?commercial|no[- ]?derivatives|by[-_ ]?nd(?:[-_/ .]|\\b)|"
-    r"all rights reserved|permission required|copyrighted recording)\\b|"
-    r"creativecommons\\.org/licenses/by-nc|freemusicarchive\\.org|musopen\\.org|"
+    r"(?i)(?:\b(?:by[-_ ]?nc(?:[-_/ .]|\b)|non[- ]?commercial|no[- ]?derivatives|by[-_ ]?nd(?:[-_/ .]|\b)|"
+    r"all rights reserved|permission required|copyrighted recording)\b|"
+    r"creativecommons\.org/licenses/by-nc|freemusicarchive\.org|musopen\.org|"
     r"free[ _-]*music[ _-]*archive)"
 )
 NAME = re.compile(r"^[A-Za-zÀ-ž][A-Za-zÀ-ž .,'-]{3,110}$")
 ROLE = {
-    "composer": re.compile(r"(?im)^(?:composer|composed by|music by)\\s*[:=]\\s*(.+)$"),
-    "performer": re.compile(r"(?im)^(?:performer|performed by|played by|pianist|musician)\\s*[:=]\\s*(.+)$"),
+    "composer": re.compile(r"(?im)^(?:composer|composed by|music by)\s*[:=]\s*(.+)$"),
+    "performer": re.compile(r"(?im)^(?:performer|performed by|played by|pianist|musician)\s*[:=]\s*(.+)$"),
 }
 LICENSE = {"CC0": "https://creativecommons.org/publicdomain/zero/1.0/",
            "CC-BY": "https://creativecommons.org/licenses/by/",
@@ -36,12 +36,12 @@ class StripHTML(HTMLParser):
     def handle_data(self, data):
         self.parts.append(data)
     def text(self):
-        return html.unescape(" ".join(self.parts)).replace("\\xa0", " ")
+        return html.unescape(" ".join(self.parts)).replace("\xa0", " ")
 
 def plain(raw):
     scrubber = StripHTML()
     scrubber.feed(str(raw or "")[:16000])
-    return re.sub(r"\\s+", " ", scrubber.text()).strip()
+    return re.sub(r"\s+", " ", scrubber.text()).strip()
 
 def decode_name(raw):
     name = plain(raw).strip(" .,:;-")
@@ -62,16 +62,14 @@ def exact_licence(row, meta):
     if code == "CC0":
         return statement in ("cc0", "cc0 1.0")
     tag = "cc by-sa " if code == "CC-BY-SA" else "cc by "
-    return statement == tag + expected.rstrip("/").split("/")[-1] if False else (
-        statement.startswith(tag) and
-        expected == LICENSE[code] + statement[len(tag):] + "/"
-    )
+    return (statement.startswith(tag) and
+            expected == LICENSE[code] + statement[len(tag):] + "/")
 
 def extract_role(text, role):
     candidates = []
     # A role label must be the entire line. Do not parse unlabeled title
     # fragments, credits to organizations, or vague album/uploader aliases.
-    for line in re.split(r"\\n|<br\\s*/?>|\\r", str(text or ""), flags=re.I):
+    for line in re.split(r"\n|<br\s*/?>|\r", str(text or ""), flags=re.I):
         stripped = plain(line)
         m = ROLE[role].fullmatch(stripped)
         if m:
@@ -92,7 +90,7 @@ def inspect_commons_file(row, response):
         return {}, "commons_page_unavailable"
     page = pages[0]
     expected_title = row.get("source_title")
-    if page.get("title") != expected_title or not re.fullmatch(r"File:[^\\n]{4,260}\\.(?:ogg|oga|mp3)",str(expected_title or ""),re.I):
+    if page.get("title") != expected_title or not re.fullmatch(r"File:[^\n]{4,260}\.(?:ogg|oga|mp3)",str(expected_title or ""),re.I):
         return {}, "commons_page_identity_changed"
     info = (page.get("imageinfo") or [{}])[0]
     if (str(info.get("sha1", "")).lower() != row.get("source_sha1") or
@@ -106,12 +104,12 @@ def inspect_commons_file(row, response):
     raw_meta = str(info.get("metadata") or "")
     # Embedded tags and Commons wikitext can contradict an extmetadata CC
     # wrapper. Holds are permanent until positive human provenance evidence.
-    if BLOCK.search(wiki + "\\n" + raw_meta):
+    if BLOCK.search(wiki + "\n" + raw_meta):
         return {}, "commons_conflicting_source_claim"
     description = meta.get("ImageDescription", {}).get("value") or ""
     author = meta.get("Artist", {}).get("value") or ""
     detail = plain(description)
-    if BLOCK.search(detail + "\\n" + plain(author)):
+    if BLOCK.search(detail + "\n" + plain(author)):
         return {}, "commons_conflicting_description"
     # Preserve row credits as baseline. Any newly recovered role must be
     # explicitly labeled AND must not conflict with another labeled value.
@@ -120,13 +118,13 @@ def inspect_commons_file(row, response):
     if not performer:
         # Explicit role in wikitext is acceptable when it names the same
         # person as extmetadata Artist; an uploader credit alone is not enough.
-        match = re.search(r"(?im)^\\|\\s*performer\\s*=\\s*([^\\n|{}]+)$", wiki)
+        match = re.search(r"(?im)^\|\s*performer\s*=\s*([^\n|{}]+)$", wiki)
         from_wiki = decode_name(match.group(1)) if match else None
         credited = decode_name(author)
         if from_wiki and credited and normalized(from_wiki) == normalized(credited):
             performer = from_wiki
     if not composer:
-        match = re.search(r"(?im)^\\|\\s*composer\\s*=\\s*([^\\n|{}]+)$", wiki)
+        match = re.search(r"(?im)^\|\s*composer\s*=\s*([^\n|{}]+)$", wiki)
         composer = decode_name(match.group(1)) if match else None
     if not composer and not performer:
         return {}, "commons_no_explicit_role_evidence"
@@ -152,7 +150,7 @@ def query_commons(row, opener=None):
     if opener is None:
         opener = urllib.request.build_opener(NoRedirect)
     title = str(row.get("source_title") or "")
-    if not re.fullmatch(r"File:[^\\n]{4,260}\\.(?:ogg|oga|mp3)",title,re.I):
+    if not re.fullmatch(r"File:[^\n]{4,260}\.(?:ogg|oga|mp3)",title,re.I):
         raise ValueError("Invalid Commons filename")
     params = urllib.parse.urlencode({
         "action":"query","format":"json","formatversion":"2",
