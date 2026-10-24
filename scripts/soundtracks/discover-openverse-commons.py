@@ -53,7 +53,7 @@ def commons_title(record):
     if url.scheme!="https" or url.hostname!="commons.wikimedia.org" or url.port or url.username or url.password or url.query or url.fragment:
         return None
     title = urllib.parse.unquote(url.path.removeprefix("/wiki/")).replace("_"," ")
-    if not re.fullmatch(r"File:[^/\\\\\n]{4,240}\\.(?:ogg|oga|mp3)",title,re.I):
+    if "/" in title or chr(92) in title or chr(10) in title or not re.fullmatch(r"File:.{4,240}\\.(?:ogg|oga|mp3)",title,re.I):
         return None
     return title
 
@@ -71,7 +71,7 @@ def exact_candidate(record, page):
     direct=urllib.parse.urlsplit(str(info.get("url") or ""))
     if (direct.scheme!="https" or direct.hostname!="upload.wikimedia.org" or
         direct.port or direct.query or direct.fragment or direct.username or direct.password or
-        not re.fullmatch(r"/wikipedia/commons/[^\\s?]+\\.(?:ogg|oga|mp3)",direct.path,re.I)):
+        not re.fullmatch(r"/wikipedia/commons/[^\s?]+\.(?:ogg|oga|mp3)",direct.path,re.I)):
         return None
     meta=info.get("extmetadata") or {}
     declared=credits.plain(meta.get("LicenseShortName",{}).get("value")).casefold()
@@ -81,7 +81,7 @@ def exact_candidate(record, page):
         license_code="CC0"
     for short,tag in (("CC-BY","cc by "),("CC-BY-SA","cc by-sa ")):
         if (declared.startswith(tag) and
-            re.fullmatch(r"[234](?:\\.0|\\.5)",declared[len(tag):]) and
+            re.fullmatch(r"[234](?:\.0|\.5)",declared[len(tag):]) and
             link==credits.LICENSE[short]+declared[len(tag):]+"/"):
             license_code=short
     if license_code is None:
@@ -214,7 +214,7 @@ def main():
     if not 1<=args.queries<=3 or not 1<=args.max_verifications<=20:
         p.error("Rate-bounded one-page Openverse/Commons discovery required")
     result=discover(args.queries,args.max_verifications)
-    pathlib.Path(args.output).write_text(json.dumps(result,indent=2,ensure_ascii=False)+"\\n")
+    pathlib.Path(args.output).write_text(json.dumps(result,indent=2,ensure_ascii=False)+"\n")
     if args.apply_isolated:
         record_isolated(result,os.environ.get("CLOUDFLARE_API_TOKEN",""))
     print(json.dumps({"searched":result["searches"],"checkedOriginalPages":result["verified"],
