@@ -104,14 +104,15 @@ try {
   assert.deepEqual(calls, ["assets"], "Role must not execute any other job class");
   env.FORE_CONTENT_PROCESSOR_ROLE = "literary";
   assert.equal(
-    (await runContentProcessingTick({ ...env, AI: undefined }, runners)).skipped,
-    "missing_ai",
+    (await runContentProcessingTick(env, runners)).skipped,
+    "legacy_literary_claims_unfenced",
+    "Unfenced legacy literary claims cannot be switched to an external Worker",
   );
-  assert.equal((await runContentProcessingTick(env, runners)).role, "literary");
-  assert.deepEqual(calls, ["assets", "literary"]);
+  assert.deepEqual(calls, ["assets"]);
+  env.FORE_CONTENT_PROCESSOR_ROLE = "assets";
   canRead = false;
   assert.equal((await runContentProcessingTick(env, runners)).skipped, "primary_unavailable");
-  assert.deepEqual(calls, ["assets", "literary"], "Unavailable D1 defers work safely");
+  assert.deepEqual(calls, ["assets"], "Unavailable D1 defers work safely");
   assert.equal((await worker.fetch()).status, 404, "No remote mutation endpoint is exposed");
 
   const backend = fs.readFileSync("src/persistence-backend.worker.ts", "utf8");
