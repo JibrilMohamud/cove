@@ -61,6 +61,7 @@ try {
     INSERT INTO literary_profiles VALUES('p_a','sha_a','provisional'),('p_b','sha_b','provisional');
     INSERT INTO literary_profile_jobs VALUES('job_a','p_a','sha_a','queued','');
     INSERT INTO literary_profile_jobs VALUES('job_b','p_b','sha_b','failed','');
+    INSERT INTO literary_profile_jobs VALUES('job_c','p_a','stale_sha','queued','');
   `);
   primary.exec(
     readFileSync("infra/literary-cutover/0001_legacy_reconcile_primary_index.sql", "utf8"),
@@ -153,6 +154,13 @@ try {
     reason: "source_or_rights_ineligible",
   });
   assert.equal(count(), 2);
+  assert.deepEqual(await reconcileOneLegacyLiteraryJob(env, seed), {
+    reconciled: "job_c",
+    disposition: "held",
+    reason: "legacy_profile_not_current",
+  });
+  assert.equal(seeds, 3, "Stale profiles must not seed primary work");
+  assert.equal(count(), 3);
   assert.deepEqual(await reconcileOneLegacyLiteraryJob(env, seed), { complete: true });
   assert.equal(cursor().status, "complete");
   assert.equal(
