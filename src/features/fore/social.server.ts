@@ -2001,7 +2001,9 @@ export async function handleSocial(
       await assertContextReadable(db, userId, contextType, contextId);
     const postId = url.searchParams.get("postId"),
       parentId = url.searchParams.get("parentId"),
-      cursor = socialCursor(url.searchParams.get("cursor"));
+      cursor = socialCursor(url.searchParams.get("cursor")),
+      limitedBookThread = contextType === "work" && url.searchParams.get("thread") === "1",
+      threadLimit = limitedBookThread ? (parentId ? 8 : 12) : 50;
     if (parentId) {
       const parent = await db
         .prepare(
