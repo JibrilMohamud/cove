@@ -137,16 +137,18 @@ try {
   );
   assert.equal(requests, 0);
   assert.equal(
-    content.prepare("SELECT publication_state FROM literary_inference_jobs WHERE id=?").get(first.jobId)
-      .publication_state,
+    content
+      .prepare("SELECT publication_state FROM literary_inference_jobs WHERE id=?")
+      .get(first.jobId).publication_state,
     "pending",
   );
   primary.prepare("UPDATE cove_runtime_config SET value='isolated'").run();
   assert.deepEqual(await publishOnePrivateLiteraryInference(env), { published: first.jobId });
   assert.equal(requests, 1);
   assert.equal(
-    primary.prepare("SELECT revision FROM literary_profiles WHERE product_id=?").get(first.productId)
-      .revision,
+    primary
+      .prepare("SELECT revision FROM literary_profiles WHERE product_id=?")
+      .get(first.productId).revision,
     1,
   );
   assert.deepEqual(await publishOnePrivateLiteraryInference(env), {
@@ -165,8 +167,9 @@ try {
   mode = "duplicate";
   assert.deepEqual(await publishOnePrivateLiteraryInference(env), { published: first.jobId });
   assert.equal(
-    primary.prepare("SELECT revision FROM literary_profiles WHERE product_id=?").get(first.productId)
-      .revision,
+    primary
+      .prepare("SELECT revision FROM literary_profiles WHERE product_id=?")
+      .get(first.productId).revision,
     1,
   );
 
@@ -177,8 +180,9 @@ try {
     reason: "rights_source_or_version_changed",
   });
   assert.equal(
-    content.prepare("SELECT publication_state FROM literary_inference_jobs WHERE id=?").get(second.jobId)
-      .publication_state,
+    content
+      .prepare("SELECT publication_state FROM literary_inference_jobs WHERE id=?")
+      .get(second.jobId).publication_state,
     "held",
   );
 
@@ -188,8 +192,9 @@ try {
   assert.equal(retry.deferred, third.jobId);
   assert.match(retry.reason, /private_publisher_status_503/);
   assert.equal(
-    content.prepare("SELECT publication_state FROM literary_inference_jobs WHERE id=?").get(third.jobId)
-      .publication_state,
+    content
+      .prepare("SELECT publication_state FROM literary_inference_jobs WHERE id=?")
+      .get(third.jobId).publication_state,
     "pending",
   );
   assert.equal((await publishOnePrivateLiteraryInference(env)).skipped, "no_completed_inference");
@@ -229,12 +234,13 @@ try {
   assert.equal(requests, before);
   primary.prepare("UPDATE cove_runtime_config SET value='isolated'").run();
   content
-    .prepare(
-      "UPDATE literary_inference_jobs SET publication_lease_until='2020-01-01' WHERE id=?",
-    )
+    .prepare("UPDATE literary_inference_jobs SET publication_lease_until='2020-01-01' WHERE id=?")
     .run(fourth.jobId);
   assert.deepEqual(await publishOnePrivateLiteraryInference(env), { published: fourth.jobId });
-  assert.equal(primary.prepare("SELECT COUNT(*) n FROM literary_profiles WHERE status='analyzed'").get().n, 3);
+  assert.equal(
+    primary.prepare("SELECT COUNT(*) n FROM literary_profiles WHERE status='analyzed'").get().n,
+    3,
+  );
   assert.deepEqual(
     content
       .prepare(
