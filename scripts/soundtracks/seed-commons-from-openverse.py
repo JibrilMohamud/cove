@@ -27,7 +27,7 @@ def candidates(payload,maximum=8):
         title=item.get("sourceTitle")
         if (not isinstance(title,str) or not title.startswith("File:") or
             "/" in title or chr(92) in title or chr(10) in title or
-            not re.fullmatch(r"File:.{4,240}\\.(?:ogg|oga|mp3)",title,re.I)):
+            not re.fullmatch(r"File:.{4,240}\.(?:ogg|oga|mp3)",title,re.I)):
             continue
         if title in seen:
             continue
