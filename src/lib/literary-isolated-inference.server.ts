@@ -214,16 +214,24 @@ export async function runIsolatedLiteraryInferenceTick(env: IsolatedInferenceEnv
     let output: InferenceResult, outputHash: string;
     if (existing) {
       outputHash = String(existing.customMetadata?.sha256 || "");
-      output = await verifiedJson(env.BUCKET!, key, outputHash) as InferenceResult;
+      output = await verifiedJson(env.BUCKET!, key, outputHash) as unknown as InferenceResult;
     } else {
       const prompt = literaryPrompt(sources);
       const units = prompt.system.length + prompt.user.length +
         LITERARY_GENERATION_LIMITS.reservedOutputCharacters;
       const day = iso().slice(0,10);
-      const budgetDb = await resolveLiteraryBudgetDb(env,day);
-      const reserved = await reserveLiteraryBudget(
-        budgetDb, day, units, 2_000_000, true,
+      // Honor the same authoritative configured cap as the legacy lane,
+      // rather than secretly raising (or lowering) the book-inference quota.
+      const setting = await env.DB.prepare(
+        "SELECT value FROM cove_runtime_config WHERE key='literary_daily_units'",
+      ).first<{ value: string }>();
+      const configured = Number(setting?.value ?? 2_000_000);
+      const limit = Math.max(
+        0,
+        Math.min(100_000_000, Number.isFinite(configured) ? configured : 2_000_000),
       );
+      const budgetDb = await resolveLiteraryBudgetDb(env,day);
+      const reserved = await reserveLiteraryBudget(budgetDb, day, units, limit, true);
       if (!reserved) throw Error("daily_budget_exhausted");
       const raw = await env.AI!.run(PROFILE_MODEL,{
         messages:[{role:"system",content:prompt.system},{role:"user",content:prompt.user}],
