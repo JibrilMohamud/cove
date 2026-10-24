@@ -33,19 +33,27 @@ const prepare = (sql, params = []) => ({
     return { meta: { changes: Number(result.changes) } };
   },
 });
+let serialized = Promise.resolve();
 const db = {
   prepare,
-  async batch(statements) {
-    sqlDb.exec("BEGIN IMMEDIATE");
-    try {
-      const results = [];
-      for (const statement of statements) results.push(await statement.run());
-      sqlDb.exec("COMMIT");
-      return results;
-    } catch (e) {
-      sqlDb.exec("ROLLBACK");
-      throw e;
-    }
+  batch(statements) {
+    // The Node fixture shares one SQLite handle. Serialize explicit
+    // transactions just as D1 serializes writes against one database.
+    const execute = async () => {
+      sqlDb.exec("BEGIN IMMEDIATE");
+      try {
+        const results = [];
+        for (const statement of statements) results.push(await statement.run());
+        sqlDb.exec("COMMIT");
+        return results;
+      } catch (e) {
+        sqlDb.exec("ROLLBACK");
+        throw e;
+      }
+    };
+    const operation = serialized.then(execute);
+    serialized = operation.catch(() => {});
+    return operation;
   },
 };
 const receipt = "literary/inference/cove-literary-v1/" + "a".repeat(64) + ".json";
