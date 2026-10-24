@@ -800,5 +800,17 @@
   "Could not save these preferences. Check the values and try again.": "Die Vorlieben konnten nicht gespeichert werden. Prüfe die Werte und versuche es erneut.",
   "Form cleared. Save to replace your saved preferences.": "Formular zurückgesetzt. Speichere, um deine bisherigen Vorlieben zu ersetzen.",
   "No eligible books with enough evidence match these preferences. Try fewer constraints.": "Keine verfügbaren Bücher mit ausreichenden Informationen passen. Versuche weniger Einschränkungen.",
-  "Order book discussions": "Buchdiskussionen sortieren"
+  "Order book discussions": "Buchdiskussionen sortieren",
+  "Popular": "Beliebt",
+  "Newest": "Neueste",
+  "Only a few replies load at a time. Hearts represent unique reader reactions.": "Es werden jeweils nur wenige Antworten geladen. Herzen stehen für einzelne Leserreaktionen.",
+  "Full thread": "Gesamte Diskussion",
+  "Share image · Instagram / Stories": "Bild teilen · Instagram / Stories",
+  "Share to X": "Auf X teilen",
+  "Share to Reddit": "Auf Reddit teilen",
+  "Download PNG": "PNG herunterladen",
+  "← Back to the book": "← Zurück zum Buch",
+  "Conversation": "Gespräch",
+  "Follow this branch without losing reading width to indentation.": "Diesen Gesprächszweig ohne störende Einrückung in voller Breite lesen.",
+  "Parent comment": "Übergeordneter Kommentar"
 }
