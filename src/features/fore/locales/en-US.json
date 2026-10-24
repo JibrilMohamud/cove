@@ -800,5 +800,17 @@
   "Could not save these preferences. Check the values and try again.": "Could not save these preferences. Check the values and try again.",
   "Form cleared. Save to replace your saved preferences.": "Form cleared. Save to replace your saved preferences.",
   "No eligible books with enough evidence match these preferences. Try fewer constraints.": "No eligible books with enough evidence match these preferences. Try fewer constraints.",
-  "Order book discussions": "Order book discussions"
+  "Order book discussions": "Order book discussions",
+  "Popular": "Popular",
+  "Newest": "Newest",
+  "Only a few replies load at a time. Hearts represent unique reader reactions.": "Only a few replies load at a time. Hearts represent unique reader reactions.",
+  "Full thread": "Full thread",
+  "Share image · Instagram / Stories": "Share image · Instagram / Stories",
+  "Share to X": "Share to X",
+  "Share to Reddit": "Share to Reddit",
+  "Download PNG": "Download PNG",
+  "← Back to the book": "← Back to the book",
+  "Conversation": "Conversation",
+  "Follow this branch without losing reading width to indentation.": "Follow this branch without losing reading width to indentation.",
+  "Parent comment": "Parent comment"
 }
