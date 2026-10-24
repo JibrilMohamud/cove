@@ -1,0 +1,30 @@
+name: oneoff-format-canonical-handoff
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/oneoff-format-canonical-handoff.yml"
+permissions:
+  contents: read
+jobs:
+  normalize:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/music-canonical-handoff-20261023'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with: { ref: feat/music-canonical-handoff-20261023 }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: npx prettier --write src/lib/music-canonical-handoff.ts scripts/check-music-canonical-handoff.mjs
+      - name: Commit formatting-only to this branch
+        run: |
+          if ! git diff --quiet -- src/lib/music-canonical-handoff.ts scripts/check-music-canonical-handoff.mjs; then
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git add src/lib/music-canonical-handoff.ts scripts/check-music-canonical-handoff.mjs
+            git commit -m "style(music): canonical private handoff formatting"
+            git push origin HEAD:refs/heads/feat/music-canonical-handoff-20261023
+          fi
