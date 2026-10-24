@@ -1,4 +1,5 @@
 import { useUiText } from "./ui-text";
+import "./reading-community.css";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   AlertDialog,
