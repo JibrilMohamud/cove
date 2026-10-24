@@ -6,6 +6,7 @@ on:
       - ".github/workflows/cove-commerce-private-qa-deploy.yml"
       - ".github/workflows/strangler-hosted-capacity-evaluation.yml"
       - "scripts/check-release-staging-workflow-gates.mjs"
+      - ".github/workflows/isolated-commons-audio-technical-qa.yml"
       - "docs/LITERARY_LEGACY_DRAIN_CUTOVER.md"
 permissions:
   contents: read
@@ -22,3 +23,11 @@ jobs:
           node-version: "22"
       - run: node --check scripts/check-release-staging-workflow-gates.mjs
       - run: node scripts/check-release-staging-workflow-gates.mjs
+      - run: npm ci --no-audit --no-fund
+      - name: Enforce canonical rights, music handoff replay and legacy drain non-regression
+        run: |
+          node scripts/check-music-canonical-handoff.mjs
+          node scripts/check-music-canonical-replay.mjs
+          node scripts/check-literary-legacy-reconcile.mjs
+          npm run test:rights
+          npm run test:soundtracks
