@@ -178,9 +178,12 @@ export async function handleMusicProfiles(
     const report = validateMusicReport(old.audioAnalysis);
     if (report.sourceSha1 !== row.source_sha1)
       return json({ skipped: "master_changed", recordingId: row.recording_id });
-    const quietReading = assessQuietReading(report, row.has_vocals === null ? null : Boolean(row.has_vocals));
+    const quietReading = assessQuietReading(
+      report,
+      row.has_vocals === null ? null : Boolean(row.has_vocals),
+    );
     const at = timestamp();
-    const updated = await env.DB.prepare(
+    const updated = (await env.DB.prepare(
       "UPDATE music_profiles SET profile_json=json_set(profile_json,'$.quietReading',json(?)),updated_at=?" +
         " WHERE recording_id=? AND fingerprint=? AND status='analyzed'" +
         " AND (CASE WHEN json_valid(profile_json) THEN json_extract(profile_json,'$.quietReading.policy') ELSE NULL END) IS NULL" +
@@ -188,14 +191,8 @@ export async function handleMusicProfiles(
         " AND r.status='ready' AND r.quality_status='passed' AND r.source_sha1=?" +
         " AND r.storage_key IS NOT NULL AND r.source_snapshot_key IS NOT NULL)",
     )
-      .bind(
-        JSON.stringify(quietReading),
-        at,
-        row.recording_id,
-        row.fingerprint,
-        row.source_sha1,
-      )
-      .run();
+      .bind(JSON.stringify(quietReading), at, row.recording_id, row.fingerprint, row.source_sha1)
+      .run()) as { meta?: { changes?: number } };
     return json({
       updated: Number(updated.meta?.changes || 0) === 1,
       recordingId: row.recording_id,
@@ -312,7 +309,10 @@ export async function handleMusicProfiles(
     await env.BUCKET.put(key, JSON.stringify(report), {
       httpMetadata: { contentType: "application/json" },
     });
-    const quietReading = assessQuietReading(report, r.has_vocals === null ? null : Boolean(r.has_vocals));
+    const quietReading = assessQuietReading(
+      report,
+      r.has_vocals === null ? null : Boolean(r.has_vocals),
+    );
     const profile = {
       ...provisional(r),
       audioAnalysis: report,
