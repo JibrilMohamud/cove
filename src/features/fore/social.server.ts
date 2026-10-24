@@ -907,8 +907,9 @@ async function visiblePosts(
         )
         .bind(...ids)
         .all<{ post_id: string; total: number }>();
-      for (const row of counts.results)
+      for (const row of counts.results) {
         heartCounts.set(row.post_id, Number(row.total) || 0);
+      }
     }
   }
   const out = [];
