@@ -17,6 +17,8 @@ on:
       # Trusted main changes to the vetted composer/performer rules warrant one
       # bounded release; PR executions never receive production credentials.
       - "scripts/soundtracks/curate-source-license.py"
+      - "scripts/soundtracks/commons-structured-credits.py"
+      - "scripts/soundtracks/test-commons-structured-credits.py"
       - "scripts/soundtracks/test-curate-source-license.py"
       # A verified-import client correction should also drain existing
       # source-reviewed historical originals after protected-main CI.
