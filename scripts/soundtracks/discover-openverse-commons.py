@@ -104,8 +104,25 @@ def exact_candidate(record, page, provider="openverse", category=None, diagnosti
         return reject("original_host_or_scheme")
     if direct.port or direct.username or direct.password:
         return reject("original_url_credentials_or_port")
-    if direct.query or direct.fragment:
-        return reject("original_url_query_or_fragment")
+    if direct.fragment:
+        return reject("original_url_fragment")
+    if direct.query:
+        # Commons adds documented analytics tracking to original URLs.
+        # Match the existing authoritative JavaScript sourceFileUrl policy:
+        # allow only UTM keys, never carry them to R2 or audio downloads.
+        if len(direct.query)>512:
+            return reject("original_unbounded_query")
+        try:
+            tracking=urllib.parse.parse_qsl(
+                direct.query,keep_blank_values=True,
+                strict_parsing=True,max_num_fields=10)
+        except ValueError:
+            return reject("original_invalid_query")
+        if not tracking or any(
+                not re.fullmatch(r"utm_[a-z0-9_]+",key,re.I)
+                for key,_ in tracking):
+            return reject("original_untrusted_query")
+        direct=direct._replace(query="")
     if not re.fullmatch(r"/wikipedia/commons/[^\s?]+\.(?:ogg|oga|mp3)",direct.path,re.I):
         return reject("original_filename_path")
     meta=info.get("extmetadata") or {}
