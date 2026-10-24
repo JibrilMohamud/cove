@@ -116,8 +116,7 @@ export async function runContentProcessingTick(
   )
     return { skipped: "isolated_inference_disabled" };
   if (!env.BUCKET) return { skipped: "missing_private_r2", role };
-  if (role === "literary-infer" && !env.AI)
-    return { skipped: "missing_ai", role };
+  if (role === "literary-infer" && !env.AI) return { skipped: "missing_ai", role };
   // Meter owner-read admission as well, not only work triggered afterwards.
   // The isolated literary roles have independently budgeted data planes.
   const metered = role === "assets" ? meterContentAssetEnv(env, contentBudgetLimits(env)) : null;
