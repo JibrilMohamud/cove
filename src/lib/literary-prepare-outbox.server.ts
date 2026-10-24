@@ -68,6 +68,7 @@ export async function seedLiteraryPreparationHandoff(
   env: HandoffEnv,
   productId: string,
   editionId: string,
+  requiredOwner?: "draining",
 ) {
   assertEnabled(env);
   if (!/^[\w:-]{1,150}$/.test(productId) || !/^[\w:-]{1,150}$/.test(editionId))
@@ -86,7 +87,12 @@ export async function seedLiteraryPreparationHandoff(
       "(id,product_id,edition_id,source_id,source_sha256,available_at,created_at,updated_at)" +
       " SELECT ?,p.id,p.edition_id,c.id,c.content_hash,?,?,?" +
       literarySourceRightsPredicate +
-      " AND c.id=? AND c.content_hash=? RETURNING id",
+      " AND c.id=? AND c.content_hash=?" +
+      (requiredOwner === "draining"
+        ? " AND EXISTS(SELECT 1 FROM cove_runtime_config" +
+          " WHERE key='literary_processing_owner' AND value='draining')"
+        : "") +
+      " RETURNING id",
   )
     .bind(id, now, now, now, productId, editionId, source.source_id, source.content_hash)
     .first<{ id: string }>();
