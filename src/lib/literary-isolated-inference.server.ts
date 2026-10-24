@@ -191,16 +191,19 @@ export async function seedOneIsolatedLiteraryInference(env: IsolatedInferenceEnv
     .bind(cursor.after_updated_at, cursor.after_updated_at, cursor.after_id)
     .first<Prepared & { updated_at: string }>();
   if (!pending) {
-    await isolated.prepare(
-      "UPDATE literary_inference_seed_frontier SET after_updated_at='',after_id='' WHERE id=1",
-    ).run();
+    await isolated
+      .prepare(
+        "UPDATE literary_inference_seed_frontier SET after_updated_at='',after_id='' WHERE id=1",
+      )
+      .run();
     return { skipped: "no_prepared_evidence" };
   }
   // Fairness only: record that this candidate was examined, even if its
   // canonical rights have since been withdrawn. Never copy legal authority.
-  await isolated.prepare(
-    "UPDATE literary_inference_seed_frontier SET after_updated_at=?,after_id=? WHERE id=1",
-  ).bind(pending.updated_at,pending.id).run();
+  await isolated
+    .prepare("UPDATE literary_inference_seed_frontier SET after_updated_at=?,after_id=? WHERE id=1")
+    .bind(pending.updated_at, pending.id)
+    .run();
   if (!(await rightsCurrent(env.DB, { ...pending, source_sha256: pending.content_sha256 })))
     return { skipped: "source_or_rights_changed" };
   const profile = await env.DB.prepare(

@@ -222,17 +222,32 @@ try {
     { error: "isolated_literary_inference_disabled" },
   );
   // The oldest completed job is stale; it cannot starve a newer valid book.
-  content.prepare(
-    "INSERT INTO literary_prepare_jobs(id,product_id,edition_id,source_id,content_sha256," +
-      "status,attempts,available_at,result_key,result_sha256,created_at,updated_at)" +
-      " VALUES(?,?,?,?,?,'done',1,?,?,?,?,?)",
-  ).run("d".repeat(64),"p_stale","e_stale","pg_stale",sourceHash,
-    "2020-01-01", "literary/isolated-prepared-v1/"+"d".repeat(64)+".json",
-    sha(prep),"2020-01-01","2020-01-01");
+  content
+    .prepare(
+      "INSERT INTO literary_prepare_jobs(id,product_id,edition_id,source_id,content_sha256," +
+        "status,attempts,available_at,result_key,result_sha256,created_at,updated_at)" +
+        " VALUES(?,?,?,?,?,'done',1,?,?,?,?,?)",
+    )
+    .run(
+      "d".repeat(64),
+      "p_stale",
+      "e_stale",
+      "pg_stale",
+      sourceHash,
+      "2020-01-01",
+      "literary/isolated-prepared-v1/" + "d".repeat(64) + ".json",
+      sha(prep),
+      "2020-01-01",
+      "2020-01-01",
+    );
   const before = primary.prepare("SELECT total_changes() n").get().n;
-  assert.deepEqual(await seedOneIsolatedLiteraryInference(env),{
-    skipped:"source_or_rights_changed",
-  },"Stale rights must not block independent queue advancement");
+  assert.deepEqual(
+    await seedOneIsolatedLiteraryInference(env),
+    {
+      skipped: "source_or_rights_changed",
+    },
+    "Stale rights must not block independent queue advancement",
+  );
   const seeded = await seedOneIsolatedLiteraryInference(env);
   assert.match(seeded.enqueued, /^[0-9a-f]{64}$/);
   assert.equal(content.prepare("SELECT COUNT(*) n FROM literary_inference_jobs").get().n, 1);
