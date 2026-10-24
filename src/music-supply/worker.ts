@@ -176,14 +176,20 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
       (env.MUSIC_ANALYSIS_ENABLED !== "1" ||
         !env.MUSIC_MUSIC_REVIEWER_TOKEN_SHA256 ||
         !shaPattern.test(env.MUSIC_MUSIC_REVIEWER_TOKEN_SHA256) ||
-        [env.MUSIC_OPERATOR_TOKEN_SHA256, env.MUSIC_INGEST_TOKEN_SHA256,
-          env.MUSIC_QA_TOKEN_SHA256, env.MUSIC_LICENSE_REVIEWER_TOKEN_SHA256,
-          env.MUSIC_ANALYSIS_TOKEN_SHA256].includes(env.MUSIC_MUSIC_REVIEWER_TOKEN_SHA256)))
+        [
+          env.MUSIC_OPERATOR_TOKEN_SHA256,
+          env.MUSIC_INGEST_TOKEN_SHA256,
+          env.MUSIC_QA_TOKEN_SHA256,
+          env.MUSIC_LICENSE_REVIEWER_TOKEN_SHA256,
+          env.MUSIC_ANALYSIS_TOKEN_SHA256,
+        ].includes(env.MUSIC_MUSIC_REVIEWER_TOKEN_SHA256)))
   )
     return response({ error: "music_role_separation_required" }, 503);
 
   const executionResponse = await handleMusicExecution(request, env, {
-    operator: admin, ingest, reviewer: musicReviewer,
+    operator: admin,
+    ingest,
+    reviewer: musicReviewer,
   });
   if (executionResponse) return executionResponse;
 
@@ -372,8 +378,10 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
     )
       return response({ error: "music_audio_size_or_mime_mismatch" }, 422);
     const intakeLease = request.headers.get("x-cove-music-intake-lease") || "";
-    if (env.MUSIC_EXECUTION_ENABLED === "1" &&
-      !(await checkIntakeLease(env.MUSIC_DB, r.id, r.sha256, intakeLease)))
+    if (
+      env.MUSIC_EXECUTION_ENABLED === "1" &&
+      !(await checkIntakeLease(env.MUSIC_DB, r.id, r.sha256, intakeLease))
+    )
       return response({ error: "music_intake_lease_required" }, 409);
     const key = masterKey(r.sha256, r.mime);
     await env.MUSIC_BUCKET.put(key, request.body, {

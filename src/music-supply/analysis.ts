@@ -146,22 +146,32 @@ export async function handleMusicAnalysis(
         : "") +
       " ORDER BY j.available_at,j.master_id LIMIT 1)" +
       " AND policy=? AND attempts<5 RETURNING master_id,master_sha256,lease_token";
-    const claim = db.prepare(claimSql).bind(
-      lease, until, at, QUIET_READING_POLICY, at, at, at,
-      ...(execution ? [at, new Date(Date.now() - 24 * 3600_000).toISOString()] : []),
-      QUIET_READING_POLICY,
-    );
+    const claim = db
+      .prepare(claimSql)
+      .bind(
+        lease,
+        until,
+        at,
+        QUIET_READING_POLICY,
+        at,
+        at,
+        at,
+        ...(execution ? [at, new Date(Date.now() - 24 * 3600_000).toISOString()] : []),
+        QUIET_READING_POLICY,
+      );
     type Claimed = { master_id: string; master_sha256: string; lease_token: string };
     let job: Claimed | null;
     if (execution) {
       const claims = (await db.batch([
         claim,
-        db.prepare(
-          "INSERT INTO music_stage_events(event_key,contract_id,master_id,stage,outcome,recorded_at)" +
-          " SELECT ?,m.contract_id,m.id,'analysis_claim','leased',?" +
-          " FROM music_analysis_jobs j JOIN music_masters m ON m.id=j.master_id" +
-          " WHERE j.lease_token=? AND j.status='running' AND j.updated_at=?",
-        ).bind("analysis_claim:" + lease, at, lease, at),
+        db
+          .prepare(
+            "INSERT INTO music_stage_events(event_key,contract_id,master_id,stage,outcome,recorded_at)" +
+              " SELECT ?,m.contract_id,m.id,'analysis_claim','leased',?" +
+              " FROM music_analysis_jobs j JOIN music_masters m ON m.id=j.master_id" +
+              " WHERE j.lease_token=? AND j.status='running' AND j.updated_at=?",
+          )
+          .bind("analysis_claim:" + lease, at, lease, at),
       ])) as Array<{ results?: Claimed[] }>;
       job = claims[0]?.results?.[0] ?? null;
     } else {
@@ -208,10 +218,15 @@ export async function handleMusicAnalysis(
     const costMicroUsd = payload.costMicroUsd === undefined ? null : payload.costMicroUsd;
     if (
       (processingMs !== null &&
-        (!Number.isSafeInteger(processingMs) || Number(processingMs) < 0 || Number(processingMs) > 1800000)) ||
+        (!Number.isSafeInteger(processingMs) ||
+          Number(processingMs) < 0 ||
+          Number(processingMs) > 1800000)) ||
       (costMicroUsd !== null &&
-        (!Number.isSafeInteger(costMicroUsd) || Number(costMicroUsd) < 0 || Number(costMicroUsd) > 100000000))
-    ) return reply({ error: "music_analysis_invalid_usage_attestation" }, 422);
+        (!Number.isSafeInteger(costMicroUsd) ||
+          Number(costMicroUsd) < 0 ||
+          Number(costMicroUsd) > 100000000))
+    )
+      return reply({ error: "music_analysis_invalid_usage_attestation" }, 422);
     if (typeof lease !== "string" || !/^[a-f0-9-]{36}$/.test(lease))
       return reply({ error: "music_analysis_lease_required" }, 401);
     const job = await eligibleJob(db, complete[1], lease);
@@ -316,16 +331,29 @@ export async function handleMusicAnalysis(
           at,
         ),
       ...(env.MUSIC_EXECUTION_ENABLED === "1"
-        ? [db.prepare(
-            "INSERT OR IGNORE INTO music_stage_events" +
-            "(event_key,contract_id,master_id,stage,outcome,processing_ms,cost_microusd,bytes_processed,recorded_at)" +
-            " SELECT ?,m.contract_id,m.id,'analysis_complete',?,?,?,m.bytes,?" +
-            " FROM music_analysis_jobs j JOIN music_masters m ON m.id=j.master_id" +
-            " WHERE j.master_id=? AND j.policy=? AND j.status IN ('approved','needs_review','rejected')" +
-            " AND j.lease_token=? AND j.report_sha256=? AND j.updated_at=?",
-          ).bind("analysis:" + job.master_id + ":" + QUIET_READING_POLICY + ":" + reportSha,
-            status, processingMs, costMicroUsd, at,
-            job.master_id, QUIET_READING_POLICY, lease, reportSha, at)]
+        ? [
+            db
+              .prepare(
+                "INSERT OR IGNORE INTO music_stage_events" +
+                  "(event_key,contract_id,master_id,stage,outcome,processing_ms,cost_microusd,bytes_processed,recorded_at)" +
+                  " SELECT ?,m.contract_id,m.id,'analysis_complete',?,?,?,m.bytes,?" +
+                  " FROM music_analysis_jobs j JOIN music_masters m ON m.id=j.master_id" +
+                  " WHERE j.master_id=? AND j.policy=? AND j.status IN ('approved','needs_review','rejected')" +
+                  " AND j.lease_token=? AND j.report_sha256=? AND j.updated_at=?",
+              )
+              .bind(
+                "analysis:" + job.master_id + ":" + QUIET_READING_POLICY + ":" + reportSha,
+                status,
+                processingMs,
+                costMicroUsd,
+                at,
+                job.master_id,
+                QUIET_READING_POLICY,
+                lease,
+                reportSha,
+                at,
+              ),
+          ]
         : []),
     ]);
     const stored = await storedJob(db, job.master_id);

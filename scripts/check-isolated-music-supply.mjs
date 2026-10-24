@@ -443,7 +443,10 @@ try {
     parallelAnalysis: 1,
   };
   assert.equal((await invoke("/v1/execution/source-limits", "POST", "ingest", limits)).status, 401);
-  assert.equal((await invoke("/v1/execution/source-limits", "POST", "operator", limits)).status, 200);
+  assert.equal(
+    (await invoke("/v1/execution/source-limits", "POST", "operator", limits)).status,
+    200,
+  );
   const audio3 = Buffer.alloc(4096, 11);
   const sha3 = sha(audio3);
   const master3 = {
@@ -482,26 +485,36 @@ try {
   assert.equal((await upload3(intakeJob.result.leaseToken)).status, 200);
   assert.equal((await upload3(intakeJob.result.leaseToken)).status, 409);
   assert.equal(
-    (await invoke("/v1/masters/fixture-master-review/quality", "POST", "qa", {
-      ...report,
-      sha256: sha3,
-    })).status,
+    (
+      await invoke("/v1/masters/fixture-master-review/quality", "POST", "qa", {
+        ...report,
+        sha256: sha3,
+      })
+    ).status,
     202,
   );
   const claim3 = await invoke("/v1/analysis/claim", "POST", "analyst", {});
   assert.equal(claim3.result.masterId, master3.id);
-  assert.equal((await invoke("/v1/analysis/claim", "POST", "analyst", {})).result.skipped, "no_eligible_jobs");
+  assert.equal(
+    (await invoke("/v1/analysis/claim", "POST", "analyst", {})).result.skipped,
+    "no_eligible_jobs",
+  );
   const musicReport3 = {
     ...report2,
     sha256: sha3,
     sourceSha1: createHash("sha1").update(audio3).digest("hex"),
     bytes: audio3.length,
   };
-  const analyzed3 = await invoke("/v1/analysis/jobs/fixture-master-review/complete", "POST", "analyst", {
-    leaseToken: claim3.result.leaseToken,
-    report: musicReport3,
-    processingMs: 1200,
-  });
+  const analyzed3 = await invoke(
+    "/v1/analysis/jobs/fixture-master-review/complete",
+    "POST",
+    "analyst",
+    {
+      leaseToken: claim3.result.leaseToken,
+      report: musicReport3,
+      processingMs: 1200,
+    },
+  );
   assert.equal(analyzed3.status, 202, JSON.stringify(analyzed3.result));
   assert.equal(analyzed3.result.status, "needs_review");
   const pendingReview = await invoke("/v1/execution/review", "GET", "musicReviewer");
@@ -523,28 +536,50 @@ try {
     decision: "approve",
     heardFullMaster: true,
     reviewerId: "fixture-listener-reviewer",
-    rationale: "Listened to the full original master; calm and non-vocal across the complete recording.",
+    rationale:
+      "Listened to the full original master; calm and non-vocal across the complete recording.",
   };
-  assert.equal((await invoke("/v1/execution/review/fixture-master-review", "POST", "analyst", reviewed)).status, 401);
   assert.equal(
-    (await invoke("/v1/execution/review/fixture-master-review", "POST", "musicReviewer", {
-      ...reviewed,
-      reportSha256: "0".repeat(64),
-    })).status,
+    (await invoke("/v1/execution/review/fixture-master-review", "POST", "analyst", reviewed))
+      .status,
+    401,
+  );
+  assert.equal(
+    (
+      await invoke("/v1/execution/review/fixture-master-review", "POST", "musicReviewer", {
+        ...reviewed,
+        reportSha256: "0".repeat(64),
+      })
+    ).status,
     409,
   );
-  const humanPass = await invoke("/v1/execution/review/fixture-master-review", "POST", "musicReviewer", reviewed);
+  const humanPass = await invoke(
+    "/v1/execution/review/fixture-master-review",
+    "POST",
+    "musicReviewer",
+    reviewed,
+  );
   assert.equal(humanPass.status, 202, JSON.stringify(humanPass.result));
   assert.equal(humanPass.result.customerPublished, false);
-  assert.equal((await invoke("/v1/execution/review/fixture-master-review", "POST", "musicReviewer", reviewed)).status, 409);
+  assert.equal(
+    (await invoke("/v1/execution/review/fixture-master-review", "POST", "musicReviewer", reviewed))
+      .status,
+    409,
+  );
   const queueState = await invoke("/v1/execution/metrics", "GET", "operator");
   assert.equal(queueState.status, 200);
   assert.ok(queueState.result.stages.some((x) => x.stage === "intake_claim" && x.jobs >= 1));
   assert.ok(queueState.result.stages.some((x) => x.stage === "analysis_complete" && x.jobs >= 1));
   assert.ok(queueState.result.stages.some((x) => x.stage === "human_approved" && x.jobs >= 1));
-  assert.ok(queueState.result.stages.some((x) => x.stage === "analysis_complete" && x.unpriced_jobs >= 1));
+  assert.ok(
+    queueState.result.stages.some((x) => x.stage === "analysis_complete" && x.unpriced_jobs >= 1),
+  );
   assert.equal((await invoke("/v1/execution/metrics", "GET", "analyst")).status, 401);
-  const releasedReview = await invoke("/v1/operator/outbox?after=" + analysisCursor, "GET", "operator");
+  const releasedReview = await invoke(
+    "/v1/operator/outbox?after=" + analysisCursor,
+    "GET",
+    "operator",
+  );
   assert.equal(releasedReview.result.items[0].master_id, master3.id);
   const reviewCursor = releasedReview.result.nextCursor;
 

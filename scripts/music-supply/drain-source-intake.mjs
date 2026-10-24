@@ -27,20 +27,38 @@ assert.ok(Number.isSafeInteger(workers) && workers >= 1 && workers <= 8);
 assert.ok(Number.isSafeInteger(maximum) && maximum >= 1 && maximum <= 128);
 assert.ok(Number.isSafeInteger(minutes) && minutes >= 1 && minutes <= 30);
 if (!execute) {
-  console.log(JSON.stringify({ dryRun: true, workers, maximum, note: "No jobs leased or provider requests issued" }));
+  console.log(
+    JSON.stringify({
+      dryRun: true,
+      workers,
+      maximum,
+      note: "No jobs leased or provider requests issued",
+    }),
+  );
   process.exit(0);
 }
 if (process.env.COVE_MUSIC_EXECUTION_RUNNER_ENABLED !== "1")
   throw Error("Isolated execution requires explicit runner opt-in");
 const endpoint = new URL(origin);
-if (endpoint.protocol !== "https:" || endpoint.hostname !== host || endpoint.pathname !== "/" ||
-    endpoint.search || endpoint.hash || endpoint.username || endpoint.password || endpoint.port)
+if (
+  endpoint.protocol !== "https:" ||
+  endpoint.hostname !== host ||
+  endpoint.pathname !== "/" ||
+  endpoint.search ||
+  endpoint.hash ||
+  endpoint.username ||
+  endpoint.password ||
+  endpoint.port
+)
   throw Error("Untrusted private QA Worker endpoint");
-if (secret.length < 40 || secret.length > 256) throw Error("Missing scoped original-master ingest token");
+if (secret.length < 40 || secret.length > 256)
+  throw Error("Missing scoped original-master ingest token");
 
 const auth = { authorization: "Bearer " + secret };
 const deadline = Date.now() + minutes * 60000;
-let reserved = 0, completed = 0, rejected = 0;
+let reserved = 0,
+  completed = 0,
+  rejected = 0;
 async function invoke(route, payload) {
   const response = await fetch(origin + route, {
     method: "POST",
@@ -62,8 +80,16 @@ async function perform(job) {
     assert.ok(Number.isSafeInteger(m.bytes) && m.bytes > 128 && m.bytes <= 25 * 1024 * 1024);
     assert.ok(["audio/mpeg", "audio/ogg"].includes(m.mime));
     const url = new URL(m.sourceUrl);
-    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash ||
-        url.port || /^\d+(?:\.\d+){3}$/.test(url.hostname) || url.hostname.startsWith("["))
+    if (
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      url.port ||
+      /^\d+(?:\.\d+){3}$/.test(url.hostname) ||
+      url.hostname.startsWith("[")
+    )
       throw Error("Untrusted original master URL");
     // The source host and pathname were validated against the independently
     // approved contract when the manifest was registered.
@@ -72,8 +98,12 @@ async function perform(job) {
       headers: { "user-agent": "CoveIsolatedLicensedIntake/1" },
       signal: AbortSignal.timeout(120000),
     });
-    if (response.status !== 200 || !response.body ||
-        (response.headers.get("content-length") && Number(response.headers.get("content-length")) !== m.bytes))
+    if (
+      response.status !== 200 ||
+      !response.body ||
+      (response.headers.get("content-length") &&
+        Number(response.headers.get("content-length")) !== m.bytes)
+    )
       throw Error("Exact original master unavailable");
     directory = await mkdtemp(path.join(os.tmpdir(), "cove-licensed-intake-"));
     const file = path.join(directory, "original.master");
@@ -91,8 +121,7 @@ async function perform(job) {
       },
       fs.createWriteStream(file, { flags: "wx" }),
     );
-    if (size !== m.bytes || digest.digest("hex") !== m.sha256)
-      throw Error("Changed source master");
+    if (size !== m.bytes || digest.digest("hex") !== m.sha256) throw Error("Changed source master");
     const uploaded = await fetch(origin + "v1/masters/" + encodeURIComponent(m.id) + "/audio", {
       method: "PUT",
       headers: {
@@ -111,8 +140,13 @@ async function perform(job) {
     console.log(JSON.stringify({ masterId: job.masterId, result: "staged", bytes: size }));
   } catch (error) {
     rejected++;
-    console.log(JSON.stringify({ masterId: job.masterId, result: "failed", kind: error?.name || "Error" }));
-    await invoke("v1/execution/intake/fail", { masterId: job.masterId, leaseToken: job.leaseToken }).catch(() => {});
+    console.log(
+      JSON.stringify({ masterId: job.masterId, result: "failed", kind: error?.name || "Error" }),
+    );
+    await invoke("v1/execution/intake/fail", {
+      masterId: job.masterId,
+      leaseToken: job.leaseToken,
+    }).catch(() => {});
   } finally {
     if (directory) await rm(directory, { recursive: true, force: true });
   }
@@ -129,5 +163,12 @@ async function worker() {
   }
 }
 await Promise.all(Array.from({ length: workers }, () => worker()));
-console.log(JSON.stringify({ parallelWorkers: workers, claimsAttempted: reserved, staged: completed, failed: rejected }));
+console.log(
+  JSON.stringify({
+    parallelWorkers: workers,
+    claimsAttempted: reserved,
+    staged: completed,
+    failed: rejected,
+  }),
+);
 if (rejected) process.exitCode = 1;

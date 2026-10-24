@@ -13,8 +13,10 @@ const metrics = args.includes("--metrics");
 const file = args.find((a) => a.startsWith("--decision="))?.slice("--decision=".length);
 const master = args.find((a) => a.startsWith("--audio="))?.slice("--audio=".length);
 const output = args.find((a) => a.startsWith("--output="))?.slice("--output=".length);
-assert.ok([listing, metrics, Boolean(file), Boolean(master)].filter(Boolean).length === 1,
-  "Choose exactly one operation: --list, --metrics, --audio=id --output=filepath, or --decision=review.json");
+assert.ok(
+  [listing, metrics, Boolean(file), Boolean(master)].filter(Boolean).length === 1,
+  "Choose exactly one operation: --list, --metrics, --audio=id --output=filepath, or --decision=review.json",
+);
 const url = new URL(endpoint);
 if (url.href !== "https://cove-music-supply-isolated-qa.cove-jibrilmohamud.workers.dev/")
   throw Error("Only isolated Cove music QA host is permitted");
@@ -58,12 +60,17 @@ if (listing) {
   const raw = await fs.readFile(file, "utf8");
   if (Buffer.byteLength(raw) > 2500) throw Error("Review decision over size limit");
   const record = JSON.parse(raw);
-  if (typeof record.masterId !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{2,119}$/.test(record.masterId))
+  if (
+    typeof record.masterId !== "string" ||
+    !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{2,119}$/.test(record.masterId)
+  )
     throw Error("Invalid master identity");
   const { masterId, ...decision } = record;
-  const result = await (await request(
-    "v1/execution/review/" + encodeURIComponent(masterId),
-    { method: "POST", body: JSON.stringify(decision) },
-  )).json();
+  const result = await (
+    await request("v1/execution/review/" + encodeURIComponent(masterId), {
+      method: "POST",
+      body: JSON.stringify(decision),
+    })
+  ).json();
   console.log(JSON.stringify(result, null, 2));
 }
