@@ -2003,7 +2003,10 @@ export async function handleSocial(
       parentId = url.searchParams.get("parentId"),
       cursor = socialCursor(url.searchParams.get("cursor")),
       limitedBookThread = contextType === "work" && url.searchParams.get("thread") === "1",
-      threadLimit = limitedBookThread ? (parentId ? 8 : 12) : 50;
+      threadLimit = limitedBookThread ? (parentId ? 8 : 12) : 50,
+      topSorted = limitedBookThread && url.searchParams.get("sort") === "top";
+    if (topSorted && cursor && !/^[0-9]{1,10}$/.test(cursor.at))
+      throw new ApiError(400, "Invalid ranked comment cursor.");
     if (parentId) {
       const parent = await db
         .prepare(
