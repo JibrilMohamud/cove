@@ -10,6 +10,10 @@ on:
       - "src/storefront-strangler/worker.ts"
       - "scripts/staging/wait-strangler-secret-deployment.mjs"
       - ".github/workflows/strangler-hosted-capacity-evaluation.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/strangler-hosted-capacity-evaluation.yml"
   workflow_dispatch:
 
 permissions:
@@ -22,9 +26,8 @@ concurrency:
 jobs:
   protected-staging-only:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.head.repo.full_name == github.repository &&
-       github.event.pull_request.head.ref == 'architecture/strangler-storefront-m1-20261020')
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 42
     env:
