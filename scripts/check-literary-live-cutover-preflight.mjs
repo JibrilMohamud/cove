@@ -1,14 +1,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const script = fs.readFileSync(
-  "scripts/staging/audit-literary-cutover-preflight.mjs",
-  "utf8",
-);
-const workflow = fs.readFileSync(
-  ".github/workflows/literary-live-cutover-preflight.yml",
-  "utf8",
-);
+const script = fs.readFileSync("scripts/staging/audit-literary-cutover-preflight.mjs", "utf8");
+const workflow = fs.readFileSync(".github/workflows/literary-live-cutover-preflight.yml", "utf8");
 for (const term of [
   "snapshotRightsEligible",
   "literary_processing_owner",
@@ -21,8 +15,11 @@ for (const term of [
   "canArmWithoutFurtherOperatorChecks: false",
   "liveWritePerformed: false",
   "rightsApprovedByAudit: false",
-]) assert.ok(script.includes(term), "Missing audit condition: " + term);
-assert.ok(!/\b(?:INSERT INTO|UPDATE literary_|DELETE FROM|DROP TABLE|CREATE TABLE)\b/i.test(script));
+])
+  assert.ok(script.includes(term), "Missing audit condition: " + term);
+assert.ok(
+  !/\b(?:INSERT INTO|UPDATE literary_|DELETE FROM|DROP TABLE|CREATE TABLE)\b/i.test(script),
+);
 assert.ok(workflow.includes("github.ref == 'refs/heads/main'"));
 assert.ok(workflow.includes("persist-credentials: false"));
 assert.ok(workflow.includes("cancel-in-progress: false"));
