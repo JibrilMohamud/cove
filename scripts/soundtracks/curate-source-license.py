@@ -458,7 +458,23 @@ def run(args, client, measure):
         page = client.call('/admin/soundtracks?status=pending_review&automation='+mode+
                            shard_part+'&limit='+str(page_size)+'&after='+urllib.parse.quote(cursor))
         records = page.get('records', [])
-        if not isinstance(records, list) or not records: break
+        if not isinstance(records,list):
+            raise ValueError("Source review API returned malformed candidate listing")
+        if not records:
+            # Observable zero-work campaigns: a green Actions run must not
+            # silently pretend to have addressed a known held-source backlog.
+            buckets = page.get("counts") or []
+            pending = sum(int(x.get("count",0)) for x in buckets
+                          if isinstance(x,dict) and x.get("status")=="pending_review")
+            print(json.dumps({"reviewQueue":"empty_page","mode":mode,
+                              "shard":hourly_shard if mode=="triaged" else None,
+                              "pendingReviewCount":pending,
+                              "examined":examined,"sourceLookups":source_lookups}))
+            break
+        if examined == 0 and mode == "triaged":
+            print(json.dumps({"reviewQueue":"bounded_shard",
+                              "shard":hourly_shard,"pageRecords":len(records),
+                              "sourceLookupsBudget":lookup_limit}))
         for row in records:
             examined += 1
             rid = row.get('id', '')
