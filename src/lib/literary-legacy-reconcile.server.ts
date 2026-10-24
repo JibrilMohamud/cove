@@ -83,13 +83,12 @@ export async function reconcileOneLegacyLiteraryJob(
     "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'",
   ).first<{ value: string }>();
   if (stillDraining?.value !== "draining") return { skipped: "legacy_owner_changed" };
-  const eligible =
-    job.edition_id &&
+  const result =
+    job.edition_id !== null &&
     job.current_fingerprint === job.fingerprint &&
-    job.profile_status === "provisional";
-  const result = eligible
-    ? await seed(env, job.product_id, job.edition_id!, "draining")
-    : { skipped: "legacy_profile_not_current" };
+    job.profile_status === "provisional"
+      ? await seed(env, job.product_id, job.edition_id, "draining")
+      : { skipped: "legacy_profile_not_current" };
   const seeded = "outboxId" in result && typeof result.outboxId === "string";
   const disposition = seeded ? "seeded" : "held";
   const outboxId = seeded ? result.outboxId : null;
