@@ -260,7 +260,7 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep, c
         # dramatically reduces wasted first-page results and ensures this
         # fast lane never queries third-party original hosts.
         params=urllib.parse.urlencode({"q":query,"source":"wikimedia_audio",
-                                        "category":"music","license":"by,by-sa,cc0",
+                                        "license":"by,by-sa,cc0",
                                         "page":1,"page_size":20,"mature":"false"})
         response=read_json(API+"?"+params,opener)
         searched+=1
