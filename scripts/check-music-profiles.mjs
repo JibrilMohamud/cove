@@ -230,7 +230,11 @@ try {
     "nothing_due",
   );
 
-  assert.ok(["quiet_focus", "gentle_background", "distracting", "needs_vocal_evidence"].includes(published.profile.quietReading.tier));
+  assert.ok(
+    ["quiet_focus", "gentle_background", "distracting", "needs_vocal_evidence"].includes(
+      published.profile.quietReading.tier,
+    ),
+  );
   assert.equal(
     published.profile.readingSuitability.lyrics,
     null,
