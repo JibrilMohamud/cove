@@ -271,23 +271,24 @@ export async function handleCanonicalMusicHandoff(
     return Response.json({ error: "music_canonical_handoff_disabled" }, { status: 403 });
   if (!(await handoffAuthorized(req, env)))
     return Response.json({ error: "music_canonical_handoff_unauthorized" }, { status: 401 });
-  // Only a fully authorized publisher reaches the shared D1 admission probe.
-  // Deferred background events remain replayable in the isolated source ledger.
-  if (admit) {
-    const gate = await admit();
-    if (!gate.allowed)
-      return Response.json(
-        { error: "music_handoff_primary_d1_busy", reason: gate.reason, probeMs: gate.probeMs },
-        { status: 503, headers: { "cache-control": "no-store" } },
-      );
-  }
   try {
     if (Number(req.headers.get("content-length") || 0) > 10000)
       return Response.json({ error: "music_handoff_too_large" }, { status: 413 });
     const body = await req.text();
     if (body.length > 10000)
       return Response.json({ error: "music_handoff_too_large" }, { status: 413 });
-    const result = await applyCanonicalMusicHandoff(env.DB, JSON.parse(body));
+    const event = validate(JSON.parse(body));
+    // Discretionary D1 admission only throttles new candidate metadata.
+    // Master and contract rights retractions must not wait on this probe.
+    if (event.action === "master_qualified" && admit) {
+      const gate = await admit();
+      if (!gate.allowed)
+        return Response.json(
+          { error: "music_handoff_primary_d1_busy", reason: gate.reason, probeMs: gate.probeMs },
+          { status: 503, headers: { "cache-control": "no-store" } },
+        );
+    }
+    const result = await applyCanonicalMusicHandoff(env.DB, event);
     return Response.json(result, { headers: { "cache-control": "no-store" } });
   } catch {
     return Response.json({ error: "invalid_or_conflicting_music_handoff" }, { status: 409 });
