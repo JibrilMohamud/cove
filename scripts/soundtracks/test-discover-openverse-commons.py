@@ -158,7 +158,7 @@ class OpenverseIsolatedDiscovery(unittest.TestCase):
         self.assertEqual(parsed["gcmlimit"],["3"])
         with patch.object(module.time,"time",return_value=0):
             with self.assertRaisesRegex(ValueError,"Malformed"):
-                module.commons_category_candidates(1,2,continuations={cat:"bad\\nname"},
+                module.commons_category_candidates(1,2,continuations={cat:"bad"+chr(10)+"name"},
                                                   pause=lambda _:None)
 
     def test_isolated_cursor_is_committed_after_idempotent_candidate_writes(self):
