@@ -2,6 +2,7 @@ import { formatMinorCurrency } from "./currency";
 import { useStorefrontLocale } from "./localization";
 import { useUiText } from "./ui-text";
 import { Reviews } from "./Reviews";
+import { DiscussionThread } from "./Community";
 import { AddToShelf } from "./Shelves";
 import { BookAudio } from "./Audio";
 import { saveEpubOffline, downloadBook, exportReadingData, downloadCoveBackup } from "./epub";
@@ -1197,6 +1198,16 @@ export function BookPage({ id }: { id: string }) {
       <div id="reviews">
         <Reviews bookId={id} personal={!!b.uploaded} />
       </div>
+      {(b.workId || b.publicWorkId) && !b.uploaded && (
+        <div id="book-discussion" className="cove-book-discussion">
+          <DiscussionThread
+            contextType="work"
+            contextId={String(b.workId || b.publicWorkId)}
+            bookThread
+            title="Reader discussion & comments"
+          />
+        </div>
+      )}
     </>
   );
 }
