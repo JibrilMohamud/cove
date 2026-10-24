@@ -206,7 +206,8 @@ export async function applyCanonicalMusicHandoff(db: Db, raw: unknown) {
             " ON CONFLICT(contract_id) DO UPDATE SET" +
             " last_seq=MAX(last_seq,excluded.last_seq)," +
             " expires_at=excluded.expires_at,updated_at=excluded.updated_at" +
-            " WHERE music_supply_handoff_contracts.status!='revoked'",
+            " WHERE music_supply_handoff_contracts.status!='revoked'" +
+            " AND excluded.last_seq>music_supply_handoff_contracts.last_seq",
         )
         .bind(
           item.contract_id,
