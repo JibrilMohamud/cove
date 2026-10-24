@@ -78,9 +78,7 @@ try {
             },
           };
         }
-        if (
-          sql === "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'"
-        ) {
+        if (sql === "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'") {
           return {
             async first() {
               return literaryOwner ? { value: literaryOwner } : null;
@@ -121,10 +119,7 @@ try {
   assert.deepEqual(calls, ["assets"]);
   const literaryRoles = [
     ["literary-prepare", { FORE_CONTENT_PREPARE_ENABLED: "1" }],
-    [
-      "literary-handoff",
-      { FORE_CONTENT_PREPARE_ENABLED: "1", FORE_CONTENT_HANDOFF_ENABLED: "1" },
-    ],
+    ["literary-handoff", { FORE_CONTENT_PREPARE_ENABLED: "1", FORE_CONTENT_HANDOFF_ENABLED: "1" }],
     [
       "literary-infer",
       {
