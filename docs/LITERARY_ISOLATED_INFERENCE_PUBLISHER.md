@@ -14,6 +14,10 @@
 - **Private R2** holds byte-verified EPUBs, selected text evidence, and hashed
   literary profile results. The full object bytes are SHA-256 verified before
   inference and publication; matching HEAD metadata alone is not trusted.
+  Inference writes use an atomic create-if-absent condition on the stable job key,
+  so an expired lease owner cannot overwrite another worker's completed receipt.
+  On a competing write, the loser loads and verifies the winner's complete R2
+  bytes and records that exact hash only if its independent lease is still valid.
 - **Final publication** is one bounded, indexed, canonical UPDATE of an existing
   **provisional** `literary_profiles` row: the exact expected policy/fingerprint/
   revision must match, and the SQL mutation itself checks that source SHA still
