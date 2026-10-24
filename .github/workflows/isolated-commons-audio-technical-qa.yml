@@ -1,0 +1,70 @@
+name: isolated-commons-audio-technical-qa
+
+on:
+  pull_request:
+    paths:
+      - "scripts/soundtracks/qualify-isolated-commons.py"
+      - "scripts/soundtracks/test-qualify-isolated-commons.py"
+      - "infra/music/0006_open_technical_qa.sql"
+      - ".github/workflows/isolated-commons-audio-technical-qa.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "55 7,13,19,1 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-isolated-commons-audio-technical-qa
+  cancel-in-progress: false
+
+jobs:
+  no-network-safety-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m py_compile scripts/soundtracks/qualify-isolated-commons.py
+      - run: python scripts/soundtracks/test-qualify-isolated-commons.py -q
+
+  detached-private-qualification:
+    needs: no-network-safety-tests
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.COVE_MUSIC_OPEN_QA_ENABLED == '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      COVE_MUSIC_R2_ACCESS_KEY_ID: ${{ secrets.COVE_MUSIC_R2_ACCESS_KEY_ID }}
+      COVE_MUSIC_R2_SECRET_ACCESS_KEY: ${{ secrets.COVE_MUSIC_R2_SECRET_ACCESS_KEY }}
+      COVE_MUSIC_OPEN_QA_APPLY: "1"
+      AWS_EC2_METADATA_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Confirm private isolated credentials and actual FFmpeg
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -n "${COVE_MUSIC_R2_ACCESS_KEY_ID:-}" && -n "${COVE_MUSIC_R2_SECRET_ACCESS_KEY:-}" ]]
+          command -v ffmpeg
+          command -v ffprobe
+      - run: python -m pip install --disable-pip-version-check boto3==1.40.0 numpy==2.2.6 scipy==1.15.3
+      - name: Exactly one current Commons original, full decode and DSP, detached private R2
+        run: python scripts/soundtracks/qualify-isolated-commons.py --max-recordings 1 --max-seconds 840 --profile-dsp --apply-private --output commons-private-technical-qa.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: isolated-commons-technical-qa-receipts
+          path: commons-private-technical-qa.json
+          if-no-files-found: ignore
+          retention-days: 14
