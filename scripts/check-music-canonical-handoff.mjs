@@ -221,7 +221,7 @@ try {
   const servingQuery = fs.readFileSync("src/features/fore/matching-catalog.server.ts", "utf8");
   assert.ok(!servingQuery.includes("music_supply_handoff"), "No customer matching DB reads added");
   const backend = fs.readFileSync("src/persistence-backend.worker.ts", "utf8");
-  assert.match(backend, /handleCanonicalMusicHandoff\(request, env\)/);
+  assert.match(backend, /handleCanonicalMusicHandoff\(request, env, \(\) =>/);
   assert.match(
     fs.readFileSync("src/lib/music-canonical-handoff.ts", "utf8"),
     /FORE_MUSIC_CANONICAL_HANDOFF_ENABLED !== "1"/,
