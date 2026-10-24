@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { countReadingUnits, estimateReadingTime } from "./reading-time";
 import { resolveProductRights } from "./rights.server";
 import type { CoveEnv } from "./api.server";

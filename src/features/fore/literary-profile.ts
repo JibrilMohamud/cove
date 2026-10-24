@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const PROFILE_POLICY = "cove-literary-v3";
 export const PROFILE_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";

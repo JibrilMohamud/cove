@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { catalogInsert, type CoveEnv } from "./api.server";
 import { commercialCatalogStatements } from "./catalog-model.server";
 import { syncSearchIndex } from "./search.server";

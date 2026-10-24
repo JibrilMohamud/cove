@@ -1,7 +1,7 @@
 import { currencyMinorUnitDigits, minorUnitsToMajor } from "./currency";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 type SeoJson = string | number | boolean | null | SeoJson[] | { [key: string]: SeoJson };
 export type SeoPayload = {

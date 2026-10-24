@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { CoveEnv } from "./api.server";
 import type { CoveIdentity } from "./auth.server";
 import type { LiteraryProfile } from "./literary-profile";

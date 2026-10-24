@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import JSZip from "jszip";
 import type { CatalogDB } from "./catalog-model.server";
 import type { CoveEnv } from "./api.server";

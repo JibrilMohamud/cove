@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { CatalogDB } from "./catalog-model.server";
 import { ApiError } from "./service";
 import { assessUsageRisk, effectivePublisherWithholding } from "./risk-tax.server";

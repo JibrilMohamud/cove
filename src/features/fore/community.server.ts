@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { CoveEnv } from "./api.server";
 import type { CatalogBook } from "./client";
 import { ApiError, bookIdSchema, json, now, rateLimit, readBody, requireIdentity } from "./service";

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";
 

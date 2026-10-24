@@ -1,3 +1,4 @@
+import { assessQuietReading } from "./quiet-reading-score";
 import type { CoveEnv } from "./api.server";
 import type { CoveIdentity } from "./auth.server";
 import { ApiError, json, readBody } from "./service";
@@ -147,6 +148,58 @@ export async function handleMusicProfiles(
     const principal = await requireServiceScope(env.DB, request, "soundtracks.review");
     actor = "service:" + principal.principalId;
   }
+  // Optional one-profile-at-a-time migration of previously analyzed masters.
+  // Never dispatches audio/AI work or touches a public playback entitlement.
+  // It is authenticated, opt-in, and permanently bounded to one D1 write.
+  if (path === "/admin/music-profiles/rescore-quiet" && request.method === "POST") {
+    await readBody(request, 1000);
+    if (
+      (env as CoveEnv & { FORE_QUIET_READING_RESCORE_ENABLED?: string })
+        .FORE_QUIET_READING_RESCORE_ENABLED !== "1"
+    )
+      return json({ skipped: "disabled" });
+    const row = await env.DB.prepare(
+      "SELECT mp.recording_id,mp.fingerprint,mp.profile_json,r.has_vocals,r.source_sha1" +
+        " FROM music_profiles mp JOIN soundtrack_recordings r ON r.id=mp.recording_id" +
+        " WHERE mp.status='analyzed' AND r.status='ready' AND r.quality_status='passed'" +
+        " AND r.storage_key IS NOT NULL AND r.source_snapshot_key IS NOT NULL" +
+        " AND (CASE WHEN json_valid(mp.profile_json) THEN" +
+        " json_extract(mp.profile_json,'$.quietReading.policy') ELSE NULL END) IS NULL" +
+        " ORDER BY mp.recording_id LIMIT 1",
+    ).first<{
+      recording_id: string;
+      fingerprint: string;
+      profile_json: string;
+      has_vocals: number | null;
+      source_sha1: string;
+    }>();
+    if (!row) return json({ skipped: "nothing_due" });
+    const old = JSON.parse(row.profile_json) as { audioAnalysis?: unknown };
+    const report = validateMusicReport(old.audioAnalysis);
+    if (report.sourceSha1 !== row.source_sha1)
+      return json({ skipped: "master_changed", recordingId: row.recording_id });
+    const quietReading = assessQuietReading(
+      report,
+      row.has_vocals === null ? null : Boolean(row.has_vocals),
+    );
+    const at = timestamp();
+    const updated = (await env.DB.prepare(
+      "UPDATE music_profiles SET profile_json=json_set(profile_json,'$.quietReading',json(?)),updated_at=?" +
+        " WHERE recording_id=? AND fingerprint=? AND status='analyzed'" +
+        " AND (CASE WHEN json_valid(profile_json) THEN json_extract(profile_json,'$.quietReading.policy') ELSE NULL END) IS NULL" +
+        " AND EXISTS(SELECT 1 FROM soundtrack_recordings r WHERE r.id=music_profiles.recording_id" +
+        " AND r.status='ready' AND r.quality_status='passed' AND r.source_sha1=?" +
+        " AND r.storage_key IS NOT NULL AND r.source_snapshot_key IS NOT NULL)",
+    )
+      .bind(JSON.stringify(quietReading), at, row.recording_id, row.fingerprint, row.source_sha1)
+      .run()) as { meta?: { changes?: number } };
+    return json({
+      updated: Number(updated.meta?.changes || 0) === 1,
+      recordingId: row.recording_id,
+      tier: quietReading.tier,
+      actor,
+    });
+  }
   if (path === "/admin/music-profiles/status" && request.method === "GET")
     return json({
       profiles: (
@@ -256,9 +309,14 @@ export async function handleMusicProfiles(
     await env.BUCKET.put(key, JSON.stringify(report), {
       httpMetadata: { contentType: "application/json" },
     });
+    const quietReading = assessQuietReading(
+      report,
+      r.has_vocals === null ? null : Boolean(r.has_vocals),
+    );
     const profile = {
       ...provisional(r),
       audioAnalysis: report,
+      quietReading,
       analysisCoverage: {
         fullSignal: true,
         semantic: report.semantics ? "sampled" : "unavailable",
