@@ -124,10 +124,7 @@ try {
   assert.equal(metered.usage.d1Statements, 3);
   assert.equal(metered.usage.d1Writes, 1);
   await metered.env.BUCKET.put("a", Uint8Array.from([1, 2, 3]));
-  await assert.rejects(
-    metered.env.BUCKET.put("b", Uint8Array.from([1, 2])),
-    /budget_exhausted/,
-  );
+  await assert.rejects(metered.env.BUCKET.put("b", Uint8Array.from([1, 2])), /budget_exhausted/);
   assert.equal(metered.usage.r2Bytes, 3);
   assert.deepEqual(originalR2, [["a", 3]]);
   assert.equal(contentBudgetLimits({}).statements, 32);
