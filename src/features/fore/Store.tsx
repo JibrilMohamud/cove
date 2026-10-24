@@ -1,3 +1,4 @@
+import { taxonomyCountPollInterval } from "./taxonomy-count-polling";
 import { tasteControlsSchema, type TasteControls } from "./discovery-engine";
 import { useUiText } from "./ui-text";
 import { formatMinorCurrency } from "./currency";
@@ -949,10 +950,15 @@ function MerchBanner({
 function TaxonomyBrowse({
   taxonomy,
   activePath,
+  refreshCounts,
+  refreshingCounts,
 }: {
   taxonomy?: TaxonomyResponse;
   activePath?: string;
+  refreshCounts: () => void;
+  refreshingCounts: boolean;
 }) {
+  const ui = useUiText();
   if (!taxonomy?.nodes?.length) return null;
   const countsPending = taxonomy.countsPending === true;
   return (
@@ -960,6 +966,14 @@ function TaxonomyBrowse({
       <summary>
         Browse categories <ChevronDown size={16} />
       </summary>
+      {countsPending && (
+        <p role="status">
+          {ui("Category counts are unavailable. You can still browse.")}{" "}
+          <button type="button" onClick={refreshCounts} disabled={refreshingCounts}>
+            {ui("Refresh counts")}
+          </button>
+        </p>
+      )}
       <div className="taxonomy-mega">
         {taxonomy.nodes
           .filter((n) => countsPending || n.count > 0)
@@ -1081,7 +1095,7 @@ export function StorePage({
     queryFn: () =>
       api("/taxonomy" + (language !== "all" ? "?language=" + encodeURIComponent(language) : "")),
     staleTime: 30 * 60_000,
-    refetchInterval: (query) => (query.state.data?.countsPending ? 5_000 : false),
+    refetchInterval: (query) => taxonomyCountPollInterval(query.state),
     gcTime: typeof window === "undefined" ? Infinity : 60 * 60_000,
     refetchOnWindowFocus: false,
     retry: 1,
@@ -1483,7 +1497,14 @@ export function StorePage({
         <a href="/preorders">Coming soon</a>
         <a href="/deals">Deals</a>
       </div>
-      <TaxonomyBrowse taxonomy={taxonomy.data} activePath={taxonomyPath} />
+      <TaxonomyBrowse
+        taxonomy={taxonomy.data}
+        activePath={taxonomyPath}
+        refreshCounts={() => {
+          void taxonomy.refetch();
+        }}
+        refreshingCounts={taxonomy.isFetching}
+      />
 
       <div className="catalog-controls">
         <div className="topic-tabs" role="group" aria-label="Featured book categories">

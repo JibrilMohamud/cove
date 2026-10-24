@@ -62,8 +62,20 @@ async function refreshPresentationCounts(
     .first<{ body: string }>();
   if (acquired?.body !== owner) return;
 
+  let succeeded = false;
   try {
+    // Another request may have refreshed between our cache read and lease
+    // acquisition. Recheck after winning; do not recompute fresh labels.
+    const latest = await db
+      .prepare("SELECT body,expires_at FROM api_cache WHERE key=?")
+      .bind(key)
+      .first<{ body: string; expires_at: number }>();
+    if (latest && latest.expires_at - nowMs() > REFRESH_EARLY_MS && validatedCounts(latest.body)) {
+      succeeded = true;
+      return;
+    }
     const current = await queryLive();
+    if (!validatedCounts(JSON.stringify(current))) throw new Error("Invalid taxonomy counts");
     // A batch-transaction conditional UPSERT fences this result by the
     // current lease owner. If the lease expired or another request won a
     // takeover, the obsolete result cannot replace the newer count.
@@ -76,13 +88,19 @@ async function refreshPresentationCounts(
       MAX_ENTRIES,
       { key: refreshKey, owner, nowMs: nowMs() },
     );
+    succeeded = true;
   } finally {
-    // Protect a replacement lease from completion of an older request.
-    await db
-      .prepare("DELETE FROM api_cache WHERE key=? AND body=?")
-      .bind(refreshKey, owner)
-      .run()
-      .catch(() => undefined);
+    // Keep a failed refresh's bounded lease as retry backoff. Deleting it on
+    // failure let every following request immediately rerun the failing scan.
+    // An expired lease can still be taken over, with the same owner fencing.
+    if (succeeded) {
+      // Protect a replacement lease from completion of an older request.
+      await db
+        .prepare("DELETE FROM api_cache WHERE key=? AND body=?")
+        .bind(refreshKey, owner)
+        .run()
+        .catch(() => undefined);
+    }
   }
 }
 
@@ -121,16 +139,23 @@ export async function presentationTaxonomyCounts(
 
   try {
     const cached = await db
-      .prepare("SELECT body,expires_at FROM api_cache WHERE key=?")
-      .bind(key)
-      .first<{ body: string; expires_at: number }>();
+      .prepare(
+        `SELECT counts.body,counts.expires_at,
+        (SELECT expires_at FROM api_cache WHERE key=?) refresh_expires_at
+        FROM (SELECT 1) seed LEFT JOIN api_cache counts ON counts.key=?`,
+      )
+      .bind(refreshKey, key)
+      .first<{ body: string; expires_at: number; refresh_expires_at: number | null }>();
     const counts = cached ? validatedCounts(cached.body) : null;
     const expiresAt = Number(cached?.expires_at || 0);
 
     if (defer) {
       // Every background task belongs to THIS request's execution context.
       // Do not share D1 promises across Cloudflare requests or isolates.
-      if (!counts || expiresAt - now <= REFRESH_EARLY_MS) {
+      if (
+        (!counts || expiresAt - now <= REFRESH_EARLY_MS) &&
+        Number(cached?.refresh_expires_at || 0) <= now
+      ) {
         defer(
           refreshPresentationCounts(db, key, refreshKey, queryLive, nowMs).catch((error) => {
             console.warn(

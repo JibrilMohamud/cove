@@ -799,5 +799,7 @@
   "Taste preferences saved. Search wording applies only to this search.": "Préférences enregistrées. La formulation s’applique uniquement à cette recherche.",
   "Could not save these preferences. Check the values and try again.": "Impossible d’enregistrer ces préférences. Vérifiez les valeurs et réessayez.",
   "Form cleared. Save to replace your saved preferences.": "Formulaire effacé. Enregistrez pour remplacer vos préférences sauvegardées.",
-  "No eligible books with enough evidence match these preferences. Try fewer constraints.": "Aucun livre admissible suffisamment documenté ne correspond. Essayez moins de critères."
+  "No eligible books with enough evidence match these preferences. Try fewer constraints.": "Aucun livre admissible suffisamment documenté ne correspond. Essayez moins de critères.",
+  "Category counts are unavailable. You can still browse.": "Les nombres de livres par catégorie sont indisponibles. Vous pouvez continuer à parcourir les catégories.",
+  "Refresh counts": "Actualiser les nombres"
 }
