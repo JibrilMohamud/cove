@@ -22,7 +22,8 @@ on:
       - "infra/music/0004_open_catalog_candidates.sql"
       - ".github/workflows/isolated-open-license-discovery.yml"
   schedule:
-    - cron: "27 5 * * *"
+    # Eight bounded campaigns daily, with durable category pagination.
+    - cron: "27 */3 * * *"
   workflow_dispatch:
 
 permissions:
@@ -96,7 +97,6 @@ jobs:
           fi
           python scripts/soundtracks/discover-openverse-commons.py "${args[@]}"
       - name: Submit at most 8 verified source titles to existing customer-catalog discovery queue
-        if: github.event_name != 'push'
         shell: bash
         env:
           COVE_MUSIC_COMMONS_SEED_ENABLED: "1"

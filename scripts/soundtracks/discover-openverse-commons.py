@@ -182,7 +182,8 @@ def verified_commons_title(title, opener=OPENER):
     pages=read_json(credits.COMMONS_API+"?"+query,opener=opener).get("query",{}).get("pages",[])
     return pages[0] if isinstance(pages,list) and len(pages)==1 else None
 
-def commons_category_candidates(categories=2, max_verifications=16, opener=OPENER, pause=time.sleep):
+def commons_category_candidates(categories=2, max_verifications=16, opener=OPENER,
+                                pause=time.sleep, continuations=None):
     """One rate-bounded generator page per Commons category, no scraping.
 
     The generator supplies the actual Commons revision, imageinfo, license
@@ -191,24 +192,34 @@ def commons_category_candidates(categories=2, max_verifications=16, opener=OPENE
     """
     if not 0 <= categories <= 3 or not 0 <= max_verifications <= 32:
         raise ValueError("Commons discovery quota exceeded")
-    started=int(time.time() // 86400) % len(COMMONS_CATEGORIES)
+    # Every three-hour campaign selects different categories, and the
+    # durable isolated cursor prevents repeating their first 24 originals.
+    started=int(time.time() // 10800) % len(COMMONS_CATEGORIES)
+    continuations=continuations or {}
     found=[]
     checked=0
     held=0
     rejection_reasons={}
     category_queries=0
+    next_cursors={}
     for offset in range(categories):
         if checked>=max_verifications:
             break
         category=COMMONS_CATEGORIES[(started+offset)%len(COMMONS_CATEGORIES)]
-        args=urllib.parse.urlencode({
+        fields={
             "action":"query","format":"json","formatversion":"2","maxlag":"5",
             "generator":"categorymembers","gcmtitle":"Category:"+category,
-            "gcmtype":"file","gcmlimit":"24",
+            "gcmtype":"file","gcmlimit":str(min(24,max_verifications-checked)),
             "prop":"imageinfo|revisions",
             "iiprop":"url|sha1|size|mime|extmetadata|metadata",
             "rvprop":"ids|timestamp|content","rvslots":"main",
-        })
+        }
+        cursor=continuations.get(category,"")
+        if cursor:
+            if not isinstance(cursor,str) or len(cursor)>2048 or any(ord(x) in (10,13) for x in cursor):
+                raise ValueError("Malformed persisted Commons continuation")
+            fields["gcmcontinue"]=cursor
+        args=urllib.parse.urlencode(fields)
         payload=read_json(credits.COMMONS_API+"?"+args,opener=opener,size=1200000)
         category_queries+=1
         if payload.get("error"):
@@ -216,6 +227,13 @@ def commons_category_candidates(categories=2, max_verifications=16, opener=OPENE
         pages=payload.get("query",{}).get("pages",[])
         if not isinstance(pages,list):
             raise ValueError("Invalid Commons API category result")
+        continuation=payload.get("continue",{}).get("gcmcontinue","")
+        if not isinstance(continuation,str) or len(continuation)>2048:
+            raise ValueError("Commons continuation exceeds bounded token policy")
+        # A category's cursor is made durable only after ALL originals in
+        # this requested generator page have been screened and saved.
+        if len(pages)>int(fields["gcmlimit"]):
+            raise ValueError("Commons returned an unbounded generator batch")
         for page in pages:
             if checked>=max_verifications:
                 break
@@ -235,12 +253,14 @@ def commons_category_candidates(categories=2, max_verifications=16, opener=OPENE
                 found.append(result)
             else:
                 held+=1
+        next_cursors[category]=continuation
         pause(.5)
     return {"candidates":found,"verified":checked,"searches":category_queries,
-            "held":held,"holdReasons":rejection_reasons}
+            "held":held,"holdReasons":rejection_reasons,"nextCursors":next_cursors}
 
 
-def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep, commons_categories=2):
+def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep,
+             commons_categories=2, commons_cursors=None):
     items=[]
     seen=set()
     started=time.monotonic()
@@ -294,8 +314,9 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep, c
             pause(.5)
     from_commons=commons_category_candidates(
         commons_categories,max(0,min(32-verified,max_verifications-verified)),
-        opener=opener,pause=pause) if commons_categories else {
-            "candidates":[],"verified":0,"searches":0,"held":0,"holdReasons":{}}
+        opener=opener,pause=pause,continuations=commons_cursors) if commons_categories else {
+            "candidates":[],"verified":0,"searches":0,"held":0,
+            "holdReasons":{},"nextCursors":{}}
     unique={item["id"]:item for item in items}
     for candidate in from_commons["candidates"]:
         unique.setdefault(candidate["id"],candidate)
@@ -309,28 +330,49 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep, c
             "indexedResults":indexed_results,
             "nonCommonsResults":rejected_non_commons,
             "commonsHoldReasons":from_commons["holdReasons"],
+            "commonsNextCursors":from_commons["nextCursors"],
             "heldAfterCommonsVerification":held_after_commons_check+from_commons["held"],
             "candidates":list(unique.values()),
             "processingMs":min(1800000,int((time.monotonic()-started)*1000))}
+
+def isolated_query(command, params, token, opener=OPENER):
+    """Explicitly target only the independent QA MUSIC_DB (never primary D1)."""
+    if os.environ.get("COVE_MUSIC_OPEN_DISCOVERY_ENABLED")!="1":
+        raise ValueError("Independent discovery store not enabled")
+    if os.environ.get("CLOUDFLARE_ACCOUNT_ID")!=ACCOUNT or not token:
+        raise ValueError("No approved isolated D1 writer identity")
+    endpoint=f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/d1/database/{MUSIC_DB}/query"
+    data=json.dumps({"sql":command,"params":[str(v) for v in params]}).encode()
+    req=urllib.request.Request(endpoint,data=data,method="POST",headers={
+        "Authorization":"Bearer "+token,"Content-Type":"application/json",
+        "User-Agent":AGENT})
+    with opener.open(req,timeout=30) as response:
+        if response.status!=200:
+            raise RuntimeError("Isolated music D1 request rejected")
+        result=json.loads(response.read(500000))
+    if not result.get("success") or not all(x.get("success") for x in result.get("result",[])):
+        raise RuntimeError("Isolated music D1 query failed")
+    return result["result"][0].get("results",[]) if result.get("result") else []
+
+
+def load_isolated_cursors(token, opener=OPENER):
+    rows=isolated_query(
+        "SELECT category,generator_cursor FROM music_open_discovery_cursors WHERE source='commons'",
+        [],token,opener)
+    return {x["category"]:x["generator_cursor"] for x in rows
+            if x.get("category") in COMMONS_CATEGORIES and
+            isinstance(x.get("generator_cursor"),str) and
+            len(x["generator_cursor"])<=2048}
+
 
 def record_isolated(summary, token, opener=OPENER):
     if os.environ.get("COVE_MUSIC_OPEN_DISCOVERY_ENABLED")!="1":
         raise ValueError("Independent discovery store not enabled")
     if os.environ.get("CLOUDFLARE_ACCOUNT_ID")!=ACCOUNT or not token:
         raise ValueError("No approved isolated D1 writer identity")
-    endpoint=f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/d1/database/{MUSIC_DB}/query"
     at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
     def sql(command,params):
-        data=json.dumps({"sql":command,"params":[str(v) for v in params]}).encode()
-        req=urllib.request.Request(endpoint,data=data,method="POST",headers={
-            "Authorization":"Bearer "+token,"Content-Type":"application/json",
-            "User-Agent":AGENT})
-        with opener.open(req,timeout=30) as response:
-            if response.status != 200:
-                raise RuntimeError("Isolated source discovery persistence rejected")
-            result=json.loads(response.read(500000))
-        if not result.get("success") or not all(x.get("success") for x in result.get("result",[])):
-            raise RuntimeError("Isolated source discovery persistence failed")
+        return isolated_query(command,params,token,opener)
     for candidate in summary["candidates"]:
         raw=json.dumps(candidate["evidence"],sort_keys=True,ensure_ascii=False,separators=(",",":"))
         sql("INSERT INTO music_open_source_candidates"
@@ -361,6 +403,17 @@ def record_isolated(summary, token, opener=OPENER):
                 " VALUES(?,?,?,?,?,?,?)",
                 [str(uuid.uuid4()),provider,searches,verified,
                  discovered,summary["processingMs"],at])
+    # Cursor advances only after every candidate write and run ledger row
+    # has succeeded. A failed campaign safely retries the same Commons
+    # generator page (source proposals are idempotent).
+    for category,continuation in summary.get("commonsNextCursors",{}).items():
+        if category not in COMMONS_CATEGORIES or not isinstance(continuation,str) or len(continuation)>2048:
+            raise ValueError("Unsafe Commons source continuation")
+        sql("INSERT INTO music_open_discovery_cursors(source,category,generator_cursor,updated_at,last_run_id)"
+            " VALUES('commons',?,?,?,?)"
+            " ON CONFLICT(category) DO UPDATE SET generator_cursor=excluded.generator_cursor,"
+            " updated_at=excluded.updated_at,last_run_id=excluded.last_run_id",
+            [category,continuation,at,str(uuid.uuid4())])
     return len(summary["candidates"])
 
 def main():
@@ -373,7 +426,10 @@ def main():
     args=p.parse_args()
     if not 1<=args.queries<=3 or not 0<=args.commons_categories<=3 or not 1<=args.max_verifications<=32:
         p.error("Rate-bounded one-page Openverse/Commons discovery required")
-    result=discover(args.queries,args.max_verifications,commons_categories=args.commons_categories)
+    cursors=(load_isolated_cursors(os.environ.get("CLOUDFLARE_API_TOKEN",""))
+             if args.apply_isolated else None)
+    result=discover(args.queries,args.max_verifications,
+                    commons_categories=args.commons_categories,commons_cursors=cursors)
     pathlib.Path(args.output).write_text(json.dumps(result,indent=2,ensure_ascii=False)+"\n")
     if args.apply_isolated:
         record_isolated(result,os.environ.get("CLOUDFLARE_API_TOKEN",""))
@@ -384,6 +440,7 @@ def main():
                       "checkedOriginalPages":result["verified"],
                       "commonsCategoryQueries":result["commonsCategoryQueries"],
                       "commonsOriginalsChecked":result["commonsVerified"],
+                      "commonsPagesAdvanced":len(result["commonsNextCursors"]),
                       "commonsHoldReasons":result["commonsHoldReasons"],
                       "heldAfterCommonsVerification":result["heldAfterCommonsVerification"],
                       "candidates":len(result["candidates"]),"storedIsolated":args.apply_isolated,

@@ -59,6 +59,20 @@ returns zero indexed results, the native Commons lane continues
 independently and its yields are recorded separately in the 24h
 report.
 
+The catalog expands through an eight-times-daily, three-hour bounded
+campaign. A durable, replay-safe `music_open_discovery_cursors` table in
+the **separate** music D1 stores MediaWiki's opaque `gcmcontinue` token
+for each supported category. The next run resumes there instead of
+repeating only its first page; the cursor advances only after all
+verified candidates and their daily run ledger have been stored.
+Source cases remain eligible for eventual recrawl after category
+exhaustion. An eight-title rotating handoff prevents a large candidate
+batch from permanently starving titles after its first eight, and the
+customer-catalog review endpoint still independently re-fetches Commons,
+checks conflicts, and never creates audio or authorizes playback.
+Existing scheduled soundtrack FFmpeg and profiling gates remain
+distinct from this isolated metadata source discovery.
+
 A dedicated `music_open_source_candidates` table and discovery-runs ledger
 in the separate music QA database store **discovery-only** records.
 Duplicate candidate ids are idempotent; contradictory future source hashes

@@ -37,6 +37,22 @@ def candidates(payload,maximum=8):
             break
     return titles
 
+def rotate_titles(titles, limit=8, slot=None):
+    """Rotate bounded source candidates between scheduled 3-hour campaigns.
+
+    Do not repeatedly seed only the lexically earliest eight recordings.
+    The authoritative review endpoint remains idempotent and fail-closed.
+    """
+    if not 1 <= limit <= 8 or len(titles)>32:
+        raise ValueError("Unbounded curated Commons titles")
+    if len(titles)<=limit:
+        return titles
+    import time
+    slot=int(time.time()//10800) if slot is None else int(slot)
+    start=(slot*limit)%len(titles)
+    return [titles[(start+index)%len(titles)] for index in range(limit)]
+
+
 def submit(titles,token,opener=None):
     if not titles:
         return dict(queued=0,skipped="no_candidates",customerPublished=False)
@@ -66,7 +82,7 @@ def main():
     if not 1<=args.max_seed<=8:
         parser.error("Only up to eight independently verified Commons files per handoff")
     source=json.loads(pathlib.Path(args.input).read_text())
-    titles=candidates(source,args.max_seed)
+    titles=rotate_titles(candidates(source,32),args.max_seed)
     if not args.apply:
         print(json.dumps({"dryRun":True,"candidates":len(titles),
                           "rightsApproved":False,"customerAudioCopied":False}))

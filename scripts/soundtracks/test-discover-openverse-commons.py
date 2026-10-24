@@ -106,7 +106,7 @@ class OpenverseIsolatedDiscovery(unittest.TestCase):
         self.assertEqual(report["candidates"][0]["evidence"]["discovery"],"commons")
         self.assertEqual(report["candidates"][0]["evidence"]["sourceSha1"],"a"*40)
         self.assertTrue(any("generator=categorymembers" in u for u in calls))
-        self.assertTrue(any("gcmlimit=24" in u for u in calls))
+        self.assertTrue(any("gcmlimit=2" in u for u in calls), "Generator page must not exceed remaining verification budget")
         self.assertFalse(any("upload.wikimedia.org" in u for u in calls),
                          "Discovery must never download source audio")
 
@@ -136,6 +136,72 @@ class OpenverseIsolatedDiscovery(unittest.TestCase):
         with patch.object(module,"read_json",return_value={"error":{"code":"maxlag"}}):
             with self.assertRaisesRegex(ValueError,"authoritative"):
                 module.commons_category_candidates(1,2,pause=lambda _:None)
+
+    def test_category_cursor_fences_generator_batches_and_rotates_by_campaign(self):
+        old_cursor="file|oldtoken|123"
+        new_cursor="file|nexttoken|987"
+        cat=module.COMMONS_CATEGORIES[0]
+        seen=[]
+        def remote(url,opener=None,size=500000):
+            seen.append(url)
+            return {"query":{"pages":[page()]},
+                    "continue":{"gcmcontinue":new_cursor}}
+        with patch.object(module.time,"time",return_value=0):
+            with patch.object(module,"read_json",side_effect=remote):
+                out=module.commons_category_candidates(
+                    categories=1,max_verifications=3,
+                    continuations={cat:old_cursor},pause=lambda _:None)
+        self.assertEqual(out["verified"],1)
+        self.assertEqual(out["nextCursors"][cat],new_cursor)
+        parsed=module.urllib.parse.parse_qs(module.urllib.parse.urlsplit(seen[0]).query)
+        self.assertEqual(parsed["gcmcontinue"],[old_cursor])
+        self.assertEqual(parsed["gcmlimit"],["3"])
+        with patch.object(module.time,"time",return_value=0):
+            with self.assertRaisesRegex(ValueError,"Malformed"):
+                module.commons_category_candidates(1,2,continuations={cat:"bad"+chr(10)+"name"},
+                                                  pause=lambda _:None)
+
+    def test_isolated_cursor_is_committed_after_idempotent_candidate_writes(self):
+        category=module.COMMONS_CATEGORIES[0]
+        seen=[]
+        class Reply:
+            status=200
+            def __init__(self,data):self.data=data
+            def __enter__(self):return self
+            def __exit__(self,*_):return False
+            def read(self,maximum):return module.json.dumps(self.data).encode()
+        class Client:
+            def open(self,req,timeout=30):
+                seen.append(req)
+                body=module.json.loads(req.data)
+                if body["sql"].startswith("SELECT"):
+                    rows=[dict(category=category,generator_cursor="file|oldtoken|123")]
+                else:
+                    rows=[]
+                return Reply(dict(success=True,result=[dict(success=True,results=rows)]))
+        client=Client()
+        sample=module.exact_candidate(result(),page(),"commons",category)
+        report={
+            "policy":"cove-openverse-commons-discovery-v1",
+            "candidates":[sample],
+            "searches":2,"verified":1,"openverseSearches":1,
+            "openverseVerified":0,"commonsCategoryQueries":1,
+            "commonsVerified":1,"processingMs":180,
+            "commonsNextCursors":{category:"file|nexttoken|987"},
+        }
+        with patch.dict(module.os.environ,{"COVE_MUSIC_OPEN_DISCOVERY_ENABLED":"1",
+                                            "CLOUDFLARE_ACCOUNT_ID":module.ACCOUNT},clear=True):
+            self.assertEqual(module.load_isolated_cursors("fake-secret",client),
+                             {category:"file|oldtoken|123"})
+            self.assertEqual(module.record_isolated(report,"fake-secret",client),1)
+        commands=[module.json.loads(request.data)["sql"] for request in seen]
+        self.assertEqual(len(commands),5)
+        self.assertIn("music_open_source_candidates",commands[1])
+        self.assertIn("music_open_discovery_runs",commands[2])
+        self.assertIn("music_open_discovery_runs",commands[3])
+        self.assertIn("music_open_discovery_cursors",commands[4])
+        self.assertTrue(all("/d1/database/"+module.MUSIC_DB+"/query" in request.full_url
+                            for request in seen))
 
     def test_disabled_writes_fail_closed(self):
         with patch.dict(module.os.environ,{},clear=True):
