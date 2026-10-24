@@ -63,8 +63,8 @@ try {
     readFileSync("infra/content-budget/0001_ledger.sql", "utf8") +
       readFileSync("infra/content-budget/0002_preparation_queue.sql", "utf8") +
       readFileSync("infra/content-budget/0005_literary_output_settlement_receipts.sql", "utf8") +
-      readFileSync("infra/content-budget/0006_isolated_inference.sql", "utf8"),
-    readFileSync("infra/content-budget/0007_inference_seed_frontier.sql", "utf8"),
+      readFileSync("infra/content-budget/0006_isolated_inference.sql", "utf8") +
+      readFileSync("infra/content-budget/0007_inference_seed_frontier.sql", "utf8"),
   );
   await build({
     entryPoints: ["src/lib/literary-isolated-inference.server.ts"],
