@@ -11,13 +11,17 @@ import { LITERARY_GENERATION_LIMITS } from "../features/fore/literary-profiles.s
 import { literarySourceRightsPredicate } from "./literary-prepare-outbox.server";
 import { requireIsolatedDomain, type PreparationEnv } from "./literary-preparation-domain.server";
 import { reserveLiteraryBudget, resolveLiteraryBudgetDb } from "./literary-budget-domain.server";
-import { settleLiteraryOutputReservation } from "./literary-budget-settlement";
+import {
+  recordLiteraryAiInvocation,
+  settleIsolatedLiteraryJob,
+} from "./literary-job-settlement.server";
 
 type D1 = CoveEnv["DB"];
 export type IsolatedInferenceEnv = PreparationEnv & {
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   FORE_CONTENT_BUDGET_MODE?: string;
   FORE_LITERARY_ACTUAL_UNIT_SETTLEMENT?: string;
+  FORE_LITERARY_AI_USAGE_TELEMETRY_ENABLED?: string;
   FORE_LITERARY_INFERENCE_PUBLISH_ENABLED?: string;
 };
 type Prepared = {
@@ -314,6 +318,13 @@ export async function runIsolatedLiteraryInferenceTick(env: IsolatedInferenceEnv
         temperature: 0,
         response_format: { type: "json_schema", json_schema: literaryJsonSchema(sources) },
       });
+      if (env.FORE_LITERARY_AI_USAGE_TELEMETRY_ENABLED === "1") {
+        try {
+          await recordLiteraryAiInvocation(budgetDb, job.id, PROFILE_MODEL, raw);
+        } catch (err) {
+          console.warn("literary_ai_usage_unavailable", String(err).slice(0, 120));
+        }
+      }
       const answer = raw && typeof raw === "object" && "response" in raw ? raw.response : null;
       const profile = validateLiteraryProfile(
         typeof answer === "string" ? JSON.parse(answer) : answer,
@@ -353,21 +364,28 @@ export async function runIsolatedLiteraryInferenceTick(env: IsolatedInferenceEnv
         outputHash = String(winner.customMetadata?.sha256 || "");
         output = (await verifiedJson(env.BUCKET!, key, outputHash)) as unknown as InferenceResult;
       }
-      if (env.FORE_LITERARY_ACTUAL_UNIT_SETTLEMENT === "1") {
+      // Only the worker whose conditional R2 PUT succeeded is eligible for
+      // its own output-credit settlement. A losing racer must not credit based
+      // on bytes different from the immutable winning artifact.
+      if (stored !== null && env.FORE_LITERARY_ACTUAL_UNIT_SETTLEMENT === "1") {
         try {
-          await settleLiteraryOutputReservation(
-            budgetDb,
+          await settleIsolatedLiteraryJob(budgetDb, {
             day,
-            prompt.system.length + prompt.user.length,
-            Math.max(
+            jobId: job.id,
+            resultKey: key,
+            resultSha256: outputHash,
+            leaseToken: token,
+            promptCharacters: prompt.system.length + prompt.user.length,
+            outputCharacters: Math.max(
               JSON.stringify(profile).length,
               typeof answer === "string" ? answer.length : JSON.stringify(answer).length,
             ),
-            LITERARY_GENERATION_LIMITS.reservedOutputCharacters,
-            "literary/inference/" + PROFILE_POLICY + "/" + job.id + ".json",
-          );
-        } catch {
-          /* conservative reserved debit on settlement error */
+            reservedOutputCharacters: LITERARY_GENERATION_LIMITS.reservedOutputCharacters,
+          });
+        } catch (err) {
+          // A failed/missing migration or unfunded settlement conservatively
+          // leaves the original reservation fully charged.
+          console.warn("literary_job_settlement_unavailable", String(err).slice(0, 120));
         }
       }
     }
