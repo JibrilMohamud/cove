@@ -21,8 +21,31 @@ type Job = {
   quality_key: string | null;
   manifest_json: string;
 };
-const sha = /^[0-9a-f]{64}$/;
-const masterId = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{2,119}$/;
+async function readBodyLimited(request: Request, maximum: number): Promise<unknown> {
+  if (Number(request.headers.get("content-length") || 0) > maximum)
+    throw new Error("music_analysis_payload_oversize");
+  const reader = request.body?.getReader();
+  if (!reader) throw new Error("music_analysis_missing_body");
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const item = await reader.read();
+    if (item.done) break;
+    size += item.value.byteLength;
+    if (size > maximum) {
+      await reader.cancel();
+      throw new Error("music_analysis_payload_oversize");
+    }
+    parts.push(item.value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const part of parts) {
+    bytes.set(part, offset);
+    offset += part.byteLength;
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
 const timestamp = () => new Date().toISOString();
 const reply = (value: unknown, status = 200) =>
   Response.json(value, { status, headers: { "cache-control": "no-store" } });
@@ -151,9 +174,7 @@ export async function handleMusicAnalysis(
     url.pathname,
   );
   if (complete && request.method === "POST") {
-    const bytes = await request.arrayBuffer();
-    if (bytes.byteLength > 350_000) return reply({ error: "music_analysis_report_oversize" }, 413);
-    const payload = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
+    const payload = (await readBodyLimited(request, 350_000)) as Record<string, unknown>;
     const lease = payload.leaseToken;
     if (typeof lease !== "string" || !/^[a-f0-9-]{36}$/.test(lease))
       return reply({ error: "music_analysis_lease_required" }, 401);
@@ -246,9 +267,7 @@ export async function handleMusicAnalysis(
   }
   const failed = /^\/v1\/analysis\/jobs\/([a-zA-Z0-9._:-]{3,120})\/fail$/.exec(url.pathname);
   if (failed && request.method === "POST") {
-    const bytes = await request.arrayBuffer();
-    if (bytes.byteLength > 1000) return reply({ error: "music_analysis_payload_oversize" }, 413);
-    const value = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
+    const value = (await readBodyLimited(request, 1000)) as Record<string, unknown>;
     if (typeof value.leaseToken !== "string" || !/^[a-f0-9-]{36}$/.test(value.leaseToken))
       return reply({ error: "music_analysis_lease_required" }, 401);
     const row = await eligibleJob(db, failed[1], value.leaseToken);
