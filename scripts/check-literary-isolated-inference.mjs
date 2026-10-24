@@ -47,6 +47,7 @@ function db(sqlite) {
 const blobs = new Map();
 let tamper = false,
   aiCalls = 0,
+  simulateCollision = true,
   primaryWrites = 0;
 const originalPrimaryPrepare = primary.prepare.bind(primary);
 try {
@@ -152,7 +153,22 @@ try {
     async put(key, body, options) {
       assert.match(key, /^literary\/isolated-inference-v1\/[0-9a-f]{64}\.json$/);
       assert.equal(options.customMetadata.sha256, sha(body));
+      assert.deepEqual(options.onlyIf, { etagDoesNotMatch: "*" });
+      if (simulateCollision) {
+        // Another lease owner commits a different, still valid JSON encoding
+        // between HEAD and PUT. The late writer must adopt this exact SHA.
+        simulateCollision = false;
+        const competing = JSON.stringify(JSON.parse(body), null, 2);
+        assert.notEqual(sha(competing), sha(body));
+        r2put(key, competing, {
+          ...options,
+          customMetadata: { sha256: sha(competing) },
+        });
+        return null;
+      }
+      if (blobs.has(key)) return null;
       r2put(key, body, options);
+      return { key };
     },
   };
   primary
@@ -259,6 +275,24 @@ try {
   const got = await runIsolatedLiteraryInferenceTick(env);
   assert.equal(got.inferred, seeded.enqueued);
   assert.equal(aiCalls, 1);
+  assert.equal(simulateCollision, false, "An R2 create-if-absent collision must be exercised");
+  const inferenceReceipt = content
+    .prepare("SELECT result_key,result_sha256 FROM literary_inference_jobs WHERE id=?")
+    .get(seeded.enqueued);
+  const acceptedBytes = blobs.get(inferenceReceipt.result_key).data;
+  assert.equal(inferenceReceipt.result_sha256, sha(acceptedBytes));
+  assert.equal(
+    inferenceReceipt.result_sha256,
+    blobs.get(inferenceReceipt.result_key).metadata.sha256,
+    "The secondary receipt must refer to the winner, not the losing inference result",
+  );
+  const lateWrite = await BUCKET.put(inferenceReceipt.result_key, "late overwritten data", {
+    onlyIf: { etagDoesNotMatch: "*" },
+    httpMetadata: { contentType: "application/json" },
+    customMetadata: { sha256: sha("late overwritten data") },
+  });
+  assert.equal(lateWrite, null, "A late lease owner must not replace the committed R2 bytes");
+  assert.equal(sha(blobs.get(inferenceReceipt.result_key).data), inferenceReceipt.result_sha256);
   assert.equal(primary.prepare("SELECT total_changes() n").get().n, before);
   const quota = content.prepare("SELECT calls,reserved_units FROM literary_profile_budget").get();
   assert.equal(quota.calls, 1);
@@ -320,7 +354,7 @@ try {
   await assert.rejects(seedOneIsolatedLiteraryInference(env), /binding_not_isolated/);
   await assert.rejects(publishIsolatedLiteraryInference(env, seeded.enqueued), /not_isolated/);
   console.log(
-    "LITERARY_ISOLATED_INFERENCE_PASS two physical SQLite domains, primary zero inference writes, independent quota, real AI-shaped response, source+rights final gating, tampered R2, exact-once canonical revision and binding containment",
+    "LITERARY_ISOLATED_INFERENCE_PASS dual SQLite domains, write-once R2 collision/lost-lease recovery, primary zero inference writes, independent quota, live source+rights final gating, tampered R2, exact-once canonical revision and binding containment",
   );
 } finally {
   primary.close();
