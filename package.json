@@ -141,7 +141,7 @@
     "tw-animate-css": "^1.3.4",
     "vaul": "^1.1.2",
     "vite-tsconfig-paths": "^6.0.2",
-    "zod": "^3.24.2",
+    "zod": "^4.6.7",
     "@xmldom/xmldom": "0.8.15"
   },
   "devDependencies": {
@@ -168,6 +168,7 @@
     "vite": "^8.0.16"
   },
   "overrides": {
-    "@xmldom/xmldom": "0.8.15"
+    "@xmldom/xmldom": "0.8.15",
+    "zod": "^4.6.7"
   }
 }
