@@ -36,7 +36,12 @@ assert.ok(community.includes("navigator.canShare?.({ files: [file] })"));
 assert.ok(community.includes('cover.startsWith("/api/fore/assets/")'));
 assert.ok(community.includes('visibility === "public"'));
 assert.ok(community.includes("ctx.drawImage(coverImg, 90"));
-assert.ok(book.includes('title="Reader discussion & comments"'));
+assert.ok(book.includes("BookDiscussionDeferred"));
+const deferred = readFileSync("src/features/fore/BookDiscussionDeferred.tsx", "utf8");
+assert.ok(deferred.includes("IntersectionObserver"));
+assert.ok(deferred.includes("rootMargin"));
+assert.ok(deferred.includes('import("./Community")'));
+assert.ok(deferred.includes('title="Reader discussion & comments"'));
 assert.ok(css.includes(".cove-thread-children"));
 assert.ok(css.includes(".cove-book-thread-focus"));
 console.log(
