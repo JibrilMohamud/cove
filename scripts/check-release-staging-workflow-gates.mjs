@@ -18,9 +18,9 @@ const requirements = [
 ];
 for (const { file, names, protections } of requirements) {
   const data = readFileSync(file, "utf8");
-  assert.match(data, /push:\\n    branches: \\[main\\]/, file + " needs reviewed-main trigger");
+  assert.match(data, /push:\n    branches: \[main\]/, file + " needs reviewed-main trigger");
   assert.match(data, /workflow_dispatch:/, file + " needs explicit rerun option");
-  assert.match(data, /github.ref == 'refs\\/heads\\/main'/, file + " must be main-only");
+  assert.match(data, /github.ref == 'refs\/heads\/main'/, file + " must be main-only");
   assert.ok(
     !data.includes("github.event.pull_request.head.ref =="),
     file + " must not grant external PR code access to protected credentials",
@@ -31,7 +31,7 @@ for (const { file, names, protections } of requirements) {
     assert.ok(data.includes(guard), file + " missing isolation guard " + guard);
 }
 const runbook = readFileSync("docs/LITERARY_LEGACY_DRAIN_CUTOVER.md", "utf8");
-assert.match(runbook, /INSERT INTO cove_runtime_config\\(key,value,updated_at\\)/);
-assert.match(runbook, /SET value='isolated',updated_at=datetime\\('now'\\)/);
+assert.match(runbook, /INSERT INTO cove_runtime_config\(key,value,updated_at\)/);
+assert.match(runbook, /SET value='isolated',updated_at=datetime\('now'\)/);
 assert.ok(runbook.includes("zero legacy literary jobs"));
 console.log("RELEASE_STAGE_GATES_PASS: main-only staging, concurrency, required rights/QA and owner timestamp checks");
