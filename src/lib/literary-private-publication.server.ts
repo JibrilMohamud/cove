@@ -62,8 +62,7 @@ export async function publishOnePrivateLiteraryInference(env: PrivateLiteraryPub
     token === backendToken
   )
     return { skipped: "private_publisher_not_bound" };
-  if (!env.CONTENT_DB || env.CONTENT_DB === env.DB)
-    throw Error("publication_binding_not_isolated");
+  if (!env.CONTENT_DB || env.CONTENT_DB === env.DB) throw Error("publication_binding_not_isolated");
   if ((await currentOwner(env.DB)) !== "isolated")
     return { skipped: "canonical_owner_not_isolated" };
   const identity = await env.CONTENT_DB.prepare(
@@ -103,19 +102,19 @@ export async function publishOnePrivateLiteraryInference(env: PrivateLiteraryPub
 
   async function settle(state: "published" | "held", reason: string) {
     const stamp = nowIso();
-    const row = await env.CONTENT_DB!.prepare(
+    const isolated = env.CONTENT_DB!;
+    const row = await isolated
+      .prepare(
       "UPDATE literary_inference_jobs SET publication_state=?," +
         "publication_lease_token='',publication_lease_until=''," +
         "publication_last_error=?,published_at=?" +
         " WHERE id=? AND publication_state='running' AND publication_lease_token=?" +
         " AND publication_lease_until>? RETURNING id",
-    )
+      )
       .bind(state, reason, state === "published" ? stamp : "", job!.id, claim, stamp)
       .first<{ id: string }>();
     if (!row) throw Error("private_publication_lease_lost");
-    return state === "published"
-      ? { published: job!.id }
-      : { held: job!.id, reason };
+    return state === "published" ? { published: job!.id } : { held: job!.id, reason };
   }
   try {
     const response = await pub.fetch(
