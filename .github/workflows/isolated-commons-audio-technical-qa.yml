@@ -5,6 +5,7 @@ on:
     paths:
       - "scripts/soundtracks/qualify-isolated-commons.py"
       - "scripts/soundtracks/test-qualify-isolated-commons.py"
+      - "scripts/soundtracks/test-isolated-commons-real-audio.py"
       - "infra/music/0006_open_technical_qa.sql"
       - ".github/workflows/isolated-commons-audio-technical-qa.yml"
   workflow_dispatch:
@@ -31,6 +32,8 @@ jobs:
           python-version: "3.12"
       - run: python -m py_compile scripts/soundtracks/qualify-isolated-commons.py
       - run: python scripts/soundtracks/test-qualify-isolated-commons.py -q
+      - run: python -m pip install --disable-pip-version-check numpy==2.2.6 scipy==1.15.3
+      - run: python scripts/soundtracks/test-isolated-commons-real-audio.py
 
   detached-private-qualification:
     needs: no-network-safety-tests
