@@ -33,10 +33,19 @@ review, supplier contract, automatic quietness approval, or a customer publisher
 ## Activation (off by default)
 
 CI tests the SQL and boundaries on pull requests with no network credentials.
-Scheduled execution requires a protected-main repository variable
+The protected-main schedule now runs four times per day (01:55,
+07:55, 13:55 and 19:55 UTC), processing at most **two** unprocessed
+Commons originals per run (at most eight attempted originals per
+day). Processing is serial, bounded to 840 seconds and a 20-minute
+GitHub Actions job, with one global workflow concurrency group.
+Success writes only immutable private technical evidence in MUSIC_DB/R2,
+then queues unapproved rights and quietness cases. Technical QA does not
+claim that a recording has been licensed, qualifies as quiet, or is playable.
+Manual workflow dispatch still requires the repository variable
 `COVE_MUSIC_OPEN_QA_ENABLED=1`. A one-time, explicitly tagged merge commit
 `[one-source-qa]` also authorizes **exactly one** no-publication technical
-cohort on that single `main` push. Both paths use the protected
+original on that single `main` push. Scheduled runs are limited to two
+and a merge-tagged run is limited to one. Every path uses the protected
 `CLOUDFLARE_API_TOKEN` already installed for detached MUSIC_DB and Cloudflare
 R2. `COVE_MUSIC_R2_BACKEND=cloudflare_api` transfers original bytes through
 Cloudflare's account-authenticated private object API and enforces exact,
@@ -59,3 +68,27 @@ quiet scoring against blinded human reviews; then use the existing separately
 fenced canonical signed publication handoff, including source drift,
 revocation, retry and refund/entitlement denial checks. Do not conflate
 `music_open_technical_qa.status='measured'` with licensed or playable.
+
+## Hands-off progress and exceptional reviews
+
+Each qualified original is listed as `music_open_technical_qa.status='measured'`,
+which is **technical-only**. The scheduled runner also executes
+`queue-open-review-cases.py` with a separate `COVE_MUSIC_REVIEW_APPLY=1`
+control to produce independently audit-friendly, immutable review evidence
+cases, one for rights and one for quiet reading. Both remain `needs_review`
+without authorizing public access. This is an exception/audit ledger, **not**
+a requirement that the owner personally approve every ordinary open-licensed
+Commons candidate. The existing source-reliance curator may still accept
+fully qualifying original recordings under its own file-specific, legally
+bounded policy and source checks.
+
+The daily isolated-music report now distinguishes the still-unprocessed
+Commons candidates, complete private original QA results, durable technical
+holds, rights cases and quietness cases. Actual measured provider costs cannot
+be inferred from GitHub Actions wall time alone: do not display them as zero.
+
+A pre-existing technical receipt is excluded from subsequent scheduled
+cohorts; permanent exact-source mismatch/decoder failures are held in the
+independent database and are never automatically retried or published.
+Transient source/network failures may retry and require operator observability
+before increasing throughput beyond the two-original cap.
