@@ -55,6 +55,9 @@ for (const [file, role] of [
   if (role === "literary-infer") {
     assert.equal(cfg.vars.FORE_CONTENT_INFERENCE_ENABLED, "0");
     assert.equal(cfg.ai.binding, "AI");
+    assert.deepEqual(cfg.services, [
+      { binding: "LITERARY_PUBLISHER", service: "cove-literary-publisher-isolated-disabled" },
+    ]);
   }
 }
 console.log(

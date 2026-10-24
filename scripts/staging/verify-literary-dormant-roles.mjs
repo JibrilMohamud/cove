@@ -58,7 +58,14 @@ for (const role of roles) {
       !(settings.routes || []).length &&
       !worker.subdomain?.enabled &&
       !worker.subdomain?.previews_enabled &&
-      (role.role !== "literary-infer" || b.some((x) => x.type === "ai" && x.name === "AI"));
+      (role.role !== "literary-infer" ||
+        (b.some((x) => x.type === "ai" && x.name === "AI") &&
+          b.some(
+            (x) =>
+              x.type === "service" &&
+              x.name === "LITERARY_PUBLISHER" &&
+              x.service === "cove-literary-publisher-isolated-disabled",
+          )));
     if (verified) break;
     await new Promise((resolve) => setTimeout(resolve, 1600));
   }
