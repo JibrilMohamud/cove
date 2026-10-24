@@ -25,9 +25,11 @@ function wrap() {
               text === "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'"
             ) {
               flipAfterPreflight = false;
-              sqlite.prepare(
-                "UPDATE cove_runtime_config SET value='draining' WHERE key='literary_processing_owner'",
-              ).run();
+              sqlite
+                .prepare(
+                  "UPDATE cove_runtime_config SET value='draining' WHERE key='literary_processing_owner'",
+                )
+                .run();
             }
             return row;
           },
@@ -70,23 +72,34 @@ try {
     format: "esm",
     logLevel: "silent",
   });
-  const { processLiteraryJob, seedLiteraryProfiles, runLiteraryProfileTick, readLiteraryProcessingOwner } =
-    await import(pathToFileURL(path.join(dir, "literary.mjs")).href);
+  const {
+    processLiteraryJob,
+    seedLiteraryProfiles,
+    runLiteraryProfileTick,
+    readLiteraryProcessingOwner,
+  } = await import(pathToFileURL(path.join(dir, "literary.mjs")).href);
   const env = { DB: wrap() };
-  const row = () => sqlite.prepare("SELECT status,attempts FROM literary_profile_jobs WHERE id='job'").get();
+  const row = () =>
+    sqlite.prepare("SELECT status,attempts FROM literary_profile_jobs WHERE id='job'").get();
   const changes = () => sqlite.prepare("SELECT total_changes() n").get().n;
   assert.equal(await readLiteraryProcessingOwner(env), "legacy", "Absent key keeps legacy active");
   assert.deepEqual(await processLiteraryJob(env, false, "prepare"), { skipped: "no_jobs" });
-  sqlite.prepare("INSERT INTO cove_runtime_config VALUES('literary_processing_owner','draining')").run();
+  sqlite
+    .prepare("INSERT INTO cove_runtime_config VALUES('literary_processing_owner','draining')")
+    .run();
   const before = changes();
   assert.deepEqual(await runLiteraryProfileTick(env), { skipped: "legacy_owner_fenced" });
   assert.deepEqual(await seedLiteraryProfiles(env), { seeded: 0, skipped: "legacy_owner_fenced" });
-  assert.deepEqual(await processLiteraryJob(env, false, "prepare"), { skipped: "legacy_owner_fenced" });
+  assert.deepEqual(await processLiteraryJob(env, false, "prepare"), {
+    skipped: "legacy_owner_fenced",
+  });
   assert.equal(changes(), before, "Draining must have zero scheduled legacy writes");
   assert.equal(row().status, "queued");
   assert.equal(row().attempts, 0);
   sqlite.prepare("UPDATE cove_runtime_config SET value='typo'").run();
-  assert.deepEqual(await processLiteraryJob(env, false, "prepare"), { skipped: "legacy_owner_fenced" });
+  assert.deepEqual(await processLiteraryJob(env, false, "prepare"), {
+    skipped: "legacy_owner_fenced",
+  });
   assert.deepEqual(await runLiteraryProfileTick(env), { skipped: "legacy_owner_fenced" });
   // Race: a worker reads legacy, then the operator fences D1 before its
   // claim statement executes. The atomic predicate must prevent a claim.
@@ -100,10 +113,14 @@ try {
   assert.equal(row().attempts, 0);
   sqlite.prepare("UPDATE cove_runtime_config SET value='isolated'").run();
   assert.deepEqual(await runLiteraryProfileTick(env), { skipped: "legacy_owner_fenced" });
-  assert.deepEqual(await processLiteraryJob(env, false, "prepare"), { skipped: "legacy_owner_fenced" });
+  assert.deepEqual(await processLiteraryJob(env, false, "prepare"), {
+    skipped: "legacy_owner_fenced",
+  });
   assert.equal(row().status, "queued");
   assert.equal(row().attempts, 0);
-  console.log("LITERARY_OWNER_CUTOVER_PASS legacy default, draining/isolated/unknown fence, atomic claim race, no new primary writes");
+  console.log(
+    "LITERARY_OWNER_CUTOVER_PASS legacy default, draining/isolated/unknown fence, atomic claim race, no new primary writes",
+  );
 } finally {
   sqlite.close();
   rmSync(dir, { recursive: true, force: true });
