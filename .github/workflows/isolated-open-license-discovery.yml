@@ -7,6 +7,8 @@ on:
       - "scripts/soundtracks/discover-openverse-commons.py"
       - "scripts/soundtracks/test-discover-openverse-commons.py"
       - "scripts/soundtracks/report-isolated-supply.py"
+      - "scripts/soundtracks/seed-commons-from-openverse.py"
+      - "scripts/soundtracks/test-seed-commons-from-openverse.py"
       - "scripts/soundtracks/test-report-isolated-supply.py"
       - "scripts/soundtracks/test-commons-structured-credits.py"
       - "infra/music/0004_open_catalog_candidates.sql"
@@ -43,6 +45,7 @@ jobs:
       - run: python scripts/soundtracks/test-commons-structured-credits.py -q
       - run: python scripts/soundtracks/test-discover-openverse-commons.py -q
       - run: python scripts/soundtracks/test-report-isolated-supply.py -q
+      - run: python scripts/soundtracks/test-seed-commons-from-openverse.py -q
       - run: python scripts/soundtracks/report-isolated-supply.py --dry-run
 
   read-only-candidate-discovery:
@@ -54,6 +57,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
       COVE_MUSIC_OPEN_DISCOVERY_ENABLED: "1"
+      COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ secrets.COVE_SOUNDTRACK_REVIEW_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
@@ -70,6 +74,18 @@ jobs:
             echo "::warning::Detached D1 writer unavailable; source proposals remain artifact-only"
           fi
           python scripts/soundtracks/discover-openverse-commons.py "${args[@]}"
+      - name: Submit at most 8 verified source titles to existing customer-catalog discovery queue
+        if: github.event_name != 'push'
+        shell: bash
+        env:
+          COVE_MUSIC_COMMONS_SEED_ENABLED: "1"
+        run: |
+          set -euo pipefail
+          if [[ "${COVE_SOUNDTRACK_REVIEW_TOKEN:-}" == fore_svc_* ]]; then
+            python scripts/soundtracks/seed-commons-from-openverse.py --apply --max-seed 8
+          else
+            echo "::warning::Scoped curator unavailable; discovery evidence preserved, customer release unchanged"
+          fi
       - name: Archive non-publishable source evidence
         if: always()
         uses: actions/upload-artifact@v4
