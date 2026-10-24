@@ -582,6 +582,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
       // Opt-in externalization only after both dedicated Workers have been
       // deployed and verified. Defaults to today's inline scheduling.
       const external = env.FORE_CONTENT_PIPELINE_EXTERNAL === "1";
+      const allowLegacyLiterary = env.FORE_LEGACY_LITERARY_CRON_ENABLED !== "0";
       // All code paths read the same primary-D1 owner as external Workers.
       // During a drain neither side may start fresh work. The environment
       // switch alone is deliberately insufficient to claim ownership.
@@ -592,9 +593,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
       const work = [
         ...(!external && assetOwner === "legacy" ? [() => runStoredAssetTick(env)] : []),
         () => verifyAudioStorage(env),
-        ...(!external &&
-        env.FORE_LEGACY_LITERARY_CRON_ENABLED !== "0" &&
-        literaryOwner === "legacy"
+        ...(!external && allowLegacyLiterary && literaryOwner === "legacy"
           ? [() => runLiteraryProfileTick(env)]
           : []),
         () => seedMusicProfiles(env),
