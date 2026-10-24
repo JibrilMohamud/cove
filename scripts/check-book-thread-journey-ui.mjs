@@ -59,9 +59,7 @@ assert.ok(work.includes("<BookDiscussionDeferred workId={work.id} />"));
 assert.ok(!work.includes("<DiscussionThread"));
 assert.ok(social.includes("WITH RECURSIVE ancestry"));
 assert.ok(social.includes("readable.length !== chain.length"));
-assert.ok(
-  social.includes('chain.some((p) => p.deleted_at || p.moderation_status !== "visible")'),
-);
+assert.ok(social.includes('chain.some((p) => p.deleted_at || p.moderation_status !== "visible")'));
 assert.ok(social.includes("const audience = new Map<string, boolean>()"));
 const deferred = readFileSync("src/features/fore/BookDiscussionDeferred.tsx", "utf8");
 assert.ok(deferred.includes("IntersectionObserver"));
