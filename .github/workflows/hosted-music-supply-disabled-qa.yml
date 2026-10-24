@@ -2,22 +2,50 @@ name: hosted-music-supply-disabled-qa
 on:
   pull_request:
     paths:
+      - "src/music-supply/**"
+      - "infra/music/**"
+      - "wrangler.music-supply.qa.jsonc"
+      - "scripts/build-isolated-music-supply.mjs"
+      - "scripts/staging/deploy-music-supply-qa-shadow.mjs"
+      - ".github/workflows/hosted-music-supply-disabled-qa.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/music-supply/**"
+      - "infra/music/**"
+      - "wrangler.music-supply.qa.jsonc"
+      - "scripts/build-isolated-music-supply.mjs"
       - "scripts/staging/deploy-music-supply-qa-shadow.mjs"
       - ".github/workflows/hosted-music-supply-disabled-qa.yml"
   workflow_dispatch:
+
 permissions:
   contents: read
+
 concurrency:
   group: cove-hosted-music-supply-disabled-qa
   cancel-in-progress: false
+
 jobs:
+  offline-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - run: node --check scripts/staging/deploy-music-supply-qa-shadow.mjs
+      - run: node scripts/build-isolated-music-supply.mjs
+
   verify-nonpublic-shadow:
+    needs: offline-preflight
+    # No PR, fork, or branch code ever receives the Cloudflare account token.
+    # Only reviewed and merged main can deploy the disabled QA shadow.
     if: >-
-      (github.event_name == 'pull_request' &&
-       github.event.pull_request.head.repo.full_name == github.repository &&
-       github.event.pull_request.head.ref == 'feat/isolated-licensed-music-supply-20261023') ||
-      (github.event_name == 'workflow_dispatch' &&
-       github.ref == 'refs/heads/feat/isolated-licensed-music-supply-20261023')
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
