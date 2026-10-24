@@ -77,6 +77,32 @@ export function contentAssetAttemptCap(value: unknown): number {
     ? Math.max(0, Math.min(CONTENT_MAX_ASSET_ATTEMPTS_PER_TICK, parsed))
     : 0;
 }
+/** A hard upper bound on primary-D1 authority checks per minute. This is not
+ * a whole-backlog scan. Increase only after measured storefront tail evidence. */
+export const LITERARY_HANDOFF_RECONCILE_CAP = 8;
+export const LITERARY_HANDOFF_DISPATCH_CAP = 8;
+
+export async function runBoundedLiteraryHandoffTick(
+  env: ContentProcessorEnv,
+  reconcile: typeof reconcileOneLegacyLiteraryJob = reconcileOneLegacyLiteraryJob,
+  dispatch: typeof dispatchOneLiteraryPreparationHandoff = dispatchOneLiteraryPreparationHandoff,
+) {
+  const reconciliation: Awaited<ReturnType<typeof reconcileOneLegacyLiteraryJob>>[] = [];
+  if (env.FORE_LITERARY_DRAIN_RECONCILE_ENABLED === "1") {
+    for (let i = 0; i < LITERARY_HANDOFF_RECONCILE_CAP; i++) {
+      const result = await reconcile(env);
+      reconciliation.push(result);
+      if ("skipped" in result || "complete" in result) break;
+    }
+  }
+  const handoffs: Awaited<ReturnType<typeof dispatchOneLiteraryPreparationHandoff>>[] = [];
+  for (let i = 0; i < LITERARY_HANDOFF_DISPATCH_CAP; i++) {
+    const result = await dispatch(env);
+    handoffs.push(result);
+    if ("skipped" in result) break;
+  }
+  return { reconciliation, handoffs };
+}
 const defaultRunners: ProcessorRunners = {
   assets: (env) =>
     runStoredAssetTick({
@@ -85,13 +111,7 @@ const defaultRunners: ProcessorRunners = {
     }),
   literary: (env) => runLiteraryProfileTick(env, CONTENT_LITERARY_TICK_CAPS),
   "literary-prepare": (env) => runIsolatedLiteraryPreparationTick(env),
-  "literary-handoff": async (env) =>
-    env.FORE_LITERARY_DRAIN_RECONCILE_ENABLED === "1"
-      ? {
-          reconciliation: await reconcileOneLegacyLiteraryJob(env),
-          handoff: await dispatchOneLiteraryPreparationHandoff(env),
-        }
-      : dispatchOneLiteraryPreparationHandoff(env),
+  "literary-handoff": (env) => runBoundedLiteraryHandoffTick(env),
   "literary-infer": async (env) => ({
     seeded: await seedOneIsolatedLiteraryInference(env),
     inference: await runIsolatedLiteraryInferenceTick(env),
