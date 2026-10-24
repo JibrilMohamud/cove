@@ -78,8 +78,14 @@ try {
             },
           };
         }
-        if (sql === "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'") {
-          return { async first() { return literaryOwner ? { value: literaryOwner } : null; } };
+        if (
+          sql === "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'"
+        ) {
+          return {
+            async first() {
+              return literaryOwner ? { value: literaryOwner } : null;
+            },
+          };
         }
         assert.equal(sql, "SELECT 1 AS ok", "Admission must not write to D1");
         return {
@@ -145,7 +151,11 @@ try {
   assert.deepEqual(calls, ["assets"], "Legacy ownership must not run isolated roles");
   literaryOwner = "draining";
   const prepared = await runContentProcessingTick(
-    { ...env, FORE_CONTENT_PROCESSOR_ROLE: "literary-prepare", FORE_CONTENT_PREPARE_ENABLED: "1" },
+    {
+      ...env,
+      FORE_CONTENT_PROCESSOR_ROLE: "literary-prepare",
+      FORE_CONTENT_PREPARE_ENABLED: "1",
+    },
     { ...runners, "literary-prepare": async () => calls.push("literary-prepare") },
   );
   assert.equal(prepared.role, "literary-prepare");
