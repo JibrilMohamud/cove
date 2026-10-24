@@ -80,6 +80,7 @@ try {
   const env = {
     DB: d1(primary),
     CONTENT_DB: d1(secondary, true),
+    BUCKET: {},
     FORE_CONTENT_PROCESSOR_ENABLED: "1",
     FORE_CONTENT_PREPARE_ENABLED: "1",
     FORE_CONTENT_HANDOFF_ENABLED: "1",
