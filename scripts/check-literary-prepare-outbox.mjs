@@ -110,7 +110,10 @@ try {
   assert.deepEqual(await dispatchOneLiteraryPreparationHandoff(env), {
     skipped: "canonical_owner_not_handoff",
   });
-  assert.equal(primary.prepare("SELECT status FROM literary_prepare_outbox").get().status, "queued");
+  assert.equal(
+    primary.prepare("SELECT status FROM literary_prepare_outbox").get().status,
+    "queued",
+  );
   assert.equal(secondary.prepare("SELECT COUNT(*) n FROM literary_prepare_jobs").get().n, 0);
   primary
     .prepare("INSERT INTO cove_runtime_config VALUES('literary_processing_owner','draining')")
@@ -288,8 +291,7 @@ try {
     DB: {
       prepare(sql) {
         const original = env.DB.prepare(sql);
-        if (!sql.startsWith("UPDATE literary_prepare_outbox SET status='running'"))
-          return original;
+        if (!sql.startsWith("UPDATE literary_prepare_outbox SET status='running'")) return original;
         return {
           bind(...args) {
             const bound = original.bind(...args);
@@ -308,8 +310,9 @@ try {
     skipped: "no_handoffs",
   });
   assert.equal(
-    primary.prepare("SELECT status FROM literary_prepare_outbox WHERE id=?").get(raceOutbox.outboxId)
-      .status,
+    primary
+      .prepare("SELECT status FROM literary_prepare_outbox WHERE id=?")
+      .get(raceOutbox.outboxId).status,
     "queued",
   );
   assert.equal(secondary.prepare("SELECT COUNT(*) n FROM literary_prepare_jobs").get().n, 1);
