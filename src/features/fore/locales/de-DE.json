@@ -799,5 +799,6 @@
   "Taste preferences saved. Search wording applies only to this search.": "Vorlieben gespeichert. Der Suchtext gilt nur für diese Suche.",
   "Could not save these preferences. Check the values and try again.": "Die Vorlieben konnten nicht gespeichert werden. Prüfe die Werte und versuche es erneut.",
   "Form cleared. Save to replace your saved preferences.": "Formular zurückgesetzt. Speichere, um deine bisherigen Vorlieben zu ersetzen.",
-  "No eligible books with enough evidence match these preferences. Try fewer constraints.": "Keine verfügbaren Bücher mit ausreichenden Informationen passen. Versuche weniger Einschränkungen."
+  "No eligible books with enough evidence match these preferences. Try fewer constraints.": "Keine verfügbaren Bücher mit ausreichenden Informationen passen. Versuche weniger Einschränkungen.",
+  "Order book discussions": "Buchdiskussionen sortieren"
 }
