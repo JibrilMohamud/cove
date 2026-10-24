@@ -82,24 +82,28 @@ def commons_title(record):
         return None
     return title
 
-def exact_candidate(record, page, provider="openverse", category=None):
+def exact_candidate(record, page, provider="openverse", category=None, diagnostics=None):
+    def reject(reason):
+        if diagnostics is not None:
+            diagnostics[reason]=diagnostics.get(reason,0)+1
+        return None
     if provider not in ("openverse", "commons"):
         raise ValueError("Unsupported original discovery provider")
     title = commons_title(record)
     if not title or page.get("title") != title or not isinstance(page.get("pageid"),int):
-        return None
+        return reject("page_identity")
     info = (page.get("imageinfo") or [{}])[0]
     size=info.get("size")
     sha=str(info.get("sha1") or "").lower()
     if not isinstance(size,int) or not 128<=size<=MAX_BYTES or not re.fullmatch("[a-f0-9]{40}",sha):
-        return None
+        return reject("missing_or_oversized_original")
     if info.get("mime") not in ("audio/ogg","application/ogg","audio/mpeg"):
-        return None
+        return reject("unsupported_audio_mime")
     direct=urllib.parse.urlsplit(str(info.get("url") or ""))
     if (direct.scheme!="https" or direct.hostname!="upload.wikimedia.org" or
         direct.port or direct.query or direct.fragment or direct.username or direct.password or
         not re.fullmatch(r"/wikipedia/commons/[^\s?]+\.(?:ogg|oga|mp3)",direct.path,re.I)):
-        return None
+        return reject("original_host_or_extension")
     meta=info.get("extmetadata") or {}
     declared=credits.plain(meta.get("LicenseShortName",{}).get("value")).casefold()
     link=str(meta.get("LicenseUrl",{}).get("value") or "").rstrip("/")+"/"
@@ -112,12 +116,12 @@ def exact_candidate(record, page, provider="openverse", category=None):
             link==credits.LICENSE[short]+declared[len(tag):]+"/"):
             license_code=short
     if license_code is None:
-        return None
+        return reject("license_not_strictly_eligible")
     wiki=str((page.get("revisions") or [{}])[0].get("slots",{}).get("main",{}).get("content") or "")
     # Source conflict is not a soft classifier score. No automatic clearance.
     joined=wiki+" "+str(info.get("metadata") or "")+" "+credits.plain(meta.get("ImageDescription",{}).get("value"))
     if credits.BLOCK.search(joined):
-        return None
+        return reject("contradictory_source_rights")
     evidence={
         "policy":"cove-openverse-commons-discovery-v1",
         "discovery":provider,
@@ -170,6 +174,7 @@ def commons_category_candidates(categories=2, max_verifications=16, opener=OPENE
     found=[]
     checked=0
     held=0
+    rejection_reasons={}
     category_queries=0
     for offset in range(categories):
         if checked>=max_verifications:
@@ -204,14 +209,14 @@ def commons_category_candidates(categories=2, max_verifications=16, opener=OPENE
             if not commons_title(identity):
                 continue
             checked+=1
-            result=exact_candidate(identity,page,"commons",category)
+            result=exact_candidate(identity,page,"commons",category,rejection_reasons)
             if result:
                 found.append(result)
             else:
                 held+=1
         pause(.5)
     return {"candidates":found,"verified":checked,"searches":category_queries,
-            "held":held}
+            "held":held,"holdReasons":rejection_reasons}
 
 
 def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep, commons_categories=2):
@@ -266,7 +271,7 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep, c
     from_commons=commons_category_candidates(
         commons_categories,max(0,min(32-verified,max_verifications-verified)),
         opener=opener,pause=pause) if commons_categories else {
-            "candidates":[],"verified":0,"searches":0,"held":0}
+            "candidates":[],"verified":0,"searches":0,"held":0,"holdReasons":{}}
     unique={item["id"]:item for item in items}
     for candidate in from_commons["candidates"]:
         unique.setdefault(candidate["id"],candidate)
@@ -279,6 +284,7 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep, c
             "verified":verified+from_commons["verified"],
             "indexedResults":indexed_results,
             "nonCommonsResults":rejected_non_commons,
+            "commonsHoldReasons":from_commons["holdReasons"],
             "heldAfterCommonsVerification":held_after_commons_check+from_commons["held"],
             "candidates":list(unique.values()),
             "processingMs":min(1800000,int((time.monotonic()-started)*1000))}
@@ -354,6 +360,7 @@ def main():
                       "checkedOriginalPages":result["verified"],
                       "commonsCategoryQueries":result["commonsCategoryQueries"],
                       "commonsOriginalsChecked":result["commonsVerified"],
+                      "commonsHoldReasons":result["commonsHoldReasons"],
                       "heldAfterCommonsVerification":result["heldAfterCommonsVerification"],
                       "candidates":len(result["candidates"]),"storedIsolated":args.apply_isolated,
                       "customerPublished":False,"elapsedMs":result["processingMs"]}))
