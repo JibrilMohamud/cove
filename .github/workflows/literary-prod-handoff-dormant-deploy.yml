@@ -5,6 +5,7 @@ on:
       - "wrangler.content-literary-handoff.prod-disabled.jsonc"
       - "scripts/staging/deploy-literary-handoff-disabled.mjs"
       - "scripts/staging/verify-literary-dormant-roles.mjs"
+      - "scripts/check-literary-dormant-owner-fences.mjs"
       - "wrangler.content-literary-prepare.prod-disabled.jsonc"
       - "wrangler.content-literary-infer.prod-disabled.jsonc"
       - ".github/workflows/literary-prod-handoff-dormant-deploy.yml"
@@ -32,6 +33,7 @@ jobs:
       - run: node --check scripts/staging/deploy-literary-handoff-disabled.mjs
       - run: node --check scripts/staging/verify-literary-dormant-roles.mjs
       - run: node scripts/check-literary-handoff-dormant-config.mjs
+      - run: node scripts/check-literary-dormant-owner-fences.mjs
   deploy-without-trigger:
     needs: static-dormant-constraints
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
