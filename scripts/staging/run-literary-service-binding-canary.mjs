@@ -47,10 +47,7 @@ for (const name of [publisher, caller]) {
   if (name === caller)
     assert.ok(
       settings.bindings.some(
-        (x) =>
-          x.type === "service" &&
-          x.name === "LITERARY_PUBLISHER" &&
-          x.service === publisher,
+        (x) => x.type === "service" && x.name === "LITERARY_PUBLISHER" && x.service === publisher,
       ),
       "QA Service Binding not installed",
     );
@@ -90,9 +87,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let passed = null;
 let error = null;
 try {
-  await api("PUT", "/workers/scripts/" + caller + "/schedules", [
-    { cron: "* * * * *" },
-  ]);
+  await api("PUT", "/workers/scripts/" + caller + "/schedules", [{ cron: "* * * * *" }]);
   for (let attempt = 0; attempt < 20; attempt++) {
     await sleep(15000);
     const receipt = await query(
@@ -123,9 +118,7 @@ const [actual, status] = await Promise.all([
     "SELECT publication_state FROM literary_inference_jobs WHERE id='" + ready[0].id + "'",
   ),
 ]);
-assert.deepEqual(actual, [
-  { status: "analyzed", revision: 1, coverage: "isolated_samples" },
-]);
+assert.deepEqual(actual, [{ status: "analyzed", revision: 1, coverage: "isolated_samples" }]);
 assert.equal(status[0].publication_state, "published");
 const report = {
   schema: "cove.literary.deployed-private-binding.v1",
