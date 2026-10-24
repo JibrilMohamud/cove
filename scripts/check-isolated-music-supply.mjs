@@ -22,7 +22,9 @@ try {
     outExtension: { ".js": ".mjs" },
     logLevel: "silent",
   });
-  const { validateMusicMaster, validateMusicQuality } = await import(path.join(root, "policy.mjs"));
+  const { validateMusicContract, validateMusicMaster, validateMusicQuality } = await import(
+    path.join(root, "policy.mjs")
+  );
   const worker = (await import(path.join(root, "worker.mjs"))).default;
   const isolated = localBindings(root);
   const objects = new Map();
@@ -105,6 +107,18 @@ try {
     arrangementRights: true,
     lyricsRights: true,
   };
+  for (const badOrigin of [
+    "https://127.0.0.1/files/",
+    "https://169.254.169.254/files/",
+    "https://[::1]/files/",
+    "https://metadata.google.internal/files/",
+    "https://localhost/files/",
+  ]) {
+    assert.throws(
+      () => validateMusicContract({ ...contract, licensedOrigin: badOrigin }),
+      /music_unsafe_source_url/,
+    );
+  }
   assert.equal(
     (await invoke("/v1/contracts", "POST", "operator", contract)).result.status,
     "pending",
