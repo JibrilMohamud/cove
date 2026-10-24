@@ -379,6 +379,7 @@ export function DiscussionThread({
                   <button
                     aria-label={`Show replies (${p.replies || 0})`}
                     onClick={() => setReplying(replying === p.id ? null : p.id)}
+                    aria-expanded={replying === p.id && (!bookThread || depth < 2)}
                   >
                     <MessageCircle size={14} /> {p.replies || 0}
                   </button>
@@ -411,18 +412,31 @@ export function DiscussionThread({
                   )}
                   <span>{when(p.createdAt)}</span>
                 </footer>
-                {replying === p.id && (
-                  <DiscussionThread
-                    contextType={contextType}
-                    contextId={contextId}
-                    parentId={p.id}
-                    progress={progress}
-                    title={ui("Replies")}
-                    onChanged={() => {
-                      void q.refetch();
-                      onChanged?.();
-                    }}
-                  />
+                {bookThread && depth >= 2 ? (
+                  <a
+                    className="cove-thread-focus-link"
+                    href={`/community?thread=${encodeURIComponent(p.id)}&work=${encodeURIComponent(contextId)}`}
+                  >
+                    Continue this conversation on its own page · {p.replies || 0} replies
+                  </a>
+                ) : (
+                  replying === p.id && (
+                    <div className={bookThread ? "cove-thread-children" : undefined}>
+                      <DiscussionThread
+                        contextType={contextType}
+                        contextId={contextId}
+                        parentId={p.id}
+                        progress={progress}
+                        bookThread={bookThread}
+                        depth={depth + 1}
+                        title={ui("Replies")}
+                        onChanged={() => {
+                          void q.refetch();
+                          onChanged?.();
+                        }}
+                      />
+                    </div>
+                  )
                 )}
               </article>
             ),
