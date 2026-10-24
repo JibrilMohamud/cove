@@ -17,6 +17,7 @@ if (
   c.vars?.MUSIC_SUPPLY_ENABLED !== "0" ||
   c.vars?.MUSIC_ANALYSIS_ENABLED !== "0" ||
   c.vars?.MUSIC_AUTO_QUIET_APPROVAL !== "0" ||
+  c.vars?.MUSIC_EXECUTION_ENABLED !== "0" ||
   c.d1_databases?.length !== 1 ||
   c.d1_databases[0]?.binding !== "MUSIC_DB" ||
   c.d1_databases[0]?.database_id !== "fe9a9dd2-64b8-451c-a356-9ec71d9ee211" ||

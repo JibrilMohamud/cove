@@ -110,6 +110,7 @@ def run(args):
         if job.get("skipped") == "no_eligible_jobs":
             break
         ident = job.get("masterId", "invalid")
+        started_at = time.monotonic()
         try:
             with tempfile.TemporaryDirectory(prefix="cove-isolated-quiet-") as tmp:
                 source = pathlib.Path(tmp) / "original.audio"
@@ -118,7 +119,8 @@ def run(args):
             if report["sha256"] != job["masterSha256"] or report["bytes"] != job["bytes"]:
                 raise ValueError("Analyzer output identity mismatch")
             route = f"/v1/analysis/jobs/{ident}/complete"
-            with call(route, token, payload={"leaseToken": job["leaseToken"], "report": report}) as response:
+            with call(route, token, payload={"leaseToken": job["leaseToken"], "report": report,
+                                                   "processingMs": min(1800000, int((time.monotonic()-started_at)*1000))}) as response:
                 answer = json.load(response)
             receipts.append({"masterId": ident, "status": answer.get("status"), "tier": answer.get("tier")})
         except Exception as error:

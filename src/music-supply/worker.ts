@@ -1,5 +1,12 @@
 import { privateMusicCandidates } from "./catalog-projection";
 import { handleMusicAnalysis } from "./analysis";
+import {
+  handleMusicExecution,
+  checkIntakeLease,
+  finishIntake,
+  checkQualityLease,
+  finishQuality,
+} from "./execution";
 import { QUIET_READING_POLICY } from "../features/fore/quiet-reading-score";
 import {
   validateMusicContract,
@@ -38,6 +45,8 @@ export type MusicSupplyEnv = {
   MUSIC_ANALYSIS_TOKEN_SHA256?: string;
   MUSIC_ANALYSIS_ENABLED?: string;
   MUSIC_AUTO_QUIET_APPROVAL?: string;
+  MUSIC_EXECUTION_ENABLED?: string;
+  MUSIC_MUSIC_REVIEWER_TOKEN_SHA256?: string;
 };
 
 function response(data: unknown, status = 200) {
@@ -154,6 +163,7 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
   const reviewer = await authorized(request, env.MUSIC_LICENSE_REVIEWER_TOKEN_SHA256);
   const qa = await authorized(request, env.MUSIC_QA_TOKEN_SHA256);
   const analyst = await authorized(request, env.MUSIC_ANALYSIS_TOKEN_SHA256);
+  const musicReviewer = await authorized(request, env.MUSIC_MUSIC_REVIEWER_TOKEN_SHA256);
   if (
     !env.MUSIC_OPERATOR_TOKEN_SHA256 ||
     env.MUSIC_OPERATOR_TOKEN_SHA256 === env.MUSIC_LICENSE_REVIEWER_TOKEN_SHA256 ||
@@ -167,9 +177,28 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
           env.MUSIC_INGEST_TOKEN_SHA256,
           env.MUSIC_QA_TOKEN_SHA256,
           env.MUSIC_LICENSE_REVIEWER_TOKEN_SHA256,
-        ].includes(env.MUSIC_ANALYSIS_TOKEN_SHA256)))
+        ].includes(env.MUSIC_ANALYSIS_TOKEN_SHA256))) ||
+    (env.MUSIC_EXECUTION_ENABLED === "1" &&
+      (env.MUSIC_ANALYSIS_ENABLED !== "1" ||
+        !env.MUSIC_MUSIC_REVIEWER_TOKEN_SHA256 ||
+        !shaPattern.test(env.MUSIC_MUSIC_REVIEWER_TOKEN_SHA256) ||
+        [
+          env.MUSIC_OPERATOR_TOKEN_SHA256,
+          env.MUSIC_INGEST_TOKEN_SHA256,
+          env.MUSIC_QA_TOKEN_SHA256,
+          env.MUSIC_LICENSE_REVIEWER_TOKEN_SHA256,
+          env.MUSIC_ANALYSIS_TOKEN_SHA256,
+        ].includes(env.MUSIC_MUSIC_REVIEWER_TOKEN_SHA256)))
   )
     return response({ error: "music_role_separation_required" }, 503);
+
+  const executionResponse = await handleMusicExecution(request, env, {
+    operator: admin,
+    ingest,
+    qa,
+    reviewer: musicReviewer,
+  });
+  if (executionResponse) return executionResponse;
 
   const analysisResponse = await handleMusicAnalysis(request, env, analyst, admin);
   if (analysisResponse) return analysisResponse;
@@ -288,6 +317,16 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
     const c = await contract(env, r.contract_id);
     if (!c || c.status !== "active" || Date.parse(c.expiresAt) <= Date.now())
       return response({ error: "music_qa_master_unavailable" }, 404);
+    if (
+      env.MUSIC_EXECUTION_ENABLED === "1" &&
+      !(await checkQualityLease(
+        env.MUSIC_DB,
+        r.id,
+        r.sha256,
+        request.headers.get("x-cove-music-qa-lease") || "",
+      ))
+    )
+      return response({ error: "music_qa_lease_required" }, 409);
     await requireObject(env.MUSIC_BUCKET, r.storage_key, r.bytes, r.sha256);
     const object = await env.MUSIC_BUCKET.get(r.storage_key);
     if (!object || object.size !== r.bytes)
@@ -355,6 +394,12 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
       request.headers.get("content-type")?.split(";")[0] !== r.mime
     )
       return response({ error: "music_audio_size_or_mime_mismatch" }, 422);
+    const intakeLease = request.headers.get("x-cove-music-intake-lease") || "";
+    if (
+      env.MUSIC_EXECUTION_ENABLED === "1" &&
+      !(await checkIntakeLease(env.MUSIC_DB, r.id, r.sha256, intakeLease))
+    )
+      return response({ error: "music_intake_lease_required" }, 409);
     const key = masterKey(r.sha256, r.mime);
     await env.MUSIC_BUCKET.put(key, request.body, {
       sha256: r.sha256,
@@ -362,11 +407,16 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
       customMetadata: { sha256: r.sha256, source: "verified_supplier_manifest" },
     });
     await requireObject(env.MUSIC_BUCKET, key, r.bytes, r.sha256);
-    await env.MUSIC_DB.prepare(
-      "UPDATE music_masters SET storage_key=?,status='staged',updated_at=? WHERE id=? AND sha256=? AND status IN ('quarantined','staged')",
-    )
-      .bind(key, now(), r.id, r.sha256)
-      .run();
+    if (env.MUSIC_EXECUTION_ENABLED === "1") {
+      if (!(await finishIntake(env.MUSIC_DB, r.id, r.sha256, key, intakeLease, r.bytes)))
+        return response({ error: "music_intake_raced_rights_or_lease" }, 409);
+    } else {
+      await env.MUSIC_DB.prepare(
+        "UPDATE music_masters SET storage_key=?,status='staged',updated_at=? WHERE id=? AND sha256=? AND status IN ('quarantined','staged')",
+      )
+        .bind(key, now(), r.id, r.sha256)
+        .run();
+    }
     return response({ id: r.id, status: "staged" });
   }
 
@@ -379,6 +429,12 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
     const c = await contract(env, r.contract_id);
     if (!c || c.status !== "active" || Date.parse(c.expiresAt) <= Date.now())
       return response({ error: "music_contract_not_active" }, 409);
+    const qaLease = request.headers.get("x-cove-music-qa-lease") || "";
+    if (
+      env.MUSIC_EXECUTION_ENABLED === "1" &&
+      !(await checkQualityLease(env.MUSIC_DB, r.id, r.sha256, qaLease))
+    )
+      return response({ error: "music_qa_lease_required" }, 409);
     await requireObject(env.MUSIC_BUCKET, r.storage_key, r.bytes, r.sha256);
     const report = validateMusicQuality(await json(request, 8000), r.sha256, r.bytes);
     const text = JSON.stringify(report);
@@ -388,6 +444,14 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
       sha256: reportDigest,
       httpMetadata: { contentType: "application/json" },
     });
+    if (env.MUSIC_EXECUTION_ENABLED === "1") {
+      if (!(await finishQuality(env.MUSIC_DB, r.id, r.sha256, key, qaLease, QUIET_READING_POLICY)))
+        return response({ error: "music_qa_lease_or_rights_changed" }, 409);
+      return response(
+        { id: r.id, status: "quality_passed", analysisQueued: true, canonicalPublished: false },
+        202,
+      );
+    }
     const at = now(),
       eventId = crypto.randomUUID();
     await env.MUSIC_DB.batch([
