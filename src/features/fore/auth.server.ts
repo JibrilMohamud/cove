@@ -1,5 +1,5 @@
 import { createServerClient, parseCookieHeader, serializeCookieHeader } from "@supabase/ssr";
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { CoveEnv } from "./api.server";
 import { ApiError, json, readBody, rateLimit, now } from "./service";
 import { emitNotification } from "./notifications.server";

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const DISCOVERY_VERSION = "cove-discovery-v1";
 export const discoveryDimensions = [

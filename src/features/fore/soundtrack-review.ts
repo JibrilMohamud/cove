@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 const note = z.string().trim().min(40).max(4000);
 const source = z

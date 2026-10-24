@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { LiteraryProfile } from "./literary-profile";
 import { musicReportSchema } from "./music-profile";
 

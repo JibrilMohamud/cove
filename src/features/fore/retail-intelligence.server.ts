@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { ApiError, now } from "./service";
 import type { CatalogDB } from "./catalog-model.server";
 import { canonicalBooksByProductIds, resolveProduct } from "./catalog-model.server";

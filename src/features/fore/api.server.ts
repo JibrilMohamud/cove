@@ -17,7 +17,7 @@ import {
   type RegionalCatalogItem,
   type RegionalSourceId,
 } from "./gutenberg-federation.server";
-import { z } from "zod";
+import { z } from "zod/v3";
 import {
   addSeriesToCart,
   editionResolve,

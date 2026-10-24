@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
-import { z } from "zod";
+import { z } from "zod/v3";
 import {
   currentCoveRequestEnvironment,
   currentCoveRequestExecutionContext,

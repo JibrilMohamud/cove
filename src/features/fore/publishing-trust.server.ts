@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { ApiError } from "./service";
 import { createModerationCase, type StaffContext } from "./moderation.server";
 import type { PublishingDB, PublishingEnv } from "./publishing.server";

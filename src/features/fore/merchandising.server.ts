@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { CatalogBook } from "./client";
 import { canonicalBooksByProductIds, type CatalogDB } from "./catalog-model.server";
 import { searchCatalog, type SearchInput } from "./search.server";

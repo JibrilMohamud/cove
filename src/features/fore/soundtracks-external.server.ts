@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier -- Evidence and R2 trust checks are kept adjacent for auditability. */
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { CoveEnv } from "./api.server";
 import type { CoveIdentity } from "./auth.server";
 import { ApiError, json, readBody } from "./service";
