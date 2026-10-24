@@ -51,7 +51,17 @@ A dedicated `music_open_source_candidates` table and discovery-runs ledger
 in the separate music QA database store **discovery-only** records.
 Duplicate candidate ids are idempotent; contradictory future source hashes
 or licenses become permanently held. There is no supplier agreement, audio
-copy, approval, outbox event, customer entitlement, or production D1 write.
+copy, approval, outbox event, or customer entitlement.
+
+A *separate* scoped, eight-title-per-run handoff to
+`POST /admin/soundtracks/seed-commons` may create small discovery-intent rows
+in the existing primary catalog only after the authoritative customer Worker
+independently re-fetches exact Commons file metadata. That is the current
+production pipeline's existing small metadata-queue pattern, not audio
+processing or a bulk customer D1 scan. PRs never receive the scoped token,
+and merged-main push does not attempt source seeding before backend rollout.
+The scheduled original-file reviewer and importer then handle those records
+through their ordinary rights and QA gates.
 Production main runs a small discovery campaign daily and after the rollout;
 PRs only run no-network tests. Repository-secret access occurs only for
 trusted main, never an untrusted pull request. The scanner follows API rate
