@@ -2,6 +2,7 @@ import { seedMusicProfiles } from "./features/fore/music-profiles.server";
 import { verifyAudioStorage } from "./features/fore/audio-coverage.server";
 import { runLiteraryProfileTick } from "./features/fore/literary-profiles.server";
 import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
+import { contentPipelineOwner } from "./lib/content-processing-owner.server";
 import { repairRegionalEpubAssets } from "./features/fore/regional-epub-asset-repair.server";
 import { handleCanonicalMusicHandoff } from "./lib/music-canonical-handoff";
 import {
@@ -580,14 +581,21 @@ async function runScheduled(cron: string, env: BackendEnv) {
       // Opt-in externalization only after both dedicated Workers have been
       // deployed and verified. Defaults to today's inline scheduling.
       const external = env.FORE_CONTENT_PIPELINE_EXTERNAL === "1";
-      const work = external
-        ? [() => verifyAudioStorage(env), () => seedMusicProfiles(env)]
-        : [
-            () => runStoredAssetTick(env),
-            () => verifyAudioStorage(env),
-            () => runLiteraryProfileTick(env),
-            () => seedMusicProfiles(env),
-          ];
+      // All code paths read the same primary-D1 owner as external Workers.
+      // During a drain neither side may start fresh work. The environment
+      // switch alone is deliberately insufficient to claim ownership.
+      const [assetOwner, literaryOwner] = await Promise.all([
+        contentPipelineOwner(env.DB, "assets"),
+        contentPipelineOwner(env.DB, "literary"),
+      ]);
+      const work = [
+        ...(!external && assetOwner === "legacy" ? [() => runStoredAssetTick(env)] : []),
+        () => verifyAudioStorage(env),
+        ...(!external && literaryOwner === "legacy"
+          ? [() => runLiteraryProfileTick(env)]
+          : []),
+        () => seedMusicProfiles(env),
+      ];
       for (const run of work) {
         try {
           await run();
