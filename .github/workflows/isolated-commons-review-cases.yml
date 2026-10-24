@@ -10,6 +10,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/isolated-commons-review-cases.yml"
+      - "scripts/soundtracks/queue-open-review-cases.py"
+      - "scripts/soundtracks/test-queue-open-review-cases.py"
   workflow_dispatch:
 permissions:
   contents: read

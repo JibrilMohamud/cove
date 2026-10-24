@@ -121,13 +121,19 @@ def run(token, apply=False, limit=1, query=None):
             "items":items,"customerPublished":False,"rightsApproved":False,
             "quietApproved":False,"primaryD1Modified":False}
 
+def safe_output_filename(filename):
+    # One basename only: reject paths, hidden files and invalid extensions.
+    return (isinstance(filename, str) and
+            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,119}\.json",filename)
+            is not None)
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--max-recordings",type=int,default=1)
     parser.add_argument("--apply-isolated",action="store_true")
     parser.add_argument("--output",default="commons-review-cases.json")
     args=parser.parse_args()
-    if not re.fullmatch(r"[a-zA-Z0-9_.-]{1,120}\\.json",args.output):
+    if not safe_output_filename(args.output):
         raise ValueError("unsafe_output_filename")
     token=os.environ.get("CLOUDFLARE_API_TOKEN","")
     result=run(token,args.apply_isolated,args.max_recordings)
