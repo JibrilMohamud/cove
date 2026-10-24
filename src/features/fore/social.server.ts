@@ -975,11 +975,15 @@ async function visiblePosts(
 }
 
 // Cursors advance over scanned rows, including entries hidden by current permissions.
-function socialCursor(raw: string | null): { at: string; id: string } | null {
+function socialCursor(raw: string | null): { at: string; id: string; score?: number } | null {
   if (!raw) return null;
   try {
     return z
-      .object({ at: z.string().max(80), id: z.string().min(1).max(300) })
+      .object({
+        at: z.string().max(80),
+        id: z.string().min(1).max(300),
+        score: z.number().int().nonnegative().max(1_000_000_000).optional(),
+      })
       .parse(JSON.parse(atob(raw)));
   } catch {
     throw new ApiError(400, "Invalid activity cursor.");
