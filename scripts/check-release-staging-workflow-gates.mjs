@@ -7,7 +7,7 @@ const requirements = [
     names: ["protected-real-catalog-acceptance:"],
     protections: [
       "cove-exclusive-real-primary-cold-acceptance",
-      "COVE_REAL_ACCEPTANCE_V2: \"1\"",
+      'COVE_REAL_ACCEPTANCE_V2: "1"',
       "strangler-real-catalog-acceptance.mjs",
       "real-data-parity-",
       "sha256sum -c -",
@@ -74,7 +74,7 @@ const realCatalog = readFileSync(
 );
 assert.ok(realCatalog.includes("const prodDbId ="));
 assert.ok(realCatalog.includes("assert.equal(config.workers_dev, false)"));
-assert.ok(realCatalog.includes('config.services = []'));
+assert.ok(realCatalog.includes("config.services = []"));
 assert.ok(realCatalog.includes("evidence.stageMobileLcp.p75Ms < 2500"));
 assert.ok(realCatalog.includes("evidence.realCatalogParity.mismatchPercent < 10"));
 assert.ok(realCatalog.includes("evidence.realCatalogParity.desktopMismatchPercent < 10"));
