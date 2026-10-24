@@ -24,10 +24,7 @@ export type IsolatedJobSettlement = {
  * This is character-work quota credit, not a token or monetary cost refund.
  * The caller must first validate and publish exact SHA-verified R2 bytes.
  */
-export async function settleIsolatedLiteraryJob(
-  db: D1,
-  args: IsolatedJobSettlement,
-) {
+export async function settleIsolatedLiteraryJob(db: D1, args: IsolatedJobSettlement) {
   if (!isoDate.test(args.day) || !hex64.test(args.jobId) || !hex64.test(args.resultSha256))
     throw Error("invalid_isolated_literary_settlement_identity");
   if (
@@ -87,7 +84,10 @@ export async function settleIsolatedLiteraryJob(
 /** Only explicitly returned provider usage counts are accepted as factual. */
 export function observedLiteraryAiUsage(raw: unknown) {
   const value = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  const meta = value.meta && typeof value.meta === "object" ? (value.meta as Record<string, unknown>) : {};
+  const meta =
+    value.meta && typeof value.meta === "object"
+      ? (value.meta as Record<string, unknown>)
+      : {};
   const usageRaw = value.usage ?? meta.usage;
   const usage =
     usageRaw && typeof usageRaw === "object" ? (usageRaw as Record<string, unknown>) : {};
