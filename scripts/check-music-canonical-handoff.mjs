@@ -73,6 +73,31 @@ try {
     (await handleCanonicalMusicHandoff(req(qualified, "untrusted"), config)).status,
     401,
   );
+  let admissionChecks = 0;
+  assert.equal(
+    (
+      await handleCanonicalMusicHandoff(req(qualified), config, async () => {
+        admissionChecks++;
+        return { allowed: false, reason: "primary_d1_overloaded", probeMs: 25 };
+      })
+    ).status,
+    503,
+    "Busy primary D1 must defer all background music publications",
+  );
+  assert.equal(admissionChecks, 1);
+  assert.equal(
+    (await env.DB.prepare("SELECT COUNT(*) n FROM music_supply_handoff_events").first()).n,
+    0,
+    "Backpressure must leave all source receipts replayable",
+  );
+  assert.equal(
+    (
+      await handleCanonicalMusicHandoff(req(qualified, "unauthorized"), config, async () => {
+        throw Error("Untrusted music operator must never probe primary D1");
+      })
+    ).status,
+    401,
+  );
   assert.deepEqual(await applyCanonicalMusicHandoff(env.DB, qualified), {
     seq: 1,
     recorded: true,
