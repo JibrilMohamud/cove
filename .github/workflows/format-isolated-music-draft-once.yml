@@ -1,0 +1,30 @@
+name: format-isolated-music-draft-once
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/format-isolated-music-draft-once.yml"
+permissions:
+  contents: read
+jobs:
+  format-owned-draft:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/isolated-licensed-music-supply-20261023'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with: { ref: feat/isolated-licensed-music-supply-20261023 }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: npx prettier --write src/music-supply/*.ts scripts/check-isolated-music-supply.mjs
+      - name: Commit formatting-only to draft branch
+        run: |
+          if ! git diff --quiet -- src/music-supply scripts/check-isolated-music-supply.mjs; then
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git add src/music-supply scripts/check-isolated-music-supply.mjs
+            git commit -m "style(music): format isolated projected catalog and regression cases"
+            git push origin HEAD:refs/heads/feat/isolated-licensed-music-supply-20261023
+          fi
