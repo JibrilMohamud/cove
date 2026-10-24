@@ -132,15 +132,30 @@ try {
     /Chapter 1.*Browser QA passage|Browser QA passage.*Chapter 1/i,
     "Passage control announces chapter and quoted passage",
   );
+  // The earlier NVDA+Tab command proves NVDA announced the focused
+  // native button. On hosted Windows, OS-level keybd_event can target the
+  // runner console rather than Chrome after an NVDA browse-mode command.
+  // Dispatch a real browser keyboard Enter to that *same focused button*;
+  // never substitute a pointer click or suppress the subsequent NVDA speech.
+  assert.equal(
+    await passage.evaluate((button) => document.activeElement === button),
+    true,
+    "The NVDA-announced passage button must retain DOM focus before keyboard activation",
+  );
   offset = read().length;
-  nativeKeys([0x0d]);
+  await passage.press("Enter");
   await page.getByRole("dialog", { name: "Social Reading" }).waitFor({ state: "visible" });
+  assert.equal(
+    await passage.getAttribute("aria-expanded"),
+    "true",
+    "Keyboard activation must expand the same passage's Social Reading panel",
+  );
   await spokenSince(
     offset,
     /Social Reading|contributions|discussion/i,
     "Reader panel opening announcement",
   );
-  nativeKeys([0x1b]);
+  await page.keyboard.press("Escape");
   await wait(
     () => page.evaluate(() => document.activeElement?.matches(".reader-social-gutter button")),
     "Reader restores passage focus",

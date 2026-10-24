@@ -175,7 +175,7 @@ function sourceFileUrl(info: CommonsInfo) {
     return u.toString();
   } catch { return null; }
 }
-function profile(title: string, category: (typeof CATEGORIES)[number]) {
+function profile(title: string, category: { name: string; period: string; instrument: string }) {
   const t = title.toLowerCase();
   let moods: string[] = [];
   let energy: number | null = null;
@@ -537,6 +537,56 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
       throw new ApiError(400, "Invalid territory for staff inventory.");
     return json(await getQuietMusicInventory(env.DB, quietInventoryMarket(requestedMarket)));
   }
+  if (admin && path === "/admin/soundtracks/seed-commons" && request.method === "POST") {
+    // Bounded, staff-service-only ingestion intent: Openverse indexes have no
+    // rights authority. Independently query the canonical Commons source now.
+    // FFmpeg/CLAP remain on isolated runners, never customer request Workers.
+    const body = await readBody(request, 12000) as Record<string,unknown>;
+    const titles = body.titles;
+    if (!Array.isArray(titles) || titles.length < 1 || titles.length > 8 ||
+        !titles.every(title => typeof title === "string" &&
+          !title.includes("/") && !title.includes(String.fromCharCode(92)) &&
+          !/[\r\n]/.test(title) && /^File:.{4,240}\.(?:ogg|oga|mp3)$/i.test(title)) ||
+        new Set(titles).size !== titles.length)
+      throw new ApiError(422,"A bounded unique set of exact Commons original file titles is required.");
+    let queued = 0, existing = 0, held = 0;
+    const at = new Date().toISOString();
+    for (const title of titles as string[]) {
+      const page = await commonsFile(title);
+      const candidate = page && validCandidate(page);
+      if (!candidate || providerOriginNeedsReview(page) || euOnlyAudioClaim(page)) {
+        held++;
+        continue;
+      }
+      const sameMaster = await env.DB.prepare(
+        "SELECT id FROM soundtrack_recordings WHERE source_sha1=? LIMIT 1",
+      ).bind(candidate.sha1).first<{id:string}>();
+      if (sameMaster) { existing++; continue; }
+      const tagging = profile(candidate.title,{ name:"Openverse-indexed Commons original",period:"mixed",instrument:"" });
+      const revision = page?.revisions?.[0];
+      const evidence = {
+        source:"commons_imageinfo",discoveryCategory:"openverse_commons_api",
+        discoveryTool:"Openverse discovery only, not licensing authority",
+        filePage:candidate.sourcePage,claimedLicense:candidate.license.statement,
+        claimedLicenseUrl:candidate.license.link,sourceSha1:candidate.sha1,
+        sourceSize:candidate.size,sourceMime:candidate.info.mime,
+        sourceUrl:candidate.mediaUrl,artist:candidate.performer,
+        commonsRevision:revision?.revid||null,capturedAt:at,
+        rightsNote:"UNVERIFIED: original recording and composition rights require exact-file source reliance",
+      };
+      const result = await env.DB.prepare(
+        "INSERT OR IGNORE INTO soundtrack_recordings (id,source_title,source_page_url,source_file_url,source_sha1,source_size,mime,title,performer,license_code,license_url,license_statement,attribution_text,period,instruments_json,moods_json,energy,has_vocals,evidence_json,automated_triage_reason,discovered_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      ).bind(candidate.id,page!.title,candidate.sourcePage,candidate.mediaUrl,
+        candidate.sha1,candidate.size,candidate.mime,candidate.title,candidate.performer,
+        candidate.license.code,candidate.license.link,candidate.license.statement,
+        candidate.attribution,"mixed",JSON.stringify(tagging.instruments),JSON.stringify(tagging.moods),
+        tagging.energy,tagging.hasVocals,JSON.stringify(evidence),"",at,at).run() as { meta?: { changes?:number } };
+      if (result.meta?.changes===1) queued++; else existing++;
+    }
+    return json({ discovery:"commons_verification",queued,existing,held,
+      publicationAuthorized:false,customerAudioCopied:false });
+  }
+
   if (admin && path === "/admin/soundtracks/import-next" && request.method === "POST") {
     // One bounded import per call; the same exclusive lease as scheduled work.
     return json(await importOneReviewedSoundtrack(env));
@@ -561,9 +611,13 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
     // without silently turning a prior manual-review hold into approval.
     const mode = url.searchParams.get("automation") === "1" ? "new" :
       url.searchParams.get("automation") === "triaged" ? "triaged" : "all";
+    const shardText = url.searchParams.get("shard");
+    const shard = shardText === null ? -1 : Number(shardText);
+    if (shardText !== null && (mode !== "triaged" || !/^(?:[0-9]|[1-5][0-9]|6[0-3])$/.test(shardText)))
+      throw new ApiError(400, "Invalid bounded Commons review shard.");
     const rows = (await env.DB.prepare(
-      "SELECT * FROM soundtrack_recordings WHERE status=? AND id>? AND (?='all' OR (?='new' AND automated_triage_reason='') OR (?='triaged' AND automated_triage_reason LIKE '%composer not in narrow sourced-title mapping')) ORDER BY id LIMIT ?",
-    ).bind(url.searchParams.get("status") || "pending_review",after,mode,mode,mode,limit+1).all<SoundtrackRow>()).results;
+      "SELECT * FROM soundtrack_recordings WHERE status=? AND id>? AND (?='all' OR (?='new' AND automated_triage_reason='') OR (?='triaged' AND (automated_triage_reason LIKE '%composer not in narrow sourced-title mapping' OR automated_triage_reason LIKE '%ambiguous or missing performer credit'))) AND (?!='triaged' OR ?=-1 OR CAST(SUBSTR(id,4) AS INTEGER)%64=?) ORDER BY id LIMIT ?",
+    ).bind(url.searchParams.get("status") || "pending_review",after,mode,mode,mode,mode,shard,shard,limit+1).all<SoundtrackRow>()).results;
     return json({ counts,records:rows.slice(0,limit),nextCursor:rows.length>limit?rows[limit-1].id:null });
   }
   if (admin && idMatch && request.method === "GET") {

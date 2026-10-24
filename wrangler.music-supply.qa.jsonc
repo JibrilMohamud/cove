@@ -18,6 +18,9 @@
   }],
   "vars": {
     "MUSIC_SUPPLY_ENABLED": "0",
+    "MUSIC_ANALYSIS_ENABLED": "0",
+    "MUSIC_AUTO_QUIET_APPROVAL": "0",
+    "MUSIC_EXECUTION_ENABLED": "0",
     "MUSIC_ENVIRONMENT": "isolated-qa"
   }
 }

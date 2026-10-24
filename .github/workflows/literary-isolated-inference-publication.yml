@@ -9,6 +9,9 @@ on:
       - "src/lib/literary-legacy-reconcile.server.ts"
       - "infra/content-budget/0008_legacy_reconcile_frontier.sql"
       - "infra/literary-cutover/0001_legacy_reconcile_primary_index.sql"
+      - "src/lib/literary-job-settlement.server.ts"
+      - "infra/content-budget/0009_job_settlements_and_ai_usage.sql"
+      - "scripts/check-literary-job-settlement.mjs"
       - "src/content-processing.worker.ts"
       - "src/lib/literary-budget-domain.server.ts"
       - "src/lib/literary-prepare-outbox.server.ts"
@@ -33,6 +36,7 @@ jobs:
       - run: node scripts/check-literary-isolated-inference.mjs
       - run: node scripts/check-literary-owner-cutover.mjs
       - run: node scripts/check-literary-legacy-reconcile.mjs
+      - run: node scripts/check-literary-job-settlement.mjs
       - run: node scripts/check-literary-publisher-gateway.mjs
       - run: node scripts/build-literary-inference-publisher.mjs
       - run: npm run typecheck
@@ -43,5 +47,5 @@ jobs:
       - run: node scripts/check-literary-budget-settlement.mjs
       - run: node scripts/check-content-processing-isolation.mjs
       - run: npm run test:rights
-      - run: npx eslint src/lib/literary-isolated-inference.server.ts src/content-processing.worker.ts src/lib/literary-budget-domain.server.ts src/lib/literary-preparation-domain.server.ts src/lib/literary-prepare-outbox.server.ts scripts/check-literary-isolated-inference.mjs src/literary-inference-publisher.worker.ts scripts/check-literary-publisher-gateway.mjs src/features/fore/literary-profiles.server.ts scripts/check-literary-owner-cutover.mjs src/lib/literary-legacy-reconcile.server.ts scripts/check-literary-legacy-reconcile.mjs
-      - run: npx prettier --check src/lib/literary-isolated-inference.server.ts src/content-processing.worker.ts src/lib/literary-budget-domain.server.ts src/lib/literary-preparation-domain.server.ts src/lib/literary-prepare-outbox.server.ts scripts/check-literary-isolated-inference.mjs src/literary-inference-publisher.worker.ts scripts/check-literary-publisher-gateway.mjs src/features/fore/literary-profiles.server.ts scripts/check-literary-owner-cutover.mjs src/lib/literary-legacy-reconcile.server.ts scripts/check-literary-legacy-reconcile.mjs
+      - run: npx eslint src/lib/literary-isolated-inference.server.ts src/content-processing.worker.ts src/lib/literary-budget-domain.server.ts src/lib/literary-preparation-domain.server.ts src/lib/literary-prepare-outbox.server.ts scripts/check-literary-isolated-inference.mjs src/literary-inference-publisher.worker.ts scripts/check-literary-publisher-gateway.mjs src/lib/literary-job-settlement.server.ts scripts/check-literary-job-settlement.mjs src/features/fore/literary-profiles.server.ts scripts/check-literary-owner-cutover.mjs src/lib/literary-legacy-reconcile.server.ts scripts/check-literary-legacy-reconcile.mjs
+      - run: npx prettier --check src/lib/literary-isolated-inference.server.ts src/content-processing.worker.ts src/lib/literary-budget-domain.server.ts src/lib/literary-preparation-domain.server.ts src/lib/literary-prepare-outbox.server.ts scripts/check-literary-isolated-inference.mjs src/literary-inference-publisher.worker.ts scripts/check-literary-publisher-gateway.mjs src/lib/literary-job-settlement.server.ts scripts/check-literary-job-settlement.mjs src/features/fore/literary-profiles.server.ts scripts/check-literary-owner-cutover.mjs src/lib/literary-legacy-reconcile.server.ts scripts/check-literary-legacy-reconcile.mjs

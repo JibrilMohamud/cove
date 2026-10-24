@@ -13,7 +13,14 @@ const config = JSON.parse(fs.readFileSync("wrangler.music-supply.qa.jsonc", "utf
 assert.equal(config.name, name);
 assert.equal(config.workers_dev, false);
 assert.equal(config.preview_urls, false);
-assert.equal(config.vars.MUSIC_SUPPLY_ENABLED, "0");
+for (const name of [
+  "MUSIC_SUPPLY_ENABLED",
+  "MUSIC_ANALYSIS_ENABLED",
+  "MUSIC_EXECUTION_ENABLED",
+  "MUSIC_AUTO_QUIET_APPROVAL",
+]) {
+  assert.equal(config.vars[name], "0", name + " must be disabled on the hosted shadow");
+}
 assert.ok(!config.routes && !config.route && !config.triggers && !config.queues);
 assert.deepEqual(
   config.d1_databases.map((x) => x.database_id),
@@ -82,10 +89,25 @@ for (let attempt = 0; attempt < 8; attempt++) {
   const get = (binding) => bindings.find((x) => x.name === binding);
   assert.ok(!bindings.some((x) => x.name === "DB" || x.database_id === primary));
   assert.equal(settings.result?.routes?.length || 0, 0);
+  assert.deepEqual(
+    bindings.filter((x) => x.type === "d1").map((x) => x.database_id),
+    [musicDb],
+    "Hosted worker may bind only the isolated MUSIC_DB",
+  );
+  assert.deepEqual(
+    bindings.filter((x) => x.type === "r2_bucket").map((x) => x.bucket_name),
+    ["cove-music-supply-qa-20261023"],
+    "Hosted worker may bind only the isolated MUSIC_BUCKET",
+  );
   if (
     get("MUSIC_DB")?.database_id === musicDb &&
     get("MUSIC_BUCKET")?.bucket_name === "cove-music-supply-qa-20261023" &&
-    get("MUSIC_SUPPLY_ENABLED")?.text === "0"
+    [
+      "MUSIC_SUPPLY_ENABLED",
+      "MUSIC_ANALYSIS_ENABLED",
+      "MUSIC_EXECUTION_ENABLED",
+      "MUSIC_AUTO_QUIET_APPROVAL",
+    ].every((name) => get(name)?.text === "0")
   ) {
     certified = true;
     break;
@@ -93,6 +115,41 @@ for (let attempt = 0; attempt < 8; attempt++) {
   await new Promise((resolve) => setTimeout(resolve, 1500));
 }
 assert.ok(certified, "Isolated disabled music Worker bindings never converged");
+
+// Migration readiness is verified with a read-only query; deployments never
+// migrate production D1, seed supposed rights, or enable pipeline processors.
+const schema = await fetch(
+  "https://api.cloudflare.com/client/v4/accounts/" + account + "/d1/database/" + musicDb + "/query",
+  {
+    method: "POST",
+    headers: {
+      authorization: "Bearer " + process.env.CLOUDFLARE_API_TOKEN,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      sql: "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'music_%' ORDER BY name",
+    }),
+    signal: AbortSignal.timeout(20000),
+  },
+);
+const inspected = await schema.json();
+assert.ok(schema.ok && inspected.success, "Isolated MUSIC_DB schema inspection failed");
+const found = new Set(inspected.result?.[0]?.results?.map((row) => row.name) || []);
+for (const name of [
+  "music_contracts",
+  "music_masters",
+  "music_publication_outbox",
+  "music_analysis_jobs",
+  "music_source_limits",
+  "music_intake_jobs",
+  "music_quality_jobs",
+  "music_stage_events",
+  "music_human_reviews",
+  "music_open_source_candidates",
+  "music_open_discovery_runs",
+])
+  assert.ok(found.has(name), "Isolated MUSIC_DB migration missing: " + name);
+
 console.log(
-  "HOSTED_MUSIC_SUPPLY_SHADOW_PASS isolated QA D1/R2 only, disabled, nonpublic, no production binding or routing.",
+  "HOSTED_MUSIC_SUPPLY_SHADOW_PASS current Worker code, complete isolated QA D1 schema/R2, all processing switches disabled, no production bindings or routing.",
 );

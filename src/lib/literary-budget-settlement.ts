@@ -57,16 +57,16 @@ export async function settleLiteraryOutputReservation(
       "INSERT OR IGNORE INTO literary_output_settlement_receipts" +
         " (receipt_key,day,refund_units,applied)" +
         " SELECT ?,?,?,0 WHERE EXISTS" +
-        " (SELECT 1 FROM literary_profile_budget WHERE day=?)",
+        " (SELECT 1 FROM literary_profile_budget WHERE day=? AND reserved_units>=?)",
     )
-    .bind(receiptKey, day, refunded, day);
+    .bind(receiptKey, day, refunded, day, refunded);
   const decrement = db
     .prepare(
-      "UPDATE literary_profile_budget SET reserved_units=MAX(0,reserved_units-?)" +
-        " WHERE day=? AND EXISTS(SELECT 1 FROM literary_output_settlement_receipts" +
+      "UPDATE literary_profile_budget SET reserved_units=reserved_units-?" +
+        " WHERE day=? AND reserved_units>=? AND EXISTS(SELECT 1 FROM literary_output_settlement_receipts" +
         " WHERE receipt_key=? AND day=? AND refund_units=? AND applied=0)",
     )
-    .bind(refunded, day, receiptKey, day, refunded);
+    .bind(refunded, day, refunded, receiptKey, day, refunded);
   const finalize = db
     .prepare(
       "UPDATE literary_output_settlement_receipts SET applied=1" +

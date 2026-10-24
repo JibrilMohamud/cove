@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "src/features/fore/regional-epub-asset-repair.server.ts"
+      - "drizzle/0081_regional_epub_repair_receipts.sql"
       - "scripts/check-regional-epub-asset-repair.mjs"
       - ".github/workflows/regional-epub-repair-hardening.yml"
 permissions:

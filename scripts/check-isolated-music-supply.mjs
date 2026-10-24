@@ -13,6 +13,18 @@ try {
     "infra/music/0001_isolated_music_supply.sql",
     path.join(root, "drizzle", "0001_isolated_music_supply.sql"),
   );
+  fs.copyFileSync(
+    "infra/music/0002_qualification_leases.sql",
+    path.join(root, "drizzle", "0002_qualification_leases.sql"),
+  );
+  fs.copyFileSync(
+    "infra/music/0003_execution_quotas_metrics_reviews.sql",
+    path.join(root, "drizzle", "0003_execution_quotas_metrics_reviews.sql"),
+  );
+  fs.copyFileSync(
+    "infra/music/0004_open_catalog_candidates.sql",
+    path.join(root, "drizzle", "0004_open_catalog_candidates.sql"),
+  );
   await build({
     entryPoints: ["src/music-supply/policy.ts", "src/music-supply/worker.ts"],
     bundle: true,
@@ -57,6 +69,8 @@ try {
     reviewer: "reviewer-" + "b".repeat(56),
     ingest: "ingest-" + "c".repeat(56),
     qa: "qa-" + "d".repeat(56),
+    analyst: "analyst-" + "e".repeat(56),
+    musicReviewer: "reviewer-music-" + "f".repeat(56),
   };
   const env = {
     MUSIC_DB: isolated.DB,
@@ -241,6 +255,384 @@ try {
     (await invoke("/v1/operator/outbox?after=" + cursor, "GET", "operator")).result.items.length,
     0,
   );
+
+  // A second fully QA-passed master exercises the opt-in quietness gate.
+  assert.equal((await invoke("/v1/analysis/claim", "POST", "qa")).status, 503);
+  env.MUSIC_ANALYSIS_ENABLED = "1";
+  env.MUSIC_AUTO_QUIET_APPROVAL = "1";
+  env.MUSIC_ANALYSIS_TOKEN_SHA256 = sha(keys.analyst);
+  assert.equal((await invoke("/v1/analysis/claim", "POST", "qa")).status, 401);
+  const audio2 = Buffer.alloc(4096, 12);
+  const sha2 = sha(audio2);
+  const master2 = {
+    ...manifest,
+    id: "fixture-master-quiet",
+    sha256: sha2,
+    sourceUrl: "https://licensed.example.test/files/quiet.ogg",
+    workKey: "quiet-work",
+  };
+  assert.equal((await invoke("/v1/masters", "POST", "ingest", master2)).status, 201);
+  assert.equal(
+    (
+      await worker.fetch(
+        new Request("https://music.qa.test/v1/masters/fixture-master-quiet/audio", {
+          method: "PUT",
+          headers: {
+            authorization: "Bearer " + keys.ingest,
+            "content-type": "audio/ogg",
+            "content-length": String(audio2.length),
+          },
+          body: audio2,
+        }),
+        env,
+      )
+    ).status,
+    200,
+  );
+  const quality2 = await invoke("/v1/masters/fixture-master-quiet/quality", "POST", "qa", {
+    ...report,
+    sha256: sha2,
+  });
+  assert.equal(quality2.status, 202);
+  assert.equal(quality2.result.analysisQueued, true);
+  assert.equal(
+    (await invoke("/v1/operator/outbox?after=" + cursor, "GET", "operator")).result.items.length,
+    0,
+    "Quality-only passes must not be supplied as qualified when analysis is enabled",
+  );
+  const claim = await invoke("/v1/analysis/claim", "POST", "analyst");
+  assert.equal(claim.status, 200);
+  assert.equal(claim.result.masterSha256, sha2);
+  assert.equal(
+    (await invoke("/v1/analysis/claim", "POST", "analyst")).result.skipped,
+    "no_eligible_jobs",
+  );
+  const privateAudio = (lease) =>
+    worker.fetch(
+      new Request("https://music.qa.test/v1/analysis/masters/fixture-master-quiet/audio", {
+        headers: { authorization: "Bearer " + keys.analyst, "x-cove-music-analysis-lease": lease },
+      }),
+      env,
+    );
+  assert.equal((await privateAudio(crypto.randomUUID())).status, 409);
+  assert.equal(
+    sha(Buffer.from(await (await privateAudio(claim.result.leaseToken)).arrayBuffer())),
+    sha2,
+  );
+  const report2 = {
+    policy: "cove-music-v1",
+    sourceSha1: createHash("sha1").update(audio2).digest("hex"),
+    sha256: sha2,
+    bytes: audio2.length,
+    durationSeconds: 180,
+    decodedFully: true,
+    analyzer: "Synthetic signal and semantics",
+    measuredAt: new Date().toISOString(),
+    loudness: { integratedLufs: -22, truePeakDbfs: -2, loudnessRangeLu: 3, rmsDynamicRangeDb: 3 },
+    signal: {
+      spectralCentroidHz: 1000,
+      spectralRolloffHz: 2200,
+      spectralFlatness: 0.04,
+      zeroCrossingRate: 0.03,
+      onsetsPerSecond: 0.2,
+      tempoBpm: 64,
+      tempoConfidence: 0.5,
+      tonalEntropy: 0.1,
+      abruptTransitionRate: 0.01,
+      rhythmicActivity: 0.1,
+      energy: 0.1,
+    },
+    structure: {
+      binSeconds: 60,
+      timeline: [0, 60, 120].map((start) => ({
+        start,
+        end: start + 60,
+        rmsDbfs: -30,
+        centroidHz: 1000,
+        onsets: 3,
+      })),
+      quietSections: [],
+      climaxes: [],
+      transitionPoints: [],
+    },
+    semantics: {
+      model: "laion/clap-htsat-unfused",
+      revision: "8fa0f1c6d0433df6e97c127f64b2a1d6c0dcda8a",
+      method: "zero_shot_audio_text_similarity",
+      scoreMeaning: "uncalibrated_cosine_similarity",
+      sampledSeconds: 24,
+      windows: [
+        { start: 0, end: 8 },
+        { start: 80, end: 88 },
+        { start: 170, end: 178 },
+      ],
+      moods: [],
+      nuance: [],
+      dimensions: {
+        valence: 0.4,
+        arousal: 0.1,
+        acousticness: 0.8,
+        vocalPresence: 0.05,
+        ensembleSize: "solo",
+        scale: "intimate",
+        texture: [],
+        instruments: ["piano"],
+      },
+      confidence: 0.5,
+    },
+    limitations: ["Synthetic report, not evidence of musical accuracy"],
+  };
+  assert.equal(
+    (
+      await invoke("/v1/analysis/jobs/fixture-master-quiet/complete", "POST", "qa", {
+        leaseToken: claim.result.leaseToken,
+        report: report2,
+      })
+    ).status,
+    401,
+  );
+  assert.equal(
+    (
+      await invoke("/v1/analysis/jobs/fixture-master-quiet/complete", "POST", "analyst", {
+        leaseToken: crypto.randomUUID(),
+        report: report2,
+      })
+    ).status,
+    409,
+  );
+  const finished = await invoke(
+    "/v1/analysis/jobs/fixture-master-quiet/complete",
+    "POST",
+    "analyst",
+    {
+      leaseToken: claim.result.leaseToken,
+      report: report2,
+    },
+  );
+  assert.equal(finished.status, 202, JSON.stringify(finished.result));
+  assert.equal(finished.result.status, "approved");
+  const approved = await invoke("/v1/operator/outbox?after=" + cursor, "GET", "operator");
+  assert.equal(approved.result.items.length, 1);
+  assert.equal(approved.result.items[0].master_id, master2.id);
+  assert.equal(approved.result.items[0].publishable, 1);
+  const analysisCursor = approved.result.nextCursor;
+  assert.equal(
+    (
+      await invoke("/v1/analysis/jobs/fixture-master-quiet/complete", "POST", "analyst", {
+        leaseToken: claim.result.leaseToken,
+        report: report2,
+      })
+    ).status,
+    409,
+    "Completion replay must not create a second outbox grant",
+  );
+  const catalog2 = await invoke("/v1/operator/preview-catalog?territory=US", "GET", "operator");
+  assert.deepEqual(
+    catalog2.result.items.map((x) => x.id),
+    [master2.id],
+  );
+  // Real source-scoped admission, lease-bound upload, separate acoustic
+  // reviewer and immutable daily operational metrics (all detached MUSIC_DB).
+  env.MUSIC_EXECUTION_ENABLED = "1";
+  env.MUSIC_MUSIC_REVIEWER_TOKEN_SHA256 = sha(keys.musicReviewer);
+  env.MUSIC_AUTO_QUIET_APPROVAL = "0";
+  assert.equal((await invoke("/v1/execution/intake/claim", "POST", "qa")).status, 401);
+  assert.equal((await invoke("/v1/execution/review", "GET", "ingest")).status, 401);
+  const limits = {
+    contractId: contract.id,
+    paused: false,
+    dailyIntake: 1,
+    parallelIntake: 1,
+    dailyQa: 1,
+    parallelQa: 1,
+    dailyAnalysis: 1,
+    parallelAnalysis: 1,
+  };
+  assert.equal((await invoke("/v1/execution/source-limits", "POST", "ingest", limits)).status, 401);
+  assert.equal(
+    (await invoke("/v1/execution/source-limits", "POST", "operator", limits)).status,
+    200,
+  );
+  const audio3 = Buffer.alloc(4096, 11);
+  const sha3 = sha(audio3);
+  const master3 = {
+    ...manifest,
+    id: "fixture-master-review",
+    sha256: sha3,
+    sourceUrl: "https://licensed.example.test/files/review.ogg",
+    workKey: "review-work",
+  };
+  assert.equal((await invoke("/v1/masters", "POST", "ingest", master3)).status, 201);
+  const intakeJob = await invoke("/v1/execution/intake/claim", "POST", "ingest", {});
+  assert.equal(intakeJob.status, 200);
+  assert.equal(intakeJob.result.masterSha256, sha3);
+  assert.equal(intakeJob.result.manifest.id, master3.id);
+  assert.equal(
+    (await invoke("/v1/execution/intake/claim", "POST", "ingest", {})).result.skipped,
+    "source_caps_or_no_jobs",
+    "Parallel and daily source budgets must fence simultaneous claims",
+  );
+  const upload3 = (token) =>
+    worker.fetch(
+      new Request("https://music.qa.test/v1/masters/fixture-master-review/audio", {
+        method: "PUT",
+        headers: {
+          authorization: "Bearer " + keys.ingest,
+          "content-type": "audio/ogg",
+          "content-length": String(audio3.length),
+          ...(token ? { "x-cove-music-intake-lease": token } : {}),
+        },
+        body: audio3,
+      }),
+      env,
+    );
+  assert.equal((await upload3("")).status, 409);
+  assert.equal((await upload3(crypto.randomUUID())).status, 409);
+  assert.equal((await upload3(intakeJob.result.leaseToken)).status, 200);
+  assert.equal((await upload3(intakeJob.result.leaseToken)).status, 409);
+  assert.equal(
+    (
+      await invoke("/v1/masters/fixture-master-review/quality", "POST", "qa", {
+        ...report,
+        sha256: sha3,
+      })
+    ).status,
+    409,
+    "No full-decode quality attestations may bypass independent lease admission",
+  );
+  assert.equal((await invoke("/v1/execution/qa/claim", "POST", "ingest", {})).status, 401);
+  const qaLease = await invoke("/v1/execution/qa/claim", "POST", "qa", {});
+  assert.equal(qaLease.status, 200);
+  assert.equal(qaLease.result.masterId, master3.id);
+  assert.equal(
+    (await invoke("/v1/execution/qa/claim", "POST", "qa", {})).result.skipped,
+    "source_caps_or_no_jobs",
+  );
+  const privateQa = (lease) =>
+    worker.fetch(
+      new Request("https://music.qa.test/v1/qa/masters/fixture-master-review/audio", {
+        headers: {
+          authorization: "Bearer " + keys.qa,
+          ...(lease ? { "x-cove-music-qa-lease": lease } : {}),
+        },
+      }),
+      env,
+    );
+  assert.equal((await privateQa("")).status, 409);
+  assert.equal((await privateQa(crypto.randomUUID())).status, 409);
+  assert.equal(
+    sha(Buffer.from(await (await privateQa(qaLease.result.leaseToken)).arrayBuffer())),
+    sha3,
+  );
+  const qaResponse = await worker.fetch(
+    new Request("https://music.qa.test/v1/masters/fixture-master-review/quality", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer " + keys.qa,
+        "content-type": "application/json",
+        "x-cove-music-qa-lease": qaLease.result.leaseToken,
+      },
+      body: JSON.stringify({ ...report, sha256: sha3 }),
+    }),
+    env,
+  );
+  assert.equal(qaResponse.status, 202, await qaResponse.text());
+  assert.equal(
+    (await invoke("/v1/execution/qa/claim", "POST", "qa", {})).result.skipped,
+    "source_caps_or_no_jobs",
+  );
+  const claim3 = await invoke("/v1/analysis/claim", "POST", "analyst", {});
+  assert.equal(claim3.result.masterId, master3.id);
+  assert.equal(
+    (await invoke("/v1/analysis/claim", "POST", "analyst", {})).result.skipped,
+    "no_eligible_jobs",
+  );
+  const musicReport3 = {
+    ...report2,
+    sha256: sha3,
+    sourceSha1: createHash("sha1").update(audio3).digest("hex"),
+    bytes: audio3.length,
+  };
+  const analyzed3 = await invoke(
+    "/v1/analysis/jobs/fixture-master-review/complete",
+    "POST",
+    "analyst",
+    {
+      leaseToken: claim3.result.leaseToken,
+      report: musicReport3,
+      processingMs: 1200,
+    },
+  );
+  assert.equal(analyzed3.status, 202, JSON.stringify(analyzed3.result));
+  assert.equal(analyzed3.result.status, "needs_review");
+  const pendingReview = await invoke("/v1/execution/review", "GET", "musicReviewer");
+  assert.equal(pendingReview.status, 200);
+  assert.equal(pendingReview.result.items.length, 1);
+  assert.equal(pendingReview.result.items[0].masterId, master3.id);
+  const reviewAudio = async (token) =>
+    worker.fetch(
+      new Request("https://music.qa.test/v1/execution/review/fixture-master-review/audio", {
+        headers: { authorization: "Bearer " + keys[token] },
+      }),
+      env,
+    );
+  assert.equal((await reviewAudio("qa")).status, 401);
+  assert.equal(sha(Buffer.from(await (await reviewAudio("musicReviewer")).arrayBuffer())), sha3);
+  const reviewed = {
+    masterSha256: sha3,
+    reportSha256: pendingReview.result.items[0].reportSha256,
+    decision: "approve",
+    heardFullMaster: true,
+    reviewerId: "fixture-listener-reviewer",
+    rationale:
+      "Listened to the full original master; calm and non-vocal across the complete recording.",
+  };
+  assert.equal(
+    (await invoke("/v1/execution/review/fixture-master-review", "POST", "analyst", reviewed))
+      .status,
+    401,
+  );
+  assert.equal(
+    (
+      await invoke("/v1/execution/review/fixture-master-review", "POST", "musicReviewer", {
+        ...reviewed,
+        reportSha256: "0".repeat(64),
+      })
+    ).status,
+    409,
+  );
+  const humanPass = await invoke(
+    "/v1/execution/review/fixture-master-review",
+    "POST",
+    "musicReviewer",
+    reviewed,
+  );
+  assert.equal(humanPass.status, 202, JSON.stringify(humanPass.result));
+  assert.equal(humanPass.result.customerPublished, false);
+  assert.equal(
+    (await invoke("/v1/execution/review/fixture-master-review", "POST", "musicReviewer", reviewed))
+      .status,
+    409,
+  );
+  const queueState = await invoke("/v1/execution/metrics", "GET", "operator");
+  assert.equal(queueState.status, 200);
+  assert.ok(queueState.result.stages.some((x) => x.stage === "intake_claim" && x.jobs >= 1));
+  assert.ok(queueState.result.stages.some((x) => x.stage === "qa_claim" && x.jobs >= 1));
+  assert.ok(queueState.result.stages.some((x) => x.stage === "qa_complete" && x.jobs >= 1));
+  assert.ok(queueState.result.stages.some((x) => x.stage === "analysis_complete" && x.jobs >= 1));
+  assert.ok(queueState.result.stages.some((x) => x.stage === "human_approved" && x.jobs >= 1));
+  assert.ok(
+    queueState.result.stages.some((x) => x.stage === "analysis_complete" && x.unpriced_jobs >= 1),
+  );
+  assert.equal((await invoke("/v1/execution/metrics", "GET", "analyst")).status, 401);
+  const releasedReview = await invoke(
+    "/v1/operator/outbox?after=" + analysisCursor,
+    "GET",
+    "operator",
+  );
+  assert.equal(releasedReview.result.items[0].master_id, master3.id);
+  const reviewCursor = releasedReview.result.nextCursor;
+
   assert.equal(
     (
       await invoke("/v1/masters/fixture-master-1/revoke", "POST", "reviewer", {
@@ -250,8 +642,12 @@ try {
     200,
   );
   const rescanned = await invoke("/v1/operator/preview-catalog?territory=US", "GET", "operator");
-  assert.equal(rescanned.result.items.length, 0, "Revoked masters cannot survive projection");
-  const removed = await invoke("/v1/operator/outbox?after=" + cursor, "GET", "operator");
+  assert.deepEqual(
+    rescanned.result.items.map((x) => x.id),
+    [master2.id, master3.id],
+    "Revoking one recording must preserve both independently approved masters",
+  );
+  const removed = await invoke("/v1/operator/outbox?after=" + reviewCursor, "GET", "operator");
   assert.equal(removed.result.items[0].action, "master_revoked");
   const masterCursor = removed.result.nextCursor;
   assert.equal(

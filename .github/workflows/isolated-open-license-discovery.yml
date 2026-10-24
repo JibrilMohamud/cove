@@ -1,0 +1,142 @@
+name: isolated-open-license-discovery
+
+on:
+  pull_request:
+    paths:
+      - "scripts/soundtracks/commons-structured-credits.py"
+      - "scripts/soundtracks/discover-openverse-commons.py"
+      - "scripts/soundtracks/test-discover-openverse-commons.py"
+      - "scripts/soundtracks/report-isolated-supply.py"
+      - "scripts/soundtracks/seed-commons-from-openverse.py"
+      - "scripts/soundtracks/test-seed-commons-from-openverse.py"
+      - "scripts/soundtracks/test-report-isolated-supply.py"
+      - "scripts/soundtracks/test-commons-structured-credits.py"
+      - "infra/music/0004_open_catalog_candidates.sql"
+      - ".github/workflows/isolated-open-license-discovery.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/soundtracks/commons-structured-credits.py"
+      - "scripts/soundtracks/discover-openverse-commons.py"
+      - "scripts/soundtracks/report-isolated-supply.py"
+      - "infra/music/0004_open_catalog_candidates.sql"
+      - ".github/workflows/isolated-open-license-discovery.yml"
+  schedule:
+    - cron: "27 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-isolated-open-discovery
+  cancel-in-progress: false
+
+jobs:
+  test-no-network:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - run: python -m py_compile scripts/soundtracks/commons-structured-credits.py scripts/soundtracks/discover-openverse-commons.py
+      - run: python scripts/soundtracks/test-commons-structured-credits.py -q
+      - run: python scripts/soundtracks/test-discover-openverse-commons.py -q
+      - run: python scripts/soundtracks/test-report-isolated-supply.py -q
+      - run: python scripts/soundtracks/test-seed-commons-from-openverse.py -q
+      - run: python scripts/soundtracks/report-isolated-supply.py --dry-run
+
+  commons-source-smoke:
+    needs: test-no-network
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - name: Test live Commons API as unprivileged original source
+        run: python scripts/soundtracks/discover-openverse-commons.py --queries 1 --commons-categories 1 --max-verifications 8 --output commons-source-smoke.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: music-open-commons-source-smoke
+          path: commons-source-smoke.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+  read-only-candidate-discovery:
+    needs: test-no-network
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      COVE_MUSIC_OPEN_DISCOVERY_ENABLED: "1"
+      COVE_SOUNDTRACK_REVIEW_TOKEN: ${{ secrets.COVE_SOUNDTRACK_REVIEW_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - name: Query one permitted Openverse page and corroborate exact Commons files
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--queries 2 --commons-categories 2 --max-verifications 32 --output openverse-commons-candidates.json)
+          if [[ "${COVE_MUSIC_OPEN_DISCOVERY_ENABLED:-0}" == "1" && -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+            args+=(--apply-isolated)
+          else
+            echo "::warning::Detached D1 writer unavailable; source proposals remain artifact-only"
+          fi
+          python scripts/soundtracks/discover-openverse-commons.py "${args[@]}"
+      - name: Submit at most 8 verified source titles to existing customer-catalog discovery queue
+        if: github.event_name != 'push'
+        shell: bash
+        env:
+          COVE_MUSIC_COMMONS_SEED_ENABLED: "1"
+        run: |
+          set -euo pipefail
+          if [[ "${COVE_SOUNDTRACK_REVIEW_TOKEN:-}" == fore_svc_* ]]; then
+            python scripts/soundtracks/seed-commons-from-openverse.py --apply --max-seed 8
+          else
+            echo "::warning::Scoped curator unavailable; discovery evidence preserved, customer release unchanged"
+          fi
+      - name: Archive non-publishable source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cove-discovered-open-license-candidates
+          path: openverse-commons-candidates.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  isolated-daily-throughput:
+    needs: test-no-network
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - name: Read only the detached music database's last 24 hours
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: python scripts/soundtracks/report-isolated-supply.py --output isolated-music-daily-report.json
+      - name: Retain counts and unknown-cost declarations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cove-isolated-music-daily-supply
+          path: isolated-music-daily-report.json
+          if-no-files-found: ignore
+          retention-days: 30

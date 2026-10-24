@@ -50,6 +50,7 @@ jobs:
       - name: Verify curation safety tests
         run: |
           python scripts/soundtracks/test-curate-source-license.py -q
+          python scripts/soundtracks/test-commons-structured-credits.py -q
           python scripts/soundtracks/test-verify-production-playback.py -q
           python scripts/soundtracks/test-drain-verified-imports.py -q
       - name: Install and verify FFmpeg tools

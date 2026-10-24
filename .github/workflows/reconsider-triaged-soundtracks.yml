@@ -17,6 +17,8 @@ on:
       # Trusted main changes to the vetted composer/performer rules warrant one
       # bounded release; PR executions never receive production credentials.
       - "scripts/soundtracks/curate-source-license.py"
+      - "scripts/soundtracks/commons-structured-credits.py"
+      - "scripts/soundtracks/test-commons-structured-credits.py"
       - "scripts/soundtracks/test-curate-source-license.py"
       # A verified-import client correction should also drain existing
       # source-reviewed historical originals after protected-main CI.
@@ -48,6 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/soundtracks/test-curate-source-license.py -q
+          python scripts/soundtracks/test-commons-structured-credits.py -q
           python scripts/soundtracks/test-drain-verified-imports.py -q
           if [[ "${COVE_SOUNDTRACK_REVIEW_TOKEN:-}" != fore_svc_* ]]; then
             echo "::error::Scoped soundtrack review credential unavailable"
@@ -68,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/soundtracks/curate-source-license.py \
-            --reconsider-triaged --max-triage 0 --max-scan 500 \
+            --reconsider-triaged --max-triage 0 --max-scan 500 --max-enrich 24 \
             --max-tracks 12 --max-mib 160 --max-minutes 22 \
             --apply --approve-source-license --output soundtrack-reconsider-receipts.json
       - name: Convert and validate verified R2 recordings
