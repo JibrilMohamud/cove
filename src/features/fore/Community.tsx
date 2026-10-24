@@ -2553,8 +2553,41 @@ export function CommunityPage() {
     journey = params.get("journey"),
     list = params.get("list"),
     club = params.get("club"),
-    poll = params.get("poll");
+    poll = params.get("poll"),
+    focusedThread = params.get("thread"),
+    focusedWork = params.get("work");
   const tab = params.get("tab") || "feed";
+  if (
+    focusedThread &&
+    focusedWork &&
+    /^[a-zA-Z0-9_-]{1,240}$/.test(focusedThread) &&
+    /^[a-zA-Z0-9_-]{1,240}$/.test(focusedWork)
+  )
+    return (
+      <main className="cove-book-thread-focus">
+        <a className="text-link" href={`/work/${encodeURIComponent(focusedWork)}`}>
+          ← Back to the book
+        </a>
+        <h1>Conversation</h1>
+        <p className="muted">Follow this branch without losing reading width to indentation.</p>
+        <DiscussionThread
+          contextType="work"
+          contextId={focusedWork}
+          postId={focusedThread}
+          bookThread
+          depth={2}
+          title="Parent comment"
+        />
+        <DiscussionThread
+          contextType="work"
+          contextId={focusedWork}
+          parentId={focusedThread}
+          bookThread
+          depth={0}
+          title="Replies"
+        />
+      </main>
+    );
   if (profile) return <PublicProfile ref={profile} />;
   if (journey) return <Journey id={journey} />;
   if (list) return <ListView id={list} />;
