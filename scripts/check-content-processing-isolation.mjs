@@ -61,10 +61,22 @@ try {
     FORE_CONTENT_PROCESSOR_ENABLED: "0",
     FORE_CONTENT_PROCESSOR_ROLE: "assets",
     FORE_CONTENT_D1_ADMISSION_MAX_MS: "300",
+    FORE_CONTENT_PIPELINE_EXTERNAL: "1",
     BUCKET: {},
     AI: {},
     DB: {
       prepare(sql) {
+        if (sql === "SELECT value FROM cove_runtime_config WHERE key=?") {
+          return {
+            bind() {
+              return {
+                async first() {
+                  return { value: "external" };
+                },
+              };
+            },
+          };
+        }
         assert.equal(sql, "SELECT 1 AS ok", "Admission must not write to D1");
         return {
           async first() {
@@ -81,6 +93,11 @@ try {
   env.FORE_CONTENT_PROCESSOR_ROLE = "invalid";
   assert.deepEqual(await runContentProcessingTick(env, runners), { skipped: "invalid_role" });
   env.FORE_CONTENT_PROCESSOR_ROLE = "assets";
+  assert.equal(
+    (await runContentProcessingTick({ ...env, FORE_CONTENT_PIPELINE_EXTERNAL: "0" }, runners))
+      .skipped,
+    "legacy_scheduler_not_externalized",
+  );
   const missing = { ...env, BUCKET: undefined };
   assert.equal((await runContentProcessingTick(missing, runners)).skipped, "missing_private_r2");
   assert.equal((await runContentProcessingTick(env, runners)).role, "assets");
@@ -99,6 +116,8 @@ try {
 
   const backend = fs.readFileSync("src/persistence-backend.worker.ts", "utf8");
   assert.match(backend, /FORE_CONTENT_PIPELINE_EXTERNAL === "1"/);
+  assert.match(backend, /contentPipelineOwner\(env.DB, "assets"\)/);
+  assert.match(backend, /contentPipelineOwner\(env.DB, "literary"\)/);
   assert.match(backend, /\(\) => runStoredAssetTick\(env\)/);
   assert.match(backend, /\(\) => runLiteraryProfileTick\(env\)/);
   assert.ok(
