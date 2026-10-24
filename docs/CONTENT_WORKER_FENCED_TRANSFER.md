@@ -43,7 +43,11 @@ owner predicates:
    `legacy` and unset the external switch. Do not flip directly from
    `external` to `legacy` while work is active.
 
-The separately developed literary isolated-inference takeover also needs
+The separate legacy `literary` external role is **hard disabled** as
+`legacy_literary_claims_unfenced` until its primary-D1 claim/sweep writes
+receive atomic owner predicates. Only the separately fenced
+`literary-prepare`/`literary-handoff`/`literary-infer` roles can participate
+in a later authorized isolated-data-plane cutover. That takeover also needs
 its own `literary_processing_owner` fence and migration reconciliation;
 the `content_literary_owner` key alone cannot safely migrate those claims.
 
