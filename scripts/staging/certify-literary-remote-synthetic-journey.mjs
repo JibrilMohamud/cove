@@ -383,7 +383,9 @@ try {
   });
   assert.equal(
     (
-      await DB.prepare("SELECT revision FROM literary_profiles WHERE product_id='qa_literary'").first()
+      await DB.prepare(
+        "SELECT revision FROM literary_profiles WHERE product_id='qa_literary'",
+      ).first()
     ).revision,
     1,
   );
