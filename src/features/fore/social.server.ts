@@ -2108,7 +2108,8 @@ export async function handleSocial(
           ? topSorted
             ? btoa(
                 JSON.stringify({
-                  at: String(rows[threadLimit - 1].reaction_count || 0),
+                  score: Number(rows[threadLimit - 1].reaction_count || 0),
+                  at: String(rows[threadLimit - 1].created_at),
                   id: String(rows[threadLimit - 1].id),
                 }),
               )
