@@ -123,7 +123,8 @@ try {
   const servingQuery = fs.readFileSync("src/features/fore/matching-catalog.server.ts","utf8");
   assert.ok(!servingQuery.includes("music_supply_handoff"),"No customer matching DB reads added");
   const backend = fs.readFileSync("src/persistence-backend.worker.ts","utf8");
-  assert.match(backend,/if \(env\.FORE_MUSIC_CANONICAL_HANDOFF_ENABLED !== "1"\)/);
+  assert.match(backend,/handleCanonicalMusicHandoff\(request, env\)/);
+  assert.match(fs.readFileSync("src/lib/music-canonical-handoff.ts","utf8"),/FORE_MUSIC_CANONICAL_HANDOFF_ENABLED !== "1"/);
   console.log("Canonical music metadata handoff: dual credential, atomic idempotency, contract/master tombstones, zero public rights, disabled flag passed.");
 } finally {
   fs.rmSync(root,{recursive:true,force:true});
