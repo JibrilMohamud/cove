@@ -10,8 +10,7 @@ export async function repairRegionalEpubAssets(
   env: Pick<CoveEnv, "DB" | "BUCKET">,
   options: { after?: string; limit?: number } = {},
 ) {
-  if (!env.BUCKET?.head || !env.BUCKET?.get)
-    return { skipped: "no_private_r2" };
+  if (!env.BUCKET?.head || !env.BUCKET?.get) return { skipped: "no_private_r2" };
   const suppliedAfter = options.after ?? "";
   if (!/^[a-z0-9_]{0,90}$/.test(suppliedAfter))
     throw new Error("Invalid regional asset repair cursor");
