@@ -501,7 +501,8 @@ async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
   // The pessimistic output allowance is only a reservation. Once a real,
   // validated response is safely stored in content-addressed R2, refund the
   // unused characters on an opt-in basis without increasing daily_units.
-  // The R2 hit on a crash/retry prevents a second refund.
+  // A deterministic transactional receipt also prevents double refunds
+  // across concurrent uncached races, replay and partial Worker failure.
   if (!cached && env.FORE_LITERARY_ACTUAL_UNIT_SETTLEMENT === "1") {
     try {
       const outputCharacters = Math.max(
@@ -514,6 +515,7 @@ async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
         prompt.system.length + prompt.user.length,
         outputCharacters,
         reservedOutput,
+        cacheKey,
       );
     } catch (error) {
       // A settlement failure must never invalidate a successfully cached
