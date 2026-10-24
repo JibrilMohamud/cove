@@ -399,7 +399,7 @@ async function prepareBook(env: LiteraryEnv, job: Job, token: string) {
         let sectionsEnqueued = 0;
         for (const [index, section] of extracted.sections.entries()) {
           const lease = await env.DB.prepare(
-            "UPDATE literary_profile_jobs SET lease_until=? WHERE id=? AND lease_token=? AND status='running' AND EXISTS(SELECT 1 FROM literary_profiles p WHERE p.product_id=literary_profile_jobs.product_id AND p.fingerprint=literary_profile_jobs.fingerprint) RETURNING id",
+            `UPDATE literary_profile_jobs SET lease_until=? WHERE id=? AND lease_token=? AND status='running' AND EXISTS(SELECT 1 FROM literary_profiles p WHERE p.product_id=literary_profile_jobs.product_id AND p.fingerprint=literary_profile_jobs.fingerprint) AND ${legacyOwnerFenceSql} RETURNING id`, 
           )
             .bind(new Date(Date.now() + 300000).toISOString(), job.id, token)
             .first();
@@ -539,7 +539,7 @@ async function analyze(env: LiteraryEnv, job: Job, leaseToken: string) {
   }
   const encoded = JSON.stringify(profile),
     time = at();
-  const guard = `EXISTS(SELECT 1 FROM literary_profile_jobs j JOIN literary_profiles p ON p.product_id=j.product_id AND p.fingerprint=j.fingerprint WHERE j.id=? AND j.lease_token=? AND j.status='running' AND j.lease_until>?)`;
+  const guard = `EXISTS(SELECT 1 FROM literary_profile_jobs j JOIN literary_profiles p ON p.product_id=j.product_id AND p.fingerprint=j.fingerprint WHERE j.id=? AND j.lease_token=? AND j.status='running' AND j.lease_until>?) AND ${legacyOwnerFenceSql}`;
   if (job.section_id) {
     await env.DB.prepare(
       `UPDATE literary_profile_sections SET profile_json=?,updated_at=? WHERE product_id=? AND fingerprint=? AND section_id=? AND ${guard}`,
@@ -599,7 +599,7 @@ export async function processLiteraryJob(
   const time = at(),
     token = crypto.randomUUID();
   await env.DB.prepare(
-    "UPDATE literary_profile_jobs SET status='failed',last_error='lease_expired_max_attempts',updated_at=? WHERE status='running' AND lease_until<? AND attempts>=5",
+    `UPDATE literary_profile_jobs SET status='failed',last_error='lease_expired_max_attempts',updated_at=? WHERE status='running' AND lease_until<? AND attempts>=5 AND ${legacyOwnerFenceSql}`, 
   )
     .bind(time, time)
     .run();
@@ -648,7 +648,7 @@ export async function processLiteraryJob(
     if (job.kind === "prepare") await prepareBook(env, job, token);
     else await analyze(env, job, token);
     await env.DB.prepare(
-      "UPDATE literary_profile_jobs SET status='done',lease_until='',updated_at=? WHERE id=? AND lease_token=? AND status='running'",
+      `UPDATE literary_profile_jobs SET status='done',lease_until='',updated_at=? WHERE id=? AND lease_token=? AND status='running' AND ${legacyOwnerFenceSql}`, 
     )
       .bind(at(), job.id, token)
       .run();
@@ -660,7 +660,7 @@ export async function processLiteraryJob(
       ? new Date(new Date().setUTCHours(24, 0, 0, 0))
       : new Date(Date.now() + Math.min(21600000, 60000 * 2 ** job.attempts));
     await env.DB.prepare(
-      "UPDATE literary_profile_jobs SET status=?,attempts=attempts-?,available_at=?,lease_until='',last_error=?,updated_at=? WHERE id=? AND lease_token=? AND status='running'",
+      `UPDATE literary_profile_jobs SET status=?,attempts=attempts-?,available_at=?,lease_until='',last_error=?,updated_at=? WHERE id=? AND lease_token=? AND status='running' AND ${legacyOwnerFenceSql}`, 
     )
       .bind(
         !budget && job.attempts >= 5 ? "failed" : "queued",
@@ -674,7 +674,7 @@ export async function processLiteraryJob(
       .run();
     if (!budget && job.attempts >= 5 && !job.section_id) {
       await env.DB.prepare(
-        "UPDATE literary_profiles SET status='failed',updated_at=? WHERE product_id=? AND fingerprint=?",
+        `UPDATE literary_profiles SET status='failed',updated_at=? WHERE product_id=? AND fingerprint=? AND ${legacyOwnerFenceSql}`, 
       )
         .bind(at(), job.product_id, job.fingerprint)
         .run();
