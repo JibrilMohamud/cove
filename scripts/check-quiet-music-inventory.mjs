@@ -105,6 +105,9 @@ try {
   const us = await getQuietMusicInventory(env.DB, "US");
   assert.equal(us.reportOnly, true);
   assert.equal(us.scope, "commons_only");
+  assert.equal(us.playableScope, "requested_territory");
+  assert.equal(us.reviewsScope, "global_unapproved_commons");
+  assert.equal(us.shortlistScope, "global_unapproved_commons");
   assert.equal(us.playable.playable, 2);
   assert.equal(us.playable.playable_minutes, 4);
   assert.equal(us.playable.strict_screen_count, 1);
@@ -120,6 +123,9 @@ try {
   assert.equal(ca.playable.playable, 1);
   assert.equal(ca.playable.strict_screen_count, 1);
   assert.equal(ca.playable.broad_screen_count, 1);
+  assert.deepEqual(ca.reviews, us.reviews, "Global review backlog must not masquerade as local supply");
+  assert.deepEqual(ca.shortlist, us.shortlist, "Territory only filters actually playable tracks");
+  assert.match(ca.disclaimer, /global unapproved Commons candidates/);
 
   const route = fs.readFileSync("src/features/fore/soundtracks.server.ts", "utf8");
   assert.ok(
