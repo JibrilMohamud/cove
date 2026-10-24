@@ -89,7 +89,8 @@ try {
   };
   let seeds = 0;
   const intents = new Set();
-  const seed = async (_, productId, editionId) => {
+  const seed = async (_, productId, editionId, requiredOwner) => {
+    assert.equal(requiredOwner, "draining", "The primary INSERT must atomically fence owner");
     seeds++;
     assert.equal(editionId, productId === "p_a" ? "e_a" : "e_b");
     if (productId === "p_b") return { skipped: "source_or_rights_ineligible" };
