@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - "src/lib/literary-budget-settlement.ts"
+      - "src/lib/literary-job-settlement.server.ts"
+      - "src/lib/literary-isolated-inference.server.ts"
+      - "infra/content-budget/0009_job_settlements_and_ai_usage.sql"
+      - "scripts/check-literary-job-settlement.mjs"
       - "src/features/fore/literary-profiles.server.ts"
       - "scripts/check-literary-budget-settlement.mjs"
       - ".github/workflows/literary-budget-settlement.yml"
@@ -23,6 +27,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:literary-budget-settlement
+      - run: node scripts/check-literary-job-settlement.mjs
       - run: npm run test:literary-profiles
-      - run: npx eslint src/lib/literary-budget-settlement.ts src/features/fore/literary-profiles.server.ts
-      - run: npx prettier --check src/lib/literary-budget-settlement.ts src/features/fore/literary-profiles.server.ts scripts/check-literary-budget-settlement.mjs
+      - run: npx eslint src/lib/literary-budget-settlement.ts src/lib/literary-job-settlement.server.ts src/features/fore/literary-profiles.server.ts src/lib/literary-isolated-inference.server.ts scripts/check-literary-job-settlement.mjs
+      - run: npx prettier --check src/lib/literary-budget-settlement.ts src/lib/literary-job-settlement.server.ts src/features/fore/literary-profiles.server.ts src/lib/literary-isolated-inference.server.ts scripts/check-literary-budget-settlement.mjs scripts/check-literary-job-settlement.mjs
