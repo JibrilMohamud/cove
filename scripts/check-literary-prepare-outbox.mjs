@@ -178,13 +178,9 @@ try {
             return {
               async first() {
                 if (race === "owner") {
-                  primary
-                    .prepare("UPDATE cove_runtime_config SET value='isolated'")
-                    .run();
+                  primary.prepare("UPDATE cove_runtime_config SET value='isolated'").run();
                 } else if (race === "rights") {
-                  primary
-                    .prepare("UPDATE rights_grants SET status='revoked' WHERE id='g_a'")
-                    .run();
+                  primary.prepare("UPDATE rights_grants SET status='revoked' WHERE id='g_a'").run();
                 }
                 race = "";
                 return bound.first();
@@ -214,14 +210,16 @@ try {
     true,
     "A genuinely valid, delivered prior outbox is replay-safe",
   );
-  primary.prepare("UPDATE literary_prepare_outbox SET status='cancelled' WHERE id=?")
+  primary
+    .prepare("UPDATE literary_prepare_outbox SET status='cancelled' WHERE id=?")
     .run(first.outboxId);
   assert.deepEqual(
     await seedLiteraryPreparationHandoff(env, "p_a", "e_a", "draining"),
     { skipped: "rights_changed" },
     "Terminal prior outbox rows require explicit recovery, not silent reuse",
   );
-  primary.prepare("UPDATE literary_prepare_outbox SET status='delivered' WHERE id=?")
+  primary
+    .prepare("UPDATE literary_prepare_outbox SET status='delivered' WHERE id=?")
     .run(first.outboxId);
 
   fixture("denied");
