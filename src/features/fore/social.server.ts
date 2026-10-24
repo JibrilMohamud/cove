@@ -862,6 +862,23 @@ async function visiblePosts(
   env?: CoveEnv,
 ) {
   const reached = new Map<string, number>();
+  const people = new Map<string, Awaited<ReturnType<typeof sharingPerson>>>();
+  // Batch only the viewer's reversible reactions; do not perform one D1
+  // round trip per visible comment or fetch other users' reaction identities.
+  const reactions = new Map<string, string[]>();
+  const ids = rows.slice(0, 50).map((r) => String(r.id));
+  if (viewer && ids.length) {
+    const placeholders = ids.map(() => "?").join(",");
+    const mine = await db
+      .prepare(`SELECT post_id,reaction FROM social_post_reactions WHERE user_id=? AND post_id IN (${placeholders})`)
+      .bind(viewer, ...ids)
+      .all<{ post_id: string; reaction: string }>();
+    for (const row of mine.results) {
+      const previous = reactions.get(row.post_id) || [];
+      previous.push(row.reaction);
+      reactions.set(row.post_id, previous);
+    }
+  }
   const out = [];
   for (const r of rows) {
     if (r.deleted_at || r.moderation_status !== "visible") continue;
@@ -895,15 +912,10 @@ async function visiblePosts(
       });
       continue;
     }
-    const who = await sharingPerson(db, viewer, String(r.user_id)),
-      myReactions = viewer
-        ? (
-            await db
-              .prepare("SELECT reaction FROM social_post_reactions WHERE post_id=? AND user_id=?")
-              .bind(r.id, viewer)
-              .all<any>()
-          ).results.map((x: any) => String(x.reaction))
-        : [];
+    const authorId = String(r.user_id);
+    if (!people.has(authorId)) people.set(authorId, await sharingPerson(db, viewer, authorId));
+    const who = people.get(authorId) || null,
+      myReactions = reactions.get(String(r.id)) || [];
     out.push({
       id: r.id,
       user: who,
