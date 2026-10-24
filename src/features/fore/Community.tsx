@@ -269,7 +269,7 @@ export function DiscussionThread({
         </div>
       </div>
       {bookThread && !postId && (
-        <div className="cove-thread-sort" role="group" aria-label="Order book discussions">
+        <div className="cove-thread-sort" role="group" aria-label={ui("Order book discussions")}>
           <button
             type="button"
             aria-pressed={threadSort === "top"}
