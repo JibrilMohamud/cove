@@ -591,9 +591,7 @@ async function runScheduled(cron: string, env: BackendEnv) {
       const work = [
         ...(!external && assetOwner === "legacy" ? [() => runStoredAssetTick(env)] : []),
         () => verifyAudioStorage(env),
-        ...(!external && literaryOwner === "legacy"
-          ? [() => runLiteraryProfileTick(env)]
-          : []),
+        ...(!external && literaryOwner === "legacy" ? [() => runLiteraryProfileTick(env)] : []),
         () => seedMusicProfiles(env),
       ];
       for (const run of work) {
