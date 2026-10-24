@@ -9,8 +9,10 @@ type Cursor = { status: string; after_job_id: string };
 type LegacyJob = {
   legacy_job_id: string;
   product_id: string;
-  edition_id: string;
+  edition_id: string | null;
   fingerprint: string;
+  current_fingerprint: string | null;
+  profile_status: string | null;
 };
 
 /**
@@ -52,17 +54,17 @@ export async function reconcileOneLegacyLiteraryJob(
     .bind(now, now)
     .first<{ sweep: number; running: number }>();
   if (!leases || leases.sweep || leases.running) return { skipped: "legacy_leases_not_drained" };
-  // PK keyset scan: one currently pinned, unfinished *provisional* book.
-  // Old chapters, retired fingerprints, or already published profiles are
-  // excluded and MUST be separately accounted for by the operator's audit.
+  // The materialized one-row unfinished-job frontier must be resolved BEFORE
+  // joining profile metadata. Otherwise a long run of stale fingerprints
+  // could force an unbounded primary-D1 scan looking for an eligible job.
   const job = await env.DB.prepare(
-    "SELECT j.id legacy_job_id,j.product_id,j.fingerprint,p.edition_id" +
-      " FROM literary_profile_jobs j INDEXED BY idx_literary_legacy_reconcile" +
-      " JOIN literary_profiles lp" +
-      " ON lp.product_id=j.product_id AND lp.fingerprint=j.fingerprint" +
-      " JOIN products p ON p.id=j.product_id" +
-      " WHERE j.id>? AND j.status IN ('queued','failed')" +
-      " AND lp.status='provisional' ORDER BY j.id LIMIT 1",
+    "SELECT j.id legacy_job_id,j.product_id,j.fingerprint,p.edition_id," +
+      " lp.fingerprint current_fingerprint,lp.status profile_status" +
+      " FROM (SELECT id,product_id,fingerprint FROM literary_profile_jobs" +
+      " INDEXED BY idx_literary_legacy_reconcile" +
+      " WHERE id>? AND status IN ('queued','failed') ORDER BY id LIMIT 1) j" +
+      " LEFT JOIN literary_profiles lp ON lp.product_id=j.product_id" +
+      " LEFT JOIN products p ON p.id=j.product_id",
   )
     .bind(cursor.after_job_id)
     .first<LegacyJob>();
@@ -81,7 +83,13 @@ export async function reconcileOneLegacyLiteraryJob(
     "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'",
   ).first<{ value: string }>();
   if (stillDraining?.value !== "draining") return { skipped: "legacy_owner_changed" };
-  const result = await seed(env, job.product_id, job.edition_id, "draining");
+  const eligible =
+    job.edition_id &&
+    job.current_fingerprint === job.fingerprint &&
+    job.profile_status === "provisional";
+  const result = eligible
+    ? await seed(env, job.product_id, job.edition_id!, "draining")
+    : { skipped: "legacy_profile_not_current" };
   const seeded = "outboxId" in result && typeof result.outboxId === "string";
   const disposition = seeded ? "seeded" : "held";
   const outboxId = seeded ? result.outboxId : null;
