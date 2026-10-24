@@ -7,6 +7,10 @@ on:
       - "scripts/staging/verify-literary-dormant-roles.mjs"
       - "scripts/check-literary-dormant-owner-fences.mjs"
       - "src/lib/literary-preparation-queue.server.ts"
+      - "src/lib/literary-private-publication.server.ts"
+      - "src/content-processing.worker.ts"
+      - "infra/content-budget/0010_literary_private_publication_retries.sql"
+      - "scripts/check-literary-private-publication.mjs"
       - "scripts/check-literary-preparation-queue-owner.mjs"
       - "wrangler.content-literary-prepare.prod-disabled.jsonc"
       - "wrangler.content-literary-infer.prod-disabled.jsonc"
@@ -54,6 +58,7 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: "22" }
       - run: npm ci --no-audit --no-fund
+      - run: node scripts/check-literary-private-publication.mjs
       - run: npm run build:content-processing
       - name: Install dormant production literary handoff without cron or public routes
         run: node scripts/staging/deploy-literary-handoff-disabled.mjs
