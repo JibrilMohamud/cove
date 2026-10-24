@@ -66,6 +66,8 @@ class OpenverseIsolatedDiscovery(unittest.TestCase):
         self.assertIn("page=1",calls[0])
         self.assertIn("page_size=20",calls[0])
         self.assertIn("source=wikimedia_audio",calls[0])
+        self.assertNotIn("category=",calls[0],
+                         "Wikimedia audio is not labeled with Openverse's music category")
         self.assertEqual(output["indexedResults"],2)
         self.assertEqual(output["nonCommonsResults"],0)
         self.assertEqual(output["heldAfterCommonsVerification"],0)
