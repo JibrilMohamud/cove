@@ -800,5 +800,17 @@
   "Could not save these preferences. Check the values and try again.": "تعذر حفظ هذه التفضيلات. تحقق من القيم وحاول مجددًا.",
   "Form cleared. Save to replace your saved preferences.": "مُسح النموذج. احفظ لاستبدال تفضيلاتك المحفوظة.",
   "No eligible books with enough evidence match these preferences. Try fewer constraints.": "لا توجد كتب مؤهلة بمعلومات كافية تطابق هذه التفضيلات. جرّب قيودًا أقل.",
-  "Order book discussions": "ترتيب مناقشات الكتاب"
+  "Order book discussions": "ترتيب مناقشات الكتاب",
+  "Popular": "الأكثر تفاعلاً",
+  "Newest": "الأحدث",
+  "Only a few replies load at a time. Hearts represent unique reader reactions.": "يتم تحميل عدد قليل من الردود في كل مرة. تمثل القلوب تفاعلات فريدة من القراء.",
+  "Full thread": "المناقشة كاملة",
+  "Share image · Instagram / Stories": "مشاركة الصورة · إنستغرام / القصص",
+  "Share to X": "مشاركة على إكس",
+  "Share to Reddit": "مشاركة على ريديت",
+  "Download PNG": "تنزيل PNG",
+  "← Back to the book": "← العودة إلى الكتاب",
+  "Conversation": "محادثة",
+  "Follow this branch without losing reading width to indentation.": "تابع هذا الفرع من النقاش بعرض مريح دون زيادة المسافات البادئة.",
+  "Parent comment": "التعليق الأصلي"
 }
