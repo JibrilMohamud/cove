@@ -89,6 +89,18 @@ export const LITERARY_GENERATION_LIMITS = {
   maxOutputTokens: 2400,
   reservedOutputCharacters: 12000,
 } as const;
+// The primary D1 row is the ownership authority for legacy claim admission.
+// Missing row preserves existing deployments; unknown values fail closed.
+export type LiteraryProcessingOwner = "legacy" | "draining" | "isolated";
+const legacyOwnerFenceSql =
+  "COALESCE((SELECT value FROM cove_runtime_config" +
+  " WHERE key='literary_processing_owner'),'legacy')='legacy'";
+export async function readLiteraryProcessingOwner(env: Pick<CoveEnv, "DB">) {
+  const row = await env.DB.prepare(
+    "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'",
+  ).first<{ value: string }>();
+  return row?.value ?? "legacy";
+}
 const at = () => new Date().toISOString();
 const hash = async (value: string) =>
   [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)))]
@@ -148,7 +160,7 @@ async function addJob(
 ) {
   const time = at();
   return env.DB.prepare(
-    `INSERT OR IGNORE INTO literary_profile_jobs(id,product_id,fingerprint,kind,section_id,source_key,available_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)`,
+    `INSERT OR IGNORE INTO literary_profile_jobs(id,product_id,fingerprint,kind,section_id,source_key,available_at,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,? WHERE ${legacyOwnerFenceSql}`,
   )
     .bind(
       await hash([product, fingerprint, kind, section].join(":")),
@@ -246,10 +258,12 @@ async function enqueueBook(env: LiteraryEnv, book: BookInput, queuePreparation =
 }
 /** Keyset sweep is bounded independently of catalog size. No OFFSET or per-visitor AI. */
 export async function seedLiteraryProfiles(env: LiteraryEnv, limit = 50, queuePreparation = true) {
+  if ((await readLiteraryProcessingOwner(env)) !== "legacy")
+    return { seeded: 0, skipped: "legacy_owner_fenced" };
   const token = crypto.randomUUID(),
     time = at();
   const state = await env.DB.prepare(
-    `UPDATE literary_profile_state SET lease_token=?,lease_until=? WHERE id=1 AND lease_until<? RETURNING cursor`,
+    `UPDATE literary_profile_state SET lease_token=?,lease_until=? WHERE id=1 AND lease_until<? AND ${legacyOwnerFenceSql} RETURNING cursor`,
   )
     .bind(token, new Date(Date.now() + 120000).toISOString(), time)
     .first<{ cursor: string }>();
@@ -580,6 +594,8 @@ export async function processLiteraryJob(
   preferSections = false,
   lane: "prepare" | "analyze" | "any" = "any",
 ) {
+  if ((await readLiteraryProcessingOwner(env)) !== "legacy")
+    return { skipped: "legacy_owner_fenced" };
   const time = at(),
     token = crypto.randomUUID();
   await env.DB.prepare(
@@ -614,7 +630,7 @@ export async function processLiteraryJob(
           CASE WHEN j.kind='analyze' AND j.section_id<>'' AND COALESCE(c.spines,0)>=2 THEN 0 ELSE 1 END,
           CASE WHEN j.kind='analyze' THEN COALESCE(c.total,99999) ELSE 0 END`;
   const job = await env.DB.prepare(
-    `${withCoverage}UPDATE literary_profile_jobs SET status='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=? WHERE id=(SELECT j.id FROM literary_profile_jobs j JOIN literary_profiles p ON p.product_id=j.product_id AND p.fingerprint=j.fingerprint${coverageJoin} WHERE (?='any' OR j.kind=?) AND ((j.status='queued' AND j.available_at<=?) OR (j.status='running' AND j.lease_until<?)) AND j.attempts<5 ORDER BY CASE WHEN (j.section_id<>'')=? THEN 0 ELSE 1 END${analysisPriority},j.created_at,j.id LIMIT 1) RETURNING *`,
+    `${withCoverage}UPDATE literary_profile_jobs SET status='running',lease_token=?,lease_until=?,attempts=attempts+1,updated_at=? WHERE id=(SELECT j.id FROM literary_profile_jobs j JOIN literary_profiles p ON p.product_id=j.product_id AND p.fingerprint=j.fingerprint${coverageJoin} WHERE (?='any' OR j.kind=?) AND ((j.status='queued' AND j.available_at<=?) OR (j.status='running' AND j.lease_until<?)) AND j.attempts<5 ORDER BY CASE WHEN (j.section_id<>'')=? THEN 0 ELSE 1 END${analysisPriority},j.created_at,j.id LIMIT 1) AND ${legacyOwnerFenceSql} RETURNING *`,
   )
     .bind(
       token,
@@ -769,6 +785,8 @@ export function boundedLiteraryTickCap(value: number | undefined, fallback: numb
 /** Explicit caps are used only by the isolated content Worker. The original
  * scheduler receives the same unmodified limits as before. */
 export async function runLiteraryProfileTick(env: LiteraryEnv, caps: LiteraryTickCaps = {}) {
+  if ((await readLiteraryProcessingOwner(env)) !== "legacy")
+    return { skipped: "legacy_owner_fenced" };
   if (!(await config(env, "enabled", 1))) return { skipped: "disabled" };
   // A catalog sweep can generate 50 new durable preparation jobs each minute.
   // Stop enumerating once that backlog is saturated; the already-seeded titles
