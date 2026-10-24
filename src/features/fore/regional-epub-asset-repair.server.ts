@@ -10,7 +10,8 @@ export async function repairRegionalEpubAssets(
   env: Pick<CoveEnv, "DB" | "BUCKET">,
   options: { after?: string; limit?: number } = {},
 ) {
-  if (!env.BUCKET?.head) return { skipped: "no_private_r2" };
+  if (!env.BUCKET?.head || !env.BUCKET?.get)
+    return { skipped: "no_private_r2" };
   const suppliedAfter = options.after ?? "";
   if (!/^[a-z0-9_]{0,90}$/.test(suppliedAfter))
     throw new Error("Invalid regional asset repair cursor");
@@ -30,7 +31,15 @@ export async function repairRegionalEpubAssets(
     " CASE WHEN json_valid(c.rights_territories_json)" +
     " THEN c.rights_territories_json ELSE '[]' END))" +
     " AND (g.starts_at IS NULL OR datetime(g.starts_at)<=datetime('now'))" +
-    " AND (g.ends_at IS NULL OR datetime(g.ends_at)>datetime('now')))";
+    " AND (g.ends_at IS NULL OR datetime(g.ends_at)>datetime('now'))" +
+    // Deny precedence is territory-specific: a revoked CA grant cannot
+    // invalidate an independent, still-permitted AU grant for the same EPUB.
+    " AND NOT EXISTS(SELECT 1 FROM rights_grants deny" +
+    " WHERE deny.edition_id=p.edition_id AND deny.format='ebook'" +
+    " AND deny.sales_channel='retail' AND deny.status='active'" +
+    " AND deny.decision='deny' AND deny.territory_code=g.territory_code" +
+    " AND (deny.starts_at IS NULL OR datetime(deny.starts_at)<=datetime('now'))" +
+    " AND (deny.ends_at IS NULL OR datetime(deny.ends_at)>datetime('now'))))";
 
   const rows = (
     await env.DB.prepare(
@@ -86,6 +95,32 @@ export async function repairRegionalEpubAssets(
       stored.customMetadata?.sha256 !== row.content_hash ||
       stored.httpMetadata?.contentType !== "application/epub+zip"
     ) {
+      missingOrMismatched++;
+      continue;
+    }
+    // R2 HEAD verifies catalog metadata, not actual bytes. In this disabled-
+    // by-default operator-only lane, fully hash the original before *any*
+    // primary catalog write; never download or re-convert an upstream EPUB.
+    // The explicit bound prevents a corrupt object from exhausting Worker RAM.
+    if (stored.size > 25 * 1024 * 1024) {
+      missingOrMismatched++;
+      continue;
+    }
+    const body = await env.BUCKET.get(key);
+    if (!body || body.size !== stored.size) {
+      missingOrMismatched++;
+      continue;
+    }
+    const bytes = await body.arrayBuffer();
+    if (bytes.byteLength !== stored.size) {
+      missingOrMismatched++;
+      continue;
+    }
+    const sha256 = Array.from(
+      new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+      (byte) => byte.toString(16).padStart(2, "0"),
+    ).join("");
+    if (sha256 !== row.content_hash) {
       missingOrMismatched++;
       continue;
     }
