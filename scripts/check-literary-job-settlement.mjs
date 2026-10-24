@@ -31,19 +31,22 @@ function db(sqlite) {
   };
 }
 try {
-  canonical.exec("CREATE TABLE storefront_authority(value TEXT); INSERT INTO storefront_authority VALUES('untouched')");
+  canonical.exec(
+    "CREATE TABLE storefront_authority(value TEXT); INSERT INTO storefront_authority VALUES('untouched')",
+  );
   content.exec(
     readFileSync("infra/content-budget/0001_ledger.sql", "utf8") +
       "CREATE TABLE literary_inference_jobs(id TEXT PRIMARY KEY,status TEXT,lease_token TEXT,lease_until TEXT);" +
       readFileSync("infra/content-budget/0009_job_settlements_and_ai_usage.sql", "utf8"),
   );
-  content.prepare("INSERT INTO literary_budget_cutover VALUES(?,?,?,?,?,?,?)").run(
-    day, "active", 0, 0, day, day, "operator-staging-test",
-  );
+  content
+    .prepare("INSERT INTO literary_budget_cutover VALUES(?,?,?,?,?,?,?)")
+    .run(day, "active", 0, 0, day, day, "operator-staging-test");
   content.prepare("INSERT INTO literary_profile_budget VALUES(?,?,?)").run(day, 15000, 2);
-  for (const id of [A, B]) content.prepare(
-    "INSERT INTO literary_inference_jobs VALUES(?,'running',?,'2099-01-01')",
-  ).run(id, token);
+  for (const id of [A, B])
+    content
+      .prepare("INSERT INTO literary_inference_jobs VALUES(?,'running',?,'2099-01-01')")
+      .run(id, token);
   await build({
     entryPoints: ["src/lib/literary-job-settlement.server.ts"],
     outfile: path.join(dir, "settlement.mjs"),
@@ -66,17 +69,22 @@ try {
     reservedOutputCharacters: 12000,
     ...extra,
   });
-  const balance = () => content.prepare("SELECT reserved_units FROM literary_profile_budget WHERE day=?").get(day).reserved_units;
-  const receiptCount = () => content.prepare("SELECT COUNT(*) n FROM literary_job_output_settlements").get().n;
+  const balance = () =>
+    content.prepare("SELECT reserved_units FROM literary_profile_budget WHERE day=?").get(day)
+      .reserved_units;
+  const receiptCount = () =>
+    content.prepare("SELECT COUNT(*) n FROM literary_job_output_settlements").get().n;
   assert.deepEqual(await settleIsolatedLiteraryJob(d1, params(A)), {
     refunded: 10750,
     committed: true,
   });
   assert.equal(balance(), 4250);
   assert.equal(receiptCount(), 1);
-  assert.ok((await Promise.all(
-    Array.from({ length: 15 }, () => settleIsolatedLiteraryJob(d1, params(A))),
-  )).every((x) => x.refunded === 0 && !x.committed));
+  assert.ok(
+    (
+      await Promise.all(Array.from({ length: 15 }, () => settleIsolatedLiteraryJob(d1, params(A))))
+    ).every((x) => x.refunded === 0 && !x.committed),
+  );
   assert.equal(balance(), 4250, "replays of a committed job cannot credit again");
   assert.equal(receiptCount(), 1, "job receipt remains immutable");
   // Insufficient day balance must abort BOTH the receipt and the credit.
@@ -120,7 +128,10 @@ try {
     billedNeurons: null,
     providerCostUsd: null,
   });
-  assert.equal(observedLiteraryAiUsage({ usage: { prompt_tokens: "not reported" } }).inputTokens, null);
+  assert.equal(
+    observedLiteraryAiUsage({ usage: { prompt_tokens: "not reported" } }).inputTokens,
+    null,
+  );
   await recordLiteraryAiInvocation(d1, A, "@cf/test/model", {
     usage: { prompt_tokens: 314, completion_tokens: 52 },
   });
@@ -131,11 +142,18 @@ try {
     "Retries must be individually measured rather than collapsed by job ID",
   );
   assert.equal(
-    content.prepare("SELECT COUNT(*) n FROM literary_ai_invocation_usage WHERE provider_cost_usd IS NULL").get().n,
+    content
+      .prepare(
+        "SELECT COUNT(*) n FROM literary_ai_invocation_usage WHERE provider_cost_usd IS NULL",
+      )
+      .get().n,
     2,
     "Unreported dollar cost must never be invented from characters",
   );
-  assert.equal(canonical.prepare("SELECT value FROM storefront_authority").get().value, "untouched");
+  assert.equal(
+    canonical.prepare("SELECT value FROM storefront_authority").get().value,
+    "untouched",
+  );
   console.log(
     "LITERARY_JOB_SETTLEMENT_PASS unique immutable job, concurrent replay, atomic credit, unfunded rollback, lease/day fencing, measured tokens, unknown costs, zero primary writes",
   );
