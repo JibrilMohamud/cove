@@ -319,11 +319,31 @@ try {
       events.push(v.delaySeconds);
     },
   };
+  let queueOwner = "isolated";
   const qe = {
     FORE_CONTENT_PROCESSOR_ENABLED: "1",
     FORE_CONTENT_PREPARE_ENABLED: "1",
     FORE_CONTENT_PROCESSOR_ROLE: "literary-prepare",
+    DB: {
+      prepare(sql) {
+        assert.equal(
+          sql,
+          "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'",
+        );
+        return {
+          async first() {
+            return { value: queueOwner };
+          },
+        };
+      },
+    },
   };
+  queueOwner = "legacy";
+  await consume({ messages: [msg] }, qe, async () => {
+    throw Error("legacy owner must not run queued preparation");
+  });
+  assert.deepEqual(events.splice(0), [300]);
+  queueOwner = "isolated";
   await consume({ messages: [msg] }, qe, async (_env, id) => {
     assert.equal(id, msg.body.jobId);
     return { prepared: id };
