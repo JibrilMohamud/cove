@@ -152,6 +152,30 @@ class Tests(unittest.TestCase):
                 summary = module.run(1,True,False,"token",PrivateR2())
                 self.assertEqual(summary["results"][0]["status"],"stored_private_technical_qa")
                 store.assert_called_once()
+    def test_full_decode_quality_thresholds_never_imply_quiet_approval(self):
+        self.assertTrue(module.validate_full_audio_quality(METRIC))
+        for key,value in [
+            ("durationSeconds", 19), ("integratedLufs", -50),
+            ("truePeakDbfs", 1), ("silenceRatio", .25),
+            ("clippedSampleRatio", .001), ("integratedLufs", float("nan"))]:
+            with self.assertRaisesRegex(ValueError, "full_audio_quality_not_eligible"):
+                module.validate_full_audio_quality({**METRIC,key:value})
+        with self.assertRaisesRegex(ValueError, "full_audio_decode_incomplete"):
+            module.validate_full_audio_quality({**METRIC,"decodedFully":False})
+
+    def test_permanent_hold_cannot_upgrade_rights(self):
+        calls=[]
+        def fake(sql, params, token):
+            calls.append(sql)
+            if sql.startswith("SELECT"):
+                return [{"status":"held","hold_reason":"full_audio_quality_not_eligible"}]
+            return []
+        with patch.object(module,"d1",side_effect=fake):
+            module.persist_durable_hold("token",ROW,"full_audio_quality_not_eligible")
+        self.assertIn("'held'",calls[0])
+        self.assertNotIn("rights_status",calls[0])
+        self.assertNotIn("quiet_status",calls[0])
+
     def test_unsafe_caps_are_rejected(self):
         for n in (0,3,100):
             with self.assertRaises(ValueError):
