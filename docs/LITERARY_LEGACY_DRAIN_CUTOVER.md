@@ -65,7 +65,11 @@ must enter the isolated pipeline through a separately verified handoff.
    `literary-handoff` role. Every candidate is selected by primary PK cursor
    and must have a current provisional fingerprint. Its existing
    `seedLiteraryPreparationHandoff` call enforces live source SHA, territorial
-   allow/deny and canonical primary outbox insertion. The secondary ACK cursor
+   allow/deny and canonical primary outbox insertion. Queued, failed, and
+   expired-running legacy claims are covered; still-live leases block the
+   whole tick. The partial unfinished-job index and a one-row subquery force
+   a bounded PK successor lookup before joining the current profile. Stale
+   fingerprints are held explicitly rather than causing a full-catalog scan. The secondary ACK cursor
    and disposition receipt are committed together; lost ACKs replay the
    deterministic primary outbox. Rights-ineligible candidates become **held**,
    never silently treated as eligible. There is no operator-facing endpoint.
