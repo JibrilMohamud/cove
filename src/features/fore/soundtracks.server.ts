@@ -175,7 +175,7 @@ function sourceFileUrl(info: CommonsInfo) {
     return u.toString();
   } catch { return null; }
 }
-function profile(title: string, category: (typeof CATEGORIES)[number]) {
+function profile(title: string, category: { name: string; period: string; instrument: string }) {
   const t = title.toLowerCase();
   let moods: string[] = [];
   let energy: number | null = null;
@@ -580,7 +580,7 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
         candidate.sha1,candidate.size,candidate.mime,candidate.title,candidate.performer,
         candidate.license.code,candidate.license.link,candidate.license.statement,
         candidate.attribution,"mixed",JSON.stringify(tagging.instruments),JSON.stringify(tagging.moods),
-        tagging.energy,tagging.hasVocals,JSON.stringify(evidence),"",at,at).run();
+        tagging.energy,tagging.hasVocals,JSON.stringify(evidence),"",at,at).run() as { meta?: { changes?:number } };
       if (result.meta?.changes===1) queued++; else existing++;
     }
     return json({ discovery:"commons_verification",queued,existing,held,
