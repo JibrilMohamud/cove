@@ -21,11 +21,11 @@ jobs:
       - run: npm ci
       - name: Format only isolated music execution files
         run: |
-          npx prettier --write src/music-supply/analysis.ts src/music-supply/worker.ts src/music-supply/execution.ts scripts/check-isolated-music-supply.mjs scripts/music-supply/drain-source-intake.mjs scripts/music-supply/review-private-queue.mjs
+          npx prettier --write src/music-supply/analysis.ts src/music-supply/worker.ts src/music-supply/execution.ts scripts/check-isolated-music-supply.mjs scripts/music-supply/drain-source-intake.mjs scripts/music-supply/drain-full-decode-qa.mjs scripts/music-supply/review-private-queue.mjs
           if ! git diff --quiet; then
             git config user.name "cove-format-bot"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add src/music-supply/analysis.ts src/music-supply/worker.ts src/music-supply/execution.ts scripts/check-isolated-music-supply.mjs scripts/music-supply/drain-source-intake.mjs scripts/music-supply/review-private-queue.mjs
+            git add src/music-supply/analysis.ts src/music-supply/worker.ts src/music-supply/execution.ts scripts/check-isolated-music-supply.mjs scripts/music-supply/drain-source-intake.mjs scripts/music-supply/drain-full-decode-qa.mjs scripts/music-supply/review-private-queue.mjs
             git commit -m "style(music): format detached execution"
             git push origin HEAD:feat/music-supply-execution-20261024
           fi
