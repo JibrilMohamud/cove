@@ -4,6 +4,9 @@ on:
     paths:
       - "wrangler.content-literary-handoff.prod-disabled.jsonc"
       - "scripts/staging/deploy-literary-handoff-disabled.mjs"
+      - "scripts/staging/verify-literary-dormant-roles.mjs"
+      - "wrangler.content-literary-prepare.prod-disabled.jsonc"
+      - "wrangler.content-literary-infer.prod-disabled.jsonc"
       - ".github/workflows/literary-prod-handoff-dormant-deploy.yml"
   push:
     branches: [main]
@@ -27,6 +30,7 @@ jobs:
         with:
           node-version: "22"
       - run: node --check scripts/staging/deploy-literary-handoff-disabled.mjs
+      - run: node --check scripts/staging/verify-literary-dormant-roles.mjs
       - run: node scripts/check-literary-handoff-dormant-config.mjs
   deploy-without-trigger:
     needs: static-dormant-constraints
@@ -47,3 +51,9 @@ jobs:
       - run: npm run build:content-processing
       - name: Install dormant production literary handoff without cron or public routes
         run: node scripts/staging/deploy-literary-handoff-disabled.mjs
+      - name: Deploy dormant literary preparation (private D1/R2, zero triggers)
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.content-literary-prepare.prod-disabled.jsonc
+      - name: Deploy dormant literary inference (private D1/R2, zero triggers)
+        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.content-literary-infer.prod-disabled.jsonc
+      - name: Verify deployed preparation/inference flags, bindings and routes
+        run: node scripts/staging/verify-literary-dormant-roles.mjs

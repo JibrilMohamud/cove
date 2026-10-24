@@ -33,6 +33,30 @@ assert.ok(workflow.includes("github.event_name == 'push'"));
 assert.ok(workflow.includes("cancel-in-progress: false"));
 assert.ok(workflow.includes("node scripts/staging/deploy-literary-handoff-disabled.mjs"));
 assert.ok(!workflow.includes("github.event.pull_request.head.ref =="));
+for (const [file, role] of [
+  ["wrangler.content-literary-prepare.prod-disabled.jsonc", "literary-prepare"],
+  ["wrangler.content-literary-infer.prod-disabled.jsonc", "literary-infer"],
+]) {
+  const cfg = JSON.parse(fs.readFileSync(file, "utf8"));
+  assert.equal(cfg.workers_dev, false);
+  assert.equal(cfg.preview_urls, false);
+  assert.ok(!cfg.routes && !cfg.route && !cfg.triggers && !cfg.queues);
+  assert.equal(cfg.vars.FORE_CONTENT_PROCESSOR_ROLE, role);
+  assert.equal(cfg.vars.FORE_CONTENT_PROCESSOR_ENABLED, "0");
+  assert.equal(cfg.vars.FORE_CONTENT_PREPARE_ENABLED, "0");
+  assert.deepEqual(
+    cfg.d1_databases.map((x) => x.database_id),
+    ["4bd657ac-8789-403e-a28c-93aba8d0a989", "400c3af3-5d40-41fd-83cc-98228e40ddac"],
+  );
+  assert.deepEqual(
+    cfg.r2_buckets.map((x) => x.bucket_name),
+    ["cove-literary-originals-isolated-20261024"],
+  );
+  if (role === "literary-infer") {
+    assert.equal(cfg.vars.FORE_CONTENT_INFERENCE_ENABLED, "0");
+    assert.equal(cfg.ai.binding, "AI");
+  }
+}
 console.log(
   "LITERARY_DORMANT_CONFIG_PASS no public route, cron, queue, owner flip or processing permission",
 );
