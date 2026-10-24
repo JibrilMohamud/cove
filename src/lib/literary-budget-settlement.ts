@@ -15,12 +15,12 @@ export function literaryOutputReservationRefund(
 
 type SettlementStatement = {
   bind(...values: unknown[]): SettlementStatement;
-  run(): Promise<{ meta?: { changes?: number } }>;
+  run(): Promise<unknown>;
 };
 
 export type LiteraryBudgetDB = {
   prepare(sql: string): SettlementStatement;
-  batch(statements: SettlementStatement[]): Promise<Array<{ meta?: { changes?: number } }>>;
+  batch(statements: SettlementStatement[]): Promise<unknown>;
 };
 
 /**
@@ -74,7 +74,9 @@ export async function settleLiteraryOutputReservation(
         " AND EXISTS(SELECT 1 FROM literary_profile_budget WHERE day=?)",
     )
     .bind(receiptKey, day, refunded, day);
-  const results = await db.batch([insert, decrement, finalize]);
+  const results = (await db.batch([insert, decrement, finalize])) as Array<{
+    meta?: { changes?: number };
+  }>;
   const credited = Number(results[1]?.meta?.changes || 0) === 1;
   return { refunded: credited ? refunded : 0 };
 }
