@@ -37,5 +37,11 @@
     "FORE_CONTENT_BUDGET_MODE": "isolated",
     "FORE_CONTENT_D1_ADMISSION_MAX_MS": "100",
     "FORE_LITERARY_AUTOPUBLISH_ENABLED": "0"
-  }
+  },
+  "services": [
+    {
+      "binding": "LITERARY_PUBLISHER",
+      "service": "cove-literary-publisher-isolated-disabled"
+    }
+  ]
 }
