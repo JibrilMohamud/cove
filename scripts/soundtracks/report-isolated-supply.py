@@ -56,7 +56,19 @@ def collect(token,when=None,reader=fetch):
         " (SELECT COUNT(*) FROM music_open_source_candidates WHERE status='held') source_conflict_holds,"
         " (SELECT COUNT(*) FROM music_human_reviews) human_reviewed_total,"
         " (SELECT COUNT(*) FROM music_contracts) negotiated_contract_count,"
-        " (SELECT COUNT(*) FROM music_masters) master_count",
+        " (SELECT COUNT(*) FROM music_masters) master_count,"
+        " (SELECT COUNT(*) FROM music_open_source_candidates c"
+        " WHERE c.status='discovered' AND NOT EXISTS"
+        " (SELECT 1 FROM music_open_technical_qa q WHERE q.candidate_id=c.id))"
+        " open_technical_qa_backlog,"
+        " (SELECT COUNT(*) FROM music_open_technical_qa WHERE status='measured')"
+        " open_originals_technically_measured,"
+        " (SELECT COUNT(*) FROM music_open_technical_qa WHERE status='held')"
+        " open_originals_technical_holds,"
+        " (SELECT COUNT(*) FROM music_open_review_cases WHERE status='needs_review'"
+        " AND review_kind='rights_provenance') rights_review_cases,"
+        " (SELECT COUNT(*) FROM music_open_review_cases WHERE status='needs_review'"
+        " AND review_kind='quiet_suitability') quiet_review_cases",
         [],token)
     discovery=reader(
         "SELECT provider,COUNT(*) runs,SUM(searches) searches,SUM(verified) verified,"
@@ -69,6 +81,7 @@ def collect(token,when=None,reader=fetch):
         "backlog":backlog,
         "sourceAndReviewCounts":sources[0] if sources else {},
         "discovery":discovery,
+        "openOriginalQaInterpretation":"Measured originals are unapproved private technical evidence only, never licensed or quiet by default.",
         "costInterpretation":"Only attested micro-USD totals are known; null/unpriced is not zero.",
         "customerPlayableCertification":None,
         "scope":"isolated_music_db_not_storefront_or_primary_d1",
