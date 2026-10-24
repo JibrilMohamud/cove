@@ -6,6 +6,8 @@ on:
       - "src/lib/music-canonical-handoff.ts"
       - "src/persistence-backend.worker.ts"
       - "scripts/check-music-canonical-handoff.mjs"
+      - "scripts/check-music-canonical-replay.mjs"
+      - "scripts/music-supply/replay-music-supply-handoff.mjs"
       - ".github/workflows/music-canonical-handoff.yml"
 permissions:
   contents: read
@@ -19,8 +21,9 @@ jobs:
         with: { node-version: "22", cache: npm }
       - run: npm ci --no-audit --no-fund
       - run: node scripts/check-music-canonical-handoff.mjs
+      - run: node scripts/check-music-canonical-replay.mjs
       - run: npm run typecheck
       - run: npm run test:rights
       - run: npm run test:soundtracks
-      - run: npx eslint src/lib/music-canonical-handoff.ts scripts/check-music-canonical-handoff.mjs
-      - run: npx prettier --check src/lib/music-canonical-handoff.ts scripts/check-music-canonical-handoff.mjs
+      - run: npx eslint src/lib/music-canonical-handoff.ts scripts/check-music-canonical-handoff.mjs scripts/check-music-canonical-replay.mjs scripts/music-supply/replay-music-supply-handoff.mjs
+      - run: npx prettier --check src/lib/music-canonical-handoff.ts scripts/check-music-canonical-handoff.mjs scripts/check-music-canonical-replay.mjs scripts/music-supply/replay-music-supply-handoff.mjs
