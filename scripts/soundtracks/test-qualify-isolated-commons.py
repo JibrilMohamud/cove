@@ -112,7 +112,7 @@ class Tests(unittest.TestCase):
                 "source_sha1,size_bytes,license_code,license_url,evidence_json,"
                 "evidence_sha256,discovered_at,last_seen_at)"
                 " VALUES(?,'commons','https://commons.wikimedia.org/wiki/File:Original.ogg',"
-                "?,?,?,?,?,?,?,'{}',?,'2026-10-24','2026-10-24')",
+                "?,?,?,?,?,?,'{}',?,'2026-10-24','2026-10-24')",
                 (ROW["id"],SOURCE,ROW["source_title"],SHA1,len(AUDIO),
                  ROW["license_code"],ROW["license_url"],ROW["evidence_sha256"]))
             def fake_d1(sql,params,token):
