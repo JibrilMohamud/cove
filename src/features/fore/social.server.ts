@@ -1038,7 +1038,7 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL, env
         progress + 0.002,
         product.id,
         progress + 0.002,
-        ...(cursor ? [cursor.at, cursor.at, cursor.id] : []),
+        ...(cursor ? (topSorted ? [cursor.score, cursor.score, cursor.at, cursor.at, cursor.id] : [cursor.at, cursor.at, cursor.id]) : []),
       )
       .all<{ id: string; created_at: string }>()
   ).results;
@@ -2049,7 +2049,7 @@ export async function handleSocial(
       limitedBookThread = contextType === "work" && url.searchParams.get("thread") === "1",
       threadLimit = limitedBookThread ? (parentId ? 8 : 12) : 50,
       topSorted = limitedBookThread && url.searchParams.get("sort") === "top";
-    if (topSorted && cursor && !/^[0-9]{1,10}$/.test(cursor.at))
+    if (topSorted && cursor && (cursor.score === undefined || !cursor.at))
       throw new ApiError(400, "Invalid ranked comment cursor.");
     if (parentId) {
       const parent = await db
@@ -2065,8 +2065,8 @@ export async function handleSocial(
       await db
         .prepare(
           `SELECT * FROM social_posts WHERE context_type=? AND context_id=? AND ${parentId ? "parent_id=?" : postId && limitedBookThread ? "1=1" : "parent_id IS NULL"} AND deleted_at IS NULL AND moderation_status='visible' ${postId ? "AND id=?" : ""}
-       ${cursor ? (topSorted ? "AND (reaction_count<? OR (reaction_count=? AND id<?))" : "AND (created_at<? OR (created_at=? AND id<?))") : ""}
-       ORDER BY ${topSorted ? "reaction_count DESC,id DESC" : "created_at DESC,id DESC"} LIMIT ${threadLimit + 1}`,
+       ${cursor ? (topSorted ? "AND (reaction_count<? OR (reaction_count=? AND (created_at<? OR (created_at=? AND id<?))))" : "AND (created_at<? OR (created_at=? AND id<?))") : ""}
+       ORDER BY ${topSorted ? "reaction_count DESC,created_at DESC,id DESC" : "created_at DESC,id DESC"} LIMIT ${threadLimit + 1}`,
         )
         .bind(
           contextType,
