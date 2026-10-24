@@ -123,7 +123,11 @@ try {
   assert.equal(ca.playable.playable, 1);
   assert.equal(ca.playable.strict_screen_count, 1);
   assert.equal(ca.playable.broad_screen_count, 1);
-  assert.deepEqual(ca.reviews, us.reviews, "Global review backlog must not masquerade as local supply");
+  assert.deepEqual(
+    ca.reviews,
+    us.reviews,
+    "Global review backlog must not masquerade as local supply",
+  );
   assert.deepEqual(ca.shortlist, us.shortlist, "Territory only filters actually playable tracks");
   assert.match(ca.disclaimer, /global unapproved Commons candidates/);
 
