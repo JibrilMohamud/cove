@@ -11,6 +11,7 @@ import {
   runIsolatedLiteraryInferenceTick,
 } from "./lib/literary-isolated-inference.server";
 import { dispatchOneLiteraryPreparationHandoff } from "./lib/literary-prepare-outbox.server";
+import { publishOnePrivateLiteraryInference } from "./lib/literary-private-publication.server";
 import { reconcileOneLegacyLiteraryJob } from "./lib/literary-legacy-reconcile.server";
 import {
   consumePreparationQueue,
@@ -42,6 +43,10 @@ export type ContentProcessorEnv = CoveEnv & {
   FORE_CONTENT_HANDOFF_ENABLED?: string;
   FORE_LITERARY_DRAIN_RECONCILE_ENABLED?: string;
   FORE_CONTENT_INFERENCE_ENABLED?: string;
+  FORE_LITERARY_AUTOPUBLISH_ENABLED?: string;
+  FORE_LITERARY_INFERENCE_PUBLISH_TOKEN?: string;
+  FORE_LITERARY_INFERENCE_BACKEND_TOKEN?: string;
+  LITERARY_PUBLISHER?: { fetch(request: Request): Promise<Response> };
   CONTENT_DB?: CoveEnv["DB"];
   FORE_CONTENT_BUDGET_MODE?: string;
   LITERARY_PREPARE_QUEUE?: {
@@ -90,6 +95,7 @@ const defaultRunners: ProcessorRunners = {
   "literary-infer": async (env) => ({
     seeded: await seedOneIsolatedLiteraryInference(env),
     inference: await runIsolatedLiteraryInferenceTick(env),
+    publication: await publishOnePrivateLiteraryInference(env),
   }),
 };
 
