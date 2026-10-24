@@ -108,6 +108,21 @@ class OpenverseIsolatedDiscovery(unittest.TestCase):
         self.assertFalse(any("upload.wikimedia.org" in u for u in calls),
                          "Discovery must never download source audio")
 
+    def test_commons_tracking_queries_are_canonicalized_but_security_queries_are_denied(self):
+        good=page()
+        good["imageinfo"][0]["url"]+="?utm_source=commons.wikimedia.org&utm_content=original"
+        candidate=module.exact_candidate(result(),good)
+        self.assertIsNotNone(candidate)
+        self.assertEqual(candidate["sourceFileUrl"],
+                         "https://upload.wikimedia.org/wikipedia/commons/a/aa/Sonata.ogg")
+        bad=page()
+        bad["imageinfo"][0]["url"]+="?token=secret"
+        self.assertIsNone(module.exact_candidate(result(),bad))
+        bad["imageinfo"][0]["url"]="https://evil.test/wikipedia/commons/a/aa/Sonata.ogg"
+        self.assertIsNone(module.exact_candidate(result(),bad))
+        bad["imageinfo"][0]["url"]="https://upload.wikimedia.org/wikipedia/commons/a/aa/Sonata.ogg#anything"
+        self.assertIsNone(module.exact_candidate(result(),bad))
+
     def test_commons_conflicts_and_unlicensed_recordings_remain_held(self):
         claim=page()
         claim["imageinfo"][0]["metadata"]=[{"name":"license","value":"CC BY-NC"}]
