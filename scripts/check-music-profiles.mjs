@@ -209,6 +209,28 @@ try {
   ).json();
   assert.equal(published.status, "analyzed");
   assert.equal(published.profile.audioAnalysis.durationSeconds, 20);
+  assert.equal(published.profile.quietReading.policy, "cove-quiet-reading-v2");
+  // Existing historical analyses can be re-scored in bounded operator calls,
+  // without re-running AI, changing licenses or exposing previously held audio.
+  await env.DB.prepare(
+    "UPDATE music_profiles SET profile_json=json_remove(profile_json,'$.quietReading') WHERE recording_id=?",
+  )
+    .bind(first.recordingId)
+    .run();
+  assert.equal(
+    (await (await call("/admin/music-profiles/rescore-quiet", {})).json()).skipped,
+    "disabled",
+  );
+  env.FORE_QUIET_READING_RESCORE_ENABLED = "1";
+  const rescored = await (await call("/admin/music-profiles/rescore-quiet", {})).json();
+  assert.equal(rescored.updated, true);
+  assert.equal(rescored.recordingId, first.recordingId);
+  assert.equal(
+    (await (await call("/admin/music-profiles/rescore-quiet", {})).json()).skipped,
+    "nothing_due",
+  );
+
+  assert.ok(["quiet_focus", "gentle_background", "distracting", "needs_vocal_evidence"].includes(published.profile.quietReading.tier));
   assert.equal(
     published.profile.readingSuitability.lyrics,
     null,

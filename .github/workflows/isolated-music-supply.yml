@@ -1,0 +1,35 @@
+name: isolated-music-supply
+
+on:
+  pull_request:
+    paths:
+      - "src/music-supply/**"
+      - "infra/music/**"
+      - "scripts/check-isolated-music-supply.mjs"
+      - "scripts/music-supply/**"
+      - "scripts/build-isolated-music-supply.mjs"
+      - ".github/workflows/isolated-music-supply.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rights-evidence-and-durable-handoff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: node scripts/check-isolated-music-supply.mjs
+      - run: node --check scripts/music-supply/ingest-reviewed-catalog.mjs
+      - run: node --check scripts/music-supply/qualify-staged-masters.mjs
+      - run: node --check scripts/music-supply/audio-quality.mjs
+      - run: node scripts/build-isolated-music-supply.mjs
+      - run: npm run typecheck
+      - run: npx eslint src/music-supply/*.ts scripts/check-isolated-music-supply.mjs
+      - run: npx prettier --check src/music-supply/*.ts scripts/check-isolated-music-supply.mjs

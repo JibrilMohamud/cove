@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "cove-music-supply-isolated-qa",
+  "main": ".output/music-supply/worker.mjs",
+  "compatibility_date": "2026-10-23",
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  "d1_databases": [{
+    "binding": "MUSIC_DB",
+    "database_name": "cove-music-supply-qa-20261023",
+    "database_id": "fe9a9dd2-64b8-451c-a356-9ec71d9ee211",
+    "migrations_dir": "infra/music"
+  }],
+  "r2_buckets": [{
+    "binding": "MUSIC_BUCKET",
+    "bucket_name": "cove-music-supply-qa-20261023"
+  }],
+  "vars": {
+    "MUSIC_SUPPLY_ENABLED": "0",
+    "MUSIC_ENVIRONMENT": "isolated-qa"
+  }
+}

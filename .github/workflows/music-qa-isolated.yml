@@ -1,0 +1,68 @@
+name: music-qa-isolated
+
+on:
+  pull_request:
+    paths:
+      - "scripts/music-qa-analyzer.mjs"
+      - "scripts/run-music-qa-batch.mjs"
+      - "scripts/check-music-qa-analyzer.mjs"
+      - ".github/workflows/music-qa-isolated.yml"
+  workflow_dispatch:
+    inputs:
+      staging_origin:
+        description: "Explicit dedicated QA/staging HTTPS backend origin (never production)"
+        required: true
+        type: string
+      limit:
+        description: "Maximum QA recordings (1-8)"
+        required: false
+        default: "4"
+        type: choice
+        options:
+          - "1"
+          - "2"
+          - "4"
+          - "8"
+      commit_quality_results:
+        description: "Update staging quality_status only (never licenses or playback approval)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-music-qa-isolated-staging
+  cancel-in-progress: false
+
+jobs:
+  full-decode-audio-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install FFmpeg for isolated full-file decoding
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+          ffmpeg -version
+          ffprobe -version
+      - name: Synthetic audio correctness and tamper checks
+        run: node scripts/check-music-qa-analyzer.mjs
+      - name: Optional bounded QA / staging only
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          COVE_MUSIC_QA_BASE_URL: ${{ inputs.staging_origin }}
+          COVE_MUSIC_QA_SERVICE_TOKEN: ${{ secrets.COVE_MUSIC_QA_STAGING_SERVICE_TOKEN }}
+          COVE_MUSIC_QA_WRITES_ENABLED: ${{ secrets.COVE_MUSIC_QA_STAGING_WRITES_ENABLED }}
+          LIMIT: ${{ inputs.limit }}
+          COMMIT_QUALITY: ${{ inputs.commit_quality_results }}
+        run: |
+          if [ "$COMMIT_QUALITY" = "true" ]; then
+            node scripts/run-music-qa-batch.mjs "--limit=$LIMIT" --commit
+          else
+            node scripts/run-music-qa-batch.mjs "--limit=$LIMIT"
+          fi
