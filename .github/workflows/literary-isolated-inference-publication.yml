@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-node@v6
         with: { node-version: "22", cache: npm }
       - run: npm ci --no-audit --no-fund
-      - run: node scripts/check-literary-isolated-inference.mjs src/literary-inference-publisher.worker.ts scripts/check-literary-publisher-gateway.mjs
+      - run: node scripts/check-literary-isolated-inference.mjs
       - run: node scripts/check-literary-publisher-gateway.mjs
       - run: node scripts/build-literary-inference-publisher.mjs
       - run: npm run typecheck
