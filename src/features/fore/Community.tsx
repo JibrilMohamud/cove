@@ -2716,7 +2716,7 @@ export function CommunityPage() {
           parentId={focusedThread}
           bookThread
           depth={0}
-          title="Replies"
+          title={ui("Replies")}
         />
       </main>
     );
