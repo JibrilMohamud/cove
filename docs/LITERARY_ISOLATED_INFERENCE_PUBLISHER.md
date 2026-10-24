@@ -26,7 +26,7 @@
 ## Execution and safety gates
 
 1. Use two **different staging D1 databases**. Install content migrations
-   0001, 0002, 0005 and 0006 only into CONTENT_DB; install the existing
+   0001, 0002, 0005, 0006 and 0007 only into CONTENT_DB; install the existing
    primary canonical and outbox schema only into a separate approved primary.
 2. Keep the Worker and existing primary processing flags unchanged. The
    new role requires `FORE_CONTENT_PROCESSOR_ENABLED=1`,
