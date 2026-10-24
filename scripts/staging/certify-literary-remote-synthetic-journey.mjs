@@ -31,10 +31,7 @@ async function api(endpoint, method = "GET", body, contentType = "application/js
     ...(body === undefined
       ? {}
       : {
-          body:
-            contentType === "application/json"
-              ? JSON.stringify(body)
-              : body,
+          body: contentType === "application/json" ? JSON.stringify(body) : body,
         }),
     signal: AbortSignal.timeout(45000),
   });
@@ -117,8 +114,7 @@ const BUCKET = {
   },
   async put(key, data, options = {}) {
     if (options.onlyIf?.etagDoesNotMatch === "*" && (await this.head(key))) return null;
-    const bytes =
-      typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+    const bytes = typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
     await api(r2path(key), "PUT", bytes, "application/octet-stream");
     metadata.set(key, options);
     r2Puts++;
@@ -129,15 +125,23 @@ try {
   // The staging databases are dedicated to this synthetic run. Wipe only
   // tables inside those two named QA resources, never any production DB.
   for (const table of [
-    "literary_prepare_outbox", "literary_profiles", "rights_grants",
-    "gutenberg_source_cache", "products", "cove_runtime_config",
+    "literary_prepare_outbox",
+    "literary_profiles",
+    "rights_grants",
+    "gutenberg_source_cache",
+    "products",
+    "cove_runtime_config",
   ])
     await sql(primary, "DROP TABLE IF EXISTS " + table);
   for (const table of [
-    "literary_inference_jobs", "literary_inference_seed_frontier",
-    "literary_prepare_jobs", "literary_budget_cutover",
-    "literary_profile_budget", "literary_budget_domain_identity",
-    "literary_usage_records", "literary_output_settlement_receipts",
+    "literary_inference_jobs",
+    "literary_inference_seed_frontier",
+    "literary_prepare_jobs",
+    "literary_budget_cutover",
+    "literary_profile_budget",
+    "literary_budget_domain_identity",
+    "literary_usage_records",
+    "literary_output_settlement_receipts",
   ])
     await sql(content, "DROP TABLE IF EXISTS " + table);
   await sql(
@@ -179,9 +183,7 @@ try {
   const infer = await import(path.join(temporary, "infer.js"));
   const publisher = await import(path.join(temporary, "publish.js"));
   const gateway = await import(path.join(temporary, "gateway.js"));
-  const { emptyLiteraryProfile, PROFILE_POLICY } = await import(
-    path.join(temporary, "profile.js")
-  );
+  const { emptyLiteraryProfile, PROFILE_POLICY } = await import(path.join(temporary, "profile.js"));
   const zip = new JSZip();
   zip.file("mimetype", "application/epub+zip");
   zip.file(
@@ -232,7 +234,16 @@ try {
     )
     .run();
   await DB.prepare("INSERT INTO literary_profiles VALUES(?,?,?,?,?,?,?,?)")
-    .bind("qa_literary", profileFingerprint, 0, "{}", "provisional", "metadata", PROFILE_POLICY, new Date().toISOString())
+    .bind(
+      "qa_literary",
+      profileFingerprint,
+      0,
+      "{}",
+      "provisional",
+      "metadata",
+      PROFILE_POLICY,
+      new Date().toISOString(),
+    )
     .run();
 
   const today = new Date().toISOString().slice(0, 10);
@@ -277,7 +288,11 @@ try {
       async run() {
         aiCalls++;
         assert.equal(
-          (await DB.prepare("SELECT status FROM literary_profiles WHERE product_id='qa_literary'").first()).status,
+          (
+            await DB.prepare(
+              "SELECT status FROM literary_profiles WHERE product_id='qa_literary'",
+            ).first()
+          ).status,
           "provisional",
         );
         return { response: JSON.stringify(emptyLiteraryProfile()) };
@@ -335,9 +350,11 @@ try {
   ).first();
   assert.deepEqual(canonical, { revision: 1, status: "analyzed", coverage: "isolated_samples" });
   assert.equal(
-    (await CONTENT_DB.prepare(
-      "SELECT publication_state FROM literary_inference_jobs WHERE id=?",
-    ).bind(seeded.enqueued).first()).publication_state,
+    (
+      await CONTENT_DB.prepare("SELECT publication_state FROM literary_inference_jobs WHERE id=?")
+        .bind(seeded.enqueued)
+        .first()
+    ).publication_state,
     "published",
   );
   assert.deepEqual(await publisher.publishOnePrivateLiteraryInference(autopublish), {
