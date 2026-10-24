@@ -126,7 +126,7 @@ try {
     /budget_exhausted/,
   );
   const ownerSource = readFileSync("src/features/fore/catalog-assets.server.ts", "utf8");
-  assert.match(ownerSource, /WHERE \$\{assetOwnerPredicate\} RETURNING lease_token/);
+  assert.match(ownerSource, /AND \$\{assetOwnerPredicate\} RETURNING lease_token/);
   console.log(
     "CONTENT_WORKER_BUDGET_PASS canonical ownership and drain-fenced atomic lease, statements, writes, bytes, service/deadline, and batch accounting",
   );
