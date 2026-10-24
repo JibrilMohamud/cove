@@ -6,6 +6,8 @@ on:
       - "scripts/soundtracks/qualify-isolated-commons.py"
       - "scripts/soundtracks/test-qualify-isolated-commons.py"
       - "scripts/soundtracks/test-isolated-commons-real-audio.py"
+      - "scripts/soundtracks/queue-open-review-cases.py"
+      - "scripts/soundtracks/test-queue-open-review-cases.py"
       - "infra/music/0006_open_technical_qa.sql"
       - ".github/workflows/isolated-commons-audio-technical-qa.yml"
   push:
@@ -37,7 +39,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
-      - run: python -m py_compile scripts/soundtracks/qualify-isolated-commons.py
+      - run: python -m py_compile scripts/soundtracks/qualify-isolated-commons.py scripts/soundtracks/queue-open-review-cases.py
+      - run: python scripts/soundtracks/test-queue-open-review-cases.py -q
       - run: python scripts/soundtracks/test-qualify-isolated-commons.py -q
       - run: python -m pip install --disable-pip-version-check numpy==2.2.6 scipy==1.15.3
       - run: python scripts/soundtracks/test-isolated-commons-real-audio.py
@@ -81,7 +84,14 @@ jobs:
 
   detached-private-qualification:
     needs: no-network-safety-tests
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && (vars.COVE_MUSIC_OPEN_QA_ENABLED == '1' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[one-source-qa]')))
+    # Four scheduled, private, technically-only cohorts daily. Neither
+    # licensing nor quietness nor playback is approved by this job.
+    # Protected main is the only source of credentials; PR jobs have none.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && vars.COVE_MUSIC_OPEN_QA_ENABLED == '1') ||
+       (github.event_name == 'push' && contains(github.event.head_commit.message, '[one-source-qa]')))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -89,6 +99,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       COVE_MUSIC_R2_BACKEND: "cloudflare_api"
       COVE_MUSIC_OPEN_QA_APPLY: "1"
+      COVE_MUSIC_REVIEW_APPLY: "1"
       AWS_EC2_METADATA_DISABLED: "true"
     steps:
       - uses: actions/checkout@v6
@@ -106,12 +117,30 @@ jobs:
           command -v ffmpeg
           command -v ffprobe
       - run: python -m pip install --disable-pip-version-check numpy==2.2.6 scipy==1.15.3
-      - name: Exactly one current Commons original, full decode and DSP, detached private R2
-        run: python scripts/soundtracks/qualify-isolated-commons.py --max-recordings 1 --max-seconds 840 --profile-dsp --apply-private --output commons-private-technical-qa.json
+      - name: Process up to two exact Commons originals in private R2 and detached D1
+        shell: bash
+        run: |
+          set -euo pipefail
+          limit=2
+          if [[ "${GITHUB_EVENT_NAME}" == push ]]; then
+            limit=1
+          fi
+          python scripts/soundtracks/qualify-isolated-commons.py \
+            --max-recordings "$limit" --max-seconds 840 --profile-dsp \
+            --apply-private --output commons-private-technical-qa.json
+      - name: Durable rights and quietness exception evidence only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/soundtracks/queue-open-review-cases.py \
+            --max-recordings 2 --apply-isolated \
+            --output commons-private-review-cases.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: isolated-commons-technical-qa-receipts
-          path: commons-private-technical-qa.json
+          path: |
+            commons-private-technical-qa.json
+            commons-private-review-cases.json
           if-no-files-found: ignore
           retention-days: 14
