@@ -305,6 +305,13 @@ try {
     ).catch((e) => ({ error: e.message })),
     { error: "literary_inference_publication_disabled" },
   );
+  assert.deepEqual(await publishIsolatedLiteraryInference(env, seeded.enqueued), {
+    skipped: "canonical_owner_not_isolated",
+  });
+  assert.equal(primary.prepare("SELECT status FROM literary_profiles").get().status, "provisional");
+  primary
+    .prepare("INSERT INTO cove_runtime_config VALUES('literary_processing_owner','isolated')")
+    .run();
   // The current explicit same-territory deny must defeat a valid source-specific allow.
   primary
     .prepare("INSERT INTO rights_grants VALUES(?,?,?,?,?,?,?,?,?,?)")
@@ -329,6 +336,33 @@ try {
   primary
     .prepare("UPDATE gutenberg_source_cache SET content_hash=? WHERE id='pg_a'")
     .run(sourceHash);
+  // If canonical ownership is rolled back after a publisher precheck but
+  // before its single authoritative UPDATE, the SQL predicate must deny it.
+  const racePublisher = {
+    ...env,
+    DB: {
+      prepare(sql) {
+        const prepared = env.DB.prepare(sql);
+        if (!sql.startsWith("UPDATE literary_profiles SET")) return prepared;
+        return {
+          bind(...args) {
+            const bound = prepared.bind(...args);
+            return {
+              async first() {
+                primary.prepare("UPDATE cove_runtime_config SET value='legacy'").run();
+                return bound.first();
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+  assert.deepEqual(await publishIsolatedLiteraryInference(racePublisher, seeded.enqueued), {
+    skipped: "rights_source_or_version_changed",
+  });
+  assert.equal(primary.prepare("SELECT status FROM literary_profiles").get().status, "provisional");
+  primary.prepare("UPDATE cove_runtime_config SET value='isolated'").run();
   assert.deepEqual(await publishIsolatedLiteraryInference(env, seeded.enqueued), {
     published: "p_a",
   });

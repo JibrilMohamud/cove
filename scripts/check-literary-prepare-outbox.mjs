@@ -38,7 +38,8 @@ try {
     "CREATE TABLE products(id TEXT PRIMARY KEY,edition_id TEXT,source_name TEXT,source_external_id TEXT,format TEXT,storefront_status TEXT);" +
       "CREATE TABLE gutenberg_source_cache(id TEXT PRIMARY KEY,source_id TEXT,ingest_status TEXT,epub_status TEXT,rights_status TEXT,commercial_use_status TEXT,content_hash TEXT,rights_territories_json TEXT);" +
       "CREATE TABLE rights_grants(id TEXT PRIMARY KEY,edition_id TEXT,format TEXT,sales_channel TEXT,status TEXT,decision TEXT,source TEXT,territory_code TEXT,starts_at TEXT,ends_at TEXT);" +
-      readFileSync("infra/content-budget/0004_literary_handoff_outbox_primary.sql", "utf8"),
+      readFileSync("infra/content-budget/0004_literary_handoff_outbox_primary.sql", "utf8") +
+      "CREATE TABLE cove_runtime_config(key TEXT PRIMARY KEY,value TEXT NOT NULL);",
   );
   secondary.exec(
     readFileSync("infra/content-budget/0001_ledger.sql", "utf8") +
@@ -106,6 +107,17 @@ try {
   assert.equal((await seedLiteraryPreparationHandoff(env, "p_a", "e_a")).duplicate, true);
   assert.equal(primary.prepare("SELECT COUNT(*) n FROM literary_prepare_outbox").get().n, 1);
   assert.equal(secondary.prepare("SELECT COUNT(*) n FROM literary_prepare_jobs").get().n, 0);
+  assert.deepEqual(await dispatchOneLiteraryPreparationHandoff(env), {
+    skipped: "canonical_owner_not_handoff",
+  });
+  assert.equal(
+    primary.prepare("SELECT status FROM literary_prepare_outbox").get().status,
+    "queued",
+  );
+  assert.equal(secondary.prepare("SELECT COUNT(*) n FROM literary_prepare_jobs").get().n, 0);
+  primary
+    .prepare("INSERT INTO cove_runtime_config VALUES('literary_processing_owner','draining')")
+    .run();
   const sent = await dispatchOneLiteraryPreparationHandoff(env);
   assert.equal(sent.delivered, first.outboxId);
   assert.equal(
@@ -161,10 +173,7 @@ try {
 
   // Reconciliation must not mistake a *previously* valid outbox row for
   // current authorization after a primary-D1 owner flip or a revoked grant.
-  primary.exec(
-    "CREATE TABLE cove_runtime_config(key TEXT PRIMARY KEY,value TEXT NOT NULL);" +
-      "INSERT INTO cove_runtime_config VALUES('literary_processing_owner','draining');",
-  );
+  primary.prepare("UPDATE cove_runtime_config SET value='draining'").run();
   let race = "";
   const racedEnv = {
     ...env,
@@ -273,6 +282,44 @@ try {
   assert.equal(failed.failed !== undefined, true);
   assert.match(failed.reason, /binding_not_isolated/);
   assert.equal(secondary.prepare("SELECT COUNT(*) n FROM literary_prepare_jobs").get().n, 1);
+  // Atomic owner transition between preflight and claim: the candidate must
+  // stay queued and may not touch isolated work, even with enabled Worker flags.
+  fixture("owner_race");
+  const raceOutbox = await seedLiteraryPreparationHandoff(env, "p_owner_race", "e_owner_race");
+  const raceEnv = {
+    ...env,
+    DB: {
+      prepare(sql) {
+        const original = env.DB.prepare(sql);
+        if (!sql.startsWith("UPDATE literary_prepare_outbox SET status='running'")) return original;
+        return {
+          bind(...args) {
+            const bound = original.bind(...args);
+            return {
+              async first() {
+                primary.prepare("UPDATE cove_runtime_config SET value='legacy'").run();
+                return bound.first();
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+  assert.deepEqual(await dispatchOneLiteraryPreparationHandoff(raceEnv), {
+    skipped: "no_handoffs",
+  });
+  assert.equal(
+    primary
+      .prepare("SELECT status FROM literary_prepare_outbox WHERE id=?")
+      .get(raceOutbox.outboxId).status,
+    "queued",
+  );
+  assert.equal(secondary.prepare("SELECT COUNT(*) n FROM literary_prepare_jobs").get().n, 1);
+  assert.deepEqual(await dispatchOneLiteraryPreparationHandoff(env), {
+    skipped: "canonical_owner_not_handoff",
+  });
+  primary.prepare("UPDATE cove_runtime_config SET value='draining'").run();
   console.log(
     "Durable one-at-a-time two-D1 outbox: source/rights fencing, ACK retry, replay idempotency, revocation, changed SHA and binding containment PASS",
   );

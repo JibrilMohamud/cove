@@ -446,6 +446,12 @@ export async function publishIsolatedLiteraryInference(env: IsolatedInferenceEnv
   )
     throw Error("literary_inference_publication_disabled");
   if (!shaPattern.test(jobId)) throw Error("invalid_inference_id");
+  // A valid inference receipt never grants publication authority by itself.
+  // Legacy and draining owners may not accept isolated results into primary D1.
+  const owner = await env.DB.prepare(
+    "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'",
+  ).first<{ value: string }>();
+  if (owner?.value !== "isolated") return { skipped: "canonical_owner_not_isolated" };
   const identity = await env.CONTENT_DB.prepare(
     "SELECT i.domain,i.schema_version," +
       " EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND" +
@@ -500,6 +506,8 @@ export async function publishIsolatedLiteraryInference(env: IsolatedInferenceEnv
       "coverage='isolated_samples',revision=revision+1,updated_at=?" +
       " WHERE product_id=? AND fingerprint=? AND revision=?" +
       " AND status='provisional' AND policy_version=?" +
+      " AND EXISTS(SELECT 1 FROM cove_runtime_config" +
+      " WHERE key='literary_processing_owner' AND value='isolated')" +
       " AND EXISTS(SELECT 1" +
       literarySourceRightsPredicate +
       " AND c.id=? AND c.content_hash=?) RETURNING product_id",

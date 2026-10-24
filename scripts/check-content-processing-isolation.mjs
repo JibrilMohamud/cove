@@ -57,6 +57,7 @@ try {
     },
   };
   let canRead = true;
+  let literaryOwner = "legacy";
   const env = {
     FORE_CONTENT_PROCESSOR_ENABLED: "0",
     FORE_CONTENT_PROCESSOR_ROLE: "assets",
@@ -74,6 +75,13 @@ try {
                   return { value: "external" };
                 },
               };
+            },
+          };
+        }
+        if (sql === "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'") {
+          return {
+            async first() {
+              return literaryOwner ? { value: literaryOwner } : null;
             },
           };
         }
@@ -109,10 +117,48 @@ try {
     "Unfenced legacy literary claims cannot be switched to an external Worker",
   );
   assert.deepEqual(calls, ["assets"]);
+  const literaryRoles = [
+    ["literary-prepare", { FORE_CONTENT_PREPARE_ENABLED: "1" }],
+    ["literary-handoff", { FORE_CONTENT_PREPARE_ENABLED: "1", FORE_CONTENT_HANDOFF_ENABLED: "1" }],
+    [
+      "literary-infer",
+      {
+        FORE_CONTENT_PREPARE_ENABLED: "1",
+        FORE_CONTENT_INFERENCE_ENABLED: "1",
+        FORE_CONTENT_BUDGET_MODE: "isolated",
+      },
+    ],
+  ];
+  for (const [role, options] of literaryRoles) {
+    const isolatedEnv = { ...env, ...options, FORE_CONTENT_PROCESSOR_ROLE: role };
+    const custom = { ...runners, [role]: async () => calls.push(role) };
+    assert.deepEqual(await runContentProcessingTick(isolatedEnv, custom), {
+      skipped: "canonical_literary_owner_not_ready",
+      role,
+    });
+    literaryOwner = "invalid";
+    assert.deepEqual(await runContentProcessingTick(isolatedEnv, custom), {
+      skipped: "canonical_literary_owner_not_ready",
+      role,
+    });
+    literaryOwner = "legacy";
+  }
+  assert.deepEqual(calls, ["assets"], "Legacy ownership must not run isolated roles");
+  literaryOwner = "draining";
+  const prepared = await runContentProcessingTick(
+    {
+      ...env,
+      FORE_CONTENT_PROCESSOR_ROLE: "literary-prepare",
+      FORE_CONTENT_PREPARE_ENABLED: "1",
+    },
+    { ...runners, "literary-prepare": async () => calls.push("literary-prepare") },
+  );
+  assert.equal(prepared.role, "literary-prepare");
+  literaryOwner = "legacy";
   env.FORE_CONTENT_PROCESSOR_ROLE = "assets";
   canRead = false;
   assert.equal((await runContentProcessingTick(env, runners)).skipped, "primary_unavailable");
-  assert.deepEqual(calls, ["assets"], "Unavailable D1 defers work safely");
+  assert.deepEqual(calls, ["assets", "literary-prepare"], "Unavailable D1 defers work safely");
   assert.equal((await worker.fetch()).status, 404, "No remote mutation endpoint is exposed");
 
   const backend = fs.readFileSync("src/persistence-backend.worker.ts", "utf8");
