@@ -25,7 +25,7 @@ jobs:
           if ! git diff --quiet -- src scripts; then
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git config user.name "github-actions[bot]"
-            git add src/lib/literary-isolated-inference.server.ts src/content-processing.worker.ts src/lib/literary-budget-domain.server.ts src/lib/literary-preparation-domain.server.ts src/lib/literary-prepare-outbox.server.ts scripts/check-literary-isolated-inference.mjs
+            git add src/lib/literary-isolated-inference.server.ts src/content-processing.worker.ts src/lib/literary-budget-domain.server.ts src/lib/literary-preparation-domain.server.ts src/lib/literary-prepare-outbox.server.ts scripts/check-literary-isolated-inference.mjs src/literary-inference-publisher.worker.ts scripts/check-literary-publisher-gateway.mjs
             git commit -m "style(literary): normalize isolated inference code and tests"
             git push origin HEAD:refs/heads/feat/literary-isolated-inference-publication-20261023
           fi
