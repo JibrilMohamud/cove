@@ -308,7 +308,7 @@ export async function handleMusicExecution(
     const backlog = await db.prepare(
       "SELECT 'intake' kind,status,COUNT(*) count FROM music_intake_jobs GROUP BY status" +
         " UNION ALL SELECT 'analysis' kind,status,COUNT(*) count FROM music_analysis_jobs GROUP BY status",
-    ).all();
+    ).bind().all();
     const sources = await db.prepare(
       "SELECT q.contract_id,q.paused,q.daily_intake_limit,q.parallel_intake_limit," +
         " q.daily_analysis_limit,q.parallel_analysis_limit," +
