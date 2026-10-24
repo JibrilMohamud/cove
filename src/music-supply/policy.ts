@@ -62,7 +62,11 @@ function url(value: unknown): string {
     parsed.hash ||
     !parsed.hostname ||
     parsed.hostname === "localhost" ||
-    parsed.hostname.endsWith(".local")
+    parsed.hostname.endsWith(".localhost") ||
+    parsed.hostname.endsWith(".local") ||
+    parsed.hostname.endsWith(".internal") ||
+    parsed.hostname.startsWith("[") ||
+    /^\\d+(?:\\.\\d+){3}$/.test(parsed.hostname)
   )
     throw new Error("music_unsafe_source_url");
   return parsed.href;
