@@ -35,7 +35,11 @@ for (const locale of locales) {
     // Sharing/browser suites still exercise unproxied app networking.
     const proxiedFailures = [];
     await context.route(/\/api\/fore\/(?:account|social\/discover)(?:\?|$)/, async (route) => {
-      const response = await route.fetch();
+      // Use the BrowserContext's independent request transport. WebKit can
+      // cancel route.fetch() when a navigation disposes the requesting frame.
+      // The context transport still sends shared cookies and exposes actual
+      // response status, so backend failures are not mocked or hidden.
+      const response = await context.request.fetch(route.request());
       if (response.status() >= 500) proxiedFailures.push(response.status());
       await route.fulfill({ response });
     });
@@ -43,6 +47,9 @@ for (const locale of locales) {
     page.on("pageerror", (e) => failures.push(e.message));
     await page.goto("/community");
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
+    // Finish the initial read-only API requests before changing routes: iPad
+    // WebKit otherwise rejects an outgoing fetch during document teardown.
+    await page.waitForLoadState("networkidle");
     await expect(page.locator("html")).toHaveAttribute("lang", locale);
     await expect(page.locator("html")).toHaveAttribute("dir", locale === "ar-SA" ? "rtl" : "ltr");
     await expect(page.locator("aside.sidebar nav.main-nav")).toHaveAttribute(
@@ -72,6 +79,7 @@ for (const locale of locales) {
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/community\?tab=sharing/);
     await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
+    await page.waitForLoadState("networkidle");
     await expect(
       page.getByText(messages["Sign in to see your private sharing."], { exact: true }),
     ).toBeVisible();
