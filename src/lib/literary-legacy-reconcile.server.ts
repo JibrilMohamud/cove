@@ -57,7 +57,8 @@ export async function reconcileOneLegacyLiteraryJob(
   // excluded and MUST be separately accounted for by the operator's audit.
   const job = await env.DB.prepare(
     "SELECT j.id legacy_job_id,j.product_id,j.fingerprint,p.edition_id" +
-      " FROM literary_profile_jobs j JOIN literary_profiles lp" +
+      " FROM literary_profile_jobs j INDEXED BY idx_literary_legacy_reconcile" +
+      " JOIN literary_profiles lp" +
       " ON lp.product_id=j.product_id AND lp.fingerprint=j.fingerprint" +
       " JOIN products p ON p.id=j.product_id" +
       " WHERE j.id>? AND j.status IN ('queued','failed')" +
