@@ -1,0 +1,22 @@
+name: regional-epub-repair-hardening
+on:
+  pull_request:
+    paths:
+      - "src/features/fore/regional-epub-asset-repair.server.ts"
+      - "scripts/check-regional-epub-asset-repair.mjs"
+      - ".github/workflows/regional-epub-repair-hardening.yml"
+permissions:
+  contents: read
+jobs:
+  regional-asset-and-deny-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:regional-epub-repair
+      - run: npm run test:regional-epub-operator
+      - run: npx eslint src/features/fore/regional-epub-asset-repair.server.ts scripts/check-regional-epub-asset-repair.mjs
+      - run: npx prettier --check src/features/fore/regional-epub-asset-repair.server.ts scripts/check-regional-epub-asset-repair.mjs

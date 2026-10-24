@@ -98,6 +98,12 @@ export async function getQuietMusicInventory(db: CoveEnv["DB"], market = "US") {
   return {
     territory,
     scope: "commons_only",
+    // The playable metrics are territory-filtered; review candidates have
+    // no approved territories until an independent rights decision.
+    // Preserve existing editorial counting and explicitly label its scope.
+    playableScope: "requested_territory",
+    reviewsScope: "global_unapproved_commons",
+    shortlistScope: "global_unapproved_commons",
     reportOnly: true,
     thresholds: t,
     playable: ready,
@@ -106,6 +112,8 @@ export async function getQuietMusicInventory(db: CoveEnv["DB"], market = "US") {
     disclaimer:
       "Acoustic screening is not a human focus-suitability or legal-rights approval. " +
       "Reviewers must verify the exact master, recording and composition rights, " +
-      "source revisions, attribution, quality, territory, and listening suitability.",
+      "source revisions, attribution, quality, territory, and listening suitability. " +
+      "Playable metrics reflect the requested territory; review counts and shortlist " +
+      "are global unapproved Commons candidates and are not market-ready supply.",
   };
 }
