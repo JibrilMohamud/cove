@@ -337,10 +337,22 @@ export async function runIsolatedLiteraryInferenceTick(env: IsolatedInferenceEnv
       outputHash = await sha(serialized);
       if (!(await rightsCurrent(env.DB, job)))
         throw Error("rights_revoked_before_inference_receipt");
-      await env.BUCKET!.put(key, serialized, {
+      // A timed-out lease owner may finish after its replacement has started.
+      // Never overwrite a result already committed under this immutable job ID:
+      // doing so would make a successful secondary D1 SHA receipt unreadable.
+      const stored = await env.BUCKET!.put(key, serialized, {
+        onlyIf: { etagDoesNotMatch: "*" },
         httpMetadata: { contentType: "application/json" },
         customMetadata: { sha256: outputHash },
       });
+      if (stored === null) {
+        // Another lease holder won the atomic R2 create-if-absent race.
+        // Adopt only its fully verified bytes, never the losing candidate.
+        const winner = await env.BUCKET!.head?.(key);
+        if (!winner) throw Error("literary_inference_r2_race_missing_winner");
+        outputHash = String(winner.customMetadata?.sha256 || "");
+        output = (await verifiedJson(env.BUCKET!, key, outputHash)) as unknown as InferenceResult;
+      }
       if (env.FORE_LITERARY_ACTUAL_UNIT_SETTLEMENT === "1") {
         try {
           await settleLiteraryOutputReservation(
@@ -362,8 +374,12 @@ export async function runIsolatedLiteraryInferenceTick(env: IsolatedInferenceEnv
     if (
       output.jobId !== job.id ||
       output.preparedJobId !== job.prepare_job_id ||
+      output.productId !== job.product_id ||
+      output.editionId !== job.edition_id ||
+      output.sourceId !== job.source_id ||
       output.sourceSha256 !== job.source_sha256 ||
       output.fingerprint !== job.profile_fingerprint ||
+      output.revision !== job.profile_revision ||
       output.policy !== PROFILE_POLICY ||
       output.model !== PROFILE_MODEL
     )
