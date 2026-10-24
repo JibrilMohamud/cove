@@ -7,10 +7,13 @@ type StageEnv = Pick<CoveEnv, "DB" | "BUCKET"> & {
   FORE_LITERARY_INFERENCE_BACKEND_TOKEN?: string;
   FORE_LITERARY_QA_ENABLED?: string;
 };
-const sha = async (bytes: Uint8Array) =>
-  [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
+const sha = async (bytes: Uint8Array) => {
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", copy))]
     .map((x) => x.toString(16).padStart(2, "0"))
     .join("");
+};
 const qaId = "qa_literary";
 
 export async function runPrivateLiteraryBindingCanary(env: StageEnv) {
