@@ -144,13 +144,9 @@ try {
     reason: "Fixture contract rights withdrawn permanently",
   });
   withdrawn.contract_status = "revoked";
-  const urgentWithdrawal = await handleCanonicalMusicHandoff(
-    req(withdrawn),
-    config,
-    async () => {
-      throw Error("Rights withdrawal must bypass discretionary D1 probe");
-    },
-  );
+  const urgentWithdrawal = await handleCanonicalMusicHandoff(req(withdrawn), config, async () => {
+    throw Error("Rights withdrawal must bypass discretionary D1 probe");
+  });
   assert.equal(urgentWithdrawal.status, 200);
   assert.equal((await urgentWithdrawal.json()).recorded, true);
   assert.equal(
