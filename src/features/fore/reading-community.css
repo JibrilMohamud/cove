@@ -70,3 +70,34 @@
   .cove-book-discussion .social-post,
   .cove-book-thread-focus .social-post { padding: .65rem; }
 }
+
+.cove-journey-card-stage {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #1a1d21;
+  box-shadow: 0 18px 48px rgba(0,0,0,.19);
+}
+.cove-journey-book-backdrop {
+  position: absolute;
+  inset: -30%;
+  z-index: -1;
+  background-position: center;
+  background-size: cover;
+  filter: blur(42px) saturate(.75);
+  opacity: .28;
+}
+.cove-journey-card-stage > img {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.journey-share-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  align-items: center;
+}
+.journey-share-row button:disabled { opacity: .52; cursor: not-allowed; }
