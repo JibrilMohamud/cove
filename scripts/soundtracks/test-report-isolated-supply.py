@@ -27,6 +27,10 @@ class TestDetachedMusicDailyReport(unittest.TestCase):
         self.assertFalse(any("cove-production" in q or "soundtrack_recordings" in q for q in commands))
         self.assertIsNone(d["customerPlayableCertification"])
         self.assertEqual(d["stages"][0]["unpriced_events"],2)
+        self.assertIn("never licensed or quiet",d["openOriginalQaInterpretation"])
+        self.assertTrue(any("open_originals_technically_measured" in sql for sql in commands))
+        self.assertTrue(any("rights_review_cases" in sql for sql in commands))
+        self.assertTrue(any("open_technical_qa_backlog" in sql for sql in commands))
         self.assertIsNone(d["stages"][0]["priced_microusd"])
         self.assertIn("not zero",d["costInterpretation"])
     def test_require_explicit_isolated_identity_and_read_only_queries(self):
