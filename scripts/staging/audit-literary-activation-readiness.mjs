@@ -82,6 +82,7 @@ const [
 const config = Object.fromEntries(owner.map((x) => [x.key, x.value]));
 const blockers = [];
 const workerEvidence = [];
+const scopedPublisherCredentials = { inference: false, publisher: false };
 const roles = [
   [
     "cove-literary-handoff-isolated-disabled",
@@ -129,6 +130,17 @@ for (const [name, role, flags] of roles) {
   const dbs = bindings.filter((b) => b.type === "d1").map((b) => b.database_id);
   const r2 = bindings.filter((b) => b.type === "r2_bucket").map((b) => b.bucket_name);
   const disabled = flags.every((f) => values[f] === "0");
+  const secretNames = new Set(bindings.filter((b) => b.type === "secret_text").map((b) => b.name));
+  if (role === "literary-infer")
+    scopedPublisherCredentials.inference = [
+      "FORE_LITERARY_INFERENCE_PUBLISH_TOKEN",
+      "FORE_LITERARY_INFERENCE_BACKEND_TOKEN",
+    ].every((name) => secretNames.has(name));
+  if (role === "publisher")
+    scopedPublisherCredentials.publisher = [
+      "FORE_LITERARY_INFERENCE_PUBLISH_TOKEN_SHA256",
+      "FORE_LITERARY_INFERENCE_BACKEND_TOKEN_SHA256",
+    ].every((name) => secretNames.has(name));
   const privateIngress =
     schedules.schedules.length === 0 &&
     (settings.routes || []).length === 0 &&
@@ -190,17 +202,55 @@ const carryoverMatches =
 if (!carryoverMatches) blockers.push("legacy_daily_inference_budget_not_carried_over");
 if (!isolatedCutover.length || isolatedCutover[0].status !== "prepared")
   blockers.push("isolated_daily_budget_cutover_not_prepared");
-if (!legacyLeases.length || legacyLeases[0].lease_until)
+const sweepLease = legacyLeases[0]?.lease_until || "";
+const sweepExpires = sweepLease ? Date.parse(sweepLease) : 0;
+if (
+  !legacyLeases.length ||
+  (sweepLease && (!Number.isFinite(sweepExpires) || sweepExpires > now.getTime()))
+)
   blockers.push("legacy_sweep_lease_not_drained");
 if (unfinished.some((x) => x.status === "running" && Number(x.n) > 0))
   blockers.push("legacy_analyze_jobs_running");
 if (jobs.some((x) => Number(x.n) > 0))
   blockers.push("existing_isolated_jobs_require_reconciliation");
+// The minute cron also runs assets, audio and music. Removing it would
+// introduce regressions: canonical literary ownership fences only the literary
+// portion of that existing schedule.
 const oldCron = await api("GET", "/workers/scripts/cove-persistence-backend/schedules");
-if (oldCron.schedules.some((x) => x.cron === "* * * * *"))
-  blockers.push("legacy_minute_cron_still_attached");
+const sharedMinuteCronPresent = oldCron.schedules.some((x) => x.cron === "* * * * *");
+let stagingPrivateBindingCertified = false;
+try {
+  const [stageReceipt, stagePrimary, stageInference] = await Promise.all([
+    query(
+      "fce5742c-29ca-4bc3-85da-e174dd9bf42e",
+      "SELECT result FROM literary_qa_private_pub_receipts WHERE id=1",
+    ),
+    query(
+      "24c0eda2-6a43-4d7e-b787-502745d4d781",
+      "SELECT revision,status FROM literary_profiles WHERE product_id='qa_literary'",
+    ),
+    query(
+      "fce5742c-29ca-4bc3-85da-e174dd9bf42e",
+      "SELECT publication_state FROM literary_inference_jobs WHERE product_id='qa_literary' AND status='done' LIMIT 1",
+    ),
+  ]);
+  stagingPrivateBindingCertified =
+    stageReceipt[0]?.result === "passed" &&
+    stagePrimary[0]?.revision === 1 &&
+    stagePrimary[0]?.status === "analyzed" &&
+    stageInference[0]?.publication_state === "published";
+} catch {
+  // Missing staging receipt is an explicit blocking state, not a reason for
+  // this read-only production audit to fail before a canary is deployed.
+  stagingPrivateBindingCertified = false;
+}
 blockers.push("active_handoff_and_rollback_not_certified");
-blockers.push("private_publisher_tokens_and_staging_e2e_not_certified");
+if (
+  !scopedPublisherCredentials.inference ||
+  !scopedPublisherCredentials.publisher ||
+  !stagingPrivateBindingCertified
+)
+  blockers.push("private_publisher_tokens_and_staging_e2e_not_certified");
 const evidence = {
   schema: "cove.literary.activation.readiness.v1",
   observedAt: now.toISOString(),
@@ -222,6 +272,9 @@ const evidence = {
   unfinished,
   isolatedInferenceJobs: jobs,
   workerEvidence,
+  scopedPublisherCredentials,
+  stagingPrivateBindingCertified,
+  sharedMinuteCronPresent,
   canArm: false,
   blockers,
 };
