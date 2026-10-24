@@ -204,6 +204,64 @@ try {
     .first();
   assert.equal(current?.object_key, "epubs/pgau_9100005.epub");
   assert.equal(current?.source_url, "https://example.invalid/pgau_9100005.html");
+  // Reconcile an interrupted final ACK: D1 mutations committed, but receipt
+  // remains pending. The next pass must reselect it despite a current pointer.
+  const interrupted = await seed("pgau_9100008");
+  let loseAck = true;
+  const withLostAck = {
+    ...envWithR2,
+    DB: {
+      ...env.DB,
+      prepare(sql) {
+        if (loseAck && sql.startsWith("UPDATE regional_epub_repair_receipts SET status='completed'"))
+          return {
+            bind() {
+              loseAck = false;
+              return {
+                async first() {
+                  return null;
+                },
+              };
+            },
+          };
+        return env.DB.prepare(sql);
+      },
+    },
+  };
+  const partial = await repairRegionalEpubAssets(withLostAck, {
+    after: "pgau_9100007",
+    limit: 8,
+  });
+  assert.equal(partial.conflicts, 1, "lost final ACK must leave an unfinished receipt");
+  assert.equal(
+    (await env.DB.prepare(
+      "SELECT status FROM regional_epub_repair_receipts WHERE source_id='pgau_9100008'",
+    ).first()).status,
+    "pending",
+  );
+  assert.equal(
+    (await env.DB.prepare("SELECT COUNT(*) n FROM digital_assets WHERE edition_id=?")
+      .bind(interrupted).first()).n,
+    1,
+    "durable pointer commit survives lost receipt ACK",
+  );
+  const resumed = await repairRegionalEpubAssets(envWithR2, {
+    after: "pgau_9100007",
+    limit: 8,
+  });
+  assert.equal(resumed.repaired, 1, "pending receipts are replayed even with complete pointers");
+  assert.equal(
+    (await env.DB.prepare(
+      "SELECT status FROM regional_epub_repair_receipts WHERE source_id='pgau_9100008'",
+    ).first()).status,
+    "completed",
+  );
+  assert.equal(
+    (await repairRegionalEpubAssets(envWithR2, { after: "pgau_9100007", limit: 8 })).repaired,
+    0,
+    "completed receipts do not create duplicate repair work",
+  );
+
   const repairSource = fs.readFileSync(
     "src/features/fore/regional-epub-asset-repair.server.ts",
     "utf8",
