@@ -105,6 +105,14 @@ class Tests(unittest.TestCase):
         finally:
             db.close()
 
+    def test_one_basename_json_output_acceptance(self):
+        for name in ("commons-review-case-pilot.json", "commons-review-cases.json",
+                     "cove_technical_qa-001.json"):
+            self.assertTrue(review.safe_output_filename(name), name)
+        for name in ("../secret.json", "/tmp/private.json", ".hidden.json",
+                     "evidence.txt", "dossier.json/anything", "bad\\name.json", ""):
+            self.assertFalse(review.safe_output_filename(name), name)
+
     def test_invalid_limit_or_report_hash_fails_closed(self):
         for limit in (0,3,True,100):
             with self.assertRaisesRegex(ValueError,"review_batch_out_of_range"):
