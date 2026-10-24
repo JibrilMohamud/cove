@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Proven experimental metadata resolver moved unchanged into an isolated stage boundary. */
-import { z } from "zod";
+import { z } from "zod/v3";
 import { ApiError, now } from "../features/fore/service";
 import { selectedUiCatalog } from "../features/fore/ui-catalog.server";
 

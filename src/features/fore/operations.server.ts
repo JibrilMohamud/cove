@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { ApiError, now } from "./service";
 import { resolvePricingDecision } from "./pricing.server";
 

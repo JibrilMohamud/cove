@@ -17,7 +17,7 @@ import {
   literaryDiscoveryStatus,
   retrieveLiteraryCandidates,
 } from "./discovery-intelligence.server";
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { CatalogBook } from "./client";
 import { canonicalBooksByProductIds, type CatalogDB } from "./catalog-model.server";
 import { replicaEligiblePresentationRead } from "./presentation-replica.server";

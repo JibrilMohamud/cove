@@ -1,6 +1,6 @@
 import { storedAudioCoverage } from "./audio-coverage.server";
 import { mirrorUrl } from "./gutenberg-source";
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { CoveEnv } from "./api.server";
 import { ApiError, json, now, readBody, requireIdentity, rateLimit } from "./service";
 import { requireServiceScope } from "./privileged-access.server";

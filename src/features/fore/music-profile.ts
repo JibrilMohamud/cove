@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 export const MUSIC_POLICY = "cove-music-v1";
 export const CLAP_MODEL = "laion/clap-htsat-unfused";
 export const CLAP_REVISION = "8fa0f1c6d0433df6e97c127f64b2a1d6c0dcda8a";

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { formatMinorCurrency } from "./currency";
 import { ApiError } from "./service";
 import type { CoveEnv } from "./api.server";

@@ -12,9 +12,18 @@ const dir = await mkdtemp(path.join(os.tmpdir(), "cove-music-qa-fixture-"));
 try {
   const filename = path.join(dir, "synthetic.ogg");
   await run("ffmpeg", [
-    "-loglevel", "error", "-f", "lavfi",
-    "-i", "sine=frequency=210:duration=3", "-af", "volume=0.5",
-    "-c:a", "libvorbis", "-y", filename,
+    "-loglevel",
+    "error",
+    "-f",
+    "lavfi",
+    "-i",
+    "sine=frequency=210:duration=3",
+    "-af",
+    "volume=0.5",
+    "-c:a",
+    "libvorbis",
+    "-y",
+    filename,
   ]);
   const bytes = await readFile(filename);
   const sha1 = createHash("sha1").update(bytes).digest("hex");
@@ -37,7 +46,9 @@ try {
     () => analyzeMusicMaster(filename, { sha1, bytes: bytes.length + 1 }),
     /master size/,
   );
-  console.log("Full-decode immutable-master music QA passed with synthetic Ogg and tamper rejection.");
+  console.log(
+    "Full-decode immutable-master music QA passed with synthetic Ogg and tamper rejection.",
+  );
 } finally {
   await rm(dir, { recursive: true, force: true });
 }
