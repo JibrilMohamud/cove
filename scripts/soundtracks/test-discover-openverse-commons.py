@@ -106,7 +106,7 @@ class OpenverseIsolatedDiscovery(unittest.TestCase):
         self.assertEqual(report["candidates"][0]["evidence"]["discovery"],"commons")
         self.assertEqual(report["candidates"][0]["evidence"]["sourceSha1"],"a"*40)
         self.assertTrue(any("generator=categorymembers" in u for u in calls))
-        self.assertTrue(any("gcmlimit=24" in u for u in calls))
+        self.assertTrue(any("gcmlimit=2" in u for u in calls), "Generator page must not exceed remaining verification budget")
         self.assertFalse(any("upload.wikimedia.org" in u for u in calls),
                          "Discovery must never download source audio")
 
