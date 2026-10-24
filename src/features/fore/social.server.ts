@@ -1038,7 +1038,7 @@ async function readerSnapshot(db: DB, userId: string, ref: string, url: URL, env
         progress + 0.002,
         product.id,
         progress + 0.002,
-        ...(cursor ? (topSorted ? [cursor.score, cursor.score, cursor.at, cursor.at, cursor.id] : [cursor.at, cursor.at, cursor.id]) : []),
+        ...(cursor ? [cursor.at, cursor.at, cursor.id] : []),
       )
       .all<{ id: string; created_at: string }>()
   ).results;
@@ -2100,7 +2100,11 @@ export async function handleSocial(
           contextId,
           ...(parentId ? [parentId] : []),
           ...(postId ? [postId] : []),
-          ...(cursor ? [cursor.at, cursor.at, cursor.id] : []),
+          ...(cursor
+            ? topSorted
+              ? [cursor.score, cursor.score, cursor.at, cursor.at, cursor.id]
+              : [cursor.at, cursor.at, cursor.id]
+            : []),
         )
         .all<any>()
     ).results;
