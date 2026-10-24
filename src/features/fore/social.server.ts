@@ -860,6 +860,7 @@ async function visiblePosts(
   rows: any[],
   viewerProgress = 1,
   env?: CoveEnv,
+  countHeartsOnly = false,
 ) {
   const reached = new Map<string, number>();
   const people = new Map<string, Awaited<ReturnType<typeof sharingPerson>>>();
@@ -878,6 +879,16 @@ async function visiblePosts(
       previous.push(row.reaction);
       reactions.set(row.post_id, previous);
     }
+  }
+  const heartCounts = new Map<string, number>();
+  if (countHeartsOnly && ids.length) {
+    const placeholders = ids.map(() => "?").join(",");
+    const counts = await db
+      .prepare(`SELECT post_id,COUNT(*) AS total FROM social_post_reactions WHERE reaction='heart' AND post_id IN (${placeholders}) GROUP BY post_id`)
+      .bind(...ids)
+      .all<{ post_id: string; total: number }>();
+    for (const row of counts.results)
+      heartCounts.set(row.post_id, Number(row.total) || 0);
   }
   const out = [];
   for (const r of rows) {
@@ -936,7 +947,7 @@ async function visiblePosts(
       recipientUserId: r.recipient_user_id,
       spoiler: !!r.spoiler,
       replies: Number(r.reply_count || 0),
-      reactions: Number(r.reaction_count || 0),
+      reactions: countHeartsOnly ? heartCounts.get(String(r.id)) || 0 : Number(r.reaction_count || 0),
       myReactions,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
@@ -2050,7 +2061,7 @@ export async function handleSocial(
     const posts: (Awaited<ReturnType<typeof visiblePosts>>[number] & {
       replyItems?: Awaited<ReturnType<typeof visiblePosts>>;
       replyNextCursor?: string | null;
-    })[] = await visiblePosts(db, userId, rows.slice(0, threadLimit), viewerProgress, env);
+    })[] = await visiblePosts(db, userId, rows.slice(0, threadLimit), viewerProgress, env, threadMode);
     if (!parentId && url.searchParams.get("includeReplies") !== "false")
       for (const post of posts.filter((post) => !post.locked)) {
         const replies = (
