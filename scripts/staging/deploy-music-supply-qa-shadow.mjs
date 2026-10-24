@@ -119,11 +119,7 @@ assert.ok(certified, "Isolated disabled music Worker bindings never converged");
 // Migration readiness is verified with a read-only query; deployments never
 // migrate production D1, seed supposed rights, or enable pipeline processors.
 const schema = await fetch(
-  "https://api.cloudflare.com/client/v4/accounts/" +
-    account +
-    "/d1/database/" +
-    musicDb +
-    "/query",
+  "https://api.cloudflare.com/client/v4/accounts/" + account + "/d1/database/" + musicDb + "/query",
   {
     method: "POST",
     headers: {
@@ -149,7 +145,8 @@ for (const name of [
   "music_quality_jobs",
   "music_stage_events",
   "music_human_reviews",
-]) assert.ok(found.has(name), "Isolated MUSIC_DB migration missing: " + name);
+])
+  assert.ok(found.has(name), "Isolated MUSIC_DB migration missing: " + name);
 
 console.log(
   "HOSTED_MUSIC_SUPPLY_SHADOW_PASS current Worker code, complete isolated QA D1 schema/R2, all processing switches disabled, no production bindings or routing.",
