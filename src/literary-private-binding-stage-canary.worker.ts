@@ -48,8 +48,7 @@ export async function runPrivateLiteraryBindingCanary(env: StageEnv) {
     const object = await env.BUCKET.get(artifact.result_key);
     if (!object) throw Error("staged_artifact_missing");
     const bytes = new Uint8Array(await object.arrayBuffer());
-    if ((await sha(bytes)) !== artifact.result_sha256)
-      throw Error("staged_artifact_hash_mismatch");
+    if ((await sha(bytes)) !== artifact.result_sha256) throw Error("staged_artifact_hash_mismatch");
     await env.BUCKET.put(artifact.result_key, bytes, {
       httpMetadata: { contentType: "application/json" },
       customMetadata: { sha256: artifact.result_sha256 },
@@ -115,7 +114,7 @@ export default {
   ) {
     ctx.waitUntil(
       runPrivateLiteraryBindingCanary(env).catch((error) => {
-        console.error("literary_private_stage_canary_failure", String(error).slice(0,160));
+        console.error("literary_private_stage_canary_failure", String(error).slice(0, 160));
         throw error;
       }),
     );
