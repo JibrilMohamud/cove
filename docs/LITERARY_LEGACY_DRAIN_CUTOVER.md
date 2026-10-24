@@ -51,10 +51,24 @@ must enter the isolated pipeline through a separately verified handoff.
    or entitlements to CONTENT_DB. Old metadata-only, chapter-only and failed
    jobs are not interchangeable with completed prepared EPUB evidence; record
    which can migrate, which must be held, and which are legitimately obsolete.
-   Verify legacy queued/running totals, isolated prepared/inference totals,
-   primary intent receipts and source-fingerprint parity against a frozen
-   manifest before approving the next step. **This bounded reconciliation
-   tooling is still a release prerequisite and is not supplied by this PR.**
+   An optional, one-job-per-tick catch-up is now implemented but **OFF**:
+   install `infra/content-budget/0008_legacy_reconcile_frontier.sql` only
+   into the explicitly isolated CONTENT_DB; after verifying that every legacy
+   Worker stopped, set `literary_legacy_reconcile_frontier.status='armed'`
+   using an independently approved staging D1 operation, and enable
+   `FORE_LITERARY_DRAIN_RECONCILE_ENABLED=1` only on the protected
+   `literary-handoff` role. Every candidate is selected by primary PK cursor
+   and must have a current provisional fingerprint. Its existing
+   `seedLiteraryPreparationHandoff` call enforces live source SHA, territorial
+   allow/deny and canonical primary outbox insertion. The secondary ACK cursor
+   and disposition receipt are committed together; lost ACKs replay the
+   deterministic primary outbox. Rights-ineligible candidates become **held**,
+   never silently treated as eligible. There is no operator-facing endpoint.
+   When exhausted the frontier becomes `complete`, not automatically rewound.
+   **Completion alone is not approval**: compare held receipts, excluded
+   chapter/obsolete jobs, old queued/running totals, isolated prepared/inference
+   totals, source-fingerprint parity and primary intent receipts against a frozen
+   manifest before approving the next step.
 6. Only after all old writers are drained, all necessary legacy work is
    reconciled and dedicated QA load/rights gates pass, change the primary
    owner from `draining` to `isolated` using a conditional transaction:
