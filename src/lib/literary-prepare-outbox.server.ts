@@ -122,22 +122,37 @@ export async function seedLiteraryPreparationHandoff(
 }
 
 /** Max one at-least-once handoff per tick; no whole-catalog scans. */
+async function activeHandoffOwner(db: D1) {
+  const row = await db
+    .prepare("SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'")
+    .first<{ value: string }>();
+  return row?.value === "draining" || row?.value === "isolated";
+}
+
+// The legacy scheduler defaults to owning canonical D1 when the key is absent.
+// Handoff cannot claim a primary job merely because a Worker flag is enabled.
+const activeHandoffFence =
+  " EXISTS(SELECT 1 FROM cove_runtime_config" +
+  " WHERE key='literary_processing_owner' AND value IN ('draining','isolated'))";
+
 export async function dispatchOneLiteraryPreparationHandoff(env: HandoffEnv) {
   assertEnabled(env);
+  if (!(await activeHandoffOwner(env.DB)))
+    return { skipped: "canonical_owner_not_handoff" };
   const token = crypto.randomUUID();
   const now = new Date().toISOString();
   const until = new Date(Date.now() + 120_000).toISOString();
   await env.DB.prepare(
     "UPDATE literary_prepare_outbox SET status='failed',lease_token='',lease_until=''," +
       "last_error='expired_final_attempt',updated_at=?" +
-      " WHERE status='running' AND lease_until<? AND attempts>=4",
+      " WHERE status='running' AND lease_until<? AND attempts>=4 AND" + activeHandoffFence,
   )
     .bind(now, now)
     .run();
   const job = await env.DB.prepare(
     "UPDATE literary_prepare_outbox SET status='running',lease_token=?," +
       "lease_until=?,attempts=attempts+1,updated_at=?" +
-      " WHERE id=(SELECT id FROM literary_prepare_outbox WHERE" +
+      " WHERE" + activeHandoffFence + " AND id=(SELECT id FROM literary_prepare_outbox WHERE" +
       " ((status='queued' AND available_at<=?) OR" +
       " (status='running' AND lease_until<?)) AND attempts<4" +
       " ORDER BY available_at,id LIMIT 1)" +
@@ -146,6 +161,11 @@ export async function dispatchOneLiteraryPreparationHandoff(env: HandoffEnv) {
     .bind(token, until, now, now, now)
     .first<Handoff>();
   if (!job) return { skipped: "no_handoffs" };
+  // A cutover rollback may land between the initial read and the atomic claim.
+  // If it lands after the claim, leave the job leased for replay rather than
+  // sending any derived work while legacy is authoritative.
+  if (!(await activeHandoffOwner(env.DB)))
+    return { skipped: "canonical_owner_changed_after_claim" };
   try {
     const result = await enqueueIsolatedLiteraryPreparation(env, job.product_id, job.edition_id, {
       sourceId: job.source_id,
