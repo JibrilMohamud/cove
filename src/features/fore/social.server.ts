@@ -2061,6 +2061,33 @@ export async function handleSocial(
       const visible = parent ? await visiblePosts(db, userId, [parent], viewerProgress, env) : [];
       if (!visible.length || visible[0].locked) throw new ApiError(404, "Discussion not found.");
     }
+    if (limitedBookThread && postId && !parentId) {
+      const focused = await db
+        .prepare(
+          "SELECT id,parent_id,root_id FROM social_posts WHERE id=? AND context_type='work' AND context_id=? AND moderation_status='visible' AND deleted_at IS NULL",
+        )
+        .bind(postId, contextId)
+        .first<{ id: string; parent_id: string | null; root_id: string | null }>();
+      if (!focused) throw new ApiError(404, "Discussion not found.");
+      const ancestors = [focused.parent_id, focused.root_id]
+        .filter((id): id is string => !!id && id !== focused.id);
+      if (ancestors.length) {
+        const placeholders = ancestors.map(() => "?").join(",");
+        const parentRows = (
+          await db
+            .prepare(
+              `SELECT * FROM social_posts WHERE id IN (${placeholders}) AND context_type='work' AND context_id=? AND deleted_at IS NULL AND moderation_status='visible'`,
+            )
+            .bind(...ancestors, contextId)
+            .all<any>()
+        ).results;
+        const readable = await visiblePosts(db, userId, parentRows, viewerProgress, env);
+        if (new Set(parentRows.map((p) => p.id)).size !== new Set(ancestors).size ||
+            readable.length !== new Set(ancestors).size ||
+            readable.some((p) => p.locked))
+          throw new ApiError(404, "Discussion not found.");
+      }
+    }
     const rows = (
       await db
         .prepare(
