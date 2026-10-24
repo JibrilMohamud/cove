@@ -221,6 +221,25 @@ try {
     (await invoke("/v1/masters/fixture-master-1/quality", "POST", "qa", report)).status,
     202,
   );
+  const market = await invoke(
+    "/v1/operator/preview-catalog?territory=US",
+    "GET",
+    "operator",
+  );
+  assert.equal(market.status, 200);
+  assert.equal(market.result.scope, "isolated_qualified_nonpublic");
+  assert.equal(market.result.items.length, 1);
+  assert.equal(market.result.items[0].id, manifest.id);
+  assert.equal(market.result.items[0].quietSuitability, "unverified");
+  assert.equal(
+    (await invoke("/v1/operator/preview-catalog?territory=CA", "GET", "operator"))
+      .result.items.length,
+    0,
+  );
+  assert.equal(
+    (await invoke("/v1/operator/preview-catalog", "GET", "ingest")).status,
+    401,
+  );
   const first = await invoke("/v1/operator/outbox?limit=1", "GET", "operator");
   assert.equal(first.result.items[0].action, "master_qualified");
   assert.equal(first.result.items[0].publishable, 1);
@@ -237,6 +256,12 @@ try {
     ).status,
     200,
   );
+  const rescanned = await invoke(
+    "/v1/operator/preview-catalog?territory=US",
+    "GET",
+    "operator",
+  );
+  assert.equal(rescanned.result.items.length, 0, "Revoked masters cannot survive projection");
   const removed = await invoke("/v1/operator/outbox?after=" + cursor, "GET", "operator");
   assert.equal(removed.result.items[0].action, "master_revoked");
   const masterCursor = removed.result.nextCursor;
