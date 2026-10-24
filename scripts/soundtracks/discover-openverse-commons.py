@@ -24,7 +24,18 @@ spec.loader.exec_module(credits)
 ACCOUNT = "d26430caa63ec55f6612e32f36aca5e9"
 MUSIC_DB = "fe9a9dd2-64b8-451c-a356-9ec71d9ee211"
 API = "https://api.openverse.org/v1/audio/"
-SEARCHES = ("solo piano classical", "instrumental harp", "quiet instrumental")
+# Rotate distinct music queries; one permitted API page per query.
+# Do not enumerate Openverse's search index or bypass its pagination limits.
+SEARCHES = (
+    "solo piano classical", "instrumental harp", "quiet instrumental",
+    "classical guitar instrumental", "baroque chamber music", "solo flute classical",
+    "quiet cello instrumental", "piano nocturne", "violin sonata classical",
+    "harpsichord baroque", "classical oboe instrumental", "solo lute renaissance",
+    "ambient piano instrumental", "string quartet andante", "organ prelude baroque",
+    "acoustic instrumental meditation", "gentle piano waltz", "classical clarinet sonata",
+    "instrumental dulcimer", "classical harp nocturne", "instrumental viol consort",
+    "solo recorder renaissance", "soft instrumental guitar", "slow chamber ensemble",
+)
 AGENT = "CoveOpenMusicDiscovery/1.0 (https://cove-puce-theta.vercel.app/help)"
 ACCEPTED = ("CC0","CC-BY","CC-BY-SA")
 MAX_BYTES = 25*1024*1024
@@ -135,7 +146,9 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep):
     started=time.monotonic()
     searched=0
     verified=0
-    for query in SEARCHES[:queries]:
+    start_search = int(time.time() // 86400) % len(SEARCHES)
+    for shift in range(queries):
+        query = SEARCHES[(start_search + shift) % len(SEARCHES)]
         if verified>=max_verifications:
             break
         params=urllib.parse.urlencode({"q":query,"category":"music","license":"by,by-sa,cc0",
