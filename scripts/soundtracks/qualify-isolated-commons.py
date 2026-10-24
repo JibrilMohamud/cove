@@ -10,6 +10,7 @@ import datetime as dt
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import pathlib
 import re
@@ -118,6 +119,26 @@ def download_original(candidate, destination, opener=OPENER):
         raise ValueError("original_sha1_or_size_mismatch")
     return {"sha256": sha256.hexdigest(), "bytes": length}
 
+def validate_full_audio_quality(report):
+    # Identical acoustic thresholds to the detached supplier-master QA gate.
+    # Passing does NOT mean a recording is quiet, licensed, or publishable.
+    ranges = {
+        "durationSeconds": (20, 7200, False),
+        "integratedLufs": (-40, -8, False),
+        "truePeakDbfs": (-70, 0, False),
+        "silenceRatio": (0, .25, True),
+        "clippedSampleRatio": (0, .001, True),
+    }
+    if report.get("decodedFully") is not True:
+        raise ValueError("full_audio_decode_incomplete")
+    for key, (lo, hi, exclusive) in ranges.items():
+        value = report.get(key)
+        if (not isinstance(value, (int, float)) or isinstance(value, bool) or
+            not math.isfinite(value) or value < lo or
+            (value >= hi if exclusive else value > hi)):
+            raise ValueError("full_audio_quality_not_eligible")
+    return True
+
 def r2_put_verified(client, key, file, digest, size):
     # Never produce publicly routable URLs. Verify a full private read-back
     # before recording a durable result, not merely the write response.
@@ -149,6 +170,21 @@ def make_r2():
         "s3", endpoint_url=f"https://{ACCOUNT}.r2.cloudflarestorage.com",
         aws_access_key_id=key, aws_secret_access_key=secret,
         region_name="auto", config=Config(signature_version="s3v4"))
+
+def persist_durable_hold(token, row, reason):
+    # Only permanently corroborated source/decoder conflicts create holds.
+    # Transient upstream or transport errors remain retryable.
+    at = dt.datetime.now(dt.timezone.utc).isoformat()
+    d1("INSERT OR IGNORE INTO music_open_technical_qa"
+       "(candidate_id,source_sha1,source_evidence_sha256,status,hold_reason,measured_at)"
+       " SELECT id,source_sha1,evidence_sha256,'held',?,?"
+       " FROM music_open_source_candidates"
+       " WHERE id=? AND status='discovered' AND source_sha1=? AND evidence_sha256=?",
+       [reason,at,row["id"],row["source_sha1"],row["evidence_sha256"]],token)
+    found = d1("SELECT status,hold_reason FROM music_open_technical_qa WHERE candidate_id=?",
+               [row["id"]],token)
+    if found != [{"status":"held","hold_reason":reason}]:
+        raise RuntimeError("held_source_receipt_not_durable")
 
 def persist_measured(token, row, observed, measured, profile, audio_key, report_key, report_sha, checked):
     at = dt.datetime.now(dt.timezone.utc).isoformat()
@@ -190,6 +226,7 @@ def prepare_one(row, temp, opener=OPENER, meter=MEASURE.measure, profiler=None):
         report.get("bytes") != observed["bytes"] or
         report.get("decodedFully") is not True):
         raise ValueError("decoded_audio_not_exact_source")
+    validate_full_audio_quality(report)
     profile = profiler(path) if profiler else None
     after = authoritative(row, opener)
     if before["evidenceSha256"] != after["evidenceSha256"]:
@@ -242,8 +279,19 @@ def run(max_records=1, apply=False, profile_dsp=False, token=None, r2=None, limi
                                 "sha256": source["sha256"],
                                 "rightsApproved": False, "quietApproved": False})
         except (ValueError, RuntimeError, OSError, KeyError, TimeoutError) as error:
+            reason = str(error)[:80]
+            permanent = {
+                "invalid_commons_file_identity", "authoritative_rights_or_original_hold",
+                "original_or_license_changed", "unverifiable_discovery_evidence",
+                "untrusted_original_url", "source_content_length_changed",
+                "original_exceeds_byte_budget", "original_sha1_or_size_mismatch",
+                "decoded_audio_not_exact_source", "full_audio_decode_incomplete",
+                "full_audio_quality_not_eligible", "commons_revision_changed_during_qa",
+            }
+            if apply and reason in permanent:
+                persist_durable_hold(token, row, reason)
             results.append({"id": row["id"], "status": "held_for_review",
-                            "reason": str(error)[:80]})
+                            "reason": reason})
     return {"scope": "detached_music_only", "customerPublished": False,
             "rightsApproved": False, "quietApproved": False, "results": results}
 
