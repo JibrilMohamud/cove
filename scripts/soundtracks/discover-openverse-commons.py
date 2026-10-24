@@ -27,14 +27,14 @@ API = "https://api.openverse.org/v1/audio/"
 # Rotate distinct music queries; one permitted API page per query.
 # Do not enumerate Openverse's search index or bypass its pagination limits.
 SEARCHES = (
-    "solo piano classical", "instrumental harp", "quiet instrumental",
-    "classical guitar instrumental", "baroque chamber music", "solo flute classical",
-    "quiet cello instrumental", "piano nocturne", "violin sonata classical",
-    "harpsichord baroque", "classical oboe instrumental", "solo lute renaissance",
-    "ambient piano instrumental", "string quartet andante", "organ prelude baroque",
-    "acoustic instrumental meditation", "gentle piano waltz", "classical clarinet sonata",
-    "instrumental dulcimer", "classical harp nocturne", "instrumental viol consort",
-    "solo recorder renaissance", "soft instrumental guitar", "slow chamber ensemble",
+    "piano", "harp", "nocturne",
+    "guitar", "baroque", "flute",
+    "cello", "chopin", "violin",
+    "harpsichord", "oboe", "lute",
+    "satie", "quartet", "organ",
+    "instrumental", "waltz", "clarinet",
+    "dulcimer", "sonata", "renaissance",
+    "recorder", "romantic", "chamber",
 )
 AGENT = "CoveOpenMusicDiscovery/1.0 (https://cove-puce-theta.vercel.app/help)"
 ACCEPTED = ("CC0","CC-BY","CC-BY-SA")
@@ -146,20 +146,34 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep):
     started=time.monotonic()
     searched=0
     verified=0
+    indexed_results=0
+    rejected_non_commons=0
+    held_after_commons_check=0
     start_search = int(time.time() // 86400) % len(SEARCHES)
     for shift in range(queries):
         query = SEARCHES[(start_search + shift) % len(SEARCHES)]
         if verified>=max_verifications:
             break
-        params=urllib.parse.urlencode({"q":query,"category":"music","license":"by,by-sa,cc0",
+        # Openverse aggregates many audio repositories. Source targeting
+        # dramatically reduces wasted first-page results and ensures this
+        # fast lane never queries third-party original hosts.
+        params=urllib.parse.urlencode({"q":query,"source":"wikimedia_audio",
+                                        "category":"music","license":"by,by-sa,cc0",
                                         "page":1,"page_size":20,"mature":"false"})
         response=read_json(API+"?"+params,opener)
         searched+=1
-        for indexed in response.get("results",[]):
+        results=response.get("results",[])
+        if not isinstance(results,list):
+            raise ValueError("Openverse results must be a list")
+        indexed_results += len(results)
+        for indexed in results:
             if verified>=max_verifications:
                 break
             title=commons_title(indexed)
-            if not title or title in seen:
+            if not title:
+                rejected_non_commons+=1
+                continue
+            if title in seen:
                 continue
             seen.add(title)
             verified+=1
@@ -168,11 +182,16 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep):
                 result=exact_candidate(indexed,page or {})
                 if result:
                     items.append(result)
+                else:
+                    held_after_commons_check+=1
             except (OSError,ValueError,KeyError,TypeError):
-                pass
+                held_after_commons_check+=1
             pause(.5)
     return {"policy":"cove-openverse-commons-discovery-v1","searches":searched,
-            "verified":verified,"candidates":items,
+            "verified":verified,"indexedResults":indexed_results,
+            "nonCommonsResults":rejected_non_commons,
+            "heldAfterCommonsVerification":held_after_commons_check,
+            "candidates":items,
             "processingMs":min(1800000,int((time.monotonic()-started)*1000))}
 
 def record_isolated(summary, token, opener=OPENER):
@@ -230,7 +249,12 @@ def main():
     pathlib.Path(args.output).write_text(json.dumps(result,indent=2,ensure_ascii=False)+"\n")
     if args.apply_isolated:
         record_isolated(result,os.environ.get("CLOUDFLARE_API_TOKEN",""))
-    print(json.dumps({"searched":result["searches"],"checkedOriginalPages":result["verified"],
+    if result["verified"] == 0:
+        print("::warning::Openverse returned no matching Commons originals; no rights decisions made")
+    print(json.dumps({"searched":result["searches"],"indexedResults":result["indexedResults"],
+                      "nonCommonsResults":result["nonCommonsResults"],
+                      "checkedOriginalPages":result["verified"],
+                      "heldAfterCommonsVerification":result["heldAfterCommonsVerification"],
                       "candidates":len(result["candidates"]),"storedIsolated":args.apply_isolated,
                       "customerPublished":False,"elapsedMs":result["processingMs"]}))
 if __name__=="__main__":
