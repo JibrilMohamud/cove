@@ -67,7 +67,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          args=(--queries 2 --max-verifications 12 --output openverse-commons-candidates.json)
+          args=(--queries 2 --commons-categories 2 --max-verifications 32 --output openverse-commons-candidates.json)
           if [[ "${COVE_MUSIC_OPEN_DISCOVERY_ENABLED:-0}" == "1" && -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
             args+=(--apply-isolated)
           else
