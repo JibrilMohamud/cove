@@ -545,8 +545,8 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
     const titles = body.titles;
     if (!Array.isArray(titles) || titles.length < 1 || titles.length > 8 ||
         !titles.every(title => typeof title === "string" &&
-          /^File:[^\\/\\\\\\n]{4,240}\\.(?:ogg|oga|mp3)$/i.test(title)) ||
-        new Set(titles).size !== titles.length)
+          !title.includes("/") && !title.includes(String.fromCharCode(92)) &&
+          !/[\r\n]/.test(title) && /^File:.{4,240}\.(?:ogg|oga|mp3)$/i.test(title)) ||
       throw new ApiError(422,"A bounded unique set of exact Commons original file titles is required.");
     let queued = 0, existing = 0, held = 0;
     const at = new Date().toISOString();
