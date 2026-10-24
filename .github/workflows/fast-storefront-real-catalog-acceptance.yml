@@ -11,6 +11,9 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/fast-storefront-real-catalog-acceptance.yml"
+      - "src/storefront-strangler/worker.ts"
+      - "scripts/performance/strangler-real-catalog-acceptance.mjs"
+      - "scripts/staging/verify-geo-edge-ingress.mjs"
   workflow_dispatch:
 permissions:
   contents: read
@@ -93,6 +96,7 @@ jobs:
           console.log("REAL_CATALOG_BROWSER_READY", b.version());
           await b.close();
           NODE
+      - run: node scripts/check-geo-edge-ingress.mjs
       - run: node scripts/check-storefront-strangler.mjs
       - run: node scripts/build-storefront-strangler.mjs
       - name: Read-only, bearer-gated real-data mobile and visual preview
