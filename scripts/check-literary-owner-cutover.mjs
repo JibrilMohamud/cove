@@ -83,7 +83,8 @@ try {
   assert.deepEqual(await seedLiteraryProfiles(env), { seeded: 0, skipped: "legacy_owner_fenced" });
   assert.deepEqual(await processLiteraryJob(env, false, "prepare"), { skipped: "legacy_owner_fenced" });
   assert.equal(changes(), before, "Draining must have zero scheduled legacy writes");
-  assert.deepEqual(row(), { status: "queued", attempts: 0 });
+  assert.equal(row().status, "queued");
+  assert.equal(row().attempts, 0);
   sqlite.prepare("UPDATE cove_runtime_config SET value='typo'").run();
   assert.deepEqual(await processLiteraryJob(env, false, "prepare"), { skipped: "legacy_owner_fenced" });
   assert.deepEqual(await runLiteraryProfileTick(env), { skipped: "legacy_owner_fenced" });
@@ -95,11 +96,13 @@ try {
   assert.deepEqual(await processLiteraryJob(env, false, "prepare"), { skipped: "no_jobs" });
   assert.equal(flipAfterPreflight, false);
   assert.equal(await readLiteraryProcessingOwner(env), "draining");
-  assert.deepEqual(row(), { status: "queued", attempts: 0 });
+  assert.equal(row().status, "queued");
+  assert.equal(row().attempts, 0);
   sqlite.prepare("UPDATE cove_runtime_config SET value='isolated'").run();
   assert.deepEqual(await runLiteraryProfileTick(env), { skipped: "legacy_owner_fenced" });
   assert.deepEqual(await processLiteraryJob(env, false, "prepare"), { skipped: "legacy_owner_fenced" });
-  assert.deepEqual(row(), { status: "queued", attempts: 0 });
+  assert.equal(row().status, "queued");
+  assert.equal(row().attempts, 0);
   console.log("LITERARY_OWNER_CUTOVER_PASS legacy default, draining/isolated/unknown fence, atomic claim race, no new primary writes");
 } finally {
   sqlite.close();
