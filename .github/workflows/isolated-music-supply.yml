@@ -31,6 +31,8 @@ jobs:
       - run: node --check scripts/music-supply/audio-quality.mjs
       - run: python -m py_compile scripts/music-supply/analyze-qualifying-masters.py
       - run: python scripts/music-supply/analyze-qualifying-masters.py --max-tracks=4
+      - run: node --check scripts/music-supply/drain-source-intake.mjs
+      - run: node scripts/music-supply/drain-source-intake.mjs --workers=4 --max-tracks=8
 
       - run: node scripts/build-isolated-music-supply.mjs
       - run: npm run typecheck
