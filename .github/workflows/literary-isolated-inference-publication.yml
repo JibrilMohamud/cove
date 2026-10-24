@@ -8,6 +8,7 @@ on:
       - "src/lib/literary-prepare-outbox.server.ts"
       - "src/lib/literary-preparation-domain.server.ts"
       - "infra/content-budget/0006_isolated_inference.sql"
+      - "infra/content-budget/0007_inference_seed_frontier.sql"
       - "scripts/check-literary-isolated-inference.mjs"
       - "scripts/check-literary-publisher-gateway.mjs"
       - "src/literary-inference-publisher.worker.ts"
