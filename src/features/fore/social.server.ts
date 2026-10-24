@@ -2019,7 +2019,7 @@ export async function handleSocial(
         .prepare(
           `SELECT * FROM social_posts WHERE context_type=? AND context_id=? AND ${parentId ? "parent_id=?" : "parent_id IS NULL"} AND deleted_at IS NULL ${postId ? "AND id=?" : ""}
        ${cursor ? "AND (created_at<? OR (created_at=? AND id<?))" : ""}
-       ORDER BY created_at DESC,id DESC LIMIT 51`,
+       ORDER BY created_at DESC,id DESC LIMIT ${threadLimit + 1}`,
         )
         .bind(
           contextType,
