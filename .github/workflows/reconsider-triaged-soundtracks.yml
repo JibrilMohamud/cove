@@ -48,6 +48,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/soundtracks/test-curate-source-license.py -q
+          python scripts/soundtracks/test-commons-structured-credits.py -q
           python scripts/soundtracks/test-drain-verified-imports.py -q
           if [[ "${COVE_SOUNDTRACK_REVIEW_TOKEN:-}" != fore_svc_* ]]; then
             echo "::error::Scoped soundtrack review credential unavailable"
