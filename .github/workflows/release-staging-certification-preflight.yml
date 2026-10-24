@@ -8,6 +8,7 @@ on:
       - "scripts/check-release-staging-workflow-gates.mjs"
       - ".github/workflows/isolated-commons-audio-technical-qa.yml"
       - ".github/workflows/continuous-publication-qa.yml"
+      - ".github/workflows/fast-storefront-real-catalog-acceptance.yml"
       - "scripts/staging/check-strangler-live-capacity.mjs"
       - "scripts/staging/assert-strangler-capacity-evidence.mjs"
       - "docs/LITERARY_LEGACY_DRAIN_CUTOVER.md"
