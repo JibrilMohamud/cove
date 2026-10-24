@@ -3,6 +3,7 @@ import { verifyAudioStorage } from "./features/fore/audio-coverage.server";
 import { runLiteraryProfileTick } from "./features/fore/literary-profiles.server";
 import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
 import { repairRegionalEpubAssets } from "./features/fore/regional-epub-asset-repair.server";
+import { handleCanonicalMusicHandoff } from "./lib/music-canonical-handoff";
 import {
   discoverSoundtrackCandidates,
   importOneReviewedSoundtrack,
@@ -51,6 +52,8 @@ type BackendEnv = CoveEnv &
     FORE_ASSETS_PER_MINUTE?: string;
     FORE_CONTENT_PIPELINE_EXTERNAL?: string;
     FORE_REGIONAL_EPUB_REPAIR_ENABLED?: string;
+    FORE_MUSIC_CANONICAL_HANDOFF_ENABLED?: string;
+    FORE_MUSIC_CANONICAL_HANDOFF_TOKEN_SHA256?: string;
     FORE_REGIONAL_EPUB_REPAIR_PROBE_MS?: string;
     FORE_INGESTION_TRIGGER_TOKEN?: string;
     FORE_INGESTION_SIGNING_KEY?: string;
@@ -930,6 +933,10 @@ export default {
       }
     }
 
+    // Separate disabled private intake. Even successful handoff never authorizes
+    // customer audio, updates soundtrack tables or creates playback URLs.
+    if (path === "/__cove/ingestion/music-supply-handoff" && request.method === "POST")
+      return handleCanonicalMusicHandoff(request, env);
     if (path === "/__cove/ingestion/catalog" && request.method === "POST") {
       return catalogBatch(request, env);
     }
