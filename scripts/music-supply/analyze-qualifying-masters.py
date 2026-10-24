@@ -110,6 +110,7 @@ def run(args):
         if job.get("skipped") == "no_eligible_jobs":
             break
         ident = job.get("masterId", "invalid")
+        started_at = time.monotonic()
         try:
             with tempfile.TemporaryDirectory(prefix="cove-isolated-quiet-") as tmp:
                 source = pathlib.Path(tmp) / "original.audio"
