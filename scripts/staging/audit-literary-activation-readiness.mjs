@@ -130,9 +130,7 @@ for (const [name, role, flags] of roles) {
   const dbs = bindings.filter((b) => b.type === "d1").map((b) => b.database_id);
   const r2 = bindings.filter((b) => b.type === "r2_bucket").map((b) => b.bucket_name);
   const disabled = flags.every((f) => values[f] === "0");
-  const secretNames = new Set(
-    bindings.filter((b) => b.type === "secret_text").map((b) => b.name),
-  );
+  const secretNames = new Set(bindings.filter((b) => b.type === "secret_text").map((b) => b.name));
   if (role === "literary-infer")
     scopedPublisherCredentials.inference = [
       "FORE_LITERARY_INFERENCE_PUBLISH_TOKEN",
