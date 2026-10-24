@@ -23,7 +23,9 @@ for (const expected of [
     assert.ok(social.includes(expected), expected);
   }
 }
-assert.ok(recencyIndex.includes("reaction_count DESC,created_at DESC,id DESC"));
+assert.ok(recencyIndex.includes("idx_social_book_threads_recent"));
+assert.ok(recencyIndex.includes("parent_id,created_at DESC,id DESC"));
+assert.ok(!recencyIndex.includes("reaction_count DESC"));
 assert.ok(social.includes("parentId ? 8 : 12"));
 assert.ok(social.includes("reaction_count DESC,created_at DESC,id DESC"));
 assert.ok(social.includes("moderation_status='visible'"));
