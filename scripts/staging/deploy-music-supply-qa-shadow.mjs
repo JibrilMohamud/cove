@@ -39,21 +39,32 @@ const run = spawnSync(
 if (run.status !== 0)
   throw Error("Nonpublic music Worker deployment failed: " +
     String(run.stderr || "").replace(/Bearer\s+\S+/g, "Bearer [redacted]").slice(-550));
-const result = await fetch(
-  "https://api.cloudflare.com/client/v4/accounts/" + account +
-    "/workers/scripts/" + name + "/settings",
-  {
-    headers: { authorization: "Bearer " + process.env.CLOUDFLARE_API_TOKEN },
-    signal: AbortSignal.timeout(20000),
-  },
-);
-const settings = await result.json();
-assert.ok(result.ok && settings.success, "Cloudflare Worker settings unavailable");
-const bindings = settings.result?.bindings || [];
-const get = (binding) => bindings.find((x) => x.name === binding);
-assert.equal(get("MUSIC_DB")?.database_id, musicDb);
-assert.equal(get("MUSIC_BUCKET")?.bucket_name, "cove-music-supply-qa-20261023");
-assert.equal(get("MUSIC_SUPPLY_ENABLED")?.text, "0");
-assert.ok(!bindings.some((x) => x.name === "DB" || x.database_id === primary));
-assert.equal(settings.result?.routes?.length || 0, 0);
+// Wrangler completion and the global account settings view can be briefly
+// out of sync. Re-read the exact script until the disabled D1/R2-only
+// settings have propagated; never mistake an absent binding for success.
+let certified = false;
+for (let attempt = 0; attempt < 8; attempt++) {
+  const result = await fetch(
+    "https://api.cloudflare.com/client/v4/accounts/" + account +
+      "/workers/scripts/" + name + "/settings",
+    {
+      headers: { authorization: "Bearer " + process.env.CLOUDFLARE_API_TOKEN },
+      signal: AbortSignal.timeout(20000),
+    },
+  );
+  const settings = await result.json();
+  assert.ok(result.ok && settings.success, "Cloudflare Worker settings unavailable");
+  const bindings = settings.result?.bindings || [];
+  const get = (binding) => bindings.find((x) => x.name === binding);
+  assert.ok(!bindings.some((x) => x.name === "DB" || x.database_id === primary));
+  assert.equal(settings.result?.routes?.length || 0, 0);
+  if (get("MUSIC_DB")?.database_id === musicDb &&
+      get("MUSIC_BUCKET")?.bucket_name === "cove-music-supply-qa-20261023" &&
+      get("MUSIC_SUPPLY_ENABLED")?.text === "0") {
+    certified = true;
+    break;
+  }
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+}
+assert.ok(certified, "Isolated disabled music Worker bindings never converged");
 console.log("HOSTED_MUSIC_SUPPLY_SHADOW_PASS isolated QA D1/R2 only, disabled, nonpublic, no production binding or routing.");
