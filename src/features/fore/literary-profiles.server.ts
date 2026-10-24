@@ -196,7 +196,7 @@ async function enqueueBook(env: LiteraryEnv, book: BookInput, queuePreparation =
       const enriched = JSON.stringify(provisionalLiteraryProfile(metadataSources(book)));
       if (enriched !== current.profile_json)
         await env.DB.prepare(
-          "UPDATE literary_profiles SET profile_json=?,revision=revision+1,updated_at=? WHERE product_id=? AND fingerprint=? AND status='provisional' AND profile_json=?",
+          `UPDATE literary_profiles SET profile_json=?,revision=revision+1,updated_at=? WHERE product_id=? AND fingerprint=? AND status='provisional' AND profile_json=? AND ${legacyOwnerFenceSql}`,
         )
           .bind(enriched, time, book.id, fingerprint, current.profile_json)
           .run();
@@ -205,10 +205,10 @@ async function enqueueBook(env: LiteraryEnv, book: BookInput, queuePreparation =
       await addJob(env, book.id, fingerprint, "prepare", "", "");
       await env.DB.batch([
         env.DB.prepare(
-          "UPDATE literary_profile_jobs SET status='queued',attempts=0,available_at=?,lease_until='',updated_at=? WHERE product_id=? AND fingerprint=? AND kind='prepare' AND status IN ('done','failed','superseded')",
+          `UPDATE literary_profile_jobs SET status='queued',attempts=0,available_at=?,lease_until='',updated_at=? WHERE product_id=? AND fingerprint=? AND kind='prepare' AND status IN ('done','failed','superseded') AND ${legacyOwnerFenceSql}`,
         ).bind(time, time, book.id, fingerprint),
         env.DB.prepare(
-          "UPDATE literary_profiles SET coverage='metadata' WHERE product_id=? AND fingerprint=? AND coverage='metadata_deferred'",
+          `UPDATE literary_profiles SET coverage='metadata' WHERE product_id=? AND fingerprint=? AND coverage='metadata_deferred' AND ${legacyOwnerFenceSql}`,
         ).bind(book.id, fingerprint),
       ]);
     }
@@ -216,7 +216,7 @@ async function enqueueBook(env: LiteraryEnv, book: BookInput, queuePreparation =
   }
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO literary_profiles(product_id,fingerprint,profile_json,status,coverage,updated_at,reading_time_json,policy_version) VALUES(?,?,?,'provisional',?,?,?,?) ON CONFLICT(product_id) DO UPDATE SET fingerprint=excluded.fingerprint,profile_json=excluded.profile_json,status='provisional',coverage=excluded.coverage,revision=literary_profiles.revision+1,updated_at=excluded.updated_at,reading_time_json=excluded.reading_time_json,policy_version=excluded.policy_version`,
+      `INSERT INTO literary_profiles(product_id,fingerprint,profile_json,status,coverage,updated_at,reading_time_json,policy_version) SELECT ?,?,?,'provisional',?,?,?,? WHERE ${legacyOwnerFenceSql} ON CONFLICT(product_id) DO UPDATE SET fingerprint=excluded.fingerprint,profile_json=excluded.profile_json,status='provisional',coverage=excluded.coverage,revision=literary_profiles.revision+1,updated_at=excluded.updated_at,reading_time_json=excluded.reading_time_json,policy_version=excluded.policy_version WHERE ${legacyOwnerFenceSql}`,
     ).bind(
       book.id,
       fingerprint,
@@ -233,12 +233,12 @@ async function enqueueBook(env: LiteraryEnv, book: BookInput, queuePreparation =
       PROFILE_POLICY,
     ),
     env.DB.prepare(
-      "UPDATE literary_profile_jobs SET status='superseded',updated_at=? WHERE product_id=? AND fingerprint<>? AND status IN ('queued','running')",
+      `UPDATE literary_profile_jobs SET status='superseded',updated_at=? WHERE product_id=? AND fingerprint<>? AND status IN ('queued','running') AND ${legacyOwnerFenceSql}`,
     ).bind(time, book.id, fingerprint),
     ...(queuePreparation
       ? [
           env.DB.prepare(
-            "INSERT OR IGNORE INTO literary_profile_jobs(id,product_id,fingerprint,kind,available_at,created_at,updated_at) VALUES(?,?,?,'prepare',?,?,?)",
+            `INSERT OR IGNORE INTO literary_profile_jobs(id,product_id,fingerprint,kind,available_at,created_at,updated_at) SELECT ?,?,?,'prepare',?,?,? WHERE ${legacyOwnerFenceSql}`,
           ).bind(
             await hash([book.id, fingerprint, "prepare", ""].join(":")),
             book.id,
@@ -250,7 +250,7 @@ async function enqueueBook(env: LiteraryEnv, book: BookInput, queuePreparation =
           // Reverted sources must revive their old pinned jobs only when
           // preparation capacity exists.
           env.DB.prepare(
-            "UPDATE literary_profile_jobs SET status='queued',attempts=0,available_at=?,lease_until='',updated_at=? WHERE product_id=? AND fingerprint=? AND status IN ('done','failed','superseded')",
+            `UPDATE literary_profile_jobs SET status='queued',attempts=0,available_at=?,lease_until='',updated_at=? WHERE product_id=? AND fingerprint=? AND status IN ('done','failed','superseded') AND ${legacyOwnerFenceSql}`,
           ).bind(time, time, book.id, fingerprint),
         ]
       : []),
