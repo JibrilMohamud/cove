@@ -130,22 +130,29 @@ export async function publishOnePrivateLiteraryInference(env: PrivateLiteraryPub
     );
     if (response.status !== 200) throw Error("private_publisher_status_" + response.status);
     const result = (await response.json()) as { published?: string; skipped?: string };
-    if (result?.published === job.product_id) return settle("published", "");
-    if (result?.skipped === "rights_source_or_version_changed") {
-      // A successful primary write followed by a lost secondary ACK replays.
-      // Confirm the exact profile revision before treating it as a duplicate.
+    if (
+      result?.published === job.product_id ||
+      result?.skipped === "rights_source_or_version_changed"
+    ) {
+      // The service response itself is NOT a canonical publication receipt.
+      // A lost ACK or a misbound publisher cannot acknowledge secondary work
+      // without an exact authoritative profile revision and fingerprint.
       const prior = await env.DB.prepare(
         "SELECT fingerprint,revision,status,coverage FROM literary_profiles WHERE product_id=?",
       )
         .bind(job.product_id)
         .first<Profile>();
-      if (
+      const exact =
         prior?.fingerprint === job.profile_fingerprint &&
         prior.revision === job.profile_revision + 1 &&
         prior.status === "analyzed" &&
-        prior.coverage === "isolated_samples"
-      )
-        return settle("published", "replayed_canonical_success");
+        prior.coverage === "isolated_samples";
+      if (exact)
+        return settle(
+          "published",
+          result?.skipped ? "replayed_canonical_success" : "",
+        );
+      if (result?.published) throw Error("private_publisher_ack_unverified");
       return settle("held", "rights_source_or_version_changed");
     }
     throw Error("private_publisher_not_ready");
