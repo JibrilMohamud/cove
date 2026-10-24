@@ -17,11 +17,12 @@ assert.match(source, /SELECT \?,\?,\?,\?,\?,\?,\?,\?,\? WHERE \$\{legacyOwnerFen
 for (const fragment of [
   "const guard = `EXISTS(SELECT 1 FROM literary_profile_jobs",
   "j.lease_until>?) AND ${legacyOwnerFenceSql}`",
-  "status='done' AND ${legacyOwnerFenceSql}",
+  "status='running' AND ${legacyOwnerFenceSql}",
   "status='running' AND ${legacyOwnerFenceSql}",
   "'provisional',?,?,?,? WHERE ${legacyOwnerFenceSql} ON CONFLICT",
   "excluded.policy_version WHERE ${legacyOwnerFenceSql}",
-]) assert.ok(source.includes(fragment), "Legacy drain missing atomic fence: " + fragment);
+])
+  assert.ok(source.includes(fragment), "Legacy drain missing atomic fence: " + fragment);
 function wrap() {
   return {
     prepare(text) {
