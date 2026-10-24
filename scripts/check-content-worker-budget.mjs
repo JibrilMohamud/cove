@@ -130,7 +130,8 @@ try {
   assert.equal(contentBudgetLimits({}).statements, 32);
   assert.equal(contentBudgetLimits({ FORE_CONTENT_MAX_D1_WRITES: "-100" }).writes, 0);
   const overService = meterContentAssetEnv(
-    { DB: native }, { ...limits, statements: 20, writes: 10, d1ServiceMs: 0 },
+    { DB: native },
+    { ...limits, statements: 20, writes: 10, d1ServiceMs: 0 },
   );
   await assert.rejects(
     overService.env.DB.prepare("SELECT value FROM value_store").first(),
