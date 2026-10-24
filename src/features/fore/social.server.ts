@@ -880,31 +880,36 @@ async function visiblePosts(
   // Batch only the viewer's reversible reactions; do not perform one D1
   // round trip per visible comment or fetch other users' reaction identities.
   const reactions = new Map<string, string[]>();
-  const ids = rows.slice(0, 50).map((r) => String(r.id));
-  if (viewer && ids.length) {
-    const placeholders = ids.map(() => "?").join(",");
-    const mine = await db
-      .prepare(
-        `SELECT post_id,reaction FROM social_post_reactions WHERE user_id=? AND post_id IN (${placeholders})`,
-      )
-      .bind(viewer, ...ids)
-      .all<{ post_id: string; reaction: string }>();
-    for (const row of mine.results) {
-      const previous = reactions.get(row.post_id) || [];
-      previous.push(row.reaction);
-      reactions.set(row.post_id, previous);
-    }
-  }
   const heartCounts = new Map<string, number>();
-  if (countHeartsOnly && ids.length) {
+  // Most thread pages are 8-12 posts, but legacy feed views can exceed 50.
+  // Chunk all rows rather than silently lose the viewer's reactions beyond 50.
+  for (let offset = 0; offset < rows.length; offset += 50) {
+    const ids = rows.slice(offset, offset + 50).map((r) => String(r.id));
+    if (!ids.length) continue;
     const placeholders = ids.map(() => "?").join(",");
-    const counts = await db
-      .prepare(
-        `SELECT post_id,COUNT(*) AS total FROM social_post_reactions WHERE reaction='heart' AND post_id IN (${placeholders}) GROUP BY post_id`,
-      )
-      .bind(...ids)
-      .all<{ post_id: string; total: number }>();
-    for (const row of counts.results) heartCounts.set(row.post_id, Number(row.total) || 0);
+    if (viewer) {
+      const mine = await db
+        .prepare(
+          `SELECT post_id,reaction FROM social_post_reactions WHERE user_id=? AND post_id IN (${placeholders})`,
+        )
+        .bind(viewer, ...ids)
+        .all<{ post_id: string; reaction: string }>();
+      for (const row of mine.results) {
+        const previous = reactions.get(row.post_id) || [];
+        previous.push(row.reaction);
+        reactions.set(row.post_id, previous);
+      }
+    }
+    if (countHeartsOnly) {
+      const counts = await db
+        .prepare(
+          `SELECT post_id,COUNT(*) AS total FROM social_post_reactions WHERE reaction='heart' AND post_id IN (${placeholders}) GROUP BY post_id`,
+        )
+        .bind(...ids)
+        .all<{ post_id: string; total: number }>();
+      for (const row of counts.results)
+        heartCounts.set(row.post_id, Number(row.total) || 0);
+    }
   }
   const out = [];
   for (const r of rows) {
