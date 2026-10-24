@@ -35,6 +35,17 @@ export async function consumePreparationQueue(
       !/^[a-f0-9]{64}$/.test(body.jobId)
     )
       throw Error("invalid_preparation_queue_message");
+    // Queue wakeups bypass runContentProcessingTick's scheduled owner gate.
+    // Enforce the authoritative D1 fence for *every* message, including a
+    // multi-message batch where the operator rolls ownership back mid-batch.
+    // A paused or legacy owner is not poison: defer, never ack or claim work.
+    const owner = await env.DB.prepare(
+      "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'",
+    ).first<{ value: string }>();
+    if (owner?.value !== "draining" && owner?.value !== "isolated") {
+      message.retry({ delaySeconds: 300 });
+      continue;
+    }
     try {
       const result = await run(env, body.jobId);
       const delay = "retryAfterSeconds" in result ? result.retryAfterSeconds : null;
