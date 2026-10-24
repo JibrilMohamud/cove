@@ -24,7 +24,7 @@ type Handoff = {
   attempts: number;
 };
 
-const sourcePredicate =
+export const literarySourceRightsPredicate =
   " FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id" +
   " WHERE p.id=? AND p.edition_id=? AND p.source_name='gutenberg'" +
   " AND p.format='ebook' AND p.storefront_status='active'" +
@@ -73,7 +73,7 @@ export async function seedLiteraryPreparationHandoff(
   if (!/^[\w:-]{1,150}$/.test(productId) || !/^[\w:-]{1,150}$/.test(editionId))
     throw Error("Invalid outbox book");
   const source = await env.DB.prepare(
-    "SELECT c.id source_id,c.content_hash" + sourcePredicate + " LIMIT 1",
+    "SELECT c.id source_id,c.content_hash" + literarySourceRightsPredicate + " LIMIT 1",
   )
     .bind(productId, editionId)
     .first<Source>();
@@ -85,7 +85,7 @@ export async function seedLiteraryPreparationHandoff(
     "INSERT OR IGNORE INTO literary_prepare_outbox" +
       "(id,product_id,edition_id,source_id,source_sha256,available_at,created_at,updated_at)" +
       " SELECT ?,p.id,p.edition_id,c.id,c.content_hash,?,?,?" +
-      sourcePredicate +
+      literarySourceRightsPredicate +
       " AND c.id=? AND c.content_hash=? RETURNING id",
   )
     .bind(id, now, now, now, productId, editionId, source.source_id, source.content_hash)
