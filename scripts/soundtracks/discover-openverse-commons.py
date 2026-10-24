@@ -36,6 +36,20 @@ SEARCHES = (
     "dulcimer", "sonata", "renaissance",
     "recorder", "romantic", "chamber",
 )
+COMMONS_CATEGORIES = (
+    "Audio files of classical music for piano",
+    "Audio files of Baroque period classical music",
+    "Audio files of Classical period classical music",
+    "Audio files of Romantic period classical music",
+    "Audio files of harp music",
+    "Audio files of cello music",
+    "Audio files of harpsichord music",
+    "Audio files of classical music for violin",
+    "Audio files of guitar music",
+    "Audio files of adagio (music)",
+    "Audio files of music by Johann Sebastian Bach",
+    "Audio files of piano music by Joseph Haydn",
+)
 AGENT = "CoveOpenMusicDiscovery/1.0 (https://cove-puce-theta.vercel.app/help)"
 ACCEPTED = ("CC0","CC-BY","CC-BY-SA")
 MAX_BYTES = 25*1024*1024
@@ -68,7 +82,9 @@ def commons_title(record):
         return None
     return title
 
-def exact_candidate(record, page):
+def exact_candidate(record, page, provider="openverse", category=None):
+    if provider not in ("openverse", "commons"):
+        raise ValueError("Unsupported original discovery provider")
     title = commons_title(record)
     if not title or page.get("title") != title or not isinstance(page.get("pageid"),int):
         return None
@@ -104,8 +120,9 @@ def exact_candidate(record, page):
         return None
     evidence={
         "policy":"cove-openverse-commons-discovery-v1",
-        "discovery":"openverse",
-        "openverseId":str(record.get("id") or "")[:80],
+        "discovery":provider,
+        "discoveryCategory":category,
+        "openverseId":str(record.get("id") or "")[:80] if provider=="openverse" else None,
         "sourceTitle":title,
         "commonsRevision":(page.get("revisions") or [{}])[0].get("revid"),
         "commonsRevisionTimestamp":(page.get("revisions") or [{}])[0].get("timestamp"),
@@ -118,7 +135,7 @@ def exact_candidate(record, page):
     compact=json.dumps(evidence,sort_keys=True,ensure_ascii=False,separators=(",",":"))
     return {
         "id":"cm_"+str(page["pageid"]),
-        "discoveryProvider":"openverse",
+        "discoveryProvider":provider,
         "sourceTitle":title,
         "sourcePageUrl":"https://commons.wikimedia.org/wiki/"+urllib.parse.quote(title.replace(" ","_"),safe=":_()'"),
         "sourceFileUrl":direct.geturl(),
@@ -140,7 +157,59 @@ def verified_commons_title(title, opener=OPENER):
     pages=read_json(credits.COMMONS_API+"?"+query,opener=opener).get("query",{}).get("pages",[])
     return pages[0] if isinstance(pages,list) and len(pages)==1 else None
 
-def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep):
+def commons_category_candidates(categories=2, max_verifications=16, opener=OPENER, pause=time.sleep):
+    """One rate-bounded generator page per Commons category, no scraping.
+
+    The generator supplies the actual Commons revision, imageinfo, license
+    and checksum in the same authoritative API response. No audio bytes
+    are fetched. A Commons CC label is only discovery evidence.
+    """
+    if not 0 <= categories <= 3 or not 0 <= max_verifications <= 32:
+        raise ValueError("Commons discovery quota exceeded")
+    started=int(time.time() // 86400) % len(COMMONS_CATEGORIES)
+    found=[]
+    checked=0
+    held=0
+    category_queries=0
+    for offset in range(categories):
+        if checked>=max_verifications:
+            break
+        category=COMMONS_CATEGORIES[(started+offset)%len(COMMONS_CATEGORIES)]
+        args=urllib.parse.urlencode({
+            "action":"query","format":"json","formatversion":"2","maxlag":"5",
+            "generator":"categorymembers","gcmtitle":"Category:"+category,
+            "gcmtype":"file","gcmlimit":"24",
+            "prop":"imageinfo|revisions",
+            "iiprop":"url|sha1|size|mime|extmetadata|metadata",
+            "rvprop":"ids|timestamp|content","rvslots":"main",
+        })
+        payload=read_json(credits.COMMONS_API+"?"+args,opener=opener,size=1200000)
+        category_queries+=1
+        if payload.get("error"):
+            raise ValueError("Commons authoritative category query failed")
+        pages=payload.get("query",{}).get("pages",[])
+        if not isinstance(pages,list):
+            raise ValueError("Invalid Commons API category result")
+        for page in pages:
+            if checked>=max_verifications:
+                break
+            title=page.get("title")
+            if not isinstance(title,str) or not title.startswith("File:"):
+                continue
+            checked+=1
+            identity={"foreign_landing_url":"https://commons.wikimedia.org/wiki/"+
+                      urllib.parse.quote(title.replace(" ","_"),safe=":_()'")}
+            result=exact_candidate(identity,page,"commons",category)
+            if result:
+                found.append(result)
+            else:
+                held+=1
+        pause(.5)
+    return {"candidates":found,"verified":checked,"searches":category_queries,
+            "held":held}
+
+
+def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep, commons_categories=2):
     items=[]
     seen=set()
     started=time.monotonic()
@@ -149,6 +218,8 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep):
     indexed_results=0
     rejected_non_commons=0
     held_after_commons_check=0
+    if not 0 <= commons_categories <= 3:
+        raise ValueError("Unbounded Commons category count")
     start_search = int(time.time() // 86400) % len(SEARCHES)
     for shift in range(queries):
         query = SEARCHES[(start_search + shift) % len(SEARCHES)]
@@ -187,11 +258,24 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep):
             except (OSError,ValueError,KeyError,TypeError):
                 held_after_commons_check+=1
             pause(.5)
-    return {"policy":"cove-openverse-commons-discovery-v1","searches":searched,
-            "verified":verified,"indexedResults":indexed_results,
+    from_commons=commons_category_candidates(
+        commons_categories,max(0,min(32-verified,max_verifications-verified)),
+        opener=opener,pause=pause) if commons_categories else {
+            "candidates":[],"verified":0,"searches":0,"held":0}
+    unique={item["id"]:item for item in items}
+    for candidate in from_commons["candidates"]:
+        unique.setdefault(candidate["id"],candidate)
+    return {"policy":"cove-openverse-commons-discovery-v1",
+            "searches":searched+from_commons["searches"],
+            "openverseSearches":searched,
+            "commonsCategoryQueries":from_commons["searches"],
+            "openverseVerified":verified,
+            "commonsVerified":from_commons["verified"],
+            "verified":verified+from_commons["verified"],
+            "indexedResults":indexed_results,
             "nonCommonsResults":rejected_non_commons,
-            "heldAfterCommonsVerification":held_after_commons_check,
-            "candidates":items,
+            "heldAfterCommonsVerification":held_after_commons_check+from_commons["held"],
+            "candidates":list(unique.values()),
             "processingMs":min(1800000,int((time.monotonic()-started)*1000))}
 
 def record_isolated(summary, token, opener=OPENER):
@@ -230,22 +314,31 @@ def record_isolated(summary, token, opener=OPENER):
              candidate["sourceFileUrl"],candidate["sourceTitle"],candidate["sourceSha1"],
              candidate["sizeBytes"],candidate["licenseCode"],candidate["licenseUrl"],
              raw,candidate["evidenceSha256"],at,at])
-    sql("INSERT INTO music_open_discovery_runs(run_id,provider,searches,verified,discovered,processing_ms,recorded_at)"
-        " VALUES(?,'openverse',?,?,?,?,?)",
-        [str(uuid.uuid4()),summary["searches"],summary["verified"],
-         len(summary["candidates"]),summary["processingMs"],at])
+    for provider,searches,verified in (
+        ("openverse",summary.get("openverseSearches",summary["searches"]),
+         summary.get("openverseVerified",summary["verified"])),
+        ("commons",summary.get("commonsCategoryQueries",0),
+         summary.get("commonsVerified",0)),
+    ):
+        if searches:
+            discovered=sum(x["discoveryProvider"]==provider for x in summary["candidates"])
+            sql("INSERT INTO music_open_discovery_runs(run_id,provider,searches,verified,discovered,processing_ms,recorded_at)"
+                " VALUES(?,?,?,?,?,?,?)",
+                [str(uuid.uuid4()),provider,searches,verified,
+                 discovered,summary["processingMs"],at])
     return len(summary["candidates"])
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--queries",type=int,default=2)
-    p.add_argument("--max-verifications",type=int,default=12)
+    p.add_argument("--max-verifications",type=int,default=20)
+    p.add_argument("--commons-categories",type=int,default=2)
     p.add_argument("--output",default="openverse-commons-candidates.json")
     p.add_argument("--apply-isolated",action="store_true")
     args=p.parse_args()
-    if not 1<=args.queries<=3 or not 1<=args.max_verifications<=20:
+    if not 1<=args.queries<=3 or not 0<=args.commons_categories<=3 or not 1<=args.max_verifications<=32:
         p.error("Rate-bounded one-page Openverse/Commons discovery required")
-    result=discover(args.queries,args.max_verifications)
+    result=discover(args.queries,args.max_verifications,commons_categories=args.commons_categories)
     pathlib.Path(args.output).write_text(json.dumps(result,indent=2,ensure_ascii=False)+"\n")
     if args.apply_isolated:
         record_isolated(result,os.environ.get("CLOUDFLARE_API_TOKEN",""))
@@ -254,6 +347,8 @@ def main():
     print(json.dumps({"searched":result["searches"],"indexedResults":result["indexedResults"],
                       "nonCommonsResults":result["nonCommonsResults"],
                       "checkedOriginalPages":result["verified"],
+                      "commonsCategoryQueries":result["commonsCategoryQueries"],
+                      "commonsOriginalsChecked":result["commonsVerified"],
                       "heldAfterCommonsVerification":result["heldAfterCommonsVerification"],
                       "candidates":len(result["candidates"]),"storedIsolated":args.apply_isolated,
                       "customerPublished":False,"elapsedMs":result["processingMs"]}))
