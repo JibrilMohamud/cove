@@ -39,6 +39,26 @@ jobs:
       - name: Process leased, source-throttled master transfers
         run: node scripts/music-supply/drain-source-intake.mjs --execute --workers=4 --max-tracks=32 --max-minutes=20
 
+  isolated-full-decode-qa:
+    if: vars.COVE_MUSIC_HIGH_THROUGHPUT_QA == '1' && (github.event_name == 'schedule' || inputs.execute == true)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      COVE_MUSIC_SUPPLY_QA_URL: ${{ vars.COVE_MUSIC_SUPPLY_QA_URL }}
+      COVE_MUSIC_SUPPLY_QA_TOKEN: ${{ secrets.COVE_MUSIC_SUPPLY_QA_TOKEN }}
+      COVE_MUSIC_EXECUTION_RUNNER_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: 22, cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Install full-decode FFmpeg runner
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+      - name: Parallel leased original-master QA with exact byte attestations
+        run: node scripts/music-supply/drain-full-decode-qa.mjs --execute --workers=4 --max-tracks=32 --max-minutes=20
+
   isolated-acoustic-analysis:
     if: vars.COVE_MUSIC_HIGH_THROUGHPUT_QA == '1' && (github.event_name == 'schedule' || inputs.execute == true)
     runs-on: ubuntu-latest
