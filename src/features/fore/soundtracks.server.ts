@@ -563,10 +563,10 @@ export async function handleSoundtracks(request: Request,env:CoveEnv,path:string
       url.searchParams.get("automation") === "triaged" ? "triaged" : "all";
     const shardText = url.searchParams.get("shard");
     const shard = shardText === null ? -1 : Number(shardText);
-    if (shardText !== null && (mode !== "triaged" || !/^(?:[0-9]|1[0-5])$/.test(shardText)))
+    if (shardText !== null && (mode !== "triaged" || !/^(?:[0-9]|[1-5][0-9]|6[0-3])$/.test(shardText)))
       throw new ApiError(400, "Invalid bounded Commons review shard.");
     const rows = (await env.DB.prepare(
-      "SELECT * FROM soundtrack_recordings WHERE status=? AND id>? AND (?='all' OR (?='new' AND automated_triage_reason='') OR (?='triaged' AND (automated_triage_reason LIKE '%composer not in narrow sourced-title mapping' OR automated_triage_reason LIKE '%ambiguous or missing performer credit'))) AND (?!='triaged' OR ?=-1 OR CAST(SUBSTR(id,4) AS INTEGER)%16=?) ORDER BY id LIMIT ?",
+      "SELECT * FROM soundtrack_recordings WHERE status=? AND id>? AND (?='all' OR (?='new' AND automated_triage_reason='') OR (?='triaged' AND (automated_triage_reason LIKE '%composer not in narrow sourced-title mapping' OR automated_triage_reason LIKE '%ambiguous or missing performer credit'))) AND (?!='triaged' OR ?=-1 OR CAST(SUBSTR(id,4) AS INTEGER)%64=?) ORDER BY id LIMIT ?",
     ).bind(url.searchParams.get("status") || "pending_review",after,mode,mode,mode,mode,shard,shard,limit+1).all<SoundtrackRow>()).results;
     return json({ counts,records:rows.slice(0,limit),nextCursor:rows.length>limit?rows[limit-1].id:null });
   }
