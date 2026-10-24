@@ -139,7 +139,11 @@ export function meterContentAssetEnv(
                       : Number.POSITIVE_INFINITY;
               assertBudget(0, 0, bytes);
               usage.r2Bytes += bytes;
-              return target.put(key, value as Parameters<BucketPut>[1], options as Parameters<BucketPut>[2]);
+              return target.put(
+                key,
+                value as Parameters<BucketPut>[1],
+                options as Parameters<BucketPut>[2],
+              );
             };
           const method = Reflect.get(target, prop);
           return typeof method === "function" ? method.bind(target) : method;
