@@ -31,3 +31,21 @@ CREATE TABLE IF NOT EXISTS literary_ai_invocation_usage (
 );
 CREATE INDEX IF NOT EXISTS literary_ai_usage_job
   ON literary_ai_invocation_usage(job_id,observed_at);
+
+-- The credit and the immutable receipt are a single SQLite statement.
+-- A duplicate job_id is ignored, so the trigger never fires a second time.
+-- If the debit has insufficient reserved units or the day is fenced, RAISE
+-- rolls back the INSERT; there can be no orphaned applied receipt.
+CREATE TRIGGER IF NOT EXISTS literary_job_settlement_credit
+AFTER INSERT ON literary_job_output_settlements
+BEGIN
+  UPDATE literary_profile_budget
+  SET reserved_units=reserved_units-NEW.refund_units
+  WHERE day=NEW.day AND reserved_units>=NEW.refund_units
+    AND EXISTS (
+      SELECT 1 FROM literary_budget_cutover
+      WHERE day=NEW.day AND status='active'
+    );
+  SELECT CASE WHEN changes()<>1
+    THEN RAISE(ABORT, 'literary_job_settlement_unfunded') END;
+END;
