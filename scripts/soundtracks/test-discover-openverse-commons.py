@@ -72,7 +72,7 @@ class OpenverseIsolatedDiscovery(unittest.TestCase):
         self.assertNotIn(".ogg",calls[0])
     def test_non_wikimedia_index_hits_are_diagnostic_only(self):
         inspected=[]
-        def response(url,opener=None):
+        def response(url,opener=None,size=500000):
             inspected.append(url)
             return {"results":[
                 {"foreign_landing_url":"https://freemusicarchive.org/music/example"},
