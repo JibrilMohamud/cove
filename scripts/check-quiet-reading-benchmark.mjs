@@ -43,9 +43,12 @@ assert.throws(
   /Malformed/,
 );
 assert.throws(
-  () => evaluateQuietReadingLabels([
-    { ...rows[0], ratings: [...rows[0].ratings.slice(0, 2), rows[0].ratings[0]] },
-  ]),
+  () =>
+    evaluateQuietReadingLabels([
+      { ...rows[0], ratings: [...rows[0].ratings.slice(0, 2), rows[0].ratings[0]] },
+    ]),
   /Independent/,
 );
-console.log("Blind-label metric mechanics, family groups, false acceptance and recall gates passed; NO real listening corpus is claimed.");
+console.log(
+  "Blind-label metric mechanics, family groups, false acceptance and recall gates passed; NO real listening corpus is claimed.",
+);
