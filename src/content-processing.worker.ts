@@ -116,13 +116,13 @@ export async function runContentProcessingTick(
   )
     return { skipped: "isolated_inference_disabled" };
   if (!env.BUCKET) return { skipped: "missing_private_r2", role };
-  if ((role === "literary" || role === "literary-infer") && !env.AI)
+  if (role === "literary-infer" && !env.AI)
     return { skipped: "missing_ai", role };
   // Meter owner-read admission as well, not only work triggered afterwards.
   // The isolated literary roles have independently budgeted data planes.
   const metered = role === "assets" ? meterContentAssetEnv(env, contentBudgetLimits(env)) : null;
   const workEnv = (metered?.env || env) as ContentProcessorEnv;
-  if (role === "assets" || role === "literary") {
+  if (role === "assets") {
     // Primary owner and the old-backend switch must both authorize
     // external execution. Defaults (missing key or disabled switch) refuse.
     if (env.FORE_CONTENT_PIPELINE_EXTERNAL !== "1")
