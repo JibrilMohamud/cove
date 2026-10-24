@@ -16,8 +16,9 @@ for (const required of [
   "literary_processing_owner",
   "literary_budget_domain",
   "idx_literary_inference_publication_due",
-]) assert.ok(src.includes(required), "Readiness audit missing " + required);
-assert.ok(src.includes('assert.match(sql.trim(), /^(SELECT|PRAGMA|EXPLAIN|WITH)'));
+])
+  assert.ok(src.includes(required), "Readiness audit missing " + required);
+assert.ok(src.includes("assert.match(sql.trim(), /^(SELECT|PRAGMA|EXPLAIN|WITH)"));
 assert.ok(src.includes("assert.doesNotMatch(sql"));
 assert.ok(!/\b(?:api\("PUT"|api\("PATCH"|api\("DELETE")\b/.test(src));
 assert.ok(workflow.includes("needs: static-readonly-contract"));
