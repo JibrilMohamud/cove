@@ -5,6 +5,10 @@ on:
       - "scripts/staging/deploy-continuous-publication-qa.mjs"
       - "scripts/staging/verify-continuous-publication-qa.mjs"
       - ".github/workflows/continuous-publication-qa.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/continuous-publication-qa.yml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -14,11 +18,8 @@ concurrency:
 jobs:
   private-qa:
     if: >-
-      (github.event_name == 'pull_request' &&
-       github.event.pull_request.head.repo.full_name == github.repository &&
-       github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') ||
-      (github.event_name == 'workflow_dispatch' &&
-       github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:

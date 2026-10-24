@@ -8,6 +8,10 @@ on:
       - "scripts/soundtracks/test-isolated-commons-real-audio.py"
       - "infra/music/0006_open_technical_qa.sql"
       - ".github/workflows/isolated-commons-audio-technical-qa.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/isolated-commons-audio-technical-qa.yml"
   workflow_dispatch:
   schedule:
     - cron: "55 7,13,19,1 * * *"
@@ -35,6 +39,43 @@ jobs:
       - run: python scripts/soundtracks/test-qualify-isolated-commons.py -q
       - run: python -m pip install --disable-pip-version-check numpy==2.2.6 scipy==1.15.3
       - run: python scripts/soundtracks/test-isolated-commons-real-audio.py
+
+
+  detached-one-original-dry-run:
+    needs: no-network-safety-tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      COVE_MUSIC_OPEN_QA_APPLY: "0"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
+      - run: python -m pip install --disable-pip-version-check numpy==2.2.6 scipy==1.15.3
+      - name: Require an isolated account credential and leave all publication flags off
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          test "$COVE_MUSIC_OPEN_QA_APPLY" = 0
+          command -v ffmpeg
+          command -v ffprobe
+      - name: Verify one live Commons original and all audio frames (no R2 or D1 writes)
+        run: python scripts/soundtracks/qualify-isolated-commons.py --max-recordings 1 --max-seconds 840 --profile-dsp --output commons-original-dry-run.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: commons-original-private-technical-dry-run
+          path: commons-original-dry-run.json
+          if-no-files-found: warn
+          retention-days: 14
 
   detached-private-qualification:
     needs: no-network-safety-tests

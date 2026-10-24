@@ -9,7 +9,8 @@ assert.match(key, /^[a-f0-9]{64}$/);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
 const maxInflight = 128;
 const strictMaximumMs = 800;
-const p95MaximumMs = 650;
+const p95MaximumMs = 600;
+const p99MaximumMs = 750;
 const results = {
   transport: stageTransport,
   mode: process.env.COVE_STRANGLER_MODE || "bursts",
@@ -73,7 +74,8 @@ function report(name, offered, rows, dropped = 0) {
     rows.length === offered &&
     valid === offered &&
     maxMs < strictMaximumMs &&
-    p95Ms < p95MaximumMs;
+    p95Ms < p95MaximumMs &&
+    p99Ms < p99MaximumMs;
   const observed = rows.filter((row) => Number.isFinite(row.serverTiming?.cove_bootstrap));
   const boot = observed.map((row) => row.serverTiming.cove_bootstrap);
   const catalog = observed
@@ -136,7 +138,7 @@ try {
     report("new-deployment-cold-20", 20, rows);
   } else {
     for (const size of [1, 4, 8, 16, 32]) await burst(size, size + "-concurrent");
-    for (const rate of [25, 50, 100]) await scheduled(rate, 10);
+    for (const rate of [25, 50, 100]) await scheduled(rate, rate === 100 ? 20 : 10);
     await burst(32, "transport-control-32", "/__cove_perf/transport");
     await scheduled(25, 10, "/__cove_perf/transport");
     // Additional protected authentic application path. This isn't a

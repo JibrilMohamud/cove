@@ -19,7 +19,7 @@ const groups = [
       "32-concurrent",
       "25-rps-10s",
       "50-rps-10s",
-      "100-rps-10s",
+      "100-rps-20s",
       "transport-control-32",
       "transport-25-rps-10s",
       "real-core-delegation",
@@ -46,7 +46,8 @@ for (const group of groups) {
         item.delivered === item.offered &&
         item.dropped === 0 &&
         item.maxMs < 800 &&
-        item.p95Ms < 650,
+        item.p95Ms < 600 &&
+        item.p99Ms < 750,
     );
   console.log(
     "COVE_CAPACITY_RELEASE_GATE " +
@@ -59,6 +60,7 @@ for (const group of groups) {
             offered: item.offered,
             valid: item.valid,
             p95Ms: item.p95Ms,
+            p99Ms: item.p99Ms,
             maxMs: item.maxMs,
             pass: item.pass,
             bootstrapP95Ms: item.bootstrapP95Ms,
