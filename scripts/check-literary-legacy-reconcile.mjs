@@ -62,6 +62,7 @@ try {
     INSERT INTO literary_profile_jobs VALUES('job_a','p_a','sha_a','queued','');
     INSERT INTO literary_profile_jobs VALUES('job_b','p_b','sha_b','failed','');
     INSERT INTO literary_profile_jobs VALUES('job_c','p_a','stale_sha','queued','');
+    INSERT INTO literary_profile_jobs VALUES('job_d','p_a','sha_a','running','2020-01-01');
   `);
   primary.exec(
     readFileSync("infra/literary-cutover/0001_legacy_reconcile_primary_index.sql", "utf8"),
@@ -161,6 +162,13 @@ try {
   });
   assert.equal(seeds, 3, "Stale profiles must not seed primary work");
   assert.equal(count(), 3);
+  assert.deepEqual(await reconcileOneLegacyLiteraryJob(env, seed), {
+    reconciled: "job_d",
+    disposition: "seeded",
+    outboxId: "outbox_a",
+  });
+  assert.equal(seeds, 4, "Expired running leases must join recovery without new grants");
+  assert.equal(count(), 4);
   assert.deepEqual(await reconcileOneLegacyLiteraryJob(env, seed), { complete: true });
   assert.equal(cursor().status, "complete");
   assert.equal(
