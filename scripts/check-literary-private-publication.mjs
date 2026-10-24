@@ -46,7 +46,7 @@ try {
   const { publishOnePrivateLiteraryInference } = await import(
     path.join(directory, "private-pub.mjs")
   );
-  const ids = ["a".repeat(64), "b".repeat(64), "c".repeat(64), "d".repeat(64)];
+  const ids = ["a".repeat(64), "b".repeat(64), "c".repeat(64), "d".repeat(64), "e".repeat(64)];
   function fixture(n) {
     const jobId = ids[n];
     const productId = "p_" + n;
@@ -90,6 +90,7 @@ try {
         .prepare("SELECT product_id FROM literary_inference_jobs WHERE id=?")
         .get(jobId);
       if (mode === "outage") return Response.json({ error: "busy" }, { status: 503 });
+      if (mode === "false_ack") return Response.json({ published: row.product_id });
       if (mode === "held") return Response.json({ skipped: "rights_source_or_version_changed" });
       if (mode === "duplicate")
         return Response.json({ skipped: "rights_source_or_version_changed" });
@@ -237,9 +238,25 @@ try {
     .prepare("UPDATE literary_inference_jobs SET publication_lease_until='2020-01-01' WHERE id=?")
     .run(fourth.jobId);
   assert.deepEqual(await publishOnePrivateLiteraryInference(env), { published: fourth.jobId });
+  const falseAck = fixture(4);
+  mode = "false_ack";
+  const unverified = await publishOnePrivateLiteraryInference(env);
+  assert.equal(unverified.deferred, falseAck.jobId);
+  assert.match(unverified.reason, /private_publisher_ack_unverified/);
+  assert.equal(
+    primary
+      .prepare("SELECT revision FROM literary_profiles WHERE product_id=?")
+      .get(falseAck.productId).revision,
+    0,
+  );
+  content
+    .prepare("UPDATE literary_inference_jobs SET publication_available_at='2020-01-01' WHERE id=?")
+    .run(falseAck.jobId);
+  mode = "success";
+  assert.deepEqual(await publishOnePrivateLiteraryInference(env), { published: falseAck.jobId });
   assert.equal(
     primary.prepare("SELECT COUNT(*) n FROM literary_profiles WHERE status='analyzed'").get().n,
-    3,
+    4,
   );
   assert.deepEqual(
     content
@@ -253,7 +270,7 @@ try {
     true,
   );
   console.log(
-    "LITERARY_PRIVATE_PUBLICATION_PASS dual SQLite domains, legacy/drain denial, owner rollback, bounded claims, lost ACK replay, rights hold and retry after transport outage",
+    "LITERARY_PRIVATE_PUBLICATION_PASS dual SQLite domains, canonical ACK verification, legacy/drain denial, owner rollback, bounded claims, lost ACK replay, rights hold and transport retry",
   );
 } finally {
   primary.close();
