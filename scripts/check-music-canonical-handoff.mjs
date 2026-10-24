@@ -17,8 +17,9 @@ try {
     outfile: path.join(root, "handoff.mjs"),
     logLevel: "silent",
   });
-  const { applyCanonicalMusicHandoff, handleCanonicalMusicHandoff } =
-    await import(path.join(root, "handoff.mjs"));
+  const { applyCanonicalMusicHandoff, handleCanonicalMusicHandoff } = await import(
+    path.join(root, "handoff.mjs")
+  );
   const env = localBindings(root);
   const sha = (s) => createHash("sha256").update(s).digest("hex");
   const secret = "x".repeat(48);
@@ -58,74 +59,124 @@ try {
       headers: { "x-cove-music-handoff-token": bearer, "content-type": "application/json" },
       body: JSON.stringify(body),
     });
-  assert.equal((await handleCanonicalMusicHandoff(req(qualified),{
-    ...config, FORE_MUSIC_CANONICAL_HANDOFF_ENABLED: "0",
-  })).status, 403, "Flag remains disabled unless operator explicitly enables");
-  assert.equal((await handleCanonicalMusicHandoff(req(qualified,"untrusted"),config)).status, 401);
-  assert.deepEqual(await applyCanonicalMusicHandoff(env.DB,qualified),{
-    seq:1,recorded:true,status:"private_metadata_only",
+  assert.equal(
+    (
+      await handleCanonicalMusicHandoff(req(qualified), {
+        ...config,
+        FORE_MUSIC_CANONICAL_HANDOFF_ENABLED: "0",
+      })
+    ).status,
+    403,
+    "Flag remains disabled unless operator explicitly enables",
+  );
+  assert.equal(
+    (await handleCanonicalMusicHandoff(req(qualified, "untrusted"), config)).status,
+    401,
+  );
+  assert.deepEqual(await applyCanonicalMusicHandoff(env.DB, qualified), {
+    seq: 1,
+    recorded: true,
+    status: "private_metadata_only",
   });
-  assert.deepEqual(await applyCanonicalMusicHandoff(env.DB,qualified),{
-    seq:1,replay:true,status:"unchanged",
+  assert.deepEqual(await applyCanonicalMusicHandoff(env.DB, qualified), {
+    seq: 1,
+    replay: true,
+    status: "unchanged",
   });
   const first = await env.DB.prepare(
     "SELECT status,metadata_json FROM music_supply_handoff_masters WHERE master_id=?",
-  ).bind("supplier-master-1").first();
-  assert.equal(first.status,"pending_media");
-  assert.equal(JSON.parse(first.metadata_json).sha256,manifest.sha256);
-  assert.equal((await env.DB.prepare(
-    "SELECT COUNT(*) n FROM soundtrack_recordings",
-  ).first()).n,0,"Private handoff must not publish customer audio or rights");
+  )
+    .bind("supplier-master-1")
+    .first();
+  assert.equal(first.status, "pending_media");
+  assert.equal(JSON.parse(first.metadata_json).sha256, manifest.sha256);
+  assert.equal(
+    (await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_recordings").first()).n,
+    0,
+    "Private handoff must not publish customer audio or rights",
+  );
 
   const withdrawn = item(2, "contract_revoked", null, {
-    reason:"Fixture contract rights withdrawn permanently",
+    reason: "Fixture contract rights withdrawn permanently",
   });
   withdrawn.contract_status = "revoked";
-  assert.equal((await applyCanonicalMusicHandoff(env.DB,withdrawn)).recorded,true);
-  assert.equal((await env.DB.prepare(
-    "SELECT status FROM music_supply_handoff_contracts WHERE contract_id=?",
-  ).bind("supplier-contract-1").first()).status,"revoked");
+  assert.equal((await applyCanonicalMusicHandoff(env.DB, withdrawn)).recorded, true);
+  assert.equal(
+    (
+      await env.DB.prepare("SELECT status FROM music_supply_handoff_contracts WHERE contract_id=?")
+        .bind("supplier-contract-1")
+        .first()
+    ).status,
+    "revoked",
+  );
 
-  const forgedAfterWithdrawal = item(3,"master_qualified","supplier-master-2",{
-    ...manifest,id:"supplier-master-2",
+  const forgedAfterWithdrawal = item(3, "master_qualified", "supplier-master-2", {
+    ...manifest,
+    id: "supplier-master-2",
   });
-  assert.equal((await applyCanonicalMusicHandoff(env.DB,forgedAfterWithdrawal)).recorded,true);
-  assert.equal((await env.DB.prepare(
-    "SELECT COUNT(*) n FROM music_supply_handoff_masters WHERE master_id='supplier-master-2'",
-  ).first()).n,0,"Even a forged active flag cannot defeat canonical contract tombstone");
+  assert.equal((await applyCanonicalMusicHandoff(env.DB, forgedAfterWithdrawal)).recorded, true);
+  assert.equal(
+    (
+      await env.DB.prepare(
+        "SELECT COUNT(*) n FROM music_supply_handoff_masters WHERE master_id='supplier-master-2'",
+      ).first()
+    ).n,
+    0,
+    "Even a forged active flag cannot defeat canonical contract tombstone",
+  );
 
-  const masterWithdrawn = item(4,"master_revoked","supplier-master-1",{
-    reason:"Specific synthetic original master withdrawn",
+  const masterWithdrawn = item(4, "master_revoked", "supplier-master-1", {
+    reason: "Specific synthetic original master withdrawn",
   });
-  assert.equal((await applyCanonicalMusicHandoff(env.DB,masterWithdrawn)).recorded,true);
-  assert.equal((await env.DB.prepare(
-    "SELECT status FROM music_supply_handoff_masters WHERE master_id=?",
-  ).bind("supplier-master-1").first()).status,"revoked");
-  assert.equal((await env.DB.prepare(
-    "SELECT COUNT(*) n FROM music_supply_handoff_events",
-  ).first()).n,4,"Each event recorded exactly once");
+  assert.equal((await applyCanonicalMusicHandoff(env.DB, masterWithdrawn)).recorded, true);
+  assert.equal(
+    (
+      await env.DB.prepare("SELECT status FROM music_supply_handoff_masters WHERE master_id=?")
+        .bind("supplier-master-1")
+        .first()
+    ).status,
+    "revoked",
+  );
+  assert.equal(
+    (await env.DB.prepare("SELECT COUNT(*) n FROM music_supply_handoff_events").first()).n,
+    4,
+    "Each event recorded exactly once",
+  );
   await assert.rejects(
-    applyCanonicalMusicHandoff(env.DB,{...qualified,payload_json:JSON.stringify({
-      ...manifest,sha256:"c".repeat(64),
-    })}),
+    applyCanonicalMusicHandoff(env.DB, {
+      ...qualified,
+      payload_json: JSON.stringify({
+        ...manifest,
+        sha256: "c".repeat(64),
+      }),
+    }),
     /music_handoff_conflicting_replay/,
   );
-  const stale = item(5,"master_qualified","supplier-master-3",{
-    ...manifest,id:"supplier-master-3",
+  const stale = item(5, "master_qualified", "supplier-master-3", {
+    ...manifest,
+    id: "supplier-master-3",
   });
-  stale.contract_status="revoked";
-  stale.publishable=0;
-  assert.equal((await applyCanonicalMusicHandoff(env.DB,stale)).skipped,"supplier_rights_inactive");
+  stale.contract_status = "revoked";
+  stale.publishable = 0;
+  assert.equal(
+    (await applyCanonicalMusicHandoff(env.DB, stale)).skipped,
+    "supplier_rights_inactive",
+  );
 
-  const accepted = await handleCanonicalMusicHandoff(req(qualified),config);
-  assert.equal(accepted.status,200);
-  assert.equal((await accepted.json()).replay,true);
-  const servingQuery = fs.readFileSync("src/features/fore/matching-catalog.server.ts","utf8");
-  assert.ok(!servingQuery.includes("music_supply_handoff"),"No customer matching DB reads added");
-  const backend = fs.readFileSync("src/persistence-backend.worker.ts","utf8");
-  assert.match(backend,/handleCanonicalMusicHandoff\(request, env\)/);
-  assert.match(fs.readFileSync("src/lib/music-canonical-handoff.ts","utf8"),/FORE_MUSIC_CANONICAL_HANDOFF_ENABLED !== "1"/);
-  console.log("Canonical music metadata handoff: dual credential, atomic idempotency, contract/master tombstones, zero public rights, disabled flag passed.");
+  const accepted = await handleCanonicalMusicHandoff(req(qualified), config);
+  assert.equal(accepted.status, 200);
+  assert.equal((await accepted.json()).replay, true);
+  const servingQuery = fs.readFileSync("src/features/fore/matching-catalog.server.ts", "utf8");
+  assert.ok(!servingQuery.includes("music_supply_handoff"), "No customer matching DB reads added");
+  const backend = fs.readFileSync("src/persistence-backend.worker.ts", "utf8");
+  assert.match(backend, /handleCanonicalMusicHandoff\(request, env\)/);
+  assert.match(
+    fs.readFileSync("src/lib/music-canonical-handoff.ts", "utf8"),
+    /FORE_MUSIC_CANONICAL_HANDOFF_ENABLED !== "1"/,
+  );
+  console.log(
+    "Canonical music metadata handoff: dual credential, atomic idempotency, contract/master tombstones, zero public rights, disabled flag passed.",
+  );
 } finally {
-  fs.rmSync(root,{recursive:true,force:true});
+  fs.rmSync(root, { recursive: true, force: true });
 }
