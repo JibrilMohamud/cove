@@ -29,6 +29,7 @@ type CandidateRow = {
   contract_id: string;
   expires_at: string;
   evidence_sha256: string;
+  evidence_key: string;
 };
 const sha = /^[0-9a-f]{64}$/;
 const fingerprint = (value: ArrayBuffer | string | undefined) =>
@@ -57,7 +58,7 @@ export async function privateMusicCandidates(
   const now = new Date().toISOString();
   const rows = (await db.prepare(
     "SELECT m.id,m.sha256,m.bytes,m.manifest_json,m.storage_key,m.quality_key," +
-      " c.id contract_id,c.expires_at,c.evidence_sha256" +
+      " c.id contract_id,c.expires_at,c.evidence_sha256,c.evidence_key" +
       " FROM music_masters m JOIN music_contracts c ON c.id=m.contract_id" +
       " WHERE m.id>? AND m.status='quality_passed'" +
       " AND c.status='active' AND c.expires_at>?" +
@@ -82,7 +83,8 @@ export async function privateMusicCandidates(
         manifest.bytes !== r.bytes || manifest.contractId !== r.contract_id ||
         !manifest.territory.includes(territory) ||
         !sha.test(r.sha256) || !sha.test(r.evidence_sha256) ||
-        !r.storage_key.startsWith("music-supply/masters/" + r.sha256) ||
+        r.storage_key !== ("music-supply/masters/" + r.sha256 +
+          (manifest.mime === "audio/mpeg" ? ".mp3" : ".ogg")) ||
         !r.quality_key.startsWith("music-supply/quality/" + r.sha256 + "/")) {
       rejectedIntegrity++;
       continue;
@@ -90,7 +92,8 @@ export async function privateMusicCandidates(
     const parts = /^music-supply\/quality\/[0-9a-f]{64}\/([0-9a-f]{64})\.json$/.exec(r.quality_key);
     if (!parts ||
         !(await exactObject(bucket,r.storage_key,r.sha256,r.bytes)) ||
-        !(await exactObject(bucket,r.quality_key,parts[1]))) {
+        !(await exactObject(bucket,r.quality_key,parts[1])) ||
+        !(await exactObject(bucket,r.evidence_key,r.evidence_sha256))) {
       rejectedIntegrity++;
       continue;
     }
