@@ -259,6 +259,9 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep, c
         # Openverse aggregates many audio repositories. Source targeting
         # dramatically reduces wasted first-page results and ensures this
         # fast lane never queries third-party original hosts.
+        # Openverse does not classify wikimedia_audio under category=music;
+        # never restore that zero-results search filter. Quiet suitability is
+        # assessed independently on the complete original audio file.
         params=urllib.parse.urlencode({"q":query,"source":"wikimedia_audio",
                                         "license":"by,by-sa,cc0",
                                         "page":1,"page_size":20,"mature":"false"})
