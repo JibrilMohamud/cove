@@ -213,7 +213,10 @@ try {
     DB: {
       ...env.DB,
       prepare(sql) {
-        if (loseAck && sql.startsWith("UPDATE regional_epub_repair_receipts SET status='completed'"))
+        if (
+          loseAck &&
+          sql.startsWith("UPDATE regional_epub_repair_receipts SET status='completed'")
+        )
           return {
             bind() {
               loseAck = false;
@@ -234,14 +237,19 @@ try {
   });
   assert.equal(partial.conflicts, 1, "lost final ACK must leave an unfinished receipt");
   assert.equal(
-    (await env.DB.prepare(
-      "SELECT status FROM regional_epub_repair_receipts WHERE source_id='pgau_9100008'",
-    ).first()).status,
+    (
+      await env.DB.prepare(
+        "SELECT status FROM regional_epub_repair_receipts WHERE source_id='pgau_9100008'",
+      ).first()
+    ).status,
     "pending",
   );
   assert.equal(
-    (await env.DB.prepare("SELECT COUNT(*) n FROM digital_assets WHERE edition_id=?")
-      .bind(interrupted).first()).n,
+    (
+      await env.DB.prepare("SELECT COUNT(*) n FROM digital_assets WHERE edition_id=?")
+        .bind(interrupted)
+        .first()
+    ).n,
     1,
     "durable pointer commit survives lost receipt ACK",
   );
@@ -251,9 +259,11 @@ try {
   });
   assert.equal(resumed.repaired, 1, "pending receipts are replayed even with complete pointers");
   assert.equal(
-    (await env.DB.prepare(
-      "SELECT status FROM regional_epub_repair_receipts WHERE source_id='pgau_9100008'",
-    ).first()).status,
+    (
+      await env.DB.prepare(
+        "SELECT status FROM regional_epub_repair_receipts WHERE source_id='pgau_9100008'",
+      ).first()
+    ).status,
     "completed",
   );
   assert.equal(
