@@ -73,7 +73,7 @@ class CommonsSourceReconciliation(unittest.TestCase):
         conflict["query"]["pages"][0]["revisions"][0]["slots"]["main"]["content"]="{{Information|Source=Free Music Archive}}"
         self.assertEqual(meta.inspect_commons_file(row,conflict)[1],"commons_conflicting_source_claim")
     def test_provenance_conflicts_must_not_automatically_clear(self):
-        row=track(performer="Another Performer")
+        row=track(performer="Another Performer",title="Sonata in C by Beethoven",source_title="File:Sonata in C by Beethoven.ogg")
         result,reason,_=curate.reconciled_candidate(
             row,lambda r:meta.inspect_commons_file(r,source(r)))
         self.assertIsNone(result)
