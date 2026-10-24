@@ -148,6 +148,7 @@ for (const name of [
   "music_open_source_candidates",
   "music_open_discovery_runs",
   "music_open_discovery_cursors",
+  "music_open_technical_qa",
 ])
   assert.ok(found.has(name), "Isolated MUSIC_DB migration missing: " + name);
 
