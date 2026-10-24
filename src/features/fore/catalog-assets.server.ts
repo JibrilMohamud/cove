@@ -1,7 +1,11 @@
 import type { CoveEnv } from "./api.server";
 import { runCatalogAssetMaintenance } from "./api.server";
+import { assetOwnerPredicate } from "../../lib/content-processing-owner.server";
 
-export type AssetRunnerEnv = CoveEnv & { FORE_ASSETS_PER_MINUTE?: string };
+export type AssetRunnerEnv = CoveEnv & {
+  FORE_ASSETS_PER_MINUTE?: string;
+  FORE_CONTENT_PROCESSOR_ROLE?: string;
+};
 /** One serial downloader per deployment keeps peak EPUB memory and upstream load bounded.
  * Metadata discovery has a separate schedule and cannot consume this work window.
  */
@@ -11,12 +15,14 @@ export async function runStoredAssetTick(env: AssetRunnerEnv) {
   if (!limit || !env.BUCKET) return { skipped: "disabled" };
   const started = new Date().toISOString();
   const token = crypto.randomUUID();
+  const owner = env.FORE_CONTENT_PROCESSOR_ROLE === "assets" ? "external" : "legacy";
   const lease = await env.DB.prepare(
-    `INSERT INTO catalog_asset_runner(id,lease_token,lease_until,started_at) VALUES(1,?,?,?)
+    `INSERT INTO catalog_asset_runner(id,lease_token,lease_until,started_at)
+     SELECT 1,?,?,? WHERE ${assetOwnerPredicate}
      ON CONFLICT(id) DO UPDATE SET lease_token=excluded.lease_token,lease_until=excluded.lease_until,started_at=excluded.started_at
-     WHERE catalog_asset_runner.lease_until<=? RETURNING lease_token`,
+     WHERE catalog_asset_runner.lease_until<=? AND ${assetOwnerPredicate} RETURNING lease_token`,
   )
-    .bind(token, new Date(Date.now() + 120_000).toISOString(), started, started)
+    .bind(token, new Date(Date.now() + 120_000).toISOString(), started, owner, started, owner)
     .first<{ lease_token: string }>();
   if (!lease) return { skipped: "leased" };
   try {
