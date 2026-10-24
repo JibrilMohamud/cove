@@ -85,9 +85,7 @@ export async function settleIsolatedLiteraryJob(db: D1, args: IsolatedJobSettlem
 export function observedLiteraryAiUsage(raw: unknown) {
   const value = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const meta =
-    value.meta && typeof value.meta === "object"
-      ? (value.meta as Record<string, unknown>)
-      : {};
+    value.meta && typeof value.meta === "object" ? (value.meta as Record<string, unknown>) : {};
   const usageRaw = value.usage ?? meta.usage;
   const usage =
     usageRaw && typeof usageRaw === "object" ? (usageRaw as Record<string, unknown>) : {};
