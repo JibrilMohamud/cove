@@ -69,13 +69,15 @@ function report(name, offered, rows, dropped = 0) {
   const maxMs = Math.max(0, ...all);
   const p95Ms = percentile(all, 0.95);
   const p99Ms = percentile(all, 0.99);
+  // Bursts/cold rounds have an 800 ms hard maximum. The p95/p99 tail
+  // requirements belong to the sustained 100-RPS, 2,000-arrival phase.
+  const sustained100Rps = name === "100-rps-20s";
   const pass =
     dropped === 0 &&
     rows.length === offered &&
     valid === offered &&
     maxMs < strictMaximumMs &&
-    p95Ms < p95MaximumMs &&
-    p99Ms < p99MaximumMs;
+    (!sustained100Rps || (p95Ms < p95MaximumMs && p99Ms < p99MaximumMs));
   const observed = rows.filter((row) => Number.isFinite(row.serverTiming?.cove_bootstrap));
   const boot = observed.map((row) => row.serverTiming.cove_bootstrap);
   const catalog = observed
