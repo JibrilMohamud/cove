@@ -51,8 +51,7 @@ export async function reconcileOneLegacyLiteraryJob(
   )
     .bind(now, now)
     .first<{ sweep: number; running: number }>();
-  if (!leases || leases.sweep || leases.running)
-    return { skipped: "legacy_leases_not_drained" };
+  if (!leases || leases.sweep || leases.running) return { skipped: "legacy_leases_not_drained" };
   // PK keyset scan: one currently pinned, unfinished *provisional* book.
   // Old chapters, retired fingerprints, or already published profiles are
   // excluded and MUST be separately accounted for by the operator's audit.
@@ -85,7 +84,11 @@ export async function reconcileOneLegacyLiteraryJob(
   const seeded = "outboxId" in result && typeof result.outboxId === "string";
   const disposition = seeded ? "seeded" : "held";
   const outboxId = seeded ? result.outboxId : null;
-  const reason = seeded ? "" : "skipped" in result ? String(result.skipped).slice(0, 90) : "unknown";
+  const reason = seeded
+    ? ""
+    : "skipped" in result
+      ? String(result.skipped).slice(0, 90)
+      : "unknown";
   // D1 batch commits receipt + cursor atomically in CONTENT_DB. If interrupted
   // before this point, the idempotent primary outbox is replayed next tick.
   await isolated.batch([
