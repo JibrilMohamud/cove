@@ -12,6 +12,16 @@ let flipAfterPreflight = false;
 const source = readFileSync("src/features/fore/literary-profiles.server.ts", "utf8");
 assert.match(source, /j\.created_at,j\.id LIMIT 1\) AND \$\{legacyOwnerFenceSql\} RETURNING/);
 assert.match(source, /SELECT \?,\?,\?,\?,\?,\?,\?,\?,\? WHERE \$\{legacyOwnerFenceSql\}/);
+// The drain is also an *in-flight publication* fence, not merely a new-claim
+// fence. A worker that already holds a lease must not publish a late result.
+for (const fragment of [
+  "const guard = `EXISTS(SELECT 1 FROM literary_profile_jobs",
+  "j.lease_until>?) AND ${legacyOwnerFenceSql}`",
+  "status='done' AND ${legacyOwnerFenceSql}",
+  "status='running' AND ${legacyOwnerFenceSql}",
+  "'provisional',?,?,?,? WHERE ${legacyOwnerFenceSql} ON CONFLICT",
+  "excluded.policy_version WHERE ${legacyOwnerFenceSql}",
+]) assert.ok(source.includes(fragment), "Legacy drain missing atomic fence: " + fragment);
 function wrap() {
   return {
     prepare(text) {
@@ -118,8 +128,50 @@ try {
   });
   assert.equal(row().status, "queued");
   assert.equal(row().attempts, 0);
+  // Execute the same atomic D1 predicates on a real SQLite database.
+  // The token-holder may have started under legacy but must not commit once
+  // the operator moves canonical ownership to draining.
+  const fenced = new DatabaseSync(":memory:");
+  try {
+    fenced.exec(
+      "CREATE TABLE cove_runtime_config(key TEXT PRIMARY KEY,value TEXT);" +
+        "CREATE TABLE literary_profiles(product_id TEXT PRIMARY KEY,fingerprint TEXT,status TEXT);",
+    );
+    const fence =
+      "COALESCE((SELECT value FROM cove_runtime_config" +
+      " WHERE key='literary_processing_owner'),'legacy')='legacy'";
+    const seed = fenced.prepare(
+      "INSERT INTO literary_profiles(product_id,fingerprint,status)" +
+        " SELECT ?,?,'provisional' WHERE " +
+        fence +
+        " ON CONFLICT(product_id) DO UPDATE SET fingerprint=excluded.fingerprint" +
+        " WHERE " +
+        fence,
+    );
+    seed.run("fresh", "sha_a");
+    assert.equal(fenced.prepare("SELECT COUNT(*) n FROM literary_profiles").get().n, 1);
+    fenced
+      .prepare("INSERT INTO cove_runtime_config VALUES('literary_processing_owner','draining')")
+      .run();
+    seed.run("late", "sha_b");
+    seed.run("fresh", "sha_c");
+    assert.deepEqual(
+      { ...fenced.prepare("SELECT fingerprint FROM literary_profiles WHERE product_id='fresh'").get() },
+      { fingerprint: "sha_a" },
+    );
+    assert.equal(fenced.prepare("SELECT COUNT(*) n FROM literary_profiles").get().n, 1);
+    fenced.prepare("UPDATE cove_runtime_config SET value='legacy'").run();
+    seed.run("fresh", "sha_d");
+    assert.equal(
+      fenced.prepare("SELECT fingerprint FROM literary_profiles WHERE product_id='fresh'").get()
+        .fingerprint,
+      "sha_d",
+    );
+  } finally {
+    fenced.close();
+  }
   console.log(
-    "LITERARY_OWNER_CUTOVER_PASS legacy default, draining/isolated/unknown fence, atomic claim race, no new primary writes",
+    "LITERARY_OWNER_CUTOVER_PASS legacy default, draining/isolated/unknown fence, atomic claim/late-publication race, no new primary writes",
   );
 } finally {
   sqlite.close();
