@@ -448,9 +448,9 @@ export async function publishIsolatedLiteraryInference(env: IsolatedInferenceEnv
   if (!shaPattern.test(jobId)) throw Error("invalid_inference_id");
   // A valid inference receipt never grants publication authority by itself.
   // Legacy and draining owners may not accept isolated results into primary D1.
-  const owner = await env.DB
-    .prepare("SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'")
-    .first<{ value: string }>();
+  const owner = await env.DB.prepare(
+    "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'",
+  ).first<{ value: string }>();
   if (owner?.value !== "isolated") return { skipped: "canonical_owner_not_isolated" };
   const identity = await env.CONTENT_DB.prepare(
     "SELECT i.domain,i.schema_version," +
