@@ -148,18 +148,72 @@ def r2_put_verified(client, key, file, digest, size):
     stream = client.get_object(Bucket=BUCKET, Key=key)["Body"]
     checked = hashlib.sha256()
     count = 0
-    while True:
-        block = stream.read(1024 * 1024)
-        if not block:
-            break
-        count += len(block)
-        if count > size:
-            raise RuntimeError("private_r2_readback_exceeded")
-        checked.update(block)
+    try:
+        while True:
+            block = stream.read(1024 * 1024)
+            if not block:
+                break
+            count += len(block)
+            if count > size:
+                raise RuntimeError("private_r2_readback_exceeded")
+            checked.update(block)
+    finally:
+        stream.close()
     if count != size or checked.hexdigest() != digest:
         raise RuntimeError("private_r2_integrity_failed")
 
+class PrivateCloudflareR2:
+    """Authenticated Cloudflare API private bucket transport.
+
+    No S3 credential, public domain, redirect, URL signing or customer access.
+    The same dedicated release-run API token already protects MUSIC_DB.
+    """
+    def __init__(self, token, opener=OPENER):
+        if (not token or os.environ.get("CLOUDFLARE_ACCOUNT_ID") != ACCOUNT):
+            raise ValueError("dedicated_cloudflare_account_token_required")
+        self.token = token
+        self.opener = opener
+
+    @staticmethod
+    def object_url(bucket, key):
+        if (bucket != BUCKET or
+            not re.fullmatch(r"music-open-qa/(?:originals/[a-f0-9]{64}\.(?:ogg|mp3)|reports/[a-f0-9]{64}/[a-f0-9]{64}\.json)", key) or
+            any(x in key for x in ("?", "#", "..", "\\\\"))):
+            raise ValueError("untrusted_private_r2_object_key")
+        return ("https://api.cloudflare.com/client/v4/accounts/" + ACCOUNT +
+                "/r2/buckets/" + BUCKET + "/objects/" +
+                urllib.parse.quote(key, safe="/-._"))
+
+    def put_object(self, Bucket, Key, Body, Metadata=None):
+        original = Body.read(MAX_BYTES + 1)
+        if len(original) > MAX_BYTES:
+            raise ValueError("private_r2_api_byte_budget")
+        req = urllib.request.Request(self.object_url(Bucket, Key), data=original,
+            method="PUT", headers={
+                "Authorization": "Bearer " + self.token,
+                "Content-Type": "application/octet-stream",
+                "Content-Length": str(len(original)),
+                "User-Agent": AGENT})
+        with self.opener.open(req, timeout=90) as response:
+            if response.status not in (200, 201, 204):
+                raise RuntimeError("private_r2_api_put_failed")
+            response.read(1024)
+        return {}
+
+    def get_object(self, Bucket, Key):
+        req = urllib.request.Request(self.object_url(Bucket, Key),
+            headers={"Authorization": "Bearer " + self.token,
+                     "User-Agent": AGENT, "Accept": "application/octet-stream"})
+        stream = self.opener.open(req, timeout=90)
+        if stream.status != 200:
+            stream.close()
+            raise RuntimeError("private_r2_api_get_failed")
+        return {"Body": stream}
+
+
 def make_r2():
+    if os.environ.get("COVE_MUSIC_R2_BACKEND") == "cloudflare_api":
+        return PrivateCloudflareR2(os.environ.get("CLOUDFLARE_API_TOKEN", ""))
     key = os.environ.get("COVE_MUSIC_R2_ACCESS_KEY_ID")
     secret = os.environ.get("COVE_MUSIC_R2_SECRET_ACCESS_KEY")
     if not key or not secret:

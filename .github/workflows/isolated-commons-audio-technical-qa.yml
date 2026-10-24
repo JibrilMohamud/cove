@@ -12,6 +12,8 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/isolated-commons-audio-technical-qa.yml"
+      - "scripts/soundtracks/qualify-isolated-commons.py"
+      - "scripts/soundtracks/test-qualify-isolated-commons.py"
   workflow_dispatch:
   schedule:
     - cron: "55 7,13,19,1 * * *"
@@ -79,14 +81,13 @@ jobs:
 
   detached-private-qualification:
     needs: no-network-safety-tests
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.COVE_MUSIC_OPEN_QA_ENABLED == '1'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && (vars.COVE_MUSIC_OPEN_QA_ENABLED == '1' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[one-source-qa]')))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      COVE_MUSIC_R2_ACCESS_KEY_ID: ${{ secrets.COVE_MUSIC_R2_ACCESS_KEY_ID }}
-      COVE_MUSIC_R2_SECRET_ACCESS_KEY: ${{ secrets.COVE_MUSIC_R2_SECRET_ACCESS_KEY }}
+      COVE_MUSIC_R2_BACKEND: "cloudflare_api"
       COVE_MUSIC_OPEN_QA_APPLY: "1"
       AWS_EC2_METADATA_DISABLED: "true"
     steps:
@@ -101,10 +102,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -n "${COVE_MUSIC_R2_ACCESS_KEY_ID:-}" && -n "${COVE_MUSIC_R2_SECRET_ACCESS_KEY:-}" ]]
+          [[ -n "${CLOUDFLARE_API_TOKEN:-}" && "$COVE_MUSIC_R2_BACKEND" = cloudflare_api && "$COVE_MUSIC_OPEN_QA_APPLY" = 1 ]]
           command -v ffmpeg
           command -v ffprobe
-      - run: python -m pip install --disable-pip-version-check boto3==1.40.0 numpy==2.2.6 scipy==1.15.3
+      - run: python -m pip install --disable-pip-version-check numpy==2.2.6 scipy==1.15.3
       - name: Exactly one current Commons original, full decode and DSP, detached private R2
         run: python scripts/soundtracks/qualify-isolated-commons.py --max-recordings 1 --max-seconds 840 --profile-dsp --apply-private --output commons-private-technical-qa.json
       - uses: actions/upload-artifact@v4
