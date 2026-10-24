@@ -108,7 +108,11 @@ export async function runPrivateLiteraryBindingCanary(env: StageEnv) {
   return { passed: "private_binding_and_real_r2_sha_validated", revision: 1 };
 }
 export default {
-  async scheduled(_controller: ScheduledController, env: StageEnv, ctx: ExecutionContext) {
+  async scheduled(
+    _controller: { cron: string },
+    env: StageEnv,
+    ctx: { waitUntil(promise: Promise<unknown>): void },
+  ) {
     ctx.waitUntil(
       runPrivateLiteraryBindingCanary(env).catch((error) => {
         console.error("literary_private_stage_canary_failure", String(error).slice(0,160));
