@@ -176,6 +176,50 @@ class Tests(unittest.TestCase):
         self.assertNotIn("rights_status",calls[0])
         self.assertNotIn("quiet_status",calls[0])
 
+    def test_scoped_rest_bucket_put_and_full_readback_without_s3_secrets(self):
+        class RestOpener:
+            def __init__(self):
+                self.contents = {}
+                self.urls = []
+            def open(self, request, timeout=None):
+                url = request.full_url
+                self.urls.append(url)
+                self.assertable_url = url
+                if request.get_method() == "PUT":
+                    assert request.get_header("Authorization") == "Bearer test-token"
+                    assert request.get_header("Content-type") == "application/octet-stream"
+                    self.contents[url] = request.data
+                    return Response(b"")
+                if request.get_method() == "GET":
+                    assert request.get_header("Authorization") == "Bearer test-token"
+                    return Response(self.contents[url])
+                raise AssertionError("Unexpected private R2 operation")
+        with tempfile.TemporaryDirectory() as temp:
+            original = pathlib.Path(temp)/"audio.ogg"
+            original.write_bytes(AUDIO)
+            transport = RestOpener()
+            with patch.dict(os.environ, {
+                "CLOUDFLARE_ACCOUNT_ID":module.ACCOUNT,
+                "COVE_MUSIC_R2_BACKEND":"cloudflare_api",
+                "CLOUDFLARE_API_TOKEN":"test-token"
+            }):
+                remote = module.make_r2()
+                assert remote.__class__ == module.PrivateCloudflareR2
+                remote.opener = transport
+                module.r2_put_verified(remote, "music-open-qa/originals/"+SHA+".ogg",
+                    original, SHA, len(AUDIO))
+            self.assertEqual(len(transport.urls),2)
+            self.assertIn(module.BUCKET,transport.urls[0])
+            self.assertTrue(all(u.startswith("https://api.cloudflare.com/") for u in transport.urls))
+            for key in ("music-open-qa/../../bypass", "music-open-qa/originals/"+SHA+".wav",
+                        "music-open-qa/reports/"+SHA+"/foo.json",
+                        "published/"+SHA+".ogg"):
+                with self.assertRaisesRegex(ValueError,"untrusted_private_r2_object_key"):
+                    module.PrivateCloudflareR2.object_url(module.BUCKET,key)
+            with self.assertRaisesRegex(ValueError,"untrusted_private_r2_object_key"):
+                module.PrivateCloudflareR2.object_url("not-private-bucket",
+                    "music-open-qa/originals/"+SHA+".ogg")
+
     def test_unsafe_caps_are_rejected(self):
         for n in (0,3,100):
             with self.assertRaises(ValueError):
