@@ -1231,6 +1231,15 @@ function Journey({ id }: { id: string }) {
               src={`/api/fore/social/journeys/${encodeURIComponent(id)}/card.svg?format=${format}`}
               alt={`Shareable Reading Journey graph and milestones for ${j.title_snapshot}`}
             />
+            {j.show_cover && String(j.cover_url || "").startsWith("/api/fore/assets/") && (
+              <img
+                className="cove-journey-actual-cover"
+                src={String(j.cover_url)}
+                loading="lazy"
+                alt=""
+                style={{ top: format === "story" ? "18.75%" : "32.4%" }}
+              />
+            )}
           </div>
           <div className="journey-share-row">
             <button className="button gold" onClick={share}>
