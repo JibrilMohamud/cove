@@ -65,7 +65,27 @@ class OpenverseIsolatedDiscovery(unittest.TestCase):
         self.assertEqual(len(calls),2)
         self.assertIn("page=1",calls[0])
         self.assertIn("page_size=20",calls[0])
+        self.assertIn("source=wikimedia_audio",calls[0])
+        self.assertEqual(output["indexedResults"],2)
+        self.assertEqual(output["nonCommonsResults"],0)
+        self.assertEqual(output["heldAfterCommonsVerification"],0)
         self.assertNotIn(".ogg",calls[0])
+    def test_non_wikimedia_index_hits_are_diagnostic_only(self):
+        inspected=[]
+        def response(url,opener=None):
+            inspected.append(url)
+            return {"results":[
+                {"foreign_landing_url":"https://freemusicarchive.org/music/example"},
+                {"foreign_landing_url":"https://commons.wikimedia.org.evil.example/wiki/File:Other.ogg"}
+            ]}
+        with patch.object(module,"read_json",side_effect=response):
+            report=module.discover(queries=1,max_verifications=3,pause=lambda _:None)
+        self.assertEqual(report["indexedResults"],2)
+        self.assertEqual(report["nonCommonsResults"],2)
+        self.assertEqual(report["verified"],0)
+        self.assertEqual(report["candidates"],[])
+        self.assertIn("source=wikimedia_audio",inspected[0])
+
     def test_disabled_writes_fail_closed(self):
         with patch.dict(module.os.environ,{},clear=True):
             with self.assertRaisesRegex(ValueError,"not enabled"):
