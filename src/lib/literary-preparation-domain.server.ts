@@ -11,6 +11,7 @@ export type PreparationEnv = {
   FORE_CONTENT_PROCESSOR_ROLE?: string;
   FORE_CONTENT_PREPARE_ENABLED?: string;
   FORE_CONTENT_HANDOFF_ENABLED?: string;
+  FORE_CONTENT_INFERENCE_ENABLED?: string;
 };
 type EligibleSource = {
   product_id: string;
@@ -70,14 +71,16 @@ const digest = async (bytes: Uint8Array | string) => {
   const hash = await crypto.subtle.digest("SHA-256", Uint8Array.from(material).buffer);
   return [...new Uint8Array(hash)].map((x) => x.toString(16).padStart(2, "0")).join("");
 };
-async function requireIsolatedDomain(env: PreparationEnv): Promise<D1> {
+export async function requireIsolatedDomain(env: PreparationEnv): Promise<D1> {
   if (
     env.FORE_CONTENT_PROCESSOR_ENABLED !== "1" ||
     env.FORE_CONTENT_PREPARE_ENABLED !== "1" ||
     (env.FORE_CONTENT_PROCESSOR_ROLE !== "literary-prepare" &&
       !(
-        env.FORE_CONTENT_PROCESSOR_ROLE === "literary-handoff" &&
-        env.FORE_CONTENT_HANDOFF_ENABLED === "1"
+        (env.FORE_CONTENT_PROCESSOR_ROLE === "literary-handoff" &&
+        env.FORE_CONTENT_HANDOFF_ENABLED === "1") ||
+      (env.FORE_CONTENT_PROCESSOR_ROLE === "literary-infer" &&
+        env.FORE_CONTENT_INFERENCE_ENABLED === "1")
       )) ||
     !env.CONTENT_DB ||
     env.CONTENT_DB === env.DB
