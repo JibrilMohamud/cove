@@ -174,8 +174,11 @@ try{
     skipped:"rights_source_or_version_changed",
   },"A repeated publisher must never increment revision twice");
   assert.equal(primary.prepare("SELECT revision FROM literary_profiles").get().revision,1);
-  assert.equal(primary.prepare("SELECT COUNT(*) n FROM literary_profile_jobs").get(),undefined,
-    "No legacy primary job table should be required or created");
+  assert.equal(
+    primary.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name='literary_profile_jobs'").get().n,
+    0,
+    "No legacy primary job table should be required or created",
+  );
   assert.equal(content.prepare("SELECT COUNT(*) n FROM literary_inference_jobs").get().n,1);
   // Binding a secondary to the rights database must fail closed.
   content.exec("CREATE TABLE rights_grants(id TEXT PRIMARY KEY)");
