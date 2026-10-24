@@ -2074,34 +2074,36 @@ export async function handleSocial(
       if (!visible.length || visible[0].locked) throw new ApiError(404, "Discussion not found.");
     }
     if (limitedBookThread && postId && !parentId) {
-      const focused = await db
-        .prepare(
-          "SELECT id,parent_id,root_id FROM social_posts WHERE id=? AND context_type='work' AND context_id=? AND moderation_status='visible' AND deleted_at IS NULL",
-        )
-        .bind(postId, contextId)
-        .first<{ id: string; parent_id: string | null; root_id: string | null }>();
-      if (!focused) throw new ApiError(404, "Discussion not found.");
-      const ancestors = [focused.parent_id, focused.root_id].filter(
-        (id): id is string => !!id && id !== focused.id,
-      );
-      if (ancestors.length) {
-        const placeholders = ancestors.map(() => "?").join(",");
-        const parentRows = (
-          await db
-            .prepare(
-              `SELECT * FROM social_posts WHERE id IN (${placeholders}) AND context_type='work' AND context_id=? AND deleted_at IS NULL AND moderation_status='visible'`,
+      // Deep links must not bypass a hidden, moderated or private ancestor.
+      // Walk the *entire* chain in one bounded read, not just parent + root.
+      const chain = (
+        await db
+          .prepare(
+            `WITH RECURSIVE ancestry(id,parent_id,depth) AS (
+              SELECT id,parent_id,0 FROM social_posts
+               WHERE id=? AND context_type='work' AND context_id=?
+              UNION ALL
+              SELECT p.id,p.parent_id,a.depth+1
+                FROM ancestry a JOIN social_posts p ON p.id=a.parent_id
+               WHERE a.depth<64 AND p.context_type='work' AND p.context_id=?
             )
-            .bind(...ancestors, contextId)
-            .all<any>()
-        ).results;
-        const readable = await visiblePosts(db, userId, parentRows, viewerProgress, env);
-        if (
-          new Set(parentRows.map((p) => p.id)).size !== new Set(ancestors).size ||
-          readable.length !== new Set(ancestors).size ||
-          readable.some((p) => p.locked)
-        )
-          throw new ApiError(404, "Discussion not found.");
-      }
+            SELECT p.*,a.depth FROM ancestry a
+              JOIN social_posts p ON p.id=a.id
+             WHERE p.deleted_at IS NULL AND p.moderation_status='visible'
+             ORDER BY a.depth`,
+          )
+          .bind(postId, contextId, contextId)
+          .all<any>()
+      ).results;
+      if (
+        !chain.length ||
+        chain.length > 64 ||
+        (chain[chain.length - 1].parent_id && chain.length <= 64)
+      )
+        throw new ApiError(404, "Discussion not found.");
+      const readable = await visiblePosts(db, userId, chain, viewerProgress, env);
+      if (readable.length !== chain.length || readable.some((p) => p.locked))
+        throw new ApiError(404, "Discussion not found.");
     }
     const rows = (
       await db
