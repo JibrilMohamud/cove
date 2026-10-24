@@ -4,6 +4,7 @@ on:
     paths:
       - "src/features/fore/Community.tsx"
       - "src/features/fore/Book.tsx"
+      - "src/features/fore/Work.tsx"
       - "src/features/fore/BookDiscussionDeferred.tsx"
       - "src/features/fore/social.server.ts"
       - "src/features/fore/reading-community.css"
