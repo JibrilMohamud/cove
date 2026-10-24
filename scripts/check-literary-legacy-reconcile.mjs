@@ -62,7 +62,9 @@ try {
     INSERT INTO literary_profile_jobs VALUES('job_a','p_a','sha_a','queued','');
     INSERT INTO literary_profile_jobs VALUES('job_b','p_b','sha_b','failed','');
   `);
-  primary.exec(readFileSync("infra/literary-cutover/0001_legacy_reconcile_primary_index.sql", "utf8"));
+  primary.exec(
+    readFileSync("infra/literary-cutover/0001_legacy_reconcile_primary_index.sql", "utf8"),
+  );
   secondary.exec(
     readFileSync("infra/content-budget/0001_ledger.sql", "utf8") +
       readFileSync("infra/content-budget/0008_legacy_reconcile_frontier.sql", "utf8"),
