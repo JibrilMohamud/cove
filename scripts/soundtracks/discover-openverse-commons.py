@@ -196,9 +196,14 @@ def commons_category_candidates(categories=2, max_verifications=16, opener=OPENE
             title=page.get("title")
             if not isinstance(title,str) or not title.startswith("File:"):
                 continue
-            checked+=1
             identity={"foreign_landing_url":"https://commons.wikimedia.org/wiki/"+
                       urllib.parse.quote(title.replace(" ","_"),safe=":_()'")}
+            # Audio extensions must be supported before spending the bounded
+            # original-verification budget. A category contains FLAC/WAV,
+            # PDFs and score files that this importer cannot quality-check.
+            if not commons_title(identity):
+                continue
+            checked+=1
             result=exact_candidate(identity,page,"commons",category)
             if result:
                 found.append(result)
