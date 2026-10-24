@@ -262,7 +262,7 @@ export function DiscussionThread({
       {bookThread && !postId && (
         <div className="cove-thread-sort" role="group" aria-label="Order book discussions">
           <button type="button" aria-pressed={threadSort === "top"} onClick={() => setThreadSort("top")}>
-            Top hearts
+            Popular
           </button>
           <button type="button" aria-pressed={threadSort === "new"} onClick={() => setThreadSort("new")}>
             Newest
@@ -377,13 +377,22 @@ export function DiscussionThread({
                   >
                     <Heart size={14} /> {p.reactions || 0}
                   </button>
-                  <button
-                    aria-label={`Show replies (${p.replies || 0})`}
-                    onClick={() => setReplying(replying === p.id ? null : p.id)}
-                    aria-expanded={replying === p.id && (!bookThread || depth < 2)}
-                  >
-                    <MessageCircle size={14} /> {p.replies || 0}
-                  </button>
+                  {bookThread && depth >= 2 ? (
+                    <a
+                      className="cove-thread-focus-link"
+                      href={`/community?thread=${encodeURIComponent(p.id)}&work=${encodeURIComponent(contextId)}`}
+                    >
+                      <MessageCircle size={14} /> {p.replies || 0} · Full thread
+                    </a>
+                  ) : (
+                    <button
+                      aria-label={`Show replies (${p.replies || 0})`}
+                      aria-expanded={replying === p.id}
+                      onClick={() => setReplying(replying === p.id ? null : p.id)}
+                    >
+                      <MessageCircle size={14} /> {p.replies || 0}
+                    </button>
+                  )}
                   {data.user?.id === p.user?.id ? (
                     <>
                       <button
@@ -413,15 +422,7 @@ export function DiscussionThread({
                   )}
                   <span>{when(p.createdAt)}</span>
                 </footer>
-                {bookThread && depth >= 2 ? (
-                  <a
-                    className="cove-thread-focus-link"
-                    href={`/community?thread=${encodeURIComponent(p.id)}&work=${encodeURIComponent(contextId)}`}
-                  >
-                    Continue this conversation on its own page · {p.replies || 0} replies
-                  </a>
-                ) : (
-                  replying === p.id && (
+                {(!bookThread || depth < 2) && replying === p.id && (
                     <div className={bookThread ? "cove-thread-children" : undefined}>
                       <DiscussionThread
                         contextType={contextType}
@@ -437,7 +438,6 @@ export function DiscussionThread({
                         }}
                       />
                     </div>
-                  )
                 )}
               </article>
             ),
