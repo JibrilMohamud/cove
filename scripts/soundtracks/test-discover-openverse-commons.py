@@ -86,6 +86,40 @@ class OpenverseIsolatedDiscovery(unittest.TestCase):
         self.assertEqual(report["candidates"],[])
         self.assertIn("source=wikimedia_audio",inspected[0])
 
+    def test_commons_native_category_results_are_verified_without_openverse_hits(self):
+        calls=[]
+        def response(url,opener=None,size=500000):
+            calls.append(url)
+            if "api.openverse.org" in url:
+                return {"results":[]}
+            return {"query":{"pages":[page()]}}
+        with patch.object(module,"read_json",side_effect=response):
+            report=module.discover(queries=1,max_verifications=2,pause=lambda _:None)
+        self.assertEqual(report["openverseVerified"],0)
+        self.assertEqual(report["commonsVerified"],2)
+        self.assertEqual(report["commonsCategoryQueries"],2)
+        self.assertEqual(len(report["candidates"]),1,
+                         "Repeated exact Commons originals are idempotent")
+        self.assertEqual(report["candidates"][0]["discoveryProvider"],"commons")
+        self.assertEqual(report["candidates"][0]["evidence"]["discovery"],"commons")
+        self.assertEqual(report["candidates"][0]["evidence"]["sourceSha1"],"a"*40)
+        self.assertTrue(any("generator=categorymembers" in u for u in calls))
+        self.assertTrue(any("gcmlimit=24" in u for u in calls))
+        self.assertFalse(any("upload.wikimedia.org" in u for u in calls),
+                         "Discovery must never download source audio")
+
+    def test_commons_conflicts_and_unlicensed_recordings_remain_held(self):
+        claim=page()
+        claim["imageinfo"][0]["metadata"]=[{"name":"license","value":"CC BY-NC"}]
+        with patch.object(module,"read_json",return_value={"query":{"pages":[claim]}}):
+            data=module.commons_category_candidates(1,2,pause=lambda _:None)
+        self.assertEqual(data["verified"],1)
+        self.assertEqual(data["candidates"],[])
+        self.assertEqual(data["held"],1)
+        with patch.object(module,"read_json",return_value={"error":{"code":"maxlag"}}):
+            with self.assertRaisesRegex(ValueError,"authoritative"):
+                module.commons_category_candidates(1,2,pause=lambda _:None)
+
     def test_disabled_writes_fail_closed(self):
         with patch.dict(module.os.environ,{},clear=True):
             with self.assertRaisesRegex(ValueError,"not enabled"):
