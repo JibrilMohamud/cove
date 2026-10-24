@@ -2033,7 +2033,7 @@ export async function handleSocial(
     const posts: (Awaited<ReturnType<typeof visiblePosts>>[number] & {
       replyItems?: Awaited<ReturnType<typeof visiblePosts>>;
       replyNextCursor?: string | null;
-    })[] = await visiblePosts(db, userId, rows.slice(0, 50), viewerProgress, env);
+    })[] = await visiblePosts(db, userId, rows.slice(0, threadLimit), viewerProgress, env);
     if (!parentId && url.searchParams.get("includeReplies") !== "false")
       for (const post of posts.filter((post) => !post.locked)) {
         const replies = (
