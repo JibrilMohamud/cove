@@ -101,3 +101,16 @@
   align-items: center;
 }
 .journey-share-row button:disabled { opacity: .52; cursor: not-allowed; }
+
+.cove-journey-card-stage > .cove-journey-actual-cover {
+  position: absolute;
+  z-index: 2;
+  left: 8.33%;
+  width: 18.98%;
+  height: 25.92%;
+  border-radius: 8px;
+  object-fit: cover;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .4);
+}
+.cove-journey-card-stage:has(.cove-journey-actual-cover[style*="18.75%"])
+  > .cove-journey-actual-cover { height: 14.58%; }
