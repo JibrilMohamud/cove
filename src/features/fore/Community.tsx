@@ -113,7 +113,16 @@ export function DiscussionThread({
   const [reportReason, setReportReason] = useState("");
   const [reportDetails, setReportDetails] = useState("");
   const q = useInfiniteQuery<{ posts: Post[]; nextCursor: string | null }>({
-    queryKey: ["social-posts", data.user?.id, contextType, contextId, postId, parentId, bookThread, threadSort],
+    queryKey: [
+      "social-posts",
+      data.user?.id,
+      contextType,
+      contextId,
+      postId,
+      parentId,
+      bookThread,
+      threadSort,
+    ],
     initialPageParam: "",
     initialData: initialPost
       ? { pages: [{ posts: [initialPost], nextCursor: null }], pageParams: [""] }
@@ -261,10 +270,18 @@ export function DiscussionThread({
       </div>
       {bookThread && !postId && (
         <div className="cove-thread-sort" role="group" aria-label="Order book discussions">
-          <button type="button" aria-pressed={threadSort === "top"} onClick={() => setThreadSort("top")}>
+          <button
+            type="button"
+            aria-pressed={threadSort === "top"}
+            onClick={() => setThreadSort("top")}
+          >
             Popular
           </button>
-          <button type="button" aria-pressed={threadSort === "new"} onClick={() => setThreadSort("new")}>
+          <button
+            type="button"
+            aria-pressed={threadSort === "new"}
+            onClick={() => setThreadSort("new")}
+          >
             Newest
           </button>
           <span>Only a few replies load at a time. Hearts represent unique reader reactions.</span>
@@ -1070,8 +1087,7 @@ function Journey({ id }: { id: string }) {
     typeof window === "undefined"
       ? ""
       : `${location.origin}/community?journey=${encodeURIComponent(String(shareReference || id))}`;
-  const publicShareAvailable =
-    q.data?.visibility === "public" && !!shareReference;
+  const publicShareAvailable = q.data?.visibility === "public" && !!shareReference;
   function sharePlatform(platform: "x" | "reddit") {
     if (!publicShareAvailable) {
       toast.error("Make this journey public before posting its link to social media.");
@@ -1230,7 +1246,9 @@ function Journey({ id }: { id: string }) {
               className="button outline"
               onClick={() => sharePlatform("x")}
               disabled={!publicShareAvailable}
-              title={publicShareAvailable ? "Post this public journey to X" : "Public journeys only"}
+              title={
+                publicShareAvailable ? "Post this public journey to X" : "Public journeys only"
+              }
             >
               Share to X
             </button>
@@ -1238,7 +1256,11 @@ function Journey({ id }: { id: string }) {
               className="button outline"
               onClick={() => sharePlatform("reddit")}
               disabled={!publicShareAvailable}
-              title={publicShareAvailable ? "Submit this public journey on Reddit" : "Public journeys only"}
+              title={
+                publicShareAvailable
+                  ? "Submit this public journey on Reddit"
+                  : "Public journeys only"
+              }
             >
               Share to Reddit
             </button>
