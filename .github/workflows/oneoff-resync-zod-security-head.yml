@@ -1,0 +1,56 @@
+name: oneoff-resync-zod-security-head
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/oneoff-resync-zod-security-head.yml"
+permissions:
+  contents: read
+jobs:
+  rebase-security-onto-main:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/secure-zod-v4-20261023'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/secure-zod-v4-20261023
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - name: Integrate all newer main fixes without dropping patched Zod
+        run: |
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git fetch origin main
+          git merge -X theirs origin/main --no-edit
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          for (const dir of ['src','scripts']) {
+            const scan=(p)=>{
+              if(!fs.existsSync(p)) return;
+              for(const x of fs.readdirSync(p,{withFileTypes:true})){
+                const f=path.join(p,x.name);
+                if(x.isDirectory()){scan(f);continue;}
+                if(!/\.(ts|tsx|js|mjs)$/.test(x.name))continue;
+                const old=fs.readFileSync(f,'utf8');
+                const updated=old.replace(/from\s+(['"])zod\1/g,'from $1zod/v3$1');
+                if(old!==updated)fs.writeFileSync(f,updated);
+              }
+            };
+            scan(dir);
+          }
+          NODE
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm audit --audit-level=high
+      - run: npm run lint
+      - name: Push integrated security revision
+        run: |
+          git add src scripts
+          if ! git diff --cached --quiet; then
+            git commit -m "fix(security): reconcile latest music typing and retained Zod3 semantics"
+          fi
+          git push origin HEAD:refs/heads/fix/secure-zod-v4-20261023
