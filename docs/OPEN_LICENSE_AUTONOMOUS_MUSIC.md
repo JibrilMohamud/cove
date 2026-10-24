@@ -47,6 +47,18 @@ Commons file must disclose CC0/CC BY/CC BY-SA, unchanged source checksum,
 original media location, legal attribution metadata and a lack of
 contradictory rights evidence.
 
+Openverse is an optional discovery index. When Openverse returns no Wikimedia
+hits, Cove additionally queries Wikimedia Commons' own MediaWiki
+`generator=categorymembers` API (one page from each of two rotating
+music categories; never a website scrape). Source category membership
+never grants permission. The same exact-file commercial CC license,
+SHA-1, original host, Commons revision, embedded-rights-conflict and
+audio-extension checks must pass. The daily batch is capped at 32
+checks and 8 protected customer-catalog candidate titles. If Openverse
+returns zero indexed results, the native Commons lane continues
+independently and its yields are recorded separately in the 24h
+report.
+
 A dedicated `music_open_source_candidates` table and discovery-runs ledger
 in the separate music QA database store **discovery-only** records.
 Duplicate candidate ids are idempotent; contradictory future source hashes
