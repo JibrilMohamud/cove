@@ -77,6 +77,9 @@ assert.match(cache, /__cove_country/);
 assert.match(cache, /__cove_language/);
 assert.match(cache, /"cache-control", "no-store"/);
 assert.match(worker, /runCatalogIngestion/);
+assert.match(worker, /FORE_LEGACY_LITERARY_CRON_ENABLED/);
+assert.match(worker, /env\.FORE_LEGACY_LITERARY_CRON_ENABLED !== "0"/);
+assert.match(worker, /literaryOwner === "legacy"/);
 assert.match(worker, /__cove\/ingestion\/catalog/);
 
 assert.match(pipeline, /z\.enum\(\[\s*["']discover["'],\s*["']track["'],\s*["']align["']\s*\]\)/);
