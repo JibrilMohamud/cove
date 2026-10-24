@@ -377,7 +377,11 @@ try {
     200,
   );
   const rescanned = await invoke("/v1/operator/preview-catalog?territory=US", "GET", "operator");
-  assert.equal(rescanned.result.items.length, 0, "Revoked masters cannot survive projection");
+  assert.deepEqual(
+    rescanned.result.items.map((x) => x.id),
+    [master2.id],
+    "Revoking one recording must not revoke a separately approved recording",
+  );
   const removed = await invoke("/v1/operator/outbox?after=" + analysisCursor, "GET", "operator");
   assert.equal(removed.result.items[0].action, "master_revoked");
   const masterCursor = removed.result.nextCursor;
