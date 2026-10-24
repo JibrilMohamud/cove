@@ -113,18 +113,18 @@ export async function runContentProcessingTick(
   if (!env.BUCKET) return { skipped: "missing_private_r2", role };
   if ((role === "literary" || role === "literary-infer") && !env.AI)
     return { skipped: "missing_ai", role };
+  // Meter owner-read admission as well, not only work triggered afterwards.
+  // The isolated literary roles have independently budgeted data planes.
+  const metered = role === "assets" ? meterContentAssetEnv(env, contentBudgetLimits(env)) : null;
+  const workEnv = (metered?.env || env) as ContentProcessorEnv;
   if (role === "assets" || role === "literary") {
     // Primary owner and the old-backend switch must both authorize
     // external execution. Defaults (missing key or disabled switch) refuse.
     if (env.FORE_CONTENT_PIPELINE_EXTERNAL !== "1")
       return { skipped: "legacy_scheduler_not_externalized", role };
-    const owner = await contentPipelineOwner(env.DB, role);
+    const owner = await contentPipelineOwner(workEnv.DB, role);
     if (owner !== "external") return { skipped: "canonical_owner_not_external", role };
   }
-  // Only the asset lane currently supports a metered work envelope. The
-  // isolated literary roles already have separate, fenced database limits.
-  const metered = role === "assets" ? meterContentAssetEnv(env, contentBudgetLimits(env)) : null;
-  const workEnv = (metered?.env || env) as ContentProcessorEnv;
 
   // At most one read-only D1 latency probe per cron execution. If rights and
   // commerce requests are already experiencing database queueing, derived
