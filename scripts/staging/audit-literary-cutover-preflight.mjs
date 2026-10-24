@@ -24,8 +24,7 @@ async function api(path, method = "GET", body) {
     signal: AbortSignal.timeout(45000),
   });
   assert.ok(response.ok, "Cutover API request rejected (" + response.status + ")");
-  if (path.endsWith("/scripts/" + oldWorker))
-    return response.text();
+  if (path.endsWith("/scripts/" + oldWorker)) return response.text();
   const data = await response.json();
   assert.equal(data.success, true, "Cutover API response failed");
   return data.result;
@@ -76,22 +75,39 @@ SELECT status,COUNT(*) total,SUM(metadata_ok) metadata_matches,
  SUM(CASE WHEN metadata_ok=1 AND source_ok=1 AND rights_ok=1
    THEN 1 ELSE 0 END) rights_eligible
 FROM candidates GROUP BY status ORDER BY status`;
-const [indexPlans, counts, owner, leases, frontier, isolatedIdentity,
-  currentWorker, oldSchedules, disabledSchedules, oldScript, managed, custom] =
-  await Promise.all([
-    query(primary, "EXPLAIN QUERY PLAN SELECT id FROM literary_profile_jobs INDEXED BY idx_literary_legacy_reconcile WHERE id>'' AND status IN ('queued','failed','running') ORDER BY id LIMIT 1"),
-    query(primary, eligibilitySql),
-    query(primary, "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'"),
-    query(primary, "SELECT (SELECT COUNT(*) FROM literary_profile_jobs WHERE status='running') running,(SELECT lease_until FROM literary_profile_state WHERE id=1) sweep_lease"),
-    query(content, "SELECT status,after_job_id FROM literary_legacy_reconcile_frontier WHERE id=1"),
-    query(content, "SELECT domain,schema_version FROM literary_budget_domain_identity WHERE id=1"),
-    api(`/accounts/${account}/workers/scripts/${worker}/settings`),
-    api(`/accounts/${account}/workers/scripts/${oldWorker}/schedules`),
-    api(`/accounts/${account}/workers/scripts/${worker}/schedules`),
-    api(`/accounts/${account}/workers/scripts/${oldWorker}`),
-    api(`/accounts/${account}/r2/buckets/${bucket}/domains/managed`),
-    api(`/accounts/${account}/r2/buckets/${bucket}/domains/custom`),
-  ]);
+const [
+  indexPlans,
+  counts,
+  owner,
+  leases,
+  frontier,
+  isolatedIdentity,
+  currentWorker,
+  oldSchedules,
+  disabledSchedules,
+  oldScript,
+  managed,
+  custom,
+] = await Promise.all([
+  query(
+    primary,
+    "EXPLAIN QUERY PLAN SELECT id FROM literary_profile_jobs INDEXED BY idx_literary_legacy_reconcile WHERE id>'' AND status IN ('queued','failed','running') ORDER BY id LIMIT 1",
+  ),
+  query(primary, eligibilitySql),
+  query(primary, "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'"),
+  query(
+    primary,
+    "SELECT (SELECT COUNT(*) FROM literary_profile_jobs WHERE status='running') running,(SELECT lease_until FROM literary_profile_state WHERE id=1) sweep_lease",
+  ),
+  query(content, "SELECT status,after_job_id FROM literary_legacy_reconcile_frontier WHERE id=1"),
+  query(content, "SELECT domain,schema_version FROM literary_budget_domain_identity WHERE id=1"),
+  api(`/accounts/${account}/workers/scripts/${worker}/settings`),
+  api(`/accounts/${account}/workers/scripts/${oldWorker}/schedules`),
+  api(`/accounts/${account}/workers/scripts/${worker}/schedules`),
+  api(`/accounts/${account}/workers/scripts/${oldWorker}`),
+  api(`/accounts/${account}/r2/buckets/${bucket}/domains/managed`),
+  api(`/accounts/${account}/r2/buckets/${bucket}/domains/custom`),
+]);
 assert.ok(indexPlans.some((x) => x.detail?.includes("idx_literary_legacy_reconcile")));
 assert.deepEqual(isolatedIdentity, [
   { domain: "cove-isolated-literary-budget", schema_version: 1 },
@@ -110,7 +126,8 @@ for (const k of [
   "FORE_CONTENT_PREPARE_ENABLED",
   "FORE_CONTENT_HANDOFF_ENABLED",
   "FORE_LITERARY_DRAIN_RECONCILE_ENABLED",
-]) assert.equal(values[k], "0", "Dormant handoff Worker unexpectedly enabled: " + k);
+])
+  assert.equal(values[k], "0", "Dormant handoff Worker unexpectedly enabled: " + k);
 assert.equal(values.FORE_CONTENT_PROCESSOR_ROLE, "literary-handoff");
 assert.equal(disabledSchedules.schedules.length, 0);
 assert.equal(currentWorker.routes?.length || 0, 0);
@@ -120,12 +137,9 @@ assert.ok(oldScript.includes("literary_processing_owner"));
 assert.ok(oldScript.includes("FORE_CONTENT_PIPELINE_EXTERNAL"));
 const currentlyRunning = Number(leases[0]?.running || 0);
 const blockers = [];
-if ((owner[0]?.value || "legacy") !== "draining")
-  blockers.push("owner_not_draining");
-if (frontier[0]?.status !== "armed")
-  blockers.push("reconciliation_not_armed");
-if (currentlyRunning || leases[0]?.sweep_lease)
-  blockers.push("old_lease_not_drained");
+if ((owner[0]?.value || "legacy") !== "draining") blockers.push("owner_not_draining");
+if (frontier[0]?.status !== "armed") blockers.push("reconciliation_not_armed");
+if (currentlyRunning || leases[0]?.sweep_lease) blockers.push("old_lease_not_drained");
 if ((oldSchedules.schedules || []).some((s) => s.cron === "* * * * *"))
   blockers.push("legacy_minute_cron_attached_verify_writer_termination");
 blockers.push("no_guarded_active_handoff_executor_certified");
@@ -163,7 +177,12 @@ fs.writeFileSync(
   "artifacts/literary-cutover/live-readonly-preflight.json",
   JSON.stringify(evidence, null, 2) + "\n",
 );
-console.log("LITERARY_LIVE_CUTOVER_PREFLIGHT", JSON.stringify({
-  totals, blockers, liveWritePerformed: false,
-  releaseSha: process.env.GITHUB_SHA,
-}));
+console.log(
+  "LITERARY_LIVE_CUTOVER_PREFLIGHT",
+  JSON.stringify({
+    totals,
+    blockers,
+    liveWritePerformed: false,
+    releaseSha: process.env.GITHUB_SHA,
+  }),
+);
