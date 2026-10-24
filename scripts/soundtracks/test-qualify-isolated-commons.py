@@ -48,6 +48,8 @@ class Response:
         return False
     def read(self, n=-1):
         return self.raw.read(n)
+    def close(self):
+        self.raw.close()
 
 class Opener:
     def __init__(self, raw=AUDIO, declared=None):
