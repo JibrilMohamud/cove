@@ -1,0 +1,72 @@
+/* Book comments use bounded nested panels, not progressively narrower prose. */
+.cove-book-discussion {
+  max-width: 900px;
+  margin: 3rem auto;
+  padding: clamp(1rem, 3vw, 2rem);
+  border: 1px solid var(--border, rgba(133, 125, 109, .22));
+  border-radius: 22px;
+  background: var(--card, rgba(255,255,255,.035));
+}
+.cove-thread-sort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+  margin-block: 1rem;
+}
+.cove-thread-sort button {
+  border-radius: 999px;
+  padding: .5rem 1rem;
+  border: 1px solid currentColor;
+  font: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.cove-thread-sort button[aria-pressed="true"] {
+  color: var(--primary-foreground, #fff);
+  background: var(--primary, #565246);
+}
+.cove-thread-sort span { color: var(--muted-foreground, #777); font-size: .84rem; }
+.cove-book-discussion .social-post,
+.cove-book-thread-focus .social-post {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  border-radius: 12px;
+  padding: .9rem;
+}
+.cove-thread-children {
+  margin: .55rem 0 0 .15rem;
+  padding-left: clamp(.75rem, 2vw, 1.15rem);
+  border-left: 2px solid var(--primary, #968363);
+}
+.cove-thread-children > .social-thread > .section-heading { margin-bottom: .4rem; }
+.cove-thread-children .social-post-list { display: grid; gap: .4rem; }
+.cove-book-discussion button[aria-expanded="true"] { font-weight: 700; }
+.cove-thread-focus-link {
+  display: inline-block;
+  padding: .5rem .65rem;
+  margin-top: .55rem;
+  border-radius: 10px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cove-thread-focus-link:focus-visible,
+.cove-thread-sort button:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 2px;
+}
+.cove-book-thread-focus {
+  width: min(100% - 2rem, 900px);
+  margin: 1.5rem auto 4rem;
+}
+.cove-book-thread-focus h1 { font-family: Georgia, serif; font-size: clamp(1.8rem, 5vw, 3.1rem); }
+.cove-book-thread-focus > .social-thread {
+  border-radius: 18px;
+  padding: clamp(.7rem, 2vw, 1.5rem);
+}
+@media (max-width: 650px) {
+  .cove-book-discussion, .cove-book-thread-focus { padding-inline: .75rem; }
+  .cove-thread-children { margin-left: 0; padding-left: .65rem; }
+  .cove-book-discussion .social-post,
+  .cove-book-thread-focus .social-post { padding: .65rem; }
+}
