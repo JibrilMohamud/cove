@@ -1,0 +1,29 @@
+name: book-thread-journey-ui
+on:
+  pull_request:
+    paths:
+      - "src/features/fore/Community.tsx"
+      - "src/features/fore/Book.tsx"
+      - "src/features/fore/BookDiscussionDeferred.tsx"
+      - "src/features/fore/social.server.ts"
+      - "src/features/fore/reading-community.css"
+      - "drizzle/0061_social_book_thread_keyset.sql"
+      - "scripts/check-book-thread-journey-ui.mjs"
+      - ".github/workflows/book-thread-journey-ui.yml"
+permissions:
+  contents: read
+jobs:
+  bounded-thread-and-sharing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/check-book-thread-journey-ui.mjs
+      - run: npm run test:social-reading
+      - run: npm run typecheck
