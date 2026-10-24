@@ -25,6 +25,10 @@ try {
     "infra/music/0004_open_catalog_candidates.sql",
     path.join(root, "drizzle", "0004_open_catalog_candidates.sql"),
   );
+  fs.copyFileSync(
+    "infra/music/0005_open_discovery_cursors.sql",
+    path.join(root, "drizzle", "0005_open_discovery_cursors.sql"),
+  );
   await build({
     entryPoints: ["src/music-supply/policy.ts", "src/music-supply/worker.ts"],
     bundle: true,
