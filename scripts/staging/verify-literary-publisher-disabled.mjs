@@ -66,14 +66,18 @@ if (mode === "post") {
     bindings.filter((x) => x.type === "plain_text").map((x) => [x.name, x.text]),
   );
   assert.equal(plain.FORE_LITERARY_INFERENCE_PUBLISH_ENABLED, "0");
+  // A deliberately provisioned credential pair may exist on a dormant
+  // Worker. It is not execution authorization: the publishing switch must
+  // still be OFF and the Worker must have no public route or cron.
+  const credentialNames = [
+    "FORE_LITERARY_INFERENCE_PUBLISH_TOKEN_SHA256",
+    "FORE_LITERARY_INFERENCE_BACKEND_TOKEN_SHA256",
+  ];
+  const credentials = bindings.filter((x) => credentialNames.includes(x.name));
   assert.ok(
-    !bindings.some((x) =>
-      [
-        "FORE_LITERARY_INFERENCE_PUBLISH_TOKEN_SHA256",
-        "FORE_LITERARY_INFERENCE_BACKEND_TOKEN_SHA256",
-      ].includes(x.name),
-    ),
-    "Publisher secrets must be absent during dormant deployment",
+    credentials.length === 0 ||
+      (credentials.length === 2 && credentials.every((x) => x.type === "secret_text")),
+    "A partially installed or plain-text publisher credential is forbidden",
   );
   assert.deepEqual(
     bindings
