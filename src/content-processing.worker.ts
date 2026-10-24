@@ -1,4 +1,6 @@
 import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
+import { contentPipelineOwner } from "./lib/content-processing-owner.server";
+import { contentBudgetLimits, meterContentAssetEnv } from "./lib/content-worker-budget.server";
 import { runLiteraryProfileTick } from "./features/fore/literary-profiles.server";
 import { runIsolatedLiteraryPreparationTick } from "./lib/literary-preparation-domain.server";
 import {
@@ -26,6 +28,11 @@ export type ContentProcessorEnv = CoveEnv & {
   FORE_CONTENT_PROCESSOR_ROLE?:
     "assets" | "literary" | "literary-prepare" | "literary-handoff" | "literary-infer";
   FORE_CONTENT_D1_ADMISSION_MAX_MS?: string;
+  FORE_CONTENT_PIPELINE_EXTERNAL?: string;
+  FORE_CONTENT_MAX_D1_STATEMENTS?: string;
+  FORE_CONTENT_MAX_D1_WRITES?: string;
+  FORE_CONTENT_MAX_D1_SERVICE_MS?: string;
+  FORE_CONTENT_MAX_R2_BYTES?: string;
   FORE_ASSETS_PER_MINUTE?: string;
   FORE_CONTENT_PREPARE_ENABLED?: string;
   FORE_CONTENT_HANDOFF_ENABLED?: string;
@@ -89,6 +96,11 @@ export async function runContentProcessingTick(
     role !== "literary-infer"
   )
     return { skipped: "invalid_role" };
+  // Legacy literary claim/sweep writes lack an atomic owner predicate until
+  // the separately staged literary processing cutover. Do not externalize
+  // them merely by enabling an environment variable: use literary-infer only
+  // after that canonical takeover is independently certified.
+  if (role === "literary") return { skipped: "legacy_literary_claims_unfenced", role };
   if (role === "literary-prepare" && env.FORE_CONTENT_PREPARE_ENABLED !== "1")
     return { skipped: "preparation_disabled" };
   if (
@@ -104,14 +116,25 @@ export async function runContentProcessingTick(
   )
     return { skipped: "isolated_inference_disabled" };
   if (!env.BUCKET) return { skipped: "missing_private_r2", role };
-  if ((role === "literary" || role === "literary-infer") && !env.AI)
-    return { skipped: "missing_ai", role };
+  if (role === "literary-infer" && !env.AI) return { skipped: "missing_ai", role };
+  // Meter owner-read admission as well, not only work triggered afterwards.
+  // The isolated literary roles have independently budgeted data planes.
+  const metered = role === "assets" ? meterContentAssetEnv(env, contentBudgetLimits(env)) : null;
+  const workEnv = (metered?.env || env) as ContentProcessorEnv;
+  if (role === "assets") {
+    // Primary owner and the old-backend switch must both authorize
+    // external execution. Defaults (missing key or disabled switch) refuse.
+    if (env.FORE_CONTENT_PIPELINE_EXTERNAL !== "1")
+      return { skipped: "legacy_scheduler_not_externalized", role };
+    const owner = await contentPipelineOwner(workEnv.DB, role);
+    if (owner !== "external") return { skipped: "canonical_owner_not_external", role };
+  }
 
   // At most one read-only D1 latency probe per cron execution. If rights and
   // commerce requests are already experiencing database queueing, derived
   // content work should not begin another write-heavy batch.
   const budget = catalogAdmissionBudget(env.FORE_CONTENT_D1_ADMISSION_MAX_MS);
-  const admission = await admitCatalogBatch(env.DB, budget);
+  const admission = await admitCatalogBatch(workEnv.DB, budget);
   if (!admission.allowed) {
     console.warn(
       JSON.stringify({
@@ -126,7 +149,7 @@ export async function runContentProcessingTick(
   const started = performance.now();
   const runner = runners[role];
   if (!runner) return { skipped: "missing_runner", role };
-  const result = await runner(env);
+  const result = await runner(workEnv);
   const elapsedMs = Math.ceil(performance.now() - started);
   console.info(
     JSON.stringify({
@@ -136,7 +159,7 @@ export async function runContentProcessingTick(
       result,
     }),
   );
-  return { role, result, elapsedMs };
+  return { role, result, elapsedMs, ...(metered ? { usage: metered.usage } : {}) };
 }
 
 export default {
