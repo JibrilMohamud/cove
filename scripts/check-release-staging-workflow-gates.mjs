@@ -13,6 +13,15 @@ const requirements = [
     ],
   },
   {
+    file: ".github/workflows/continuous-publication-qa.yml",
+    names: ["private-qa:"],
+    protections: [
+      "deploy-continuous-publication-qa.mjs",
+      "verify-continuous-publication-qa.mjs",
+      "cove-continuous-publication-qa",
+    ],
+  },
+  {
     file: ".github/workflows/strangler-hosted-capacity-evaluation.yml",
     names: ["protected-staging-only:"],
     protections: [
