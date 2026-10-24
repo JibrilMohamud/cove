@@ -53,7 +53,7 @@ def commons_title(record):
     if url.scheme!="https" or url.hostname!="commons.wikimedia.org" or url.port or url.username or url.password or url.query or url.fragment:
         return None
     title = urllib.parse.unquote(url.path.removeprefix("/wiki/")).replace("_"," ")
-    if "/" in title or chr(92) in title or chr(10) in title or not re.fullmatch(r"File:.{4,240}\\.(?:ogg|oga|mp3)",title,re.I):
+    if "/" in title or chr(92) in title or chr(10) in title or not re.fullmatch(r"File:.{4,240}\.(?:ogg|oga|mp3)",title,re.I):
         return None
     return title
 
