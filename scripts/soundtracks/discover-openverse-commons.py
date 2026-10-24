@@ -182,7 +182,8 @@ def verified_commons_title(title, opener=OPENER):
     pages=read_json(credits.COMMONS_API+"?"+query,opener=opener).get("query",{}).get("pages",[])
     return pages[0] if isinstance(pages,list) and len(pages)==1 else None
 
-def commons_category_candidates(categories=2, max_verifications=16, opener=OPENER, pause=time.sleep):
+def commons_category_candidates(categories=2, max_verifications=16, opener=OPENER,
+                                pause=time.sleep, continuations=None):
     """One rate-bounded generator page per Commons category, no scraping.
 
     The generator supplies the actual Commons revision, imageinfo, license
@@ -191,24 +192,34 @@ def commons_category_candidates(categories=2, max_verifications=16, opener=OPENE
     """
     if not 0 <= categories <= 3 or not 0 <= max_verifications <= 32:
         raise ValueError("Commons discovery quota exceeded")
-    started=int(time.time() // 86400) % len(COMMONS_CATEGORIES)
+    # Every three-hour campaign selects different categories, and the
+    # durable isolated cursor prevents repeating their first 24 originals.
+    started=int(time.time() // 10800) % len(COMMONS_CATEGORIES)
+    continuations=continuations or {}
     found=[]
     checked=0
     held=0
     rejection_reasons={}
     category_queries=0
+    next_cursors={}
     for offset in range(categories):
         if checked>=max_verifications:
             break
         category=COMMONS_CATEGORIES[(started+offset)%len(COMMONS_CATEGORIES)]
-        args=urllib.parse.urlencode({
+        fields={
             "action":"query","format":"json","formatversion":"2","maxlag":"5",
             "generator":"categorymembers","gcmtitle":"Category:"+category,
-            "gcmtype":"file","gcmlimit":"24",
+            "gcmtype":"file","gcmlimit":str(min(24,max_verifications-checked)),
             "prop":"imageinfo|revisions",
             "iiprop":"url|sha1|size|mime|extmetadata|metadata",
             "rvprop":"ids|timestamp|content","rvslots":"main",
-        })
+        }
+        cursor=continuations.get(category,"")
+        if cursor:
+            if not isinstance(cursor,str) or len(cursor)>2048 or any(x in cursor for x in "\\r\\n"):
+                raise ValueError("Malformed persisted Commons continuation")
+            fields["gcmcontinue"]=cursor
+        args=urllib.parse.urlencode(fields)
         payload=read_json(credits.COMMONS_API+"?"+args,opener=opener,size=1200000)
         category_queries+=1
         if payload.get("error"):
@@ -216,6 +227,13 @@ def commons_category_candidates(categories=2, max_verifications=16, opener=OPENE
         pages=payload.get("query",{}).get("pages",[])
         if not isinstance(pages,list):
             raise ValueError("Invalid Commons API category result")
+        continuation=payload.get("continue",{}).get("gcmcontinue","")
+        if not isinstance(continuation,str) or len(continuation)>2048:
+            raise ValueError("Commons continuation exceeds bounded token policy")
+        # A category's cursor is made durable only after ALL originals in
+        # this requested generator page have been screened and saved.
+        if len(pages)>int(fields["gcmlimit"]):
+            raise ValueError("Commons returned an unbounded generator batch")
         for page in pages:
             if checked>=max_verifications:
                 break
@@ -235,12 +253,14 @@ def commons_category_candidates(categories=2, max_verifications=16, opener=OPENE
                 found.append(result)
             else:
                 held+=1
+        next_cursors[category]=continuation
         pause(.5)
     return {"candidates":found,"verified":checked,"searches":category_queries,
-            "held":held,"holdReasons":rejection_reasons}
+            "held":held,"holdReasons":rejection_reasons,"nextCursors":next_cursors}
 
 
-def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep, commons_categories=2):
+def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep,
+             commons_categories=2, commons_cursors=None):
     items=[]
     seen=set()
     started=time.monotonic()
@@ -294,8 +314,9 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep, c
             pause(.5)
     from_commons=commons_category_candidates(
         commons_categories,max(0,min(32-verified,max_verifications-verified)),
-        opener=opener,pause=pause) if commons_categories else {
-            "candidates":[],"verified":0,"searches":0,"held":0,"holdReasons":{}}
+        opener=opener,pause=pause,continuations=commons_cursors) if commons_categories else {
+            "candidates":[],"verified":0,"searches":0,"held":0,
+            "holdReasons":{},"nextCursors":{}}
     unique={item["id"]:item for item in items}
     for candidate in from_commons["candidates"]:
         unique.setdefault(candidate["id"],candidate)
@@ -309,6 +330,7 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep, c
             "indexedResults":indexed_results,
             "nonCommonsResults":rejected_non_commons,
             "commonsHoldReasons":from_commons["holdReasons"],
+            "commonsNextCursors":from_commons["nextCursors"],
             "heldAfterCommonsVerification":held_after_commons_check+from_commons["held"],
             "candidates":list(unique.values()),
             "processingMs":min(1800000,int((time.monotonic()-started)*1000))}
