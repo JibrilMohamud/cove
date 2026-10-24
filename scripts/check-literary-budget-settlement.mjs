@@ -90,6 +90,24 @@ assert.equal(
     .reserved_units,
   4250,
 );
+sqlDb.prepare("INSERT INTO literary_profile_budget VALUES(?,?,?)").run("2026-10-22", 100, 1);
+const unfundedKey = "literary/inference/cove-literary-v1/" + "e".repeat(64) + ".json";
+assert.deepEqual(
+  await settleLiteraryOutputReservation(db, "2026-10-22", 6000, 1250, 12000, unfundedKey),
+  { refunded: 0 },
+  "Legacy aggregate must refuse to credit more than its actually reserved balance",
+);
+assert.equal(
+  sqlDb.prepare("SELECT reserved_units FROM literary_profile_budget WHERE day='2026-10-22'").get()
+    .reserved_units,
+  100,
+);
+assert.equal(
+  sqlDb.prepare("SELECT COUNT(*) n FROM literary_output_settlement_receipts WHERE receipt_key=?")
+    .get(unfundedKey).n,
+  0,
+  "An unfunded credit must not create a settlement receipt",
+);
 assert.deepEqual(
   await settleLiteraryOutputReservation(
     db,
