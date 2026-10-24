@@ -1,0 +1,27 @@
+name: zod-security-compatibility
+on:
+  pull_request:
+    paths:
+      - package.json
+      - package-lock.json
+      - ".github/workflows/zod-security-compatibility.yml"
+permissions:
+  contents: read
+jobs:
+  secured-v4-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: npm audit --audit-level=high
+      - run: npm run typecheck
+      - run: npm run test:rights
+      - run: npm run test:commerce
+      - run: npm run test:soundtracks
+      - run: npm run test:quiet-music-inventory
+      - run: npm run test:regional-epub-repair
+      - run: npm run test:literary-budget-settlement
+      - run: npm run test:matching
