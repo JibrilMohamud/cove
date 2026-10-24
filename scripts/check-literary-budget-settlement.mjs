@@ -16,7 +16,9 @@ assert.equal(literaryOutputReservationRefund(-1, 1000, 12000), 0);
 assert.equal(literaryOutputReservationRefund(NaN, 1000, 12000), 0);
 
 const sqlDb = new DatabaseSync(":memory:");
-sqlDb.exec("CREATE TABLE literary_profile_budget(day TEXT PRIMARY KEY,reserved_units INTEGER NOT NULL,calls INTEGER NOT NULL)");
+sqlDb.exec(
+  "CREATE TABLE literary_profile_budget(day TEXT PRIMARY KEY,reserved_units INTEGER NOT NULL,calls INTEGER NOT NULL)",
+);
 sqlDb.exec(fs.readFileSync("drizzle/0079_literary_output_settlement_receipts.sql", "utf8"));
 assert.equal(
   fs.readFileSync("drizzle/0079_literary_output_settlement_receipts.sql", "utf8"),
@@ -69,24 +71,32 @@ const raced = await Promise.all(
     settleLiteraryOutputReservation(db, "2026-10-20", 6000, 1250, 12000, receipt),
   ),
 );
-assert.ok(raced.every((v) => v.refunded === 0), "Concurrent replays cannot refund a second time");
+assert.ok(
+  raced.every((v) => v.refunded === 0),
+  "Concurrent replays cannot refund a second time",
+);
 assert.equal(
   sqlDb.prepare("SELECT count(*) n FROM literary_output_settlement_receipts").get().n,
   1,
 );
 assert.equal(
-  sqlDb.prepare("SELECT applied FROM literary_output_settlement_receipts WHERE receipt_key=?")
+  sqlDb
+    .prepare("SELECT applied FROM literary_output_settlement_receipts WHERE receipt_key=?")
     .get(receipt).applied,
   1,
 );
 assert.equal(
-  sqlDb.prepare("SELECT reserved_units FROM literary_profile_budget WHERE day='2026-10-20'")
-    .get().reserved_units,
+  sqlDb.prepare("SELECT reserved_units FROM literary_profile_budget WHERE day='2026-10-20'").get()
+    .reserved_units,
   4250,
 );
 assert.deepEqual(
   await settleLiteraryOutputReservation(
-    db, "2026-10-21", 6000, 1250, 12000,
+    db,
+    "2026-10-21",
+    6000,
+    1250,
+    12000,
     "literary/inference/cove-literary-v1/" + "b".repeat(64) + ".json",
   ),
   { refunded: 0 },
@@ -118,4 +128,6 @@ assert.match(
 );
 assert.match(literarySource, /reservedOutput,\s*cacheKey,/);
 sqlDb.close();
-console.log("Atomic exactly-once literary work-budget refund, concurrent replay and R2 gating passed.");
+console.log(
+  "Atomic exactly-once literary work-budget refund, concurrent replay and R2 gating passed.",
+);
