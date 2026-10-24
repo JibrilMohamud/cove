@@ -1,0 +1,31 @@
+name: oneoff-normalize-literary-frontier
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/oneoff-normalize-literary-frontier.yml"
+permissions:
+  contents: read
+jobs:
+  format:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/literary-isolated-inference-publication-20261023'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with: { ref: feat/literary-isolated-inference-publication-20261023 }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Format only code in the isolated literary lane
+        run: npx prettier --write src/lib/literary-isolated-inference.server.ts src/content-processing.worker.ts src/lib/literary-budget-domain.server.ts src/lib/literary-preparation-domain.server.ts src/lib/literary-prepare-outbox.server.ts src/literary-inference-publisher.worker.ts scripts/check-literary-isolated-inference.mjs scripts/check-literary-publisher-gateway.mjs
+      - name: Persist exactly the formatter changes on this PR
+        run: |
+          git add src/lib/literary-isolated-inference.server.ts src/content-processing.worker.ts src/lib/literary-budget-domain.server.ts src/lib/literary-preparation-domain.server.ts src/lib/literary-prepare-outbox.server.ts src/literary-inference-publisher.worker.ts scripts/check-literary-isolated-inference.mjs scripts/check-literary-publisher-gateway.mjs
+          if ! git diff --cached --quiet; then
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git commit -m "style(literary): normalize persisted fairness cursor and publisher tests"
+            git push origin HEAD:refs/heads/feat/literary-isolated-inference-publication-20261023
+          fi
