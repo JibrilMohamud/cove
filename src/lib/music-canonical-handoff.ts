@@ -162,7 +162,9 @@ export async function applyCanonicalMusicHandoff(db: Db, raw: unknown) {
         .prepare(
           "INSERT INTO music_supply_handoff_contracts" +
             "(contract_id,status,expires_at,evidence_sha256,last_seq,updated_at)" +
-            " VALUES(?,'revoked',?,?,?,?)" +
+            " SELECT ?,'revoked',?,?,?,? WHERE EXISTS(" +
+            " SELECT 1 FROM music_supply_handoff_events" +
+            " WHERE event_id=? AND seq=? AND payload_sha256=?)" +
             " ON CONFLICT(contract_id) DO UPDATE SET status='revoked'," +
             " last_seq=MAX(last_seq,excluded.last_seq),updated_at=excluded.updated_at",
         )
@@ -172,6 +174,9 @@ export async function applyCanonicalMusicHandoff(db: Db, raw: unknown) {
           item.contract_evidence_sha256,
           item.seq,
           at,
+          item.id,
+          item.seq,
+          eventHash,
         ),
     );
   } else if (item.action === "master_revoked") {
@@ -180,11 +185,13 @@ export async function applyCanonicalMusicHandoff(db: Db, raw: unknown) {
         .prepare(
           "INSERT INTO music_supply_handoff_masters" +
             "(master_id,contract_id,status,last_seq,updated_at)" +
-            " VALUES(?,?,'revoked',?,?)" +
+            " SELECT ?,?,'revoked',?,? WHERE EXISTS(" +
+            " SELECT 1 FROM music_supply_handoff_events" +
+            " WHERE event_id=? AND seq=? AND payload_sha256=?)" +
             " ON CONFLICT(master_id) DO UPDATE SET status='revoked'," +
             " last_seq=MAX(last_seq,excluded.last_seq),updated_at=excluded.updated_at",
         )
-        .bind(item.master_id, item.contract_id, item.seq, at),
+        .bind(item.master_id, item.contract_id, item.seq, at, item.id, item.seq, eventHash),
     );
   } else {
     const m = JSON.parse(item.payload_json) as Record<string, unknown>;
@@ -193,7 +200,9 @@ export async function applyCanonicalMusicHandoff(db: Db, raw: unknown) {
         .prepare(
           "INSERT INTO music_supply_handoff_contracts" +
             "(contract_id,status,expires_at,evidence_sha256,last_seq,updated_at)" +
-            " VALUES(?,'active',?,?,?,?)" +
+            " SELECT ?,'active',?,?,?,? WHERE EXISTS(" +
+            " SELECT 1 FROM music_supply_handoff_events" +
+            " WHERE event_id=? AND seq=? AND payload_sha256=?)" +
             " ON CONFLICT(contract_id) DO UPDATE SET" +
             " last_seq=MAX(last_seq,excluded.last_seq)," +
             " expires_at=excluded.expires_at,updated_at=excluded.updated_at" +
@@ -205,6 +214,9 @@ export async function applyCanonicalMusicHandoff(db: Db, raw: unknown) {
           item.contract_evidence_sha256,
           item.seq,
           at,
+          item.id,
+          item.seq,
+          eventHash,
         ),
     );
     statements.push(
@@ -215,6 +227,8 @@ export async function applyCanonicalMusicHandoff(db: Db, raw: unknown) {
             " SELECT ?,?,?,?,?,?,? WHERE EXISTS" +
             " (SELECT 1 FROM music_supply_handoff_contracts" +
             " WHERE contract_id=? AND status='active' AND expires_at>?)" +
+            " AND EXISTS(SELECT 1 FROM music_supply_handoff_events" +
+            " WHERE event_id=? AND seq=? AND payload_sha256=?)" +
             " ON CONFLICT(master_id) DO UPDATE SET" +
             " last_seq=excluded.last_seq WHERE music_supply_handoff_masters.status!='revoked'" +
             " AND excluded.last_seq>music_supply_handoff_masters.last_seq",
@@ -229,10 +243,21 @@ export async function applyCanonicalMusicHandoff(db: Db, raw: unknown) {
           at,
           item.contract_id,
           at,
+          item.id,
+          item.seq,
+          eventHash,
         ),
     );
   }
   await db.batch(statements);
+  // The preliminary replay lookup is advisory. On competing concurrent writes,
+  // a different event may have won the UNIQUE seq/id slot after that lookup.
+  // Never acknowledge such a collision as a committed canonical handoff.
+  const committed = await db.prepare(
+    "SELECT event_id,payload_sha256 FROM music_supply_handoff_events WHERE seq=?",
+  ).bind(item.seq).first<{ event_id:string; payload_sha256:string }>();
+  if (committed?.event_id !== item.id || committed.payload_sha256 !== eventHash)
+    throw new Error("music_handoff_conflicting_replay");
   return { seq: item.seq, recorded: true, status: "private_metadata_only" };
 }
 
