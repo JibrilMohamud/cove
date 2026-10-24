@@ -103,7 +103,8 @@ assert.equal(
   100,
 );
 assert.equal(
-  sqlDb.prepare("SELECT COUNT(*) n FROM literary_output_settlement_receipts WHERE receipt_key=?")
+  sqlDb
+    .prepare("SELECT COUNT(*) n FROM literary_output_settlement_receipts WHERE receipt_key=?")
     .get(unfundedKey).n,
   0,
   "An unfunded credit must not create a settlement receipt",
