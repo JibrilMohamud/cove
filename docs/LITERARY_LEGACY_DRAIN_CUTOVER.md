@@ -53,8 +53,13 @@ must enter the isolated pipeline through a separately verified handoff.
    which can migrate, which must be held, and which are legitimately obsolete.
    An optional, one-job-per-tick catch-up is now implemented but **OFF**:
    install `infra/content-budget/0008_legacy_reconcile_frontier.sql` only
-   into the explicitly isolated CONTENT_DB; after verifying that every legacy
-   Worker stopped, set `literary_legacy_reconcile_frontier.status='armed'`
+   into the explicitly isolated CONTENT_DB. In separately approved, off-peak
+   staging, install `infra/literary-cutover/0001_legacy_reconcile_primary_index.sql`
+   **only in canonical primary D1**, verify an indexed query plan, and monitor
+   D1 service latency. Reconciliation uses `INDEXED BY` and fails closed if
+   the primary index is missing rather than scanning the whole legacy queue.
+   After verifying that every legacy Worker stopped, set
+   `literary_legacy_reconcile_frontier.status='armed'`
    using an independently approved staging D1 operation, and enable
    `FORE_LITERARY_DRAIN_RECONCILE_ENABLED=1` only on the protected
    `literary-handoff` role. Every candidate is selected by primary PK cursor
