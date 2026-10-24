@@ -258,7 +258,18 @@ export function DiscussionThread({
           </h2>
         </div>
       </div>
-      {(contextType !== "margin" || !!parentId) && (
+      {bookThread && !postId && (
+        <div className="cove-thread-sort" role="group" aria-label="Order book discussions">
+          <button type="button" aria-pressed={threadSort === "top"} onClick={() => setThreadSort("top")}>
+            Top hearts
+          </button>
+          <button type="button" aria-pressed={threadSort === "new"} onClick={() => setThreadSort("new")}>
+            Newest
+          </button>
+          <span>Only a few replies load at a time. Hearts represent unique reader reactions.</span>
+        </div>
+      )}
+      {!postId && (contextType !== "margin" || !!parentId) && (
         <div className="social-composer">
           {!parentId && (
             <div className="social-composer-tabs">
