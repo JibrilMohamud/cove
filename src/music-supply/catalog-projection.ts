@@ -94,7 +94,7 @@ export async function privateMusicCandidates(
     composer: string;
     performer: string;
     durationEligibility: "qa_passed_only";
-    quietSuitability: "unverified";
+    quietSuitability: "unverified" | "verified_private_qualification";
     expiresAt: string;
   }> = [];
   let rejectedIntegrity = 0;
