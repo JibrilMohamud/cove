@@ -1,0 +1,36 @@
+name: security-zod-lockfile-bootstrap
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/security-zod-lockfile-bootstrap.yml"
+permissions:
+  contents: read
+jobs:
+  regenerate-and-test:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/secure-zod-v4-20261023'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with: { ref: fix/secure-zod-v4-20261023 }
+      - uses: actions/setup-node@v6
+        with: { node-version: 22, cache: npm }
+      - run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Commit regenerated lockfile to feature branch
+        run: |
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git add package-lock.json
+            git commit -m "fix(lockfile): resolve patched Zod four and transitive copies"
+            git push origin HEAD:refs/heads/fix/secure-zod-v4-20261023
+          fi
+      - run: npm ci --no-audit --no-fund
+      - run: npm audit --audit-level=high
+      - run: npm run typecheck
+      - run: npm run test:rights
+      - run: npm run test:commerce
+      - run: npm run test:soundtracks
+      - run: npm run test:quiet-music-inventory
