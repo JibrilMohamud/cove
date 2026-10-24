@@ -49,13 +49,15 @@ try {
   `);
   await build({
     entryPoints: ["src/lib/content-worker-budget.server.ts", "src/lib/content-processing-owner.server.ts"],
-    outdir: folder, bundle: true, platform: "node", format: "esm", logLevel: "silent",
+    outdir: folder,
+    outExtension: { ".js": ".mjs" },
+    bundle: true, platform: "node", format: "esm", logLevel: "silent",
   });
   const { meterContentAssetEnv, contentBudgetLimits } = await import(
-    pathToFileURL(path.join(folder, "content-worker-budget.server.js")).href
+    pathToFileURL(path.join(folder, "content-worker-budget.server.mjs")).href
   );
   const { contentPipelineOwner, assetOwnerPredicate } = await import(
-    pathToFileURL(path.join(folder, "content-processing-owner.server.js")).href
+    pathToFileURL(path.join(folder, "content-processing-owner.server.mjs")).href
   );
   const native = make(db);
   assert.equal(await contentPipelineOwner(native, "assets"), "legacy");
