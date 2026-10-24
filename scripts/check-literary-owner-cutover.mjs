@@ -157,7 +157,11 @@ try {
     seed.run("late", "sha_b");
     seed.run("fresh", "sha_c");
     assert.deepEqual(
-      { ...fenced.prepare("SELECT fingerprint FROM literary_profiles WHERE product_id='fresh'").get() },
+      {
+        ...fenced
+          .prepare("SELECT fingerprint FROM literary_profiles WHERE product_id='fresh'")
+          .get(),
+      },
       { fingerprint: "sha_a" },
     );
     assert.equal(fenced.prepare("SELECT COUNT(*) n FROM literary_profiles").get().n, 1);
