@@ -6,7 +6,10 @@ const book = readFileSync("src/features/fore/Book.tsx", "utf8");
 const work = readFileSync("src/features/fore/Work.tsx", "utf8");
 const css = readFileSync("src/features/fore/reading-community.css", "utf8");
 const migration = readFileSync("drizzle/0061_social_book_thread_keyset.sql", "utf8");
-const recencyIndex = readFileSync("drizzle/0062_social_book_thread_popular_recency_index.sql", "utf8");
+const recencyIndex = readFileSync(
+  "drizzle/0062_social_book_thread_popular_recency_index.sql",
+  "utf8",
+);
 for (const expected of [
   'url.searchParams.get("thread") === "1"',
   'url.searchParams.get("sort") === "top"',
