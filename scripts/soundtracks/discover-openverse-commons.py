@@ -335,24 +335,44 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep,
             "candidates":list(unique.values()),
             "processingMs":min(1800000,int((time.monotonic()-started)*1000))}
 
-def record_isolated(summary, token, opener=OPENER):
+def isolated_query(command, params, token, opener=OPENER):
+    """Explicitly target only the independent QA MUSIC_DB (never primary D1)."""
     if os.environ.get("COVE_MUSIC_OPEN_DISCOVERY_ENABLED")!="1":
         raise ValueError("Independent discovery store not enabled")
     if os.environ.get("CLOUDFLARE_ACCOUNT_ID")!=ACCOUNT or not token:
         raise ValueError("No approved isolated D1 writer identity")
     endpoint=f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT}/d1/database/{MUSIC_DB}/query"
+    data=json.dumps({"sql":command,"params":[str(v) for v in params]}).encode()
+    req=urllib.request.Request(endpoint,data=data,method="POST",headers={
+        "Authorization":"Bearer "+token,"Content-Type":"application/json",
+        "User-Agent":AGENT})
+    with opener.open(req,timeout=30) as response:
+        if response.status!=200:
+            raise RuntimeError("Isolated music D1 request rejected")
+        result=json.loads(response.read(500000))
+    if not result.get("success") or not all(x.get("success") for x in result.get("result",[])):
+        raise RuntimeError("Isolated music D1 query failed")
+    return result["result"][0].get("results",[]) if result.get("result") else []
+
+
+def load_isolated_cursors(token, opener=OPENER):
+    rows=isolated_query(
+        "SELECT category,generator_cursor FROM music_open_discovery_cursors WHERE source='commons'",
+        [],token,opener)
+    return {x["category"]:x["generator_cursor"] for x in rows
+            if x.get("category") in COMMONS_CATEGORIES and
+            isinstance(x.get("generator_cursor"),str) and
+            len(x["generator_cursor"])<=2048}
+
+
+def record_isolated(summary, token, opener=OPENER):
+    if os.environ.get("COVE_MUSIC_OPEN_DISCOVERY_ENABLED")!="1":
+        raise ValueError("Independent discovery store not enabled")
+    if os.environ.get("CLOUDFLARE_ACCOUNT_ID")!=ACCOUNT or not token:
+        raise ValueError("No approved isolated D1 writer identity")
     at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
     def sql(command,params):
-        data=json.dumps({"sql":command,"params":[str(v) for v in params]}).encode()
-        req=urllib.request.Request(endpoint,data=data,method="POST",headers={
-            "Authorization":"Bearer "+token,"Content-Type":"application/json",
-            "User-Agent":AGENT})
-        with opener.open(req,timeout=30) as response:
-            if response.status != 200:
-                raise RuntimeError("Isolated source discovery persistence rejected")
-            result=json.loads(response.read(500000))
-        if not result.get("success") or not all(x.get("success") for x in result.get("result",[])):
-            raise RuntimeError("Isolated source discovery persistence failed")
+        return isolated_query(command,params,token,opener)
     for candidate in summary["candidates"]:
         raw=json.dumps(candidate["evidence"],sort_keys=True,ensure_ascii=False,separators=(",",":"))
         sql("INSERT INTO music_open_source_candidates"
@@ -383,6 +403,17 @@ def record_isolated(summary, token, opener=OPENER):
                 " VALUES(?,?,?,?,?,?,?)",
                 [str(uuid.uuid4()),provider,searches,verified,
                  discovered,summary["processingMs"],at])
+    # Cursor advances only after every candidate write and run ledger row
+    # has succeeded. A failed campaign safely retries the same Commons
+    # generator page (source proposals are idempotent).
+    for category,continuation in summary.get("commonsNextCursors",{}).items():
+        if category not in COMMONS_CATEGORIES or not isinstance(continuation,str) or len(continuation)>2048:
+            raise ValueError("Unsafe Commons source continuation")
+        sql("INSERT INTO music_open_discovery_cursors(source,category,generator_cursor,updated_at,last_run_id)"
+            " VALUES('commons',?,?,?,?)"
+            " ON CONFLICT(category) DO UPDATE SET generator_cursor=excluded.generator_cursor,"
+            " updated_at=excluded.updated_at,last_run_id=excluded.last_run_id",
+            [category,continuation,at,str(uuid.uuid4())])
     return len(summary["candidates"])
 
 def main():
@@ -395,7 +426,10 @@ def main():
     args=p.parse_args()
     if not 1<=args.queries<=3 or not 0<=args.commons_categories<=3 or not 1<=args.max_verifications<=32:
         p.error("Rate-bounded one-page Openverse/Commons discovery required")
-    result=discover(args.queries,args.max_verifications,commons_categories=args.commons_categories)
+    cursors=(load_isolated_cursors(os.environ.get("CLOUDFLARE_API_TOKEN",""))
+             if args.apply_isolated else None)
+    result=discover(args.queries,args.max_verifications,
+                    commons_categories=args.commons_categories,commons_cursors=cursors)
     pathlib.Path(args.output).write_text(json.dumps(result,indent=2,ensure_ascii=False)+"\n")
     if args.apply_isolated:
         record_isolated(result,os.environ.get("CLOUDFLARE_API_TOKEN",""))
@@ -406,6 +440,7 @@ def main():
                       "checkedOriginalPages":result["verified"],
                       "commonsCategoryQueries":result["commonsCategoryQueries"],
                       "commonsOriginalsChecked":result["commonsVerified"],
+                      "commonsPagesAdvanced":len(result["commonsNextCursors"]),
                       "commonsHoldReasons":result["commonsHoldReasons"],
                       "heldAfterCommonsVerification":result["heldAfterCommonsVerification"],
                       "candidates":len(result["candidates"]),"storedIsolated":args.apply_isolated,
