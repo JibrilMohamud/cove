@@ -175,15 +175,32 @@ async function preparedReceipt(db: D1, id: string) {
 export async function seedOneIsolatedLiteraryInference(env: IsolatedInferenceEnv) {
   assertInferenceEnabled(env);
   const isolated = await requireIsolatedDomain(env);
+  const cursor = await isolated
+    .prepare("SELECT after_updated_at,after_id FROM literary_inference_seed_frontier WHERE id=1")
+    .first<{ after_updated_at: string; after_id: string }>();
+  if (!cursor) throw Error("isolated_inference_frontier_not_migrated");
   const pending = await isolated
     .prepare(
-      "SELECT p.id,p.product_id,p.edition_id,p.source_id,p.content_sha256,p.result_key,p.result_sha256" +
+      "SELECT p.id,p.product_id,p.edition_id,p.source_id,p.content_sha256," +
+        "p.result_key,p.result_sha256,p.updated_at" +
         " FROM literary_prepare_jobs p WHERE p.status='done'" +
+        " AND (p.updated_at>? OR (p.updated_at=? AND p.id>?))" +
         " AND NOT EXISTS(SELECT 1 FROM literary_inference_jobs i WHERE i.prepare_job_id=p.id)" +
         " ORDER BY p.updated_at,p.id LIMIT 1",
     )
-    .first<Prepared>();
-  if (!pending) return { skipped: "no_prepared_evidence" };
+    .bind(cursor.after_updated_at, cursor.after_updated_at, cursor.after_id)
+    .first<Prepared & { updated_at: string }>();
+  if (!pending) {
+    await isolated.prepare(
+      "UPDATE literary_inference_seed_frontier SET after_updated_at='',after_id='' WHERE id=1",
+    ).run();
+    return { skipped: "no_prepared_evidence" };
+  }
+  // Fairness only: record that this candidate was examined, even if its
+  // canonical rights have since been withdrawn. Never copy legal authority.
+  await isolated.prepare(
+    "UPDATE literary_inference_seed_frontier SET after_updated_at=?,after_id=? WHERE id=1",
+  ).bind(pending.updated_at,pending.id).run();
   if (!(await rightsCurrent(env.DB, { ...pending, source_sha256: pending.content_sha256 })))
     return { skipped: "source_or_rights_changed" };
   const profile = await env.DB.prepare(
