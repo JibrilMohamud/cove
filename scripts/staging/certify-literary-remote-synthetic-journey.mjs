@@ -327,8 +327,13 @@ try {
     FORE_LITERARY_INFERENCE_PUBLISH_TOKEN_SHA256: sha(tokenA),
     FORE_LITERARY_INFERENCE_BACKEND_TOKEN_SHA256: sha(tokenB),
   };
+  let failPublisherOnce = true;
   const workerService = {
     fetch(request) {
+      if (failPublisherOnce) {
+        failPublisherOnce = false;
+        return Response.json({ error: "simulated_private_publisher_503" }, { status: 503 });
+      }
       return gateway.handleLiteraryPublication(request, publishEnv, undefined, async () => ({
         allowed: true,
         reason: "synthetic_stage",
@@ -343,6 +348,14 @@ try {
     FORE_LITERARY_INFERENCE_BACKEND_TOKEN: tokenB,
     LITERARY_PUBLISHER: workerService,
   };
+  const interrupted = await publisher.publishOnePrivateLiteraryInference(autopublish);
+  assert.equal(interrupted.deferred, seeded.enqueued);
+  assert.match(interrupted.reason, /private_publisher_status_503/);
+  await CONTENT_DB.prepare(
+    "UPDATE literary_inference_jobs SET publication_available_at='2020-01-01' WHERE id=?",
+  )
+    .bind(seeded.enqueued)
+    .run();
   const publishResult = await publisher.publishOnePrivateLiteraryInference(autopublish);
   assert.equal(publishResult.published, seeded.enqueued);
   const canonical = await DB.prepare(
@@ -356,6 +369,22 @@ try {
         .first()
     ).publication_state,
     "published",
+  );
+  // A canonical write that survives but loses its secondary ACK must never
+  // increment the profile twice. Replay verifies the exact existing revision.
+  await CONTENT_DB.prepare(
+    "UPDATE literary_inference_jobs SET publication_state='pending'," +
+      "publication_available_at='2020-01-01' WHERE id=?",
+  )
+    .bind(seeded.enqueued)
+    .run();
+  assert.deepEqual(await publisher.publishOnePrivateLiteraryInference(autopublish), {
+    published: seeded.enqueued,
+  });
+  assert.equal(
+    (await DB.prepare("SELECT revision FROM literary_profiles WHERE product_id='qa_literary'").first())
+      .revision,
+    1,
   );
   assert.deepEqual(await publisher.publishOnePrivateLiteraryInference(autopublish), {
     skipped: "no_completed_inference",
@@ -376,6 +405,8 @@ try {
     canonicalOwnerDrainDenied: true,
     canonicalRevision: canonical.revision,
     primaryStatus: canonical.status,
+    remotePublisher503Retry: true,
+    remoteLostAckReplay: true,
     settled: true,
     remoteStatements,
     r2Puts,
