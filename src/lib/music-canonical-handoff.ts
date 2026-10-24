@@ -262,11 +262,25 @@ export async function applyCanonicalMusicHandoff(db: Db, raw: unknown) {
   return { seq: item.seq, recorded: true, status: "private_metadata_only" };
 }
 
-export async function handleCanonicalMusicHandoff(req: Request, env: HandoffEnv) {
+export async function handleCanonicalMusicHandoff(
+  req: Request,
+  env: HandoffEnv,
+  admit?: () => Promise<{ allowed: boolean; reason?: string; probeMs?: number }>,
+) {
   if (env.FORE_MUSIC_CANONICAL_HANDOFF_ENABLED !== "1")
     return Response.json({ error: "music_canonical_handoff_disabled" }, { status: 403 });
   if (!(await handoffAuthorized(req, env)))
     return Response.json({ error: "music_canonical_handoff_unauthorized" }, { status: 401 });
+  // Only a fully authorized publisher reaches the shared D1 admission probe.
+  // Deferred background events remain replayable in the isolated source ledger.
+  if (admit) {
+    const gate = await admit();
+    if (!gate.allowed)
+      return Response.json(
+        { error: "music_handoff_primary_d1_busy", reason: gate.reason, probeMs: gate.probeMs },
+        { status: 503, headers: { "cache-control": "no-store" } },
+      );
+  }
   try {
     if (Number(req.headers.get("content-length") || 0) > 10000)
       return Response.json({ error: "music_handoff_too_large" }, { status: 413 });
