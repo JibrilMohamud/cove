@@ -34,7 +34,8 @@ export async function resolveLiteraryBudgetDb(
   if (requestedMode !== "isolated") throw new Error("Unknown literary budget binding mode");
   if (
     env.FORE_CONTENT_PROCESSOR_ENABLED !== "1" ||
-    env.FORE_CONTENT_PROCESSOR_ROLE !== "literary" ||
+    (env.FORE_CONTENT_PROCESSOR_ROLE !== "literary" &&
+      env.FORE_CONTENT_PROCESSOR_ROLE !== "literary-infer") ||
     !env.CONTENT_DB ||
     env.CONTENT_DB === env.DB ||
     primaryMode !== "isolated"

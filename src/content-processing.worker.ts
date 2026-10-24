@@ -1,6 +1,10 @@
 import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
 import { runLiteraryProfileTick } from "./features/fore/literary-profiles.server";
 import { runIsolatedLiteraryPreparationTick } from "./lib/literary-preparation-domain.server";
+import {
+  seedOneIsolatedLiteraryInference,
+  runIsolatedLiteraryInferenceTick,
+} from "./lib/literary-isolated-inference.server";
 import { dispatchOneLiteraryPreparationHandoff } from "./lib/literary-prepare-outbox.server";
 import {
   consumePreparationQueue,
@@ -19,11 +23,13 @@ import type { CoveEnv } from "./features/fore/api.server";
  */
 export type ContentProcessorEnv = CoveEnv & {
   FORE_CONTENT_PROCESSOR_ENABLED?: string;
-  FORE_CONTENT_PROCESSOR_ROLE?: "assets" | "literary" | "literary-prepare" | "literary-handoff";
+  FORE_CONTENT_PROCESSOR_ROLE?:
+    "assets" | "literary" | "literary-prepare" | "literary-handoff" | "literary-infer";
   FORE_CONTENT_D1_ADMISSION_MAX_MS?: string;
   FORE_ASSETS_PER_MINUTE?: string;
   FORE_CONTENT_PREPARE_ENABLED?: string;
   FORE_CONTENT_HANDOFF_ENABLED?: string;
+  FORE_CONTENT_INFERENCE_ENABLED?: string;
   CONTENT_DB?: CoveEnv["DB"];
   FORE_CONTENT_BUDGET_MODE?: string;
   LITERARY_PREPARE_QUEUE?: {
@@ -37,6 +43,7 @@ type ProcessorRunners = {
   literary: Runner;
   "literary-prepare"?: Runner;
   "literary-handoff"?: Runner;
+  "literary-infer"?: Runner;
 };
 /** Keep per-minute background writes bounded even if dashboard configuration
  * is accidentally raised. These caps do not affect the original Worker. */
@@ -62,6 +69,10 @@ const defaultRunners: ProcessorRunners = {
   literary: (env) => runLiteraryProfileTick(env, CONTENT_LITERARY_TICK_CAPS),
   "literary-prepare": (env) => runIsolatedLiteraryPreparationTick(env),
   "literary-handoff": (env) => dispatchOneLiteraryPreparationHandoff(env),
+  "literary-infer": async (env) => ({
+    seeded: await seedOneIsolatedLiteraryInference(env),
+    inference: await runIsolatedLiteraryInferenceTick(env),
+  }),
 };
 
 export async function runContentProcessingTick(
@@ -74,7 +85,8 @@ export async function runContentProcessingTick(
     role !== "assets" &&
     role !== "literary" &&
     role !== "literary-prepare" &&
-    role !== "literary-handoff"
+    role !== "literary-handoff" &&
+    role !== "literary-infer"
   )
     return { skipped: "invalid_role" };
   if (role === "literary-prepare" && env.FORE_CONTENT_PREPARE_ENABLED !== "1")
@@ -84,8 +96,16 @@ export async function runContentProcessingTick(
     (env.FORE_CONTENT_PREPARE_ENABLED !== "1" || env.FORE_CONTENT_HANDOFF_ENABLED !== "1")
   )
     return { skipped: "handoff_disabled" };
+  if (
+    role === "literary-infer" &&
+    (env.FORE_CONTENT_PREPARE_ENABLED !== "1" ||
+      env.FORE_CONTENT_INFERENCE_ENABLED !== "1" ||
+      env.FORE_CONTENT_BUDGET_MODE !== "isolated")
+  )
+    return { skipped: "isolated_inference_disabled" };
   if (!env.BUCKET) return { skipped: "missing_private_r2", role };
-  if (role === "literary" && !env.AI) return { skipped: "missing_ai", role };
+  if ((role === "literary" || role === "literary-infer") && !env.AI)
+    return { skipped: "missing_ai", role };
 
   // At most one read-only D1 latency probe per cron execution. If rights and
   // commerce requests are already experiencing database queueing, derived

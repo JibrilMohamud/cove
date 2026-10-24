@@ -1,0 +1,27 @@
+# PRIVATE literary publication Worker. Staging-only, no public routes or cron.
+name = "cove-literary-publisher-isolated-staging"
+main = "literary-publisher-dist/worker.js"
+compatibility_date = "2026-10-09"
+workers_dev = false
+preview_urls = false
+[limits]
+cpu_ms = 300_000
+[[d1_databases]]
+binding = "DB"
+database_name = "REPLACE_WITH_STAGING_CANONICAL_D1"
+database_id = "REPLACE_WITH_STAGING_PRIMARY_UUID"
+[[d1_databases]]
+binding = "CONTENT_DB"
+database_name = "REPLACE_WITH_ISOLATED_CONTENT_D1"
+database_id = "REPLACE_WITH_INDEPENDENT_D1_UUID"
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "REPLACE_WITH_PRIVATE_STAGING_R2"
+[vars]
+FORE_LITERARY_INFERENCE_PUBLISH_ENABLED = "0"
+[triggers]
+crons = []
+# Secrets must be installed only on an explicitly authorized isolated
+# environment. NEVER commit them to this file:
+# FORE_LITERARY_INFERENCE_PUBLISH_TOKEN_SHA256
+# FORE_LITERARY_INFERENCE_BACKEND_TOKEN_SHA256
