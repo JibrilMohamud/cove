@@ -82,8 +82,12 @@ class Tests(unittest.TestCase):
             self.assertTrue(all("Original performer" in x["attribution_draft"] for x in rows))
             self.assertTrue(all(json.loads(x["evidence_json"])["customerPlayable"] is False
                                 for x in rows))
-            with self.assertRaises(sqlite3.IntegrityError):
+            with self.assertRaisesRegex(sqlite3.IntegrityError,"immutable_open_review_case"):
                 db.execute("UPDATE music_open_review_cases SET status='approved'")
+            with self.assertRaisesRegex(sqlite3.IntegrityError,"immutable_open_review_case"):
+                db.execute("UPDATE music_open_review_cases SET attribution_draft='rewritten'")
+            with self.assertRaisesRegex(sqlite3.IntegrityError,"immutable_open_review_case"):
+                db.execute("DELETE FROM music_open_review_cases")
             with self.assertRaises(sqlite3.IntegrityError):
                 db.execute("UPDATE music_open_technical_qa SET rights_status='approved'")
             with patch.dict(os.environ,{"COVE_MUSIC_REVIEW_APPLY":"1"}):
