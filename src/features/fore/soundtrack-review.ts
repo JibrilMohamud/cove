@@ -33,19 +33,22 @@ export const soundtrackDossierSchema = z
         declarationBasis: note,
         // Optional, versioned Commons role evidence. This is an audit hint,
         // never an independent license grant or customer playback authority.
-        metadataEvidence: z.object({
-          policy: z.literal("commons-file-credit-v1"),
-          sourceTitle: z.string().min(8).max(280),
-          sourceSha1: z.string().regex(/^[a-f0-9]{40}$/),
-          sourceLicense: z.enum(["CC0", "CC-BY", "CC-BY-SA"]),
-          sourceLicenseUrl: source,
-          sourceRevision: z.number().int().positive().nullable().optional(),
-          sourceTimestamp: z.string().max(100).nullable().optional(),
-          artistAsClaimed: z.string().max(180),
-          composer: z.string().max(150).nullable(),
-          performer: z.string().max(150).nullable(),
-          evidenceSha256: z.string().regex(/^[a-f0-9]{64}$/),
-        }).nullable().optional(),
+        metadataEvidence: z
+          .object({
+            policy: z.literal("commons-file-credit-v1"),
+            sourceTitle: z.string().min(8).max(280),
+            sourceSha1: z.string().regex(/^[a-f0-9]{40}$/),
+            sourceLicense: z.enum(["CC0", "CC-BY", "CC-BY-SA"]),
+            sourceLicenseUrl: source,
+            sourceRevision: z.number().int().positive().nullable().optional(),
+            sourceTimestamp: z.string().max(100).nullable().optional(),
+            artistAsClaimed: z.string().max(180),
+            composer: z.string().max(150).nullable(),
+            performer: z.string().max(150).nullable(),
+            evidenceSha256: z.string().regex(/^[a-f0-9]{64}$/),
+          })
+          .nullable()
+          .optional(),
       })
       .optional(),
     complexProvenance: z.boolean(),
