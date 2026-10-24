@@ -2095,7 +2095,6 @@ export async function handleSocial(
             )
             SELECT p.*,a.depth FROM ancestry a
               JOIN social_posts p ON p.id=a.id
-             WHERE p.deleted_at IS NULL AND p.moderation_status='visible'
              ORDER BY a.depth`,
           )
           .bind(postId, contextId, contextId)
@@ -2104,6 +2103,7 @@ export async function handleSocial(
       if (
         !chain.length ||
         chain.length > 64 ||
+        chain.some((p) => p.deleted_at || p.moderation_status !== "visible") ||
         (chain[chain.length - 1].parent_id && chain.length <= 64)
       )
         throw new ApiError(404, "Discussion not found.");
