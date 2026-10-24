@@ -51,13 +51,16 @@ export async function repairRegionalEpubAssets(
         " AND p.source_name='gutenberg' AND p.format='ebook'" +
         " LEFT JOIN digital_assets d ON d.edition_id=p.edition_id AND d.kind='epub'" +
         " LEFT JOIN asset_versions v ON v.id=d.current_version_id" +
+        " LEFT JOIN regional_epub_repair_receipts rr" +
+        " ON rr.source_id=c.id AND rr.content_hash=c.content_hash" +
         " WHERE c.source_id IN ('pg_au','pg_ca','pg_eu')" +
         " AND c.epub_status='completed' AND c.ingest_status='active'" +
         " AND c.rights_status='public-domain' AND c.commercial_use_status='approved'" +
         " AND" +
         liveGrant +
         " AND COALESCE(c.content_hash,'')<>'' AND c.id>?" +
-        " AND (d.id IS NULL OR v.id IS NULL OR COALESCE(v.object_key,'')='')" +
+        " AND (d.id IS NULL OR v.id IS NULL OR COALESCE(v.object_key,'')=''" +
+        " OR rr.status='pending')" +
         " ORDER BY c.id LIMIT ?",
     )
       .bind(after, limit)
@@ -124,7 +127,21 @@ export async function repairRegionalEpubAssets(
       continue;
     }
     const now = new Date().toISOString();
+    // The verified R2 object is recorded before catalog mutations. If a tick
+    // crashes at any later point, the pending receipt re-enters the candidate
+    // frontier even when a prior attempt linked the final asset pointer.
     await env.DB.prepare(
+      "INSERT OR IGNORE INTO regional_epub_repair_receipts" +
+        "(source_id,content_hash,edition_id,status,verified_at)" +
+        " SELECT ?,?,?,'pending',? WHERE " + eligible,
+    )
+      .bind(row.id, row.content_hash, row.edition_id, now, row.id, row.edition_id, row.content_hash)
+      .run();
+    try {
+      // D1.batch commits four idempotent, rights-guarded changes atomically.
+      // Any failure retains 'pending' and rolls the entire batch back.
+      await env.DB.batch([
+        env.DB.prepare(
       "INSERT OR IGNORE INTO digital_assets(id,edition_id,kind,drm_status,downloadable,created_at,updated_at)" +
         " SELECT ?,?,'epub','none',1,?,? WHERE " +
         eligible,
@@ -137,9 +154,8 @@ export async function repairRegionalEpubAssets(
         row.id,
         row.edition_id,
         row.content_hash,
-      )
-      .run();
-    await env.DB.prepare(
+      ),
+        env.DB.prepare(
       "INSERT OR IGNORE INTO asset_versions(id,asset_id,version_number,source_url,object_key,mime_type,sha256,created_at)" +
         " SELECT ?,d.id,1,?,?,'application/epub+zip',?,?" +
         " FROM digital_assets d WHERE d.edition_id=? AND d.kind='epub' AND " +
@@ -155,17 +171,15 @@ export async function repairRegionalEpubAssets(
         row.id,
         row.edition_id,
         row.content_hash,
-      )
-      .run();
-    await env.DB.prepare(
+      ),
+        env.DB.prepare(
       "UPDATE asset_versions SET object_key=?,sha256=?" +
         " WHERE asset_id=(SELECT id FROM digital_assets WHERE edition_id=? AND kind='epub')" +
         " AND version_number=1 AND COALESCE(object_key,'')='' AND " +
         eligible,
     )
-      .bind(key, row.content_hash, row.edition_id, row.id, row.edition_id, row.content_hash)
-      .run();
-    await env.DB.prepare(
+      .bind(key, row.content_hash, row.edition_id, row.id, row.edition_id, row.content_hash),
+        env.DB.prepare(
       "UPDATE digital_assets AS d SET current_version_id=(" +
         " SELECT v.id FROM asset_versions v WHERE v.asset_id=d.id" +
         " AND v.version_number=1 AND v.object_key=? AND v.sha256=?)" +
@@ -176,14 +190,38 @@ export async function repairRegionalEpubAssets(
         eligible,
     )
       .bind(key, row.content_hash, row.edition_id, row.id, row.edition_id, row.content_hash)
-      .run();
-    const verified = await env.DB.prepare(
-      "SELECT 1 ok FROM digital_assets d JOIN asset_versions v ON v.id=d.current_version_id" +
-        " WHERE d.edition_id=? AND d.kind='epub' AND v.object_key=? AND v.sha256=? LIMIT 1",
+      ]);
+    } catch (error) {
+      console.warn("regional_epub_repair_batch_retry", row.id, String(error).slice(0, 140));
+      conflicts++;
+      continue;
+    }
+    // Only mark the receipt complete when the *actual* current version and
+    // source SHA match AND the canonical live-rights predicate still holds.
+    // If this final ACK fails or is interrupted, a subsequent tick replays
+    // the same idempotent batch and then retries the receipt ACK.
+    const completed = await env.DB.prepare(
+      "UPDATE regional_epub_repair_receipts SET status='completed',completed_at=?" +
+        " WHERE source_id=? AND content_hash=? AND status='pending'" +
+        " AND EXISTS(SELECT 1 FROM digital_assets d" +
+        " JOIN asset_versions v ON v.id=d.current_version_id" +
+        " WHERE d.edition_id=? AND d.kind='epub' AND v.object_key=? AND v.sha256=?)" +
+        " AND " + eligible +
+        " RETURNING source_id",
     )
-      .bind(row.edition_id, key, row.content_hash)
+      .bind(
+        now,
+        row.id,
+        row.content_hash,
+        row.edition_id,
+        key,
+        row.content_hash,
+        row.id,
+        row.edition_id,
+        row.content_hash,
+      )
       .first();
-    if (verified) repaired++;
+    if (completed) repaired++;
     else conflicts++;
   }
   return {
