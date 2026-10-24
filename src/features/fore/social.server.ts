@@ -2020,7 +2020,7 @@ export async function handleSocial(
     const rows = (
       await db
         .prepare(
-          `SELECT * FROM social_posts WHERE context_type=? AND context_id=? AND ${parentId ? "parent_id=?" : "parent_id IS NULL"} AND deleted_at IS NULL ${postId ? "AND id=?" : ""}
+          `SELECT * FROM social_posts WHERE context_type=? AND context_id=? AND ${parentId ? "parent_id=?" : postId && limitedBookThread ? "1=1" : "parent_id IS NULL"} AND deleted_at IS NULL ${postId ? "AND id=?" : ""}
        ${cursor ? (topSorted ? "AND (reaction_count<? OR (reaction_count=? AND id<?))" : "AND (created_at<? OR (created_at=? AND id<?))") : ""}
        ORDER BY ${topSorted ? 'reaction_count DESC,id DESC' : 'created_at DESC,id DESC'} LIMIT ${threadLimit + 1}`,
         )
