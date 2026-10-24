@@ -78,7 +78,9 @@ export async function privateMusicCandidates(
           " AND m.storage_key IS NOT NULL AND m.quality_key IS NOT NULL" +
           (requireQuiet
             ? " AND EXISTS(SELECT 1 FROM music_analysis_jobs j WHERE j.master_id=m.id" +
-              " AND j.policy='" + QUIET_READING_POLICY + "' AND j.status='approved'" +
+              " AND j.policy='" +
+              QUIET_READING_POLICY +
+              "' AND j.status='approved'" +
               " AND j.master_sha256=m.sha256)"
             : "") +
           " AND EXISTS(SELECT 1 FROM json_each(m.manifest_json,'$.territory')" +
@@ -134,9 +136,11 @@ export async function privateMusicCandidates(
           " AND m.storage_key=? AND m.quality_key=? AND c.status='active' AND c.expires_at>?" +
           (requireQuiet
             ? " AND EXISTS(SELECT 1 FROM music_analysis_jobs j WHERE j.master_id=m.id" +
-              " AND j.policy='" + QUIET_READING_POLICY + "' AND j.status='approved'" +
+              " AND j.policy='" +
+              QUIET_READING_POLICY +
+              "' AND j.status='approved'" +
               " AND j.master_sha256=m.sha256)"
-            : "") ,
+            : ""),
       )
       .bind(r.id, r.sha256, r.storage_key, r.quality_key, new Date().toISOString())
       .first();

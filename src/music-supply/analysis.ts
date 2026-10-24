@@ -110,7 +110,9 @@ export async function handleMusicAnalysis(
   if (url.pathname === "/v1/analysis/status" && request.method === "GET") {
     if (!operator) return reply({ error: "unauthorized" }, 401);
     const rows = await db
-      .prepare("SELECT status,COUNT(*) count FROM music_analysis_jobs WHERE policy=? GROUP BY status")
+      .prepare(
+        "SELECT status,COUNT(*) count FROM music_analysis_jobs WHERE policy=? GROUP BY status",
+      )
       .bind(QUIET_READING_POLICY)
       .all<{ status: string; count: number }>();
     return reply({ policy: QUIET_READING_POLICY, status: rows.results, customerPublished: false });
@@ -154,7 +156,8 @@ export async function handleMusicAnalysis(
   const audio = /^\/v1\/analysis\/masters\/([a-zA-Z0-9._:-]{3,120})\/audio$/.exec(url.pathname);
   if (audio && request.method === "GET") {
     const lease = request.headers.get("x-cove-music-analysis-lease") || "";
-    if (!/^[a-f0-9-]{36}$/.test(lease)) return reply({ error: "music_analysis_lease_required" }, 401);
+    if (!/^[a-f0-9-]{36}$/.test(lease))
+      return reply({ error: "music_analysis_lease_required" }, 401);
     const row = await eligibleJob(db, audio[1], lease);
     if (!row || !row.storage_key) return reply({ error: "music_analysis_lease_expired" }, 409);
     await verifiedObject(bucket, row.storage_key, row.bytes, row.master_sha256);
@@ -170,9 +173,7 @@ export async function handleMusicAnalysis(
       },
     });
   }
-  const complete = /^\/v1\/analysis\/jobs\/([a-zA-Z0-9._:-]{3,120})\/complete$/.exec(
-    url.pathname,
-  );
+  const complete = /^\/v1\/analysis\/jobs\/([a-zA-Z0-9._:-]{3,120})\/complete$/.exec(url.pathname);
   if (complete && request.method === "POST") {
     const payload = (await readBodyLimited(request, 350_000)) as Record<string, unknown>;
     const lease = payload.leaseToken;
@@ -218,7 +219,13 @@ export async function handleMusicAnalysis(
     const serialized = JSON.stringify({ report, assessment });
     const reportSha = await digest(serialized);
     const reportKey =
-      "music-supply/analysis/" + job.master_sha256 + "/" + QUIET_READING_POLICY + "/" + reportSha + ".json";
+      "music-supply/analysis/" +
+      job.master_sha256 +
+      "/" +
+      QUIET_READING_POLICY +
+      "/" +
+      reportSha +
+      ".json";
     await bucket.put(reportKey, serialized, {
       sha256: reportSha,
       httpMetadata: { contentType: "application/json" },
@@ -227,43 +234,65 @@ export async function handleMusicAnalysis(
     const at = timestamp();
     const eventId = "music-qualified-" + (await digest(job.master_id + ":" + QUIET_READING_POLICY));
     await db.batch([
-      db.prepare(
-        "UPDATE music_analysis_jobs SET status=?,report_key=?,report_sha256=?,tier=?," +
-          " reasons_json=?,lease_until='',updated_at=? WHERE master_id=? AND policy=?" +
-          " AND status='running' AND lease_token=? AND lease_until>?" +
-          " AND master_sha256=? AND EXISTS(" +
-          " SELECT 1 FROM music_masters m JOIN music_contracts c ON c.id=m.contract_id" +
-          " WHERE m.id=music_analysis_jobs.master_id AND m.sha256=music_analysis_jobs.master_sha256" +
-          " AND m.status='quality_passed' AND c.status='active' AND c.expires_at>?)",
-      ).bind(
-        status,
-        reportKey,
-        reportSha,
-        assessment.tier,
-        JSON.stringify(assessment.reasons),
-        at,
-        job.master_id,
-        QUIET_READING_POLICY,
-        lease,
-        at,
-        job.master_sha256,
-        at,
-      ),
-      db.prepare(
-        "INSERT OR IGNORE INTO music_publication_outbox(id,contract_id,master_id,action,payload_json,created_at)" +
-          " SELECT ?,m.contract_id,m.id,'master_qualified',m.manifest_json,?" +
-          " FROM music_masters m JOIN music_contracts c ON c.id=m.contract_id" +
-          " JOIN music_analysis_jobs j ON j.master_id=m.id" +
-          " WHERE m.id=? AND m.sha256=? AND m.status='quality_passed'" +
-          " AND c.status='active' AND c.expires_at>?" +
-          " AND j.policy=? AND j.status='approved' AND j.lease_token=?" +
-          " AND j.report_sha256=? AND j.updated_at=?",
-      ).bind(eventId, at, job.master_id, job.master_sha256, at, QUIET_READING_POLICY, lease, reportSha, at),
+      db
+        .prepare(
+          "UPDATE music_analysis_jobs SET status=?,report_key=?,report_sha256=?,tier=?," +
+            " reasons_json=?,lease_until='',updated_at=? WHERE master_id=? AND policy=?" +
+            " AND status='running' AND lease_token=? AND lease_until>?" +
+            " AND master_sha256=? AND EXISTS(" +
+            " SELECT 1 FROM music_masters m JOIN music_contracts c ON c.id=m.contract_id" +
+            " WHERE m.id=music_analysis_jobs.master_id AND m.sha256=music_analysis_jobs.master_sha256" +
+            " AND m.status='quality_passed' AND c.status='active' AND c.expires_at>?)",
+        )
+        .bind(
+          status,
+          reportKey,
+          reportSha,
+          assessment.tier,
+          JSON.stringify(assessment.reasons),
+          at,
+          job.master_id,
+          QUIET_READING_POLICY,
+          lease,
+          at,
+          job.master_sha256,
+          at,
+        ),
+      db
+        .prepare(
+          "INSERT OR IGNORE INTO music_publication_outbox(id,contract_id,master_id,action,payload_json,created_at)" +
+            " SELECT ?,m.contract_id,m.id,'master_qualified',m.manifest_json,?" +
+            " FROM music_masters m JOIN music_contracts c ON c.id=m.contract_id" +
+            " JOIN music_analysis_jobs j ON j.master_id=m.id" +
+            " WHERE m.id=? AND m.sha256=? AND m.status='quality_passed'" +
+            " AND c.status='active' AND c.expires_at>?" +
+            " AND j.policy=? AND j.status='approved' AND j.lease_token=?" +
+            " AND j.report_sha256=? AND j.updated_at=?",
+        )
+        .bind(
+          eventId,
+          at,
+          job.master_id,
+          job.master_sha256,
+          at,
+          QUIET_READING_POLICY,
+          lease,
+          reportSha,
+          at,
+        ),
     ]);
     const stored = await storedJob(db, job.master_id);
     if (!stored || stored.report_sha256 !== reportSha || stored.lease_token !== lease)
       return reply({ error: "music_analysis_fenced_completion" }, 409);
-    return reply({ masterId: job.master_id, status: stored.status, tier: assessment.tier, customerPublished: false }, 202);
+    return reply(
+      {
+        masterId: job.master_id,
+        status: stored.status,
+        tier: assessment.tier,
+        customerPublished: false,
+      },
+      202,
+    );
   }
   const failed = /^\/v1\/analysis\/jobs\/([a-zA-Z0-9._:-]{3,120})\/fail$/.exec(url.pathname);
   if (failed && request.method === "POST") {
@@ -274,11 +303,12 @@ export async function handleMusicAnalysis(
     if (!row) return reply({ error: "music_analysis_stale_lease_or_rights" }, 409);
     const retrySeconds = Math.min(3600, Math.pow(2, row.attempts) * 30);
     const available = new Date(Date.now() + retrySeconds * 1000).toISOString();
-    await db.prepare(
-      "UPDATE music_analysis_jobs SET status=?,available_at=?,lease_token='',lease_until=''," +
-        " last_error=?,updated_at=? WHERE master_id=? AND policy=? AND status='running'" +
-        " AND lease_token=? AND lease_until>?",
-    )
+    await db
+      .prepare(
+        "UPDATE music_analysis_jobs SET status=?,available_at=?,lease_token='',lease_until=''," +
+          " last_error=?,updated_at=? WHERE master_id=? AND policy=? AND status='running'" +
+          " AND lease_token=? AND lease_until>?",
+      )
       .bind(
         row.attempts >= 5 ? "failed" : "queued",
         available,

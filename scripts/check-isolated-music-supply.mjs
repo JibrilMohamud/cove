@@ -264,15 +264,20 @@ try {
   };
   assert.equal((await invoke("/v1/masters", "POST", "ingest", master2)).status, 201);
   assert.equal(
-    (await worker.fetch(new Request("https://music.qa.test/v1/masters/fixture-master-quiet/audio", {
-      method: "PUT",
-      headers: {
-        authorization: "Bearer " + keys.ingest,
-        "content-type": "audio/ogg",
-        "content-length": String(audio2.length),
-      },
-      body: audio2,
-    }), env)).status,
+    (
+      await worker.fetch(
+        new Request("https://music.qa.test/v1/masters/fixture-master-quiet/audio", {
+          method: "PUT",
+          headers: {
+            authorization: "Bearer " + keys.ingest,
+            "content-type": "audio/ogg",
+            "content-length": String(audio2.length),
+          },
+          body: audio2,
+        }),
+        env,
+      )
+    ).status,
     200,
   );
   const quality2 = await invoke("/v1/masters/fixture-master-quiet/quality", "POST", "qa", {
@@ -293,12 +298,18 @@ try {
     (await invoke("/v1/analysis/claim", "POST", "analyst")).result.skipped,
     "no_eligible_jobs",
   );
-  const privateAudio = (lease) => worker.fetch(new Request(
-    "https://music.qa.test/v1/analysis/masters/fixture-master-quiet/audio",
-    { headers: { authorization: "Bearer " + keys.analyst, "x-cove-music-analysis-lease": lease } },
-  ), env);
+  const privateAudio = (lease) =>
+    worker.fetch(
+      new Request("https://music.qa.test/v1/analysis/masters/fixture-master-quiet/audio", {
+        headers: { authorization: "Bearer " + keys.analyst, "x-cove-music-analysis-lease": lease },
+      }),
+      env,
+    );
   assert.equal((await privateAudio(crypto.randomUUID())).status, 409);
-  assert.equal(sha(Buffer.from(await (await privateAudio(claim.result.leaseToken)).arrayBuffer())), sha2);
+  assert.equal(
+    sha(Buffer.from(await (await privateAudio(claim.result.leaseToken)).arrayBuffer())),
+    sha2,
+  );
   const report2 = {
     policy: "cove-music-v1",
     sourceSha1: createHash("sha1").update(audio2).digest("hex"),
@@ -310,16 +321,30 @@ try {
     measuredAt: new Date().toISOString(),
     loudness: { integratedLufs: -22, truePeakDbfs: -2, loudnessRangeLu: 3, rmsDynamicRangeDb: 3 },
     signal: {
-      spectralCentroidHz: 1000, spectralRolloffHz: 2200, spectralFlatness: 0.04,
-      zeroCrossingRate: 0.03, onsetsPerSecond: 0.2, tempoBpm: 64, tempoConfidence: 0.5,
-      tonalEntropy: 0.1, abruptTransitionRate: 0.01, rhythmicActivity: 0.1, energy: 0.1,
+      spectralCentroidHz: 1000,
+      spectralRolloffHz: 2200,
+      spectralFlatness: 0.04,
+      zeroCrossingRate: 0.03,
+      onsetsPerSecond: 0.2,
+      tempoBpm: 64,
+      tempoConfidence: 0.5,
+      tonalEntropy: 0.1,
+      abruptTransitionRate: 0.01,
+      rhythmicActivity: 0.1,
+      energy: 0.1,
     },
     structure: {
       binSeconds: 60,
       timeline: [0, 60, 120].map((start) => ({
-        start, end: start + 60, rmsDbfs: -30, centroidHz: 1000, onsets: 3,
+        start,
+        end: start + 60,
+        rmsDbfs: -30,
+        centroidHz: 1000,
+        onsets: 3,
       })),
-      quietSections: [], climaxes: [], transitionPoints: [],
+      quietSections: [],
+      climaxes: [],
+      transitionPoints: [],
     },
     semantics: {
       model: "laion/clap-htsat-unfused",
@@ -327,31 +352,54 @@ try {
       method: "zero_shot_audio_text_similarity",
       scoreMeaning: "uncalibrated_cosine_similarity",
       sampledSeconds: 24,
-      windows: [{ start: 0, end: 8 }, { start: 80, end: 88 }, { start: 170, end: 178 }],
-      moods: [], nuance: [],
+      windows: [
+        { start: 0, end: 8 },
+        { start: 80, end: 88 },
+        { start: 170, end: 178 },
+      ],
+      moods: [],
+      nuance: [],
       dimensions: {
-        valence: 0.4, arousal: 0.1, acousticness: 0.8, vocalPresence: 0.05,
-        ensembleSize: "solo", scale: "intimate", texture: [], instruments: ["piano"],
+        valence: 0.4,
+        arousal: 0.1,
+        acousticness: 0.8,
+        vocalPresence: 0.05,
+        ensembleSize: "solo",
+        scale: "intimate",
+        texture: [],
+        instruments: ["piano"],
       },
       confidence: 0.5,
     },
     limitations: ["Synthetic report, not evidence of musical accuracy"],
   };
   assert.equal(
-    (await invoke("/v1/analysis/jobs/fixture-master-quiet/complete", "POST", "qa", {
-      leaseToken: claim.result.leaseToken, report: report2,
-    })).status,
+    (
+      await invoke("/v1/analysis/jobs/fixture-master-quiet/complete", "POST", "qa", {
+        leaseToken: claim.result.leaseToken,
+        report: report2,
+      })
+    ).status,
     401,
   );
   assert.equal(
-    (await invoke("/v1/analysis/jobs/fixture-master-quiet/complete", "POST", "analyst", {
-      leaseToken: crypto.randomUUID(), report: report2,
-    })).status,
+    (
+      await invoke("/v1/analysis/jobs/fixture-master-quiet/complete", "POST", "analyst", {
+        leaseToken: crypto.randomUUID(),
+        report: report2,
+      })
+    ).status,
     409,
   );
-  const finished = await invoke("/v1/analysis/jobs/fixture-master-quiet/complete", "POST", "analyst", {
-    leaseToken: claim.result.leaseToken, report: report2,
-  });
+  const finished = await invoke(
+    "/v1/analysis/jobs/fixture-master-quiet/complete",
+    "POST",
+    "analyst",
+    {
+      leaseToken: claim.result.leaseToken,
+      report: report2,
+    },
+  );
   assert.equal(finished.status, 202, JSON.stringify(finished.result));
   assert.equal(finished.result.status, "approved");
   const approved = await invoke("/v1/operator/outbox?after=" + cursor, "GET", "operator");
@@ -360,14 +408,20 @@ try {
   assert.equal(approved.result.items[0].publishable, 1);
   const analysisCursor = approved.result.nextCursor;
   assert.equal(
-    (await invoke("/v1/analysis/jobs/fixture-master-quiet/complete", "POST", "analyst", {
-      leaseToken: claim.result.leaseToken, report: report2,
-    })).status,
+    (
+      await invoke("/v1/analysis/jobs/fixture-master-quiet/complete", "POST", "analyst", {
+        leaseToken: claim.result.leaseToken,
+        report: report2,
+      })
+    ).status,
     409,
     "Completion replay must not create a second outbox grant",
   );
   const catalog2 = await invoke("/v1/operator/preview-catalog?territory=US", "GET", "operator");
-  assert.deepEqual(catalog2.result.items.map((x) => x.id), [master2.id]);
+  assert.deepEqual(
+    catalog2.result.items.map((x) => x.id),
+    [master2.id],
+  );
   assert.equal(
     (
       await invoke("/v1/masters/fixture-master-1/revoke", "POST", "reviewer", {

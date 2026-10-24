@@ -162,8 +162,12 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
     (env.MUSIC_ANALYSIS_ENABLED === "1" &&
       (!env.MUSIC_ANALYSIS_TOKEN_SHA256 ||
         !shaPattern.test(env.MUSIC_ANALYSIS_TOKEN_SHA256) ||
-        [env.MUSIC_OPERATOR_TOKEN_SHA256, env.MUSIC_INGEST_TOKEN_SHA256,
-         env.MUSIC_QA_TOKEN_SHA256, env.MUSIC_LICENSE_REVIEWER_TOKEN_SHA256].includes(env.MUSIC_ANALYSIS_TOKEN_SHA256)))
+        [
+          env.MUSIC_OPERATOR_TOKEN_SHA256,
+          env.MUSIC_INGEST_TOKEN_SHA256,
+          env.MUSIC_QA_TOKEN_SHA256,
+          env.MUSIC_LICENSE_REVIEWER_TOKEN_SHA256,
+        ].includes(env.MUSIC_ANALYSIS_TOKEN_SHA256)))
   )
     return response({ error: "music_role_separation_required" }, 503);
 
@@ -406,12 +410,15 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
             ).bind(eventId, at, r.id, at),
           ]),
     ]);
-    return response({
-      id: r.id,
-      status: "quality_passed",
-      analysisQueued: env.MUSIC_ANALYSIS_ENABLED === "1",
-      canonicalPublished: false,
-    }, 202);
+    return response(
+      {
+        id: r.id,
+        status: "quality_passed",
+        analysisQueued: env.MUSIC_ANALYSIS_ENABLED === "1",
+        canonicalPublished: false,
+      },
+      202,
+    );
   }
 
   // Explicit per-master withdrawal precedes any R2 cleanup. The future
@@ -500,7 +507,9 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
           " AND EXISTS(SELECT 1 FROM music_masters m WHERE m.id=o.master_id AND m.status='quality_passed')" +
           (env.MUSIC_ANALYSIS_ENABLED === "1"
             ? " AND EXISTS(SELECT 1 FROM music_analysis_jobs j JOIN music_masters m ON m.id=j.master_id" +
-              " WHERE j.master_id=o.master_id AND j.policy='" + QUIET_READING_POLICY + "'" +
+              " WHERE j.master_id=o.master_id AND j.policy='" +
+              QUIET_READING_POLICY +
+              "'" +
               " AND j.master_sha256=m.sha256 AND j.status='approved')"
             : "") +
           " THEN 1 ELSE 0 END publishable" +
