@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { BookOpen, CheckCircle2, Languages, Loader2 } from "lucide-react";
 import { api } from "./client";
-import { DiscussionThread } from "./Community";
+import { BookDiscussionDeferred } from "./BookDiscussionDeferred";
 
 type WorkDetail = {
   work: {
@@ -225,7 +225,7 @@ export function WorkPage({ id }: { id: string }) {
           </div>
         </section>
       )}
-      <DiscussionThread contextType="work" contextId={work.id} title="Discussion & questions" />
+      <BookDiscussionDeferred workId={work.id} />
     </main>
   );
 }
