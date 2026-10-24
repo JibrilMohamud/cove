@@ -216,7 +216,7 @@ def commons_category_candidates(categories=2, max_verifications=16, opener=OPENE
         }
         cursor=continuations.get(category,"")
         if cursor:
-            if not isinstance(cursor,str) or len(cursor)>2048 or any(x in cursor for x in "\\r\\n"):
+            if not isinstance(cursor,str) or len(cursor)>2048 or any(ord(x) in (10,13) for x in cursor):
                 raise ValueError("Malformed persisted Commons continuation")
             fields["gcmcontinue"]=cursor
         args=urllib.parse.urlencode(fields)
