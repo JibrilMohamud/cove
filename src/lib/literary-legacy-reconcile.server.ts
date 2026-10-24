@@ -62,7 +62,8 @@ export async function reconcileOneLegacyLiteraryJob(
       " lp.fingerprint current_fingerprint,lp.status profile_status" +
       " FROM (SELECT id,product_id,fingerprint FROM literary_profile_jobs" +
       " INDEXED BY idx_literary_legacy_reconcile" +
-      " WHERE id>? AND status IN ('queued','failed') ORDER BY id LIMIT 1) j" +
+      " WHERE id>? AND status IN ('queued','failed','running')" +
+      " ORDER BY id LIMIT 1) j" +
       " LEFT JOIN literary_profiles lp ON lp.product_id=j.product_id" +
       " LEFT JOIN products p ON p.id=j.product_id",
   )
