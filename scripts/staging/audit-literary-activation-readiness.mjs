@@ -47,26 +47,72 @@ const [
   newIndexes,
   jobs,
 ] = await Promise.all([
-  query(primary, "SELECT key,value FROM cove_runtime_config WHERE key IN ('literary_processing_owner','literary_budget_domain')"),
-  query(primary, "SELECT day,reserved_units,calls FROM literary_profile_budget WHERE day='" + day + "'"),
+  query(
+    primary,
+    "SELECT key,value FROM cove_runtime_config WHERE key IN ('literary_processing_owner','literary_budget_domain')",
+  ),
+  query(
+    primary,
+    "SELECT day,reserved_units,calls FROM literary_profile_budget WHERE day='" + day + "'",
+  ),
   query(primary, "SELECT lease_until,last_run_at FROM literary_profile_state WHERE id=1"),
-  query(primary, "SELECT status,COUNT(*) AS n FROM literary_profile_jobs WHERE status IN ('queued','failed','running') GROUP BY status"),
+  query(
+    primary,
+    "SELECT status,COUNT(*) AS n FROM literary_profile_jobs WHERE status IN ('queued','failed','running') GROUP BY status",
+  ),
   query(isolated, "SELECT status,after_job_id FROM literary_legacy_reconcile_frontier WHERE id=1"),
   query(isolated, "SELECT domain,schema_version FROM literary_budget_domain_identity WHERE id=1"),
-  query(isolated, "SELECT day,reserved_units,calls FROM literary_profile_budget WHERE day='" + day + "'"),
-  query(isolated, "SELECT day,status,original_reserved_units,original_calls FROM literary_budget_cutover WHERE day='" + day + "'"),
+  query(
+    isolated,
+    "SELECT day,reserved_units,calls FROM literary_profile_budget WHERE day='" + day + "'",
+  ),
+  query(
+    isolated,
+    "SELECT day,status,original_reserved_units,original_calls FROM literary_budget_cutover WHERE day='" +
+      day +
+      "'",
+  ),
   query(isolated, "PRAGMA table_info(literary_inference_jobs)"),
-  query(isolated, "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_literary_inference_publication_due','idx_literary_inference_publication_expired')"),
+  query(
+    isolated,
+    "SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_literary_inference_publication_due','idx_literary_inference_publication_expired')",
+  ),
   query(isolated, "SELECT status,COUNT(*) AS n FROM literary_inference_jobs GROUP BY status"),
 ]);
 const config = Object.fromEntries(owner.map((x) => [x.key, x.value]));
 const blockers = [];
 const workerEvidence = [];
 const roles = [
-  ["cove-literary-handoff-isolated-disabled", "literary-handoff", ["FORE_CONTENT_PROCESSOR_ENABLED","FORE_CONTENT_PREPARE_ENABLED","FORE_CONTENT_HANDOFF_ENABLED","FORE_LITERARY_DRAIN_RECONCILE_ENABLED"]],
-  ["cove-literary-prepare-isolated-disabled", "literary-prepare", ["FORE_CONTENT_PROCESSOR_ENABLED","FORE_CONTENT_PREPARE_ENABLED"]],
-  ["cove-literary-infer-isolated-disabled", "literary-infer", ["FORE_CONTENT_PROCESSOR_ENABLED","FORE_CONTENT_PREPARE_ENABLED","FORE_CONTENT_INFERENCE_ENABLED","FORE_LITERARY_AUTOPUBLISH_ENABLED"]],
-  ["cove-literary-publisher-isolated-disabled", "publisher", ["FORE_LITERARY_INFERENCE_PUBLISH_ENABLED"]],
+  [
+    "cove-literary-handoff-isolated-disabled",
+    "literary-handoff",
+    [
+      "FORE_CONTENT_PROCESSOR_ENABLED",
+      "FORE_CONTENT_PREPARE_ENABLED",
+      "FORE_CONTENT_HANDOFF_ENABLED",
+      "FORE_LITERARY_DRAIN_RECONCILE_ENABLED",
+    ],
+  ],
+  [
+    "cove-literary-prepare-isolated-disabled",
+    "literary-prepare",
+    ["FORE_CONTENT_PROCESSOR_ENABLED", "FORE_CONTENT_PREPARE_ENABLED"],
+  ],
+  [
+    "cove-literary-infer-isolated-disabled",
+    "literary-infer",
+    [
+      "FORE_CONTENT_PROCESSOR_ENABLED",
+      "FORE_CONTENT_PREPARE_ENABLED",
+      "FORE_CONTENT_INFERENCE_ENABLED",
+      "FORE_LITERARY_AUTOPUBLISH_ENABLED",
+    ],
+  ],
+  [
+    "cove-literary-publisher-isolated-disabled",
+    "publisher",
+    ["FORE_LITERARY_INFERENCE_PUBLISH_ENABLED"],
+  ],
 ];
 for (const [name, role, flags] of roles) {
   const root = "/workers/scripts/" + name;
@@ -122,7 +168,10 @@ const expectedColumns = [
   "publication_last_error",
   "published_at",
 ];
-if (expectedColumns.some((x) => !newColumns.some((row) => row.name === x)) || newIndexes.length !== 2)
+if (
+  expectedColumns.some((x) => !newColumns.some((row) => row.name === x)) ||
+  newIndexes.length !== 2
+)
   blockers.push("publication_retry_migration_not_verified");
 if (identity.length !== 1 || identity[0].domain !== "cove-isolated-literary-budget")
   blockers.push("isolated_budget_identity_invalid");
@@ -160,7 +209,11 @@ const evidence = {
   mutationPerformed: false,
   primaryOwner: config.literary_processing_owner || "legacy",
   budgetOwner: config.literary_budget_domain || "primary",
-  legacyBudget: { day, reservedUnits: Number(original.reserved_units), calls: Number(original.calls) },
+  legacyBudget: {
+    day,
+    reservedUnits: Number(original.reserved_units),
+    calls: Number(original.calls),
+  },
   isolatedBudget: imported,
   budgetCarryoverVerified: carryoverMatches,
   isolatedCutoverStatus: isolatedCutover[0]?.status || "missing",
@@ -173,10 +226,16 @@ const evidence = {
   blockers,
 };
 mkdirSync("artifacts/literary-cutover", { recursive: true });
-writeFileSync("artifacts/literary-cutover/activation-readonly.json", JSON.stringify(evidence, null, 2) + "\n");
-console.log("LITERARY_ACTIVATION_READONLY", JSON.stringify({
-  budget: evidence.legacyBudget,
-  carryover: carryoverMatches,
-  blockers,
-  readonly: true,
-}));
+writeFileSync(
+  "artifacts/literary-cutover/activation-readonly.json",
+  JSON.stringify(evidence, null, 2) + "\n",
+);
+console.log(
+  "LITERARY_ACTIVATION_READONLY",
+  JSON.stringify({
+    budget: evidence.legacyBudget,
+    carryover: carryoverMatches,
+    blockers,
+    readonly: true,
+  }),
+);
