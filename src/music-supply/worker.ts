@@ -1,3 +1,4 @@
+import { privateMusicCandidates } from "./catalog-projection";
 import {
   validateMusicContract,
   validateMusicMaster,
@@ -430,6 +431,20 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
       status: "revoked",
       requiresCanonicalRevocation: true,
     });
+  }
+
+  if (path === "/v1/operator/preview-catalog" && method === "GET") {
+    if (!admin) return response({ error: "unauthorized" }, 401);
+    const params = new URL(request.url).searchParams;
+    return response(
+      await privateMusicCandidates(
+        env.MUSIC_DB,
+        env.MUSIC_BUCKET,
+        params.get("territory") || "US",
+        params.get("after") || "",
+        Number(params.get("limit") || 8),
+      ),
+    );
   }
 
   if (path === "/v1/operator/outbox" && method === "GET") {
