@@ -19,7 +19,7 @@ jobs:
         with: { node-version: "22", cache: npm }
       - run: npm ci --no-audit --no-fund
       - name: Format only isolated literary lane sources
-        run: npx prettier --write src/lib/literary-isolated-inference.server.ts src/content-processing.worker.ts src/lib/literary-budget-domain.server.ts src/lib/literary-preparation-domain.server.ts src/lib/literary-prepare-outbox.server.ts scripts/check-literary-isolated-inference.mjs
+        run: npx prettier --write src/lib/literary-isolated-inference.server.ts src/content-processing.worker.ts src/lib/literary-budget-domain.server.ts src/lib/literary-preparation-domain.server.ts src/lib/literary-prepare-outbox.server.ts scripts/check-literary-isolated-inference.mjs src/literary-inference-publisher.worker.ts scripts/check-literary-publisher-gateway.mjs
       - name: Commit formatting to candidate branch
         run: |
           if ! git diff --quiet -- src scripts; then
