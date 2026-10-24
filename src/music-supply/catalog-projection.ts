@@ -1,4 +1,5 @@
 import type { MusicMasterManifest } from "./policy";
+import { QUIET_READING_POLICY } from "../features/fore/quiet-reading-score";
 
 /**
  * Private, non-customer catalog projection. Never creates entitlements,
@@ -55,6 +56,7 @@ export async function privateMusicCandidates(
   territory: string,
   after = "",
   limit = 8,
+  requireQuiet = false,
 ) {
   if (
     !/^[A-Z]{2}$/.test(territory) ||
@@ -74,6 +76,11 @@ export async function privateMusicCandidates(
           " WHERE m.id>? AND m.status='quality_passed'" +
           " AND c.status='active' AND c.expires_at>?" +
           " AND m.storage_key IS NOT NULL AND m.quality_key IS NOT NULL" +
+          (requireQuiet
+            ? " AND EXISTS(SELECT 1 FROM music_analysis_jobs j WHERE j.master_id=m.id" +
+              " AND j.policy='" + QUIET_READING_POLICY + "' AND j.status='approved'" +
+              " AND j.master_sha256=m.sha256)"
+            : "") +
           " AND EXISTS(SELECT 1 FROM json_each(m.manifest_json,'$.territory')" +
           " WHERE value=?) ORDER BY m.id LIMIT ?",
       )
@@ -124,7 +131,12 @@ export async function privateMusicCandidates(
       .prepare(
         "SELECT 1 valid FROM music_masters m JOIN music_contracts c ON c.id=m.contract_id" +
           " WHERE m.id=? AND m.status='quality_passed' AND m.sha256=?" +
-          " AND m.storage_key=? AND m.quality_key=? AND c.status='active' AND c.expires_at>?",
+          " AND m.storage_key=? AND m.quality_key=? AND c.status='active' AND c.expires_at>?" +
+          (requireQuiet
+            ? " AND EXISTS(SELECT 1 FROM music_analysis_jobs j WHERE j.master_id=m.id" +
+              " AND j.policy='" + QUIET_READING_POLICY + "' AND j.status='approved'" +
+              " AND j.master_sha256=m.sha256)"
+            : "") ,
       )
       .bind(r.id, r.sha256, r.storage_key, r.quality_key, new Date().toISOString())
       .first();
@@ -139,7 +151,7 @@ export async function privateMusicCandidates(
       composer: manifest.composer,
       performer: manifest.performer,
       durationEligibility: "qa_passed_only",
-      quietSuitability: "unverified",
+      quietSuitability: requireQuiet ? "verified_private_qualification" : "unverified",
       expiresAt: r.expires_at,
     });
   }
