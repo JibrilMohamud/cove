@@ -16,10 +16,44 @@ try {
   });
   const {
     runContentProcessingTick,
+    runBoundedLiteraryHandoffTick,
+    LITERARY_HANDOFF_RECONCILE_CAP,
+    LITERARY_HANDOFF_DISPATCH_CAP,
     contentAssetAttemptCap,
     CONTENT_LITERARY_TICK_CAPS,
     default: worker,
   } = await import(path.join(root, "content.mjs"));
+  assert.equal(LITERARY_HANDOFF_RECONCILE_CAP, 8);
+  assert.equal(LITERARY_HANDOFF_DISPATCH_CAP, 8);
+  let reconciles = 0;
+  let dispatches = 0;
+  const reconcile = async () => ({ reconciled: "qa-" + ++reconciles });
+  const dispatch = async () => ({ delivered: "qa-" + ++dispatches });
+  const bounded = await runBoundedLiteraryHandoffTick(
+    { FORE_LITERARY_DRAIN_RECONCILE_ENABLED: "1" },
+    reconcile,
+    dispatch,
+  );
+  assert.equal(bounded.reconciliation.length, 8);
+  assert.equal(bounded.handoffs.length, 8);
+  assert.equal(reconciles, 8);
+  assert.equal(dispatches, 8);
+  const stopped = await runBoundedLiteraryHandoffTick(
+    { FORE_LITERARY_DRAIN_RECONCILE_ENABLED: "1" },
+    async () => ({ skipped: "legacy_owner_changed" }),
+    async () => ({ skipped: "canonical_owner_not_handoff" }),
+  );
+  assert.equal(stopped.reconciliation.length, 1);
+  assert.equal(stopped.handoffs.length, 1);
+  const noReconcile = await runBoundedLiteraryHandoffTick(
+    { FORE_LITERARY_DRAIN_RECONCILE_ENABLED: "0" },
+    async () => {
+      throw Error("reconciliation must remain opt-in");
+    },
+    async () => ({ skipped: "no_handoffs" }),
+  );
+  assert.equal(noReconcile.reconciliation.length, 0);
+  assert.equal(noReconcile.handoffs.length, 1);
   assert.equal(contentAssetAttemptCap(undefined), 1);
   assert.equal(contentAssetAttemptCap("4"), 4);
   assert.equal(contentAssetAttemptCap("40"), 4, "Dashboard cannot bypass cap");
