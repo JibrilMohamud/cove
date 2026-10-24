@@ -2115,8 +2115,8 @@ export async function handleSocial(
       await db
         .prepare(
           `SELECT * FROM social_posts WHERE context_type=? AND context_id=? AND ${parentId ? "parent_id=?" : postId && limitedBookThread ? "1=1" : "parent_id IS NULL"} AND deleted_at IS NULL AND moderation_status='visible' ${postId ? "AND id=?" : ""}
-       ${cursor ? (topSorted ? "AND (reaction_count<? OR (reaction_count=? AND id<?))" : "AND (created_at<? OR (created_at=? AND id<?))") : ""}
-       ORDER BY ${topSorted ? "reaction_count DESC,id DESC" : "created_at DESC,id DESC"} LIMIT ${threadLimit + 1}`,
+       ${cursor ? (topSorted ? "AND (reaction_count<? OR (reaction_count=? AND (created_at<? OR (created_at=? AND id<?))))" : "AND (created_at<? OR (created_at=? AND id<?))") : ""}
+       ORDER BY ${topSorted ? "reaction_count DESC,created_at DESC,id DESC" : "created_at DESC,id DESC"} LIMIT ${threadLimit + 1}`,
         )
         .bind(
           contextType,
@@ -2125,7 +2125,7 @@ export async function handleSocial(
           ...(postId ? [postId] : []),
           ...(cursor
             ? topSorted
-              ? [cursor.score, cursor.score, cursor.id]
+              ? [cursor.score, cursor.score, cursor.at, cursor.at, cursor.id]
               : [cursor.at, cursor.at, cursor.id]
             : []),
         )
