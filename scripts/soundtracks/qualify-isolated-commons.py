@@ -353,10 +353,14 @@ def run(max_records=1, apply=False, profile_dsp=False, token=None, r2=None, limi
                 "decoded_audio_not_exact_source", "full_audio_decode_incomplete",
                 "full_audio_quality_not_eligible", "commons_revision_changed_during_qa",
             }
-            if apply and reason in permanent:
+            durable = apply and reason in permanent
+            if durable:
                 persist_durable_hold(token, row, reason)
-            results.append({"id": row["id"], "status": "held_for_review",
-                            "reason": reason})
+            results.append({"id": row["id"],
+                            "status": ("stored_private_technical_hold" if durable
+                                       else "retryable_source_error"),
+                            "reason": reason,
+                            "rightsApproved": False, "quietApproved": False})
     return {"scope": "detached_music_only", "customerPublished": False,
             "rightsApproved": False, "quietApproved": False, "results": results}
 
@@ -375,7 +379,10 @@ def main():
                       "count": len(report["results"]),
                       "statuses": [r["status"] for r in report["results"]],
                       "customerPublished": False}))
-    if any(x["status"] == "held_for_review" for x in report["results"]):
+    # An exact-source/decoder rejection durably held in detached MUSIC_DB
+    # is a completed safe outcome, not a campaign failure. Retryable upstream
+    # errors MUST remain visible as job failures; none ever publishes audio.
+    if any(x["status"] == "retryable_source_error" for x in report["results"]):
         raise SystemExit(2)
 
 if __name__ == "__main__":
