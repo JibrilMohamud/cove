@@ -440,21 +440,21 @@ export function DiscussionThread({
                   <span>{when(p.createdAt)}</span>
                 </footer>
                 {(!bookThread || depth < 2) && replying === p.id && (
-                    <div className={bookThread ? "cove-thread-children" : undefined}>
-                      <DiscussionThread
-                        contextType={contextType}
-                        contextId={contextId}
-                        parentId={p.id}
-                        progress={progress}
-                        bookThread={bookThread}
-                        depth={depth + 1}
-                        title={ui("Replies")}
-                        onChanged={() => {
-                          void q.refetch();
-                          onChanged?.();
-                        }}
-                      />
-                    </div>
+                  <div className={bookThread ? "cove-thread-children" : undefined}>
+                    <DiscussionThread
+                      contextType={contextType}
+                      contextId={contextId}
+                      parentId={p.id}
+                      progress={progress}
+                      bookThread={bookThread}
+                      depth={depth + 1}
+                      title={ui("Replies")}
+                      onChanged={() => {
+                        void q.refetch();
+                        onChanged?.();
+                      }}
+                    />
+                  </div>
                 )}
               </article>
             ),
