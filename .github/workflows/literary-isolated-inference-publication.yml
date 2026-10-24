@@ -8,6 +8,7 @@ on:
       - "scripts/check-literary-legacy-reconcile.mjs"
       - "src/lib/literary-legacy-reconcile.server.ts"
       - "infra/content-budget/0008_legacy_reconcile_frontier.sql"
+      - "infra/literary-cutover/0001_legacy_reconcile_primary_index.sql"
       - "src/content-processing.worker.ts"
       - "src/lib/literary-budget-domain.server.ts"
       - "src/lib/literary-prepare-outbox.server.ts"
