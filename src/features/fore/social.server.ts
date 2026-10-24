@@ -871,7 +871,9 @@ async function visiblePosts(
   if (viewer && ids.length) {
     const placeholders = ids.map(() => "?").join(",");
     const mine = await db
-      .prepare(`SELECT post_id,reaction FROM social_post_reactions WHERE user_id=? AND post_id IN (${placeholders})`)
+      .prepare(
+        `SELECT post_id,reaction FROM social_post_reactions WHERE user_id=? AND post_id IN (${placeholders})`,
+      )
       .bind(viewer, ...ids)
       .all<{ post_id: string; reaction: string }>();
     for (const row of mine.results) {
@@ -884,11 +886,12 @@ async function visiblePosts(
   if (countHeartsOnly && ids.length) {
     const placeholders = ids.map(() => "?").join(",");
     const counts = await db
-      .prepare(`SELECT post_id,COUNT(*) AS total FROM social_post_reactions WHERE reaction='heart' AND post_id IN (${placeholders}) GROUP BY post_id`)
+      .prepare(
+        `SELECT post_id,COUNT(*) AS total FROM social_post_reactions WHERE reaction='heart' AND post_id IN (${placeholders}) GROUP BY post_id`,
+      )
       .bind(...ids)
       .all<{ post_id: string; total: number }>();
-    for (const row of counts.results)
-      heartCounts.set(row.post_id, Number(row.total) || 0);
+    for (const row of counts.results) heartCounts.set(row.post_id, Number(row.total) || 0);
   }
   const out = [];
   for (const r of rows) {
@@ -947,7 +950,9 @@ async function visiblePosts(
       recipientUserId: r.recipient_user_id,
       spoiler: !!r.spoiler,
       replies: Number(r.reply_count || 0),
-      reactions: countHeartsOnly ? heartCounts.get(String(r.id)) || 0 : Number(r.reaction_count || 0),
+      reactions: countHeartsOnly
+        ? heartCounts.get(String(r.id)) || 0
+        : Number(r.reaction_count || 0),
       myReactions,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
@@ -2047,7 +2052,7 @@ export async function handleSocial(
         .prepare(
           `SELECT * FROM social_posts WHERE context_type=? AND context_id=? AND ${parentId ? "parent_id=?" : postId && limitedBookThread ? "1=1" : "parent_id IS NULL"} AND deleted_at IS NULL AND moderation_status='visible' ${postId ? "AND id=?" : ""}
        ${cursor ? (topSorted ? "AND (reaction_count<? OR (reaction_count=? AND id<?))" : "AND (created_at<? OR (created_at=? AND id<?))") : ""}
-       ORDER BY ${topSorted ? 'reaction_count DESC,id DESC' : 'created_at DESC,id DESC'} LIMIT ${threadLimit + 1}`,
+       ORDER BY ${topSorted ? "reaction_count DESC,id DESC" : "created_at DESC,id DESC"} LIMIT ${threadLimit + 1}`,
         )
         .bind(
           contextType,
@@ -2061,7 +2066,14 @@ export async function handleSocial(
     const posts: (Awaited<ReturnType<typeof visiblePosts>>[number] & {
       replyItems?: Awaited<ReturnType<typeof visiblePosts>>;
       replyNextCursor?: string | null;
-    })[] = await visiblePosts(db, userId, rows.slice(0, threadLimit), viewerProgress, env, limitedBookThread);
+    })[] = await visiblePosts(
+      db,
+      userId,
+      rows.slice(0, threadLimit),
+      viewerProgress,
+      env,
+      limitedBookThread,
+    );
     if (!parentId && url.searchParams.get("includeReplies") !== "false")
       for (const post of posts.filter((post) => !post.locked)) {
         const replies = (
@@ -2075,7 +2087,20 @@ export async function handleSocial(
         post.replyItems = await visiblePosts(db, userId, replies.slice(0, 20), viewerProgress, env);
         post.replyNextCursor = replies.length > 20 ? cursorFor(replies[19]) : null;
       }
-    return json({ posts, nextCursor: rows.length > threadLimit ? (topSorted ? btoa(JSON.stringify({ at: String(rows[threadLimit - 1].reaction_count || 0), id: String(rows[threadLimit - 1].id) })) : cursorFor(rows[threadLimit - 1])) : null });
+    return json({
+      posts,
+      nextCursor:
+        rows.length > threadLimit
+          ? topSorted
+            ? btoa(
+                JSON.stringify({
+                  at: String(rows[threadLimit - 1].reaction_count || 0),
+                  id: String(rows[threadLimit - 1].id),
+                }),
+              )
+            : cursorFor(rows[threadLimit - 1])
+          : null,
+    });
   }
   if (method === "GET" && path.startsWith("/social/lists/")) {
     const id = decodeURIComponent(path.slice("/social/lists/".length)),
