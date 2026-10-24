@@ -17,9 +17,9 @@ does not clear a modern performance or sound recording.
   the exact Commons page, snapshots its permanent revision to private R2,
   prevents duplicate approved SHA-1s, and checks territory rights and
   immediate revocation. The returned status is not a claim of human review.
-- This PR adds a bounded (12 Commons metadata calls per reconsideration run)
+- This PR adds a bounded (24 Commons metadata calls per reconsideration run)
   **exact-source structured credit recovery lane** for previously held
-  recordings. Before replacing ambiguous composer/performer information,
+  recordings. Review is rotated across 64 stable source-id cohorts so a\n  few unresolved early candidates cannot permanently starve the backlog.\n  Before replacing ambiguous composer/performer information,
   it checks the exact original source file SHA-1/size and commercial CC
   license, rejects NC/ND and FMA/Musopen provenance conflicts, requires an
   explicitly labeled composer/performer and prohibits previously unknown
