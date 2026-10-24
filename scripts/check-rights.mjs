@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
+import { transform } from "esbuild";
 
 const root = process.cwd(),
   db = new DatabaseSync(":memory:");
@@ -278,12 +279,42 @@ assert.equal(
   0,
   "retail right must not imply library distribution",
 );
-const channelAvailable = (product, territory, channel) =>
-  !!db
+// Exercise the *same* production SQL on the full canonical rights fixtures.
+// CASE must never substitute the permissive candidate gate for legal authority.
+const compiledChannelQuery = await transform(
+  fs.readFileSync("src/features/fore/secondary-channel-query.ts", "utf8"),
+  { loader: "ts", format: "esm" },
+);
+const { productChannelFlagsSql } = await import(
+  "data:text/javascript;base64," + Buffer.from(compiledChannelQuery.code).toString("base64")
+);
+assert.match(productChannelFlagsSql, /product_channel_availability/);
+assert.match(productChannelFlagsSql, /INDEXED BY idx_rights_grant_live_lookup/);
+assert.ok(
+  db
+    .prepare("EXPLAIN QUERY PLAN " + productChannelFlagsSql)
+    .all("ebook", "ebook", "US", "ebook", "US")
+    .some((row) => String(row.detail).includes("idx_rights_grant_live_lookup")),
+  "The product-scoped negative gate must use an indexed active-grant lookup",
+);
+const channelAvailable = (product, territory, channel) => {
+  const direct = !!db
     .prepare(
       "select 1 ok from product_channel_availability where product_id=? and territory_code=? and sales_channel=? limit 1",
     )
     .get(product, territory, channel);
+  if (channel === "subscription" || channel === "library") {
+    const flags = db
+      .prepare(productChannelFlagsSql)
+      .get(product, product, territory, product, territory);
+    assert.equal(
+      !!flags[channel === "subscription" ? "subscription_eligible" : "library_eligible"],
+      direct,
+      `Optimized read must match live rights authority for ${product} ${territory} ${channel}`,
+    );
+  }
+  return direct;
+};
 assert.equal(
   channelAvailable("ebook", "CA", "subscription"),
   false,
