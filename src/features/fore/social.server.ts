@@ -873,6 +873,9 @@ async function visiblePosts(
   countHeartsOnly = false,
 ) {
   const reached = new Map<string, number>();
+  // Audience checks can touch multiple relationship tables. Cache decisions only
+  // for this bounded response; never cache across viewers or requests.
+  const audience = new Map<string, boolean>();
   const people = new Map<string, Awaited<ReturnType<typeof sharingPerson>>>();
   // Batch only the viewer's reversible reactions; do not perform one D1
   // round trip per visible comment or fetch other users' reaction identities.
@@ -906,17 +909,26 @@ async function visiblePosts(
   const out = [];
   for (const r of rows) {
     if (r.deleted_at || r.moderation_status !== "visible") continue;
-    if (
-      !(await canSee(
-        db,
-        viewer,
-        String(r.user_id),
-        String(r.visibility),
-        r.group_id,
-        r.recipient_user_id,
-      ))
-    )
-      continue;
+    const audienceKey = JSON.stringify([
+      r.user_id,
+      r.visibility,
+      r.group_id || null,
+      r.recipient_user_id || null,
+    ]);
+    if (!audience.has(audienceKey)) {
+      audience.set(
+        audienceKey,
+        await canSee(
+          db,
+          viewer,
+          String(r.user_id),
+          String(r.visibility),
+          r.group_id,
+          r.recipient_user_id,
+        ),
+      );
+    }
+    if (!audience.get(audienceKey)) continue;
     const progress = r.progress == null ? null : Number(r.progress);
     if (viewer && r.product_id && !reached.has(String(r.product_id)))
       reached.set(
