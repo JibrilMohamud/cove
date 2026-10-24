@@ -177,7 +177,7 @@ class PrivateCloudflareR2:
     @staticmethod
     def object_url(bucket, key):
         if (bucket != BUCKET or
-            not re.fullmatch(r"music-open-qa/(?:originals/[a-f0-9]{64}\\.(?:ogg|mp3)|reports/[a-f0-9]{64}/[a-f0-9]{64}\\.json)", key) or
+            not re.fullmatch(r"music-open-qa/(?:originals/[a-f0-9]{64}\.(?:ogg|mp3)|reports/[a-f0-9]{64}/[a-f0-9]{64}\.json)", key) or
             any(x in key for x in ("?", "#", "..", "\\\\"))):
             raise ValueError("untrusted_private_r2_object_key")
         return ("https://api.cloudflare.com/client/v4/accounts/" + ACCOUNT +
