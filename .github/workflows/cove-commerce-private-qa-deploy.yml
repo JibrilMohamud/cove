@@ -14,6 +14,10 @@ on:
       - "scripts/staging/cleanup-qa-refund-operators.mjs"
       - "scripts/staging/run-protected-deployed-commerce-qa.mjs"
       - ".github/workflows/deployed-commerce-browser-acceptance.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cove-commerce-private-qa-deploy.yml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,11 +27,8 @@ concurrency:
 jobs:
   private-commerce:
     if: >-
-      (github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') ||
-      (github.event_name == 'workflow_dispatch' &&
-      github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -85,11 +86,8 @@ jobs:
   authenticated-commerce:
     needs: private-commerce
     if: >-
-      (github.event_name == 'pull_request' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') ||
-      (github.event_name == 'workflow_dispatch' &&
-      github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
