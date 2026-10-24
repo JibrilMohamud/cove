@@ -36,9 +36,4 @@ assert.throws(
   () => parseGeoIngressEvidence({ id: "x", status: "in-progress", results: good }, sha),
   /not complete/,
 );
-const stageWorker = await import("../src/storefront-strangler/worker.ts").catch(() => null);
-assert.ok(
-  stageWorker === null || typeof stageWorker === "object",
-  "Bundler may handle TypeScript Worker in its own CI test",
-);
 console.log("GEO_PROBE_VALIDATION_PASS distinct colo, country, exact SHA, cf-ray, 200 and no false positives");
