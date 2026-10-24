@@ -23,6 +23,10 @@ assert.ok(social.includes("reaction_count DESC,id DESC"));
 assert.ok(social.includes("moderation_status='visible'"));
 assert.ok(social.includes("const reactions = new Map<string, string[]>()"));
 assert.ok(social.includes("btoa(JSON.stringify("));
+assert.ok(social.includes("finishMs - startMs"));
+assert.ok(social.includes("Number.isFinite(recorded)"));
+assert.ok(social.includes(">START</text>"));
+
 assert.ok(community.includes("bookThread={bookThread}"));
 assert.ok(community.includes("depth={depth + 1}"));
 assert.ok(community.includes("bookThread && depth >= 2"));
