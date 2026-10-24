@@ -559,8 +559,8 @@ try {
   const rescanned = await invoke("/v1/operator/preview-catalog?territory=US", "GET", "operator");
   assert.deepEqual(
     rescanned.result.items.map((x) => x.id),
-    [master2.id],
-    "Revoking one recording must not revoke a separately approved recording",
+    [master2.id, master3.id],
+    "Revoking one recording must preserve both independently approved masters",
   );
   const removed = await invoke("/v1/operator/outbox?after=" + reviewCursor, "GET", "operator");
   assert.equal(removed.result.items[0].action, "master_revoked");
