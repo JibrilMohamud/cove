@@ -254,9 +254,10 @@ export async function applyCanonicalMusicHandoff(db: Db, raw: unknown) {
   // The preliminary replay lookup is advisory. On competing concurrent writes,
   // a different event may have won the UNIQUE seq/id slot after that lookup.
   // Never acknowledge such a collision as a committed canonical handoff.
-  const committed = await db.prepare(
-    "SELECT event_id,payload_sha256 FROM music_supply_handoff_events WHERE seq=?",
-  ).bind(item.seq).first<{ event_id:string; payload_sha256:string }>();
+  const committed = await db
+    .prepare("SELECT event_id,payload_sha256 FROM music_supply_handoff_events WHERE seq=?")
+    .bind(item.seq)
+    .first<{ event_id: string; payload_sha256: string }>();
   if (committed?.event_id !== item.id || committed.payload_sha256 !== eventHash)
     throw new Error("music_handoff_conflicting_replay");
   return { seq: item.seq, recorded: true, status: "private_metadata_only" };
