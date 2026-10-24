@@ -46,6 +46,8 @@ for (const [path, switches] of [
   assert.equal(config.preview_urls, false);
   assert.ok(!config.routes && !config.route && !config.triggers && !config.queues);
   for (const key of switches) assert.equal(config.vars[key], "0");
+  if (path === "wrangler.content-literary-infer.prod-disabled.jsonc")
+    assert.equal(config.vars.FORE_LITERARY_AUTOPUBLISH_ENABLED, "0");
 }
 console.log(
   "LITERARY_DORMANT_OWNER_FENCES_PASS legacy denial, atomic claim, isolated-only canonical publication, no triggers",
