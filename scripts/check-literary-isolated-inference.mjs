@@ -286,15 +286,11 @@ try {
     blobs.get(inferenceReceipt.result_key).metadata.sha256,
     "The secondary receipt must refer to the winner, not the losing inference result",
   );
-  const lateWrite = await BUCKET.put(
-    inferenceReceipt.result_key,
-    "late overwritten data",
-    {
-      onlyIf: { etagDoesNotMatch: "*" },
-      httpMetadata: { contentType: "application/json" },
-      customMetadata: { sha256: sha("late overwritten data") },
-    },
-  );
+  const lateWrite = await BUCKET.put(inferenceReceipt.result_key, "late overwritten data", {
+    onlyIf: { etagDoesNotMatch: "*" },
+    httpMetadata: { contentType: "application/json" },
+    customMetadata: { sha256: sha("late overwritten data") },
+  });
   assert.equal(lateWrite, null, "A late lease owner must not replace the committed R2 bytes");
   assert.equal(sha(blobs.get(inferenceReceipt.result_key).data), inferenceReceipt.result_sha256);
   assert.equal(primary.prepare("SELECT total_changes() n").get().n, before);
