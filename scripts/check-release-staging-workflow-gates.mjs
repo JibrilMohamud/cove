@@ -45,6 +45,16 @@ for (const { file, names, protections } of requirements) {
   for (const guard of protections)
     assert.ok(data.includes(guard), file + " missing isolation guard " + guard);
 }
+const capacity = readFileSync("scripts/staging/check-strangler-live-capacity.mjs", "utf8");
+const evidence = readFileSync("scripts/staging/assert-strangler-capacity-evidence.mjs", "utf8");
+assert.ok(capacity.includes("const p95MaximumMs = 600;"));
+assert.ok(capacity.includes("const p99MaximumMs = 750;"));
+assert.ok(capacity.includes("rate === 100 ? 20 : 10"));
+assert.ok(capacity.includes("p99Ms < p99MaximumMs"));
+assert.ok(evidence.includes('"100-rps-20s"'));
+assert.ok(evidence.includes("item.p95Ms < 600"));
+assert.ok(evidence.includes("item.p99Ms < 750"));
+assert.ok(evidence.includes("item.maxMs < 800"));
 const runbook = readFileSync("docs/LITERARY_LEGACY_DRAIN_CUTOVER.md", "utf8");
 assert.match(runbook, /INSERT INTO cove_runtime_config\(key,value,updated_at\)/);
 assert.match(runbook, /SET value='isolated',updated_at=datetime\('now'\)/);
