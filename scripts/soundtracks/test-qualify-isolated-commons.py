@@ -154,6 +154,24 @@ class Tests(unittest.TestCase):
                 summary = module.run(1,True,False,"token",PrivateR2())
                 self.assertEqual(summary["results"][0]["status"],"stored_private_technical_qa")
                 store.assert_called_once()
+    def test_private_terminal_rights_hold_is_successful_no_playback_and_transients_retry(self):
+        with patch.dict(os.environ,{"COVE_MUSIC_OPEN_QA_APPLY":"1"}), \
+             patch.object(module,"claim_read",return_value=[ROW]), \
+             patch.object(module,"persist_durable_hold") as held:
+            with patch.object(module,"prepare_one",
+                              side_effect=ValueError("original_or_license_changed")):
+                output=module.run(1,True,False,"token",PrivateR2())
+                self.assertEqual(output["results"][0]["status"],"stored_private_technical_hold")
+                self.assertFalse(output["rightsApproved"])
+                held.assert_called_once_with("token",ROW,"original_or_license_changed")
+            held.reset_mock()
+            with patch.object(module,"prepare_one",
+                              side_effect=ValueError("Temporary Commons API error")):
+                output=module.run(1,True,False,"token",PrivateR2())
+                self.assertEqual(output["results"][0]["status"],"retryable_source_error")
+                held.assert_not_called()
+                self.assertFalse(output["customerPublished"])
+
     def test_full_decode_quality_thresholds_never_imply_quiet_approval(self):
         self.assertTrue(module.validate_full_audio_quality(METRIC))
         for key,value in [
