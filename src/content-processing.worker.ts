@@ -96,6 +96,11 @@ export async function runContentProcessingTick(
     role !== "literary-infer"
   )
     return { skipped: "invalid_role" };
+  // Legacy literary claim/sweep writes lack an atomic owner predicate until
+  // the separately staged literary processing cutover. Do not externalize
+  // them merely by enabling an environment variable: use literary-infer only
+  // after that canonical takeover is independently certified.
+  if (role === "literary") return { skipped: "legacy_literary_claims_unfenced", role };
   if (role === "literary-prepare" && env.FORE_CONTENT_PREPARE_ENABLED !== "1")
     return { skipped: "preparation_disabled" };
   if (
