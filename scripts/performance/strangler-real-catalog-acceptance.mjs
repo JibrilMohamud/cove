@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { createHash, randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
+import { verifyGeoEdgeIngress } from "../staging/verify-geo-edge-ingress.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const dbId = "4bd657ac-8789-403e-a28c-93aba8d0a989";
@@ -55,6 +56,8 @@ function visualReference(kind, liveScreenshot) {
   return buffer;
 }
 if (v2) {
+  config.vars.COVE_GEO_PROBE_ENABLED = "1";
+  config.vars.COVE_GEO_PROBE_RELEASE_SHA = process.env.GITHUB_SHA;
   config.vars.COVE_STRANGLER_READ_MODEL = "2";
   config.vars.COVE_PRESENTATION_PREFIX = `campaign/${process.env.GITHUB_RUN_ID}/real/`;
   config.r2_buckets = [
@@ -670,6 +673,14 @@ try {
       evidence.realCatalogParity.desktopMismatchPercent < 10,
     "Comparable settled mobile and desktop catalogs must each have <10% pixel mismatch",
   );
+  if (v2) {
+    // This tests distinct Cloudflare *ingress* locations only. The prior
+    // bearer-gated LCP/cold/catalog checks are the authoritative TTFB proof.
+    // No customer identity or stage bearer reaches the outside probe service.
+    evidence.geoIngress = await verifyGeoEdgeIngress(origin, process.env.GITHUB_SHA);
+    console.log("GEO_INGRESS_PROOF", JSON.stringify(evidence.geoIngress));
+    save();
+  }
   evidence.pass = true;
   console.log(
     "PASS bearer-gated read-only real-catalog preview",
