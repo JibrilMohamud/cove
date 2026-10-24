@@ -80,7 +80,11 @@ export function meterContentAssetEnv(
             usage.d1Writes += writes;
             const start = performance.now();
             try {
-              const method = target[prop] as (...args: unknown[]) => Promise<unknown>;
+              const methods = target as unknown as Record<
+                string,
+                (...args: unknown[]) => Promise<unknown>
+              >;
+              const method = methods[prop];
               return await method.apply(target, values);
             } finally {
               usage.d1ServiceMs += performance.now() - start;
