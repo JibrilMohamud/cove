@@ -938,7 +938,10 @@ export default {
     // customer audio, updates soundtrack tables or creates playback URLs.
     if (path === "/__cove/ingestion/music-supply-handoff" && request.method === "POST")
       return handleCanonicalMusicHandoff(request, env, () =>
-        admitCatalogBatch(env.DB, catalogAdmissionBudget(env.FORE_MUSIC_CANONICAL_HANDOFF_PROBE_MS)),
+        admitCatalogBatch(
+          env.DB,
+          catalogAdmissionBudget(env.FORE_MUSIC_CANONICAL_HANDOFF_PROBE_MS),
+        ),
       );
     if (path === "/__cove/ingestion/catalog" && request.method === "POST") {
       return catalogBatch(request, env);
