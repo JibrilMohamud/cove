@@ -1,0 +1,31 @@
+name: oneoff-format-literary-inference
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/oneoff-format-literary-inference.yml"
+permissions:
+  contents: read
+jobs:
+  format-isolated-lane:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'feat/literary-isolated-inference-publication-20261023'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with: { ref: feat/literary-isolated-inference-publication-20261023 }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Format only isolated literary lane sources
+        run: npx prettier --write src/lib/literary-isolated-inference.server.ts src/content-processing.worker.ts src/lib/literary-budget-domain.server.ts src/lib/literary-preparation-domain.server.ts src/lib/literary-prepare-outbox.server.ts scripts/check-literary-isolated-inference.mjs
+      - name: Commit formatting to candidate branch
+        run: |
+          if ! git diff --quiet -- src scripts; then
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git config user.name "github-actions[bot]"
+            git add src/lib/literary-isolated-inference.server.ts src/content-processing.worker.ts src/lib/literary-budget-domain.server.ts src/lib/literary-preparation-domain.server.ts src/lib/literary-prepare-outbox.server.ts scripts/check-literary-isolated-inference.mjs
+            git commit -m "style(literary): normalize isolated inference code and tests"
+            git push origin HEAD:refs/heads/feat/literary-isolated-inference-publication-20261023
+          fi
