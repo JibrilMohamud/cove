@@ -30,6 +30,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: python -m py_compile scripts/soundtracks/qualify-isolated-commons.py
       - run: python scripts/soundtracks/test-qualify-isolated-commons.py -q
       - run: python -m pip install --disable-pip-version-check numpy==2.2.6 scipy==1.15.3
@@ -54,6 +55,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
       - name: Confirm private isolated credentials and actual FFmpeg
         shell: bash
         run: |
