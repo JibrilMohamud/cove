@@ -137,22 +137,24 @@ const activeHandoffFence =
 
 export async function dispatchOneLiteraryPreparationHandoff(env: HandoffEnv) {
   assertEnabled(env);
-  if (!(await activeHandoffOwner(env.DB)))
-    return { skipped: "canonical_owner_not_handoff" };
+  if (!(await activeHandoffOwner(env.DB))) return { skipped: "canonical_owner_not_handoff" };
   const token = crypto.randomUUID();
   const now = new Date().toISOString();
   const until = new Date(Date.now() + 120_000).toISOString();
   await env.DB.prepare(
     "UPDATE literary_prepare_outbox SET status='failed',lease_token='',lease_until=''," +
       "last_error='expired_final_attempt',updated_at=?" +
-      " WHERE status='running' AND lease_until<? AND attempts>=4 AND" + activeHandoffFence,
+      " WHERE status='running' AND lease_until<? AND attempts>=4 AND" +
+      activeHandoffFence,
   )
     .bind(now, now)
     .run();
   const job = await env.DB.prepare(
     "UPDATE literary_prepare_outbox SET status='running',lease_token=?," +
       "lease_until=?,attempts=attempts+1,updated_at=?" +
-      " WHERE" + activeHandoffFence + " AND id=(SELECT id FROM literary_prepare_outbox WHERE" +
+      " WHERE" +
+      activeHandoffFence +
+      " AND id=(SELECT id FROM literary_prepare_outbox WHERE" +
       " ((status='queued' AND available_at<=?) OR" +
       " (status='running' AND lease_until<?)) AND attempts<4" +
       " ORDER BY available_at,id LIMIT 1)" +
