@@ -10,7 +10,9 @@ for (const required of [
   "legacy_daily_inference_budget_not_carried_over",
   "infer_private_publisher_service_binding_missing",
   "publication_retry_migration_not_verified",
-  "legacy_minute_cron_still_attached",
+  "sharedMinuteCronPresent",
+  "stagingPrivateBindingCertified",
+  "scopedPublisherCredentials",
   "private_publisher_tokens_and_staging_e2e_not_certified",
   "canArm: false",
   "literary_processing_owner",
@@ -20,6 +22,8 @@ for (const required of [
   assert.ok(src.includes(required), "Readiness audit missing " + required);
 assert.ok(src.includes("assert.match(sql.trim(), /^(SELECT|PRAGMA|EXPLAIN|WITH)"));
 assert.ok(src.includes("assert.doesNotMatch(sql"));
+assert.ok(!src.includes('blockers.push("legacy_minute_cron_still_attached")'));
+assert.ok(src.includes('blockers.push("active_handoff_and_rollback_not_certified")'));
 assert.ok(!/\b(?:api\("PUT"|api\("PATCH"|api\("DELETE")\b/.test(src));
 assert.ok(workflow.includes("needs: static-readonly-contract"));
 assert.ok(workflow.includes("github.ref == 'refs/heads/main'"));
