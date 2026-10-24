@@ -32,6 +32,8 @@ export type StorefrontStranglerEnv = CoveEnv & {
   COVE_STRANGLER_RELEASE_CERTIFIED?: string;
   COVE_FAST_RELAY_KEY?: string;
   COVE_SSR_STAGING_GATE_KEY?: string;
+  COVE_GEO_PROBE_ENABLED?: string;
+  COVE_GEO_PROBE_RELEASE_SHA?: string;
   COVE_INTERNAL_CORE_STAGE_GATE_KEY?: string;
   COVE_STRANGLER_READ_MODEL?: string;
   PRESENTATION?: PrivatePresentationStore;
@@ -133,6 +135,37 @@ export default {
       (!customerGateway && !syntheticEvaluation && !productionAcceptance)
     )
       return new Response(null, { status: 503, headers: { "cache-control": "no-store" } });
+    // Ephemeral, content-free geo ingress probe. Only the reviewed
+    // production-catalog *acceptance* mode can expose this path, and only
+    // when an explicit short-lived test flag and immutable SHA are installed.
+    // No SQL, R2, auth credential, customer rights or catalog is touched.
+    if (
+      productionAcceptance &&
+      env.COVE_GEO_PROBE_ENABLED === "1" &&
+      /^[a-f0-9]{40}$/.test(env.COVE_GEO_PROBE_RELEASE_SHA || "") &&
+      request.method === "GET" &&
+      new URL(request.url).pathname === "/__cove_geo_probe" &&
+      !new URL(request.url).search &&
+      !request.headers.has("authorization") &&
+      !request.headers.has("cookie")
+    ) {
+      const cf = (request as Request & { cf?: { colo?: string; country?: string } }).cf;
+      return new Response(
+        JSON.stringify({
+          schema: "cove.geo-ingress.v1",
+          sha: env.COVE_GEO_PROBE_RELEASE_SHA,
+          colo: cf?.colo || null,
+          country: cf?.country || null,
+        }),
+        {
+          headers: {
+            "content-type": "application/json; charset=utf-8",
+            "cache-control": "no-store",
+            "x-content-type-options": "nosniff",
+          },
+        },
+      );
+    }
     if (!customerGateway) {
       const rejected = await rejectUnauthenticatedStagingRequest(request, env);
       if (rejected) return rejected;
