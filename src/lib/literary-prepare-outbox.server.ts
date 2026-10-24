@@ -97,9 +97,27 @@ export async function seedLiteraryPreparationHandoff(
     .bind(id, now, now, now, productId, editionId, source.source_id, source.content_hash)
     .first<{ id: string }>();
   if (row) return { outboxId: id, duplicate: false };
-  const prior = await env.DB.prepare("SELECT id FROM literary_prepare_outbox WHERE id=?")
-    .bind(id)
-    .first();
+  // INSERT OR IGNORE can return nothing for an already-pinned intent, but
+  // also when the owner moved out of draining or rights changed after the
+  // preflight read. Never turn those failures into a positive reconciliation
+  // receipt merely because an earlier outbox row happens to exist.
+  // Revalidate the exact original source, current grants/denials and required
+  // owner in one canonical D1 SELECT. Terminal/cancelled intents are not
+  // silently revived; any recovery requires an explicit audited procedure.
+  const prior = await env.DB.prepare(
+    "SELECT o.id FROM literary_prepare_outbox o WHERE o.id=?" +
+      " AND o.status IN ('queued','running','delivered')" +
+      " AND EXISTS(SELECT 1" +
+      literarySourceRightsPredicate +
+      " AND c.id=? AND c.content_hash=?" +
+      (requiredOwner === "draining"
+        ? " AND EXISTS(SELECT 1 FROM cove_runtime_config" +
+          " WHERE key='literary_processing_owner' AND value='draining')"
+        : "") +
+      ")",
+  )
+    .bind(id, productId, editionId, source.source_id, source.content_hash)
+    .first<{ id: string }>();
   return prior ? { outboxId: id, duplicate: true } : { skipped: "rights_changed" };
 }
 

@@ -159,6 +159,69 @@ try {
   assert.equal(notifications, 2);
   assert.equal(secondary.prepare("SELECT COUNT(*) n FROM literary_prepare_jobs").get().n, 1);
 
+  // Reconciliation must not mistake a *previously* valid outbox row for
+  // current authorization after a primary-D1 owner flip or a revoked grant.
+  primary.exec(
+    "CREATE TABLE cove_runtime_config(key TEXT PRIMARY KEY,value TEXT NOT NULL);" +
+      "INSERT INTO cove_runtime_config VALUES('literary_processing_owner','draining');",
+  );
+  let race = "";
+  const racedEnv = {
+    ...env,
+    DB: {
+      prepare(sql) {
+        const prepared = env.DB.prepare(sql);
+        if (!sql.startsWith("INSERT OR IGNORE INTO literary_prepare_outbox")) return prepared;
+        return {
+          bind(...args) {
+            const bound = prepared.bind(...args);
+            return {
+              async first() {
+                if (race === "owner") {
+                  primary.prepare("UPDATE cove_runtime_config SET value='isolated'").run();
+                } else if (race === "rights") {
+                  primary.prepare("UPDATE rights_grants SET status='revoked' WHERE id='g_a'").run();
+                }
+                race = "";
+                return bound.first();
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+  race = "owner";
+  assert.deepEqual(
+    await seedLiteraryPreparationHandoff(racedEnv, "p_a", "e_a", "draining"),
+    { skipped: "rights_changed" },
+    "A previous valid outbox must not mask an owner transition during INSERT",
+  );
+  primary.prepare("UPDATE cove_runtime_config SET value='draining'").run();
+  race = "rights";
+  assert.deepEqual(
+    await seedLiteraryPreparationHandoff(racedEnv, "p_a", "e_a", "draining"),
+    { skipped: "rights_changed" },
+    "A revoked grant after preflight must not be reacknowledged",
+  );
+  primary.prepare("UPDATE rights_grants SET status='active' WHERE id='g_a'").run();
+  assert.equal(
+    (await seedLiteraryPreparationHandoff(env, "p_a", "e_a", "draining")).duplicate,
+    true,
+    "A genuinely valid, delivered prior outbox is replay-safe",
+  );
+  primary
+    .prepare("UPDATE literary_prepare_outbox SET status='cancelled' WHERE id=?")
+    .run(first.outboxId);
+  assert.deepEqual(
+    await seedLiteraryPreparationHandoff(env, "p_a", "e_a", "draining"),
+    { skipped: "rights_changed" },
+    "Terminal prior outbox rows require explicit recovery, not silent reuse",
+  );
+  primary
+    .prepare("UPDATE literary_prepare_outbox SET status='delivered' WHERE id=?")
+    .run(first.outboxId);
+
   fixture("denied");
   primary
     .prepare("INSERT INTO rights_grants VALUES(?,?,?,?,?,?,?,?,?,?)")
