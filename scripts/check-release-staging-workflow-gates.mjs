@@ -77,8 +77,10 @@ assert.ok(realCatalog.includes("verifyGeoEdgeIngress(origin, process.env.GITHUB_
 assert.ok(realCatalog.includes('config.vars.COVE_GEO_PROBE_ENABLED = "1"'));
 const geoWorker = readFileSync("src/storefront-strangler/worker.ts", "utf8");
 assert.ok(geoWorker.includes('env.COVE_GEO_PROBE_ENABLED === "1"'));
-assert.ok(geoWorker.includes('url.pathname === "/__cove_geo_probe"') ||
-  geoWorker.includes('new URL(request.url).pathname === "/__cove_geo_probe"'));
+assert.ok(
+  geoWorker.includes('url.pathname === "/__cove_geo_probe"') ||
+    geoWorker.includes('new URL(request.url).pathname === "/__cove_geo_probe"'),
+);
 assert.ok(geoWorker.includes("productionAcceptance &&"));
 
 assert.ok(realCatalog.includes("assert.equal(config.workers_dev, false)"));
