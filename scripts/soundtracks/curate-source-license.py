@@ -19,6 +19,49 @@ import urllib.request
 import unicodedata
 
 MAX_FILE_BYTES = 25 * 1024 * 1024
+CREDIT_POLICY = "commons-file-credit-v1"
+_credit_spec = importlib.util.spec_from_file_location(
+    "cove_commons_credits", pathlib.Path(__file__).with_name("commons-structured-credits.py"))
+credits_module = importlib.util.module_from_spec(_credit_spec)
+_credit_spec.loader.exec_module(credits_module)
+
+def historically_identified(name):
+    return next((period for _, composer, period in KNOWN_COMPOSERS
+                 if credits_module.normalized(composer) == credits_module.normalized(name)), None)
+
+def reconciled_candidate(row, fetcher=None):
+    """Use file-specific evidence, never a provider or uploader-wide permission."""
+    prior, reason = choose_candidate(row)
+    if prior or reason not in (
+        "composer not in narrow sourced-title mapping",
+        "ambiguous or missing performer credit",
+    ):
+        return prior, reason, row
+    try:
+        correction, problem = (fetcher or credits_module.query_commons)(row)
+    except (OSError, ValueError, RuntimeError, KeyError, urllib.error.URLError):
+        return None, "commons_credit_query_unavailable", row
+    if problem:
+        return None, problem, row
+    safe = dict(row)
+    candidate_composer = correction.get("composer")
+    candidate_performer = correction.get("performer")
+    if candidate_composer:
+        period = historically_identified(candidate_composer)
+        surname = candidate_composer.split()[-1]
+        if not period or not re.search(r"(?i)(?<![a-z])"+re.escape(surname)+r"(?![a-z])", row["title"]):
+            return None, "unverified_composition_or_source_composer", row
+        safe["_verified_composer"] = candidate_composer
+        safe["_verified_period"] = period
+    if candidate_performer:
+        identified = credited_performer(row.get("performer"), candidate_composer or "")
+        if identified and credits_module.normalized(identified) != credits_module.normalized(candidate_performer):
+            return None, "commons_performer_conflict", row
+        safe["_verified_performer"] = candidate_performer
+    safe["_verified_source_evidence"] = correction["evidence"]
+    profile, final_reason = choose_candidate(safe)
+    return profile, final_reason, safe
+
 KNOWN_COMPOSERS = (
     (r"^(?:j\.?s\.?\s*)?bach\s+(?!busoni|brahms|liszt|gounod)", "Johann Sebastian Bach", "baroque"),
     (r"^johann sebastian bach[\s,-]", "Johann Sebastian Bach", "baroque"),
@@ -259,11 +302,14 @@ def choose_candidate(r):
                      (r['license_code'] == 'CC-BY-SA' and
                       r.get('source_title') == 'File:'+title+'.ogg'))):
                 match = (composer, period)
+    if not match and r.get("_verified_composer") and r.get("_verified_period"):
+        match = (r["_verified_composer"],r["_verified_period"])
     if not match:
         return None, 'composer not in narrow sourced-title mapping'
     composer, period = match
     performer = ("Dr. Phillip W. Serna" if self_recorded else
-                 "Jacques Lochet" if boccherini else credited_performer(r.get('performer'), composer))
+                 "Jacques Lochet" if boccherini else credited_performer(r.get('performer'), composer) or
+                  credited_performer(r.get('_verified_performer'), composer))
     if not performer:
         return None, 'ambiguous or missing performer credit'
     if (not re.fullmatch(r'cm_\d{1,15}', str(r.get('id', ''))) or
@@ -325,6 +371,7 @@ def prepare_release(r, profile):
         modificationNotice='Original source file distributed unchanged; no modifications by Cove.',
         reviewMethod='source_license',
         sourceReliance=dict(sourcePageUrl=page,sourceSha1=sha,licenseCode=code,licenseUrl=link,
+                             metadataEvidence=r.get('_verified_source_evidence'),
                             declarationBasis=statement + ' Any known conflicts or changes block automatic approval.'),
         complexProvenance=False,unresolved=[])
     approval = dict(
@@ -396,6 +443,8 @@ def run(args, client, measure):
     start = time.monotonic()
     processed = 0
     triaged = 0
+    source_lookups = 0
+    lookup_limit = getattr(args, 'max_enrich', 0)
     bytes_total = 0
     while examined < args.max_scan and processed < args.max_tracks and bytes_total < args.max_mib * 1024 * 1024:
         page_size = min(100, args.max_scan-examined)
@@ -409,6 +458,12 @@ def run(args, client, measure):
             if rid in seen: raise RuntimeError('Pagination loop detected')
             seen.add(rid)
             profile, reason = choose_candidate(row)
+            updated_row = row
+            if (not profile and source_lookups < lookup_limit and reason in (
+                    'composer not in narrow sourced-title mapping',
+                    'ambiguous or missing performer credit')):
+                source_lookups += 1
+                profile, reason, updated_row = reconciled_candidate(row)
             if not profile:
                 if reason not in ('previously reviewed or quality checked',
                                   'pre-existing dossier; preserve review work and holds') and triaged < getattr(args,'max_triage',0):
@@ -440,6 +495,14 @@ def run(args, client, measure):
                 continue
             try:
                 detail = client.call('/admin/soundtracks/recordings/'+rid)['record']
+                # Server-side exact-file source identity must still match
+                # before an enriched credit may influence a review.
+                if updated_row is not row:
+                    if any(detail[k] != updated_row[k] for k in (
+                            'source_sha1','source_size','license_code','license_url','source_title')):
+                        receipts.append(dict(id=rid,status='held',reason='source_identity_changed'))
+                        continue
+                    detail = dict(detail, **{k:v for k,v in updated_row.items() if k.startswith('_verified_')})
                 profile, reason = choose_candidate(detail)
                 if not profile:
                     receipts.append(dict(id=rid,status='held',reason=reason))
@@ -482,6 +545,8 @@ def main():
                    help='Review only previously triaged candidates after source policy expands; never bypass license/QA gates')
     p.add_argument('--max-scan',type=int,default=800)
     p.add_argument('--max-tracks',type=int,default=8)
+    p.add_argument('--max-enrich',type=int,default=0,
+                   help='Bounded per-file Commons metadata verification; 0 disables')
     p.add_argument('--max-triage',type=int,default=60)
     p.add_argument('--max-mib',type=int,default=160)
     p.add_argument('--max-minutes',type=int,default=20)
@@ -489,7 +554,7 @@ def main():
     p.add_argument('--approve-source-license',action='store_true',help='Requires --apply; permit eligible exact-file source reliance approvals')
     p.add_argument('--output',default='soundtrack-curation-receipts.json')
     args=p.parse_args()
-    if not 1<=args.max_scan<=800 or not 1<=args.max_tracks<=12 or not 0<=args.max_triage<=100 or not 1<=args.max_mib<=160 or not 1<=args.max_minutes<=25:
+    if not 1<=args.max_scan<=800 or not 1<=args.max_tracks<=12 or not 0<=args.max_triage<=100 or not 0<=args.max_enrich<=24 or not 1<=args.max_mib<=160 or not 1<=args.max_minutes<=25:
         p.error('Bounded scan, track, byte, and wall-time budgets required')
     if args.approve_source_license and not args.apply:
         p.error('--approve-source-license requires --apply')
