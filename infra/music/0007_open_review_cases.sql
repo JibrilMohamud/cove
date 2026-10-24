@@ -24,3 +24,11 @@ CREATE TABLE IF NOT EXISTS music_open_review_cases (
 );
 CREATE INDEX IF NOT EXISTS music_open_review_kind_status
  ON music_open_review_cases(review_kind,status,recorded_at,candidate_id);
+-- Evidence is append-only. Superseded source revisions require a new
+-- technical evaluation, not an in-place mutation of the old review receipt.
+CREATE TRIGGER IF NOT EXISTS music_open_review_cases_no_update
+ BEFORE UPDATE ON music_open_review_cases
+ BEGIN SELECT RAISE(ABORT, 'immutable_open_review_case'); END;
+CREATE TRIGGER IF NOT EXISTS music_open_review_cases_no_delete
+ BEFORE DELETE ON music_open_review_cases
+ BEGIN SELECT RAISE(ABORT, 'immutable_open_review_case'); END;
