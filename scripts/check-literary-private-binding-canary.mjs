@@ -9,25 +9,24 @@ const caller = JSON.parse(
 );
 const source = readFileSync("src/literary-private-binding-stage-canary.worker.ts", "utf8");
 const script = readFileSync("scripts/staging/run-literary-service-binding-canary.mjs", "utf8");
-const workflow = readFileSync(".github/workflows/literary-private-binding-stage-canary.yml", "utf8");
+const workflow = readFileSync(
+  ".github/workflows/literary-private-binding-stage-canary.yml",
+  "utf8",
+);
 for (const config of [publisher, caller]) {
   assert.equal(config.workers_dev, false);
   assert.equal(config.preview_urls, false);
   assert.ok(!config.routes && !config.route && !config.triggers && !config.queues);
   assert.deepEqual(
     config.d1_databases.map((x) => x.database_id).sort(),
-    [
-      "24c0eda2-6a43-4d7e-b787-502745d4d781",
-      "fce5742c-29ca-4bc3-85da-e174dd9bf42e",
-    ].sort(),
+    ["24c0eda2-6a43-4d7e-b787-502745d4d781", "fce5742c-29ca-4bc3-85da-e174dd9bf42e"].sort(),
   );
-  assert.deepEqual(config.r2_buckets.map((x) => x.bucket_name), [
-    "cove-literary-cutover-qa-objects-20261024",
-  ]);
+  assert.deepEqual(
+    config.r2_buckets.map((x) => x.bucket_name),
+    ["cove-literary-cutover-qa-objects-20261024"],
+  );
 }
-assert.deepEqual(caller.services, [
-  { binding: "LITERARY_PUBLISHER", service: publisher.name },
-]);
+assert.deepEqual(caller.services, [{ binding: "LITERARY_PUBLISHER", service: publisher.name }]);
 assert.equal(publisher.vars.FORE_LITERARY_INFERENCE_PUBLISH_ENABLED, "1");
 assert.equal(caller.vars.FORE_LITERARY_QA_ENABLED, "1");
 for (const id of [
