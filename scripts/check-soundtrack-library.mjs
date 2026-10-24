@@ -177,6 +177,62 @@ try {
   await assert.rejects(()=>lib.handleSoundtracks(staffRequest,env,"/admin/soundtracks","US",{...staffIdentity,aal:"aal1"}),/MFA/i);
   assert.equal((await lib.handleSoundtracks(staffRequest,env,"/admin/soundtracks","US",staffIdentity)).status,200,"Dedicated reviewer role works with a verified MFA session");
   await assert.rejects(()=>lib.handleSoundtracks(staffRequest,env,"/admin/soundtracks","US",{...staffIdentity,id:"unassigned"}),/not provisioned/i);
+  // Openverse supplies discovery only; the protected backend re-fetches
+  // the exact Commons original before admitting a non-playable queue record.
+  const seedPath = "/admin/soundtracks/seed-commons";
+  const seed = (titles, tokenValue = token) =>
+    lib.handleSoundtracks(
+      new Request("https://cove.test/api/fore" + seedPath, {
+        method: "POST",
+        headers: {
+          authorization: "Bearer " + tokenValue,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ titles }),
+      }),
+      env,
+      seedPath,
+      "US",
+    );
+  const seedOriginal = good(108, "NewCommonsQuietOriginal", "CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/");
+  seedOriginal.imageinfo[0].sha1 = createHash("sha1").update("distinct source original 108").digest("hex");
+  pages.push(seedOriginal);
+  const initialSeed = await (await seed(["File:NewCommonsQuietOriginal.ogg"])).json();
+  assert.equal(initialSeed.queued, 1, "The protected seed admits exact Commons discovery intent");
+  assert.equal(initialSeed.publicationAuthorized, false);
+  assert.equal(initialSeed.customerAudioCopied, false);
+  const seeded = await env.DB.prepare("SELECT status,quality_status,storage_key,source_sha1 FROM soundtrack_recordings WHERE id='cm_108'").first();
+  assert.equal(seeded.status, "pending_review");
+  assert.equal(seeded.quality_status, "pending");
+  assert.equal(seeded.storage_key, null, "Newly discovered music cannot be playable");
+  assert.equal(seeded.source_sha1, seedOriginal.imageinfo[0].sha1);
+  assert.equal((await (await seed(["File:NewCommonsQuietOriginal.ogg"])).json()).existing, 1, "Rereviewed candidates must be idempotent");
+  assert.equal(mediaRequests, 0, "Commons seeding never downloads original audio");
+  const excludedFma = good(109, "NotAutomaticallyFromFMA", "CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/");
+  excludedFma.imageinfo[0].sha1 = createHash("sha1").update("distinct source original 109").digest("hex");
+  excludedFma.revisions[0].slots.main.content = "{{Information|Source=Free Music Archive}}";
+  pages.push(excludedFma);
+  assert.equal((await (await seed(["File:NotAutomaticallyFromFMA.ogg"])).json()).held, 1,
+    "An index license cannot override FMA original-master provenance");
+  assert.equal((await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_recordings WHERE id='cm_109'").first()).n, 0);
+  const excludedNC = good(110, "EmbeddedConflict", "CC0");
+  excludedNC.imageinfo[0].sha1 = createHash("sha1").update("distinct source original 110").digest("hex");
+  excludedNC.imageinfo[0].metadata = [{ name: "Copyright", value: "CC BY-NC-SA 4.0" }];
+  pages.push(excludedNC);
+  assert.equal((await (await seed(["File:EmbeddedConflict.ogg"])).json()).held, 1);
+  await assert.rejects(() => seed(["File:NewCommonsQuietOriginal.ogg"], "invalid"),
+    /credential|scope|token|authorization/i, "A public unauthenticated index cannot enqueue a master");
+  await assert.rejects(() => seed(["File:Bad/path.ogg"]),
+    /bounded unique set/i, "Source URLs and traversal are never accepted");
+  const shardRequest = (shard) => lib.handleSoundtracks(
+    new Request("https://cove.test/api/fore/admin/soundtracks?status=pending_review&automation=triaged&shard=" + shard,
+      { headers: { authorization: "Bearer " + token } }),
+    env, "/admin/soundtracks", "US",
+  );
+  assert.equal((await shardRequest(37)).status, 200);
+  await assert.rejects(() => shardRequest(64), /Invalid bounded Commons review shard/);
+  assert.equal((await (await listing()).json()).count, 0, "Source-only acquisition never grants playback");
+
   const adminPath = "/admin/soundtracks/recordings/cm_101";
   const review = async (action, extra = {}, version, id = "cm_101") => {
     const row = await env.DB.prepare("SELECT review_version FROM soundtrack_recordings WHERE id=?").bind(id).first();
