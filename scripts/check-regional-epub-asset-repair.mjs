@@ -112,7 +112,9 @@ try {
     "INSERT INTO rights_grants(id,edition_id,territory_code,format,license_type,created_at," +
       "source,sales_channel,status,decision) VALUES(?,?,'AU','ebook','public-domain',?," +
       "'operator-territory-deny','retail','active','deny')",
-  ).bind("rg_denial_pgau_9100007", denied, at).run();
+  )
+    .bind("rg_denial_pgau_9100007", denied, at)
+    .run();
   const envWithR2 = {
     ...env,
     BUCKET: {
