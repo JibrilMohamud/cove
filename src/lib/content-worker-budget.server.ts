@@ -1,6 +1,8 @@
 import type { CoveEnv } from "../features/fore/api.server";
 
 type D1 = CoveEnv["DB"];
+type Statement = ReturnType<D1["prepare"]>;
+type BucketPut = NonNullable<CoveEnv["BUCKET"]>["put"];
 export type ContentBudgetUsage = {
   d1Statements: number;
   d1Writes: number;
@@ -54,7 +56,7 @@ export function meterContentAssetEnv(
     d1ServiceMs: 0,
     r2Bytes: 0,
   };
-  const nativeStatements = new WeakMap<object, { native: any; sql: string }>();
+  const nativeStatements = new WeakMap<object, { native: Statement; sql: string }>();
   const assertBudget = (queries = 0, writes = 0, bytes = 0) => {
     if (
       Date.now() > limits.deadlineAt ||
@@ -65,7 +67,7 @@ export function meterContentAssetEnv(
     )
       throw Error("content_asset_budget_exhausted");
   };
-  const wrapStatement = (statement: any, sql: string): any => {
+  const wrapStatement = (statement: Statement, sql: string): Statement => {
     const wrapped = new Proxy(statement, {
       get(target, prop) {
         if (prop === "bind")
@@ -78,7 +80,8 @@ export function meterContentAssetEnv(
             usage.d1Writes += writes;
             const start = performance.now();
             try {
-              return await target[prop](...values);
+              const method = target[prop] as (...args: unknown[]) => Promise<unknown>;
+              return await method.apply(target, values);
             } finally {
               usage.d1ServiceMs += performance.now() - start;
             }
@@ -94,7 +97,7 @@ export function meterContentAssetEnv(
     get(target, prop) {
       if (prop === "prepare") return (sql: string) => wrapStatement(target.prepare(sql), sql);
       if (prop === "batch")
-        return async (statements: any[]) => {
+        return async (statements: Statement[]) => {
           const batch = statements.map((statement) => nativeStatements.get(statement));
           if (batch.some((item) => !item)) throw Error("unmetered_content_asset_batch");
           const writes = batch.filter((item) => mutating(item!.sql)).length;
@@ -132,7 +135,7 @@ export function meterContentAssetEnv(
                       : Number.POSITIVE_INFINITY;
               assertBudget(0, 0, bytes);
               usage.r2Bytes += bytes;
-              return target.put(key, value as ArrayBuffer, options as any);
+              return target.put(key, value as Parameters<BucketPut>[1], options as Parameters<BucketPut>[2]);
             };
           const method = Reflect.get(target, prop);
           return typeof method === "function" ? method.bind(target) : method;
