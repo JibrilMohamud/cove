@@ -21,6 +21,10 @@ try {
     "infra/music/0003_execution_quotas_metrics_reviews.sql",
     path.join(root, "drizzle", "0003_execution_quotas_metrics_reviews.sql"),
   );
+  fs.copyFileSync(
+    "infra/music/0004_open_catalog_candidates.sql",
+    path.join(root, "drizzle", "0004_open_catalog_candidates.sql"),
+  );
   await build({
     entryPoints: ["src/music-supply/policy.ts", "src/music-supply/worker.ts"],
     bundle: true,
