@@ -6,6 +6,7 @@ import {
   runIsolatedLiteraryInferenceTick,
 } from "./lib/literary-isolated-inference.server";
 import { dispatchOneLiteraryPreparationHandoff } from "./lib/literary-prepare-outbox.server";
+import { reconcileOneLegacyLiteraryJob } from "./lib/literary-legacy-reconcile.server";
 import {
   consumePreparationQueue,
   type PreparationBatch,
@@ -29,6 +30,7 @@ export type ContentProcessorEnv = CoveEnv & {
   FORE_ASSETS_PER_MINUTE?: string;
   FORE_CONTENT_PREPARE_ENABLED?: string;
   FORE_CONTENT_HANDOFF_ENABLED?: string;
+  FORE_LITERARY_DRAIN_RECONCILE_ENABLED?: string;
   FORE_CONTENT_INFERENCE_ENABLED?: string;
   CONTENT_DB?: CoveEnv["DB"];
   FORE_CONTENT_BUDGET_MODE?: string;
@@ -68,7 +70,13 @@ const defaultRunners: ProcessorRunners = {
     }),
   literary: (env) => runLiteraryProfileTick(env, CONTENT_LITERARY_TICK_CAPS),
   "literary-prepare": (env) => runIsolatedLiteraryPreparationTick(env),
-  "literary-handoff": (env) => dispatchOneLiteraryPreparationHandoff(env),
+  "literary-handoff": async (env) =>
+    env.FORE_LITERARY_DRAIN_RECONCILE_ENABLED === "1"
+      ? {
+          reconciliation: await reconcileOneLegacyLiteraryJob(env),
+          handoff: await dispatchOneLiteraryPreparationHandoff(env),
+        }
+      : dispatchOneLiteraryPreparationHandoff(env),
   "literary-infer": async (env) => ({
     seeded: await seedOneIsolatedLiteraryInference(env),
     inference: await runIsolatedLiteraryInferenceTick(env),
