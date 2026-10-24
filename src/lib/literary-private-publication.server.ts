@@ -105,11 +105,11 @@ export async function publishOnePrivateLiteraryInference(env: PrivateLiteraryPub
     const isolated = env.CONTENT_DB!;
     const row = await isolated
       .prepare(
-      "UPDATE literary_inference_jobs SET publication_state=?," +
-        "publication_lease_token='',publication_lease_until=''," +
-        "publication_last_error=?,published_at=?" +
-        " WHERE id=? AND publication_state='running' AND publication_lease_token=?" +
-        " AND publication_lease_until>? RETURNING id",
+        "UPDATE literary_inference_jobs SET publication_state=?," +
+          "publication_lease_token='',publication_lease_until=''," +
+          "publication_last_error=?,published_at=?" +
+          " WHERE id=? AND publication_state='running' AND publication_lease_token=?" +
+          " AND publication_lease_until>? RETURNING id",
       )
       .bind(state, reason, state === "published" ? stamp : "", job!.id, claim, stamp)
       .first<{ id: string }>();
