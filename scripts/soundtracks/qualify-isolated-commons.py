@@ -59,15 +59,26 @@ def d1(sql, values, token, opener=OPENER):
         raise RuntimeError("Isolated D1 statement rejected")
     return response["result"][0].get("results", [])
 
-def claim_read(token, max_records=2, after=""):
-    if not 1 <= max_records <= 2 or (after and not re.fullmatch(r"cm_[0-9]{1,15}", after)):
+def claim_read(token, max_records=2, after="", rotation=None):
+    # A permanently held source is already excluded by the existing QA
+    # receipt. A transient network failure deliberately has no permanent
+    # hold: rotate across 64 deterministic source-id cohorts so it cannot
+    # monopolize every subsequent scheduled two-original campaign.
+    if rotation is None:
+        rotation = int(time.time() // 21600) % 64
+    if (not isinstance(max_records,int) or isinstance(max_records,bool) or
+        not 1 <= max_records <= 2 or
+        (after and not re.fullmatch(r"cm_[0-9]{1,15}", after)) or
+        not isinstance(rotation,int) or isinstance(rotation,bool) or
+        not 0 <= rotation < 64):
         raise ValueError("Technical QA scan must be bounded")
     return d1(
         "SELECT c.id,c.source_title,c.source_file_url,c.source_sha1,c.size_bytes,"
         " c.license_code,c.license_url,c.evidence_sha256 FROM music_open_source_candidates c"
         " WHERE c.status='discovered' AND c.id>? AND NOT EXISTS("
         " SELECT 1 FROM music_open_technical_qa q WHERE q.candidate_id=c.id)"
-        " ORDER BY c.id LIMIT ?", [after, max_records], token)
+        " ORDER BY ((CAST(SUBSTR(c.id,4) AS INTEGER)%64+64-?)%64),c.id LIMIT ?",
+        [after,rotation,max_records], token)
 
 def authoritative(row, opener=OPENER):
     title = row["source_title"]
