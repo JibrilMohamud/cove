@@ -1,10 +1,6 @@
 /**
- * Refund pessimistic output *character-work* reservations only after a
- * successful profile has been validated and persisted to private R2.
- *
- * This is NOT a provider token-cost ledger: Cove's existing daily budget is
- * measured in estimated prompt/output character units. Retain pessimistic
- * reservations for failed, interrupted and unverified inferences.
+ * Return pessimistically reserved *character-work*, not provider spend.
+ * The inference must have been validated and stored in private R2 first.
  */
 export function literaryOutputReservationRefund(
   promptCharacters: number,
@@ -13,27 +9,31 @@ export function literaryOutputReservationRefund(
 ) {
   if (![promptCharacters, outputCharacters, reservedOutputCharacters].every(Number.isSafeInteger))
     return 0;
-  if (promptCharacters < 0 || outputCharacters < 0 || reservedOutputCharacters < 0) return 0;
+  if (promptCharacters < 0 || outputCharacters < 0 || reservedOutputCharacters < 0)
+    return 0;
   return Math.max(0, reservedOutputCharacters - outputCharacters);
 }
 
+type SettlementStatement = {
+  bind(...values: unknown[]): SettlementStatement;
+  run(): Promise<{ meta?: { changes?: number } }>;
+};
+
 export type LiteraryBudgetDB = {
-  prepare(sql: string): {
-    bind(...values: unknown[]): {
-      run(): Promise<unknown>;
-    };
-  };
+  prepare(sql: string): SettlementStatement;
+  batch(statements: SettlementStatement[]): Promise<Array<{ meta?: { changes?: number } }>>;
 };
 
 /**
- * The caller MUST:
- * 1. Have successfully reserved full pessimistic units for this uncached call.
- * 2. Validate the actual response and publish a content-addressed R2 cache
- *    object BEFORE invoking this refund.
- * 3. Never invoke it for an R2 cache hit, including any retry after a crash.
+ * Exactly-once, even across simultaneous workers or a D1 retry:
+ * INSERT receipt + conditional daily-budget UPDATE + mark receipt applied
+ * execute atomically in ONE D1 batch. A successful batch either records the
+ * unique cache key and one refund, or records no refund at all.
  *
- * Thus retries cannot refund twice, and a crash before publication never
- * credits work that might have been incurred.
+ * Called only for a newly generated, verified, successfully persisted R2
+ * response, never for a cache hit. A transient failure leaves full units
+ * conservatively reserved. The deterministic receipt key is the canonical
+ * content-addressed R2 cache key, NOT a random job/lease identifier.
  */
 export async function settleLiteraryOutputReservation(
   db: LiteraryBudgetDB,
@@ -41,19 +41,36 @@ export async function settleLiteraryOutputReservation(
   promptCharacters: number,
   outputCharacters: number,
   reservedOutputCharacters: number,
+  receiptKey: string,
 ) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error("Invalid literary budget settlement day");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day))
+    throw new Error("Invalid literary budget settlement day");
+  if (!/^literary\/inference\/[a-zA-Z0-9_.:-]+\/[0-9a-f]{64}\.json$/.test(receiptKey))
+    throw new Error("Invalid literary settlement receipt key");
   const refunded = literaryOutputReservationRefund(
     promptCharacters,
     outputCharacters,
     reservedOutputCharacters,
   );
   if (refunded === 0) return { refunded: 0 };
-  await db
-    .prepare(
-      "UPDATE literary_profile_budget SET reserved_units=MAX(0,reserved_units-?) WHERE day=?",
-    )
-    .bind(refunded, day)
-    .run();
-  return { refunded };
+  const results = await db.batch([
+    db.prepare(
+      "INSERT OR IGNORE INTO literary_output_settlement_receipts" +
+        " (receipt_key,day,refund_units,applied)" +
+        " SELECT ?,?,?,0 WHERE EXISTS" +
+        " (SELECT 1 FROM literary_profile_budget WHERE day=?)",
+    ).bind(receiptKey, day, refunded, day),
+    db.prepare(
+      "UPDATE literary_profile_budget SET reserved_units=MAX(0,reserved_units-?)" +
+        " WHERE day=? AND EXISTS(SELECT 1 FROM literary_output_settlement_receipts" +
+        " WHERE receipt_key=? AND day=? AND refund_units=? AND applied=0)",
+    ).bind(refunded, day, receiptKey, day, refunded),
+    db.prepare(
+      "UPDATE literary_output_settlement_receipts SET applied=1" +
+        " WHERE receipt_key=? AND day=? AND refund_units=? AND applied=0" +
+        " AND EXISTS(SELECT 1 FROM literary_profile_budget WHERE day=?)",
+    ).bind(receiptKey, day, refunded, day),
+  ]);
+  const credited = Number(results[1]?.meta?.changes || 0) === 1;
+  return { refunded: credited ? refunded : 0 };
 }
