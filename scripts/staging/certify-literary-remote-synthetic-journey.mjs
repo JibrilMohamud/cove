@@ -382,8 +382,9 @@ try {
     published: seeded.enqueued,
   });
   assert.equal(
-    (await DB.prepare("SELECT revision FROM literary_profiles WHERE product_id='qa_literary'").first())
-      .revision,
+    (
+      await DB.prepare("SELECT revision FROM literary_profiles WHERE product_id='qa_literary'").first()
+    ).revision,
     1,
   );
   assert.deepEqual(await publisher.publishOnePrivateLiteraryInference(autopublish), {
