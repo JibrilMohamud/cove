@@ -100,10 +100,14 @@ def exact_candidate(record, page, provider="openverse", category=None, diagnosti
     if info.get("mime") not in ("audio/ogg","application/ogg","audio/mpeg"):
         return reject("unsupported_audio_mime")
     direct=urllib.parse.urlsplit(str(info.get("url") or ""))
-    if (direct.scheme!="https" or direct.hostname!="upload.wikimedia.org" or
-        direct.port or direct.query or direct.fragment or direct.username or direct.password or
-        not re.fullmatch(r"/wikipedia/commons/[^\s?]+\.(?:ogg|oga|mp3)",direct.path,re.I)):
-        return reject("original_host_or_extension")
+    if direct.scheme!="https" or direct.hostname!="upload.wikimedia.org":
+        return reject("original_host_or_scheme")
+    if direct.port or direct.username or direct.password:
+        return reject("original_url_credentials_or_port")
+    if direct.query or direct.fragment:
+        return reject("original_url_query_or_fragment")
+    if not re.fullmatch(r"/wikipedia/commons/[^\s?]+\.(?:ogg|oga|mp3)",direct.path,re.I):
+        return reject("original_filename_path")
     meta=info.get("extmetadata") or {}
     declared=credits.plain(meta.get("LicenseShortName",{}).get("value")).casefold()
     link=str(meta.get("LicenseUrl",{}).get("value") or "").rstrip("/")+"/"
