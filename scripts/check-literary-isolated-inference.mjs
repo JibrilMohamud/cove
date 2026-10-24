@@ -58,7 +58,6 @@ try {
       "CREATE TABLE gutenberg_source_cache(id TEXT PRIMARY KEY,source_id TEXT,ingest_status TEXT,epub_status TEXT,rights_status TEXT,commercial_use_status TEXT,content_hash TEXT,rights_territories_json TEXT);" +
       "CREATE TABLE rights_grants(id TEXT PRIMARY KEY,edition_id TEXT,format TEXT,sales_channel TEXT,status TEXT,decision TEXT,source TEXT,territory_code TEXT,starts_at TEXT,ends_at TEXT);" +
       "CREATE TABLE literary_profiles(product_id TEXT PRIMARY KEY,fingerprint TEXT,revision INTEGER NOT NULL DEFAULT 0,profile_json TEXT,status TEXT,coverage TEXT,policy_version TEXT,updated_at TEXT);" +
-      "CREATE TABLE cove_runtime_config(key TEXT PRIMARY KEY,value TEXT NOT NULL);" +
       readFileSync("infra/content-budget/0004_literary_handoff_outbox_primary.sql", "utf8"),
   );
   content.exec(
