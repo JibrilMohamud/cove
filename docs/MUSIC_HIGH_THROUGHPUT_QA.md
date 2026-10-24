@@ -12,7 +12,7 @@ Depends on merged PR #284; all state below lives in separate `MUSIC_DB`.
 - `POST /v1/execution/source-limits` is an **isolated operator** action
   applying per-contract intake and analysis daily and parallel limits. Absent
   or paused records yield no claims. Initial QA cap: 20 source masters/day,
-  2 concurrent transfers, 40 analyses/day, 2 simultaneous analyses (set
+  2 concurrent transfers, 40 full-decode QA jobs/day with 2 concurrent\n  FFmpeg consumers, and 40 analyses/day with 2 simultaneous models (set
   explicitly per signed contract; these are examples, not defaults for activation).
 - `POST /v1/execution/intake/claim`: ingestion principal only. It durably
   seeds manifests already registered under active licensed contracts, then
@@ -21,7 +21,7 @@ Depends on merged PR #284; all state below lives in separate `MUSIC_DB`.
   Only an unexpired lease permits PUT to the existing authenticated R2 staging
   API when `MUSIC_EXECUTION_ENABLED=1`. Lease completion and upload receipt
   are committed together; failed acquisitions get bounded retries.
-- `POST /v1/analysis/claim` retains its existing 15-minute fenced lease,
+- `POST /v1/execution/qa/claim` supplies a separate leased full-decode\n  FFmpeg queue with per-contract daily and concurrent QA caps. Private QA\n  audio GET and attestation POST require the same unexpired QA lease when\n  execution is enabled. Each exact-original verified quality result closes\n  the QA job, enqueues analysis and writes a durable stage receipt together.\n- `POST /v1/analysis/claim` retains its existing 15-minute fenced lease,
   now requiring a live, unpaused per-source quota when execution is enabled.
   Audio QA and analysis never run in the storefront. Completed exact-master
   analyses store a versioned report, policy outcome, optional cost and processing
@@ -66,7 +66,7 @@ Depends on merged PR #284; all state below lives in separate `MUSIC_DB`.
    COVE_MUSIC_EXECUTION_RUNNER_ENABLED=1 node scripts/music-supply/drain-source-intake.mjs --execute --workers=4 --max-tracks=32 --max-minutes=20
    ```
 
-6. On separately scoped CPU/GPU runners, install FFmpeg and pinned
+6. Run four parallel independent full-decode FFmpeg workers with\n   `COVE_MUSIC_EXECUTION_RUNNER_ENABLED=1`, the QA origin and separate\n   `COVE_MUSIC_SUPPLY_QA_TOKEN`:\n\n   ```sh\n   node scripts/music-supply/drain-full-decode-qa.mjs --execute --workers=4 --max-tracks=32 --max-minutes=20\n   ```\n\n7. On separately scoped CPU/GPU runners, install FFmpeg and pinned
    `scripts/soundtracks/profile-requirements.txt`/Torch runtime, then:
 
    ```sh
@@ -74,20 +74,20 @@ Depends on merged PR #284; all state below lives in separate `MUSIC_DB`.
    ```
 
    Each process loads the CLAP model only once. A protected GitHub Action
-   `isolated-music-high-throughput-qa` provides a four-lane execution matrix.
+   `isolated-music-high-throughput-qa` provides a four-lane model-inference matrix and four parallel full-decode FFmpeg\n   consumers.
    Its schedule performs **no processing at all** unless an operator separately
    configures `vars.COVE_MUSIC_HIGH_THROUGHPUT_QA=1` and scoped QA secrets.
    It does not connect to primary D1 and is not a verified production capacity
    claim. Source and analysis admission remains globally capped in MUSIC_DB
    even across concurrent hosts/lane retries.
-7. Human reviewers use `scripts/music-supply/review-private-queue.mjs`
+8. Human reviewers use `scripts/music-supply/review-private-queue.mjs`
    with `--list`, `--audio=master-id --output=private-original.ogg` and
    `--decision=attestation.json`. Review JSON must contain:
    `masterId`, `masterSha256`, `reportSha256`, `decision` (approve/reject),
    `heardFullMaster: true`, `reviewerId`, and substantive `rationale`.
    Delete local licensed master copies after the permitted review.
    Operators use `--metrics` with the separate operator token.
-8. Keep revocation processing live even when supply is paused. Validate
+9. Keep revocation processing live even when supply is paused. Validate
    old/expired lease replay, source-day caps, concurrent claims, forged
    analysis, incorrect acoustic report, human reject/approve, withdrawn
    contract, and canonical tombstone precedence before any customer release.
