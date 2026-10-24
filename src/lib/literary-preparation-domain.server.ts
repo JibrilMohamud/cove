@@ -78,9 +78,9 @@ export async function requireIsolatedDomain(env: PreparationEnv): Promise<D1> {
     (env.FORE_CONTENT_PROCESSOR_ROLE !== "literary-prepare" &&
       !(
         (env.FORE_CONTENT_PROCESSOR_ROLE === "literary-handoff" &&
-        env.FORE_CONTENT_HANDOFF_ENABLED === "1") ||
-      (env.FORE_CONTENT_PROCESSOR_ROLE === "literary-infer" &&
-        env.FORE_CONTENT_INFERENCE_ENABLED === "1")
+          env.FORE_CONTENT_HANDOFF_ENABLED === "1") ||
+        (env.FORE_CONTENT_PROCESSOR_ROLE === "literary-infer" &&
+          env.FORE_CONTENT_INFERENCE_ENABLED === "1")
       )) ||
     !env.CONTENT_DB ||
     env.CONTENT_DB === env.DB
