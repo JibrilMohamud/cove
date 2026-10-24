@@ -147,11 +147,7 @@ export async function publishOnePrivateLiteraryInference(env: PrivateLiteraryPub
         prior.revision === job.profile_revision + 1 &&
         prior.status === "analyzed" &&
         prior.coverage === "isolated_samples";
-      if (exact)
-        return settle(
-          "published",
-          result?.skipped ? "replayed_canonical_success" : "",
-        );
+      if (exact) return settle("published", result?.skipped ? "replayed_canonical_success" : "");
       if (result?.published) throw Error("private_publisher_ack_unverified");
       return settle("held", "rights_source_or_version_changed");
     }
