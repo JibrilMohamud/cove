@@ -29,6 +29,9 @@ jobs:
       - run: node --check scripts/music-supply/ingest-reviewed-catalog.mjs
       - run: node --check scripts/music-supply/qualify-staged-masters.mjs
       - run: node --check scripts/music-supply/audio-quality.mjs
+      - run: python -m py_compile scripts/music-supply/analyze-qualifying-masters.py
+      - run: python scripts/music-supply/analyze-qualifying-masters.py --max-tracks=4
+
       - run: node scripts/build-isolated-music-supply.mjs
       - run: npm run typecheck
       - run: npx eslint src/music-supply/*.ts scripts/check-isolated-music-supply.mjs

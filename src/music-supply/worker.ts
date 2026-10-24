@@ -1,4 +1,6 @@
 import { privateMusicCandidates } from "./catalog-projection";
+import { handleMusicAnalysis } from "./analysis";
+import { QUIET_READING_POLICY } from "../features/fore/quiet-reading-score";
 import {
   validateMusicContract,
   validateMusicMaster,
@@ -33,6 +35,9 @@ export type MusicSupplyEnv = {
   MUSIC_LICENSE_REVIEWER_TOKEN_SHA256?: string;
   MUSIC_INGEST_TOKEN_SHA256?: string;
   MUSIC_QA_TOKEN_SHA256?: string;
+  MUSIC_ANALYSIS_TOKEN_SHA256?: string;
+  MUSIC_ANALYSIS_ENABLED?: string;
+  MUSIC_AUTO_QUIET_APPROVAL?: string;
 };
 
 function response(data: unknown, status = 200) {
@@ -148,13 +153,26 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
   const ingest = await authorized(request, env.MUSIC_INGEST_TOKEN_SHA256);
   const reviewer = await authorized(request, env.MUSIC_LICENSE_REVIEWER_TOKEN_SHA256);
   const qa = await authorized(request, env.MUSIC_QA_TOKEN_SHA256);
+  const analyst = await authorized(request, env.MUSIC_ANALYSIS_TOKEN_SHA256);
   if (
     !env.MUSIC_OPERATOR_TOKEN_SHA256 ||
     env.MUSIC_OPERATOR_TOKEN_SHA256 === env.MUSIC_LICENSE_REVIEWER_TOKEN_SHA256 ||
     env.MUSIC_OPERATOR_TOKEN_SHA256 === env.MUSIC_INGEST_TOKEN_SHA256 ||
-    env.MUSIC_QA_TOKEN_SHA256 === env.MUSIC_INGEST_TOKEN_SHA256
+    env.MUSIC_QA_TOKEN_SHA256 === env.MUSIC_INGEST_TOKEN_SHA256 ||
+    (env.MUSIC_ANALYSIS_ENABLED === "1" &&
+      (!env.MUSIC_ANALYSIS_TOKEN_SHA256 ||
+        !shaPattern.test(env.MUSIC_ANALYSIS_TOKEN_SHA256) ||
+        [
+          env.MUSIC_OPERATOR_TOKEN_SHA256,
+          env.MUSIC_INGEST_TOKEN_SHA256,
+          env.MUSIC_QA_TOKEN_SHA256,
+          env.MUSIC_LICENSE_REVIEWER_TOKEN_SHA256,
+        ].includes(env.MUSIC_ANALYSIS_TOKEN_SHA256)))
   )
     return response({ error: "music_role_separation_required" }, 503);
+
+  const analysisResponse = await handleMusicAnalysis(request, env, analyst, admin);
+  if (analysisResponse) return analysisResponse;
 
   const evidenceMatch = /^\/v1\/evidence\/([a-zA-Z0-9._:-]{3,120})$/.exec(path);
   if (method === "POST" && evidenceMatch) {
@@ -376,11 +394,31 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
       env.MUSIC_DB.prepare(
         "UPDATE music_masters SET quality_key=?,status='quality_passed',updated_at=? WHERE id=? AND sha256=? AND status='staged' AND EXISTS(SELECT 1 FROM music_contracts c WHERE c.id=music_masters.contract_id AND c.status='active' AND c.expires_at>?)",
       ).bind(key, at, r.id, r.sha256, at),
-      env.MUSIC_DB.prepare(
-        "INSERT INTO music_publication_outbox(id,contract_id,master_id,action,payload_json,created_at) SELECT ?,contract_id,id,'master_qualified',manifest_json,? FROM music_masters WHERE id=? AND status='quality_passed' AND updated_at=?",
-      ).bind(eventId, at, r.id, at),
+      // Enabled cohorts cannot enter the handoff merely by passing FFmpeg.
+      // The immutable exact-master job must separately finish quietness QA.
+      ...(env.MUSIC_ANALYSIS_ENABLED === "1"
+        ? [
+            env.MUSIC_DB.prepare(
+              "INSERT OR IGNORE INTO music_analysis_jobs(master_id,policy,master_sha256,available_at,created_at,updated_at)" +
+                " SELECT id,?,?,?,?,? FROM music_masters WHERE id=? AND sha256=?" +
+                " AND status='quality_passed' AND updated_at=?",
+            ).bind(QUIET_READING_POLICY, r.sha256, at, at, at, r.id, r.sha256, at),
+          ]
+        : [
+            env.MUSIC_DB.prepare(
+              "INSERT INTO music_publication_outbox(id,contract_id,master_id,action,payload_json,created_at) SELECT ?,contract_id,id,'master_qualified',manifest_json,? FROM music_masters WHERE id=? AND status='quality_passed' AND updated_at=?",
+            ).bind(eventId, at, r.id, at),
+          ]),
     ]);
-    return response({ id: r.id, status: "quality_passed", canonicalPublished: false }, 202);
+    return response(
+      {
+        id: r.id,
+        status: "quality_passed",
+        analysisQueued: env.MUSIC_ANALYSIS_ENABLED === "1",
+        canonicalPublished: false,
+      },
+      202,
+    );
   }
 
   // Explicit per-master withdrawal precedes any R2 cleanup. The future
@@ -443,6 +481,7 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
         params.get("territory") || "US",
         params.get("after") || "",
         Number(params.get("limit") || 8),
+        env.MUSIC_ANALYSIS_ENABLED === "1",
       ),
     );
   }
@@ -464,7 +503,16 @@ async function route(request: Request, env: MusicSupplyEnv): Promise<Response> {
       await env.MUSIC_DB.prepare(
         "SELECT o.*,c.status contract_status,c.expires_at contract_expires_at," +
           " c.evidence_sha256 contract_evidence_sha256," +
-          " CASE WHEN o.action='master_qualified' AND c.status='active' AND c.expires_at>? THEN 1 ELSE 0 END publishable" +
+          " CASE WHEN o.action='master_qualified' AND c.status='active' AND c.expires_at>?" +
+          " AND EXISTS(SELECT 1 FROM music_masters m WHERE m.id=o.master_id AND m.status='quality_passed')" +
+          (env.MUSIC_ANALYSIS_ENABLED === "1"
+            ? " AND EXISTS(SELECT 1 FROM music_analysis_jobs j JOIN music_masters m ON m.id=j.master_id" +
+              " WHERE j.master_id=o.master_id AND j.policy='" +
+              QUIET_READING_POLICY +
+              "'" +
+              " AND j.master_sha256=m.sha256 AND j.status='approved')"
+            : "") +
+          " THEN 1 ELSE 0 END publishable" +
           " FROM music_publication_outbox o JOIN music_contracts c ON c.id=o.contract_id" +
           " WHERE o.seq>? ORDER BY o.seq LIMIT ?",
       )
