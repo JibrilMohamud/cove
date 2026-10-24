@@ -449,11 +449,11 @@ def run(args, client, measure):
     while examined < args.max_scan and processed < args.max_tracks and bytes_total < args.max_mib * 1024 * 1024:
         page_size = min(100, args.max_scan-examined)
         mode = 'triaged' if getattr(args,'reconsider_triaged',False) else '1'
-        # 16 disjoint source-id buckets keep ambiguous early entries from
+        # 64 disjoint source-id buckets keep ambiguous early entries from
         # permanently starving other held records in the hourly queue.
         # This operation is read-only until a particular source passes the
         # entire exact-master review and measured-audio approval sequence.
-        hourly_shard = int(time.time() // 3600) % 16
+        hourly_shard = int(time.time() // 3600) % 64
         shard_part = '&shard='+str(hourly_shard) if mode=='triaged' else ''
         page = client.call('/admin/soundtracks?status=pending_review&automation='+mode+
                            shard_part+'&limit='+str(page_size)+'&after='+urllib.parse.quote(cursor))
