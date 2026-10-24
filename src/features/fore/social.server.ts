@@ -796,15 +796,27 @@ function journeySvg(j: any, format: "square" | "story") {
     graphTop = format === "story" ? 1080 : 610,
     graphH = format === "story" ? 390 : 250,
     graphW = 820,
-    graphLeft = 150;
+    graphLeft = 150,
+    graphBottom = graphTop + graphH;
+  const startMs = Date.parse(String(j.started_at || "")),
+    finishMs = Date.parse(String(j.finished_at || "")),
+    timed = Number.isFinite(startMs) && Number.isFinite(finishMs) && finishMs > startMs;
+  // Real elapsed time on the horizontal axis. An event count is not a time
+  // axis: multiple sessions on one evening must not masquerade as equal days.
   const poly = pts.length
     ? pts
-        .map(
-          (p: any, i: number) =>
-            `${graphLeft + (i / Math.max(1, pts.length - 1)) * graphW},${graphTop + graphH - (Number(p.progress) || 0) * graphH}`,
-        )
+        .map((p: any, i: number) => {
+          const recorded = Date.parse(String(p.at || ""));
+          const horizontal =
+            timed && Number.isFinite(recorded)
+              ? Math.min(1, Math.max(0, (recorded - startMs) / (finishMs - startMs)))
+              : i / Math.max(1, pts.length - 1);
+          const vertical = Math.min(1, Math.max(0, Number(p.progress) || 0));
+          return `${graphLeft + horizontal * graphW},${graphTop + graphH - vertical * graphH}`;
+        })
         .join(" ")
     : `${graphLeft},${graphTop + graphH} ${graphLeft + graphW},${graphTop}`;
+  const filledArea = `${graphLeft},${graphBottom} ${poly} ${graphLeft + graphW},${graphBottom}`;
   const total = Number(j.read_seconds || 0) + Number(j.listen_seconds || 0),
     readPct = total ? Math.round((Number(j.read_seconds || 0) * 100) / total) : 100,
     listenPct = 100 - readPct,
@@ -849,7 +861,7 @@ function journeySvg(j: any, format: "square" | "story") {
   const infoX = j.show_cover ? 340 : 90,
     infoY = format === "story" ? 430 : 390,
     quoteY = format === "story" ? 760 : 500;
-  return `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="${theme[0]}"/><text x="90" y="130" font-family="Georgia,serif" font-size="32" fill="${theme[2]}" letter-spacing="5">FORE · READING JOURNEY</text><text x="90" y="230" font-family="Georgia,serif" font-size="${format === "story" ? 70 : 64}" fill="${theme[1]}">${title}</text><text x="90" y="292" font-family="Arial,sans-serif" font-size="30" fill="${theme[1]}" opacity=".7">${author}</text>${cover}<text x="${infoX}" y="${infoY}" font-family="Arial,sans-serif" font-size="28" fill="${theme[1]}">${esc(stats.join(" · "))}</text>${dateLine ? `<text x="${infoX}" y="${infoY + 52}" font-family="Arial,sans-serif" font-size="24" fill="${theme[1]}" opacity=".66">${esc(dateLine)}</text>` : ""}<text x="${infoX}" y="${infoY + 104}" font-family="Arial,sans-serif" font-size="23" fill="${theme[1]}" opacity=".72">${esc(formatStats.join(" · "))}</text>${quote ? `<text x="90" y="${quoteY}" font-family="Georgia,serif" font-style="italic" font-size="26" fill="${theme[1]}" opacity=".82">“${quote}”</text>` : ""}${review ? `<text x="90" y="${quoteY + 54}" font-family="Arial,sans-serif" font-size="23" fill="${theme[1]}" opacity=".72">${review}</text>` : ""}<polyline points="${poly}" fill="none" stroke="${theme[2]}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/><line x1="${graphLeft}" y1="${graphTop + graphH}" x2="${graphLeft + graphW}" y2="${graphTop + graphH}" stroke="${theme[1]}" opacity=".15" stroke-width="2"/><text x="${graphLeft}" y="${graphTop + graphH + 52}" font-family="Arial,sans-serif" font-size="22" fill="${theme[1]}" opacity=".55">0%</text><text x="${graphLeft + graphW - 55}" y="${graphTop + graphH + 52}" font-family="Arial,sans-serif" font-size="22" fill="${theme[1]}" opacity=".55">100%</text><text x="90" y="${height - 100}" font-family="Arial,sans-serif" font-size="27" fill="${theme[1]}" opacity=".7">Read on Cove · ${esc(String(j.owner?.username ? `@${j.owner.username}` : j.owner?.name || "Reader"))}</text></svg>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${theme[0]}"/><stop offset="100%" stop-color="${theme[1]}" stop-opacity=".13"/></linearGradient><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${theme[2]}" stop-opacity=".32"/><stop offset="100%" stop-color="${theme[2]}" stop-opacity="0"/></linearGradient><pattern id="grid" width="82" height="82" patternUnits="userSpaceOnUse"><path d="M 82 0 L 0 0 0 82" fill="none" stroke="${theme[1]}" stroke-opacity=".065" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(#bg)"/><rect x="48" y="48" width="${width - 96}" height="${height - 96}" rx="35" fill="none" stroke="${theme[2]}" stroke-opacity=".28" stroke-width="2"/><rect x="72" y="72" width="${width - 144}" height="${height - 144}" rx="25" fill="url(#grid)"/><text x="90" y="130" font-family="Georgia,serif" font-size="32" fill="${theme[2]}" letter-spacing="5">FORE · READING JOURNEY</text><text x="90" y="230" font-family="Georgia,serif" font-size="${format === "story" ? 70 : 64}" fill="${theme[1]}">${title}</text><text x="90" y="292" font-family="Arial,sans-serif" font-size="30" fill="${theme[1]}" opacity=".7">${author}</text>${cover}<text x="${infoX}" y="${infoY}" font-family="Arial,sans-serif" font-size="28" fill="${theme[1]}">${esc(stats.join(" · "))}</text>${dateLine ? `<text x="${infoX}" y="${infoY + 52}" font-family="Arial,sans-serif" font-size="24" fill="${theme[1]}" opacity=".66">${esc(dateLine)}</text>` : ""}<text x="${infoX}" y="${infoY + 104}" font-family="Arial,sans-serif" font-size="23" fill="${theme[1]}" opacity=".72">${esc(formatStats.join(" · "))}</text>${quote ? `<text x="90" y="${quoteY}" font-family="Georgia,serif" font-style="italic" font-size="26" fill="${theme[1]}" opacity=".82">“${quote}”</text>` : ""}${review ? `<text x="90" y="${quoteY + 54}" font-family="Arial,sans-serif" font-size="23" fill="${theme[1]}" opacity=".72">${review}</text>` : ""}<polygon points="${filledArea}" fill="url(#area)"/><polyline points="${poly}" fill="none" stroke="${theme[2]}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/><line x1="${graphLeft}" y1="${graphTop + graphH}" x2="${graphLeft + graphW}" y2="${graphTop + graphH}" stroke="${theme[1]}" opacity=".15" stroke-width="2"/><text x="${graphLeft}" y="${graphTop + graphH + 52}" font-family="Arial,sans-serif" font-size="22" fill="${theme[1]}" opacity=".55">START</text><text x="${graphLeft + graphW - 80}" y="${graphTop + graphH + 52}" font-family="Arial,sans-serif" font-size="22" fill="${theme[1]}" opacity=".55">FINISHED</text><text x="90" y="${height - 100}" font-family="Arial,sans-serif" font-size="27" fill="${theme[1]}" opacity=".7">Read on Cove · ${esc(String(j.owner?.username ? `@${j.owner.username}` : j.owner?.name || "Reader"))}</text></svg>`;
 }
 
 async function visiblePosts(
@@ -858,22 +870,71 @@ async function visiblePosts(
   rows: any[],
   viewerProgress = 1,
   env?: CoveEnv,
+  countHeartsOnly = false,
 ) {
   const reached = new Map<string, number>();
+  // Audience checks can touch multiple relationship tables. Cache decisions only
+  // for this bounded response; never cache across viewers or requests.
+  const audience = new Map<string, boolean>();
+  const people = new Map<string, Awaited<ReturnType<typeof sharingPerson>>>();
+  // Batch only the viewer's reversible reactions; do not perform one D1
+  // round trip per visible comment or fetch other users' reaction identities.
+  const reactions = new Map<string, string[]>();
+  const heartCounts = new Map<string, number>();
+  // Most thread pages are 8-12 posts, but legacy feed views can exceed 50.
+  // Chunk all rows rather than silently lose the viewer's reactions beyond 50.
+  for (let offset = 0; offset < rows.length; offset += 50) {
+    const ids = rows.slice(offset, offset + 50).map((r) => String(r.id));
+    if (!ids.length) continue;
+    const placeholders = ids.map(() => "?").join(",");
+    if (viewer) {
+      const mine = await db
+        .prepare(
+          `SELECT post_id,reaction FROM social_post_reactions WHERE user_id=? AND post_id IN (${placeholders})`,
+        )
+        .bind(viewer, ...ids)
+        .all<{ post_id: string; reaction: string }>();
+      for (const row of mine.results) {
+        const previous = reactions.get(row.post_id) || [];
+        previous.push(row.reaction);
+        reactions.set(row.post_id, previous);
+      }
+    }
+    if (countHeartsOnly) {
+      const counts = await db
+        .prepare(
+          `SELECT post_id,COUNT(*) AS total FROM social_post_reactions WHERE reaction='heart' AND post_id IN (${placeholders}) GROUP BY post_id`,
+        )
+        .bind(...ids)
+        .all<{ post_id: string; total: number }>();
+      for (const row of counts.results) {
+        heartCounts.set(row.post_id, Number(row.total) || 0);
+      }
+    }
+  }
   const out = [];
   for (const r of rows) {
     if (r.deleted_at || r.moderation_status !== "visible") continue;
-    if (
-      !(await canSee(
-        db,
-        viewer,
-        String(r.user_id),
-        String(r.visibility),
-        r.group_id,
-        r.recipient_user_id,
-      ))
-    )
-      continue;
+    const audienceKey = JSON.stringify([
+      r.user_id,
+      r.visibility,
+      r.group_id || null,
+      r.recipient_user_id || null,
+    ]);
+    if (!audience.has(audienceKey)) {
+      audience.set(
+        audienceKey,
+        await canSee(
+          db,
+          viewer,
+          String(r.user_id),
+          String(r.visibility),
+          r.group_id,
+          r.recipient_user_id,
+        ),
+      );
+    }
+    if (!audience.get(audienceKey)) continue;
     const progress = r.progress == null ? null : Number(r.progress);
     if (viewer && r.product_id && !reached.has(String(r.product_id)))
       reached.set(
@@ -893,15 +954,10 @@ async function visiblePosts(
       });
       continue;
     }
-    const who = await sharingPerson(db, viewer, String(r.user_id)),
-      myReactions = viewer
-        ? (
-            await db
-              .prepare("SELECT reaction FROM social_post_reactions WHERE post_id=? AND user_id=?")
-              .bind(r.id, viewer)
-              .all<any>()
-          ).results.map((x: any) => String(x.reaction))
-        : [];
+    const authorId = String(r.user_id);
+    if (!people.has(authorId)) people.set(authorId, await sharingPerson(db, viewer, authorId));
+    const who = people.get(authorId) || null,
+      myReactions = reactions.get(String(r.id)) || [];
     out.push({
       id: r.id,
       user: who,
@@ -922,7 +978,9 @@ async function visiblePosts(
       recipientUserId: r.recipient_user_id,
       spoiler: !!r.spoiler,
       replies: Number(r.reply_count || 0),
-      reactions: Number(r.reaction_count || 0),
+      reactions: countHeartsOnly
+        ? heartCounts.get(String(r.id)) || 0
+        : Number(r.reaction_count || 0),
       myReactions,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
@@ -935,11 +993,15 @@ async function visiblePosts(
 }
 
 // Cursors advance over scanned rows, including entries hidden by current permissions.
-function socialCursor(raw: string | null): { at: string; id: string } | null {
+function socialCursor(raw: string | null): { at: string; id: string; score?: number } | null {
   if (!raw) return null;
   try {
     return z
-      .object({ at: z.string().max(80), id: z.string().min(1).max(300) })
+      .object({
+        at: z.string().max(80),
+        id: z.string().min(1).max(300),
+        score: z.number().int().nonnegative().max(1_000_000_000).optional(),
+      })
       .parse(JSON.parse(atob(raw)));
   } catch {
     throw new ApiError(400, "Invalid activity cursor.");
@@ -2001,7 +2063,12 @@ export async function handleSocial(
       await assertContextReadable(db, userId, contextType, contextId);
     const postId = url.searchParams.get("postId"),
       parentId = url.searchParams.get("parentId"),
-      cursor = socialCursor(url.searchParams.get("cursor"));
+      cursor = socialCursor(url.searchParams.get("cursor")),
+      limitedBookThread = contextType === "work" && url.searchParams.get("thread") === "1",
+      threadLimit = limitedBookThread ? (parentId ? 8 : 12) : 50,
+      topSorted = limitedBookThread && url.searchParams.get("sort") === "top";
+    if (topSorted && cursor && (cursor.score === undefined || !cursor.at))
+      throw new ApiError(400, "Invalid ranked comment cursor.");
     if (parentId) {
       const parent = await db
         .prepare(
@@ -2012,26 +2079,69 @@ export async function handleSocial(
       const visible = parent ? await visiblePosts(db, userId, [parent], viewerProgress, env) : [];
       if (!visible.length || visible[0].locked) throw new ApiError(404, "Discussion not found.");
     }
+    if (limitedBookThread && postId && !parentId) {
+      // Deep links must not bypass a hidden, moderated or private ancestor.
+      // Walk the *entire* chain in one bounded read, not just parent + root.
+      const chain = (
+        await db
+          .prepare(
+            `WITH RECURSIVE ancestry(id,parent_id,depth) AS (
+              SELECT id,parent_id,0 FROM social_posts
+               WHERE id=? AND context_type='work' AND context_id=?
+              UNION ALL
+              SELECT p.id,p.parent_id,a.depth+1
+                FROM ancestry a JOIN social_posts p ON p.id=a.parent_id
+               WHERE a.depth<64 AND p.context_type='work' AND p.context_id=?
+            )
+            SELECT p.*,a.depth FROM ancestry a
+              JOIN social_posts p ON p.id=a.id
+             ORDER BY a.depth`,
+          )
+          .bind(postId, contextId, contextId)
+          .all<any>()
+      ).results;
+      if (
+        !chain.length ||
+        chain.length > 64 ||
+        chain.some((p) => p.deleted_at || p.moderation_status !== "visible") ||
+        (chain[chain.length - 1].parent_id && chain.length <= 64)
+      )
+        throw new ApiError(404, "Discussion not found.");
+      const readable = await visiblePosts(db, userId, chain, viewerProgress, env);
+      if (readable.length !== chain.length || readable.some((p) => p.locked))
+        throw new ApiError(404, "Discussion not found.");
+    }
     const rows = (
       await db
         .prepare(
-          `SELECT * FROM social_posts WHERE context_type=? AND context_id=? AND ${parentId ? "parent_id=?" : "parent_id IS NULL"} AND deleted_at IS NULL ${postId ? "AND id=?" : ""}
-       ${cursor ? "AND (created_at<? OR (created_at=? AND id<?))" : ""}
-       ORDER BY created_at DESC,id DESC LIMIT 51`,
+          `SELECT * FROM social_posts WHERE context_type=? AND context_id=? AND ${parentId ? "parent_id=?" : postId && limitedBookThread ? "1=1" : "parent_id IS NULL"} AND deleted_at IS NULL AND moderation_status='visible' ${postId ? "AND id=?" : ""}
+       ${cursor ? (topSorted ? "AND (reaction_count<? OR (reaction_count=? AND (created_at<? OR (created_at=? AND id<?))))" : "AND (created_at<? OR (created_at=? AND id<?))") : ""}
+       ORDER BY ${topSorted ? "reaction_count DESC,created_at DESC,id DESC" : "created_at DESC,id DESC"} LIMIT ${threadLimit + 1}`,
         )
         .bind(
           contextType,
           contextId,
           ...(parentId ? [parentId] : []),
           ...(postId ? [postId] : []),
-          ...(cursor ? [cursor.at, cursor.at, cursor.id] : []),
+          ...(cursor
+            ? topSorted
+              ? [cursor.score, cursor.score, cursor.at, cursor.at, cursor.id]
+              : [cursor.at, cursor.at, cursor.id]
+            : []),
         )
         .all<any>()
     ).results;
     const posts: (Awaited<ReturnType<typeof visiblePosts>>[number] & {
       replyItems?: Awaited<ReturnType<typeof visiblePosts>>;
       replyNextCursor?: string | null;
-    })[] = await visiblePosts(db, userId, rows.slice(0, 50), viewerProgress, env);
+    })[] = await visiblePosts(
+      db,
+      userId,
+      rows.slice(0, threadLimit),
+      viewerProgress,
+      env,
+      limitedBookThread,
+    );
     if (!parentId && url.searchParams.get("includeReplies") !== "false")
       for (const post of posts.filter((post) => !post.locked)) {
         const replies = (
@@ -2045,7 +2155,21 @@ export async function handleSocial(
         post.replyItems = await visiblePosts(db, userId, replies.slice(0, 20), viewerProgress, env);
         post.replyNextCursor = replies.length > 20 ? cursorFor(replies[19]) : null;
       }
-    return json({ posts, nextCursor: rows.length > 50 ? cursorFor(rows[49]) : null });
+    return json({
+      posts,
+      nextCursor:
+        rows.length > threadLimit
+          ? topSorted
+            ? btoa(
+                JSON.stringify({
+                  score: Number(rows[threadLimit - 1].reaction_count || 0),
+                  at: String(rows[threadLimit - 1].created_at),
+                  id: String(rows[threadLimit - 1].id),
+                }),
+              )
+            : cursorFor(rows[threadLimit - 1])
+          : null,
+    });
   }
   if (method === "GET" && path.startsWith("/social/lists/")) {
     const id = decodeURIComponent(path.slice("/social/lists/".length)),

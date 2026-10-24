@@ -799,5 +799,18 @@
   "Taste preferences saved. Search wording applies only to this search.": "Préférences enregistrées. La formulation s’applique uniquement à cette recherche.",
   "Could not save these preferences. Check the values and try again.": "Impossible d’enregistrer ces préférences. Vérifiez les valeurs et réessayez.",
   "Form cleared. Save to replace your saved preferences.": "Formulaire effacé. Enregistrez pour remplacer vos préférences sauvegardées.",
-  "No eligible books with enough evidence match these preferences. Try fewer constraints.": "Aucun livre admissible suffisamment documenté ne correspond. Essayez moins de critères."
+  "No eligible books with enough evidence match these preferences. Try fewer constraints.": "Aucun livre admissible suffisamment documenté ne correspond. Essayez moins de critères.",
+  "Order book discussions": "Trier les discussions sur le livre",
+  "Popular": "Populaires",
+  "Newest": "Plus récents",
+  "Only a few replies load at a time. Hearts represent unique reader reactions.": "Seules quelques réponses sont chargées à la fois. Les cœurs représentent des réactions uniques.",
+  "Full thread": "Discussion complète",
+  "Share image · Instagram / Stories": "Partager l’image · Instagram / Stories",
+  "Share to X": "Partager sur X",
+  "Share to Reddit": "Partager sur Reddit",
+  "Download PNG": "Télécharger le PNG",
+  "← Back to the book": "← Retour au livre",
+  "Conversation": "Conversation",
+  "Follow this branch without losing reading width to indentation.": "Suivez ce fil en conservant toute la largeur de lecture.",
+  "Parent comment": "Commentaire parent"
 }

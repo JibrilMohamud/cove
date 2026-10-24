@@ -1,4 +1,5 @@
 import { useUiText } from "./ui-text";
+import "./reading-community.css";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -81,6 +82,8 @@ export function DiscussionThread({
   parentId,
   initialPost,
   initialUpdatedAt,
+  bookThread = false,
+  depth = 0,
 }: {
   contextType: "work" | "margin" | "group" | "list" | "profile";
   contextId: string;
@@ -92,10 +95,13 @@ export function DiscussionThread({
   parentId?: string;
   initialPost?: Post;
   initialUpdatedAt?: number;
+  bookThread?: boolean;
+  depth?: number;
 }) {
   const ui = useUiText();
   const { data, signIn } = useAccount();
   const [body, setBody] = useState("");
+  const [threadSort, setThreadSort] = useState<"top" | "new">("top");
   const [kind, setKind] = useState<"discussion" | "question">("discussion");
   const [spoiler, setSpoiler] = useState(false);
   const [replying, setReplying] = useState<string | null>(null);
@@ -107,7 +113,16 @@ export function DiscussionThread({
   const [reportReason, setReportReason] = useState("");
   const [reportDetails, setReportDetails] = useState("");
   const q = useInfiniteQuery<{ posts: Post[]; nextCursor: string | null }>({
-    queryKey: ["social-posts", data.user?.id, contextType, contextId, postId, parentId],
+    queryKey: [
+      "social-posts",
+      data.user?.id,
+      contextType,
+      contextId,
+      postId,
+      parentId,
+      bookThread,
+      threadSort,
+    ],
     initialPageParam: "",
     initialData: initialPost
       ? { pages: [{ posts: [initialPost], nextCursor: null }], pageParams: [""] }
@@ -116,7 +131,7 @@ export function DiscussionThread({
     staleTime: 30_000,
     queryFn: ({ pageParam }) =>
       api(
-        `/social/posts?contextType=${contextType}&contextId=${encodeURIComponent(contextId)}&includeReplies=false${postId ? `&postId=${encodeURIComponent(postId)}` : ""}${parentId ? `&parentId=${encodeURIComponent(parentId)}` : ""}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
+        `/social/posts?contextType=${contextType}&contextId=${encodeURIComponent(contextId)}&includeReplies=false${bookThread ? `&thread=1&sort=${threadSort}` : ""}${postId ? `&postId=${encodeURIComponent(postId)}` : ""}${parentId ? `&parentId=${encodeURIComponent(parentId)}` : ""}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
       ),
     getNextPageParam: (page) => page.nextCursor || undefined,
   });
@@ -253,7 +268,28 @@ export function DiscussionThread({
           </h2>
         </div>
       </div>
-      {(contextType !== "margin" || !!parentId) && (
+      {bookThread && !postId && (
+        <div className="cove-thread-sort" role="group" aria-label={ui("Order book discussions")}>
+          <button
+            type="button"
+            aria-pressed={threadSort === "top"}
+            onClick={() => setThreadSort("top")}
+          >
+            {ui("Popular")}
+          </button>
+          <button
+            type="button"
+            aria-pressed={threadSort === "new"}
+            onClick={() => setThreadSort("new")}
+          >
+            {ui("Newest")}
+          </button>
+          <span>
+            {ui("Only a few replies load at a time. Hearts represent unique reader reactions.")}
+          </span>
+        </div>
+      )}
+      {!postId && (contextType !== "margin" || !!parentId) && (
         <div className="social-composer">
           {!parentId && (
             <div className="social-composer-tabs">
@@ -360,12 +396,22 @@ export function DiscussionThread({
                   >
                     <Heart size={14} /> {p.reactions || 0}
                   </button>
-                  <button
-                    aria-label={`Show replies (${p.replies || 0})`}
-                    onClick={() => setReplying(replying === p.id ? null : p.id)}
-                  >
-                    <MessageCircle size={14} /> {p.replies || 0}
-                  </button>
+                  {bookThread && depth >= 2 ? (
+                    <a
+                      className="cove-thread-focus-link"
+                      href={`/community?thread=${encodeURIComponent(p.id)}&work=${encodeURIComponent(contextId)}`}
+                    >
+                      <MessageCircle size={14} /> {p.replies || 0} · {ui("Full thread")}
+                    </a>
+                  ) : (
+                    <button
+                      aria-label={`Show replies (${p.replies || 0})`}
+                      aria-expanded={replying === p.id}
+                      onClick={() => setReplying(replying === p.id ? null : p.id)}
+                    >
+                      <MessageCircle size={14} /> {p.replies || 0}
+                    </button>
+                  )}
                   {data.user?.id === p.user?.id ? (
                     <>
                       <button
@@ -395,18 +441,22 @@ export function DiscussionThread({
                   )}
                   <span>{when(p.createdAt)}</span>
                 </footer>
-                {replying === p.id && (
-                  <DiscussionThread
-                    contextType={contextType}
-                    contextId={contextId}
-                    parentId={p.id}
-                    progress={progress}
-                    title={ui("Replies")}
-                    onChanged={() => {
-                      void q.refetch();
-                      onChanged?.();
-                    }}
-                  />
+                {(!bookThread || depth < 2) && replying === p.id && (
+                  <div className={bookThread ? "cove-thread-children" : undefined}>
+                    <DiscussionThread
+                      contextType={contextType}
+                      contextId={contextId}
+                      parentId={p.id}
+                      progress={progress}
+                      bookThread={bookThread}
+                      depth={depth + 1}
+                      title={ui("Replies")}
+                      onChanged={() => {
+                        void q.refetch();
+                        onChanged?.();
+                      }}
+                    />
+                  </div>
                 )}
               </article>
             ),
@@ -1031,19 +1081,41 @@ function Journey({ id }: { id: string }) {
       }
     } catch {}
   }
-  async function exportPng() {
+  const shareReference =
+    q.data?.mine && q.data?.share_token && !q.data?.share_revoked_at
+      ? q.data.share_token
+      : q.data?.id;
+  const journeyUrl =
+    typeof window === "undefined"
+      ? ""
+      : `${location.origin}/community?journey=${encodeURIComponent(String(shareReference || id))}`;
+  const publicShareAvailable = q.data?.visibility === "public" && !!shareReference;
+  function sharePlatform(platform: "x" | "reddit") {
+    if (!publicShareAvailable) {
+      toast.error("Make this journey public before posting its link to social media.");
+      return;
+    }
+    const text = `I finished ${q.data.title_snapshot} · My Cove reading journey`;
+    const target =
+      platform === "x"
+        ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(journeyUrl)}`
+        : `https://www.reddit.com/submit?url=${encodeURIComponent(journeyUrl)}&title=${encodeURIComponent(text)}`;
+    window.open(target, "_blank", "noopener,noreferrer");
+  }
+  async function makePng(): Promise<Blob> {
+    const response = await fetch(
+      `/api/fore/social/journeys/${encodeURIComponent(id)}/card.svg?format=${format}`,
+      { credentials: "same-origin" },
+    );
+    if (!response.ok) throw new Error("Could not render journey image");
+    const svg = await response.blob();
+    const objectUrl = URL.createObjectURL(svg);
+    const img = new Image();
     try {
-      const response = await fetch(
-          `/api/fore/social/journeys/${encodeURIComponent(id)}/card.svg?format=${format}`,
-          { credentials: "same-origin" },
-        ),
-        svg = await response.blob(),
-        url = URL.createObjectURL(svg),
-        img = new Image();
       await new Promise<void>((resolve, reject) => {
         img.onload = () => resolve();
-        img.onerror = reject;
-        img.src = url;
+        img.onerror = () => reject(new Error("Journey image could not load"));
+        img.src = objectUrl;
       });
       const canvas = document.createElement("canvas");
       canvas.width = 1080;
@@ -1051,24 +1123,69 @@ function Journey({ id }: { id: string }) {
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Canvas is unavailable");
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(url);
-      const png = await new Promise<Blob>((resolve, reject) =>
-          canvas.toBlob(
-            (b) => (b ? resolve(b) : reject(new Error("PNG export failed"))),
-            "image/png",
-            0.94,
-          ),
+      // Only same-origin, rights-controlled book covers may be composited.
+      // External cover URLs cannot taint the canvas or leak account credentials.
+      const cover = String(q.data.cover_url || "");
+      if (q.data.show_cover && cover.startsWith("/api/fore/assets/")) {
+        const coverImg = new Image();
+        coverImg.crossOrigin = "anonymous";
+        const loaded = await new Promise<boolean>((resolve) => {
+          coverImg.onload = () => resolve(true);
+          coverImg.onerror = () => resolve(false);
+          coverImg.src = cover;
+        });
+        if (loaded) {
+          ctx.save();
+          ctx.shadowColor = "rgba(0,0,0,.45)";
+          ctx.shadowBlur = 24;
+          ctx.shadowOffsetY = 12;
+          ctx.drawImage(coverImg, 90, format === "story" ? 360 : 350, 205, 280);
+          ctx.restore();
+        }
+      }
+      return await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error("PNG export failed"))),
+          "image/png",
+          0.94,
         ),
-        blobUrl = URL.createObjectURL(png),
-        a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = `fore-${String(q.data.title_snapshot || "reading-journey")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")}-${format}.png`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-    } catch (e) {
-      toast.error((e as Error).message);
+      );
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+  }
+  function downloadPng(png: Blob) {
+    const url = URL.createObjectURL(png);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `cove-${String(q.data.title_snapshot || "reading-journey")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")}-${format}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  async function exportPng() {
+    try {
+      downloadPng(await makePng());
+    } catch (error) {
+      toast.error((error as Error).message);
+    }
+  }
+  async function shareImage() {
+    try {
+      const png = await makePng();
+      const file = new File([png], "cove-reading-journey.png", { type: "image/png" });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `${q.data.title_snapshot} · Cove Reading Journey`,
+        });
+      } else {
+        downloadPng(png);
+        toast.success("Image saved. Upload it to Instagram, Stories, or your favorite app.");
+      }
+    } catch (error) {
+      if ((error as Error).name !== "AbortError") toast.error((error as Error).message);
     }
   }
   if (q.isError)
@@ -1104,10 +1221,28 @@ function Journey({ id }: { id: string }) {
               {ui("Story")}
             </button>
           </div>
-          <img
-            src={`/api/fore/social/journeys/${encodeURIComponent(id)}/card.svg?format=${format}`}
-            alt={`Shareable Reading Journey for ${j.title_snapshot}`}
-          />
+          <div className="cove-journey-card-stage">
+            {j.show_cover && String(j.cover_url || "").startsWith("/api/fore/assets/") && (
+              <div
+                className="cove-journey-book-backdrop"
+                aria-hidden="true"
+                style={{ backgroundImage: `url("${String(j.cover_url)}")` }}
+              />
+            )}
+            <img
+              src={`/api/fore/social/journeys/${encodeURIComponent(id)}/card.svg?format=${format}`}
+              alt={`Shareable Reading Journey graph and milestones for ${j.title_snapshot}`}
+            />
+            {j.show_cover && String(j.cover_url || "").startsWith("/api/fore/assets/") && (
+              <img
+                className="cove-journey-actual-cover"
+                src={String(j.cover_url)}
+                loading="lazy"
+                alt=""
+                style={{ top: format === "story" ? "18.75%" : "32.4%" }}
+              />
+            )}
+          </div>
           <div className="journey-share-row">
             <button className="button gold" onClick={share}>
               <Share2 size={16} />{" "}
@@ -1115,8 +1250,33 @@ function Journey({ id }: { id: string }) {
                 ? ui("Share anyone-with-link URL")
                 : ui("Share audience URL")}
             </button>
+            <button className="button outline" onClick={shareImage}>
+              <Share2 size={16} /> {ui("Share image · Instagram / Stories")}
+            </button>
+            <button
+              className="button outline"
+              onClick={() => sharePlatform("x")}
+              disabled={!publicShareAvailable}
+              title={
+                publicShareAvailable ? "Post this public journey to X" : "Public journeys only"
+              }
+            >
+              {ui("Share to X")}
+            </button>
+            <button
+              className="button outline"
+              onClick={() => sharePlatform("reddit")}
+              disabled={!publicShareAvailable}
+              title={
+                publicShareAvailable
+                  ? "Submit this public journey on Reddit"
+                  : "Public journeys only"
+              }
+            >
+              {ui("Share to Reddit")}
+            </button>
             <button className="button outline" onClick={exportPng}>
-              {ui("Export PNG")}
+              {ui("Download PNG")}
             </button>
             <a
               className="button outline"
@@ -2523,8 +2683,43 @@ export function CommunityPage() {
     journey = params.get("journey"),
     list = params.get("list"),
     club = params.get("club"),
-    poll = params.get("poll");
+    poll = params.get("poll"),
+    focusedThread = params.get("thread"),
+    focusedWork = params.get("work");
   const tab = params.get("tab") || "feed";
+  if (
+    focusedThread &&
+    focusedWork &&
+    /^[a-zA-Z0-9_-]{1,240}$/.test(focusedThread) &&
+    /^[a-zA-Z0-9_-]{1,240}$/.test(focusedWork)
+  )
+    return (
+      <main className="cove-book-thread-focus">
+        <a className="text-link" href={`/work/${encodeURIComponent(focusedWork)}`}>
+          {ui("← Back to the book")}
+        </a>
+        <h1>{ui("Conversation")}</h1>
+        <p className="muted">
+          {ui("Follow this branch without losing reading width to indentation.")}
+        </p>
+        <DiscussionThread
+          contextType="work"
+          contextId={focusedWork}
+          postId={focusedThread}
+          bookThread
+          depth={2}
+          title={ui("Parent comment")}
+        />
+        <DiscussionThread
+          contextType="work"
+          contextId={focusedWork}
+          parentId={focusedThread}
+          bookThread
+          depth={0}
+          title={ui("Replies")}
+        />
+      </main>
+    );
   if (profile) return <PublicProfile ref={profile} />;
   if (journey) return <Journey id={journey} />;
   if (list) return <ListView id={list} />;
