@@ -48,6 +48,27 @@ jobs:
       - run: python scripts/soundtracks/test-seed-commons-from-openverse.py -q
       - run: python scripts/soundtracks/report-isolated-supply.py --dry-run
 
+  commons-source-smoke:
+    needs: test-no-network
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - name: Test live Commons API as unprivileged original source
+        run: python scripts/soundtracks/discover-openverse-commons.py --queries 1 --commons-categories 1 --max-verifications 8 --output commons-source-smoke.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: music-open-commons-source-smoke
+          path: commons-source-smoke.json
+          if-no-files-found: ignore
+          retention-days: 7
+
   read-only-candidate-discovery:
     needs: test-no-network
     if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push')
@@ -67,7 +88,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          args=(--queries 2 --max-verifications 12 --output openverse-commons-candidates.json)
+          args=(--queries 2 --commons-categories 2 --max-verifications 32 --output openverse-commons-candidates.json)
           if [[ "${COVE_MUSIC_OPEN_DISCOVERY_ENABLED:-0}" == "1" && -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
             args+=(--apply-isolated)
           else
