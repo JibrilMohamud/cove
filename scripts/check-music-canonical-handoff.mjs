@@ -89,6 +89,25 @@ try {
     .bind("supplier-master-1")
     .first();
   assert.equal(first.status, "pending_media");
+  // An already-used sequence must never execute a different event's
+  // revocation mutation, even when the forged event has a distinct id.
+  const conflictingSequence = item(1, "master_revoked", "supplier-master-1", {
+    reason: "Attempted revocation under a conflicting event receipt",
+  });
+  await assert.rejects(
+    applyCanonicalMusicHandoff(env.DB, conflictingSequence),
+    /music_handoff_conflicting_replay/,
+  );
+  assert.equal(
+    (
+      await env.DB.prepare("SELECT status FROM music_supply_handoff_masters WHERE master_id=?")
+        .bind("supplier-master-1")
+        .first()
+    ).status,
+    "pending_media",
+    "Conflicting receipt must not revoke a legitimate candidate",
+  );
+
   assert.equal(JSON.parse(first.metadata_json).sha256, manifest.sha256);
   assert.equal(
     (await env.DB.prepare("SELECT COUNT(*) n FROM soundtrack_recordings").first()).n,
