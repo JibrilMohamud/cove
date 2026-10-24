@@ -157,8 +157,13 @@ def discover(queries=2, max_verifications=12, opener=OPENER, pause=time.sleep):
         # Openverse aggregates many audio repositories. Source targeting
         # dramatically reduces wasted first-page results and ensures this
         # fast lane never queries third-party original hosts.
+        # Openverse's wikimedia_audio source is NOT classified under its
+        # music category: a live API A/B probe returned 20 Commons files
+        # with source=wikimedia_audio, but zero when category=music was
+        # added. Do not suppress eligible Commons files by that index tag.
+        # Suitability for reading remains a separate full-audio QA decision.
         params=urllib.parse.urlencode({"q":query,"source":"wikimedia_audio",
-                                        "category":"music","license":"by,by-sa,cc0",
+                                        "license":"by,by-sa,cc0",
                                         "page":1,"page_size":20,"mature":"false"})
         response=read_json(API+"?"+params,opener)
         searched+=1
