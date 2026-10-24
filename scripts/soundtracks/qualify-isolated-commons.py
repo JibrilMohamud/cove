@@ -59,15 +59,26 @@ def d1(sql, values, token, opener=OPENER):
         raise RuntimeError("Isolated D1 statement rejected")
     return response["result"][0].get("results", [])
 
-def claim_read(token, max_records=2, after=""):
-    if not 1 <= max_records <= 2 or (after and not re.fullmatch(r"cm_[0-9]{1,15}", after)):
+def claim_read(token, max_records=2, after="", rotation=None):
+    # A permanently held source is already excluded by the existing QA
+    # receipt. A transient network failure deliberately has no permanent
+    # hold: rotate across 64 deterministic source-id cohorts so it cannot
+    # monopolize every subsequent scheduled two-original campaign.
+    if rotation is None:
+        rotation = int(time.time() // 21600) % 64
+    if (not isinstance(max_records,int) or isinstance(max_records,bool) or
+        not 1 <= max_records <= 2 or
+        (after and not re.fullmatch(r"cm_[0-9]{1,15}", after)) or
+        not isinstance(rotation,int) or isinstance(rotation,bool) or
+        not 0 <= rotation < 64):
         raise ValueError("Technical QA scan must be bounded")
     return d1(
         "SELECT c.id,c.source_title,c.source_file_url,c.source_sha1,c.size_bytes,"
         " c.license_code,c.license_url,c.evidence_sha256 FROM music_open_source_candidates c"
         " WHERE c.status='discovered' AND c.id>? AND NOT EXISTS("
         " SELECT 1 FROM music_open_technical_qa q WHERE q.candidate_id=c.id)"
-        " ORDER BY c.id LIMIT ?", [after, max_records], token)
+        " ORDER BY ((CAST(SUBSTR(c.id,4) AS INTEGER)%64+64-?)%64),c.id LIMIT ?",
+        [after,rotation,max_records], token)
 
 def authoritative(row, opener=OPENER):
     title = row["source_title"]
@@ -342,10 +353,14 @@ def run(max_records=1, apply=False, profile_dsp=False, token=None, r2=None, limi
                 "decoded_audio_not_exact_source", "full_audio_decode_incomplete",
                 "full_audio_quality_not_eligible", "commons_revision_changed_during_qa",
             }
-            if apply and reason in permanent:
+            durable = apply and reason in permanent
+            if durable:
                 persist_durable_hold(token, row, reason)
-            results.append({"id": row["id"], "status": "held_for_review",
-                            "reason": reason})
+            results.append({"id": row["id"],
+                            "status": ("stored_private_technical_hold" if durable
+                                       else "retryable_source_error"),
+                            "reason": reason,
+                            "rightsApproved": False, "quietApproved": False})
     return {"scope": "detached_music_only", "customerPublished": False,
             "rightsApproved": False, "quietApproved": False, "results": results}
 
@@ -364,7 +379,10 @@ def main():
                       "count": len(report["results"]),
                       "statuses": [r["status"] for r in report["results"]],
                       "customerPublished": False}))
-    if any(x["status"] == "held_for_review" for x in report["results"]):
+    # An exact-source/decoder rejection durably held in detached MUSIC_DB
+    # is a completed safe outcome, not a campaign failure. Retryable upstream
+    # errors MUST remain visible as job failures; none ever publishes audio.
+    if any(x["status"] == "retryable_source_error" for x in report["results"]):
         raise SystemExit(2)
 
 if __name__ == "__main__":

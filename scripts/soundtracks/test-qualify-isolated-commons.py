@@ -154,6 +154,24 @@ class Tests(unittest.TestCase):
                 summary = module.run(1,True,False,"token",PrivateR2())
                 self.assertEqual(summary["results"][0]["status"],"stored_private_technical_qa")
                 store.assert_called_once()
+    def test_private_terminal_rights_hold_is_successful_no_playback_and_transients_retry(self):
+        with patch.dict(os.environ,{"COVE_MUSIC_OPEN_QA_APPLY":"1"}), \
+             patch.object(module,"claim_read",return_value=[ROW]), \
+             patch.object(module,"persist_durable_hold") as held:
+            with patch.object(module,"prepare_one",
+                              side_effect=ValueError("original_or_license_changed")):
+                output=module.run(1,True,False,"token",PrivateR2())
+                self.assertEqual(output["results"][0]["status"],"stored_private_technical_hold")
+                self.assertFalse(output["rightsApproved"])
+                held.assert_called_once_with("token",ROW,"original_or_license_changed")
+            held.reset_mock()
+            with patch.object(module,"prepare_one",
+                              side_effect=ValueError("Temporary Commons API error")):
+                output=module.run(1,True,False,"token",PrivateR2())
+                self.assertEqual(output["results"][0]["status"],"retryable_source_error")
+                held.assert_not_called()
+                self.assertFalse(output["customerPublished"])
+
     def test_full_decode_quality_thresholds_never_imply_quiet_approval(self):
         self.assertTrue(module.validate_full_audio_quality(METRIC))
         for key,value in [
@@ -222,10 +240,49 @@ class Tests(unittest.TestCase):
                 module.PrivateCloudflareR2.object_url("not-private-bucket",
                     "music-open-qa/originals/"+SHA+".ogg")
 
+    def test_scheduled_source_cohorts_rotate_and_skip_already_measured(self):
+        db=sqlite3.connect(":memory:")
+        db.row_factory=sqlite3.Row
+        try:
+            db.executescript((ROOT/"infra/music/0004_open_catalog_candidates.sql").read_text())
+            db.executescript((ROOT/"infra/music/0006_open_technical_qa.sql").read_text())
+            for num in (1,20,42,63):
+                db.execute(
+                    "INSERT INTO music_open_source_candidates"
+                    "(id,discovery_provider,source_page_url,source_file_url,source_title,"
+                    "source_sha1,size_bytes,license_code,license_url,evidence_json,"
+                    "evidence_sha256,discovered_at,last_seen_at)"
+                    " VALUES(?,'commons','https://commons.wikimedia.org/wiki/File:Sample.ogg',"
+                    " 'https://upload.wikimedia.org/wikipedia/commons/a/aa/Sample.ogg',"
+                    " 'File:Sample.ogg',?,1000,'CC-BY',"
+                    " 'https://creativecommons.org/licenses/by/4.0/','{}',?,"
+                    " '2026-10-24','2026-10-24')",
+                    ("cm_"+str(num),SHA1,"a"*64))
+            def read(sql,values,token):
+                return [dict(row) for row in db.execute(sql,values)]
+            with patch.object(module,"d1",side_effect=read):
+                early=[x["id"] for x in module.claim_read("token",2,rotation=0)]
+                later=[x["id"] for x in module.claim_read("token",2,rotation=42)]
+                self.assertEqual(early,["cm_1","cm_20"])
+                self.assertEqual(later,["cm_42","cm_63"])
+                db.execute(
+                    "INSERT INTO music_open_technical_qa"
+                    "(candidate_id,source_sha1,source_evidence_sha256,status,hold_reason,measured_at)"
+                    " VALUES('cm_42',? ,?,'held','source_drift','2026-10-24')",
+                    (SHA1,"a"*64))
+                rotated=[x["id"] for x in module.claim_read("token",2,rotation=42)]
+                self.assertEqual(rotated,["cm_63","cm_1"],
+                                 "Durable technical holds never consume future QA capacity")
+        finally:
+            db.close()
+
     def test_unsafe_caps_are_rejected(self):
         for n in (0,3,100):
             with self.assertRaises(ValueError):
                 module.claim_read("token",n)
+        for bad_rotation in (-1,64,"0",True):
+            with self.assertRaises(ValueError):
+                module.claim_read("token",1,rotation=bad_rotation)
         for bad in ("../x","cm_1' OR 1=1","cm_foo"):
             with self.assertRaises(ValueError):
                 module.claim_read("token",1,bad)
