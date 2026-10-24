@@ -30,6 +30,7 @@ on:
       - "scripts/matching/**"
       - "scripts/check-store.mjs"
       - "drizzle/*.sql"
+      - "scripts/check-contributor-slug-seek.py"
       - "vercel.json"
       - "wrangler.backend.example.toml"
       - "wrangler.backend.production.toml"
@@ -67,6 +68,7 @@ on:
       - "scripts/matching/**"
       - "scripts/check-store.mjs"
       - "drizzle/*.sql"
+      - "scripts/check-contributor-slug-seek.py"
       - "vercel.json"
       - "wrangler.backend.example.toml"
       - "wrangler.backend.production.toml"
@@ -144,6 +146,8 @@ jobs:
           node scripts/check-literary-genre-rights-query.mjs
       - name: Indexed FTS trigger identity, suppression, deletion and bounded work
         run: python3 scripts/check-fts-trigger-lookup.py
+      - name: Indexed contributor slug trigger and alias parity
+        run: python3 scripts/check-contributor-slug-seek.py
       - name: Reader rendering, share withdrawal and offline authorization
         run: npm run test:reader-sharing-offline
       - name: Direct sharing, group discussions and account erasure
