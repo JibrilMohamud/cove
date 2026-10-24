@@ -137,6 +137,30 @@ class OpenverseIsolatedDiscovery(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"authoritative"):
                 module.commons_category_candidates(1,2,pause=lambda _:None)
 
+    def test_category_cursor_fences_generator_batches_and_rotates_by_campaign(self):
+        old_cursor="file|oldtoken|123"
+        new_cursor="file|nexttoken|987"
+        cat=module.COMMONS_CATEGORIES[0]
+        seen=[]
+        def remote(url,opener=None,size=500000):
+            seen.append(url)
+            return {"query":{"pages":[page()]},
+                    "continue":{"gcmcontinue":new_cursor}}
+        with patch.object(module.time,"time",return_value=0):
+            with patch.object(module,"read_json",side_effect=remote):
+                out=module.commons_category_candidates(
+                    categories=1,max_verifications=3,
+                    continuations={cat:old_cursor},pause=lambda _:None)
+        self.assertEqual(out["verified"],1)
+        self.assertEqual(out["nextCursors"][cat],new_cursor)
+        parsed=module.urllib.parse.parse_qs(module.urllib.parse.urlsplit(seen[0]).query)
+        self.assertEqual(parsed["gcmcontinue"],[old_cursor])
+        self.assertEqual(parsed["gcmlimit"],["3"])
+        with patch.object(module.time,"time",return_value=0):
+            with self.assertRaisesRegex(ValueError,"Malformed"):
+                module.commons_category_candidates(1,2,continuations={cat:"bad\\nname"},
+                                                  pause=lambda _:None)
+
     def test_disabled_writes_fail_closed(self):
         with patch.dict(module.os.environ,{},clear=True):
             with self.assertRaisesRegex(ValueError,"not enabled"):
