@@ -22,7 +22,11 @@ assert.ok(publisher.includes("WHERE key='literary_processing_owner' AND value='i
 for (const [path, switches] of [
   [
     "wrangler.content-literary-handoff.prod-disabled.jsonc",
-    ["FORE_CONTENT_PROCESSOR_ENABLED", "FORE_CONTENT_PREPARE_ENABLED", "FORE_CONTENT_HANDOFF_ENABLED"],
+    [
+      "FORE_CONTENT_PROCESSOR_ENABLED",
+      "FORE_CONTENT_PREPARE_ENABLED",
+      "FORE_CONTENT_HANDOFF_ENABLED",
+    ],
   ],
   [
     "wrangler.content-literary-prepare.prod-disabled.jsonc",
@@ -30,7 +34,11 @@ for (const [path, switches] of [
   ],
   [
     "wrangler.content-literary-infer.prod-disabled.jsonc",
-    ["FORE_CONTENT_PROCESSOR_ENABLED", "FORE_CONTENT_PREPARE_ENABLED", "FORE_CONTENT_INFERENCE_ENABLED"],
+    [
+      "FORE_CONTENT_PROCESSOR_ENABLED",
+      "FORE_CONTENT_PREPARE_ENABLED",
+      "FORE_CONTENT_INFERENCE_ENABLED",
+    ],
   ],
 ]) {
   const config = JSON.parse(read(path));
@@ -39,4 +47,6 @@ for (const [path, switches] of [
   assert.ok(!config.routes && !config.route && !config.triggers && !config.queues);
   for (const key of switches) assert.equal(config.vars[key], "0");
 }
-console.log("LITERARY_DORMANT_OWNER_FENCES_PASS legacy denial, atomic claim, isolated-only canonical publication, no triggers");
+console.log(
+  "LITERARY_DORMANT_OWNER_FENCES_PASS legacy denial, atomic claim, isolated-only canonical publication, no triggers",
+);
