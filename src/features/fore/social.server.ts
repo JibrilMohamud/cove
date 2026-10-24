@@ -2047,7 +2047,7 @@ export async function handleSocial(
         post.replyItems = await visiblePosts(db, userId, replies.slice(0, 20), viewerProgress, env);
         post.replyNextCursor = replies.length > 20 ? cursorFor(replies[19]) : null;
       }
-    return json({ posts, nextCursor: rows.length > 50 ? cursorFor(rows[49]) : null });
+    return json({ posts, nextCursor: rows.length > threadLimit ? cursorFor(rows[threadLimit - 1]) : null });
   }
   if (method === "GET" && path.startsWith("/social/lists/")) {
     const id = decodeURIComponent(path.slice("/social/lists/".length)),
