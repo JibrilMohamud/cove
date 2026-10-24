@@ -68,12 +68,18 @@ if (mode === "post") {
   assert.equal(plain.FORE_LITERARY_INFERENCE_PUBLISH_ENABLED, "0");
   assert.ok(
     !bindings.some((x) =>
-      ["FORE_LITERARY_INFERENCE_PUBLISH_TOKEN_SHA256", "FORE_LITERARY_INFERENCE_BACKEND_TOKEN_SHA256"].includes(x.name),
+      [
+        "FORE_LITERARY_INFERENCE_PUBLISH_TOKEN_SHA256",
+        "FORE_LITERARY_INFERENCE_BACKEND_TOKEN_SHA256",
+      ].includes(x.name),
     ),
     "Publisher secrets must be absent during dormant deployment",
   );
   assert.deepEqual(
-    bindings.filter((x) => x.type === "d1").map((x) => x.database_id).sort(),
+    bindings
+      .filter((x) => x.type === "d1")
+      .map((x) => x.database_id)
+      .sort(),
     [primary, secondary].sort(),
   );
   assert.deepEqual(
