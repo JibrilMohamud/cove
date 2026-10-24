@@ -284,7 +284,9 @@ export function DiscussionThread({
           >
             {ui("Newest")}
           </button>
-          <span>{ui("Only a few replies load at a time. Hearts represent unique reader reactions.")}</span>
+          <span>
+            {ui("Only a few replies load at a time. Hearts represent unique reader reactions.")}
+          </span>
         </div>
       )}
       {!postId && (contextType !== "margin" || !!parentId) && (
@@ -2697,7 +2699,9 @@ export function CommunityPage() {
           {ui("← Back to the book")}
         </a>
         <h1>{ui("Conversation")}</h1>
-        <p className="muted">{ui("Follow this branch without losing reading width to indentation.")}</p>
+        <p className="muted">
+          {ui("Follow this branch without losing reading width to indentation.")}
+        </p>
         <DiscussionThread
           contextType="work"
           contextId={focusedWork}
