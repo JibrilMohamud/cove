@@ -71,7 +71,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/soundtracks/curate-source-license.py \
-            --reconsider-triaged --max-triage 0 --max-scan 500 --max-enrich 12 \
+            --reconsider-triaged --max-triage 0 --max-scan 500 --max-enrich 24 \
             --max-tracks 12 --max-mib 160 --max-minutes 22 \
             --apply --approve-source-license --output soundtrack-reconsider-receipts.json
       - name: Convert and validate verified R2 recordings
