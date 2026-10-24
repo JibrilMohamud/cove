@@ -101,44 +101,62 @@ try {
     secondary.prepare("SELECT status,after_job_id FROM literary_legacy_reconcile_frontier").get();
   const count = () =>
     secondary.prepare("SELECT COUNT(*) n FROM literary_legacy_reconcile_receipts").get().n;
-  assert.deepEqual(await reconcileOneLegacyLiteraryJob(
-    { ...env, FORE_LITERARY_DRAIN_RECONCILE_ENABLED: "0" }, seed,
-  ), { skipped: "legacy_reconciliation_disabled" });
+  assert.deepEqual(
+    await reconcileOneLegacyLiteraryJob(
+      { ...env, FORE_LITERARY_DRAIN_RECONCILE_ENABLED: "0" },
+      seed,
+    ),
+    { skipped: "legacy_reconciliation_disabled" },
+  );
   assert.deepEqual(await reconcileOneLegacyLiteraryJob(env, seed), {
     skipped: "legacy_reconciliation_not_armed",
   });
-  secondary.prepare(
-    "UPDATE literary_legacy_reconcile_frontier SET status='armed' WHERE id=1",
-  ).run();
+  secondary
+    .prepare("UPDATE literary_legacy_reconcile_frontier SET status='armed' WHERE id=1")
+    .run();
   primary.prepare("UPDATE literary_profile_state SET lease_until='2099-01-01'").run();
   assert.deepEqual(await reconcileOneLegacyLiteraryJob(env, seed), {
     skipped: "legacy_leases_not_drained",
   });
   primary.prepare("UPDATE literary_profile_state SET lease_until=''").run();
-  primary.prepare("UPDATE literary_profile_jobs SET status='running',lease_until='2099-01-01' WHERE id='job_a'").run();
+  primary
+    .prepare(
+      "UPDATE literary_profile_jobs SET status='running',lease_until='2099-01-01' WHERE id='job_a'",
+    )
+    .run();
   assert.deepEqual(await reconcileOneLegacyLiteraryJob(env, seed), {
     skipped: "legacy_leases_not_drained",
   });
-  primary.prepare("UPDATE literary_profile_jobs SET status='queued',lease_until='' WHERE id='job_a'").run();
+  primary
+    .prepare("UPDATE literary_profile_jobs SET status='queued',lease_until='' WHERE id='job_a'")
+    .run();
   failSecondaryBatch = true;
   await assert.rejects(reconcileOneLegacyLiteraryJob(env, seed), /simulated_lost_secondary_ack/);
   assert.equal(cursor().after_job_id, "");
   assert.equal(count(), 0);
   assert.equal(intents.size, 1, "Primary outbox intent persists through lost ACK");
   assert.deepEqual(await reconcileOneLegacyLiteraryJob(env, seed), {
-    reconciled: "job_a", disposition: "seeded", outboxId: "outbox_a",
+    reconciled: "job_a",
+    disposition: "seeded",
+    outboxId: "outbox_a",
   });
   assert.equal(seeds, 2, "Lost ACK replays same canonical outbox intent");
   assert.equal(intents.size, 1);
   assert.equal(cursor().after_job_id, "job_a");
   assert.deepEqual(await reconcileOneLegacyLiteraryJob(env, seed), {
-    reconciled: "job_b", disposition: "held", reason: "source_or_rights_ineligible",
+    reconciled: "job_b",
+    disposition: "held",
+    reason: "source_or_rights_ineligible",
   });
   assert.equal(count(), 2);
   assert.deepEqual(await reconcileOneLegacyLiteraryJob(env, seed), { complete: true });
   assert.equal(cursor().status, "complete");
   assert.equal(
-    secondary.prepare("SELECT disposition FROM literary_legacy_reconcile_receipts WHERE legacy_job_id='job_b'").get().disposition,
+    secondary
+      .prepare(
+        "SELECT disposition FROM literary_legacy_reconcile_receipts WHERE legacy_job_id='job_b'",
+      )
+      .get().disposition,
     "held",
   );
   primary.prepare("UPDATE cove_runtime_config SET value='isolated'").run();
