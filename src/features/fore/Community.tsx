@@ -81,6 +81,8 @@ export function DiscussionThread({
   parentId,
   initialPost,
   initialUpdatedAt,
+  bookThread = false,
+  depth = 0,
 }: {
   contextType: "work" | "margin" | "group" | "list" | "profile";
   contextId: string;
@@ -92,10 +94,13 @@ export function DiscussionThread({
   parentId?: string;
   initialPost?: Post;
   initialUpdatedAt?: number;
+  bookThread?: boolean;
+  depth?: number;
 }) {
   const ui = useUiText();
   const { data, signIn } = useAccount();
   const [body, setBody] = useState("");
+  const [threadSort, setThreadSort] = useState<"top" | "new">("top");
   const [kind, setKind] = useState<"discussion" | "question">("discussion");
   const [spoiler, setSpoiler] = useState(false);
   const [replying, setReplying] = useState<string | null>(null);
@@ -107,7 +112,7 @@ export function DiscussionThread({
   const [reportReason, setReportReason] = useState("");
   const [reportDetails, setReportDetails] = useState("");
   const q = useInfiniteQuery<{ posts: Post[]; nextCursor: string | null }>({
-    queryKey: ["social-posts", data.user?.id, contextType, contextId, postId, parentId],
+    queryKey: ["social-posts", data.user?.id, contextType, contextId, postId, parentId, bookThread, threadSort],
     initialPageParam: "",
     initialData: initialPost
       ? { pages: [{ posts: [initialPost], nextCursor: null }], pageParams: [""] }
@@ -116,7 +121,7 @@ export function DiscussionThread({
     staleTime: 30_000,
     queryFn: ({ pageParam }) =>
       api(
-        `/social/posts?contextType=${contextType}&contextId=${encodeURIComponent(contextId)}&includeReplies=false${postId ? `&postId=${encodeURIComponent(postId)}` : ""}${parentId ? `&parentId=${encodeURIComponent(parentId)}` : ""}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
+        `/social/posts?contextType=${contextType}&contextId=${encodeURIComponent(contextId)}&includeReplies=false${bookThread ? `&thread=1&sort=${threadSort}` : ""}${postId ? `&postId=${encodeURIComponent(postId)}` : ""}${parentId ? `&parentId=${encodeURIComponent(parentId)}` : ""}${pageParam ? `&cursor=${encodeURIComponent(String(pageParam))}` : ""}`,
       ),
     getNextPageParam: (page) => page.nextCursor || undefined,
   });
