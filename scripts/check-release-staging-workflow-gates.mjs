@@ -3,6 +3,17 @@ import { readFileSync } from "node:fs";
 
 const requirements = [
   {
+    file: ".github/workflows/fast-storefront-real-catalog-acceptance.yml",
+    names: ["protected-real-catalog-acceptance:"],
+    protections: [
+      "cove-exclusive-real-primary-cold-acceptance",
+      "COVE_REAL_ACCEPTANCE_V2: \"1\"",
+      "strangler-real-catalog-acceptance.mjs",
+      "real-data-parity-",
+      "sha256sum -c -",
+    ],
+  },
+  {
     file: ".github/workflows/cove-commerce-private-qa-deploy.yml",
     names: ["private-commerce:", "authenticated-commerce:"],
     protections: [
@@ -57,6 +68,17 @@ assert.ok(evidence.includes("item.p95Ms < 600"));
 assert.ok(evidence.includes("item.p99Ms < 750"));
 assert.ok(evidence.includes("item.maxMs < 800"));
 assert.ok(evidence.includes('item.name !== "100-rps-20s"'));
+const realCatalog = readFileSync(
+  "scripts/performance/strangler-real-catalog-acceptance.mjs",
+  "utf8",
+);
+assert.ok(realCatalog.includes("const prodDbId ="));
+assert.ok(realCatalog.includes("assert.equal(config.workers_dev, false)"));
+assert.ok(realCatalog.includes('config.services = []'));
+assert.ok(realCatalog.includes("evidence.stageMobileLcp.p75Ms < 2500"));
+assert.ok(realCatalog.includes("evidence.realCatalogParity.mismatchPercent < 10"));
+assert.ok(realCatalog.includes("evidence.realCatalogParity.desktopMismatchPercent < 10"));
+assert.ok(realCatalog.includes("evidence.cold.every((cold) => cold.ok && cold.ms < 800)"));
 const runbook = readFileSync("docs/LITERARY_LEGACY_DRAIN_CUTOVER.md", "utf8");
 assert.match(runbook, /INSERT INTO cove_runtime_config\(key,value,updated_at\)/);
 assert.match(runbook, /SET value='isolated',updated_at=datetime\('now'\)/);
