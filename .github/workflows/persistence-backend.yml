@@ -15,6 +15,8 @@ on:
       - "scripts/check-taxonomy-differential-reconcile.py"
       - "scripts/check-taxonomy-queued-outbox-noop.py"
       - "scripts/check-search-outbox-atomic-ack.mjs"
+      - "scripts/check-gutendex-popularity-only.mjs"
+      - "scripts/check-gutendex-popularity-cas.py"
       - "scripts/check-literary-genre-rights-query.mjs"
       - "scripts/audio_pipeline/**"
       - "scripts/build-persistence-backend.mjs"
@@ -59,6 +61,8 @@ on:
       - "scripts/check-taxonomy-differential-reconcile.py"
       - "scripts/check-taxonomy-queued-outbox-noop.py"
       - "scripts/check-search-outbox-atomic-ack.mjs"
+      - "scripts/check-gutendex-popularity-only.mjs"
+      - "scripts/check-gutendex-popularity-cas.py"
       - "scripts/audio_pipeline/**"
       - "scripts/build-persistence-backend.mjs"
       - "scripts/check-persistence-backend.mjs"
@@ -144,6 +148,8 @@ jobs:
           node scripts/check-public-search-count-scope.mjs
           node scripts/check-catalog-ingestion-backpressure.mjs
           node scripts/check-catalog-ingestion-idempotency.mjs
+          node scripts/check-gutendex-popularity-only.mjs
+          python3 scripts/check-gutendex-popularity-cas.py
           node scripts/check-catalog-added-sort-index.mjs
           node scripts/check-taxonomy-presentation-count-cache.mjs
           node scripts/check-taxonomy-count-refresh-lease.mjs
