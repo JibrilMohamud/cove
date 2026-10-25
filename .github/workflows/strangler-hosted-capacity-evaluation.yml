@@ -7,6 +7,7 @@ on:
       - "scripts/staging/strangler-http-transport.mjs"
       - "scripts/staging/check-strangler-live-capacity.mjs"
       - "scripts/staging/assert-strangler-capacity-evidence.mjs"
+      - "scripts/staging/verify-literary-postpublication-readonly.mjs"
       - "src/storefront-strangler/worker.ts"
       - "scripts/staging/wait-strangler-secret-deployment.mjs"
       - ".github/workflows/strangler-hosted-capacity-evaluation.yml"
@@ -50,6 +51,8 @@ jobs:
           node scripts/check-storefront-strangler.mjs
           node scripts/check-storefront-prepared-catalog.mjs
           node scripts/staging/check-strangler-core-stage.mjs
+      - name: Confirm production literary owner and rights-guarded publication before staged capacity
+        run: node scripts/staging/verify-literary-postpublication-readonly.mjs
       - name: Compile independent thin Worker and snapshot publisher
         run: node scripts/build-storefront-strangler.mjs
       - name: Prepare protected, transient, synthetic-only ingress config
