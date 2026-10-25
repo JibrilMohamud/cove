@@ -33,18 +33,18 @@ CREATE VIRTUAL TABLE IF NOT EXISTS catalog_index_fts USING fts5(
 );
 CREATE TRIGGER IF NOT EXISTS catalog_index_docs_ai
 AFTER INSERT ON catalog_index_documents BEGIN
- INSERT INTO catalog_index_fts(product_id,title,authors_text,subjects_text,shelves_text,description)
- SELECT new.product_id,new.title,new.authors_text,new.subjects_text,new.shelves_text,new.description
+ INSERT INTO catalog_index_fts(rowid,product_id,title,authors_text,subjects_text,shelves_text,description)
+ SELECT new.rowid,new.product_id,new.title,new.authors_text,new.subjects_text,new.shelves_text,new.description
  WHERE new.visible=1;
 END;
 CREATE TRIGGER IF NOT EXISTS catalog_index_docs_au
 AFTER UPDATE ON catalog_index_documents BEGIN
- DELETE FROM catalog_index_fts WHERE product_id=old.product_id;
- INSERT INTO catalog_index_fts(product_id,title,authors_text,subjects_text,shelves_text,description)
- SELECT new.product_id,new.title,new.authors_text,new.subjects_text,new.shelves_text,new.description
+ DELETE FROM catalog_index_fts WHERE rowid=old.rowid;
+ INSERT INTO catalog_index_fts(rowid,product_id,title,authors_text,subjects_text,shelves_text,description)
+ SELECT new.rowid,new.product_id,new.title,new.authors_text,new.subjects_text,new.shelves_text,new.description
  WHERE new.visible=1;
 END;
 CREATE TRIGGER IF NOT EXISTS catalog_index_docs_ad
 AFTER DELETE ON catalog_index_documents BEGIN
- DELETE FROM catalog_index_fts WHERE product_id=old.product_id;
+ DELETE FROM catalog_index_fts WHERE rowid=old.rowid;
 END;
