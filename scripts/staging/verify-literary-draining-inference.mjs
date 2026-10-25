@@ -41,18 +41,25 @@ for (const key of [
   "FORE_CONTENT_PROCESSOR_ENABLED",
   "FORE_CONTENT_PREPARE_ENABLED",
   "FORE_CONTENT_INFERENCE_ENABLED",
-]) assert.equal(vars[key], "1");
+])
+  assert.equal(vars[key], "1");
 assert.equal(vars.FORE_LITERARY_AUTOPUBLISH_ENABLED, "0");
 assert.equal(vars.FORE_CONTENT_BUDGET_MODE, "isolated");
 assert.equal(vars.FORE_CONTENT_D1_ADMISSION_MAX_MS, "100");
 assert.equal(workerInfo.subdomain?.enabled, false);
 assert.equal(workerInfo.subdomain?.previews_enabled, false);
 assert.equal(settings.routes?.length || 0, 0);
-assert.deepEqual(schedules.schedules.map((x) => x.cron), ["* * * * *"]);
+assert.deepEqual(
+  schedules.schedules.map((x) => x.cron),
+  ["* * * * *"],
+);
 assert.ok(bindings.some((x) => x.name === "AI" && x.type === "ai"));
 for (let attempt = 0; attempt < 72; attempt++) {
   const [owner, complete, failed] = await Promise.all([
-    query(primary, "SELECT key,value FROM cove_runtime_config WHERE key IN ('literary_processing_owner','literary_budget_domain')"),
+    query(
+      primary,
+      "SELECT key,value FROM cove_runtime_config WHERE key IN ('literary_processing_owner','literary_budget_domain')",
+    ),
     query(secondary, "SELECT COUNT(*) n FROM literary_inference_jobs WHERE status='done'"),
     query(secondary, "SELECT COUNT(*) n FROM literary_inference_jobs WHERE status='failed'"),
   ]);
@@ -61,12 +68,15 @@ for (let attempt = 0; attempt < 72; attempt++) {
     literary_processing_owner: "draining",
   });
   if (complete[0]?.n >= 1) {
-    console.log("LITERARY_REAL_INFERENCE_PASS", JSON.stringify({
-      completed: complete[0].n,
-      failed: failed[0]?.n || 0,
-      publicationDisabled: true,
-      utc: new Date().toISOString(),
-    }));
+    console.log(
+      "LITERARY_REAL_INFERENCE_PASS",
+      JSON.stringify({
+        completed: complete[0].n,
+        failed: failed[0]?.n || 0,
+        publicationDisabled: true,
+        utc: new Date().toISOString(),
+      }),
+    );
     process.exit(0);
   }
   if (failed[0]?.n >= 3) throw Error("repeated_inference_failed");
