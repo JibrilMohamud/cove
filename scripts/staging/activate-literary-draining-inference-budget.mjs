@@ -37,10 +37,10 @@ async function assertOwner() {
     "SELECT key,value FROM cove_runtime_config WHERE key IN " +
       "('literary_processing_owner','literary_budget_domain')",
   );
-  assert.deepEqual(
-    Object.fromEntries(rows.map((row) => [row.key, row.value])),
-    { literary_budget_domain: "isolated", literary_processing_owner: "draining" },
-  );
+  assert.deepEqual(Object.fromEntries(rows.map((row) => [row.key, row.value])), {
+    literary_budget_domain: "isolated",
+    literary_processing_owner: "draining",
+  });
 }
 await assertOwner();
 const now = new Date();
@@ -53,12 +53,17 @@ const [legacyLeases, ledger, staged, frontier, prepared, receipt] = await Promis
       " EXISTS(SELECT 1 FROM literary_profile_jobs WHERE status='running' AND " +
       "lease_until>strftime('%Y-%m-%dT%H:%M:%fZ','now')) jobs",
   ),
-  query(primary, "SELECT reserved_units,calls FROM literary_profile_budget WHERE day='" + day + "'"),
+  query(
+    primary,
+    "SELECT reserved_units,calls FROM literary_profile_budget WHERE day='" + day + "'",
+  ),
   query(
     isolated,
     "SELECT c.status,c.original_reserved_units,c.original_calls," +
       "b.reserved_units,b.calls FROM literary_budget_cutover c JOIN literary_profile_budget b" +
-      " ON b.day=c.day WHERE c.day='" + day + "'",
+      " ON b.day=c.day WHERE c.day='" +
+      day +
+      "'",
   ),
   query(isolated, "SELECT status FROM literary_legacy_reconcile_frontier WHERE id=1"),
   query(isolated, "SELECT COUNT(*) n FROM literary_prepare_jobs WHERE status='done'"),
