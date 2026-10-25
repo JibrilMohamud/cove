@@ -53,3 +53,32 @@ export function unchangedNormalizedGutendexBook(
     Number(row.copyright) === 0
   );
 }
+
+/**
+ * Source popularity-only change: rights evidence, source files, all descriptive
+ * metadata and the PREVIOUS canonical projection must be proven unchanged.
+ * A new download count is *not* a legal change and does not require reissuing
+ * works, editions, products, assets, offers and source-rights records.
+ *
+ * Missing/inconsistent past publication, malformed counts, rights changes,
+ * or any other source modification fails closed to full normalization.
+ */
+export function popularityOnlyGutendexBook(
+  book: Parameters<typeof unchangedNormalizedGutendexBook>[0],
+  row: ExistingGutendexProjection | undefined,
+  sourceUrl: string,
+): boolean {
+  if (!row) return false;
+  const oldCount = Number(row.download_count);
+  const projectedCount = Number(row.projection_download_count);
+  const nextCount = Number(book.download_count);
+  if (!Number.isSafeInteger(oldCount) || oldCount < 0 ||
+      !Number.isSafeInteger(projectedCount) || projectedCount !== oldCount ||
+      !Number.isSafeInteger(nextCount) || nextCount < 0 ||
+      nextCount === oldCount) return false;
+  // Reuse the full metadata + rights + canonical-completeness verifier, with
+  // only the newly observed popularity metric normalized to its old value.
+  return unchangedNormalizedGutendexBook(
+    { ...book, download_count: oldCount }, row, sourceUrl,
+  );
+}
