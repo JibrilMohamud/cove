@@ -37,7 +37,7 @@ const requirements = [
     names: ["protected-staging-only:"],
     protections: [
       "check-strangler-data-plane-preflight.mjs",
-      "cove-strangler-ephemeral-capacity-stage",
+      "cove-exclusive-real-primary-cold-acceptance",
       "assert-strangler-capacity-evidence.mjs",
     ],
   },
@@ -55,6 +55,23 @@ for (const { file, names, protections } of requirements) {
   for (const name of names) assert.ok(data.includes(name), file + " missing job " + name);
   for (const guard of protections)
     assert.ok(data.includes(guard), file + " missing isolation guard " + guard);
+}
+// Both protected campaigns must have the EXACT same lock, rather than
+// independent locks that allow competing cold requests on canonical D1.
+for (const file of [
+  ".github/workflows/fast-storefront-real-catalog-acceptance.yml",
+  ".github/workflows/strangler-hosted-capacity-evaluation.yml",
+]) {
+  const body = readFileSync(file, "utf8");
+  if (file.includes("fast-storefront-real-catalog")) {
+    assert.match(body, /^  group: cove-exclusive-real-primary-cold-acceptance$/m);
+  } else {
+    // PR-only static CI has its own namespace; live/dispatch must use the
+    // exact canonical cold-acceptance lock across both workflows.
+    assert.ok(body.includes("github.event_name == 'pull_request'"));
+    assert.ok(body.includes("format('cove-strangler-pr-{0}', github.event.pull_request.number)"));
+    assert.ok(body.includes("|| 'cove-exclusive-real-primary-cold-acceptance' }}"));
+  }
 }
 const capacity = readFileSync("scripts/staging/check-strangler-live-capacity.mjs", "utf8");
 const evidence = readFileSync("scripts/staging/assert-strangler-capacity-evidence.mjs", "utf8");

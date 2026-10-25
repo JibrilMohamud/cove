@@ -7,6 +7,7 @@ on:
       - "scripts/staging/strangler-http-transport.mjs"
       - "scripts/staging/check-strangler-live-capacity.mjs"
       - "scripts/staging/assert-strangler-capacity-evidence.mjs"
+      - "scripts/staging/verify-literary-postpublication-readonly.mjs"
       - "src/storefront-strangler/worker.ts"
       - "scripts/staging/wait-strangler-secret-deployment.mjs"
       - ".github/workflows/strangler-hosted-capacity-evaluation.yml"
@@ -21,8 +22,11 @@ on:
 permissions:
   contents: read
 
+# Serialize the post-publication staging campaign with the real-catalog
+# cold acceptance run. Both workflows must leave the shared primary alone
+# until the previous one has finished, including its cleanup.
 concurrency:
-  group: cove-strangler-ephemeral-capacity-stage
+  group: ${{ github.event_name == 'pull_request' && format('cove-strangler-pr-{0}', github.event.pull_request.number) || 'cove-exclusive-real-primary-cold-acceptance' }}
   cancel-in-progress: false
 
 jobs:
@@ -50,6 +54,8 @@ jobs:
           node scripts/check-storefront-strangler.mjs
           node scripts/check-storefront-prepared-catalog.mjs
           node scripts/staging/check-strangler-core-stage.mjs
+      - name: Confirm production literary owner and rights-guarded publication before staged capacity
+        run: node scripts/staging/verify-literary-postpublication-readonly.mjs
       - name: Compile independent thin Worker and snapshot publisher
         run: node scripts/build-storefront-strangler.mjs
       - name: Prepare protected, transient, synthetic-only ingress config
