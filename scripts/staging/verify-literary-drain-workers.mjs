@@ -5,13 +5,10 @@ assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
 const token = process.env.CLOUDFLARE_API_TOKEN;
 assert.ok(token);
 async function get(path) {
-  const response = await fetch(
-    "https://api.cloudflare.com/client/v4/accounts/" + account + path,
-    {
-      headers: { authorization: "Bearer " + token },
-      signal: AbortSignal.timeout(25000),
-    },
-  );
+  const response = await fetch("https://api.cloudflare.com/client/v4/accounts/" + account + path, {
+    headers: { authorization: "Bearer " + token },
+    signal: AbortSignal.timeout(25000),
+  });
   assert.ok(response.ok);
   const json = await response.json();
   assert.equal(json.success, true);
@@ -27,7 +24,10 @@ for (const role of ["handoff", "prepare"]) {
   assert.equal(info.subdomain?.enabled, false);
   assert.equal(info.subdomain?.previews_enabled, false);
   assert.equal(settings.routes?.length || 0, 0);
-  assert.deepEqual(schedules.schedules.map((x) => x.cron), ["* * * * *"]);
+  assert.deepEqual(
+    schedules.schedules.map((x) => x.cron),
+    ["* * * * *"],
+  );
   const b = settings.bindings || [];
   const vals = Object.fromEntries(
     b.filter((x) => x.type === "plain_text").map((x) => [x.name, x.text]),
@@ -36,23 +36,21 @@ for (const role of ["handoff", "prepare"]) {
   assert.equal(vals.FORE_CONTENT_PREPARE_ENABLED, "1");
   assert.equal(vals.FORE_CONTENT_PROCESSOR_ROLE, "literary-" + role);
   assert.deepEqual(
-    b.filter((x) => x.type === "d1").map((x) => x.database_id).sort(),
+    b
+      .filter((x) => x.type === "d1")
+      .map((x) => x.database_id)
+      .sort(),
     ["4bd657ac-8789-403e-a28c-93aba8d0a989", "400c3af3-5d40-41fd-83cc-98228e40ddac"].sort(),
   );
   const r2 = b.filter((x) => x.type === "r2_bucket");
   assert.ok(
     r2.some(
-      (x) =>
-        x.name === "BUCKET" &&
-        x.bucket_name === "cove-literary-originals-isolated-20261024",
+      (x) => x.name === "BUCKET" && x.bucket_name === "cove-literary-originals-isolated-20261024",
     ),
   );
   if (role === "prepare") {
     assert.ok(
-      r2.some(
-        (x) =>
-          x.name === "SOURCE_BUCKET" && x.bucket_name === "cove-production-media",
-      ),
+      r2.some((x) => x.name === "SOURCE_BUCKET" && x.bucket_name === "cove-production-media"),
     );
   } else {
     assert.equal(vals.FORE_CONTENT_HANDOFF_ENABLED, "1");
