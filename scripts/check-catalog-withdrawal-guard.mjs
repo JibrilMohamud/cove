@@ -115,7 +115,10 @@ console.log("PASS: rollback atomicity, territory narrowing, source identity, cha
 const deliverySource = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
 const fullAccess = deliverySource.slice(deliverySource.indexOf("async function requireFullBookAccess("),
   deliverySource.indexOf("async function getEpub(", deliverySource.indexOf("async function requireFullBookAccess(")));
-assert.ok(fullAccess.includes("gutenberg_source_cache WHERE id=? AND copyright=0"));
+assert.ok(fullAccess.includes("gutenberg_source_cache c WHERE c.id=? AND c.copyright=0"));
+assert.ok(fullAccess.includes("EXISTS(SELECT 1 FROM gutenberg_rights_evidence ge"));
+assert.ok(fullAccess.includes("ge.status='approved'")&&fullAccess.includes("ge.source_id=c.source_id"),
+ "An old entitlement must not bypass a global source-evidence withdrawal");
 assert.ok(fullAccess.indexOf("if (!legalSource)") < fullAccess.indexOf("if (await activeEntitlement"),
   "Existing entitlements must not override source takedowns");
 

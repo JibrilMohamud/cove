@@ -2407,9 +2407,13 @@ async function requireFullBookAccess(
   // copyright/evidence quarantine when Cove controls this file delivery.
   // This indexed read is on authoritative primary D1, never the async index.
   if (product.source_name === "gutenberg") {
+    // Global legal-evidence withdrawal is a takedown, not a routine contract
+    // expiry. Previously purchased entitlements must not override it.
+    // A single live primary lookup checks the source state AND existence of
+    // approved source-scoped evidence. Travel entitlement policy is separate.
     const legalSource = await db
       .prepare(
-        "SELECT 1 ok FROM gutenberg_source_cache WHERE id=? AND copyright=0 AND ingest_status='active' AND rights_status='public-domain' AND commercial_use_status='approved' LIMIT 1",
+        "SELECT 1 ok FROM gutenberg_source_cache c WHERE c.id=? AND c.copyright=0 AND c.ingest_status='active' AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND EXISTS(SELECT 1 FROM gutenberg_rights_evidence ge WHERE ge.cache_id=c.id AND ge.source_id=c.source_id AND ge.status='approved' AND ge.determination='public-domain') LIMIT 1",
       )
       .bind(String(product.source_external_id || ""))
       .first<{ ok: number }>();
