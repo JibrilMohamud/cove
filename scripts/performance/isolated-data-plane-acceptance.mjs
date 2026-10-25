@@ -132,16 +132,30 @@ async function deployStage(config) {
 }
 
 async function api(method, path, body) {
-  const r = await fetch("https://api.cloudflare.com/client/v4" + path, {
-    method,
-    headers: { authorization: "Bearer " + token, "content-type": "application/json" },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-    signal: AbortSignal.timeout(30000),
-  });
-  const j = await r.json();
-  if (!r.ok || !j.success)
-    throw Error("Cloudflare " + method + " " + r.status + " " + JSON.stringify(j.errors));
-  return j.result;
+  // Cloudflare's deployment-metadata GET can transiently return 10500
+  // internal-authentication errors during the stage secret rollout. Retry
+  // ONLY these read-only, pre-traffic control-plane requests. Never retry
+  // D1, user traffic, load measurements, SQL, or response-bearing streams.
+  const stageRead = method === "GET" &&
+    path.startsWith(`/accounts/${account}/workers/scripts/`) &&
+    /\/(?:deployments|subdomain)$/.test(path);
+  for (let attempt = 0; attempt < (stageRead ? 4 : 1); attempt++) {
+    const r = await fetch("https://api.cloudflare.com/client/v4" + path, {
+      method,
+      headers: { authorization: "Bearer " + token, "content-type": "application/json" },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: AbortSignal.timeout(30000),
+    });
+    const j = await r.json();
+    if (r.ok && j.success) return j.result;
+    const transient = stageRead && r.status >= 500 &&
+      Array.isArray(j.errors) && j.errors.some((e) => e.code === 10500);
+    if (!transient || attempt === 3)
+      throw Error("Cloudflare " + method + " " + r.status + " " + JSON.stringify(j.errors));
+    console.warn("Stage deployment control-plane transient 10500; retry " + (attempt + 1));
+    await new Promise((resolve) => setTimeout(resolve, 750 * (attempt + 1)));
+  }
+  throw Error("Stage deployment metadata unavailable");
 }
 async function putPrivateStageKv(key, body) {
   assert.ok(key.startsWith(`campaign/${runId}/synthetic/private/presentation/v2/`));
