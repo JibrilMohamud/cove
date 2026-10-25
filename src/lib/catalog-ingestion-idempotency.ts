@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep exact legal state assertions and source comparison adjacent for audit. */
 /**
  * Skip expensive Gutendex normalization only when the previously completed
  * canonical product projection is byte-for-byte consistent with current
