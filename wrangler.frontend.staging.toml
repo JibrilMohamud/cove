@@ -9,15 +9,14 @@ compatibility_date = "2026-10-17"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
-# Protected staging-only experiment. Cloudflare Smart Placement considers
-# D1 bindings and can move Worker compute closer to the database, reducing
-# expensive cross-region service trips. Compare it against prior ingress-edge
-# 3x20 cold and 1/4/8/16 concurrent trials before choosing production mode.
-# Original live PRIMARY-D1 territorial checks, fail-closed staging auth,
-# max <800 ms and hard p95 headroom gates remain strictly unchanged.
-# This is NOT a production DNS/Worker routing migration.
-[placement]
-mode = "smart"
+# Protected staging-only ingress-edge experiment (the *production candidate*
+# uses default placement). The Smart Placement campaign with real US-licensed
+# 24-book SSR in IAD failed 3/3 cold rounds on 2026-10-25, with many slow
+# requests spending 500–800ms OUTSIDE timed Worker execution. Test the same
+# Worker and canonical D1 rights query without any placement override.
+# Do not add placement here while evaluating edge vs Smart Placement.
+# Authentication, rate limits, rights authority, no-store and the strict
+# <800ms gate remain unchanged. No production DNS/traffic migration.
 
 [assets]
 directory = "./.output/public"
