@@ -1,0 +1,63 @@
+name: literary-guarded-owner-drain
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/literary-guarded-owner-drain.yml"
+      - "scripts/staging/literary-drain-operator-lib.mjs"
+      - "scripts/staging/activate-literary-drain.mjs"
+      - "scripts/staging/verify-literary-drain-progress.mjs"
+      - "scripts/staging/rollback-literary-drain.mjs"
+      - "scripts/check-literary-drain-operation-policy.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/literary-guarded-owner-drain.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cove-literary-drain-activation
+  cancel-in-progress: false
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - run: node --check scripts/staging/literary-drain-operator-lib.mjs
+      - run: node --check scripts/staging/activate-literary-drain.mjs
+      - run: node --check scripts/staging/verify-literary-drain-progress.mjs
+      - run: node --check scripts/staging/rollback-literary-drain.mjs
+      - run: node scripts/check-literary-drain-operation-policy.mjs
+  protected-activate:
+    needs: static
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22" }
+      - name: Switch literary only to draining after owner and budget fences
+        id: activate
+        run: node scripts/staging/activate-literary-drain.mjs
+      - name: Require first real primary outbox and verified isolated EPUB evidence
+        id: verify
+        run: node scripts/staging/verify-literary-drain-progress.mjs
+      - name: Restore legacy ownership and remove private crons on failure
+        if: failure() || cancelled()
+        run: node scripts/staging/rollback-literary-drain.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: literary-owner-drain-${{ github.sha }}
+          path: artifacts/literary-cutover/*.json
+          if-no-files-found: warn
+          retention-days: 30
