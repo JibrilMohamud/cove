@@ -107,7 +107,8 @@ assert.deepEqual(await leases(), { sweep: 0, running: 0 });
 const armed = await query(
   content,
   "UPDATE literary_legacy_reconcile_frontier SET status='armed'," +
-    "updated_at=" + nowSql +
+    "updated_at=" +
+    nowSql +
     " WHERE id=1 AND status='disarmed' AND after_job_id=''" +
     " RETURNING status",
 );
