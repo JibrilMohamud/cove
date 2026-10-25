@@ -70,6 +70,14 @@ const result = await handleSoundsSnapshot(request, env, "/sounds/stations/gothic
 assert.equal(result.status, 200);
 const body = await result.json();
 assert.deepEqual(body.recordings.map((r) => r.id), ["cm_7"]);
+const revoked = await handleSoundsSnapshot(request, {
+  ...env,
+  DB: { prepare() { return { bind() { return { async all() { return { results: [] }; } }; } }; } },
+}, "/sounds/stations/gothic-hour/recordings", "US");
+assert.equal(revoked.status, 200);
+assert.deepEqual((await revoked.json()).recordings, [],
+  "A stale KV/R2 hint must NEVER reinstate an immediately revoked recording");
+
 const fallback = await handleSoundsSnapshot(request, {
   ...env, COVE_SOUNDS_SNAPSHOT_ENABLED: "0", SOUNDS_PRESENTATION: undefined,
 }, "/sounds/stations/gothic-hour/recordings", "US");
