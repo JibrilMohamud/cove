@@ -4,8 +4,12 @@ const script = "cove-literary-infer-draining-20261025";
 assert.equal(process.env.CLOUDFLARE_ACCOUNT_ID, account);
 const token = process.env.CLOUDFLARE_API_TOKEN;
 assert.ok(token);
-const url = "https://api.cloudflare.com/client/v4/accounts/" + account +
-  "/workers/scripts/" + script + "/schedules";
+const url =
+  "https://api.cloudflare.com/client/v4/accounts/" +
+  account +
+  "/workers/scripts/" +
+  script +
+  "/schedules";
 async function request(method, body) {
   const response = await fetch(url, {
     method,
