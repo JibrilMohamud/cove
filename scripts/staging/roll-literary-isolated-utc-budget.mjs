@@ -26,9 +26,7 @@ async function query(id, sql) {
   return json.result[0]?.results || [];
 }
 const today = new Date().toISOString().slice(0, 10);
-const yesterday = new Date(Date.parse(today + "T00:00:00Z") - 86400000)
-  .toISOString()
-  .slice(0, 10);
+const yesterday = new Date(Date.parse(today + "T00:00:00Z") - 86400000).toISOString().slice(0, 10);
 const [owner, identity, previous, existing, original, leases] = await Promise.all([
   query(
     primary,
@@ -41,12 +39,12 @@ const [owner, identity, previous, existing, original, leases] = await Promise.al
       " WHERE type='table' AND name IN ('rights_grants','products','payment_orders')) contaminated" +
       " FROM literary_budget_domain_identity WHERE id=1",
   ),
-  query(
-    isolated,
-    "SELECT status FROM literary_budget_cutover WHERE day='" + yesterday + "'",
-  ),
+  query(isolated, "SELECT status FROM literary_budget_cutover WHERE day='" + yesterday + "'"),
   query(isolated, "SELECT status FROM literary_budget_cutover WHERE day='" + today + "'"),
-  query(primary, "SELECT reserved_units,calls FROM literary_profile_budget WHERE day='" + today + "'"),
+  query(
+    primary,
+    "SELECT reserved_units,calls FROM literary_profile_budget WHERE day='" + today + "'",
+  ),
   query(
     primary,
     "SELECT EXISTS(SELECT 1 FROM literary_profile_jobs WHERE status='running'" +
