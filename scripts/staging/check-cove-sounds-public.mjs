@@ -23,12 +23,15 @@ for (const path of ["/sounds", "/sounds/gothic-hour"]) {
   if (path.endsWith("gothic-hour"))
     assert.ok(html.includes("The Gothic Hour"), "Gothic station must SSR");
 }
-const [musicResponse, booksResponse] = await Promise.all([
+const [contextResponse, musicResponse, booksResponse] = await Promise.all([
+  request("/api/fore/storefront/context"),
   request("/api/fore/sounds/stations/gothic-hour/recordings"),
   request("/api/fore/sounds/stations/gothic-hour/books"),
 ]);
+const market = await contextResponse.json();
 const music = await musicResponse.json();
 const books = await booksResponse.json();
+assert.match(market.rightsCountry, /^[A-Z]{2}$/, "Live storefront territory required");
 // Public runners can legitimately enter a market outside the US pilot.
 // The protected private activation workflow independently verifies all six US
 // KV objects, live bindings, and publication freshness using Cloudflare credentials.
@@ -39,9 +42,11 @@ assert.equal(
   "The territory gate must agree for music and book snapshots",
 );
 if (fallback) {
+  assert.notEqual(market.rightsCountry, "US", "Seeded US market must not fall back");
   assert.deepEqual(music.recordings, [], "Non-pilot market must not receive US masters");
   assert.deepEqual(books.books, [], "Non-pilot market must not receive US book candidates");
 } else {
+  assert.equal(market.rightsCountry, "US", "Unseeded market must not receive US snapshots");
   assert.ok(music.recordings.length > 0, "US rights-checked station music must be nonempty");
   assert.ok(books.books.length > 0, "US rights-checked station books must be nonempty");
 }
