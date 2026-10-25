@@ -11,6 +11,9 @@ const result = await build({
   entryPoints: ["src/storefront-strangler/worker.ts"],
   outfile,
   bundle: true,
+  // Keep Workers isolate parse/initialization cost as small as possible.
+  // This changes bytecode size, never the latency or legal acceptance gates.
+  minify: true,
   platform: "node",
   format: "esm",
   target: "es2022",

@@ -21,6 +21,11 @@ import {
   type PrivatePresentationStore,
 } from "./prepared-catalog.server";
 
+// Stage-only isolate identity for attributing cold module startup to edge tails.
+// Customer responses never expose these measurements.
+const isolateModuleReadyAt = performance.now();
+let isolateRequestOrdinal = 0;
+
 /** Build-isolated serving boundary. No auth, orders, reader or background code.
  * Existing domain logic is reused through type-only references. This pilot is
  * deliberately non-routable: no production DNS, no customer credentials.
@@ -109,6 +114,8 @@ export default {
   async fetch(request: Request, env: StorefrontStranglerEnv): Promise<Response> {
     // Never classify client/edge ingress time as database time.
     const enteredAt = performance.now();
+    const isolateOrdinal = ++isolateRequestOrdinal;
+    const isolateAgeMs = Math.max(0, enteredAt - isolateModuleReadyAt);
     // Fail closed even under an accidental deployment or config substitution.
     // The reviewed config must also contain only the dedicated synthetic D1.
     const syntheticEvaluation =
@@ -202,6 +209,8 @@ export default {
           [
             headers.get("server-timing"),
             `cove_handler;dur=${(performance.now() - enteredAt).toFixed(1)}`,
+            `cove_isolate_first;desc="${isolateOrdinal === 1 ? 1 : 0}"`,
+            `cove_isolate_age;dur=${isolateAgeMs.toFixed(1)}`,
           ]
             .filter(Boolean)
             .join(", "),
