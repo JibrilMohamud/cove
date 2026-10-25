@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import {
-  api, artifact, earlierInference, inferName, isolated, owner, primary,
-  publisherName, query, secretNames, variables, worker,
+  api,
+  artifact,
+  earlierInference,
+  inferName,
+  isolated,
+  owner,
+  primary,
+  publisherName,
+  query,
+  secretNames,
+  variables,
+  worker,
 } from "./literary-isolated-operator-lib.mjs";
 
 assert.deepEqual(await owner(), {
@@ -9,8 +19,8 @@ assert.deepEqual(await owner(), {
   literary_processing_owner: "draining",
 });
 const day = new Date().toISOString().slice(0, 10);
-const [lease, frontier, migration, budget, receipts, prepared, inferred, stage] =
-  await Promise.all([
+const [lease, frontier, migration, budget, receipts, prepared, inferred, stage] = await Promise.all(
+  [
     query(
       primary,
       "SELECT EXISTS(SELECT 1 FROM literary_profile_state WHERE id=1" +
@@ -18,12 +28,12 @@ const [lease, frontier, migration, budget, receipts, prepared, inferred, stage] 
         " EXISTS(SELECT 1 FROM literary_profile_jobs WHERE status='running'" +
         " AND lease_until>strftime('%Y-%m-%dT%H:%M:%fZ','now')) jobs",
     ),
-    query(isolated, "SELECT status,after_job_id FROM literary_legacy_reconcile_frontier WHERE id=1"),
-    query(isolated, "SELECT domain,schema_version FROM literary_budget_domain_identity WHERE id=1"),
     query(
       isolated,
-      "SELECT status FROM literary_budget_cutover WHERE day='" + day + "'",
+      "SELECT status,after_job_id FROM literary_legacy_reconcile_frontier WHERE id=1",
     ),
+    query(isolated, "SELECT domain,schema_version FROM literary_budget_domain_identity WHERE id=1"),
+    query(isolated, "SELECT status FROM literary_budget_cutover WHERE day='" + day + "'"),
     query(isolated, "SELECT COUNT(*) n FROM literary_legacy_reconcile_receipts"),
     query(isolated, "SELECT COUNT(*) n FROM literary_prepare_jobs WHERE status='done'"),
     query(
@@ -35,7 +45,8 @@ const [lease, frontier, migration, budget, receipts, prepared, inferred, stage] 
       "fce5742c-29ca-4bc3-85da-e174dd9bf42e",
       "SELECT result FROM literary_qa_private_pub_receipts WHERE id=1",
     ),
-  ]);
+  ],
+);
 assert.deepEqual(lease, [{ sweep: 0, jobs: 0 }]);
 assert.ok(["armed", "complete"].includes(frontier[0]?.status));
 assert.deepEqual(migration, [{ domain: "cove-isolated-literary-budget", schema_version: 1 }]);
@@ -52,8 +63,14 @@ const [publisher, inference, oldInference, handoff] = await Promise.all([
 ]);
 assert.deepEqual(publisher.schedule, []);
 assert.deepEqual(inference.schedule, []);
-assert.deepEqual(oldInference.schedule.map((x) => x.cron), ["* * * * *"]);
-assert.deepEqual(handoff.schedule.map((x) => x.cron), ["* * * * *"]);
+assert.deepEqual(
+  oldInference.schedule.map((x) => x.cron),
+  ["* * * * *"],
+);
+assert.deepEqual(
+  handoff.schedule.map((x) => x.cron),
+  ["* * * * *"],
+);
 assert.equal(variables(publisher.bindings).FORE_LITERARY_INFERENCE_PUBLISH_ENABLED, "0");
 assert.equal(variables(inference.bindings).FORE_CONTENT_PROCESSOR_ENABLED, "0");
 const pubNames = secretNames(publisher.bindings);
@@ -61,15 +78,17 @@ const infNames = secretNames(inference.bindings);
 for (const key of [
   "FORE_LITERARY_INFERENCE_PUBLISH_TOKEN_SHA256",
   "FORE_LITERARY_INFERENCE_BACKEND_TOKEN_SHA256",
-]) assert.ok(pubNames.has(key), "Missing publisher credential name");
+])
+  assert.ok(pubNames.has(key), "Missing publisher credential name");
 for (const key of [
   "FORE_LITERARY_INFERENCE_PUBLISH_TOKEN",
   "FORE_LITERARY_INFERENCE_BACKEND_TOKEN",
-]) assert.ok(infNames.has(key), "Missing caller credential name");
+])
+  assert.ok(infNames.has(key), "Missing caller credential name");
 assert.ok(
   inference.bindings.some(
-    (x) => x.type === "service" && x.name === "LITERARY_PUBLISHER" &&
-      x.service === publisherName,
+    (x) =>
+      x.type === "service" && x.name === "LITERARY_PUBLISHER" && x.service === publisherName,
   ),
 );
 const evidence = {
