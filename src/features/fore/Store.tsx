@@ -1774,7 +1774,7 @@ export function StorePage({
             <BookCard
               key={String(b.productId || b.id)}
               book={b}
-              priority={page === 1 && index < 4}
+              priority={page === 1 && index < 2}
               onOpen={() => {
                 const queryId = result.data?.search?.queryId;
                 const position = (page - 1) * (result.data?.search?.pageSize || 24) + index + 1;
