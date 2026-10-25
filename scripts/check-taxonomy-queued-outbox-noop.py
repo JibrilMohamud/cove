@@ -37,19 +37,19 @@ INSERT INTO products VALUES('p1','e1','gutenberg');
 """)
 # Interrupted publication recovery: missing event must be inserted even if
 # source and taxonomy are unchanged.
-assert db.execute(outbox, ("first", "e1", 1)).rowcount == 1
+assert db.execute(outbox, ("first", "e1", 1, 0)).rowcount == 1
 assert db.execute("SELECT COUNT(*) FROM triggers").fetchone()[0] == 1
 db.execute("UPDATE search_index_outbox SET attempts=3,last_error='retrying',change_token='newer' WHERE product_id='p1'")
 db.execute("DELETE FROM triggers")
 # Same input and no search text changes: don't reset timestamp/attempts/token.
-assert db.execute(outbox, ("later", "e1", 1)).rowcount == 0
+assert db.execute(outbox, ("later", "e1", 1, 0)).rowcount == 0
 assert db.execute("SELECT COUNT(*) FROM triggers").fetchone()[0] == 0
 assert db.execute(
   "SELECT queued_at,attempts,last_error,change_token FROM search_index_outbox"
 ).fetchone() == ("first", 3, "retrying", "newer")
 # Changed normalized source OR changed category still triggers original
 # conditional update and fresh index delivery.
-assert db.execute(outbox, ("changed", "e1", 0)).rowcount == 1
+assert db.execute(outbox, ("changed", "e1", 0, 0)).rowcount == 1
 assert db.execute("SELECT COUNT(*) FROM triggers").fetchone()[0] == 1
 assert db.execute(
   "SELECT queued_at,attempts,last_error FROM search_index_outbox"
@@ -58,8 +58,19 @@ assert db.execute(
 # an unchanged source-heartbeat. Forced change retains existing behavior.
 db.execute("UPDATE search_index_outbox SET operation='delete' WHERE product_id='p1'")
 db.execute("DELETE FROM triggers")
-db.execute(outbox, ("heartbeat", "e1", 1))
+db.execute(outbox, ("heartbeat", "e1", 1, 0))
 assert db.execute(
   "SELECT operation,queued_at FROM search_index_outbox"
 ).fetchone() == ("delete", "changed")
+# Download-count-only observations can refresh an existing UPSERT but
+# cannot cancel a legal-denial tombstone queued by another authority.
+db.execute("DELETE FROM triggers")
+db.execute(outbox, ("popularity", "e1", 0, 1))
+assert db.execute("SELECT operation,queued_at FROM search_index_outbox").fetchone() == ("delete", "changed")
+assert db.execute("SELECT COUNT(*) FROM triggers").fetchone()[0] == 0
+db.execute("UPDATE search_index_outbox SET operation='upsert' WHERE product_id='p1'")
+db.execute("DELETE FROM triggers")
+db.execute(outbox, ("popularity", "e1", 0, 1))
+assert db.execute("SELECT operation,queued_at FROM search_index_outbox").fetchone() == ("upsert", "popularity")
+assert db.execute("SELECT COUNT(*) FROM triggers").fetchone()[0] == 1
 print("PASS: unchanged heartbeats cause 0 outbox writes; missing publication repaired; new events, revocations and replay safe")

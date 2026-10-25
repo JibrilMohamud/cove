@@ -116,7 +116,10 @@ import {
   searchSuggestions,
   syncSearchIndex,
 } from "./search.server";
-import { unchangedNormalizedGutendexBook } from "@/lib/catalog-ingestion-idempotency";
+import {
+  popularityOnlyGutendexBook,
+  unchangedNormalizedGutendexBook,
+} from "@/lib/catalog-ingestion-idempotency";
 import {
   catalogIds,
   commercialCatalogStatements,
@@ -2120,7 +2123,18 @@ export async function runCatalogIngestion(
       ),
     );
     const unchangedIds = new Set(unchanged.map((book: CatalogBook) => String(book.id)));
-    const changed = accepted.filter((book: CatalogBook) => !unchangedIds.has(String(book.id)));
+    const popularityOnly = accepted.filter((book: CatalogBook) =>
+      !unchangedIds.has(String(book.id)) &&
+      popularityOnlyGutendexBook(
+        book,
+        previous.get(String(book.id)),
+        book.formats?.["text/html"] || "https://www.gutenberg.org/ebooks/" + book.id + "/",
+      ),
+    );
+    const popularityIds = new Set(popularityOnly.map((book: CatalogBook) => String(book.id)));
+    const changed = accepted.filter((book: CatalogBook) =>
+      !unchangedIds.has(String(book.id)) && !popularityIds.has(String(book.id))
+    );
     // last_seen_at is a source-observation heartbeat, not a rights grant.
     // Preserve it even for unchanged rows, without triggering canonical FTS
     // rebuilds, changing normalized updated_at, or reissuing rights grants.
@@ -2129,6 +2143,37 @@ export async function runCatalogIngestion(
         `UPDATE gutenberg_source_cache SET last_seen_at=?,source_updated_at=?
          WHERE id IN (${unchanged.map(() => "?").join(",")})`,
       ).bind(at, at, ...unchanged.map((book: CatalogBook) => String(book.id))).run();
+    }
+    // Gutenberg download counts change frequently without changing a book's
+    // description, rights, source files or existing canonical publication.
+    // Bypass heavy graph+FTS reconstruction in that single proven case.
+    // Compare-and-swap BOTH rows so an intervening rights withdrawal or new
+    // canonical version cannot be overwritten by a stale popularity heartbeat.
+    if (popularityOnly.length) {
+      const popularityWrites = popularityOnly.flatMap((book: CatalogBook) => {
+        const row = previous.get(String(book.id))!;
+        const id = String(book.id);
+        const count = Number(book.download_count);
+        return [
+          db.prepare(`UPDATE gutenberg_source_cache
+            SET download_count=?,source_updated_at=?,last_seen_at=?,updated_at=?
+            WHERE id=? AND updated_at=? AND ingest_status='active'
+              AND rights_status='public-domain'
+              AND commercial_use_status='approved'
+              AND rights_territories_json='["US"]'`)
+            .bind(count,at,at,at,id,row.updated_at),
+          db.prepare(`UPDATE catalog_search_documents
+            SET download_count=?,updated_at=?
+            WHERE product_id=? AND updated_at=?
+              AND EXISTS(SELECT 1 FROM gutenberg_source_cache c
+                WHERE c.id=? AND c.updated_at=? AND c.download_count=?
+                  AND c.rights_status='public-domain'
+                  AND c.commercial_use_status='approved'
+                  AND c.rights_territories_json='["US"]')`)
+            .bind(count,at,`prd_gutenberg_${id}`,row.projection_updated_at,id,at,count),
+        ];
+      });
+      await db.batch(popularityWrites);
     }
     const statements = changed.map((book: CatalogBook) =>
       catalogInsert(
@@ -2151,6 +2196,7 @@ export async function runCatalogIngestion(
         db,
         catalogIds(String(book.id)).editionId,
         unchangedIds.has(String(book.id)),
+        popularityIds.has(String(book.id)),
       );
     /* eslint-enable prettier/prettier */
     if (!options.deferSearchSync) {
@@ -2185,6 +2231,7 @@ export async function runCatalogIngestion(
       fetched: payload.results.length,
       inserted: statements.length,
       unchanged: unchanged.length,
+      popularityOnly: popularityOnly.length,
       nextUrl,
       complete: !nextUrl,
       epubs,
