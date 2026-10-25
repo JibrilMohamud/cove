@@ -62,7 +62,10 @@ const query = async (db, sql) => {
   return r[0].results || [];
 };
 const [owner, frontier, identity, jobs, sourceObjects] = await Promise.all([
-  query(primary, "SELECT key,value FROM cove_runtime_config WHERE key IN ('literary_processing_owner','literary_budget_domain')"),
+  query(
+    primary,
+    "SELECT key,value FROM cove_runtime_config WHERE key IN (\'literary_processing_owner\',\'literary_budget_domain\')",
+  ),
   query(secondary, "SELECT status,after_job_id FROM literary_legacy_reconcile_frontier WHERE id=1"),
   query(secondary, "SELECT domain,schema_version FROM literary_budget_domain_identity WHERE id=1"),
   query(secondary, "SELECT COUNT(*) n FROM literary_prepare_jobs"),
