@@ -3,6 +3,7 @@ import type { CatalogPreparedMetadata } from "./catalog-normalization-core";
 
 type Statement = {
   bind(...args: unknown[]): Statement;
+  all<T>(): Promise<{ results: T[] }>;
 };
 type DB = {
   prepare(sql: string): Statement;
@@ -10,13 +11,7 @@ type DB = {
 };
 export type CanonicalPublisherEnv = {
   PRIMARY_DB: DB;
-  CATALOG_INDEX_DB: {
-    prepare(sql: string): Statement & {
-      bind(...args: unknown[]): Statement & {
-        all<T>(): Promise<{ results: T[] }>;
-      };
-    };
-  };
+  CATALOG_INDEX_DB: DB;
   COVE_CATALOG_NORMALIZATION_PUBLISH_ENABLED?: string;
   COVE_CATALOG_PUBLICATION_PRIMARY_ID?: string;
 };
