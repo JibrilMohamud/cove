@@ -1,0 +1,16 @@
+{
+  // OPERATOR TEMPLATE ONLY. Provision an independent D1 and provide IDs
+  // before creating a private, non-routable deployment.
+  "name": "cove-catalog-index-capture-staged",
+  "main": ".output/strangler/catalog-index-capture.mjs",
+  "compatibility_date": "2026-10-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  "d1_databases": [
+    { "binding": "SOURCE_DB", "database_name": "REPLACE_READ_ONLY_SOURCE", "database_id": "REPLACE_WITH_SOURCE_ID" },
+    { "binding": "CATALOG_INDEX_DB", "database_name": "REPLACE_ISOLATED_CATALOG_INDEX", "database_id": "REPLACE_WITH_NEW_INDEPENDENT_D1_ID", "migrations_dir": "infra/catalog-index" }
+  ],
+  "vars": { "COVE_CATALOG_INDEX_CAPTURE_ENABLED": "0" }
+}

@@ -99,3 +99,15 @@ await build({
   external: ["node:*", "cloudflare:*"],
   logLevel: "silent",
 });
+
+await build({
+  entryPoints: ["src/storefront-strangler/catalog-index-capture.worker.ts"],
+  outfile: ".output/strangler/catalog-index-capture.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});

@@ -1,0 +1,28 @@
+name: isolated-catalog-index
+on:
+  pull_request:
+    paths:
+      - "drizzle/0085_isolated_catalog_changefeed.sql"
+      - "infra/catalog-index/**"
+      - "src/storefront-strangler/catalog-index-*.ts"
+      - "scripts/check-isolated-catalog-index.mjs"
+      - "scripts/build-storefront-strangler.mjs"
+      - ".github/workflows/isolated-catalog-index.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-catalog-index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - run: node scripts/check-isolated-catalog-index.mjs
+      - run: node scripts/build-storefront-strangler.mjs
+      - run: npm run typecheck
+      - run: npm run test:rights
+      - run: node scripts/check-publication-feed.mjs
