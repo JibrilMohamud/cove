@@ -116,7 +116,10 @@ import {
   searchSuggestions,
   syncSearchIndex,
 } from "./search.server";
-import { popularityOnlyGutendexBook, unchangedNormalizedGutendexBook } from "@/lib/catalog-ingestion-idempotency";
+import {
+  popularityOnlyGutendexBook,
+  unchangedNormalizedGutendexBook,
+} from "@/lib/catalog-ingestion-idempotency";
 import {
   catalogIds,
   commercialCatalogStatements,
