@@ -5,7 +5,7 @@ import { ArrowRight, BookOpen, Check, Copy, Headphones, Music2, Share2, Sparkles
 import { api, authorOf, coverOf, editionPath, useAccount, type CatalogBook } from "./client";
 import { useStorefrontLocale } from "./localization";
 import { COVE_SOUNDS_STATIONS, stationBySlug, stationRecordings, type CoveSoundsStation, type CoveSoundsRecording } from "./cove-sounds-stations";
-import { rememberSoundsBookReferral } from "./cove-sounds-attribution.client";
+import { rememberSoundsBookReferral } from "./cove-sounds-attribution";
 import "./cove-sounds.css";
 
 type RecordingCatalog = { recordings: CoveSoundsRecording[]; count: number };
