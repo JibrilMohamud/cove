@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep bounded token fencing and executable SQLite race proof together. */
 /**
  * Replace hundreds of independent D1 DELETE statements with one bounded,
  * primary-authoritative conditional acknowledgement. This is ONLY a derived
