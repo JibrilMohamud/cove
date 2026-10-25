@@ -136,7 +136,8 @@ async function api(method, path, body) {
   // internal-authentication errors during the stage secret rollout. Retry
   // ONLY these read-only, pre-traffic control-plane requests. Never retry
   // D1, user traffic, load measurements, SQL, or response-bearing streams.
-  const stageRead = method === "GET" &&
+  const stageRead =
+    method === "GET" &&
     path.startsWith(`/accounts/${account}/workers/scripts/`) &&
     /\/(?:deployments|subdomain)$/.test(path);
   for (let attempt = 0; attempt < (stageRead ? 4 : 1); attempt++) {
@@ -148,8 +149,11 @@ async function api(method, path, body) {
     });
     const j = await r.json();
     if (r.ok && j.success) return j.result;
-    const transient = stageRead && r.status >= 500 &&
-      Array.isArray(j.errors) && j.errors.some((e) => e.code === 10500);
+    const transient =
+      stageRead &&
+      r.status >= 500 &&
+      Array.isArray(j.errors) &&
+      j.errors.some((e) => e.code === 10500);
     if (!transient || attempt === 3)
       throw Error("Cloudflare " + method + " " + r.status + " " + JSON.stringify(j.errors));
     console.warn("Stage deployment control-plane transient 10500; retry " + (attempt + 1));
