@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Initial music discovery UI follows the existing SoundtrackLibrary style until layout normalization. */
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, BookOpen, Check, Copy, Headphones, Music2, Share2, Sparkles } from "lucide-react";
