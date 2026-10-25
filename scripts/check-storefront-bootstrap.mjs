@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep bounded public projection and strict first-paint invariant adjacent for audit. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -320,8 +321,8 @@ try {
     assert.equal(limitCalls, 1, "Exactly one enforced Cloudflare edge limit");
     assert.deepEqual(
       sessionModes,
-      ["first-unconstrained", "first-unconstrained"],
-      "Exactly two replica presentation reads: combined market/locale/menu and page",
+      ["first-unconstrained"],
+      "Exactly one replica presentation read: combined market/locale/menu/page",
     );
   }
   assert.ok(joinedMarketLocaleReads >= 4, "One live joined market/locale read per bootstrap");
