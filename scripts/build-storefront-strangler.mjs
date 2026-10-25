@@ -87,3 +87,15 @@ for (const lane of ["capture", "export", "export-stage", "publish", "driver"]) {
     logLevel: "silent",
   });
 }
+
+await build({
+  entryPoints: ["src/storefront-strangler/sounds-publication.worker.ts"],
+  outfile: ".output/strangler/sounds-publication.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
