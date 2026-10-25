@@ -14,7 +14,7 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
     funnelEvents.push(payload);
     expect(Object.keys(payload).sort()).toEqual(["event", "station"]);
     expect(payload.station).toBe("gothic-hour");
-    expect(["station_view", "music_open"]).toContain(payload.event);
+    expect(["station_view", "music_open", "shelf_open"]).toContain(payload.event);
     await route.fulfill({ status: 202, json: { accepted: true } });
   });
   page.on("pageerror", (error) => errors.push(error.message));
