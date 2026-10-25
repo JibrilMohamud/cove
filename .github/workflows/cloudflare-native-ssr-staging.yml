@@ -69,6 +69,7 @@ on:
       - "scripts/performance/cloudflare-browser.mjs"
       - "scripts/performance/cloudflare-concurrency.mjs"
       - "scripts/check-cloudflare-ssr-staging.mjs"
+      - "scripts/performance/deploy-cloudflare-staging.mjs"
       - "scripts/cloudflare-deployment-readiness.mjs"
       - "scripts/check-cloudflare-deployment-readiness.mjs"
       - "scripts/wait-cloudflare-native-deployment.mjs"
@@ -142,6 +143,7 @@ on:
       - "scripts/performance/cloudflare-browser.mjs"
       - "scripts/performance/cloudflare-concurrency.mjs"
       - "scripts/check-cloudflare-ssr-staging.mjs"
+      - "scripts/performance/deploy-cloudflare-staging.mjs"
       - "scripts/cloudflare-deployment-readiness.mjs"
       - "scripts/check-cloudflare-deployment-readiness.mjs"
       - "scripts/wait-cloudflare-native-deployment.mjs"
@@ -205,6 +207,8 @@ jobs:
         run: npm run build
       - name: Verify static and SSR artifacts
         run: node scripts/check-cloudflare-ssr-pilot.mjs
+      - name: Retry policy is limited to transient Cloudflare asset-upload errors
+        run: node scripts/performance/deploy-cloudflare-staging.mjs --self-test
       - name: Dry-run full staging Worker (no network publish)
         env:
           CLOUDFLARE_SEND_METRICS: "false"
@@ -243,7 +247,7 @@ jobs:
       - name: Build immutable reviewed production-source staging artifact
         run: npm run build
       - name: Deploy staging only (no custom domain or traffic migration)
-        run: npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.staging.toml
+        run: node scripts/performance/deploy-cloudflare-staging.mjs
       - name: Independently cold-deploy and strictly benchmark three times
         shell: bash
         run: |
@@ -254,7 +258,7 @@ jobs:
             # Even when the code has not changed, rotating the secret creates
             # a new Worker version. On later trials, also redeploy all assets.
             if [ "$trial" -gt 1 ]; then
-              npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.staging.toml
+              node scripts/performance/deploy-cloudflare-staging.mjs
             fi
             COVE_SSR_STAGING_GATE_KEY="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
             echo "::add-mask::$COVE_SSR_STAGING_GATE_KEY"

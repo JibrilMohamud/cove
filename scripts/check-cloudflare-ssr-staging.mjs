@@ -175,7 +175,14 @@ async function assertRightsIsolation() {
   }
   const expected = await first.json();
   assert.match(expected.context.rightsCountry, /^[A-Z]{2}$/);
-  assert.ok(expected.catalog.results.length >= 1);
+  // A GitHub runner can enter Cloudflare through a non-US colo (e.g. YUL).
+  // Current merchandise has no independently authorized Canadian editions.
+  // Do not call that lawful empty shelf either a speed pass or an SSR bug,
+  // and NEVER force a US country with client-controlled headers.
+  assert.ok(
+    expected.catalog.results.length >= 1,
+    `LICENSED_STOREFRONT_GEO_UNAVAILABLE: actual Cloudflare country=${expected.context.rightsCountry}; zero permitted first-paint books. This run cannot certify a populated licensed homepage; rerun from authorized physical egress. Do not spoof country or relax the 800ms gate.`,
+  );
   const forged = await fetch(endpoint, {
     ...common,
     headers: headers({
