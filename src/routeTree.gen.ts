@@ -36,6 +36,8 @@ import { Route as PublishingPolicyRouteImport } from './routes/publishing-policy
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SecurityRouteImport } from './routes/security'
 import { Route as ShelvesRouteImport } from './routes/shelves'
+import { Route as SoundsRouteImport } from './routes/sounds'
+import { Route as SoundsSlugRouteImport } from './routes/sounds_.$slug'
 import { Route as SoundtracksRouteImport } from './routes/soundtracks'
 import { Route as StatsRouteImport } from './routes/stats'
 import { Route as StatusRouteImport } from './routes/status'
@@ -198,6 +200,16 @@ const SecurityRoute = SecurityRouteImport.update({
 const ShelvesRoute = ShelvesRouteImport.update({
   id: '/shelves',
   path: '/shelves',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SoundsRoute = SoundsRouteImport.update({
+  id: '/sounds',
+  path: '/sounds',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SoundsSlugRoute = SoundsSlugRouteImport.update({
+  id: '/sounds/$slug',
+  path: '/sounds/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SoundtracksRoute = SoundtracksRouteImport.update({
@@ -369,6 +381,8 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/security': typeof SecurityRoute
   '/shelves': typeof ShelvesRoute
+  '/sounds': typeof SoundsRoute
+  '/sounds/$slug': typeof SoundsSlugRoute
   '/soundtracks': typeof SoundtracksRoute
   '/stats': typeof StatsRoute
   '/status': typeof StatusRoute
@@ -426,6 +440,8 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/security': typeof SecurityRoute
   '/shelves': typeof ShelvesRoute
+  '/sounds': typeof SoundsRoute
+  '/sounds/$slug': typeof SoundsSlugRoute
   '/soundtracks': typeof SoundtracksRoute
   '/stats': typeof StatsRoute
   '/status': typeof StatusRoute
@@ -484,6 +500,8 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/security': typeof SecurityRoute
   '/shelves': typeof ShelvesRoute
+  '/sounds': typeof SoundsRoute
+  '/sounds/$slug': typeof SoundsSlugRoute
   '/soundtracks': typeof SoundtracksRoute
   '/stats': typeof StatsRoute
   '/status': typeof StatusRoute
@@ -543,6 +561,8 @@ export interface FileRouteTypes {
     | '/search'
     | '/security'
     | '/shelves'
+    | '/sounds'
+    | '/sounds/$slug'
     | '/soundtracks'
     | '/stats'
     | '/status'
@@ -600,6 +620,8 @@ export interface FileRouteTypes {
     | '/search'
     | '/security'
     | '/shelves'
+    | '/sounds'
+    | '/sounds/$slug'
     | '/soundtracks'
     | '/stats'
     | '/status'
@@ -657,6 +679,8 @@ export interface FileRouteTypes {
     | '/search'
     | '/security'
     | '/shelves'
+    | '/sounds'
+    | '/sounds/$slug'
     | '/soundtracks'
     | '/stats'
     | '/status'
@@ -715,6 +739,8 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SecurityRoute: typeof SecurityRoute
   ShelvesRoute: typeof ShelvesRoute
+  SoundsRoute: typeof SoundsRoute
+  SoundsSlugRoute: typeof SoundsSlugRoute
   SoundtracksRoute: typeof SoundtracksRoute
   StatsRoute: typeof StatsRoute
   StatusRoute: typeof StatusRoute
@@ -933,6 +959,20 @@ declare module '@tanstack/react-router' {
       path: '/shelves'
       fullPath: '/shelves'
       preLoaderRoute: typeof ShelvesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sounds': {
+      id: '/sounds'
+      path: '/sounds'
+      fullPath: '/sounds'
+      preLoaderRoute: typeof SoundsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sounds/$slug': {
+      id: '/sounds/$slug'
+      path: '/sounds/$slug'
+      fullPath: '/sounds/$slug'
+      preLoaderRoute: typeof SoundsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/soundtracks': {
@@ -1174,6 +1214,8 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SecurityRoute: SecurityRoute,
   ShelvesRoute: ShelvesRoute,
+  SoundsRoute: SoundsRoute,
+  SoundsSlugRoute: SoundsSlugRoute,
   SoundtracksRoute: SoundtracksRoute,
   StatsRoute: StatsRoute,
   StatusRoute: StatusRoute,

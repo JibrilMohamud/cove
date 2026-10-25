@@ -6,6 +6,7 @@ import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Headphones,
+  Music2,
   LibraryBig,
   BarChart3,
   Heart,
@@ -49,6 +50,7 @@ import { useUiText } from "./ui-text";
 const nav = [
   ["/", "nav.bookstore", "Bookstore", BookOpen],
   ["/audiobooks", "nav.audiobooks", "Audiobooks", Headphones],
+  ["/sounds", "nav.sounds", "Cove Sounds", Music2],
   ["/library", "nav.library", "My library", Library],
   ["/wishlist", "nav.wishlist", "Wishlist", Heart],
   ["/cart", "nav.cart", "Cart", ShoppingCart],
@@ -293,7 +295,8 @@ export function SiteShell({
             <a href="/privacy">{ui("Privacy Policy")}</a>
             <a href="/copyright">{ui("Copyright & DMCA")}</a>
             <a href="/help">{ui("Help & support")}</a>
-            <a href="/soundtracks">{ui("Soundtracks")}</a>
+            <a href="/sounds">{ui("Cove Sounds")}</a>
+            <a href="/soundtracks">{ui("Soundtrack licenses")}</a>
             <a href="/status">{ui("Service status")}</a>
             <a href="/privacy#contact-us">{ui("Contact & privacy requests")}</a>
           </nav>

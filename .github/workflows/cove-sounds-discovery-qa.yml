@@ -1,0 +1,45 @@
+name: cove-sounds-discovery-qa
+on:
+  pull_request:
+    paths:
+      - "src/features/fore/CoveSounds.tsx"
+      - "src/features/fore/cove-sounds.css"
+      - "src/features/fore/cove-sounds-stations.ts"
+      - "src/features/fore/App.tsx"
+      - "src/routeTree.gen.ts"
+      - "src/routes/sounds.tsx"
+      - "src/routes/sounds_.$slug.tsx"
+      - "scripts/check-cove-sounds-discovery.mjs"
+      - ".github/workflows/cove-sounds-discovery-qa.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/features/fore/CoveSounds.tsx"
+      - "src/features/fore/cove-sounds.css"
+      - "src/features/fore/cove-sounds-stations.ts"
+      - "src/features/fore/App.tsx"
+      - "src/routes/sounds.tsx"
+      - "src/routes/sounds_.$slug.tsx"
+      - "scripts/check-cove-sounds-discovery.mjs"
+      - ".github/workflows/cove-sounds-discovery-qa.yml"
+permissions:
+  contents: read
+concurrency:
+  group: cove-sounds-discovery-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+jobs:
+  rights-boundaries-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - name: Enforce Cove Sounds discovery rights and no-auto-play boundaries
+        run: node scripts/check-cove-sounds-discovery.mjs
+      - name: Compile and verify all route and client imports
+        run: npm run build
