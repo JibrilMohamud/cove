@@ -52,7 +52,9 @@ for(const patch of [
 ]) assert.equal(same({...book,...patch},row,sourceUrl),false,JSON.stringify(patch));
 assert.match(api,/const unchangedIds = new Set\(unchanged\.map/);
 assert.match(api,/const changed = accepted\.filter/);
-assert.match(api,/for \(const book of changed\) \{\s*await db\.batch\(commercialCatalogStatements/);
+assert.match(api,/for \(const book of changed\)\s*await db\.batch\(commercialCatalogStatements/);
+assert.match(api,/for \(const book of accepted\)\s*await syncEditionTaxonomy/,
+  "Even an unchanged book MUST recheck taxonomy and incomplete prior publication");
 assert.match(api,/last_seen_at=\?,source_updated_at=\?/);
 assert.match(api,/JOIN catalog_search_documents d ON d\.product_id=/);
 assert.match(api,/JOIN products p ON p\.id=d\.product_id/);
