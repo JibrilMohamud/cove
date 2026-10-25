@@ -45,7 +45,15 @@ migrations_dir = "drizzle"
 binding = "BUCKET"
 bucket_name = "cove-production-media"
 
+# Best-effort, low-cardinality anonymous public-GET performance metrics are not
+# an entitlement or audit record. Isolate their ingestion from primary D1,
+# which must remain available for customer-facing rights verification.
+[[analytics_engine_datasets]]
+binding = "OPS_ANALYTICS"
+dataset = "cove_ops_anonymous_http_stage"
+
 [vars]
+COVE_OPS_TELEMETRY_MODE = "analytics-engine"
 FORE_PUBLIC_URL = "https://cove-puce-theta.vercel.app"
 FORE_ENVIRONMENT = "production"
 FORE_DEFAULT_TERRITORY = "US"
