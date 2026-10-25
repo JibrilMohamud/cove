@@ -68,7 +68,7 @@ def apply():
     db.execute(sql[2], ("e1", "e1"))
     db.execute(sql[3], ("e1", "now"))
     db.execute(sql[4], ("e1",))
-    db.execute(sql[5], ("now", "e1", 0))
+    db.execute(sql[5], ("now", "e1", 0, 0))
 
 def writes():
     return db.execute("SELECT operation,source,node_id FROM writes ORDER BY rowid").fetchall()
