@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep bounded token fencing and executable SQLite race proof together. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
