@@ -2778,6 +2778,18 @@ export async function handleCoveApi(
   execution?: ApiExecutionContext,
 ): Promise<Response | null> {
   if (!new URL(request.url).pathname.startsWith("/api/fore/")) return null;
+  // Aggregate-only interaction telemetry has no user, commerce or territorial
+  // rights dependency. Handle it before auth/context/HTTP D1 logging.
+  if (request.method === "POST" &&
+      new URL(request.url).pathname === "/api/fore/sounds/events") {
+    try {
+      return await handleSoundsAnalytics(request, env, "/sounds/events", "ZZ");
+    } catch (error) {
+      if (error instanceof ApiError)
+        return json({ error: error.message }, error.status);
+      return json({ error: "Music analytics unavailable." }, 503);
+    }
+  }
   const started = performance.now(),
     timings: Record<string, number> = {};
   const trace = beginRequestTrace(request),
