@@ -20,7 +20,22 @@ migrations_dir = "drizzle"
 binding = "BUCKET"
 bucket_name = "cove-production-media"
 
+# Private, isolated Cove Sounds editorial presentations. Neither binding grants
+# playback or retail rights. New feature stays disabled until seeded/certified.
+[[r2_buckets]]
+binding = "SOUNDS_PRESENTATION"
+bucket_name = "cove-sounds-private-presentation"
+
+[[kv_namespaces]]
+binding = "SOUNDS_PRESENTATION_KV"
+id = "544267f3cf604c1d8976f1b06d258e24"
+
+[[analytics_engine_datasets]]
+binding = "SOUNDS_ANALYTICS"
+dataset = "cove_sounds_funnel"
+
 [vars]
+COVE_SOUNDS_SNAPSHOT_ENABLED = "0"
 # Canonical verified Cove Vercel production origin.
 FORE_PUBLIC_URL = "https://cove-puce-theta.vercel.app"
 FORE_ENVIRONMENT = "production"
