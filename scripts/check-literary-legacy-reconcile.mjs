@@ -193,6 +193,19 @@ try {
     outboxId: "outbox_a",
   });
   assert.equal(cursor().after_job_id, "job_a");
+  secondary
+    .prepare("UPDATE literary_legacy_reconcile_frontier SET after_job_id=''")
+    .run();
+  assert.deepEqual(
+    await reconcileOneLegacyLiteraryJob(env, async (...args) => {
+      const result = await seed(...args);
+      primary.prepare("UPDATE cove_runtime_config SET value='draining'").run();
+      return result;
+    }),
+    { skipped: "legacy_owner_changed_after_seed" },
+    "Late owner transitions must never consume the secondary frontier",
+  );
+  assert.equal(cursor().after_job_id, "");
   primary.prepare("UPDATE cove_runtime_config SET value='legacy'").run();
   assert.deepEqual(await reconcileOneLegacyLiteraryJob(env, seed), {
     skipped: "legacy_owner_not_reconciling",
