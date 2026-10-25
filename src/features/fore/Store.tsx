@@ -1154,6 +1154,13 @@ export function StorePage({
   if (publishedAfter) params.set("publishedAfter", publishedAfter);
   if (publishedBefore) params.set("publishedBefore", publishedBefore);
 
+  // SSR already includes 24 *fresh, canonical rights-checked* book cards.
+  // Avoid an immediate, heavyweight full-catalog read during critical paint:
+  // the live API still re-authorizes every product detail, checkout and EPUB.
+  const initialPreview =
+    !data.user &&
+    matchingInitial?.catalog.preview === true &&
+    matchingInitial.catalogQuery === params.toString();
   const result = useQuery<CatalogResponse>({
     queryKey: [
       "catalog",
@@ -1164,7 +1171,10 @@ export function StorePage({
       data.user?.id || "guest",
     ],
     queryFn: ({ signal }) => api("/catalog?" + params, "GET", undefined, { signal }),
-    staleTime: 5 * 60_000,
+    // A brief first-paint grace period prevents 24-card preview hydration
+    // from competing with the very next server request for D1 capacity.
+    // A bounded background refresh follows once the visual path has settled.
+    staleTime: initialPreview ? 4_000 : 5 * 60_000,
     gcTime: typeof window === "undefined" ? Infinity : 60 * 60_000,
     refetchOnWindowFocus: false,
     retry: false,
@@ -1172,8 +1182,27 @@ export function StorePage({
       !data.user && matchingInitial?.catalogQuery === params.toString()
         ? matchingInitial.catalog
         : undefined,
-    initialDataUpdatedAt: matchingInitial?.catalog.preview ? 0 : matchingInitial?.at,
+    initialDataUpdatedAt: matchingInitial?.at,
   });
+  useEffect(() => {
+    if (!initialPreview || result.data?.preview !== true) return;
+    let refreshed = false;
+    const refresh = () => {
+      if (document.visibilityState !== "visible" || refreshed) return;
+      refreshed = true;
+      document.removeEventListener("visibilitychange", refresh);
+      void result.refetch();
+    };
+    // Never persist or replay an unverified catalog across visits or markets.
+    // Query key changes cancel this delay; user actions still hit live APIs.
+    const timer = window.setTimeout(refresh, 4_500);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [initialPreview, result.data?.preview, result.refetch, params.toString()]);
+
   useEffect(() => {
     const queryId = result.data?.search?.queryId;
     if (!visitor || !queryId) return;
@@ -1745,7 +1774,7 @@ export function StorePage({
             <BookCard
               key={String(b.productId || b.id)}
               book={b}
-              priority={page === 1 && index < 4}
+              priority={page === 1 && index < 2}
               onOpen={() => {
                 const queryId = result.data?.search?.queryId;
                 const position = (page - 1) * (result.data?.search?.pageSize || 24) + index + 1;
