@@ -8,7 +8,6 @@ for (const gate of [
   "literary_budget_domain",
   "previous[0]?.status !== \"active\"",
   "identity",
-  "legacy",
   "status='prepared'",
   "status='active'",
   "original_reserved_units",
