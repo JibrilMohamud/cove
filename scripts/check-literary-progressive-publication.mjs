@@ -31,8 +31,13 @@ for (const flag of [
   "FORE_CONTENT_PROCESSOR_ENABLED",
   "FORE_CONTENT_PREPARE_ENABLED",
   "FORE_CONTENT_INFERENCE_ENABLED",
-]) assert.equal(inference.vars[flag], "1");
-assert.ok(inference.services.some((x) => x.binding === "LITERARY_PUBLISHER" && x.service === publisher.name));
+])
+  assert.equal(inference.vars[flag], "1");
+assert.ok(
+  inference.services.some(
+    (x) => x.binding === "LITERARY_PUBLISHER" && x.service === publisher.name,
+  ),
+);
 for (const fragment of [
   "github.ref == 'refs/heads/main'",
   "cancel-in-progress: false",
@@ -41,7 +46,8 @@ for (const fragment of [
   "steps.preflight.outcome == 'success'",
   "rollback-literary-isolated-publication.mjs",
   "verify-literary-real-publication.mjs",
-]) assert.ok(workflow.includes(fragment));
+])
+  assert.ok(workflow.includes(fragment));
 assert.ok(preflight.includes('literary_processing_owner: "draining"'));
 assert.ok(preflight.includes('stage[0]?.result, "passed"'));
 assert.ok(promotion.includes("status='done'"));
@@ -50,4 +56,6 @@ assert.ok(validation.includes('coverage: "isolated_samples"'));
 assert.ok(validation.includes("job.profile_revision + 1"));
 assert.ok(rollback.includes("literary_processing_owner' AND value='isolated'"));
 assert.ok(rollback.includes("earlierInference"));
-console.log("LITERARY_PROGRESSIVE_PUBLICATION_POLICY_PASS scoped no-route Workers, budget fence, revision proof, rollback");
+console.log(
+  "LITERARY_PROGRESSIVE_PUBLICATION_POLICY_PASS scoped no-route Workers, budget fence, revision proof, rollback",
+);
