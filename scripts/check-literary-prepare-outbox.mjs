@@ -219,6 +219,16 @@ try {
     true,
     "A genuinely valid, delivered prior outbox is replay-safe",
   );
+  primary.prepare("UPDATE cove_runtime_config SET value='isolated'").run();
+  assert.equal(
+    (await seedLiteraryPreparationHandoff(env, "p_a", "e_a", "isolated")).duplicate,
+    true,
+    "Isolated owner must keep processing already durable rights-fenced outbox intents",
+  );
+  assert.deepEqual(await seedLiteraryPreparationHandoff(env, "p_a", "e_a", "draining"), {
+    skipped: "rights_changed",
+  });
+  primary.prepare("UPDATE cove_runtime_config SET value='draining'").run();
   primary
     .prepare("UPDATE literary_prepare_outbox SET status='cancelled' WHERE id=?")
     .run(first.outboxId);
