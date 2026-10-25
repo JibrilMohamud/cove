@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Private bounded analytics aggregation and regression fixtures are kept together for auditability. */
 import assert from "node:assert/strict";
 import {
   buildSoundsFunnelSql, summarizeSoundsFunnel, renderSoundsFunnelMarkdown,
