@@ -29,7 +29,7 @@ assert.equal(acknowledge(Array(500).fill({ product_id: "a", change_token: "t" })
 assert.match(caller, /await env\.DB\.prepare\(ack\.sql\)\.bind\(\.\.\.ack\.binds\)\.run\(\)/);
 assert.doesNotMatch(caller, /pending\.results\.map\(\(row:.*change_token/);
 
-const python = String.raw\`
+const python = String.raw`
 import sqlite3,sys,json
 case=json.load(sys.stdin)
 db=sqlite3.connect(':memory:')
@@ -47,7 +47,7 @@ assert rem==[('p-new','t2'),('p-not-acked','t1')], rem
 assert db.execute(case['sql'],case['binds']).rowcount==0
 assert db.execute('SELECT count(*) FROM search_index_outbox').fetchone()[0]==2
 print('PASS: exact fenced acknowledgements, replaced token survives, SQL injection is data, replay safe')
-\`;
+`;
 const result = spawnSync("python3", ["-c", python], {
   encoding: "utf8",
   input: JSON.stringify(sql),
