@@ -27,7 +27,12 @@ type SearchReply = { results: CatalogBook[] };
 type PlaylistReply = { provisional: boolean; reason?: string; playlist: { tracks: { recording: CoveSoundsRecording; reasons: string[] }[] } | null };
 type PublicShelf = { id: string; title: string; item_count: number; likes: number; username?: string; user_id: string };
 const labelFor = (station: CoveSoundsStation) => "Cove Sounds: " + station.title;
-const canonicalStation = (station: CoveSoundsStation) => "https://cove-puce-theta.vercel.app/sounds/" + station.slug;
+// The legacy cove-puce-theta alias is pinned to a pre-Sounds release.
+ // Use the verified, actively deployed public project alias for discoverable links
+ // until an independently certified custom Cove domain is routed to current main.
+const COVE_SOUNDS_CANONICAL_ORIGIN = "https://cove-jibrilmohamuds-projects.vercel.app";
+const canonicalStation = (station: CoveSoundsStation) =>
+  COVE_SOUNDS_CANONICAL_ORIGIN + "/sounds/" + station.slug;
 const profileMarker = (station: CoveSoundsStation) => "#CoveSounds/" + station.slug;
 /** Aggregate-only UI intent, deliberately not a claim of confirmed purchases or reading.
  * Never sends product IDs, user identity, personal context or book text. */
@@ -62,7 +67,7 @@ function MusicStationCard({ station }: { station: CoveSoundsStation }) {
 }
 
 function shareUrl(station: CoveSoundsStation) {
-  return typeof window === "undefined" ? canonicalStation(station) : window.location.origin + "/sounds/" + station.slug;
+  return canonicalStation(station);
 }
 
 /** No copyrighted recording or cover art is embedded in the downloadable card. */
