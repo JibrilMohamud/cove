@@ -11,6 +11,7 @@ import { writeCatalogCache } from "./catalog-cache.server";
 import { presentationSearchCount } from "./search-counts-cache.server";
 import { replicaEligiblePresentationRead } from "./presentation-replica.server";
 import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
+import { searchOutboxAcknowledgement } from "./search-outbox-ack";
 
 type SearchEnv = {
   DB: CatalogDB;
@@ -1985,13 +1986,11 @@ export async function syncSearchIndex(env: SearchEnv, limit = 100) {
       accepted += removals.length;
     }
     if (pending.results.length) {
-      await env.DB.batch(
-        pending.results.map((row: { product_id: string; change_token: string }) =>
-          env.DB.prepare(
-            "DELETE FROM search_index_outbox WHERE product_id=? AND change_token=?",
-          ).bind(row.product_id, row.change_token),
-        ),
-      );
+      const ack = searchOutboxAcknowledgement(pending.results);
+      // One primary D1 write, up to 500 independently fenced rows. A newer
+      // event's change_token differs and must never be removed by this old
+      // Meilisearch task acknowledgement.
+      await env.DB.prepare(ack.sql).bind(...ack.binds).run();
     }
     const remaining = await env.DB.prepare(
       "SELECT COUNT(*) count FROM search_index_outbox",
