@@ -88,7 +88,10 @@ let passed = null;
 let error = null;
 try {
   await api("PUT", "/workers/scripts/" + caller + "/schedules", [{ cron: "* * * * *" }]);
-  for (let attempt = 0; attempt < 20; attempt++) {
+  // A newly created Cloudflare Cron Trigger can take up to 15 minutes to
+  // propagate. Probe long enough to distinguish propagation from runtime
+  // failure, while retaining a strict finite deadline and automatic cleanup.
+  for (let attempt = 0; attempt < 72; attempt++) {
     await sleep(15000);
     const receipt = await query(
       secondary,

@@ -13,6 +13,7 @@ const workflow = readFileSync(
   ".github/workflows/literary-private-binding-stage-canary.yml",
   "utf8",
 );
+const cleanup = readFileSync("scripts/staging/cleanup-literary-private-binding-canary.mjs", "utf8");
 for (const config of [publisher, caller]) {
   assert.equal(config.workers_dev, false);
   assert.equal(config.preview_urls, false);
@@ -49,6 +50,10 @@ assert.ok(workflow.includes("github.ref == 'refs/heads/main'"));
 assert.ok(workflow.includes("needs: static-private-qa-contract"));
 assert.ok(workflow.includes("persist-credentials: false"));
 assert.ok(script.includes('await api("PUT", "/workers/scripts/" + caller + "/schedules", []);'));
+assert.ok(script.includes("attempt < 72"), "QA cron propagation grace too short");
+assert.ok(workflow.includes("if: always()"), "Failure must clear QA schedule");
+assert.ok(cleanup.includes('await send("PUT", [])'), "Missing independent cleanup");
+assert.ok(cleanup.includes("verified?.schedules?.length"), "Cleanup must be verified");
 console.log(
   "LITERARY_PRIVATE_QA_SERVICE_CONTAINMENT_PASS stage-only, signed, no routes, cron cleanup",
 );
