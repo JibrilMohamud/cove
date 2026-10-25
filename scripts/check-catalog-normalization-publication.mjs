@@ -146,6 +146,15 @@ try {
   assert.equal(title(),"New Book");
   // Replaying old revision cannot overwrite a newer source or receipt.
   const stale={...prepareIsolatedCanonicalMetadata(first,"2701",1)};
+  assert.throws(
+    ()=>fencedCanonicalMetadataStatements(primary,{...stale,title:"INJECTED TITLE"}),
+    /catalog_invalid_prepared_metadata/,
+    "Isolated publisher must never inject a title inconsistent with raw primary source",
+  );
+  assert.throws(
+    ()=>fencedCanonicalMetadataStatements(primary,{...stale,description:"INJECTED DESCRIPTION"}),
+    /catalog_invalid_prepared_metadata/,
+  );
   assert.equal((await primary.batch(fencedCanonicalMetadataStatements(primary,stale)))[0].meta.changes,0);
   assert.equal(title(),"New Book");
   // Territory-only removal creates a new feed revision and immediately

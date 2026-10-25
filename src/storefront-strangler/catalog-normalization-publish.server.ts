@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- The exact source-and-revision SQL fence is a security boundary. */
 import type { CatalogPreparedMetadata } from "./catalog-normalization-core";
+import { normalizeCatalogIndexRow } from "./catalog-index-core";
 
 type Statement = {
   bind(...args: unknown[]): Statement;
@@ -26,6 +27,19 @@ export function fencedCanonicalMetadataStatements(db: DB, doc: CatalogPreparedMe
       (doc.sourceTitle !== null && (typeof doc.sourceTitle !== "string" || doc.sourceTitle.length > 8192)) ||
       (doc.sourceSummary !== null && (typeof doc.sourceSummary !== "string" || doc.sourceSummary.length > 120000)))
     throw Error("catalog_invalid_publication");
+  // Defense in depth: the isolated side is not allowed to substitute display
+  // text unrelated to the primary's raw source, even if it supplies a matching
+  // version and a correct legal-state snapshot. Recompute deterministically.
+  const projected = normalizeCatalogIndexRow({
+    id: doc.sourceId, title: doc.sourceTitle, summary: doc.sourceSummary,
+    authors_json: "[]",subjects_json: "[]",bookshelves_json: "[]",
+    languages_json: "[]",rights_status: "public-domain",
+    commercial_use_status: "approved",ingest_status: "active",
+    copyright: 0,updated_at: null,
+  },doc.sourceId,doc.revision);
+  if (!projected.title || projected.title !== doc.title ||
+      projected.description !== doc.description)
+    throw Error("catalog_invalid_prepared_metadata");
   const id = doc.sourceId;
   // Equality on raw primary-source fields, exact feed revision, and current
   // rights state is evaluated *inside* this D1 transaction. An event after

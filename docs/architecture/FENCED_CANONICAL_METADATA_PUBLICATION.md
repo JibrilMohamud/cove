@@ -36,3 +36,8 @@ Independent index database: `cove-catalog-index-stage-20261025`
 **not production or benchmark D1**; no hosted capacity experiment should
 write to either while benchmarking. The publisher must not be bound to
 Cove production or the 40k-row performance candidate.
+
+Publisher independently re-runs deterministic source-text normalization
+before constructing any primary mutation. An isolated D1 document with an
+injected title/description is rejected even when its raw-source revision is
+otherwise valid; this is separate from the primary SQL legal-state fence.
