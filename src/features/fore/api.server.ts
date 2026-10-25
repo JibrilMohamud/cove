@@ -471,6 +471,7 @@ export type CoveEnv = {
   DB: { prepare(sql: string): Statement; batch(s: Statement[]): Promise<unknown> };
   // Optional production-disabled read-model: R2/KV is never a rights authority.
   COVE_SOUNDS_SNAPSHOT_ENABLED?: string;
+  COVE_SOUNDS_SNAPSHOT_MARKETS?: string;
   SOUNDS_PRESENTATION?: {
     get(key: string): Promise<{ size: number; text(): Promise<string> } | null>;
   };
