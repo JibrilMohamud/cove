@@ -21,9 +21,9 @@ import {
   type PrivatePresentationStore,
 } from "./prepared-catalog.server";
 
-// Stage-only isolate identity for attributing cold module startup to edge tails.
-// Customer responses never expose these measurements.
-const isolateModuleReadyAt = performance.now();
+// Stage-only isolate request ordinal. Workerd clocks cannot be reliably
+// sampled during module evaluation; avoid reporting a fictitious isolate age.
+// Customer responses never expose this measurement.
 let isolateRequestOrdinal = 0;
 
 /** Build-isolated serving boundary. No auth, orders, reader or background code.
@@ -115,7 +115,6 @@ export default {
     // Never classify client/edge ingress time as database time.
     const enteredAt = performance.now();
     const isolateOrdinal = ++isolateRequestOrdinal;
-    const isolateAgeMs = Math.max(0, enteredAt - isolateModuleReadyAt);
     // Fail closed even under an accidental deployment or config substitution.
     // The reviewed config must also contain only the dedicated synthetic D1.
     const syntheticEvaluation =
@@ -210,7 +209,7 @@ export default {
             headers.get("server-timing"),
             `cove_handler;dur=${(performance.now() - enteredAt).toFixed(1)}`,
             `cove_isolate_first;desc="${isolateOrdinal === 1 ? 1 : 0}"`,
-            `cove_isolate_age;dur=${isolateAgeMs.toFixed(1)}`,
+            `cove_isolate_seen;desc="${Math.min(isolateOrdinal, 999)}"`,
           ]
             .filter(Boolean)
             .join(", "),

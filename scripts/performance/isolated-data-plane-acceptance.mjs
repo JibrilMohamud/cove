@@ -226,7 +226,7 @@ async function sample(model = "projection", path = "/") {
     const handlerMs = /(?:^|, )cove_handler;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
     const catalogMs = /(?:^|, )cove_catalog;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
     const firstIsolate = /(?:^|, )cove_isolate_first;desc="([01])"/.exec(serverTiming);
-    const isolateAge = /(?:^|, )cove_isolate_age;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
+    const isolateSeen = /(?:^|, )cove_isolate_seen;desc="(\d{1,3})"/.exec(serverTiming);
     const body = await r.text();
     const wireBytes = transportSpan?.wireBytes ?? null;
     const decodedBytes = transportSpan?.decodedBytes ?? null;
@@ -265,7 +265,7 @@ async function sample(model = "projection", path = "/") {
       catalogServiceMs: catalogMs ? Number(catalogMs[1]) : null,
       outsideHandlerMs: handlerMs ? Math.max(0, ms - Number(handlerMs[1])) : null,
       isolateFirst: firstIsolate ? firstIsolate[1] === "1" : null,
-      isolateAgeMs: isolateAge ? Number(isolateAge[1]) : null,
+      isolateOrdinal: isolateSeen ? Number(isolateSeen[1]) : null,
       timing: serverTiming,
       failure: r.headers.get("x-cove-stage-failure"),
       placement: r.headers.get("x-cove-stage-placement"),
@@ -505,7 +505,7 @@ async function phase(model) {
           catalogServiceMs: row.catalogServiceMs,
           outsideHandlerMs: row.outsideHandlerMs,
           isolateFirst: row.isolateFirst,
-          isolateAgeMs: row.isolateAgeMs,
+          isolateOrdinal: row.isolateOrdinal,
           failure: row.failure,
           placement: row.placement,
           transportCode: row.transportCode,
