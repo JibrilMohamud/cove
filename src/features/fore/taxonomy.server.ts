@@ -49,7 +49,9 @@ function normalizePath(path: string) {
  * Rebuild Cove retail taxonomy assignments for one edition from source categories.
  * Manual assignments survive supplier refreshes; mapping/ancestor assignments are derived.
  */
-export async function syncEditionTaxonomy(db: CatalogDB, editionId: string, sourceUnchanged = false) {
+export async function syncEditionTaxonomy(
+  db: CatalogDB, editionId: string, sourceUnchanged = false, popularityOnly = false,
+) {
   const at = now();
   // Reconcile rather than destroy/recreate every mapping on every source
   // heartbeat. Existing manual links and exact-match mapping provenance remain
@@ -162,15 +164,18 @@ export async function syncEditionTaxonomy(db: CatalogDB, editionId: string, sour
   // already queued search event. Insert-if-missing still repairs interrupted
   // publication. Missing D1 changes telemetry keeps the conservative old path.
   const changedRows = (taxonomyTextWrite as { meta?: { changes?: number } })?.meta?.changes;
+  // A popularity-only refresh is NOT evidence that a separate legal
+  // withdrawal was reversed. Keep any queued delete tombstone, even though
+  // a new download-count ranking needs an upsert for otherwise active books.
   const preservePendingEvent = sourceUnchanged && changedRows === 0;
   await db
     .prepare(
       `INSERT INTO search_index_outbox(product_id,operation,queued_at,attempts,last_error)
     SELECT id,'upsert',?,0,'' FROM products WHERE edition_id=? AND source_name<>'upload'
     ON CONFLICT(product_id) DO UPDATE SET operation='upsert',queued_at=excluded.queued_at,attempts=0,last_error=''
-    WHERE ?=0`,
+    WHERE ?=0 AND (?=0 OR search_index_outbox.operation<>'delete')`,
     )
-    .bind(at, editionId, preservePendingEvent ? 1 : 0)
+    .bind(at, editionId, preservePendingEvent ? 1 : 0, popularityOnly ? 1 : 0)
     .run();
 }
 
