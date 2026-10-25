@@ -2196,6 +2196,7 @@ export async function runCatalogIngestion(
         db,
         catalogIds(String(book.id)).editionId,
         unchangedIds.has(String(book.id)),
+        popularityIds.has(String(book.id)),
       );
     /* eslint-enable prettier/prettier */
     if (!options.deferSearchSync) {
