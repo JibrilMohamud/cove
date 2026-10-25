@@ -7,6 +7,8 @@ export type PreparationEnv = {
   DB: D1;
   CONTENT_DB?: D1;
   BUCKET?: Bucket;
+  /** Canonical read-only source EPUB binding; never used for derived evidence writes. */
+  SOURCE_BUCKET?: Pick<Bucket, "get">;
   FORE_CONTENT_PROCESSOR_ENABLED?: string;
   FORE_CONTENT_PROCESSOR_ROLE?: string;
   FORE_CONTENT_PREPARE_ENABLED?: string;
@@ -203,7 +205,8 @@ export async function runIsolatedLiteraryPreparationTick(env: PreparationEnv, ex
     )
       throw new Error("rights_or_source_changed");
     const key = "epubs/" + job.source_id + ".epub";
-    const object = await env.BUCKET!.get(key);
+    const source = env.SOURCE_BUCKET || env.BUCKET!;
+    const object = await source.get(key);
     if (
       !object ||
       object.size < 100 ||
