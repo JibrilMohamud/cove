@@ -95,7 +95,10 @@ export async function handleSoundsSnapshot(
   if (request.method !== "GET") throw new ApiError(405, "Method not allowed.");
   const [, slug, kind] = match;
   if (!stationBySlug(slug)) throw new ApiError(404, "Listening station not found.");
-  if (env.COVE_SOUNDS_SNAPSHOT_ENABLED !== "1")
+  // Only specifically seeded markets use this path. A visitor in a different
+  // territory retains live canonical catalog discovery, not a stale US list.
+  const markets = (env.COVE_SOUNDS_SNAPSHOT_MARKETS || "US").split(",");
+  if (env.COVE_SOUNDS_SNAPSHOT_ENABLED !== "1" || !markets.includes(territory))
     return json({ fallback: true, recordings: [], books: [] });
   const snapshot = await getSoundsSnapshot(env, territory, slug);
   if (kind === "recordings") {
