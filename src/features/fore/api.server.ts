@@ -39,6 +39,7 @@ import {
 import { handlePipeline } from "./pipeline.server";
 import { handleAudio } from "./audio.server";
 import { handleSoundtracks } from "./soundtracks.server";
+import { handleSoundsSnapshot } from "./cove-sounds-snapshot.server";
 import { handleMusicProfiles } from "./music-profiles.server";
 import { handleLiteraryProfiles } from "./literary-profiles.server";
 import { handleVercelPublicRequest } from "./vercel-public.server";
@@ -467,6 +468,17 @@ type Statement = {
 export type CoveEnv = {
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   DB: { prepare(sql: string): Statement; batch(s: Statement[]): Promise<unknown> };
+  // Optional production-disabled read-model: R2/KV is never a rights authority.
+  COVE_SOUNDS_SNAPSHOT_ENABLED?: string;
+  SOUNDS_PRESENTATION?: {
+    get(key: string): Promise<{ size: number; text(): Promise<string> } | null>;
+  };
+  SOUNDS_PRESENTATION_KV?: {
+    get(key: string, options?: { type: "text" }): Promise<string | null>;
+  };
+  SOUNDS_ANALYTICS?: {
+    writeDataPoint(point: { blobs: string[]; doubles: number[]; indexes: string[] }): void;
+  };
   COVE_STOREFRONT_READ_LIMITER?: {
     limit(input: { key: string }): Promise<{ success: boolean }>;
   };
@@ -4090,6 +4102,7 @@ async function handleCoveRequest(
         identity(request)?.id || null,
         storefrontTerritory,
       )) ||
+      (await handleSoundsSnapshot(request, env, path, storefrontTerritory)) ||
       (await handleSoundtracks(request, env, path, storefrontTerritory, identity(request))) ||
       (await handleAudio(request, env, path, identity(request)?.id || null, storefrontTerritory)) ||
       (await handleSocial(request, env, path, identity(request)?.id || null)) ||
