@@ -116,6 +116,7 @@ import {
   searchSuggestions,
   syncSearchIndex,
 } from "./search.server";
+import { unchangedNormalizedGutendexBook } from "@/lib/catalog-ingestion-idempotency";
 import {
   catalogIds,
   commercialCatalogStatements,
@@ -2086,7 +2087,49 @@ export async function runCatalogIngestion(
     const accepted = payload.results.filter(
       (book: any) => book.copyright === false && Boolean(epubSource(book.formats || {})),
     );
-    const statements = accepted.map((book: any) =>
+    // A Gutendex page is normally 32 items. One bounded primary read detects
+    // books whose complete, previously published catalog projection still
+    // exactly matches the source. Avoid re-executing ~30 canonical writes and
+    // FTS triggers for each already-ingested, unchanged book. An absent or
+    // inconsistent projection is always reprocessed, preserving retry safety.
+    const previous = new Map<string, Record<string, unknown>>();
+    if (accepted.length && accepted.length <= 100) {
+      const rows = await db
+        .prepare(`SELECT c.id,c.source_id,c.source_item_id,c.ingest_status,
+          c.rights_status,c.commercial_use_status,c.rights_territories_json,
+          c.rights_evidence_url,c.source_url,c.updated_at,
+          c.title,c.authors_json,c.summary,c.subjects_json,
+          c.bookshelves_json,c.languages_json,c.formats_json,
+          c.download_count,c.copyright,
+          d.product_id,d.updated_at projection_updated_at,
+          d.title projection_title,d.download_count projection_download_count
+          FROM gutenberg_source_cache c
+          JOIN catalog_search_documents d ON d.product_id=('prd_gutenberg_'||c.id)
+          JOIN products p ON p.id=d.product_id
+          WHERE c.id IN (${accepted.map(() => "?").join(",")})`)
+        .bind(...accepted.map((book: any) => String(book.id)))
+        .all<Record<string, unknown>>();
+      for (const row of rows.results) previous.set(String(row.id), row);
+    }
+    const unchanged = accepted.filter((book: any) =>
+      unchangedNormalizedGutendexBook(
+        book,
+        previous.get(String(book.id)),
+        book.formats?.["text/html"] || "https://www.gutenberg.org/ebooks/" + book.id + "/",
+      ),
+    );
+    const unchangedIds = new Set(unchanged.map((book: any) => String(book.id)));
+    const changed = accepted.filter((book: any) => !unchangedIds.has(String(book.id)));
+    // last_seen_at is a source-observation heartbeat, not a rights grant.
+    // Preserve it even for unchanged rows, without triggering canonical FTS
+    // rebuilds, changing normalized updated_at, or reissuing rights grants.
+    if (unchanged.length) {
+      await db.prepare(
+        `UPDATE gutenberg_source_cache SET last_seen_at=?,source_updated_at=?
+         WHERE id IN (${unchanged.map(() => "?").join(",")})`,
+      ).bind(at, at, ...unchanged.map((book: any) => String(book.id))).run();
+    }
+    const statements = changed.map((book: any) =>
       catalogInsert(
         db,
         book,
@@ -2095,7 +2138,7 @@ export async function runCatalogIngestion(
       ),
     );
     if (statements.length) await db.batch(statements);
-    for (const book of accepted) {
+    for (const book of changed) {
       await db.batch(commercialCatalogStatements(db, String(book.id), at));
       await syncEditionTaxonomy(db, catalogIds(String(book.id)).editionId);
     }
@@ -2130,6 +2173,7 @@ export async function runCatalogIngestion(
       sourceUrl,
       fetched: payload.results.length,
       inserted: statements.length,
+      unchanged: unchanged.length,
       nextUrl,
       complete: !nextUrl,
       epubs,
