@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep bounded public projection and strict first-paint invariant adjacent for audit. */
 import { z } from "zod/v3";
 import type { CatalogDB } from "./catalog-model.server";
 import { ApiError, now } from "./service";
