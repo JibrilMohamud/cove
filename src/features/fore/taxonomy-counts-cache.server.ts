@@ -9,6 +9,11 @@ const REFRESH_EARLY_MS = 120_000;
 const MAX_STALE_MS = 3_600_000;
 const LEASE_MS = 30_000;
 const REFRESH_PREFIX = "taxonomy-counts-refresh:v1:";
+// Market/language cache keys remain separate. A shared *admission cooldown*
+// prevents many distinct countries/locales from launching simultaneous
+// 3-second catalog-wide display-count aggregations on canonical D1.
+const GLOBAL_REFRESH_KEY = "taxonomy-counts-global-admission:v1";
+const GLOBAL_REFRESH_MIN_INTERVAL_MS = 90_000;
 
 type DeferredWork = (work: Promise<unknown>) => void;
 
@@ -63,6 +68,26 @@ async function refreshPresentationCounts(
   if (acquired?.body !== owner) return;
 
   try {
+    // Per-key leases deduplicate only identical market/language combinations.
+    // A multi-country visitor burst still caused 18 independent full-catalog
+    // scans in four minutes (29.4M D1 rows read, >3s SQL per execution).
+    // These are only display-count labels: new scopes can temporarily show
+    // "count updating" rather than competing with customer-facing rights
+    // reads. Never use this gate for books, purchases, refunds or delivery.
+    //
+    // Do not release the shared admission record on success/failure. Its
+    // bounded expiry is a true global cooldown across all Worker isolates,
+    // countries and locales; the per-key lease is still released in finally.
+    const admitted = await db
+      .prepare(
+        `INSERT INTO api_cache(key,body,expires_at) VALUES(?,?,?)
+         ON CONFLICT(key) DO UPDATE SET body=excluded.body,expires_at=excluded.expires_at
+         WHERE api_cache.expires_at<=?
+         RETURNING body`,
+      )
+      .bind(GLOBAL_REFRESH_KEY, owner, nowMs() + GLOBAL_REFRESH_MIN_INTERVAL_MS, nowMs())
+      .first<{ body: string }>();
+    if (admitted?.body !== owner) return;
     const current = await queryLive();
     // A batch-transaction conditional UPSERT fences this result by the
     // current lease owner. If the lease expired or another request won a
