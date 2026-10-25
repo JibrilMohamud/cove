@@ -13,10 +13,7 @@ const workflow = readFileSync(
   ".github/workflows/literary-private-binding-stage-canary.yml",
   "utf8",
 );
-const cleanup = readFileSync(
-  "scripts/staging/cleanup-literary-private-binding-canary.mjs",
-  "utf8",
-);
+const cleanup = readFileSync("scripts/staging/cleanup-literary-private-binding-canary.mjs", "utf8");
 for (const config of [publisher, caller]) {
   assert.equal(config.workers_dev, false);
   assert.equal(config.preview_urls, false);
