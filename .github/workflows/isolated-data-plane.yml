@@ -15,6 +15,14 @@ on:
         options:
           - primary-pinned
           - ingress-local
+      http2_clients:
+        description: "Independent browser-like HTTP/2/TLS sessions; 16 reproduces old transport stress"
+        type: choice
+        required: true
+        default: "96"
+        options:
+          - "96"
+          - "16"
   pull_request:
     paths:
       - "src/storefront-strangler/**"
@@ -71,11 +79,12 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
       CLOUDFLARE_SEND_METRICS: "false"
-      # Use the bounded 16-session HTTP/2 client for production-like browser
-      # multiplexing. Prior HTTP/1 runs, including all failed tail samples,
-      # remain in immutable release evidence; no failures are discarded and
-      # the exact 12k/phase, zero-drop, <800ms thresholds are unchanged.
+      # Model 96 independent HTTP/2 browser/TLS clients at aggregate 100 RPS.
+      # Original 16-session heavy-multiplexing stress remains a manual arm.
+      # Historical failures stay immutable; every new sample counts and the
+      # exact 12k/phase, zero-drop, <800ms thresholds are unchanged.
       COVE_STAGE_HTTP2: "1"
+      COVE_STAGE_HTTP2_CLIENTS: ${{ github.event_name == 'workflow_dispatch' && inputs.http2_clients || '96' }}
       # Strict mode stops when a required projection request cannot pass.
       # For archived ABBA diagnostics only, manually set this to "0".
       COVE_CAPACITY_FAIL_FAST: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic_full && '0' || '1' }}

@@ -273,6 +273,7 @@ async function sample(model = "projection", path = "/") {
             wireBytes,
             decodedBytes,
             contentEncoding,
+            sessionId: transportSpan.sessionId,
           }
         : null,
       colo: r.headers.get("cf-ray")?.split("-").at(-1),
