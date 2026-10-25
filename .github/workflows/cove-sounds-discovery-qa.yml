@@ -6,8 +6,9 @@ on:
       - "src/features/fore/cove-sounds.css"
       - "src/features/fore/cove-sounds-stations.ts"
       - "src/features/fore/App.tsx"
+      - "src/routeTree.gen.ts"
       - "src/routes/sounds.tsx"
-      - "src/routes/sounds.$slug.tsx"
+      - "src/routes/sounds_.$slug.tsx"
       - "scripts/check-cove-sounds-discovery.mjs"
       - ".github/workflows/cove-sounds-discovery-qa.yml"
   push:
@@ -18,7 +19,7 @@ on:
       - "src/features/fore/cove-sounds-stations.ts"
       - "src/features/fore/App.tsx"
       - "src/routes/sounds.tsx"
-      - "src/routes/sounds.$slug.tsx"
+      - "src/routes/sounds_.$slug.tsx"
       - "scripts/check-cove-sounds-discovery.mjs"
       - ".github/workflows/cove-sounds-discovery-qa.yml"
 permissions:
