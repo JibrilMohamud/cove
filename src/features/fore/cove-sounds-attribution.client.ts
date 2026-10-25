@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Local-only privacy expiry and funnel dedupe intentionally colocated for audit. */
 import { stationBySlug } from "./cove-sounds-stations";
 
 const KEY = "cove:sounds:session-attribution:v1";
