@@ -334,6 +334,7 @@ function StationDetail({ station }: { station: CoveSoundsStation }) {
   const tracks = useMemo(() => stationRecordings(station, catalog.data?.recordings || []), [station, catalog.data]);
   const selected = tracks.find((track) => track.id === selectedId) || tracks[0];
   useEffect(() => { player.current?.pause(); setSelectedId(""); setListenRequested(false); }, [station.slug, rightsCountry]);
+  useEffect(() => { trackSounds(station, "station_view"); }, [station.slug]);
   return (
     <div className="sounds-experience" style={{ "--sounds-accent": station.accent } as CSSProperties}>
       <a href="/sounds" className="sounds-back">← All listening stations</a>
