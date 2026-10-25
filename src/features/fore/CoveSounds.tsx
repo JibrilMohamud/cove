@@ -16,6 +16,22 @@ type PublicShelf = { id: string; title: string; item_count: number; likes: numbe
 const labelFor = (station: CoveSoundsStation) => "Cove Sounds: " + station.title;
 const canonicalStation = (station: CoveSoundsStation) => "https://cove-puce-theta.vercel.app/sounds/" + station.slug;
 const profileMarker = (station: CoveSoundsStation) => "#CoveSounds/" + station.slug;
+/** Aggregate-only UI intent, deliberately not a claim of confirmed purchases or reading.
+ * Never sends product IDs, user identity, personal context or book text. */
+function trackSounds(station: CoveSoundsStation, event: string, recording?: string) {
+  if (typeof navigator === "undefined" ||
+      navigator.doNotTrack === "1" ||
+      (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl)
+    return;
+  void fetch("/api/fore/sounds/events", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "omit",
+    keepalive: true,
+    body: JSON.stringify({ event, station: station.slug, ...(recording ? { recording } : {}) }),
+  }).catch(() => {});
+}
+
 const normalize = (value: string) => value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 function MusicStationCard({ station }: { station: CoveSoundsStation }) {
@@ -98,10 +114,10 @@ function StationShare({ station }: { station: CoveSoundsStation }) {
   const text = "Listening to " + station.title + " on Cove — discover its books.";
   return (
     <div className="sounds-share" aria-label="Share this listening station">
-      <button type="button" onClick={() => void navigator.clipboard.writeText(url).then(() => setNotice("Link copied.")).catch(() => setNotice("Copy the address from your browser."))}><Copy size={16} /> Copy link</button>
-      <a href={"https://x.com/intent/post?text=" + encodeURIComponent(text) + "&url=" + encodeURIComponent(url)} target="_blank" rel="noopener noreferrer">Share on X</a>
-      <a href={"https://www.reddit.com/submit?url=" + encodeURIComponent(url) + "&title=" + encodeURIComponent(labelFor(station))} target="_blank" rel="noopener noreferrer">Reddit</a>
-      <button type="button" onClick={() => void shareArtwork(station).then(setNotice).catch(() => setNotice("Artwork export unavailable."))}><Share2 size={16} /> Share image / Stories</button>
+      <button type="button" onClick={() => { trackSounds(station, "share"); void navigator.clipboard.writeText(url).then(() => setNotice("Link copied.")).catch(() => setNotice("Copy the address from your browser.")); }}><Copy size={16} /> Copy link</button>
+      <a href={"https://x.com/intent/post?text=" + encodeURIComponent(text) + "&url=" + encodeURIComponent(url)} target="_blank" rel="noopener noreferrer" onClick={() => trackSounds(station, "share")}>Share on X</a>
+      <a href={"https://www.reddit.com/submit?url=" + encodeURIComponent(url) + "&title=" + encodeURIComponent(labelFor(station))} target="_blank" rel="noopener noreferrer" onClick={() => trackSounds(station, "share")}>Reddit</a>
+      <button type="button" onClick={() => { trackSounds(station, "share"); void shareArtwork(station).then(setNotice).catch(() => setNotice("Artwork export unavailable.")); }}><Share2 size={16} /> Share image / Stories</button>
       {notice && <span role="status" className="sounds-share-notice">{notice}</span>}
     </div>
   );
@@ -122,7 +138,7 @@ function BookSoundtrackPreview({ book, station }: { book: CatalogBook; station: 
   const first = playlist.data?.playlist?.tracks?.[0];
   return (
     <div className="sounds-book-preview">
-      <button type="button" className="sounds-book-preview-toggle" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>
+      <button type="button" className="sounds-book-preview-toggle" onClick={() => { if (!expanded) trackSounds(station, "book_preview"); setExpanded((value) => !value); }} aria-expanded={expanded}>
         <Headphones size={15} aria-hidden="true" /> {expanded ? "Hide book-specific match" : "Hear this book's match"}
       </button>
       {expanded && (
@@ -134,7 +150,7 @@ function BookSoundtrackPreview({ book, station }: { book: CatalogBook; station: 
               <p><strong>{first.recording.title}</strong> · {first.recording.composer}</p>
               <p>{first.reasons.slice(0, 2).join(" · ")}</p>
               <audio controls preload="none" src={first.recording.audioUrl} aria-label={"Book-specific match: " + first.recording.title} onPlay={(event) => { document.querySelectorAll<HTMLAudioElement>("audio").forEach((other) => { if (other !== event.currentTarget) other.pause(); }); }} />
-              <button type="button" className="sounds-book-preview-toggle" onClick={() => void shareArtwork(station, { title: book.title, recording: first.recording.title }).then(setShareMessage).catch(() => setShareMessage("Sharing is unavailable."))}><Share2 size={15} aria-hidden="true" /> Share book + soundtrack image</button>
+              <button type="button" className="sounds-book-preview-toggle" onClick={() => { trackSounds(station, "share", first.recording.id); void shareArtwork(station, { title: book.title, recording: first.recording.title }).then(setShareMessage).catch(() => setShareMessage("Sharing is unavailable.")); }}><Share2 size={15} aria-hidden="true" /> Share book + soundtrack image</button>
               {shareMessage && <p role="status">{shareMessage}</p>}
               <a href={first.recording.licenseUrl} target="_blank" rel="noopener noreferrer">Recording license and attribution</a>
               <p className="sounds-small">{first.recording.attribution}</p>
@@ -198,14 +214,14 @@ function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
       <div className="sounds-books-grid">
         {books.map((book) => (
           <article className="sounds-book" key={String(book.publicProductId || book.id)}>
-            <a href={editionPath(book)} className="sounds-book-art">
+            <a href={editionPath(book)} className="sounds-book-art" onClick={() => trackSounds(station, "book_open")}>
               {coverOf(book) ? <img src={coverOf(book)} alt={"Cover of " + book.title} loading="lazy" /> : <BookOpen size={46} aria-hidden="true" />}
             </a>
             <div>
-              <h3><a href={editionPath(book)}>{book.title}</a></h3>
+              <h3><a href={editionPath(book)} onClick={() => trackSounds(station, "book_open")}>{book.title}</a></h3>
               <p>{authorOf(book)}</p>
               <BookSoundtrackPreview book={book} station={station} />
-              <a className="sounds-book-cta" href={editionPath(book)}>Explore this book <ArrowRight size={15} aria-hidden="true" /></a>
+              <a className="sounds-book-cta" href={editionPath(book)} onClick={() => trackSounds(station, "book_open")}>Explore this book <ArrowRight size={15} aria-hidden="true" /></a>
             </div>
           </article>
         ))}
@@ -245,6 +261,7 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
         ranked: true,
         commentsEnabled: true,
       });
+      trackSounds(station, "shelf_create");
       window.location.assign("/community?list=" + encodeURIComponent(shelf.id));
     } catch {
       setMessage("We couldn't create your shelf. Please try again.");
@@ -262,7 +279,7 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
         <Sparkles size={17} aria-hidden="true" /> {busy ? "Creating…" : "Create a public listening shelf"}
       </button>
       {message && <p role="alert">{message}</p>}
-      <button type="button" className="sounds-explore-button" onClick={() => { setBrowse(true); if (browse) void publicShelves.refetch(); }} disabled={browse && publicShelves.isPending}>
+      <button type="button" className="sounds-explore-button" onClick={() => { trackSounds(station, "shelf_open"); setBrowse(true); if (browse) void publicShelves.refetch(); }} disabled={browse && publicShelves.isPending}>
         <BookOpen size={16} aria-hidden="true" /> {browse ? "Refresh reader-created shelves" : "Explore reader-created shelves"}
       </button>
       {browse && publicShelves.isPending && <p role="status">Finding public listening shelves…</p>}
@@ -323,7 +340,7 @@ function StationDetail({ station }: { station: CoveSoundsStation }) {
           <p>Original, rights-reviewed performances. Choose a recording to begin; nothing plays automatically.</p>
         </div>
         {!listenRequested && (
-          <button type="button" className="sounds-explore-button" onClick={() => setListenRequested(true)}>
+          <button type="button" className="sounds-explore-button" onClick={() => { trackSounds(station, "music_open"); setListenRequested(true); }}>
             <Headphones size={17} aria-hidden="true" /> Explore rights-reviewed music
           </button>
         )}
@@ -340,7 +357,7 @@ function StationDetail({ station }: { station: CoveSoundsStation }) {
             <details><summary>Recording rights and credits</summary><p>{selected.attribution}</p><a href={selected.licenseUrl} rel="noopener noreferrer" target="_blank">{selected.license}</a> · <a href={selected.sourcePage} rel="noopener noreferrer" target="_blank">Source evidence</a></details>
             <div className="sounds-track-list" aria-label="Eligible recordings">
               {tracks.map((track, index) => (
-                <button key={track.id} type="button" aria-pressed={track.id === selected.id} onClick={() => setSelectedId(track.id)}><span>{String(index + 1).padStart(2, "0")}</span>{track.title}{selected.id === track.id && <Check size={16} aria-hidden="true" />}</button>
+                <button key={track.id} type="button" aria-pressed={track.id === selected.id} onClick={() => { trackSounds(station, "track_select", track.id); setSelectedId(track.id); }}><span>{String(index + 1).padStart(2, "0")}</span>{track.title}{selected.id === track.id && <Check size={16} aria-hidden="true" />}</button>
               ))}
             </div>
           </div>
