@@ -8,8 +8,8 @@ const stations = [
   "rainlit-library", "the-long-voyage", "after-the-last-page",
 ];
 const readOnly = (sql) => {
-  assert.match(sql.trim(), /^(SELECT|WITH)\\b/i);
-  assert.doesNotMatch(sql, /;|\\b(INSERT|UPDATE|DELETE|REPLACE|DROP|CREATE|ALTER|ATTACH|PRAGMA|VACUUM)\\b/i);
+  assert.match(sql.trim(), /^(SELECT|WITH)\b/i);
+  assert.doesNotMatch(sql, /;|\b(INSERT|UPDATE|DELETE|REPLACE|DROP|CREATE|ALTER|ATTACH|PRAGMA|VACUUM)\b/i);
   return sql;
 };
 const paidSql = readOnly(`
@@ -59,7 +59,7 @@ function render(paid, funnel, at) {
       " | " + (p.fully_refunded_orders || 0) + " |");
   }
   lines.push("", "**Interpretation:** Paid-order counts are exact canonical checkout-order counts for a browser-declared Cove Sounds referral, including refunded orders (shown separately). Browser events are sampled/possibly repeated, opt-out-aware and do not identify unique visitors. Stripe-backed paid orders were settled by verified server-side commerce processing; a referral is not independently proven causal. No order IDs, user IDs, book IDs, amounts, IP addresses or browsing sessions leave this report. A/B or holdout evidence and nonzero real visitors are required before claiming conversion *lift*.");
-  return lines.join("\\n") + "\\n";
+  return lines.join("\n") + "\n";
 }
 async function cloudflare(path, { method = "GET", body, contentType = "application/json" } = {}) {
   const token = process.env.CLOUDFLARE_API_TOKEN;
@@ -78,7 +78,7 @@ async function cloudflare(path, { method = "GET", body, contentType = "applicati
 if (process.argv.includes("--self-test")) {
   const output = render([{ station: "gothic-hour", paid_orders: 2, stripe_paid_orders: 1, fully_refunded_orders: 1 }],
     [{ station: "gothic-hour", event: "station_view", sampled_events: 5 }], new Date("2026-10-25T00:00:00Z"));
-  assert.match(output, /gothic-hour \\| 5 \\| 0 \\| 0 \\| 2 \\| 1 \\| 1/);
+  assert.match(output, /gothic-hour \| 5 \| 0 \| 0 \| 2 \| 1 \| 1/);
   assert.ok(!output.includes("ord_"));
   console.log("PASS: read-only aggregate SQL, station allowlist and paid-order reporting");
 } else {
