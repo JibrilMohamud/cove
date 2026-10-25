@@ -71,8 +71,12 @@ assert db.execute("SELECT operation,queued_at,change_token FROM search_index_out
   "delete","denial","denial-token")
 assert db.execute("SELECT count(*) FROM witness").fetchone()[0]==0
 assert (fts_id("catalog_search_fts"),fts_id("catalog_search_fts_en"))==initial
+# SQLite legitimately reuses an FTS5 rowid after deleting/reinserting the
+# same product. Verify actual indexed search terms and FTS5 write effects
+# instead of mistaking rowid reuse for a failed publication.
+before_text_update=db.total_changes
 db.execute("UPDATE catalog_search_documents SET title='Newvoyage' WHERE product_id='p1'")
-assert fts_id("catalog_search_fts")!=initial[0]
+assert db.total_changes-before_text_update>4, "Changing indexed text must rewrite FTS5 records"
 assert db.execute("SELECT count(*) FROM catalog_search_fts WHERE title MATCH 'Newvoyage'").fetchone()[0]==1
 assert db.execute("SELECT count(*) FROM catalog_search_fts WHERE title MATCH 'Oldtitle'").fetchone()[0]==0
 db.execute("UPDATE editions SET language='fr' WHERE id='e1'")
