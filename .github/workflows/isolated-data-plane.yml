@@ -63,7 +63,8 @@ jobs:
     secrets: inherit
   hosted-capacity:
     needs: correctness
-    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
+    # Candidate-scoped hosted benchmark: private Workers only, never production routing.
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["arch/isolated-data-plane-20261022","arch/isolated-catalog-normalization-20261025"]'),github.event.pull_request.head.ref)) || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["refs/heads/arch/isolated-data-plane-20261022","refs/heads/arch/isolated-catalog-normalization-20261025"]'),github.ref))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
