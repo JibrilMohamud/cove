@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - "src/features/fore/CoveSounds.tsx"
+      - "src/features/fore/cove-sounds-snapshot.server.ts"
+      - "src/features/fore/cove-sounds-analytics.server.ts"
+      - "src/storefront-strangler/sounds-publication.worker.ts"
+      - "scripts/check-cove-sounds-snapshot.mjs"
       - "src/features/fore/social.server.ts"
       - "scripts/browser-qa/sounds-discovery.spec.mjs"
       - "src/features/fore/cove-sounds.css"
@@ -17,6 +21,10 @@ on:
     branches: [main]
     paths:
       - "src/features/fore/CoveSounds.tsx"
+      - "src/features/fore/cove-sounds-snapshot.server.ts"
+      - "src/features/fore/cove-sounds-analytics.server.ts"
+      - "src/storefront-strangler/sounds-publication.worker.ts"
+      - "scripts/check-cove-sounds-snapshot.mjs"
       - "src/features/fore/social.server.ts"
       - "scripts/browser-qa/sounds-discovery.spec.mjs"
       - "src/features/fore/cove-sounds.css"
@@ -44,6 +52,8 @@ jobs:
           node-version: "22"
       - run: npm ci --no-audit --no-fund
       - name: Enforce Cove Sounds discovery rights and no-auto-play boundaries
-        run: node scripts/check-cove-sounds-discovery.mjs
+        run: |
+          node scripts/check-cove-sounds-discovery.mjs
+          node scripts/check-cove-sounds-snapshot.mjs
       - name: Compile and verify all route and client imports
         run: npm run build

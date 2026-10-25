@@ -39,6 +39,8 @@ import {
 import { handlePipeline } from "./pipeline.server";
 import { handleAudio } from "./audio.server";
 import { handleSoundtracks } from "./soundtracks.server";
+import { handleSoundsSnapshot } from "./cove-sounds-snapshot.server";
+import { handleSoundsAnalytics, isSoundsAnalyticsAck } from "./cove-sounds-analytics.server";
 import { handleMusicProfiles } from "./music-profiles.server";
 import { handleLiteraryProfiles } from "./literary-profiles.server";
 import { handleVercelPublicRequest } from "./vercel-public.server";
@@ -467,6 +469,18 @@ type Statement = {
 export type CoveEnv = {
   AI?: { run(model: string, input: Record<string, unknown>): Promise<unknown> };
   DB: { prepare(sql: string): Statement; batch(s: Statement[]): Promise<unknown> };
+  // Optional production-disabled read-model: R2/KV is never a rights authority.
+  COVE_SOUNDS_SNAPSHOT_ENABLED?: string;
+  COVE_SOUNDS_SNAPSHOT_MARKETS?: string;
+  SOUNDS_PRESENTATION?: {
+    get(key: string): Promise<{ size: number; text(): Promise<string> } | null>;
+  };
+  SOUNDS_PRESENTATION_KV?: {
+    get(key: string, options?: { type: "text" }): Promise<string | null>;
+  };
+  SOUNDS_ANALYTICS?: {
+    writeDataPoint(point: { blobs: string[]; doubles: number[]; indexes: string[] }): void;
+  };
   COVE_STOREFRONT_READ_LIMITER?: {
     limit(input: { key: string }): Promise<{ success: boolean }>;
   };
@@ -2764,6 +2778,16 @@ export async function handleCoveApi(
   execution?: ApiExecutionContext,
 ): Promise<Response | null> {
   if (!new URL(request.url).pathname.startsWith("/api/fore/")) return null;
+  // Aggregate-only interaction telemetry has no user, commerce or territorial
+  // rights dependency. Handle it before auth/context/HTTP D1 logging.
+  if (request.method === "POST" && new URL(request.url).pathname === "/api/fore/sounds/events") {
+    try {
+      return await handleSoundsAnalytics(request, env, "/sounds/events", "ZZ");
+    } catch (error) {
+      if (error instanceof ApiError) return json({ error: error.message }, error.status);
+      return json({ error: "Music analytics unavailable." }, 503);
+    }
+  }
   const started = performance.now(),
     timings: Record<string, number> = {};
   const trace = beginRequestTrace(request),
@@ -2798,7 +2822,10 @@ export async function handleCoveApi(
     actorKind,
     Date.now() - trace.startedMs,
   );
-  if (isolated) {
+  if (isSoundsAnalyticsAck(tracedRequest, response)) {
+    // Aggregate-only music interaction. No per-click primary-D1 log writes.
+    timings.log_isolated = performance.now() - logStarted;
+  } else if (isolated) {
     timings.log_isolated = performance.now() - logStarted;
   } else if (env.DB) {
     const work = recordHttpRequest(env.DB as any, trace, tracedRequest, response, {
@@ -4090,6 +4117,8 @@ async function handleCoveRequest(
         identity(request)?.id || null,
         storefrontTerritory,
       )) ||
+      (await handleSoundsAnalytics(request, env, path, storefrontTerritory)) ||
+      (await handleSoundsSnapshot(request, env, path, storefrontTerritory)) ||
       (await handleSoundtracks(request, env, path, storefrontTerritory, identity(request))) ||
       (await handleAudio(request, env, path, identity(request)?.id || null, storefrontTerritory)) ||
       (await handleSocial(request, env, path, identity(request)?.id || null)) ||

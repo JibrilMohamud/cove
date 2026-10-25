@@ -5,15 +5,46 @@ import { ArrowRight, BookOpen, Check, Copy, Headphones, Music2, Share2, Sparkles
 import { api, authorOf, coverOf, editionPath, useAccount, type CatalogBook } from "./client";
 import { useStorefrontLocale } from "./localization";
 import { COVE_SOUNDS_STATIONS, stationBySlug, stationRecordings, type CoveSoundsStation, type CoveSoundsRecording } from "./cove-sounds-stations";
+import { rememberSoundsBookReferral } from "./cove-sounds-attribution";
 import "./cove-sounds.css";
 
 type RecordingCatalog = { recordings: CoveSoundsRecording[]; count: number };
+type SnapshotRecordingCatalog = RecordingCatalog & { fallback?: boolean };
+type SnapshotBookCatalog = { fallback?: boolean; books?: CatalogBook[] };
+/** Frontend-before-backend deploy: only a missing endpoint may use the prior
+ * canonical API. A stale/corrupt enabled snapshot (503) fails closed. */
+async function liveOrLegacy<T extends { fallback?: boolean }>(
+  path: string, signal?: AbortSignal,
+): Promise<T> {
+  try { return await api<T>(path, "GET", undefined, { signal }); }
+  catch (error) {
+    if ((error as { status?: number })?.status === 404) return { fallback: true } as T;
+    throw error;
+  }
+}
+
 type SearchReply = { results: CatalogBook[] };
 type PlaylistReply = { provisional: boolean; reason?: string; playlist: { tracks: { recording: CoveSoundsRecording; reasons: string[] }[] } | null };
 type PublicShelf = { id: string; title: string; item_count: number; likes: number; username?: string; user_id: string };
 const labelFor = (station: CoveSoundsStation) => "Cove Sounds: " + station.title;
 const canonicalStation = (station: CoveSoundsStation) => "https://cove-puce-theta.vercel.app/sounds/" + station.slug;
 const profileMarker = (station: CoveSoundsStation) => "#CoveSounds/" + station.slug;
+/** Aggregate-only UI intent, deliberately not a claim of confirmed purchases or reading.
+ * Never sends product IDs, user identity, personal context or book text. */
+function trackSounds(station: CoveSoundsStation, event: string, recording?: string) {
+  if (typeof navigator === "undefined" ||
+      navigator.doNotTrack === "1" ||
+      (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl)
+    return;
+  void fetch("/api/fore/sounds/events", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "omit",
+    keepalive: true,
+    body: JSON.stringify({ event, station: station.slug, ...(recording ? { recording } : {}) }),
+  }).catch(() => {});
+}
+
 const normalize = (value: string) => value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 function MusicStationCard({ station }: { station: CoveSoundsStation }) {
@@ -96,10 +127,10 @@ function StationShare({ station }: { station: CoveSoundsStation }) {
   const text = "Listening to " + station.title + " on Cove — discover its books.";
   return (
     <div className="sounds-share" aria-label="Share this listening station">
-      <button type="button" onClick={() => void navigator.clipboard.writeText(url).then(() => setNotice("Link copied.")).catch(() => setNotice("Copy the address from your browser."))}><Copy size={16} /> Copy link</button>
-      <a href={"https://x.com/intent/post?text=" + encodeURIComponent(text) + "&url=" + encodeURIComponent(url)} target="_blank" rel="noopener noreferrer">Share on X</a>
-      <a href={"https://www.reddit.com/submit?url=" + encodeURIComponent(url) + "&title=" + encodeURIComponent(labelFor(station))} target="_blank" rel="noopener noreferrer">Reddit</a>
-      <button type="button" onClick={() => void shareArtwork(station).then(setNotice).catch(() => setNotice("Artwork export unavailable."))}><Share2 size={16} /> Share image / Stories</button>
+      <button type="button" onClick={() => { trackSounds(station, "share"); void navigator.clipboard.writeText(url).then(() => setNotice("Link copied.")).catch(() => setNotice("Copy the address from your browser.")); }}><Copy size={16} /> Copy link</button>
+      <a href={"https://x.com/intent/post?text=" + encodeURIComponent(text) + "&url=" + encodeURIComponent(url)} target="_blank" rel="noopener noreferrer" onClick={() => trackSounds(station, "share")}>Share on X</a>
+      <a href={"https://www.reddit.com/submit?url=" + encodeURIComponent(url) + "&title=" + encodeURIComponent(labelFor(station))} target="_blank" rel="noopener noreferrer" onClick={() => trackSounds(station, "share")}>Reddit</a>
+      <button type="button" onClick={() => { trackSounds(station, "share"); void shareArtwork(station).then(setNotice).catch(() => setNotice("Artwork export unavailable.")); }}><Share2 size={16} /> Share image / Stories</button>
       {notice && <span role="status" className="sounds-share-notice">{notice}</span>}
     </div>
   );
@@ -120,7 +151,7 @@ function BookSoundtrackPreview({ book, station }: { book: CatalogBook; station: 
   const first = playlist.data?.playlist?.tracks?.[0];
   return (
     <div className="sounds-book-preview">
-      <button type="button" className="sounds-book-preview-toggle" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>
+      <button type="button" className="sounds-book-preview-toggle" onClick={() => { if (!expanded) trackSounds(station, "book_preview"); setExpanded((value) => !value); }} aria-expanded={expanded}>
         <Headphones size={15} aria-hidden="true" /> {expanded ? "Hide book-specific match" : "Hear this book's match"}
       </button>
       {expanded && (
@@ -132,7 +163,7 @@ function BookSoundtrackPreview({ book, station }: { book: CatalogBook; station: 
               <p><strong>{first.recording.title}</strong> · {first.recording.composer}</p>
               <p>{first.reasons.slice(0, 2).join(" · ")}</p>
               <audio controls preload="none" src={first.recording.audioUrl} aria-label={"Book-specific match: " + first.recording.title} onPlay={(event) => { document.querySelectorAll<HTMLAudioElement>("audio").forEach((other) => { if (other !== event.currentTarget) other.pause(); }); }} />
-              <button type="button" className="sounds-book-preview-toggle" onClick={() => void shareArtwork(station, { title: book.title, recording: first.recording.title }).then(setShareMessage).catch(() => setShareMessage("Sharing is unavailable."))}><Share2 size={15} aria-hidden="true" /> Share book + soundtrack image</button>
+              <button type="button" className="sounds-book-preview-toggle" onClick={() => { trackSounds(station, "share", first.recording.id); void shareArtwork(station, { title: book.title, recording: first.recording.title }).then(setShareMessage).catch(() => setShareMessage("Sharing is unavailable.")); }}><Share2 size={15} aria-hidden="true" /> Share book + soundtrack image</button>
               {shareMessage && <p role="status">{shareMessage}</p>}
               <a href={first.recording.licenseUrl} target="_blank" rel="noopener noreferrer">Recording license and attribution</a>
               <p className="sounds-small">{first.recording.attribution}</p>
@@ -145,19 +176,26 @@ function BookSoundtrackPreview({ book, station }: { book: CatalogBook; station: 
   );
 }
 
-function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
+function SoundtrackBooks({ station, recordingId }: { station: CoveSoundsStation; recordingId?: string }) {
+  const bookReferral = () => { rememberSoundsBookReferral(station.slug, recordingId); trackSounds(station, "book_open", recordingId); };
   const { rightsCountry } = useStorefrontLocale();
   const [checkBooks, setCheckBooks] = useState(false);
   const found = useQuery({
-    queryKey: ["cove-sounds-editions", station.slug, rightsCountry],
-    queryFn: ({ signal }) => Promise.all(station.books.map(async ({ title, author }) => {
-      try {
-        const response = await api<SearchReply>("/catalog?search=" + encodeURIComponent(title) + "&limit=12&availability=available", "GET", undefined, { signal });
-        return response.results.find((book) => normalize(book.title) === normalize(title) && normalize(authorOf(book)).includes(normalize(author))) ?? null;
-      } catch {
-        return null;
-      }
-    })),
+    queryKey: ["cove-sounds-editions-v2", station.slug, rightsCountry],
+    queryFn: async ({ signal }) => {
+      const isolated = await liveOrLegacy<SnapshotBookCatalog>(
+        "/sounds/stations/" + station.slug + "/books", signal,
+      );
+      if (!isolated.fallback) return isolated.books || [];
+      // Disabled rollout only: preserve the existing territory-safe catalog.
+      // A configured-but-expired snapshot fails closed without mass SQL fallback.
+      return (await Promise.all(station.books.map(async ({ title, author }) => {
+        try {
+          const response = await api<SearchReply>("/catalog?search=" + encodeURIComponent(title) + "&limit=12&availability=available", "GET", undefined, { signal });
+          return response.results.find((book) => normalize(book.title) === normalize(title) && normalize(authorOf(book)).includes(normalize(author))) ?? null;
+        } catch { return null; }
+      }))).filter((book): book is CatalogBook => book !== null);
+    },
     enabled: checkBooks && typeof window !== "undefined",
     staleTime: 5 * 60_000,
     retry: false,
@@ -170,10 +208,10 @@ function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
         <h2 id="sounds-books-title">Turn the atmosphere into a book.</h2>
         <p>Available editions are verified against the selected storefront market; these editorial pairings aren't automatic recommendations.</p>
       </div>
-      {!checkBooks && (
+      {(!checkBooks || (found.isSuccess && !books.length)) && (
         <div className="sounds-editorial-books">
           {station.books.map((book) => (
-            <a className="sounds-editorial-book" key={book.title} href={"/store?search=" + encodeURIComponent(book.title)}>
+            <a className="sounds-editorial-book" key={book.title} href={"/store?search=" + encodeURIComponent(book.title)} onClick={bookReferral}>
               <BookOpen size={19} aria-hidden="true" />
               <span><strong>{book.title}</strong><small>{book.author}</small></span>
               <ArrowRight size={15} aria-hidden="true" />
@@ -186,18 +224,18 @@ function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
       </button>
       {checkBooks && found.isPending && <p role="status">Checking books available in your region…</p>}
       {checkBooks && found.isError && <p role="alert">The catalog could not be checked right now. Try again in the bookstore.</p>}
-      {found.isSuccess && !books.length && <p role="status">The featured editions aren't available in your region yet. Browse the <a href="/store">bookstore</a> instead.</p>}
+      {found.isSuccess && !books.length && <p role="status">No exact featured editions matched this snapshot. Use the title searches above or browse the <a href="/store">bookstore</a>.</p>}
       <div className="sounds-books-grid">
         {books.map((book) => (
           <article className="sounds-book" key={String(book.publicProductId || book.id)}>
-            <a href={editionPath(book)} className="sounds-book-art">
+            <a href={editionPath(book)} className="sounds-book-art" onClick={bookReferral}>
               {coverOf(book) ? <img src={coverOf(book)} alt={"Cover of " + book.title} loading="lazy" /> : <BookOpen size={46} aria-hidden="true" />}
             </a>
             <div>
-              <h3><a href={editionPath(book)}>{book.title}</a></h3>
+              <h3><a href={editionPath(book)} onClick={bookReferral}>{book.title}</a></h3>
               <p>{authorOf(book)}</p>
               <BookSoundtrackPreview book={book} station={station} />
-              <a className="sounds-book-cta" href={editionPath(book)}>Explore this book <ArrowRight size={15} aria-hidden="true" /></a>
+              <a className="sounds-book-cta" href={editionPath(book)} onClick={bookReferral}>Explore this book <ArrowRight size={15} aria-hidden="true" /></a>
             </div>
           </article>
         ))}
@@ -237,6 +275,7 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
         ranked: true,
         commentsEnabled: true,
       });
+      trackSounds(station, "shelf_create");
       window.location.assign("/community?list=" + encodeURIComponent(shelf.id));
     } catch {
       setMessage("We couldn't create your shelf. Please try again.");
@@ -254,7 +293,7 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
         <Sparkles size={17} aria-hidden="true" /> {busy ? "Creating…" : "Create a public listening shelf"}
       </button>
       {message && <p role="alert">{message}</p>}
-      <button type="button" className="sounds-explore-button" onClick={() => { setBrowse(true); if (browse) void publicShelves.refetch(); }} disabled={browse && publicShelves.isPending}>
+      <button type="button" className="sounds-explore-button" onClick={() => { trackSounds(station, "shelf_open"); setBrowse(true); if (browse) void publicShelves.refetch(); }} disabled={browse && publicShelves.isPending}>
         <BookOpen size={16} aria-hidden="true" /> {browse ? "Refresh reader-created shelves" : "Explore reader-created shelves"}
       </button>
       {browse && publicShelves.isPending && <p role="status">Finding public listening shelves…</p>}
@@ -285,8 +324,11 @@ function StationDetail({ station }: { station: CoveSoundsStation }) {
   const [listenRequested, setListenRequested] = useState(false);
   const player = useRef<HTMLAudioElement>(null);
   const catalog = useQuery({
-    queryKey: ["cove-sounds-recordings", rightsCountry],
-    queryFn: () => api<RecordingCatalog>("/soundtracks/recordings"),
+    queryKey: ["cove-sounds-recordings-v2", station.slug, rightsCountry],
+    queryFn: async () => {
+      const isolated = await liveOrLegacy<SnapshotRecordingCatalog>("/sounds/stations/" + station.slug + "/recordings");
+      return isolated.fallback ? api<RecordingCatalog>("/soundtracks/recordings") : isolated;
+    },
     enabled: listenRequested && typeof window !== "undefined",
     staleTime: 5 * 60_000,
     retry: false,
@@ -294,6 +336,7 @@ function StationDetail({ station }: { station: CoveSoundsStation }) {
   const tracks = useMemo(() => stationRecordings(station, catalog.data?.recordings || []), [station, catalog.data]);
   const selected = tracks.find((track) => track.id === selectedId) || tracks[0];
   useEffect(() => { player.current?.pause(); setSelectedId(""); setListenRequested(false); }, [station.slug, rightsCountry]);
+  useEffect(() => { trackSounds(station, "station_view"); }, [station.slug]);
   return (
     <div className="sounds-experience" style={{ "--sounds-accent": station.accent } as CSSProperties}>
       <a href="/sounds" className="sounds-back">← All listening stations</a>
@@ -312,7 +355,7 @@ function StationDetail({ station }: { station: CoveSoundsStation }) {
           <p>Original, rights-reviewed performances. Choose a recording to begin; nothing plays automatically.</p>
         </div>
         {!listenRequested && (
-          <button type="button" className="sounds-explore-button" onClick={() => setListenRequested(true)}>
+          <button type="button" className="sounds-explore-button" onClick={() => { trackSounds(station, "music_open"); setListenRequested(true); }}>
             <Headphones size={17} aria-hidden="true" /> Explore rights-reviewed music
           </button>
         )}
@@ -329,13 +372,13 @@ function StationDetail({ station }: { station: CoveSoundsStation }) {
             <details><summary>Recording rights and credits</summary><p>{selected.attribution}</p><a href={selected.licenseUrl} rel="noopener noreferrer" target="_blank">{selected.license}</a> · <a href={selected.sourcePage} rel="noopener noreferrer" target="_blank">Source evidence</a></details>
             <div className="sounds-track-list" aria-label="Eligible recordings">
               {tracks.map((track, index) => (
-                <button key={track.id} type="button" aria-pressed={track.id === selected.id} onClick={() => setSelectedId(track.id)}><span>{String(index + 1).padStart(2, "0")}</span>{track.title}{selected.id === track.id && <Check size={16} aria-hidden="true" />}</button>
+                <button key={track.id} type="button" aria-pressed={track.id === selected.id} onClick={() => { trackSounds(station, "track_select", track.id); setSelectedId(track.id); }}><span>{String(index + 1).padStart(2, "0")}</span>{track.title}{selected.id === track.id && <Check size={16} aria-hidden="true" />}</button>
               ))}
             </div>
           </div>
         )}
       </section>
-      <SoundtrackBooks station={station} />
+      <SoundtrackBooks station={station} recordingId={selected?.id} />
       <CreatorListeningShelves station={station} />
       <p className="sounds-disclaimer">The music is optional accompaniment, not narration. Book-specific matches are provisional until Cove's literary analysis has verified them. Available recordings and editions vary by region.</p>
     </div>

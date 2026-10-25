@@ -28,6 +28,7 @@ import {
   downloadBlob,
 } from "./client";
 import { BookArt } from "./Store";
+import { reportSoundsConversion } from "./cove-sounds-attribution";
 import { RequestFailure } from "./RequestFailure";
 
 declare global {
@@ -715,6 +716,13 @@ export function OrdersPage() {
         .then(setSelected)
         .catch((error: Error) => toast.error(error.message));
   }, [data.user?.id]);
+  // Count only a backend-authorized paid receipt observed in this tab.
+  // This is client-observed attribution, never a substitute for signed
+  // fulfillment reporting or a source of commerce authority.
+  useEffect(() => {
+    if (selected?.status === "paid" && typeof selected.id === "string")
+      reportSoundsConversion("purchase_observed", selected.id);
+  }, [selected?.id, selected?.status]);
   if (!data.user)
     return (
       <div className="empty-state">
