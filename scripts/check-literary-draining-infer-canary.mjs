@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 
 const cfg = JSON.parse(readFileSync("wrangler.content-literary-infer.prod-draining.jsonc", "utf8"));
 const workflow = readFileSync(".github/workflows/literary-infer-draining-canary.yml", "utf8");
-const activate = readFileSync("scripts/staging/activate-literary-draining-inference-budget.mjs", "utf8");
+const activate = readFileSync(
+  "scripts/staging/activate-literary-draining-inference-budget.mjs",
+  "utf8",
+);
 const verify = readFileSync("scripts/staging/verify-literary-draining-inference.mjs", "utf8");
 const stop = readFileSync("scripts/staging/stop-literary-draining-infer.mjs", "utf8");
 assert.equal(cfg.workers_dev, false);
@@ -18,7 +21,8 @@ for (const key of [
   "FORE_CONTENT_PROCESSOR_ENABLED",
   "FORE_CONTENT_PREPARE_ENABLED",
   "FORE_CONTENT_INFERENCE_ENABLED",
-]) assert.equal(cfg.vars[key], "1");
+])
+  assert.equal(cfg.vars[key], "1");
 assert.deepEqual(
   cfg.d1_databases.map((x) => x.database_id),
   ["4bd657ac-8789-403e-a28c-93aba8d0a989", "400c3af3-5d40-41fd-83cc-98228e40ddac"],
@@ -28,7 +32,9 @@ assert.ok(workflow.includes("cancel-in-progress: false"));
 assert.ok(workflow.includes("persist-credentials: false"));
 assert.ok(workflow.includes("if: failure() || cancelled()"));
 assert.ok(workflow.includes("node scripts/staging/stop-literary-draining-infer.mjs"));
-assert.ok(workflow.includes("node scripts/staging/activate-literary-draining-inference-budget.mjs"));
+assert.ok(
+  workflow.includes("node scripts/staging/activate-literary-draining-inference-budget.mjs"),
+);
 assert.ok(activate.includes("legacyLeases"));
 assert.ok(activate.includes("original_reserved_units"));
 assert.ok(activate.includes("status='prepared'"));
@@ -36,4 +42,6 @@ assert.ok(activate.includes("status='active'"));
 assert.ok(verify.includes("literary_processing_owner"));
 assert.ok(verify.includes("FORE_LITERARY_AUTOPUBLISH_ENABLED"));
 assert.ok(stop.includes('request("PUT", [])'));
-console.log("LITERARY_REAL_AI_CANARY_POLICY_PASS no canonical publication, isolated budget fence, rollback");
+console.log(
+  "LITERARY_REAL_AI_CANARY_POLICY_PASS no canonical publication, isolated budget fence, rollback",
+);
