@@ -21,6 +21,9 @@ const row = {
 };
 const doc = normalize(row, "2701", 4);
 assert.equal(doc.visible, 1);
+assert.equal(normalize({...row,approved_evidence:0},"2701",4).visible,0,
+  "No currently approved evidence may survive in the independent FTS candidate projection");
+assert.match(capture,/approved_evidence/);
 assert.equal(doc.title, "Moby Dick");
 assert.equal(doc.authors, "Herman Melville");
 assert.equal(doc.productId, "prd_gutenberg_2701");

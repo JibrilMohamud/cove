@@ -25,6 +25,7 @@ export type RawCatalogIndexRow = {
   source_url?: string | null;
   content_hash?: string | null;
   epub_status?: string | null;
+  approved_evidence?: number | null;
 };
 export type CatalogIndexDocument = {
   productId: string;
@@ -62,7 +63,11 @@ export function normalizeCatalogIndexRow(row: RawCatalogIndexRow | null, id: str
   if (row && row.id !== id) throw Error("catalog_index_identity_mismatch");
   const visible = Number(Boolean(row && row.copyright === 0 &&
     row.rights_status === "public-domain" && row.commercial_use_status === "approved" &&
-    row.ingest_status === "active"));
+    row.ingest_status === "active" && row.approved_evidence !== 0));
+  // For captured rows, approved_evidence is explicit: 0 means the source's
+  // legal proof was withdrawn, even if source-cache metadata hasn't changed.
+  // Legacy unit fixtures omit the field; the FINAL primary read always
+  // rechecks legal evidence independently.
   return {
     productId: "prd_gutenberg_" + id,
     revision,

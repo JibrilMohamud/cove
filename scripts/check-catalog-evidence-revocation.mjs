@@ -28,7 +28,8 @@ CREATE TABLE catalog_search_documents(product_id TEXT,suppressed INTEGER,
 `);
 for(const file of ["drizzle/0085_isolated_catalog_changefeed.sql",
                    "drizzle/0086_catalog_legal_withdrawal_guard.sql",
-                   "drizzle/0088_catalog_evidence_revocation_and_asset_feed.sql"])
+                   "drizzle/0088_catalog_evidence_revocation_and_asset_feed.sql",
+                   "drizzle/0089_catalog_evidence_changefeed.sql"])
  db.exec(fs.readFileSync(file,"utf8").replaceAll("--> statement-breakpoint",""));
 const seed=db.prepare(`INSERT INTO gutenberg_source_cache(id,source_id,source_item_id,
  source_url,title,summary,authors_json,subjects_json,bookshelves_json,
@@ -61,7 +62,10 @@ assert.equal(revision("101"),rev0,"Popularity-only updates cannot rebuild indepe
 db.prepare("UPDATE gutenberg_source_cache SET epub_status='completed',content_hash='sha-v2' WHERE id='101'").run();
 assert.ok(revision("101")>rev0,"EPUB completion must append a new global-sequence asset event");
 assert.equal(status("101","US"),"active");
+const beforeEvidenceRevoke=revision("101");
 db.prepare("UPDATE gutenberg_rights_evidence SET status='revoked' WHERE id='ev-101-US'").run();
+assert.ok(revision("101")>beforeEvidenceRevoke,
+ "Evidence revocation must trigger an independent discovery reindex");
 assert.equal(status("101","US"),"suspended","Direct evidence revocation must suspend source grant synchronously");
 assert.equal(status("101","CA"),"active","Distinct territory evidence remains valid");
 assert.equal(status("101","US","publisher-private"),"active","Never cancel a publisher-owned right");

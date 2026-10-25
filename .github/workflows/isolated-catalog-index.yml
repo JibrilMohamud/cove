@@ -7,6 +7,7 @@ on:
       - "infra/catalog-index/**"
       - "drizzle/0087_fenced_canonical_metadata_receipts.sql"
       - "drizzle/0088_catalog_evidence_revocation_and_asset_feed.sql"
+      - "drizzle/0089_catalog_evidence_changefeed.sql"
       - "scripts/check-catalog-evidence-revocation.mjs"
       - "src/storefront-strangler/catalog-normalization-*.ts"
       - "scripts/check-catalog-normalization-publication.mjs"
