@@ -14,6 +14,7 @@ on:
       - "scripts/check-taxonomy-noop-fts-write.py"
       - "scripts/check-taxonomy-differential-reconcile.py"
       - "scripts/check-taxonomy-queued-outbox-noop.py"
+      - "scripts/check-search-outbox-atomic-ack.mjs"
       - "scripts/check-literary-genre-rights-query.mjs"
       - "scripts/audio_pipeline/**"
       - "scripts/build-persistence-backend.mjs"
@@ -57,6 +58,7 @@ on:
       - "scripts/check-taxonomy-noop-fts-write.py"
       - "scripts/check-taxonomy-differential-reconcile.py"
       - "scripts/check-taxonomy-queued-outbox-noop.py"
+      - "scripts/check-search-outbox-atomic-ack.mjs"
       - "scripts/audio_pipeline/**"
       - "scripts/build-persistence-backend.mjs"
       - "scripts/check-persistence-backend.mjs"
@@ -148,6 +150,7 @@ jobs:
           python3 scripts/check-taxonomy-noop-fts-write.py
           python3 scripts/check-taxonomy-differential-reconcile.py
           python3 scripts/check-taxonomy-queued-outbox-noop.py
+          node scripts/check-search-outbox-atomic-ack.mjs
           node scripts/check-sparse-taxonomy-rights-counts.mjs
           node scripts/check-secondary-channel-index.mjs
           node scripts/check-external-identifier-index.mjs
