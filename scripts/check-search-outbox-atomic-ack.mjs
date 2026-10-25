@@ -27,7 +27,7 @@ assert.equal(sql.binds.length, 6);
 assert.match(sql.sql, /WHERE \(product_id,change_token\) IN \(VALUES/);
 assert.ok(!sql.sql.includes("DROP TABLE"));
 assert.equal(acknowledge(Array(500).fill({ product_id: "a", change_token: "t" })).binds.length, 1000);
-assert.match(caller, /await env\.DB\.prepare\(ack\.sql\)\.bind\(\.\.\.ack\.binds\)\.run\(\)/);
+assert.match(caller, /await env\.DB\.prepare\(ack\.sql\)\s*\.bind\(\.\.\.ack\.binds\)\s*\.run\(\)/);
 assert.doesNotMatch(caller, /pending\.results\.map\(\(row:.*change_token/);
 
 const python = String.raw`
