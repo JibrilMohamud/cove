@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Private bounded analytics aggregation and regression fixtures are kept together for auditability. */
 const STATIONS = [
   "gothic-hour", "letters-never-sent", "beyond-the-old-woods",
   "rainlit-library", "the-long-voyage", "after-the-last-page",
