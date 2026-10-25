@@ -87,8 +87,7 @@ for (const key of [
   assert.ok(infNames.has(key), "Missing caller credential name");
 assert.ok(
   inference.bindings.some(
-    (x) =>
-      x.type === "service" && x.name === "LITERARY_PUBLISHER" && x.service === publisherName,
+    (x) => x.type === "service" && x.name === "LITERARY_PUBLISHER" && x.service === publisherName,
   ),
 );
 const evidence = {
