@@ -8,6 +8,7 @@ on:
       - "drizzle/0087_fenced_canonical_metadata_receipts.sql"
       - "src/storefront-strangler/catalog-normalization-*.ts"
       - "scripts/check-catalog-normalization-publication.mjs"
+      - "wrangler.catalog-publisher.example.jsonc"
       - "src/storefront-strangler/catalog-index-*.ts"
       - "wrangler.catalog-query.example.jsonc"
       - "scripts/check-isolated-catalog-index.mjs"

@@ -12,7 +12,7 @@ rights-grant, entitlement, checkout or customer table update in this path.
 It does not create new product/offer/rights records and cannot make a book
 available. Withdrawals are synchronously blocked by the primary legal trigger.
 
-Private publisher is deliberately **pinned to the synthetic QA primary ID**
+Private publisher is deliberately **pinned to the separately provisioned canonical-publication QA primary ID**
 and requires an explicit `COVE_CATALOG_NORMALIZATION_PUBLISH_ENABLED=1`.
 No public routes, cron, or production credentials are configured.
 
@@ -28,3 +28,11 @@ verified publication contract (including authors/assets/offer/legal evidence),
 fully reroute text search away from primary FTS, and pass real mixed-workload
 and all hosted cold/100-RPS/mobile LCP acceptance. Do not disable legacy
 canonical writes, merge, or route production until these hold.
+
+
+QA primary database: `cove-canonical-publication-qa-20261025` (5e3a6b69-6f3d-4b19-b837-01f7aa56ce87).
+Independent index database: `cove-catalog-index-stage-20261025`
+(`8f15cdbe-8f9e-4b52-9fb6-c64f5053b59b`). These are
+**not production or benchmark D1**; no hosted capacity experiment should
+write to either while benchmarking. The publisher must not be bound to
+Cove production or the 40k-row performance candidate.

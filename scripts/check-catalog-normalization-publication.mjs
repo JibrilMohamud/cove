@@ -125,7 +125,7 @@ try {
   }
   const safe={PRIMARY_DB:primary,CATALOG_INDEX_DB:isolated,
     COVE_CATALOG_NORMALIZATION_PUBLISH_ENABLED:"1",
-    COVE_CATALOG_PUBLICATION_PRIMARY_ID:"e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3"};
+    COVE_CATALOG_PUBLICATION_PRIMARY_ID:"5e3a6b69-6f3d-4b19-b837-01f7aa56ce87"};
   await assert.rejects(()=>publishFencedCanonicalMetadata({...safe,COVE_CATALOG_NORMALIZATION_PUBLISH_ENABLED:"0"},["2701"]),/disabled/);
   await assert.rejects(()=>publishFencedCanonicalMetadata({...safe,COVE_CATALOG_PUBLICATION_PRIMARY_ID:"production"},["2701"]),/unsafe/);
   await indexCurrent();

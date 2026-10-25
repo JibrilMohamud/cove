@@ -15,7 +15,7 @@ export type CanonicalPublisherEnv = {
   COVE_CATALOG_NORMALIZATION_PUBLISH_ENABLED?: string;
   COVE_CATALOG_PUBLICATION_PRIMARY_ID?: string;
 };
-const QA_PRIMARY = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
+const QA_PRIMARY = "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87";
 export function fencedCanonicalMetadataStatements(db: DB, doc: CatalogPreparedMetadata) {
   if (doc.schema !== "cove.catalog.normalized.v1" ||
       !/^(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/.test(doc.sourceId) ||
