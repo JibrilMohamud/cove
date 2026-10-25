@@ -34,7 +34,7 @@ function shareUrl(station: CoveSoundsStation) {
 }
 
 /** No copyrighted recording or cover art is embedded in the downloadable card. */
-async function shareArtwork(station: CoveSoundsStation) {
+async function shareArtwork(station: CoveSoundsStation, book?: { title: string; recording: string }) {
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
   canvas.height = 1350;
@@ -51,10 +51,10 @@ async function shareArtwork(station: CoveSoundsStation) {
   ctx.fillText("cove.", 75, 105);
   ctx.font = "26px sans-serif";
   ctx.fillStyle = "#f0e5d4";
-  ctx.fillText("STORIES YOU CAN FEEL", 75, 420);
+  ctx.fillText(book ? "MY BOOK SOUNDTRACK" : "STORIES YOU CAN FEEL", 75, 420);
   ctx.font = "bold 76px Georgia, serif";
   ctx.fillStyle = "#fff7ed";
-  const words = station.title.split(" ");
+  const words = (book?.title || station.title).split(" ");
   const lines: string[] = [];
   let line = "";
   for (const word of words) {
@@ -66,9 +66,9 @@ async function shareArtwork(station: CoveSoundsStation) {
   lines.slice(0, 3).forEach((value, i) => ctx.fillText(value, 75, 545 + i * 92));
   ctx.font = "30px sans-serif";
   ctx.fillStyle = "#e7e2dc";
-  ctx.fillText(station.atmosphere, 75, 1005);
+  ctx.fillText(book ? "Soundtracked by: " + book.recording.slice(0, 45) : station.atmosphere, 75, 1005);
   ctx.font = "24px sans-serif";
-  ctx.fillText("Find the story behind the sound", 75, 1150);
+  ctx.fillText(book ? "A story heard through Cove Sounds" : "Find the story behind the sound", 75, 1150);
   ctx.fillText(canonicalStation(station), 75, 1220);
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) throw new Error("Artwork export failed.");
@@ -84,7 +84,7 @@ async function shareArtwork(station: CoveSoundsStation) {
   const link = document.createElement("a");
   const temporary = URL.createObjectURL(blob);
   link.href = temporary;
-  link.download = file.name;
+  link.download = book ? "cove-book-soundtrack-" + station.slug + ".png" : file.name;
   link.click();
   setTimeout(() => URL.revokeObjectURL(temporary), 10_000);
   return "Artwork saved. Add the image and link to your post.";
@@ -104,7 +104,7 @@ function StationShare({ station }: { station: CoveSoundsStation }) {
   );
 }
 
-function BookSoundtrackPreview({ book }: { book: CatalogBook }) {
+function BookSoundtrackPreview({ book, station }: { book: CatalogBook; station: CoveSoundsStation }) {\n  const [shareMessage, setShareMessage] = useState("");
   const [expanded, setExpanded] = useState(false);
   const id = String(book.publicProductId || book.productId || book.id);
   const { rightsCountry } = useStorefrontLocale();
@@ -130,7 +130,7 @@ function BookSoundtrackPreview({ book }: { book: CatalogBook }) {
               <p><strong>{first.recording.title}</strong> · {first.recording.composer}</p>
               <p>{first.reasons.slice(0, 2).join(" · ")}</p>
               <audio controls preload="none" src={first.recording.audioUrl} aria-label={"Book-specific match: " + first.recording.title} onPlay={(event) => { document.querySelectorAll<HTMLAudioElement>("audio").forEach((other) => { if (other !== event.currentTarget) other.pause(); }); }} />
-              <a href={first.recording.licenseUrl} target="_blank" rel="noopener noreferrer">Recording license and attribution</a>
+              <button type="button" className="sounds-book-preview-toggle" onClick={() => void shareArtwork(station, { title: book.title, recording: first.recording.title }).then(setShareMessage).catch(() => setShareMessage("Sharing is unavailable."))}><Share2 size={15} aria-hidden="true" /> Share book + soundtrack image</button>\n              {shareMessage && <p role="status">{shareMessage}</p>}\n              <a href={first.recording.licenseUrl} target="_blank" rel="noopener noreferrer">Recording license and attribution</a>
               <p className="sounds-small">{first.recording.attribution}</p>
             </>
           ) : null}
@@ -176,7 +176,7 @@ function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
             <div>
               <h3><a href={editionPath(book)}>{book.title}</a></h3>
               <p>{authorOf(book)}</p>
-              <BookSoundtrackPreview book={book} />
+              <BookSoundtrackPreview book={book} station={station} />
               <a className="sounds-book-cta" href={editionPath(book)}>Explore this book <ArrowRight size={15} aria-hidden="true" /></a>
             </div>
           </article>
