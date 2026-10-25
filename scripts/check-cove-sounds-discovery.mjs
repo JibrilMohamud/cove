@@ -100,7 +100,25 @@ assert.ok(view.includes('api<RecordingCatalog>("/soundtracks/recordings")'));
 assert.ok(view.includes('"/books/" + encodeURIComponent(id) + "/literary-profile/playlist'));
 assert.ok(view.includes('visibility: "public"'));
 assert.ok(view.includes('"/social/lists", "POST"'));
-assert.ok(view.includes('"/social/discover"'));
+assert.ok(
+  view.includes('"/social/sounds/stations/" + station.slug + "/shelves"'),
+  "Creator shelves must use the bounded dedicated endpoint.",
+);
+assert.ok(!view.includes('"/social/discover"'), "Do not load broad member, list and group discovery.");
+assert.ok(view.includes('enabled: checkBooks && typeof window !== "undefined"'));
+assert.ok(view.includes('enabled: listenRequested && typeof window !== "undefined"'));
+assert.ok(view.includes('enabled: browse && typeof window !== "undefined"'));
+const social = readFileSync("src/features/fore/social.server.ts", "utf8");
+assert.ok(social.includes('LIMIT 9'), "Only one bounded page of shelves can be scanned.");
+assert.ok(social.includes("sp.profile_visibility='public'"));
+assert.ok(social.includes("l.visibility='public'"));
+assert.ok(social.includes("l.moderation_status='visible'"));
+assert.ok(social.includes("a.disabled_at IS NULL"));
+assert.ok(social.includes("social_blocks b"));
+assert.ok(social.includes("social_mutes m"));
+assert.ok(social.includes("nextCursor: rows.length > 8"));
+assert.ok(social.includes("stationBySlug(soundsShelvesRoute[1])"));
+
 assert.ok(view.includes('"/catalog?search="'));
 assert.ok(view.includes("navigator.canShare?.({ files: [file] })"));
 assert.ok(view.includes('document.querySelectorAll<HTMLAudioElement>("audio")'));
@@ -108,5 +126,5 @@ assert.ok(!view.includes("autoPlay"), "Music must always require a user action")
 const nav = readFileSync("src/features/fore/App.tsx", "utf8");
 assert.ok(nav.includes('["/sounds", "nav.sounds", "Cove Sounds", Music2]'));
 console.log(
-  "PASS: six Cove Sounds stations, rights-only ranked master selection, chapter-match reuse, independent books and moderated social shelves, exportable artwork, no autoplay",
+  "PASS: Cove Sounds editorial stations, opt-in rights and catalog reads, bounded private-aware creator pagination, recording and attribution controls, share artwork, no autoplay",
 );
