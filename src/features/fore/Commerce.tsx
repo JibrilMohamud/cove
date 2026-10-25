@@ -28,7 +28,7 @@ import {
   downloadBlob,
 } from "./client";
 import { BookArt } from "./Store";
-import { reportSoundsConversion } from "./cove-sounds-attribution";
+import { reportSoundsConversion, soundsCheckoutReferral } from "./cove-sounds-attribution";
 import { RequestFailure } from "./RequestFailure";
 
 declare global {
@@ -367,6 +367,7 @@ export function CheckoutPage() {
       const setup = await api<PaymentSetup>("/checkout/payment", "POST", {
         quoteId: quote.id,
         idempotencyKey: crypto.randomUUID(),
+        ...(soundsCheckoutReferral() || {}),
       });
       setPayment(setup);
       if (setup.status === "paid" || !setup.clientSecret) {
