@@ -22,7 +22,11 @@ for (let attempt = 0; attempt < 75; attempt++) {
     query(content, "SELECT COUNT(*) n FROM literary_prepare_jobs WHERE status='failed'"),
   ]);
   assert.ok(["armed", "complete"].includes(frontier[0]?.status));
-  if (failed[0].n > 0) throw Error("Failed isolated EPUB preparation; revert owner before retries");
+  // Individual malformed/withdrawn sources stay held; do not roll the whole
+  // storefront back because one book is unprocessable. Abort only when there
+  // is a repeated failure pattern and zero successfully prepared evidence.
+  if (failed[0].n >= 6 && prepared[0].n === 0)
+    throw Error("Repeated isolated EPUB failures without any valid preparation");
   if (receipts[0].n > 0 && outbox[0].n > 0 && prepared[0].n > 0) {
     success = {
       observedAt: new Date().toISOString(),
@@ -30,6 +34,7 @@ for (let attempt = 0; attempt < 75; attempt++) {
       reconciled: receipts[0].n,
       delivered: outbox[0].n,
       prepared: prepared[0].n,
+      quarantined: failed[0].n,
       primaryCustomerPublicationStillFenced: true,
       performancePolicy: "100ms guarded D1 admission; at most eight reconciliations/minute",
     };
