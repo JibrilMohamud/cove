@@ -31,11 +31,10 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
   await page.goto("/sounds/gothic-hour");
   await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "The Gothic Hour" })).toBeVisible();
-  await expect.poll(
-    () => funnelEvents.some((item) => item.event === "station_view"),
-  ).toBe(true);
+  await expect.poll(() => funnelEvents.some((item) => item.event === "station_view")).toBe(true);
   await expect(page.getByRole("link", { name: "Share on X" })).toHaveAttribute(
-    "href", /cove-jibrilmohamuds-projects.vercel.app/,
+    "href",
+    /cove-jibrilmohamuds-projects.vercel.app/,
   );
   await expect(page.getByRole("link", { name: /Frankenstein/ })).toBeVisible();
   await page.waitForTimeout(400);
