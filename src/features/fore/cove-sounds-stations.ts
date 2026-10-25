@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Initial music discovery UI follows the existing SoundtrackLibrary style until layout normalization. */
 /** Editorial mood stations: discovery hints, never rights grants or playback licenses. */
 export type CoveSoundsStation = {
   slug: string;
