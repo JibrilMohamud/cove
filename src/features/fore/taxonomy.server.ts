@@ -51,11 +51,35 @@ function normalizePath(path: string) {
  */
 export async function syncEditionTaxonomy(db: CatalogDB, editionId: string) {
   const at = now();
+  // Reconcile rather than destroy/recreate every mapping on every source
+  // heartbeat. Existing manual links and exact-match mapping provenance remain
+  // untouched. Retries repair missing/stale assignments; changed confidence
+  // re-enters the existing INSERT path.
   await db
     .prepare(
-      "DELETE FROM edition_taxonomy_nodes WHERE edition_id=? AND source IN ('mapping','ancestor')",
+      `WITH source_values(source_scheme,source_value) AS (
+        SELECT c.scheme,c.name FROM edition_categories ec
+          JOIN categories c ON c.id=ec.category_id WHERE ec.edition_id=?
+        UNION ALL
+        SELECT CASE WHEN s.scheme='gutenberg' THEN 'gutenberg-subject' ELSE s.scheme END,s.name
+          FROM edition_subjects es JOIN subjects s ON s.id=es.subject_id
+          WHERE es.edition_id=?
+      ), expected AS (
+        SELECT DISTINCT m.taxonomy_node_id,
+          CASE WHEN m.match_mode='exact' THEN 1.0 ELSE 0.85 END AS confidence
+        FROM source_values src JOIN storefront_taxonomy_mappings m ON m.active=1
+          AND (m.source_scheme='*' OR m.source_scheme=src.source_scheme)
+          AND ((m.match_mode='exact' AND lower(src.source_value)=lower(m.source_value))
+            OR (m.match_mode='prefix' AND lower(src.source_value) LIKE lower(m.source_value)||'%')
+            OR (m.match_mode='contains' AND lower(src.source_value) LIKE '%'||lower(m.source_value)||'%'))
+      )
+      DELETE FROM edition_taxonomy_nodes
+      WHERE edition_id=? AND source='mapping'
+        AND NOT EXISTS (SELECT 1 FROM expected e
+          WHERE e.taxonomy_node_id=edition_taxonomy_nodes.taxonomy_node_id
+            AND e.confidence=edition_taxonomy_nodes.confidence)`,
     )
-    .bind(editionId)
+    .bind(editionId, editionId, editionId)
     .run();
   await db
     .prepare(
@@ -75,6 +99,27 @@ export async function syncEditionTaxonomy(db: CatalogDB, editionId: string) {
         OR (m.match_mode='contains' AND lower(src.source_value) LIKE '%'||lower(m.source_value)||'%'))`,
     )
     .bind(at, editionId, editionId)
+    .run();
+  // Before rebuilding the ancestor closure, remove only ancestors which
+  // are no longer reachable (or whose confidence changed). Unchanged rows
+  // no longer incur a primary-D1 delete + insert on every ingestion sweep.
+  await db
+    .prepare(
+      `WITH RECURSIVE ancestors(node_id,parent_id,confidence) AS (
+        SELECT n.id,n.parent_id,et.confidence
+        FROM edition_taxonomy_nodes et JOIN storefront_taxonomy_nodes n ON n.id=et.taxonomy_node_id
+        WHERE et.edition_id=? AND et.source IN ('mapping','manual')
+        UNION ALL
+        SELECT n.id,n.parent_id,a.confidence FROM ancestors a
+        JOIN storefront_taxonomy_nodes n ON n.id=a.parent_id WHERE a.parent_id IS NOT NULL
+      )
+      DELETE FROM edition_taxonomy_nodes
+      WHERE edition_id=? AND source='ancestor'
+        AND NOT EXISTS (SELECT 1 FROM ancestors a
+          WHERE a.node_id=edition_taxonomy_nodes.taxonomy_node_id
+            AND a.confidence=edition_taxonomy_nodes.confidence)`,
+    )
+    .bind(editionId, editionId)
     .run();
   await db
     .prepare(
