@@ -8,6 +8,15 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
 }) => {
   const errors = [];
   const reads = { recordings: 0, catalog: 0, shelves: 0 };
+  const funnelEvents = [];
+  await page.route("**/api/fore/sounds/events", async (route) => {
+    const payload = route.request().postDataJSON();
+    funnelEvents.push(payload);
+    expect(Object.keys(payload).sort()).toEqual(["event", "station"]);
+    expect(payload.station).toBe("gothic-hour");
+    expect(payload.event).toBe("music_open");
+    await route.fulfill({ status: 202, json: { accepted: true } });
+  });
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("request", (req) => {
     const path = new URL(req.url()).pathname;
@@ -32,6 +41,7 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
   await page.getByRole("button", { name: "Explore rights-reviewed music" }).click();
   await musicRequest;
   await expect.poll(() => reads.recordings).toBe(1);
+  await expect.poll(() => funnelEvents.length).toBe(1);
   expect(reads.catalog).toBe(0);
   expect(reads.shelves).toBe(0);
 
