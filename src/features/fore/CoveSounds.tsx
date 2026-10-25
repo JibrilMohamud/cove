@@ -8,6 +8,8 @@ import { COVE_SOUNDS_STATIONS, stationBySlug, stationRecordings, type CoveSounds
 import "./cove-sounds.css";
 
 type RecordingCatalog = { recordings: CoveSoundsRecording[]; count: number };
+type SnapshotRecordingCatalog = RecordingCatalog & { fallback?: boolean };
+type SnapshotBookCatalog = { fallback?: boolean; books?: CatalogBook[] };
 type SearchReply = { results: CatalogBook[] };
 type PlaylistReply = { provisional: boolean; reason?: string; playlist: { tracks: { recording: CoveSoundsRecording; reasons: string[] }[] } | null };
 type PublicShelf = { id: string; title: string; item_count: number; likes: number; username?: string; user_id: string };
@@ -149,15 +151,21 @@ function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
   const { rightsCountry } = useStorefrontLocale();
   const [checkBooks, setCheckBooks] = useState(false);
   const found = useQuery({
-    queryKey: ["cove-sounds-editions", station.slug, rightsCountry],
-    queryFn: ({ signal }) => Promise.all(station.books.map(async ({ title, author }) => {
-      try {
-        const response = await api<SearchReply>("/catalog?search=" + encodeURIComponent(title) + "&limit=12&availability=available", "GET", undefined, { signal });
-        return response.results.find((book) => normalize(book.title) === normalize(title) && normalize(authorOf(book)).includes(normalize(author))) ?? null;
-      } catch {
-        return null;
-      }
-    })),
+    queryKey: ["cove-sounds-editions-v2", station.slug, rightsCountry],
+    queryFn: async ({ signal }) => {
+      const isolated = await api<SnapshotBookCatalog>(
+        "/sounds/stations/" + station.slug + "/books", "GET", undefined, { signal },
+      );
+      if (!isolated.fallback) return isolated.books || [];
+      // Disabled rollout only: preserve the existing territory-safe catalog.
+      // A configured-but-expired snapshot fails closed without mass SQL fallback.
+      return (await Promise.all(station.books.map(async ({ title, author }) => {
+        try {
+          const response = await api<SearchReply>("/catalog?search=" + encodeURIComponent(title) + "&limit=12&availability=available", "GET", undefined, { signal });
+          return response.results.find((book) => normalize(book.title) === normalize(title) && normalize(authorOf(book)).includes(normalize(author))) ?? null;
+        } catch { return null; }
+      }))).filter((book): book is CatalogBook => book !== null);
+    },
     enabled: checkBooks && typeof window !== "undefined",
     staleTime: 5 * 60_000,
     retry: false,
@@ -285,8 +293,11 @@ function StationDetail({ station }: { station: CoveSoundsStation }) {
   const [listenRequested, setListenRequested] = useState(false);
   const player = useRef<HTMLAudioElement>(null);
   const catalog = useQuery({
-    queryKey: ["cove-sounds-recordings", rightsCountry],
-    queryFn: () => api<RecordingCatalog>("/soundtracks/recordings"),
+    queryKey: ["cove-sounds-recordings-v2", station.slug, rightsCountry],
+    queryFn: async () => {
+      const isolated = await api<SnapshotRecordingCatalog>("/sounds/stations/" + station.slug + "/recordings");
+      return isolated.fallback ? api<RecordingCatalog>("/soundtracks/recordings") : isolated;
+    },
     enabled: listenRequested && typeof window !== "undefined",
     staleTime: 5 * 60_000,
     retry: false,
