@@ -62,11 +62,16 @@ for (const file of [
   ".github/workflows/fast-storefront-real-catalog-acceptance.yml",
   ".github/workflows/strangler-hosted-capacity-evaluation.yml",
 ]) {
-  assert.match(
-    readFileSync(file, "utf8"),
-    /^  group: cove-exclusive-real-primary-cold-acceptance$/m,
-    file + " must share the primary-cold exclusive concurrency lock",
-  );
+  const body = readFileSync(file, "utf8");
+  if (file.includes("fast-storefront-real-catalog")) {
+    assert.match(body, /^  group: cove-exclusive-real-primary-cold-acceptance$/m);
+  } else {
+    // PR-only static CI has its own namespace; live/dispatch must use the
+    // exact canonical cold-acceptance lock across both workflows.
+    assert.ok(body.includes("github.event_name == 'pull_request'"));
+    assert.ok(body.includes("format('cove-strangler-pr-{0}', github.event.pull_request.number)"));
+    assert.match(body, /group: .*\\|\\| 'cove-exclusive-real-primary-cold-acceptance' \\}\\}/);
+  }
 }
 const capacity = readFileSync("scripts/staging/check-strangler-live-capacity.mjs", "utf8");
 const evidence = readFileSync("scripts/staging/assert-strangler-capacity-evidence.mjs", "utf8");
