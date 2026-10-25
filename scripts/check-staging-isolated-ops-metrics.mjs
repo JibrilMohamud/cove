@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Executable privacy and fail-closed fixture remains collocated. */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { transform } from "esbuild";
