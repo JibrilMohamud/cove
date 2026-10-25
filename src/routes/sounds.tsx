@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Initial music discovery UI follows the existing SoundtrackLibrary style until layout normalization. */
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteShell } from "@/features/fore/App";
 import { CoveSoundsPage } from "@/features/fore/CoveSounds";
