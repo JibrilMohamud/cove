@@ -26,8 +26,8 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
   await page.waitForTimeout(400);
   expect(reads).toEqual({ recordings: 0, catalog: 0, shelves: 0 });
 
-  const musicRequest = page.waitForRequest((req) =>
-    new URL(req.url()).pathname === "/api/fore/soundtracks/recordings",
+  const musicRequest = page.waitForRequest(
+    (req) => new URL(req.url()).pathname === "/api/fore/soundtracks/recordings",
   );
   await page.getByRole("button", { name: "Explore rights-reviewed music" }).click();
   await musicRequest;
@@ -35,16 +35,16 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
   expect(reads.catalog).toBe(0);
   expect(reads.shelves).toBe(0);
 
-  const catalogRequest = page.waitForRequest((req) =>
-    new URL(req.url()).pathname === "/api/fore/catalog",
+  const catalogRequest = page.waitForRequest(
+    (req) => new URL(req.url()).pathname === "/api/fore/catalog",
   );
   await page.getByRole("button", { name: "Check book editions available in my region" }).click();
   await catalogRequest;
   await expect.poll(() => reads.catalog).toBeGreaterThan(0);
   expect(reads.shelves).toBe(0);
 
-  const shelvesRequest = page.waitForRequest((req) =>
-    new URL(req.url()).pathname === "/api/fore/social/sounds/stations/gothic-hour/shelves",
+  const shelvesRequest = page.waitForRequest(
+    (req) => new URL(req.url()).pathname === "/api/fore/social/sounds/stations/gothic-hour/shelves",
   );
   await page.getByRole("button", { name: "Explore reader-created shelves" }).click();
   const requestFromPage = await shelvesRequest;
