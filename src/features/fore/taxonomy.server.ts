@@ -49,7 +49,7 @@ function normalizePath(path: string) {
  * Rebuild Cove retail taxonomy assignments for one edition from source categories.
  * Manual assignments survive supplier refreshes; mapping/ancestor assignments are derived.
  */
-export async function syncEditionTaxonomy(db: CatalogDB, editionId: string) {
+export async function syncEditionTaxonomy(db: CatalogDB, editionId: string, sourceUnchanged = false) {
   const at = now();
   // Reconcile rather than destroy/recreate every mapping on every source
   // heartbeat. Existing manual links and exact-match mapping provenance remain
@@ -140,7 +140,7 @@ export async function syncEditionTaxonomy(db: CatalogDB, editionId: string) {
   // Avoid firing FTS5 UPDATE triggers when assignments are unchanged.
   // The preceding mapping/ancestor reconciliation still runs every time,
   // including after a partial previous attempt or a changed mapping rule.
-  await db
+  const taxonomyTextWrite = await db
     .prepare(
       `UPDATE catalog_search_documents SET taxonomy_text=COALESCE((
     SELECT group_concat(n.path,' | ') FROM products p
@@ -158,13 +158,19 @@ export async function syncEditionTaxonomy(db: CatalogDB, editionId: string) {
     )
     .bind(editionId)
     .run();
+  // Exact source equality and a zero-row taxonomy update allow preserving an
+  // already queued search event. Insert-if-missing still repairs interrupted
+  // publication. Missing D1 changes telemetry keeps the conservative old path.
+  const changedRows = (taxonomyTextWrite as { meta?: { changes?: number } })?.meta?.changes;
+  const preservePendingEvent = sourceUnchanged && changedRows === 0;
   await db
     .prepare(
       `INSERT INTO search_index_outbox(product_id,operation,queued_at,attempts,last_error)
     SELECT id,'upsert',?,0,'' FROM products WHERE edition_id=? AND source_name<>'upload'
-    ON CONFLICT(product_id) DO UPDATE SET operation='upsert',queued_at=excluded.queued_at,attempts=0,last_error=''`,
+    ON CONFLICT(product_id) DO UPDATE SET operation='upsert',queued_at=excluded.queued_at,attempts=0,last_error=''
+    WHERE ?=0`,
     )
-    .bind(at, editionId)
+    .bind(at, editionId, preservePendingEvent ? 1 : 0)
     .run();
 }
 

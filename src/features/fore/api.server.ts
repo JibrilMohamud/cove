@@ -2147,7 +2147,11 @@ export async function runCatalogIngestion(
     // Source-equivalent items skip heavyweight normalized table/FTS writes,
     // never the independently retryable taxonomy and revocation processing.
     for (const book of accepted)
-      await syncEditionTaxonomy(db, catalogIds(String(book.id)).editionId);
+      await syncEditionTaxonomy(
+        db,
+        catalogIds(String(book.id)).editionId,
+        unchangedIds.has(String(book.id)),
+      );
     /* eslint-enable prettier/prettier */
     if (!options.deferSearchSync) {
       await syncSearchIndex(env, Math.min(500, Math.max(50, accepted.length))).catch((error) =>
