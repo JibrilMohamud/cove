@@ -92,6 +92,9 @@ export async function syncEditionTaxonomy(db: CatalogDB, editionId: string) {
     )
     .bind(editionId, at)
     .run();
+  // Avoid firing FTS5 UPDATE triggers when assignments are unchanged.
+  // The preceding mapping/ancestor reconciliation still runs every time,
+  // including after a partial previous attempt or a changed mapping rule.
   await db
     .prepare(
       `UPDATE catalog_search_documents SET taxonomy_text=COALESCE((
@@ -99,7 +102,14 @@ export async function syncEditionTaxonomy(db: CatalogDB, editionId: string) {
     JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
     JOIN storefront_taxonomy_nodes n ON n.id=et.taxonomy_node_id
     WHERE p.id=catalog_search_documents.product_id
-  ),''), updated_at=updated_at WHERE product_id IN (SELECT id FROM products WHERE edition_id=?)`,
+  ),''), updated_at=updated_at
+  WHERE product_id IN (SELECT id FROM products WHERE edition_id=?)
+    AND taxonomy_text IS NOT COALESCE((
+      SELECT group_concat(n.path,' | ') FROM products p
+      JOIN edition_taxonomy_nodes et ON et.edition_id=p.edition_id
+      JOIN storefront_taxonomy_nodes n ON n.id=et.taxonomy_node_id
+      WHERE p.id=catalog_search_documents.product_id
+    ),'')`,
     )
     .bind(editionId)
     .run();
