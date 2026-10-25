@@ -32,6 +32,14 @@ heartbeats do not enqueue expensive text indexing. A `DELETE` creates a
 tombstone. Publication on the independent DB uses a strict increasing revision
 condition, so delayed writes cannot restore a withdrawn document.
 
+A second primary migration (`0086`) enforces **immediate fail-closed
+withdrawal** on source status loss, evidence fingerprint replacement,
+territorial grant removal, or source deletion. It only suspends Gutenberg
+source-derived permissions; it does not change unrelated publisher grants.
+Reapproval requires explicit legally verified publication, never a delayed
+independent-index result. This is essential because asynchronous replication
+alone cannot enforce urgent legal changes.
+
 The independent Worker takes a bounded lease, resumes a keyset backfill,
 then processes at most sixteen changefeed events per run. Writes are revision
 fenced; feed cursor advances only after successful writes and while its
@@ -47,7 +55,7 @@ service-binding only: **no public HTTP route, no cron, no production write**.
 3. Use `wrangler.catalog-index.example.jsonc` only as an operator template:
    replace IDs and put the worker behind a private service binding; enable
    `COVE_CATALOG_INDEX_CAPTURE_ENABLED=1` only during controlled tests.
-4. Apply the primary changefeed migration in a controlled D1 maintenance window,
+4. Apply the primary changefeed and legal-withdrawal migrations in a controlled D1 maintenance window,
    measure trigger write overhead, and validate sequential changefeed coverage
    under live source updates, deletes, lease loss and replay.
 5. Establish an isolated producer/publisher for all **derived** search and

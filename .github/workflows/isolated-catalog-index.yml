@@ -3,9 +3,11 @@ on:
   pull_request:
     paths:
       - "drizzle/0085_isolated_catalog_changefeed.sql"
+      - "drizzle/0086_catalog_legal_withdrawal_guard.sql"
       - "infra/catalog-index/**"
       - "src/storefront-strangler/catalog-index-*.ts"
       - "scripts/check-isolated-catalog-index.mjs"
+      - "scripts/check-catalog-withdrawal-guard.mjs"
       - "scripts/build-storefront-strangler.mjs"
       - ".github/workflows/isolated-catalog-index.yml"
   workflow_dispatch:
@@ -22,6 +24,7 @@ jobs:
         with: { node-version: "22", cache: npm }
       - run: npm ci
       - run: node scripts/check-isolated-catalog-index.mjs
+      - run: node scripts/check-catalog-withdrawal-guard.mjs
       - run: node scripts/build-storefront-strangler.mjs
       - run: npm run typecheck
       - run: npm run test:rights
