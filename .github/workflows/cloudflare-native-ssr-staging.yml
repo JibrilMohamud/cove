@@ -7,6 +7,7 @@ on:
       - "src/lib/cloudflare-ssr-stage-gate.server.ts"
       - "src/lib/cloudflare-native-bindings.server.ts"
       - "scripts/check-cloudflare-native-bindings.mjs"
+      - "scripts/check-staging-isolated-ops-metrics.mjs"
       - "src/lib/cove-request-env.server.ts"
       - "src/lib/cloudflare-country.server.ts"
       - "src/features/fore/api.server.ts"
@@ -82,6 +83,7 @@ on:
       - "src/lib/cloudflare-ssr-stage-gate.server.ts"
       - "src/lib/cloudflare-native-bindings.server.ts"
       - "scripts/check-cloudflare-native-bindings.mjs"
+      - "scripts/check-staging-isolated-ops-metrics.mjs"
       - "src/lib/cove-request-env.server.ts"
       - "src/lib/cloudflare-country.server.ts"
       - "src/features/fore/api.server.ts"
@@ -189,6 +191,7 @@ jobs:
           node scripts/check-cloudflare-deployment-readiness.mjs
           node scripts/check-cloudflare-production-candidate.mjs
           node scripts/check-cloudflare-native-bindings.mjs
+          node scripts/check-staging-isolated-ops-metrics.mjs
           node scripts/check-storefront-firstpaint-rate-limit.mjs
           node scripts/check-storefront-bootstrap.mjs
           node scripts/check-rights.mjs
