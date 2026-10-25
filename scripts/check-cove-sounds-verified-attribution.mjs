@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Focused privacy and referral assertions. */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { build } from "esbuild";
@@ -11,7 +12,10 @@ const attribution = await import("data:text/javascript;base64," +
   Buffer.from(built.outputFiles[0].text).toString("base64"));
 const state = new Map();
 globalThis.window = {};
-globalThis.navigator = { doNotTrack: "0", globalPrivacyControl: false };
+Object.defineProperty(globalThis, "navigator", {
+  configurable: true,
+  value: { doNotTrack: "0", globalPrivacyControl: false },
+});
 globalThis.sessionStorage = {
   getItem: (key) => state.get(key) || null,
   setItem: (key, value) => { state.set(key, value); },
