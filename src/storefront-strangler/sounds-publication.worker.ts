@@ -126,6 +126,15 @@ export async function publishCoveSounds(env: Env, at = Date.now()) {
       validated.push({ key: soundsKey(territory, station.slug), json });
       count += document.recordings.length; candidates += document.candidateProductIds.length;
     }
+    // New territories must not be activated as six empty discovery stations.
+    // "Ready" here only describes advisory publication; playback and retail
+    // still require live per-request canonical legal authorization.
+    if (territory !== "US" && validated.some(({ json }) => {
+      const station = JSON.parse(json) as SoundsSnapshot;
+      return station.recordings.length === 0 || station.candidateProductIds.length === 0;
+    })) {
+      throw Error("Cove Sounds territory not publication-ready: " + territory);
+    }
     // Each object is a complete, validated publication. Write durable private
     // R2 FIRST, then optional KV hot replica. A partial cron never grants rights.
     for (const { key, json } of validated) {
