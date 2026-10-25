@@ -52,3 +52,63 @@ export async function queryIsolatedCatalogIndex(
     authoritative: false,
   };
 }
+
+export async function queryIsolatedCatalogGraph(env:CatalogQueryEnv, ids:unknown) {
+  if (env.COVE_CATALOG_SEARCH_ENABLED !== "1") throw Error("catalog_search_disabled");
+  if (!Array.isArray(ids)||ids.length<1||ids.length>24||
+      ids.some(x=>typeof x!=="string"||!/^prd_gutenberg_[a-z0-9_]{1,120}$/.test(x))||
+      new Set(ids).size!==ids.length)
+    throw Error("invalid_catalog_graph_candidates");
+  const identity=await env.CATALOG_INDEX_DB.prepare(
+    "SELECT domain,EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name IN ('rights_grants','entitlements','orders','payment_orders','products')) contaminated FROM catalog_index_identity WHERE id=1"
+  ).first<{domain:string;contaminated:number}>();
+  if(identity?.domain!=="cove-independent-catalog-index"||identity.contaminated)
+    throw Error("catalog_graph_domain_not_isolated");
+  const results=await env.CATALOG_INDEX_DB.prepare(
+    "SELECT product_id,edition_id,work_id,revision,visible,title,description,contributors_json,subjects_json,shelves_json,languages_json,assets_json FROM catalog_graph_documents WHERE product_id IN ("+
+      ids.map(()=>"?").join(",")+") AND visible=1"
+  ).bind(...ids).all<{
+    product_id:string;edition_id:string;work_id:string;revision:number;visible:number;
+    title:string;description:string;contributors_json:string;subjects_json:string;
+    shelves_json:string;languages_json:string;assets_json:string;
+  }>();
+  const allowed=new Set(ids as string[]);
+  const items=results.results.map((row)=>{
+    if(!allowed.has(row.product_id)||!row.edition_id.startsWith("ed_gutenberg_")||
+       !row.work_id.startsWith("wrk_gutenberg_")||
+       !Number.isSafeInteger(row.revision)||row.revision<0||
+       row.title.length>512||row.description.length>5000||row.visible!==1)
+      throw Error("catalog_graph_corrupt_row");
+    function textArray(raw:string,max:number){
+      const parsed:unknown=JSON.parse(raw);
+      if(!Array.isArray(parsed)||parsed.length>max||
+        parsed.some(x=>typeof x!=="string"||x.length>200))
+        throw Error("catalog_graph_corrupt_array");
+      return parsed as string[];
+    }
+    const authors=textArray(row.contributors_json,40);
+    const subjects=textArray(row.subjects_json,60);
+    const shelves=textArray(row.shelves_json,40);
+    const languages=textArray(row.languages_json,16);
+    const assets=JSON.parse(row.assets_json) as unknown;
+    if(!assets||typeof assets!=="object"||Array.isArray(assets))
+      throw Error("catalog_graph_corrupt_assets");
+    // A database row is never trusted to provide a raw download URL.
+    const cover=(assets as Record<string,unknown>)["image/jpeg"]||
+      (assets as Record<string,unknown>)["image/png"];
+    let coverUrl:string|null=null;
+    if(cover!==undefined){
+      if(typeof cover!=="string"||cover.length>2048) throw Error("catalog_graph_corrupt_cover");
+      const u=new URL(cover);
+      if(u.protocol!=="https:"||u.username||u.password||!u.hostname.includes("."))
+        throw Error("catalog_graph_corrupt_cover");
+      coverUrl=u.href;
+    }
+    return {productId:row.product_id,editionId:row.edition_id,workId:row.work_id,
+      revision:row.revision,title:row.title,description:row.description,
+      authors,subjects,shelves,languages,coverUrl};
+  });
+  const order=new Map((ids as string[]).map((id,index)=>[id,index]));
+  items.sort((a,b)=>(order.get(a.productId)??999)-(order.get(b.productId)??999));
+  return {schema:"cove.catalog.graph.v1",authoritative:false,books:items};
+}

@@ -1,13 +1,15 @@
 /* eslint-disable prettier/prettier -- Keep private catalog-authority boundary checks locally auditable. */
 import {
   verifyIsolatedCatalogCandidates,
+  verifyIsolatedCatalogBooks,
   type CatalogIndexVerifyEnv,
 } from "./catalog-index-verify.server";
 
 // Private staging only; never serve a public endpoint or use this for checkout.
 export default {
   async fetch(request: Request, env: CatalogIndexVerifyEnv) {
-    if (request.method !== "POST" || new URL(request.url).pathname !== "/verify")
+    const pathname=new URL(request.url).pathname;
+    if (request.method !== "POST" || !["/verify","/verify-books"].includes(pathname))
       return new Response(null, { status: 404 });
     if (request.headers.get("content-type")?.split(";")[0]?.trim() !== "application/json")
       return new Response(null, { status: 415 });
@@ -20,9 +22,9 @@ export default {
         (data.currency !== undefined && typeof data.currency !== "string"))
       return new Response(null,{status:400});
     try {
-      const result = await verifyIsolatedCatalogCandidates(
-        env, data.query, data.territory, data.currency || "USD"
-      );
+      const result = pathname==="/verify-books"
+        ? await verifyIsolatedCatalogBooks(env,data.query,data.territory,data.currency||"USD")
+        : await verifyIsolatedCatalogCandidates(env,data.query,data.territory,data.currency||"USD");
       return Response.json(result,{headers:{"cache-control":"no-store"}});
     } catch (err) {
       console.warn("catalog_index_authority_probe_failed",String(err));
