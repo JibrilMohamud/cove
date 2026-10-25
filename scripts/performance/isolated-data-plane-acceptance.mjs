@@ -210,6 +210,11 @@ async function sample(model = "projection", path = "/") {
     const r = await stageFetch(origin + path, {
       headers: {
         authorization: "Bearer " + gate,
+        // Real browsers negotiate response compression over HTTP/2.
+        // The isolated load client already decodes br/gzip; without this
+        // header it artificially sends uncompressed HTML at 100 RPS.
+        // Do not change sample counting, response integrity or the 800ms gate.
+        "accept-encoding": "br, gzip",
         "x-cove-perf-client": String(Math.floor(started) % 2048),
         ...(model === "canonical" ? { "x-cove-perf-serving-model": "canonical" } : {}),
       },
@@ -221,6 +226,9 @@ async function sample(model = "projection", path = "/") {
     const handlerMs = /(?:^|, )cove_handler;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
     const catalogMs = /(?:^|, )cove_catalog;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
     const body = await r.text();
+    const wireBytes = transportSpan?.wireBytes ?? null;
+    const decodedBytes = transportSpan?.decodedBytes ?? null;
+    const contentEncoding = r.headers.get("content-encoding") || "identity";
     const ok =
       r.status === 200 &&
       (path.endsWith("transport")
@@ -242,6 +250,9 @@ async function sample(model = "projection", path = "/") {
               transportSpan.sent && transportSpan.received
                 ? transportSpan.received - transportSpan.sent
                 : null,
+            wireBytes,
+            decodedBytes,
+            contentEncoding,
           }
         : null,
       colo: r.headers.get("cf-ray")?.split("-").at(-1),
