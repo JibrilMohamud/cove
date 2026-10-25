@@ -50,7 +50,9 @@ for (const [file, role] of [
   );
   assert.deepEqual(
     cfg.r2_buckets.map((x) => x.bucket_name),
-    ["cove-literary-originals-isolated-20261024"],
+    role === "literary-prepare"
+      ? ["cove-literary-originals-isolated-20261024", "cove-production-media"]
+      : ["cove-literary-originals-isolated-20261024"],
   );
   if (role === "literary-infer") {
     assert.equal(cfg.vars.FORE_CONTENT_INFERENCE_ENABLED, "0");
