@@ -23,6 +23,10 @@
     {
       "binding": "BUCKET",
       "bucket_name": "cove-literary-originals-isolated-20261024"
+    },
+    {
+      "binding": "SOURCE_BUCKET",
+      "bucket_name": "cove-production-media"
     }
   ],
   "name": "cove-literary-prepare-isolated-disabled",

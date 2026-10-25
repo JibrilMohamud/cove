@@ -50,8 +50,15 @@ for (const role of roles) {
       db.length === 2 &&
       db.includes(primary) &&
       db.includes(contentDb) &&
-      buckets.length === 1 &&
-      buckets[0] === privateBucket &&
+      buckets.length === (role.role === "literary-prepare" ? 2 : 1) &&
+      buckets.includes(privateBucket) &&
+      (role.role !== "literary-prepare" ||
+        b.some(
+          (x) =>
+            x.type === "r2_bucket" &&
+            x.name === "SOURCE_BUCKET" &&
+            x.bucket_name === "cove-production-media",
+        )) &&
       values.FORE_CONTENT_PROCESSOR_ROLE === role.role &&
       role.flags.every((key) => values[key] === "0") &&
       !(schedules.schedules || []).length &&
