@@ -60,7 +60,6 @@ db.prepare("UPDATE gutenberg_source_cache SET download_count=10 WHERE id='101'")
 assert.equal(revision("101"),rev0,"Popularity-only updates cannot rebuild independent graph");
 db.prepare("UPDATE gutenberg_source_cache SET epub_status='completed',content_hash='sha-v2' WHERE id='101'").run();
 assert.equal(revision("101"),rev0+1,"EPUB completion must revise independent asset graph");
-db.prepare("UPDATE gutenberg_source_cache SET last_seen_at='x' WHERE id='101'"); // not run
 assert.equal(status("101","US"),"active");
 db.prepare("UPDATE gutenberg_rights_evidence SET status='revoked' WHERE id='ev-101-US'").run();
 assert.equal(status("101","US"),"suspended","Direct evidence revocation must suspend source grant synchronously");
