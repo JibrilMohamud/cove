@@ -181,8 +181,8 @@ function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
           ))}
         </div>
       )}
-      <button type="button" className="sounds-explore-button" onClick={() => setCheckBooks(true)} disabled={checkBooks && found.isPending}>
-        <BookOpen size={16} aria-hidden="true" /> {checkBooks ? "Available editions" : "Check book editions available in my region"}
+      <button type="button" className="sounds-explore-button" onClick={() => { setCheckBooks(true); if (checkBooks) void found.refetch(); }} disabled={checkBooks && found.isPending}>
+        <BookOpen size={16} aria-hidden="true" /> {checkBooks ? "Refresh available editions" : "Check book editions available in my region"}
       </button>
       {checkBooks && found.isPending && <p role="status">Checking books available in your region…</p>}
       {checkBooks && found.isError && <p role="alert">The catalog could not be checked right now. Try again in the bookstore.</p>}
@@ -254,8 +254,8 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
         <Sparkles size={17} aria-hidden="true" /> {busy ? "Creating…" : "Create a public listening shelf"}
       </button>
       {message && <p role="alert">{message}</p>}
-      <button type="button" className="sounds-explore-button" onClick={() => setBrowse(true)} disabled={browse && publicShelves.isPending}>
-        <BookOpen size={16} aria-hidden="true" /> {browse ? "Community listening shelves" : "Explore reader-created shelves"}
+      <button type="button" className="sounds-explore-button" onClick={() => { setBrowse(true); if (browse) void publicShelves.refetch(); }} disabled={browse && publicShelves.isPending}>
+        <BookOpen size={16} aria-hidden="true" /> {browse ? "Refresh reader-created shelves" : "Explore reader-created shelves"}
       </button>
       {browse && publicShelves.isPending && <p role="status">Finding public listening shelves…</p>}
       {browse && publicShelves.isError && <p role="alert">Reader shelves are unavailable right now.</p>}
@@ -317,7 +317,7 @@ function StationDetail({ station }: { station: CoveSoundsStation }) {
           </button>
         )}
         {listenRequested && catalog.isPending && <p role="status">Checking recordings licensed for your region…</p>}
-        {listenRequested && catalog.isError && <p role="alert">Listening is unavailable right now. <a href="/soundtracks">Visit the soundtrack library</a> to retry.</p>}
+        {listenRequested && catalog.isError && <p role="alert">Listening is unavailable right now. <button type="button" className="sounds-explore-button" onClick={() => void catalog.refetch()}>Retry recordings</button> <a href="/soundtracks">Visit the soundtrack library</a>.</p>}
         {listenRequested && catalog.isSuccess && !tracks.length && <p role="status">No suitable rights-reviewed recordings are available for this atmosphere in your region yet. Explore the featured books below.</p>}
         {selected && (
           <div className="sounds-player">
