@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep privacy-redacted LCP diagnostics next to the observational gate. */
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { chromium, devices } from "@playwright/test";
