@@ -152,7 +152,6 @@ jobs:
           FORE_AUDIO_COMPUTE_MODE = "paused"
           FORE_AUDIO_MONTHLY_SECONDS = "3600"
           FORE_AUDIO_MIN_INTERVAL_SECONDS = "86400"
-          COVE_SOUNDS_SNAPSHOT_ENABLED = "0"
 
           [secrets]
           required = ["FORE_INGESTION_SIGNING_KEY"]
