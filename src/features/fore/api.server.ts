@@ -40,6 +40,7 @@ import { handlePipeline } from "./pipeline.server";
 import { handleAudio } from "./audio.server";
 import { handleSoundtracks } from "./soundtracks.server";
 import { handleSoundsSnapshot } from "./cove-sounds-snapshot.server";
+import { handleSoundsAnalytics, isSoundsAnalyticsAck } from "./cove-sounds-analytics.server";
 import { handleMusicProfiles } from "./music-profiles.server";
 import { handleLiteraryProfiles } from "./literary-profiles.server";
 import { handleVercelPublicRequest } from "./vercel-public.server";
@@ -2810,7 +2811,10 @@ export async function handleCoveApi(
     actorKind,
     Date.now() - trace.startedMs,
   );
-  if (isolated) {
+  if (isSoundsAnalyticsAck(tracedRequest, response)) {
+    // Aggregate-only music interaction. No per-click primary-D1 log writes.
+    timings.log_isolated = performance.now() - logStarted;
+  } else if (isolated) {
     timings.log_isolated = performance.now() - logStarted;
   } else if (env.DB) {
     const work = recordHttpRequest(env.DB as any, trace, tracedRequest, response, {
@@ -4102,6 +4106,7 @@ async function handleCoveRequest(
         identity(request)?.id || null,
         storefrontTerritory,
       )) ||
+      (await handleSoundsAnalytics(request, env, path, storefrontTerritory)) ||
       (await handleSoundsSnapshot(request, env, path, storefrontTerritory)) ||
       (await handleSoundtracks(request, env, path, storefrontTerritory, identity(request))) ||
       (await handleAudio(request, env, path, identity(request)?.id || null, storefrontTerritory)) ||
