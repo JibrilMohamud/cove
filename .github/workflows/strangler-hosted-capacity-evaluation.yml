@@ -26,7 +26,7 @@ permissions:
 # cold acceptance run. Both workflows must leave the shared primary alone
 # until the previous one has finished, including its cleanup.
 concurrency:
-  group: cove-exclusive-real-primary-cold-acceptance
+  group: ${{ github.event_name == 'pull_request' && format('cove-strangler-pr-{0}', github.event.pull_request.number) || 'cove-exclusive-real-primary-cold-acceptance' }}
   cancel-in-progress: false
 
 jobs:
