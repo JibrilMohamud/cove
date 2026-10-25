@@ -822,20 +822,30 @@ export async function authorizeStorefrontPresentationIds(
         AND d.suppressed=0 AND d.availability='available'
         AND d.currency=? AND ?=(SELECT currency FROM market)
         AND EXISTS (SELECT 1 FROM retail_product_availability_rows rpa
-          WHERE rpa.product_id=p.id AND rpa.territory_code=?)
-        -- A source-derived grant may still appear active before older
-        -- installations receive the evidence-withdrawal trigger. Recheck the
-        -- CURRENT primary source and actual approved country evidence too.
-        -- No stale replica or independent search index may authorize it.
+          WHERE rpa.product_id=p.id AND rpa.territory_code=?
+            AND (p.source_name<>'gutenberg' OR EXISTS (
+              -- Bind the approved proof to the EXACT grant that made the
+              -- product retail-eligible. An unrelated approved evidence row
+              -- cannot rehabilitate a revoked historical grant.
+              SELECT 1 FROM rights_grants rg
+              JOIN gutenberg_rights_evidence ge ON ge.id=rg.source_evidence_id
+              WHERE rg.id=rpa.rights_grant_id
+                AND rg.source LIKE 'gutenberg-%-public-domain'
+                AND ge.cache_id=p.source_external_id
+                AND ge.source_id=substr(rg.source,11,length(rg.source)-24)
+                AND upper(ge.territory_code)=?
+                AND ge.status='approved' AND ge.determination='public-domain'
+            )))
+        -- Current country scope and source state remain PRIMARY authority,
+        -- independent of asynchronous index, session cache, or old grants.
         AND (p.source_name<>'gutenberg' OR EXISTS (
           SELECT 1 FROM gutenberg_source_cache gc
           WHERE gc.id=p.source_external_id AND gc.copyright=0
             AND gc.ingest_status='active'
             AND gc.rights_status='public-domain'
             AND gc.commercial_use_status='approved'
-            AND EXISTS (SELECT 1 FROM gutenberg_rights_evidence ge
-              WHERE ge.cache_id=gc.id AND upper(ge.territory_code)=?
-                AND ge.status='approved' AND ge.determination='public-domain')
+            AND EXISTS (SELECT 1 FROM json_each(gc.rights_territories_json) jt
+              WHERE upper(jt.value)=?)
         ))
       ORDER BY c.position LIMIT 25
     ) SELECT a.product_id,a.product_public_id,a.edition_id,a.edition_public_id,
@@ -847,7 +857,7 @@ export async function authorizeStorefrontPresentationIds(
         ORDER BY o.created_at DESC LIMIT 1) offer_json
       FROM authorized a ORDER BY a.position`,
     )
-    .bind(territory, JSON.stringify(ids), currency, currency, territory, territory)
+    .bind(territory, JSON.stringify(ids), currency, currency, territory, territory, territory)
     .all<PrimaryStorefrontAuthorityRow>();
   if (diagnostics) recordFirstPaintD1Metrics(result, diagnostics);
   return result.results;
