@@ -109,3 +109,12 @@ assert.deepEqual(state("101"),active);
 assert.ok(!src("106"));
 // Proof must run, never be a no-op CI script.
 console.log("PASS: rollback atomicity, territory narrowing, source identity, changed evidence, quarantine, deletion, stale restoration and third-party grant isolation");
+
+// The entitlement-before-rights policy must never bypass an explicit source
+// takedown for a hosted Gutenberg file. Contract expiry remains separate.
+const deliverySource = fs.readFileSync("src/features/fore/api.server.ts", "utf8");
+const fullAccess = deliverySource.slice(deliverySource.indexOf("async function requireFullBookAccess("),
+  deliverySource.indexOf("async function getEpub(", deliverySource.indexOf("async function requireFullBookAccess(")));
+assert.ok(fullAccess.includes("gutenberg_source_cache WHERE id=? AND copyright=0"));
+assert.ok(fullAccess.indexOf("if (!legalSource)") < fullAccess.indexOf("if (await activeEntitlement"),
+  "Existing entitlements must not override source takedowns");

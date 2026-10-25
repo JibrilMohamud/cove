@@ -2395,6 +2395,16 @@ async function requireFullBookAccess(
 ) {
   if (product.source_name === "upload") return;
   const db = database(env);
+  // A verified source takedown is different from an ordinary territorial
+  // license expiry. Previously issued entitlements do NOT bypass a Gutenberg
+  // copyright/evidence quarantine when Cove controls this file delivery.
+  // This indexed read is on authoritative primary D1, never the async index.
+  if (product.source_name === "gutenberg") {
+    const legalSource = await db.prepare(
+      "SELECT 1 ok FROM gutenberg_source_cache WHERE id=? AND copyright=0 AND ingest_status='active' AND rights_status='public-domain' AND commercial_use_status='approved' LIMIT 1",
+    ).bind(String(product.source_external_id || "")).first<{ ok: number }>();
+    if (!legalSource) throw new ApiError(404, "This source edition has been withdrawn.");
+  }
   // A completed purchase/loan/subscription remains the user's entitlement even if they travel or
   // a distribution grant later expires. Rights govern acquisition; entitlements govern access.
   if (await activeEntitlement(db, userId, product.id)) return;
