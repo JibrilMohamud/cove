@@ -35,7 +35,8 @@ export async function reconcileOneLegacyLiteraryJob(
   const owner = await env.DB.prepare(
     "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'",
   ).first<{ value: string }>();
-  if (owner?.value !== "draining") return { skipped: "legacy_owner_not_draining" };
+  if (owner?.value !== "draining" && owner?.value !== "isolated")
+    return { skipped: "legacy_owner_not_reconciling" };
   const isolated = await requireIsolatedDomain(env);
   const cursor = await isolated
     .prepare("SELECT status,after_job_id FROM literary_legacy_reconcile_frontier WHERE id=1")
@@ -80,16 +81,25 @@ export async function reconcileOneLegacyLiteraryJob(
     return { complete: true };
   }
   // If an operator changed ownership mid-tick, do not send new intents.
-  const stillDraining = await env.DB.prepare(
+  const currentOwner = await env.DB.prepare(
     "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'",
   ).first<{ value: string }>();
-  if (stillDraining?.value !== "draining") return { skipped: "legacy_owner_changed" };
+  if (currentOwner?.value !== "draining" && currentOwner?.value !== "isolated")
+    return { skipped: "legacy_owner_changed" };
   const result =
     job.edition_id !== null &&
     job.current_fingerprint === job.fingerprint &&
     job.profile_status === "provisional"
-      ? await seed(env, job.product_id, job.edition_id, "draining")
+      ? await seed(env, job.product_id, job.edition_id, currentOwner.value)
       : { skipped: "legacy_profile_not_current" };
+  // A late rollback or transition while seeding must not consume this cursor.
+  // The primary insert itself is fenced to the exact owner; replay retains
+  // the identical content-addressed intent and never loses a legacy job.
+  const afterSeedOwner = await env.DB.prepare(
+    "SELECT value FROM cove_runtime_config WHERE key='literary_processing_owner'",
+  ).first<{ value: string }>();
+  if (afterSeedOwner?.value !== currentOwner.value)
+    return { skipped: "legacy_owner_changed_after_seed" };
   const seeded = "outboxId" in result && typeof result.outboxId === "string";
   const disposition = seeded ? "seeded" : "held";
   const outboxId = seeded ? result.outboxId : null;
