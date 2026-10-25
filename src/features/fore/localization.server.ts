@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep bounded public projection and strict first-paint invariant adjacent for audit. */
 import { z } from "zod/v3";
 import { ApiError, now } from "./service";
 import { selectedUiCatalog } from "./ui-catalog.server";
@@ -145,7 +146,27 @@ async function marketWithSupportedLocales(
               WHERE ml2.country_code=sm.country_code AND ml2.active=1) locales
           FROM storefront_markets sm
           WHERE sm.market_status='active' ORDER BY sm.display_name
-        )) available_markets_json`
+        )) available_markets_json,
+        (SELECT json_group_array(json_object(
+          'path', p.path,
+          'page_type', p.page_type,
+          'title', p.title,
+          'heading', p.heading,
+          'eyebrow', p.eyebrow,
+          'description', p.description,
+          'seo_title', p.seo_title,
+          'seo_description', p.seo_description,
+          'noindex', p.noindex,
+          'query_json', p.query_json,
+          'territory_code', p.territory_code,
+          'language_code', p.language_code
+        )) FROM (
+          SELECT * FROM storefront_pages
+          WHERE path='/' AND status='published'
+            AND (starts_at IS NULL OR starts_at<=datetime('now'))
+            AND (ends_at IS NULL OR ends_at>datetime('now'))
+          ORDER BY rowid LIMIT 65
+        ) p) homepage_presentation_json`
     : "";
   const rows = (
     await db
@@ -178,9 +199,15 @@ async function marketWithSupportedLocales(
             .filter(Boolean),
         }))
       : undefined;
+  // A 65th row signals overflow; the consumer must use its live D1 page
+  // lookup rather than omit a territory/language entry.
+  const homepageRows = includeMarkets && rows[0]
+    ? (JSON.parse(String(rows[0].homepage_presentation_json || "[]")) as Record<string, unknown>[])
+    : null;
   return {
     selectedMarket: rows[0] || null,
     availableMarkets,
+    homepageRows,
     localeRows: rows
       .filter((row) => row.active_locale)
       .map((row) => ({
@@ -248,6 +275,7 @@ export async function resolveStorefrontContext(
   userId: string | null,
   fallbackCountry = "US",
   includeMarkets = false,
+  onHomePageRows?: (rows: Record<string, unknown>[] | null) => void,
 ): Promise<StorefrontContext> {
   const network = networkCountry(request, fallbackCountry);
   const pref = await preference(db, userId);
@@ -270,7 +298,7 @@ export async function resolveStorefrontContext(
     effectiveCountry = network.country;
     countrySource = network.source;
   }
-  let { selectedMarket, localeRows, availableMarkets } = await marketWithSupportedLocales(
+  let { selectedMarket, localeRows, availableMarkets, homepageRows } = await marketWithSupportedLocales(
     db,
     effectiveCountry,
     includeMarkets,
@@ -278,7 +306,7 @@ export async function resolveStorefrontContext(
   if (!selectedMarket) {
     effectiveCountry = network.country;
     countrySource = network.source;
-    ({ selectedMarket, localeRows, availableMarkets } = await marketWithSupportedLocales(
+    ({ selectedMarket, localeRows, availableMarkets, homepageRows } = await marketWithSupportedLocales(
       db,
       effectiveCountry,
       includeMarkets,
@@ -287,7 +315,7 @@ export async function resolveStorefrontContext(
   if (!selectedMarket) {
     effectiveCountry = "US";
     countrySource = "default";
-    ({ selectedMarket, localeRows, availableMarkets } = await marketWithSupportedLocales(
+    ({ selectedMarket, localeRows, availableMarkets, homepageRows } = await marketWithSupportedLocales(
       db,
       "US",
       includeMarkets,
@@ -347,6 +375,7 @@ export async function resolveStorefrontContext(
   ];
   const messages = mergeMessages(translationRows.results);
   const methods = paymentMethods.results;
+  if (includeMarkets) onHomePageRows?.(homepageRows);
   return {
     storefrontCountry: effectiveCountry,
     rightsCountry:

@@ -119,6 +119,21 @@ assert.equal(published.length, 1);
 assert.equal(published[0].stations, 6);
 assert.equal(writes.size, 6);
 assert.equal(JSON.parse(writes.get(soundsKey("US", sample.slug))).recordings[0].id, "cm_7");
+// Explicitly configured non-US discovery must fail CLOSED before any private
+// R2/KV write if the authoritative source has no usable regional grants.
+const overseasWrites = [];
+await assert.rejects(() => publishCoveSounds({
+  COVE_SOUNDS_PUBLICATION_ENABLED: "1",
+  COVE_SOUNDS_MARKETS: "GB",
+  SOURCE_DB: { prepare(sql) {
+    return { bind() { return this; }, async all() {
+      if (sql.includes("FROM storefront_markets")) return { results: [{ currency: "GBP" }] };
+      return { results: [] };
+    } };
+  } },
+  SOUNDS_PRESENTATION: { async put(key) { overseasWrites.push(key); } },
+}, at), /territory not publication-ready: GB/);
+assert.deepEqual(overseasWrites, [], "No empty overseas edition snapshot may be published");
 await assert.rejects(() => publishCoveSounds({ COVE_SOUNDS_PUBLICATION_ENABLED: "0" }), /disabled/);
 const analytics = readFileSync("src/features/fore/cove-sounds-analytics.server.ts", "utf8");
 assert.ok(analytics.includes("writeDataPoint"));

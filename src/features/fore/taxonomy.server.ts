@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep bounded public projection and strict first-paint invariant adjacent for audit. */
 import { z } from "zod/v3";
 import type { CatalogDB } from "./catalog-model.server";
 import { ApiError, now } from "./service";
@@ -535,6 +536,30 @@ export async function resolveStorefrontPage(
     )
     .bind(path, territory, language)
     .first<any>();
+  return pageFromPublishedRow(row, path);
+}
+
+/**
+ * An anonymous homepage may reuse the presentation-only rows included in
+ * its fresh market/locale D1 metadata query. Rights, offers and availability
+ * are *never* projected through this helper.
+ */
+export function projectedAnonymousHomePage(
+  candidates: Record<string, unknown>[],
+  territory: string,
+  language: string,
+) {
+  if (!Array.isArray(candidates) || candidates.length > 64)
+    throw new Error("Unbounded homepage presentation projection");
+  const row = candidates.find((candidate) =>
+    (candidate.territory_code == null || candidate.territory_code === territory) &&
+    (candidate.language_code == null ||
+      String(candidate.language_code).toLowerCase() === language.toLowerCase())
+  );
+  return pageFromPublishedRow(row || null, "/");
+}
+
+function pageFromPublishedRow(row: any | null, path: string) {
   if (!row) {
     if (["/", "/store", "/search"].includes(path)) {
       return {

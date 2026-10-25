@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep bounded public projection and strict first-paint invariant adjacent for audit. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -35,7 +36,32 @@ try {
     outfile: path.join(root, "taxonomy.mjs"),
     logLevel: "silent",
   });
-  const { upsertTaxonomyNode, taxonomyTree } = await import(path.join(root, "taxonomy.mjs"));
+  const { upsertTaxonomyNode, taxonomyTree, projectedAnonymousHomePage } = await import(
+    path.join(root, "taxonomy.mjs"),
+  );
+  const emptyHome = projectedAnonymousHomePage([], "US", "en");
+  assert.equal(emptyHome.pageType, "home");
+  assert.equal(emptyHome.canonical, "/");
+  const homeRows = [
+    {
+      path: "/", page_type: "home", title: "US Bookstore",
+      heading: "US Heading", eyebrow: "READ",
+      description: "US description", seo_title: "US Books",
+      seo_description: "US meta", noindex: 0, query_json: "{}",
+      territory_code: "US", language_code: "en",
+    },
+    {
+      path: "/", page_type: "home", title: "GB Bookstore",
+      heading: "GB Heading", eyebrow: "READ",
+      description: "GB description", seo_title: "GB Books",
+      seo_description: "GB meta", noindex: 0, query_json: "{}",
+      territory_code: "GB", language_code: "en",
+    },
+  ];
+  assert.equal(projectedAnonymousHomePage(homeRows, "US", "en").heading, "US Heading");
+  assert.equal(projectedAnonymousHomePage(homeRows, "GB", "en").heading, "GB Heading");
+  assert.equal(projectedAnonymousHomePage(homeRows, "FR", "fr").heading, emptyHome.heading);
+  assert.throws(() => projectedAnonymousHomePage(Array(65).fill(homeRows[0]), "US", "en"), /Unbounded/);
   const env = localBindings(root);
   // Guard the cold SSR path itself, not merely its JSON shape: a future
   // refactor must not silently bring large live taxonomy scans back into
@@ -202,6 +228,11 @@ try {
                       /retail_product_availability_rows/i,
                       "Anonymous replica may never authorize an edition",
                     );
+                    assert.doesNotMatch(
+                      sql,
+                      /SELECT \* FROM storefront_pages WHERE path=\?/i,
+                      "Lean homepage must reuse the same fresh public-page projection",
+                    );
                     return reader.prepare(sql);
                   };
                 const value = Reflect.get(reader, key);
@@ -290,8 +321,8 @@ try {
     assert.equal(limitCalls, 1, "Exactly one enforced Cloudflare edge limit");
     assert.deepEqual(
       sessionModes,
-      ["first-unconstrained", "first-unconstrained"],
-      "Exactly two replica presentation reads: combined market/locale/menu and page",
+      ["first-unconstrained"],
+      "Exactly one replica presentation read: combined market/locale/menu/page",
     );
   }
   assert.ok(joinedMarketLocaleReads >= 4, "One live joined market/locale read per bootstrap");
