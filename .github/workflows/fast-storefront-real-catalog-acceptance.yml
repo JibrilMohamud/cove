@@ -19,6 +19,9 @@ on:
       - "src/features/fore/Community.tsx"
       - "src/features/fore/reading-community.css"
       - "src/features/fore/social.server.ts"
+      - "scripts/staging/verify-literary-postpublication-readonly.mjs"
+      - "wrangler.content-literary-infer.prod-isolated.jsonc"
+      - "wrangler.literary-publisher.prod-isolated.jsonc"
   workflow_dispatch:
 permissions:
   contents: read
@@ -104,6 +107,8 @@ jobs:
       - run: node scripts/check-geo-edge-ingress.mjs
       - run: node scripts/check-storefront-strangler.mjs
       - run: node scripts/build-storefront-strangler.mjs
+      - name: Require actual isolated literary canonical publication before postcutover capacity testing
+        run: node scripts/staging/verify-literary-postpublication-readonly.mjs
       - name: Read-only, bearer-gated real-data mobile and visual preview
         run: node scripts/performance/strangler-real-catalog-acceptance.mjs
       - name: Preserve captured evidence
