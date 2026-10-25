@@ -79,10 +79,13 @@ jobs:
       # Strict mode stops when a required projection request cannot pass.
       # For archived ABBA diagnostics only, manually set this to "0".
       COVE_CAPACITY_FAIL_FAST: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic_full && '0' || '1' }}
-      # Pinned primary remains the default after ingress-local SJC worsened
-      # network tails; the alternative remains selectable for diagnostics.
-      # Private KV replaces repeated presentation R2 reads, not D1 authority.
-      COVE_CAPACITY_PLACEMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.placement || 'primary-pinned' }}
+      # PR-only A/B candidate: avoid forcing all ingress through an ENAM-
+      # adjacent Worker even when the client lands in ORD/LAX. A previous SJC
+      # ingress-local arm was slower; this run must prove or reject the change
+      # under the SAME 3/3 cold, 12k/phase and <800ms absolute gates.
+      # Manual dispatch can still select primary-pinned for paired comparison.
+      # No production routing or legal authority configuration is changed.
+      COVE_CAPACITY_PLACEMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.placement || 'ingress-local' }}
     steps:
       - uses: actions/checkout@v6
         with: { persist-credentials: false }
