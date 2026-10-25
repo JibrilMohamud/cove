@@ -43,10 +43,7 @@ export async function owner() {
 }
 export function artifact(name, body) {
   mkdirSync("artifacts/literary-cutover", { recursive: true });
-  writeFileSync(
-    "artifacts/literary-cutover/" + name,
-    JSON.stringify(body, null, 2) + "\n",
-  );
+  writeFileSync("artifacts/literary-cutover/" + name, JSON.stringify(body, null, 2) + "\n");
 }
 export async function worker(name) {
   const [settings, schedule, info] = await Promise.all([
