@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Schema and safety gates are colocated for reviewer audit; normalize after canary. */
 import type { CoveEnv } from "./api.server";
 import { ApiError, json } from "./service";
 import { stationBySlug, stationRecordings, type CoveSoundsRecording } from "./cove-sounds-stations";
@@ -75,9 +76,9 @@ export async function getSoundsSnapshot(
   try {
     const cached = await env.SOUNDS_PRESENTATION_KV?.get(key, { type: "text" });
     if (cached && new TextEncoder().encode(cached).byteLength <= MAX_BYTES) {
-      try { return validateSoundsSnapshot(JSON.parse(cached), territory, slug, at); } catch {}
+      try { return validateSoundsSnapshot(JSON.parse(cached), territory, slug, at); } catch { /* Expired KV is not authority; R2 is consulted next. */ }
     }
-  } catch {}
+  } catch { /* KV propagation is advisory; R2 remains durable. */ }
   let obj;
   try { obj = await env.SOUNDS_PRESENTATION.get(key); }
   catch { throw new ApiError(503, "Music discovery is temporarily unavailable."); }
