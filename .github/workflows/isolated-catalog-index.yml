@@ -15,6 +15,8 @@ on:
       - "src/storefront-strangler/catalog-index-*.ts"
       - "wrangler.catalog-query.example.jsonc"
       - "scripts/check-isolated-catalog-index.mjs"
+      - "src/storefront-strangler/catalog-index-feed-core.ts"
+      - "scripts/check-isolated-catalog-feed.mjs"
       - "scripts/check-catalog-withdrawal-guard.mjs"
       - "scripts/check-isolated-catalog-query.mjs"
       - "scripts/check-isolated-catalog-authority.mjs"
@@ -35,6 +37,7 @@ jobs:
         with: { node-version: "22", cache: npm }
       - run: npm ci
       - run: node scripts/check-isolated-catalog-index.mjs
+      - run: node scripts/check-isolated-catalog-feed.mjs
       - run: node scripts/check-isolated-catalog-graph.mjs
       - run: node scripts/check-catalog-withdrawal-guard.mjs
       - run: node scripts/check-catalog-evidence-revocation.mjs

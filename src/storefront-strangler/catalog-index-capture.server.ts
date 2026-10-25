@@ -5,6 +5,7 @@ import {
 } from "./catalog-index-core";
 import { prepareIsolatedCanonicalMetadata, catalogPreparationWrite } from "./catalog-normalization-core";
 import { prepareIsolatedCatalogGraph, catalogGraphWrite } from "./catalog-graph-core";
+import { coalesceCatalogFeedChanges } from "./catalog-index-feed-core";
 
 type Statement = {
   bind(...v: unknown[]): Statement;
@@ -13,7 +14,7 @@ type Statement = {
   run(): Promise<{ meta?: { changes?: number } }>;
 };
 type DB = { prepare(sql: string): Statement; batch(statements: Statement[]): Promise<unknown> };
-type Source = DB & { withSession(constraint: "first-unconstrained"): DB };
+type Source = DB & { withSession(constraint: "first-unconstrained" | "first-primary"): DB };
 export type CatalogCaptureEnv = {
   SOURCE_DB: Source;
   CATALOG_INDEX_DB: DB;
@@ -40,6 +41,7 @@ async function assertIsolated(env: CatalogCaptureEnv) {
 }
 async function writeRows(db: DB, rows: RawCatalogIndexRow[], changes: Array<{ id: string; seq: number; operation?: string }>) {
   const byId = new Map(rows.map((row) => [row.id, row]));
+  const writes: Statement[] = [];
   for (const change of changes) {
     const row = change.operation === "delete" ? null : byId.get(change.id) || null;
     const doc = normalizeCatalogIndexRow(row, change.id, change.seq);
@@ -50,12 +52,16 @@ async function writeRows(db: DB, rows: RawCatalogIndexRow[], changes: Array<{ id
     const graph = catalogGraphWrite(
       prepareIsolatedCatalogGraph(row, change.id, change.seq)
     );
-    await db.batch([
+    writes.push(
       db.prepare(write.sql).bind(...write.binds),
       db.prepare(preparation.sql).bind(...preparation.binds),
       db.prepare(graph.sql).bind(...graph.binds),
-    ]);
+    );
   }
+  // Maximum 16 sources x 3 mutations. One isolated transaction and one D1
+  // service roundtrip instead of up to 16 independent batch requests.
+  // The changefeed cursor is ACKed only AFTER this batch commits.
+  if (writes.length) await db.batch(writes);
 }
 async function renew(db: DB, owner: string) {
   const now = Date.now();
@@ -64,10 +70,14 @@ async function renew(db: DB, owner: string) {
   ).bind(now + LEASE_MS, owner, now).first<{ id: number }>();
   if (!lease) throw Error("catalog_index_capture_lease_lost");
 }
-function readOnlySource(source: Source): DB {
-  // Fixed SELECTs below: a capture worker cannot publish rights, normalize
-  // canonical tables or mutate customer-owned D1.
-  return source.withSession("first-unconstrained");
+function readOnlySource(source: Source, feed: boolean): DB {
+  // Backfill is advisory and can use any replica. Live feed capture MUST start
+  // at primary: first read the canonical outbox sequence and then read the
+  // source at least as recent as that sequence under one D1 session bookmark.
+  // An unconstrained replica could advance an outbox cursor while its source
+  // content is still older than an already committed evidence revocation.
+  // Neither session receives write capabilities in the capture Worker.
+  return source.withSession(feed ? "first-primary" : "first-unconstrained");
 }
 export async function captureIsolatedCatalogIndex(env: CatalogCaptureEnv) {
   await assertIsolated(env);
@@ -78,7 +88,7 @@ export async function captureIsolatedCatalogIndex(env: CatalogCaptureEnv) {
     .first<{ backfill_cursor: string; backfill_done: number; feed_cursor: number }>();
   if (!claim) return { busy: true };
   try {
-    const source = readOnlySource(env.SOURCE_DB);
+    const source = readOnlySource(env.SOURCE_DB, !!claim.backfill_done);
     if (!claim.backfill_done) {
       const items = await source.prepare(
         "SELECT " + SELECTION + " FROM gutenberg_source_cache WHERE id>? ORDER BY id LIMIT ?"
@@ -99,19 +109,20 @@ export async function captureIsolatedCatalogIndex(env: CatalogCaptureEnv) {
     ).bind(claim.feed_cursor, BATCH_SIZE)
       .all<{ seq: number; id: string; operation: "upsert" | "delete" }>();
     if (!events.results.length) return { lane: "feed", indexed: 0, cursor: claim.feed_cursor };
-    const ids = [...new Set(events.results.filter((x) => x.operation === "upsert").map((x) => x.id))];
+    const latest = coalesceCatalogFeedChanges(events.results);
+    const ids = latest.filter((x) => x.operation === "upsert").map((x) => x.id);
     const rows = ids.length ? (await source.prepare(
       "SELECT " + SELECTION + " FROM gutenberg_source_cache WHERE id IN (" +
         ids.map(() => "?").join(",") + ")"
     ).bind(...ids).all<RawCatalogIndexRow>()).results : [];
     await renew(env.CATALOG_INDEX_DB, owner);
-    await writeRows(env.CATALOG_INDEX_DB, rows, events.results);
+    await writeRows(env.CATALOG_INDEX_DB, rows, latest);
     const last = events.results.at(-1)!.seq;
     const ack = await env.CATALOG_INDEX_DB.prepare(
       "UPDATE catalog_index_capture SET feed_cursor=? WHERE id=1 AND owner=? AND lease_until>? AND feed_cursor<? RETURNING id"
     ).bind(last, owner, Date.now(), last).first<{ id: number }>();
     if (!ack) throw Error("catalog_index_capture_lease_lost");
-    return { lane: "feed", indexed: events.results.length, cursor: last };
+    return { lane: "feed", indexed: latest.length, events: events.results.length, cursor: last };
   } finally {
     await env.CATALOG_INDEX_DB.prepare(
       "UPDATE catalog_index_capture SET owner='',lease_until=0 WHERE id=1 AND owner=?"
