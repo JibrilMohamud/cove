@@ -126,6 +126,18 @@ jobs:
           binding = "BUCKET"
           bucket_name = "$R2_BUCKET_NAME"
 
+          [[r2_buckets]]
+          binding = "SOUNDS_PRESENTATION"
+          bucket_name = "cove-sounds-private-presentation"
+
+          [[kv_namespaces]]
+          binding = "SOUNDS_PRESENTATION_KV"
+          id = "544267f3cf604c1d8976f1b06d258e24"
+
+          [[analytics_engine_datasets]]
+          binding = "SOUNDS_ANALYTICS"
+          dataset = "cove_sounds_funnel"
+
           [ai]
           binding = "AI"
 
@@ -140,6 +152,7 @@ jobs:
           FORE_AUDIO_COMPUTE_MODE = "paused"
           FORE_AUDIO_MONTHLY_SECONDS = "3600"
           FORE_AUDIO_MIN_INTERVAL_SECONDS = "86400"
+          COVE_SOUNDS_SNAPSHOT_ENABLED = "0"
 
           [secrets]
           required = ["FORE_INGESTION_SIGNING_KEY"]
