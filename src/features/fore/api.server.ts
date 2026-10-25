@@ -2786,8 +2786,10 @@ export async function handleCoveApi(
       // visitor JSON or forgeable x-country headers. Unavailable geolocation
       // is explicitly "ZZ" in aggregate reports.
       const edgeCountry = (request as Request & { cf?: { country?: string } }).cf?.country;
-      const country = typeof edgeCountry === "string" && /^[A-Z]{2}$/.test(edgeCountry)
-        ? edgeCountry : "ZZ";
+      const country =
+        typeof edgeCountry === "string" && /^[A-Z]{2}$/.test(edgeCountry)
+          ? edgeCountry
+          : "ZZ";
       return await handleSoundsAnalytics(request, env, "/sounds/events", country);
     } catch (error) {
       if (error instanceof ApiError) return json({ error: error.message }, error.status);
