@@ -1,0 +1,32 @@
+name: temporary-cove-current-origin-performance
+on:
+  push:
+    branches:
+      - "probe/cove-current-origin-20261025"
+permissions:
+  contents: read
+jobs:
+  strict-origin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Validate strict probe calculations
+        run: node --test scripts/check-production-storefront-performance.test.mjs
+      - name: Measure current production Vercel alias
+        env:
+          COVE_PUBLIC_URL: https://cove-jibrilmohamuds-projects.vercel.app
+        run: node scripts/check-production-storefront-performance.mjs
+      - name: Preserve diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: current-origin-strict-probe
+          path: artifacts/production-storefront-performance.json
+          retention-days: 7
+          if-no-files-found: warn
