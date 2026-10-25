@@ -104,12 +104,15 @@ assert.ok(
   view.includes('"/social/sounds/stations/" + station.slug + "/shelves"'),
   "Creator shelves must use the bounded dedicated endpoint.",
 );
-assert.ok(!view.includes('"/social/discover"'), "Do not load broad member, list and group discovery.");
+assert.ok(
+  !view.includes('"/social/discover"'),
+  "Do not load broad member, list and group discovery.",
+);
 assert.ok(view.includes('enabled: checkBooks && typeof window !== "undefined"'));
 assert.ok(view.includes('enabled: listenRequested && typeof window !== "undefined"'));
 assert.ok(view.includes('enabled: browse && typeof window !== "undefined"'));
 const social = readFileSync("src/features/fore/social.server.ts", "utf8");
-assert.ok(social.includes('LIMIT 9'), "Only one bounded page of shelves can be scanned.");
+assert.ok(social.includes("LIMIT 9"), "Only one bounded page of shelves can be scanned.");
 assert.ok(social.includes("sp.profile_visibility='public'"));
 assert.ok(social.includes("l.visibility='public'"));
 assert.ok(social.includes("l.moderation_status='visible'"));
