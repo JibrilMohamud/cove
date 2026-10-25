@@ -16,6 +16,7 @@ on:
       - "src/routes/sounds.tsx"
       - "src/routes/sounds_.$slug.tsx"
       - "scripts/check-cove-sounds-discovery.mjs"
+      - "scripts/staging/check-cove-sounds-public.mjs"
       - ".github/workflows/cove-sounds-discovery-qa.yml"
   push:
     branches: [main]
@@ -33,6 +34,7 @@ on:
       - "src/routes/sounds.tsx"
       - "src/routes/sounds_.$slug.tsx"
       - "scripts/check-cove-sounds-discovery.mjs"
+      - "scripts/staging/check-cove-sounds-public.mjs"
       - ".github/workflows/cove-sounds-discovery-qa.yml"
 permissions:
   contents: read
@@ -57,3 +59,5 @@ jobs:
           node scripts/check-cove-sounds-snapshot.mjs
       - name: Compile and verify all route and client imports
         run: npm run build
+      - name: Verify live public Cove Sounds station and authorized isolated data
+        run: node scripts/staging/check-cove-sounds-public.mjs
