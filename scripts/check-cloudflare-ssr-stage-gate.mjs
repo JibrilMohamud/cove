@@ -62,10 +62,10 @@ try {
   assert.match(wrangler, /^run_worker_first\s*=\s*true$/m);
   assert.match(wrangler, /\[\[ratelimits\]\][\s\S]*?name = "COVE_STOREFRONT_READ_LIMITER"/);
   assert.match(wrangler, /\[ratelimits\.simple\]\s*\nlimit = 180\s*\nperiod = 60/);
-  // This isolated protected-staging A/B deliberately tests Smart Placement
-  // near D1, not fixed cloud regions or externally nominated origins.
-  // Production remains a separate disabled configuration.
-  assert.match(wrangler, /^\[placement\]\s*\nmode\s*=\s*"smart"$/m);
+  // This isolated trial now tests default ingress-edge placement, matching
+  // the unpublished production candidate rather than Smart Placement.
+  // Do not permit a hidden fixed-region or automatic placement override.
+  assert.doesNotMatch(wrangler, /^\[placement\]\s*$/m);
   assert.doesNotMatch(wrangler, /^region\s*=|^host\s*=|^hostname\s*=/m);
   assert.match(wrangler, /^COVE_SSR_STAGING\s*=\s*"1"$/m);
   assert.doesNotMatch(wrangler, /COVE_SSR_STAGING_GATE_KEY\s*=/);
