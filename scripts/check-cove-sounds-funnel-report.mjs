@@ -31,7 +31,7 @@ assert.deepEqual([gothic.station_view, gothic.music_open, gothic.book_open,
 assert.equal(summary.recordings.length, 1);
 assert.deepEqual([summary.recordings[0].book_open, summary.recordings[0].share], [20, 10]);
 const report = renderSoundsFunnelMarkdown(summary, 7);
-assert.match(report, /20\.0 \| 5\.0 \| 2\.0 \|/);
+assert.match(report, /30\.0 \| 27\.0 \| 5\.0 \| 2\.0 \|/);
 assert.match(report, /not unique-person conversion rates/);
 assert.match(report, /does not prove social-platform posting/);
 assert.match(report, /No attribution proves/);
