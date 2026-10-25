@@ -70,7 +70,7 @@ for (const file of [
     // exact canonical cold-acceptance lock across both workflows.
     assert.ok(body.includes("github.event_name == 'pull_request'"));
     assert.ok(body.includes("format('cove-strangler-pr-{0}', github.event.pull_request.number)"));
-    assert.match(body, /group: .*\\|\\| 'cove-exclusive-real-primary-cold-acceptance' \\}\\}/);
+    assert.ok(body.includes("|| 'cove-exclusive-real-primary-cold-acceptance' }}"));
   }
 }
 const capacity = readFileSync("scripts/staging/check-strangler-live-capacity.mjs", "utf8");
