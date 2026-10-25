@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Preserve explicit fail-closed bounded deployment retry policy. */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 
