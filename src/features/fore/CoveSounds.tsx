@@ -10,6 +10,18 @@ import "./cove-sounds.css";
 type RecordingCatalog = { recordings: CoveSoundsRecording[]; count: number };
 type SnapshotRecordingCatalog = RecordingCatalog & { fallback?: boolean };
 type SnapshotBookCatalog = { fallback?: boolean; books?: CatalogBook[] };
+/** Frontend-before-backend deploy: only a missing endpoint may use the prior
+ * canonical API. A stale/corrupt enabled snapshot (503) fails closed. */
+async function liveOrLegacy<T extends { fallback?: boolean }>(
+  path: string, signal?: AbortSignal,
+): Promise<T> {
+  try { return await api<T>(path, "GET", undefined, { signal }); }
+  catch (error) {
+    if ((error as { status?: number })?.status === 404) return { fallback: true } as T;
+    throw error;
+  }
+}
+
 type SearchReply = { results: CatalogBook[] };
 type PlaylistReply = { provisional: boolean; reason?: string; playlist: { tracks: { recording: CoveSoundsRecording; reasons: string[] }[] } | null };
 type PublicShelf = { id: string; title: string; item_count: number; likes: number; username?: string; user_id: string };
@@ -169,8 +181,8 @@ function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
   const found = useQuery({
     queryKey: ["cove-sounds-editions-v2", station.slug, rightsCountry],
     queryFn: async ({ signal }) => {
-      const isolated = await api<SnapshotBookCatalog>(
-        "/sounds/stations/" + station.slug + "/books", "GET", undefined, { signal },
+      const isolated = await liveOrLegacy<SnapshotBookCatalog>(
+        "/sounds/stations/" + station.slug + "/books", signal,
       );
       if (!isolated.fallback) return isolated.books || [];
       // Disabled rollout only: preserve the existing territory-safe catalog.
@@ -194,7 +206,7 @@ function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
         <h2 id="sounds-books-title">Turn the atmosphere into a book.</h2>
         <p>Available editions are verified against the selected storefront market; these editorial pairings aren't automatic recommendations.</p>
       </div>
-      {!checkBooks && (
+      {(!checkBooks || (found.isSuccess && !books.length)) && (
         <div className="sounds-editorial-books">
           {station.books.map((book) => (
             <a className="sounds-editorial-book" key={book.title} href={"/store?search=" + encodeURIComponent(book.title)}>
@@ -210,7 +222,7 @@ function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
       </button>
       {checkBooks && found.isPending && <p role="status">Checking books available in your region…</p>}
       {checkBooks && found.isError && <p role="alert">The catalog could not be checked right now. Try again in the bookstore.</p>}
-      {found.isSuccess && !books.length && <p role="status">The featured editions aren't available in your region yet. Browse the <a href="/store">bookstore</a> instead.</p>}
+      {found.isSuccess && !books.length && <p role="status">No exact featured editions matched this snapshot. Use the title searches above or browse the <a href="/store">bookstore</a>.</p>}
       <div className="sounds-books-grid">
         {books.map((book) => (
           <article className="sounds-book" key={String(book.publicProductId || book.id)}>
@@ -312,7 +324,7 @@ function StationDetail({ station }: { station: CoveSoundsStation }) {
   const catalog = useQuery({
     queryKey: ["cove-sounds-recordings-v2", station.slug, rightsCountry],
     queryFn: async () => {
-      const isolated = await api<SnapshotRecordingCatalog>("/sounds/stations/" + station.slug + "/recordings");
+      const isolated = await liveOrLegacy<SnapshotRecordingCatalog>("/sounds/stations/" + station.slug + "/recordings");
       return isolated.fallback ? api<RecordingCatalog>("/soundtracks/recordings") : isolated;
     },
     enabled: listenRequested && typeof window !== "undefined",
