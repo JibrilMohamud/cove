@@ -2087,6 +2087,7 @@ export async function runCatalogIngestion(
     const accepted = payload.results.filter(
       (book: any) => book.copyright === false && Boolean(epubSource(book.formats || {})),
     );
+    /* eslint-disable prettier/prettier -- Keep exact legal comparison and limited write bypass auditable together. */
     // A Gutendex page is normally 32 items. One bounded primary read detects
     // books whose complete, previously published catalog projection still
     // exactly matches the source. Avoid re-executing ~30 canonical writes and
@@ -2107,19 +2108,19 @@ export async function runCatalogIngestion(
           JOIN catalog_search_documents d ON d.product_id=('prd_gutenberg_'||c.id)
           JOIN products p ON p.id=d.product_id
           WHERE c.id IN (${accepted.map(() => "?").join(",")})`)
-        .bind(...accepted.map((book: any) => String(book.id)))
+        .bind(...accepted.map((book: CatalogBook) => String(book.id)))
         .all<Record<string, unknown>>();
       for (const row of rows.results) previous.set(String(row.id), row);
     }
-    const unchanged = accepted.filter((book: any) =>
+    const unchanged = accepted.filter((book: CatalogBook) =>
       unchangedNormalizedGutendexBook(
         book,
         previous.get(String(book.id)),
         book.formats?.["text/html"] || "https://www.gutenberg.org/ebooks/" + book.id + "/",
       ),
     );
-    const unchangedIds = new Set(unchanged.map((book: any) => String(book.id)));
-    const changed = accepted.filter((book: any) => !unchangedIds.has(String(book.id)));
+    const unchangedIds = new Set(unchanged.map((book: CatalogBook) => String(book.id)));
+    const changed = accepted.filter((book: CatalogBook) => !unchangedIds.has(String(book.id)));
     // last_seen_at is a source-observation heartbeat, not a rights grant.
     // Preserve it even for unchanged rows, without triggering canonical FTS
     // rebuilds, changing normalized updated_at, or reissuing rights grants.
@@ -2127,9 +2128,9 @@ export async function runCatalogIngestion(
       await db.prepare(
         `UPDATE gutenberg_source_cache SET last_seen_at=?,source_updated_at=?
          WHERE id IN (${unchanged.map(() => "?").join(",")})`,
-      ).bind(at, at, ...unchanged.map((book: any) => String(book.id))).run();
+      ).bind(at, at, ...unchanged.map((book: CatalogBook) => String(book.id))).run();
     }
-    const statements = changed.map((book: any) =>
+    const statements = changed.map((book: CatalogBook) =>
       catalogInsert(
         db,
         book,
@@ -2142,6 +2143,7 @@ export async function runCatalogIngestion(
       await db.batch(commercialCatalogStatements(db, String(book.id), at));
       await syncEditionTaxonomy(db, catalogIds(String(book.id)).editionId);
     }
+    /* eslint-enable prettier/prettier */
     if (!options.deferSearchSync) {
       await syncSearchIndex(env, Math.min(500, Math.max(50, accepted.length))).catch((error) =>
         console.warn("Catalog search sync failed", error),
