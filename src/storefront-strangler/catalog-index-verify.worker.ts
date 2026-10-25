@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep private catalog-authority boundary checks locally auditable. */
 import {
   verifyIsolatedCatalogCandidates,
   type CatalogIndexVerifyEnv,

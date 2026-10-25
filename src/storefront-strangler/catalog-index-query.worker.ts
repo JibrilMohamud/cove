@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep private catalog-authority boundary checks locally auditable. */
 import { queryIsolatedCatalogIndex, type CatalogQueryEnv } from "./catalog-index-query.server";
 
 // Private service binding only. This worker has NO rights/commerce D1 binding.

@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep private catalog-authority boundary checks locally auditable. */
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
 
 // This is a private QA bridge: index results are only anonymous candidates.
