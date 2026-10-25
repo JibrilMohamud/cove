@@ -19,7 +19,7 @@ import { loadEdition } from "./audio-client";
 import { cueForAudio, type AudioEdition } from "./domain";
 import { loadBookMetadata } from "./epub";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { reportSoundsConversion } from "./cove-sounds-attribution.client";
+import { reportSoundsConversion } from "./cove-sounds-attribution";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import {
