@@ -1990,7 +1990,9 @@ export async function syncSearchIndex(env: SearchEnv, limit = 100) {
       // One primary D1 write, up to 500 independently fenced rows. A newer
       // event's change_token differs and must never be removed by this old
       // Meilisearch task acknowledgement.
-      await env.DB.prepare(ack.sql).bind(...ack.binds).run();
+      await env.DB.prepare(ack.sql)
+        .bind(...ack.binds)
+        .run();
     }
     const remaining = await env.DB.prepare(
       "SELECT COUNT(*) count FROM search_index_outbox",
