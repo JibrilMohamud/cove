@@ -95,7 +95,11 @@ try {
   let seeds = 0;
   const intents = new Set();
   const seed = async (_, productId, editionId, requiredOwner) => {
-    assert.equal(requiredOwner, "draining", "The primary INSERT must atomically fence owner");
+    assert.equal(
+      requiredOwner,
+      primary.prepare("SELECT value FROM cove_runtime_config").get().value,
+      "The primary INSERT must atomically fence the current canonical owner",
+    );
     seeds++;
     assert.equal(editionId, productId === "p_a" ? "e_a" : "e_b");
     if (productId === "p_b") return { skipped: "source_or_rights_ineligible" };
@@ -180,8 +184,18 @@ try {
     "held",
   );
   primary.prepare("UPDATE cove_runtime_config SET value='isolated'").run();
+  secondary
+    .prepare("UPDATE literary_legacy_reconcile_frontier SET status='armed',after_job_id=''")
+    .run();
   assert.deepEqual(await reconcileOneLegacyLiteraryJob(env, seed), {
-    skipped: "legacy_owner_not_draining",
+    reconciled: "job_a",
+    disposition: "seeded",
+    outboxId: "outbox_a",
+  });
+  assert.equal(cursor().after_job_id, "job_a");
+  primary.prepare("UPDATE cove_runtime_config SET value='legacy'").run();
+  assert.deepEqual(await reconcileOneLegacyLiteraryJob(env, seed), {
+    skipped: "legacy_owner_not_reconciling",
   });
   secondary.exec("CREATE TABLE rights_grants(id TEXT PRIMARY KEY)");
   secondary.prepare("UPDATE literary_legacy_reconcile_frontier SET status='armed'").run();
