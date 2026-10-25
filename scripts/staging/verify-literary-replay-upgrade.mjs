@@ -22,9 +22,15 @@ async function query(db, sql) {
 const primary = "4bd657ac-8789-403e-a28c-93aba8d0a989";
 const secondary = "400c3af3-5d40-41fd-83cc-98228e40ddac";
 const [config, frontier, leases] = await Promise.all([
-  query(primary, "SELECT key,value FROM cove_runtime_config WHERE key IN ('literary_processing_owner','literary_budget_domain')"),
+  query(
+    primary,
+    "SELECT key,value FROM cove_runtime_config WHERE key IN (\'literary_processing_owner\',\'literary_budget_domain\')",
+  ),
   query(secondary, "SELECT status FROM literary_legacy_reconcile_frontier WHERE id=1"),
-  query(primary, "SELECT COUNT(*) n FROM literary_profile_jobs WHERE status='running' AND lease_until>strftime('%Y-%m-%dT%H:%M:%fZ','now')"),
+  query(
+    primary,
+    "SELECT COUNT(*) n FROM literary_profile_jobs WHERE status=\'running\' AND lease_until>strftime(\'%Y-%m-%dT%H:%M:%fZ\',\'now\')",
+  ),
 ]);
 assert.deepEqual(Object.fromEntries(config.map((r) => [r.key, r.value])), {
   literary_budget_domain: "isolated",
