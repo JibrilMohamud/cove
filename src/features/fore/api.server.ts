@@ -2139,10 +2139,15 @@ export async function runCatalogIngestion(
       ),
     );
     if (statements.length) await db.batch(statements);
-    for (const book of changed) {
+    for (const book of changed)
       await db.batch(commercialCatalogStatements(db, String(book.id), at));
+    // This must run even when the source and canonical rows were unchanged:
+    // a previous run may have failed *after* canonical normalization but
+    // before taxonomy/outbox publication, and mapping rules may have changed.
+    // Source-equivalent items skip heavyweight normalized table/FTS writes,
+    // never the independently retryable taxonomy and revocation processing.
+    for (const book of accepted)
       await syncEditionTaxonomy(db, catalogIds(String(book.id)).editionId);
-    }
     /* eslint-enable prettier/prettier */
     if (!options.deferSearchSync) {
       await syncSearchIndex(env, Math.min(500, Math.max(50, accepted.length))).catch((error) =>
