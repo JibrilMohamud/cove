@@ -63,9 +63,10 @@ for (let i = 0; i < 88; i++) {
 assert.ok(drained, "Legacy leases failed to drain after owner and budget fences");
 assert.deepEqual(await owner(), { literary: "draining", budget: "isolated" });
 const day = new Date().toISOString().slice(0, 10);
+const daySql = "'" + day + "'";
 const [spent, prepared] = await Promise.all([
-  query(primary, "SELECT reserved_units,calls FROM literary_profile_budget WHERE day='" + day + "'"),
-  query(content, "SELECT status FROM literary_budget_cutover WHERE day='" + day + "'"),
+  query(primary, "SELECT reserved_units,calls FROM literary_profile_budget WHERE day=" + daySql),
+  query(content, "SELECT status FROM literary_budget_cutover WHERE day=" + daySql),
 ]);
 const units = Number(spent[0]?.reserved_units || 0);
 const calls = Number(spent[0]?.calls || 0);
@@ -74,25 +75,29 @@ assert.ok(Number.isSafeInteger(calls) && calls >= 0);
 assert.equal(prepared[0]?.status, "prepared");
 // Only the independent budget data plane changes here. No permission to
 // reserve isolated units until the later, separately gated owner takeover.
-await query(
-  content,
-  "INSERT INTO literary_profile_budget(day,reserved_units,calls)" +
-    " VALUES('" + day + "'," + units + "," + calls + ")" +
-    " ON CONFLICT(day) DO UPDATE SET" +
-    " reserved_units=MAX(reserved_units,excluded.reserved_units)," +
-    " calls=MAX(calls,excluded.calls)",
-);
-await query(
-  content,
-  "UPDATE literary_budget_cutover SET" +
-    " original_reserved_units=MAX(original_reserved_units," + units + ")," +
-    " original_calls=MAX(original_calls," + calls + ")," +
-    " prepared_at=" + nowSql +
-    " WHERE day='" + day + "' AND status='prepared'",
-);
+const seedSql = [
+  "INSERT INTO literary_profile_budget(day,reserved_units,calls)",
+  " VALUES(" + daySql + "," + units + "," + calls + ")",
+  " ON CONFLICT(day) DO UPDATE SET",
+  " reserved_units=MAX(reserved_units,excluded.reserved_units),",
+  " calls=MAX(calls,excluded.calls)",
+].join("");
+await query(content, seedSql);
+const transferSql = [
+  "UPDATE literary_budget_cutover SET",
+  " original_reserved_units=MAX(original_reserved_units," + units + "),",
+  " original_calls=MAX(original_calls," + calls + "),",
+  " prepared_at=" + nowSql,
+  " WHERE day=" + daySql + " AND status='prepared'",
+].join("");
+await query(content, transferSql);
 const [carried, transfer] = await Promise.all([
-  query(content, "SELECT reserved_units,calls FROM literary_profile_budget WHERE day='" + day + "'"),
-  query(content, "SELECT status,original_reserved_units,original_calls FROM literary_budget_cutover WHERE day='" + day + "'"),
+  query(content, "SELECT reserved_units,calls FROM literary_profile_budget WHERE day=" + daySql),
+  query(
+    content,
+    "SELECT status,original_reserved_units,original_calls FROM literary_budget_cutover WHERE day=" +
+      daySql,
+  ),
 ]);
 assert.ok(carried[0].reserved_units >= units && carried[0].calls >= calls);
 assert.equal(transfer[0]?.status, "prepared");
