@@ -10,7 +10,10 @@ async function query(database, sql) {
   assert.match(sql, /^SELECT\b/);
   const response = await fetch(
     "https://api.cloudflare.com/client/v4/accounts/" +
-      account + "/d1/database/" + database + "/query",
+      account +
+      "/d1/database/" +
+      database +
+      "/query",
     {
       method: "POST",
       headers: {
@@ -42,7 +45,8 @@ const [owner, published, frontier, cutover] = await Promise.all([
   query(
     contentId,
     "SELECT status FROM literary_budget_cutover WHERE day='" +
-      new Date().toISOString().slice(0, 10) + "'",
+      new Date().toISOString().slice(0, 10) +
+      "'",
   ),
 ]);
 assert.deepEqual(Object.fromEntries(owner.map((x) => [x.key, x.value])), {
@@ -57,7 +61,9 @@ for (const job of published) {
   const profile = await query(
     primary,
     "SELECT fingerprint,revision,status,coverage FROM literary_profiles" +
-      " WHERE product_id='" + job.product_id + "'",
+      " WHERE product_id='" +
+      job.product_id +
+      "'",
   );
   assert.deepEqual(profile, [
     {
