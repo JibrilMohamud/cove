@@ -1,6 +1,6 @@
 /* eslint-disable prettier/prettier -- Initial music discovery UI follows the existing SoundtrackLibrary style until layout normalization. */
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { ArrowRight, BookOpen, Check, Copy, Headphones, Music2, Share2, Sparkles } from "lucide-react";
 import { api, authorOf, coverOf, editionPath, useAccount, type CatalogBook } from "./client";
 import { useStorefrontLocale } from "./localization";
@@ -10,7 +10,7 @@ import "./cove-sounds.css";
 type RecordingCatalog = { recordings: CoveSoundsRecording[]; count: number };
 type SearchReply = { results: CatalogBook[] };
 type PlaylistReply = { provisional: boolean; reason?: string; playlist: { tracks: { recording: CoveSoundsRecording; reasons: string[] }[] } | null };
-type PublicShelf = { id: string; title: string; description: string; item_count: number; likes: number; username?: string; user_id: string };
+type PublicShelf = { id: string; title: string; item_count: number; likes: number; username?: string; user_id: string };
 const labelFor = (station: CoveSoundsStation) => "Cove Sounds: " + station.title;
 const canonicalStation = (station: CoveSoundsStation) => "https://cove-puce-theta.vercel.app/sounds/" + station.slug;
 const profileMarker = (station: CoveSoundsStation) => "#CoveSounds/" + station.slug;
@@ -147,6 +147,7 @@ function BookSoundtrackPreview({ book, station }: { book: CatalogBook; station: 
 
 function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
   const { rightsCountry } = useStorefrontLocale();
+  const [checkBooks, setCheckBooks] = useState(false);
   const found = useQuery({
     queryKey: ["cove-sounds-editions", station.slug, rightsCountry],
     queryFn: ({ signal }) => Promise.all(station.books.map(async ({ title, author }) => {
@@ -157,7 +158,7 @@ function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
         return null;
       }
     })),
-    enabled: typeof window !== "undefined",
+    enabled: checkBooks && typeof window !== "undefined",
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -169,7 +170,22 @@ function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
         <h2 id="sounds-books-title">Turn the atmosphere into a book.</h2>
         <p>Available editions are verified against the selected storefront market; these editorial pairings aren't automatic recommendations.</p>
       </div>
-      {found.isPending && <p role="status">Checking books available in your region…</p>}
+      {!checkBooks && (
+        <div className="sounds-editorial-books">
+          {station.books.map((book) => (
+            <a className="sounds-editorial-book" key={book.title} href={"/store?search=" + encodeURIComponent(book.title)}>
+              <BookOpen size={19} aria-hidden="true" />
+              <span><strong>{book.title}</strong><small>{book.author}</small></span>
+              <ArrowRight size={15} aria-hidden="true" />
+            </a>
+          ))}
+        </div>
+      )}
+      <button type="button" className="sounds-explore-button" onClick={() => { setCheckBooks(true); if (checkBooks) void found.refetch(); }} disabled={checkBooks && found.isPending}>
+        <BookOpen size={16} aria-hidden="true" /> {checkBooks ? "Refresh available editions" : "Check book editions available in my region"}
+      </button>
+      {checkBooks && found.isPending && <p role="status">Checking books available in your region…</p>}
+      {checkBooks && found.isError && <p role="alert">The catalog could not be checked right now. Try again in the bookstore.</p>}
       {found.isSuccess && !books.length && <p role="status">The featured editions aren't available in your region yet. Browse the <a href="/store">bookstore</a> instead.</p>}
       <div className="sounds-books-grid">
         {books.map((book) => (
@@ -195,14 +211,21 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
   const { data, signIn } = useAccount();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const publicShelves = useQuery({
-    queryKey: ["cove-sounds-public-shelves", station.slug, data.user?.id || "guest"],
-    queryFn: () => api<{ lists: PublicShelf[] }>("/social/discover"),
-    enabled: typeof window !== "undefined",
-    staleTime: 2 * 60_000,
+  const [browse, setBrowse] = useState(false);
+  const publicShelves = useInfiniteQuery({
+    queryKey: ["cove-sounds-station-shelves-v2", station.slug, data.user?.id || "guest"],
+    initialPageParam: "",
+    queryFn: ({ pageParam, signal }) => api<{ shelves: PublicShelf[]; nextCursor: string | null }>(
+      "/social/sounds/stations/" + station.slug + "/shelves" +
+        (pageParam ? "?after=" + encodeURIComponent(pageParam) : ""),
+      "GET", undefined, { signal },
+    ),
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    enabled: browse && typeof window !== "undefined",
+    staleTime: 60_000,
     retry: false,
   });
-  const shelves = (publicShelves.data?.lists || []).filter((s) => s.description?.includes(profileMarker(station))).slice(0, 6);
+  const shelves = publicShelves.data?.pages.flatMap((page) => page.shelves) || [];
   async function createShelf() {
     if (!data.user) { signIn(); return; }
     setBusy(true); setMessage("");
@@ -231,6 +254,12 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
         <Sparkles size={17} aria-hidden="true" /> {busy ? "Creating…" : "Create a public listening shelf"}
       </button>
       {message && <p role="alert">{message}</p>}
+      <button type="button" className="sounds-explore-button" onClick={() => { setBrowse(true); if (browse) void publicShelves.refetch(); }} disabled={browse && publicShelves.isPending}>
+        <BookOpen size={16} aria-hidden="true" /> {browse ? "Refresh reader-created shelves" : "Explore reader-created shelves"}
+      </button>
+      {browse && publicShelves.isPending && <p role="status">Finding public listening shelves…</p>}
+      {browse && publicShelves.isError && <p role="alert">Reader shelves are unavailable right now.</p>}
+      {browse && publicShelves.isSuccess && shelves.length === 0 && <p>Be the first to curate a public reading shelf for this atmosphere.</p>}
       {shelves.length > 0 && (
         <div className="sounds-shelves-grid">
           {shelves.map((s) => (
@@ -241,6 +270,11 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
           ))}
         </div>
       )}
+      {browse && publicShelves.hasNextPage && (
+        <button type="button" className="sounds-explore-button" onClick={() => void publicShelves.fetchNextPage()} disabled={publicShelves.isFetchingNextPage}>
+          {publicShelves.isFetchingNextPage ? "Loading more shelves…" : "Show more reading shelves"}
+        </button>
+      )}
     </section>
   );
 }
@@ -248,17 +282,18 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
 function StationDetail({ station }: { station: CoveSoundsStation }) {
   const { rightsCountry } = useStorefrontLocale();
   const [selectedId, setSelectedId] = useState("");
+  const [listenRequested, setListenRequested] = useState(false);
   const player = useRef<HTMLAudioElement>(null);
   const catalog = useQuery({
     queryKey: ["cove-sounds-recordings", rightsCountry],
     queryFn: () => api<RecordingCatalog>("/soundtracks/recordings"),
-    enabled: typeof window !== "undefined",
+    enabled: listenRequested && typeof window !== "undefined",
     staleTime: 5 * 60_000,
     retry: false,
   });
   const tracks = useMemo(() => stationRecordings(station, catalog.data?.recordings || []), [station, catalog.data]);
   const selected = tracks.find((track) => track.id === selectedId) || tracks[0];
-  useEffect(() => { player.current?.pause(); setSelectedId(""); }, [station.slug, rightsCountry]);
+  useEffect(() => { player.current?.pause(); setSelectedId(""); setListenRequested(false); }, [station.slug, rightsCountry]);
   return (
     <div className="sounds-experience" style={{ "--sounds-accent": station.accent } as CSSProperties}>
       <a href="/sounds" className="sounds-back">← All listening stations</a>
@@ -276,9 +311,14 @@ function StationDetail({ station }: { station: CoveSoundsStation }) {
           <h2 id="sounds-listening-title">What this story world sounds like.</h2>
           <p>Original, rights-reviewed performances. Choose a recording to begin; nothing plays automatically.</p>
         </div>
-        {catalog.isPending && <p role="status">Checking recordings licensed for your region…</p>}
-        {catalog.isError && <p role="alert">Listening is unavailable right now. <a href="/soundtracks">Visit the soundtrack library</a> to retry.</p>}
-        {catalog.isSuccess && !tracks.length && <p role="status">No suitable rights-reviewed recordings are available for this atmosphere in your region yet. Explore the featured books below.</p>}
+        {!listenRequested && (
+          <button type="button" className="sounds-explore-button" onClick={() => setListenRequested(true)}>
+            <Headphones size={17} aria-hidden="true" /> Explore rights-reviewed music
+          </button>
+        )}
+        {listenRequested && catalog.isPending && <p role="status">Checking recordings licensed for your region…</p>}
+        {listenRequested && catalog.isError && <p role="alert">Listening is unavailable right now. <button type="button" className="sounds-explore-button" onClick={() => void catalog.refetch()}>Retry recordings</button> <a href="/soundtracks">Visit the soundtrack library</a>.</p>}
+        {listenRequested && catalog.isSuccess && !tracks.length && <p role="status">No suitable rights-reviewed recordings are available for this atmosphere in your region yet. Explore the featured books below.</p>}
         {selected && (
           <div className="sounds-player">
             <div className="sounds-player-now">
