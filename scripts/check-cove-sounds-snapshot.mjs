@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep the evidence gates and failure assertions adjacent until source normalization. */
 import assert from "node:assert/strict";
 import { build } from "esbuild";
 import { readFileSync } from "node:fs";
