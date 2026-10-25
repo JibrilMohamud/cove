@@ -104,7 +104,8 @@ function StationShare({ station }: { station: CoveSoundsStation }) {
   );
 }
 
-function BookSoundtrackPreview({ book, station }: { book: CatalogBook; station: CoveSoundsStation }) {\n  const [shareMessage, setShareMessage] = useState("");
+function BookSoundtrackPreview({ book, station }: { book: CatalogBook; station: CoveSoundsStation }) {
+  const [shareMessage, setShareMessage] = useState("");
   const [expanded, setExpanded] = useState(false);
   const id = String(book.publicProductId || book.productId || book.id);
   const { rightsCountry } = useStorefrontLocale();
@@ -130,7 +131,9 @@ function BookSoundtrackPreview({ book, station }: { book: CatalogBook; station: 
               <p><strong>{first.recording.title}</strong> · {first.recording.composer}</p>
               <p>{first.reasons.slice(0, 2).join(" · ")}</p>
               <audio controls preload="none" src={first.recording.audioUrl} aria-label={"Book-specific match: " + first.recording.title} onPlay={(event) => { document.querySelectorAll<HTMLAudioElement>("audio").forEach((other) => { if (other !== event.currentTarget) other.pause(); }); }} />
-              <button type="button" className="sounds-book-preview-toggle" onClick={() => void shareArtwork(station, { title: book.title, recording: first.recording.title }).then(setShareMessage).catch(() => setShareMessage("Sharing is unavailable."))}><Share2 size={15} aria-hidden="true" /> Share book + soundtrack image</button>\n              {shareMessage && <p role="status">{shareMessage}</p>}\n              <a href={first.recording.licenseUrl} target="_blank" rel="noopener noreferrer">Recording license and attribution</a>
+              <button type="button" className="sounds-book-preview-toggle" onClick={() => void shareArtwork(station, { title: book.title, recording: first.recording.title }).then(setShareMessage).catch(() => setShareMessage("Sharing is unavailable."))}><Share2 size={15} aria-hidden="true" /> Share book + soundtrack image</button>
+              {shareMessage && <p role="status">{shareMessage}</p>}
+              <a href={first.recording.licenseUrl} target="_blank" rel="noopener noreferrer">Recording license and attribution</a>
               <p className="sounds-small">{first.recording.attribution}</p>
             </>
           ) : null}
