@@ -1598,14 +1598,14 @@ export async function handleSocial(
   // Music visitors explicitly request creator shelves. This narrowly scoped,
   // keyset-paginated read replaces the broad social/discover call (which also
   // loads member discovery and groups) and never searches private lists.
-  const soundsShelvesRoute = /^\\/social\\/sounds\\/stations\\/([a-z0-9-]+)\\/shelves$/.exec(path);
+  const soundsShelvesRoute = /^\/social\/sounds\/stations\/([a-z0-9-]+)\/shelves$/.exec(path);
   if (method === "GET" && soundsShelvesRoute) {
     const station = stationBySlug(soundsShelvesRoute[1]);
     if (!station) throw new ApiError(404, "Listening station not found.");
     const rawCursor = url.searchParams.get("after") || "";
     if (rawCursor.length > 140) throw new ApiError(400, "Invalid creator shelf cursor.");
     const cursor = rawCursor
-      ? /^(\\d{4}-\\d{2}-\\d{2}T[\\d:.]+Z)\\|(list_[a-z0-9-]{1,65})$/.exec(rawCursor)
+      ? /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)\|(list_[a-z0-9-]{1,65})$/.exec(rawCursor)
       : null;
     if (rawCursor && !cursor) throw new ApiError(400, "Invalid creator shelf cursor.");
     const marker = "#CoveSounds/" + station.slug;
