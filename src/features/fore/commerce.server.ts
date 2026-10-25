@@ -19,6 +19,7 @@ import {
 } from "./preorder.server";
 import { recordPromotionAttribution } from "./promotions.server";
 import { recordRetailEvent } from "./retail-intelligence.server";
+import { stationBySlug } from "./cove-sounds-stations";
 import { emitNotification } from "./notifications.server";
 import { ensureOwnershipSnapshot } from "./delivery.server";
 import {
@@ -794,7 +795,15 @@ async function reservePromo(db: CatalogDB, order: AnyRow) {
 
 export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unknown) {
   const input = z
-      .object({ quoteId: z.string().min(8).max(120), idempotencyKey: z.string().min(16).max(200) })
+      .object({
+        quoteId: z.string().min(8).max(120),
+        idempotencyKey: z.string().min(16).max(200),
+        soundsStation: z.string().max(80).optional(),
+        soundsRecording: z
+          .string()
+          .regex(/^(?:cm_[0-9]{1,15}|ex_[0-9a-f-]{36})$/)
+          .optional(),
+      })
       .parse(raw),
     db = env.DB;
   let existing = await db
@@ -883,6 +892,17 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
       .first<any>();
     if (raced) return existingOrderSetup(env, raced);
     throw e;
+  }
+  // One optional, bounded checkout-time referral. It is never payment authority.
+  // The foreign-keyed order makes later aggregation independently verifiable
+  // against the paid/refunded state; no click analytics are written to D1.
+  if (input.soundsStation && stationBySlug(input.soundsStation)) {
+    await db
+      .prepare(
+        "INSERT OR IGNORE INTO commerce_sounds_purchase_attribution(order_id,station_slug,recording_id,captured_at) VALUES(?,?,?,?)",
+      )
+      .bind(orderId, input.soundsStation, input.soundsRecording || null, at)
+      .run();
   }
   for (const item of items) {
     const lineTax = Number(item.taxMinor || 0),

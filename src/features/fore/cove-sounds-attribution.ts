@@ -56,3 +56,16 @@ export function reportSoundsConversion(event: Signal, localRef: string) {
     keepalive: true,
   }).catch(() => {});
 }
+
+/** A checkout referral is a privacy-aware, self-declared session association.
+ * Only server-owned paid-order state can later establish a verified purchase.
+ * No account, book, or order identifiers are placed in browser attribution. */
+export function soundsCheckoutReferral():
+  { soundsStation: string; soundsRecording?: string } | null {
+  const referral = load();
+  if (!referral) return null;
+  return {
+    soundsStation: referral.station,
+    ...(referral.recording ? { soundsRecording: referral.recording } : {}),
+  };
+}

@@ -17,6 +17,10 @@ export async function handleSoundsAnalytics(
 ): Promise<Response | null> {
   if (path !== "/sounds/events") return null;
   if (request.method !== "POST") throw new ApiError(405, "Method not allowed");
+  // Honor privacy opt-outs at the collector, independently of the UI.
+  // This is defense-in-depth: browser traffic may reach us through a relay.
+  if (request.headers.get("sec-gpc") === "1" || request.headers.get("dnt") === "1")
+    return json({ accepted: false, reason: "privacy_opt_out" }, 202);
   if (Number(request.headers.get("content-length") || "0") > 1024)
     throw new ApiError(413, "Event too large");
   const raw = await request.text();
