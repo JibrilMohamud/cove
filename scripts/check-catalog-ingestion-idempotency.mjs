@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep exact legal state assertions and source comparison adjacent for audit. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { transform } from "esbuild";
