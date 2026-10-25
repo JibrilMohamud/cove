@@ -57,6 +57,8 @@ source.execute("INSERT INTO gutenberg_source_cache(id,title) VALUES('2701','Init
 assert source.execute('SELECT operation FROM catalog_index_changefeed').fetchall()==[('upsert',)]
 source.execute("UPDATE gutenberg_source_cache SET download_count=42 WHERE id='2701'")
 assert source.execute('SELECT count(*) FROM catalog_index_changefeed').fetchone()[0]==1
+source.execute("UPDATE gutenberg_source_cache SET title=title WHERE id='2701'")
+assert source.execute('SELECT count(*) FROM catalog_index_changefeed').fetchone()[0]==1
 source.execute("UPDATE gutenberg_source_cache SET rights_status='rejected' WHERE id='2701'")
 source.execute("DELETE FROM gutenberg_source_cache WHERE id='2701'")
 events=source.execute('SELECT seq,operation FROM catalog_index_changefeed ORDER BY seq').fetchall()
