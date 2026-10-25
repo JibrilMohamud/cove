@@ -14,7 +14,7 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
     funnelEvents.push(payload);
     expect(Object.keys(payload).sort()).toEqual(["event", "station"]);
     expect(payload.station).toBe("gothic-hour");
-    expect(payload.event).toBe("music_open");
+    expect(["station_view", "music_open"]).toContain(payload.event);
     await route.fulfill({ status: 202, json: { accepted: true } });
   });
   page.on("pageerror", (error) => errors.push(error.message));
@@ -31,6 +31,7 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
   await page.goto("/sounds/gothic-hour");
   await expect(page.locator('html[data-cove-client-ready="true"]')).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "The Gothic Hour" })).toBeVisible();
+  await expect.poll(() => funnelEvents.some((item) => item.event === "station_view")).toBe(true);
   await expect(page.getByRole("link", { name: "Share on X" })).toHaveAttribute(
     "href", /cove-jibrilmohamuds-projects.vercel.app/,
   );
@@ -44,7 +45,7 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
   await page.getByRole("button", { name: "Explore rights-reviewed music" }).click();
   await musicRequest;
   await expect.poll(() => reads.recordings).toBe(1);
-  await expect.poll(() => funnelEvents.length).toBe(1);
+  await expect.poll(() => funnelEvents.some((item) => item.event === "music_open")).toBe(true);
   expect(reads.catalog).toBe(0);
   expect(reads.shelves).toBe(0);
 
