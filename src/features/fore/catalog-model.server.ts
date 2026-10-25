@@ -823,6 +823,20 @@ export async function authorizeStorefrontPresentationIds(
         AND d.currency=? AND ?=(SELECT currency FROM market)
         AND EXISTS (SELECT 1 FROM retail_product_availability_rows rpa
           WHERE rpa.product_id=p.id AND rpa.territory_code=?)
+        -- A source-derived grant may still appear active before older
+        -- installations receive the evidence-withdrawal trigger. Recheck the
+        -- CURRENT primary source and actual approved country evidence too.
+        -- No stale replica or independent search index may authorize it.
+        AND (p.source_name<>'gutenberg' OR EXISTS (
+          SELECT 1 FROM gutenberg_source_cache gc
+          WHERE gc.id=p.source_external_id AND gc.copyright=0
+            AND gc.ingest_status='active'
+            AND gc.rights_status='public-domain'
+            AND gc.commercial_use_status='approved'
+            AND EXISTS (SELECT 1 FROM gutenberg_rights_evidence ge
+              WHERE ge.cache_id=gc.id AND upper(ge.territory_code)=?
+                AND ge.status='approved' AND ge.determination='public-domain')
+        ))
       ORDER BY c.position LIMIT 25
     ) SELECT a.product_id,a.product_public_id,a.edition_id,a.edition_public_id,
       (SELECT json_object('type',o.offer_type,'currency',o.currency,'amountMinor',o.amount_minor)
@@ -833,7 +847,7 @@ export async function authorizeStorefrontPresentationIds(
         ORDER BY o.created_at DESC LIMIT 1) offer_json
       FROM authorized a ORDER BY a.position`,
     )
-    .bind(territory, JSON.stringify(ids), currency, currency, territory)
+    .bind(territory, JSON.stringify(ids), currency, currency, territory, territory)
     .all<PrimaryStorefrontAuthorityRow>();
   if (diagnostics) recordFirstPaintD1Metrics(result, diagnostics);
   return result.results;

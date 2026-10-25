@@ -6,6 +6,8 @@ on:
       - "drizzle/0086_catalog_legal_withdrawal_guard.sql"
       - "infra/catalog-index/**"
       - "drizzle/0087_fenced_canonical_metadata_receipts.sql"
+      - "drizzle/0088_catalog_evidence_revocation_and_asset_feed.sql"
+      - "scripts/check-catalog-evidence-revocation.mjs"
       - "src/storefront-strangler/catalog-normalization-*.ts"
       - "scripts/check-catalog-normalization-publication.mjs"
       - "wrangler.catalog-publisher.example.jsonc"
@@ -34,6 +36,7 @@ jobs:
       - run: node scripts/check-isolated-catalog-index.mjs
       - run: node scripts/check-isolated-catalog-graph.mjs
       - run: node scripts/check-catalog-withdrawal-guard.mjs
+      - run: node scripts/check-catalog-evidence-revocation.mjs
       - run: node scripts/check-isolated-catalog-query.mjs
       - run: node scripts/check-catalog-normalization-publication.mjs
       - run: node scripts/check-isolated-catalog-authority.mjs
