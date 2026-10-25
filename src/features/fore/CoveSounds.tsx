@@ -5,6 +5,7 @@ import { ArrowRight, BookOpen, Check, Copy, Headphones, Music2, Share2, Sparkles
 import { api, authorOf, coverOf, editionPath, useAccount, type CatalogBook } from "./client";
 import { useStorefrontLocale } from "./localization";
 import { COVE_SOUNDS_STATIONS, stationBySlug, stationRecordings, type CoveSoundsStation, type CoveSoundsRecording } from "./cove-sounds-stations";
+import { rememberSoundsBookReferral } from "./cove-sounds-attribution.client";
 import "./cove-sounds.css";
 
 type RecordingCatalog = { recordings: CoveSoundsRecording[]; count: number };
@@ -175,7 +176,8 @@ function BookSoundtrackPreview({ book, station }: { book: CatalogBook; station: 
   );
 }
 
-function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
+function SoundtrackBooks({ station, recordingId }: { station: CoveSoundsStation; recordingId?: string }) {
+  const bookReferral = () => { rememberSoundsBookReferral(station.slug, recordingId); trackSounds(station, "book_open", recordingId); };
   const { rightsCountry } = useStorefrontLocale();
   const [checkBooks, setCheckBooks] = useState(false);
   const found = useQuery({
@@ -209,7 +211,7 @@ function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
       {(!checkBooks || (found.isSuccess && !books.length)) && (
         <div className="sounds-editorial-books">
           {station.books.map((book) => (
-            <a className="sounds-editorial-book" key={book.title} href={"/store?search=" + encodeURIComponent(book.title)}>
+            <a className="sounds-editorial-book" key={book.title} href={"/store?search=" + encodeURIComponent(book.title)} onClick={bookReferral}>
               <BookOpen size={19} aria-hidden="true" />
               <span><strong>{book.title}</strong><small>{book.author}</small></span>
               <ArrowRight size={15} aria-hidden="true" />
@@ -226,14 +228,14 @@ function SoundtrackBooks({ station }: { station: CoveSoundsStation }) {
       <div className="sounds-books-grid">
         {books.map((book) => (
           <article className="sounds-book" key={String(book.publicProductId || book.id)}>
-            <a href={editionPath(book)} className="sounds-book-art" onClick={() => trackSounds(station, "book_open")}>
+            <a href={editionPath(book)} className="sounds-book-art" onClick={bookReferral}>
               {coverOf(book) ? <img src={coverOf(book)} alt={"Cover of " + book.title} loading="lazy" /> : <BookOpen size={46} aria-hidden="true" />}
             </a>
             <div>
-              <h3><a href={editionPath(book)} onClick={() => trackSounds(station, "book_open")}>{book.title}</a></h3>
+              <h3><a href={editionPath(book)} onClick={bookReferral}>{book.title}</a></h3>
               <p>{authorOf(book)}</p>
               <BookSoundtrackPreview book={book} station={station} />
-              <a className="sounds-book-cta" href={editionPath(book)} onClick={() => trackSounds(station, "book_open")}>Explore this book <ArrowRight size={15} aria-hidden="true" /></a>
+              <a className="sounds-book-cta" href={editionPath(book)} onClick={bookReferral}>Explore this book <ArrowRight size={15} aria-hidden="true" /></a>
             </div>
           </article>
         ))}
@@ -376,7 +378,7 @@ function StationDetail({ station }: { station: CoveSoundsStation }) {
           </div>
         )}
       </section>
-      <SoundtrackBooks station={station} />
+      <SoundtrackBooks station={station} recordingId={selected?.id} />
       <CreatorListeningShelves station={station} />
       <p className="sounds-disclaimer">The music is optional accompaniment, not narration. Book-specific matches are provisional until Cove's literary analysis has verified them. Available recordings and editions vary by region.</p>
     </div>
