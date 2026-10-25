@@ -126,8 +126,10 @@ try {
   const stored = new Map();
   stored.set("epubs/pgau_a.epub", bytes);
   stored.set("epubs/pgau_b.epub", bytes);
-  const BUCKET = {
+  let sourceReads = 0;
+  const SOURCE_BUCKET = {
     async get(key) {
+      sourceReads++;
       const value = stored.get(key);
       if (!value) return null;
       if (key.endsWith("pgau_b.epub") && !injectedRevocation) {
@@ -143,6 +145,12 @@ try {
         },
       };
     },
+  };
+  const BUCKET = {
+    async get(key) {
+      if (key.startsWith("epubs/")) throw Error("derived bucket must never source original EPUB");
+      return null;
+    },
     async put(key, body, options) {
       puts++;
       assert.ok(key.startsWith("literary/isolated-prepared-v1/"));
@@ -155,6 +163,7 @@ try {
     DB: dbHandle(primary),
     CONTENT_DB: dbHandle(secondary),
     BUCKET,
+    SOURCE_BUCKET,
     FORE_CONTENT_PROCESSOR_ENABLED: "1",
     FORE_CONTENT_PREPARE_ENABLED: "1",
     FORE_CONTENT_PROCESSOR_ROLE: "literary-prepare",
@@ -184,6 +193,7 @@ try {
   );
   assert.equal(secondary.prepare("SELECT status FROM literary_prepare_jobs").get().status, "done");
   assert.equal(puts, 1);
+  assert.equal(sourceReads, 1, "Source is read through verified canonical EPUB binding");
   assert.deepEqual(await runIsolatedLiteraryPreparationTick(env), {
     skipped: "no_preparation_jobs",
   });
