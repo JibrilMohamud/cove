@@ -107,7 +107,7 @@ export async function publishCoveSounds(env: Env, at = Date.now()) {
     for (const station of COVE_SOUNDS_STATIONS) {
       const matched = station.books.flatMap((seed) => editions.results
         .filter((b) => titleKey(b.title) === titleKey(seed.title) &&
-          titleKey(b.author).includes(titleKey(seed.author)))
+          titleKey(b.author).split(" ").includes(titleKey(seed.author).split(" ").at(-1) || ""))
         .slice(0, 2).map((b) => b.id));
       const document: SoundsSnapshot = {
         schema: SOUNDS_SCHEMA,
