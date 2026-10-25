@@ -2782,15 +2782,10 @@ export async function handleCoveApi(
   // rights dependency. Handle it before auth/context/HTTP D1 logging.
   if (request.method === "POST" && new URL(request.url).pathname === "/api/fore/sounds/events") {
     try {
-      // Country comes only from trusted Cloudflare edge metadata, never from
-      // visitor JSON or forgeable x-country headers. Unavailable geolocation
-      // is explicitly "ZZ" in aggregate reports.
-      const edgeCountry = (request as Request & { cf?: { country?: string } }).cf?.country;
-      const country =
-        typeof edgeCountry === "string" && /^[A-Z]{2}$/.test(edgeCountry)
-          ? edgeCountry
-          : "ZZ";
-      return await handleSoundsAnalytics(request, env, "/sounds/events", country);
+      // The production API is relayed via Vercel: Cloudflare edge metadata
+      // identifies the relay, not necessarily the shopper's territory.
+      // Keep aggregate location unknown rather than publish false geography.
+      return await handleSoundsAnalytics(request, env, "/sounds/events", "ZZ");
     } catch (error) {
       if (error instanceof ApiError) return json({ error: error.message }, error.status);
       return json({ error: "Music analytics unavailable." }, 503);
