@@ -46,6 +46,12 @@ for (const [path, switches] of [
   assert.equal(config.preview_urls, false);
   assert.ok(!config.routes && !config.route && !config.triggers && !config.queues);
   for (const key of switches) assert.equal(config.vars[key], "0");
+  if (path === "wrangler.content-literary-prepare.prod-disabled.jsonc") {
+    assert.deepEqual(config.r2_buckets, [
+      { binding: "BUCKET", bucket_name: "cove-literary-originals-isolated-20261024" },
+      { binding: "SOURCE_BUCKET", bucket_name: "cove-production-media" },
+    ]);
+  }
   if (path === "wrangler.content-literary-infer.prod-disabled.jsonc") {
     assert.equal(config.vars.FORE_LITERARY_AUTOPUBLISH_ENABLED, "0");
     assert.deepEqual(config.services, [
