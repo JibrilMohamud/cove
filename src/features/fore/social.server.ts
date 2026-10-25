@@ -1,4 +1,5 @@
 import { marginLocationKey } from "./margin-passages";
+import { stationBySlug } from "./cove-sounds-stations";
 import {
   savedAlignedAudioProgress,
   savedGroupAlignedAudioProgress,
@@ -1593,6 +1594,68 @@ export async function handleSocial(
         .run();
       return json({ saved: true });
     }
+  }
+  // Music visitors explicitly request creator shelves. This narrowly scoped,
+  // keyset-paginated read replaces the broad social/discover call (which also
+  // loads member discovery and groups) and never searches private lists.
+  const soundsShelvesRoute = /^\\/social\\/sounds\\/stations\\/([a-z0-9-]+)\\/shelves$/.exec(path);
+  if (method === "GET" && soundsShelvesRoute) {
+    const station = stationBySlug(soundsShelvesRoute[1]);
+    if (!station) throw new ApiError(404, "Listening station not found.");
+    const rawCursor = url.searchParams.get("after") || "";
+    if (rawCursor.length > 140) throw new ApiError(400, "Invalid creator shelf cursor.");
+    const cursor = rawCursor
+      ? /^(\\d{4}-\\d{2}-\\d{2}T[\\d:.]+Z)\\|(list_[a-z0-9-]{1,65})$/.exec(rawCursor)
+      : null;
+    if (rawCursor && !cursor) throw new ApiError(400, "Invalid creator shelf cursor.");
+    const marker = "#CoveSounds/" + station.slug;
+    const rows = (
+      await db
+        .prepare(
+          `SELECT l.id,l.user_id,l.title,l.updated_at,a.username,
+                 (SELECT COUNT(*) FROM social_list_items i WHERE i.list_id=l.id) item_count,
+                 (SELECT COUNT(*) FROM social_list_likes k WHERE k.list_id=l.id) likes
+           FROM social_lists l
+           JOIN auth_accounts a ON a.app_id=l.user_id AND a.disabled_at IS NULL
+           JOIN social_profiles sp ON sp.user_id=l.user_id AND sp.profile_visibility='public'
+           WHERE l.visibility='public' AND l.moderation_status='visible' AND l.deleted_at IS NULL
+             AND instr(l.description,?)>0
+             AND (?='' OR l.updated_at<? OR (l.updated_at=? AND l.id<?))
+             AND NOT EXISTS(
+               SELECT 1 FROM social_blocks b
+               WHERE (b.blocker_user_id=? AND b.blocked_user_id=l.user_id)
+                  OR (b.blocked_user_id=? AND b.blocker_user_id=l.user_id))
+             AND NOT EXISTS(
+               SELECT 1 FROM social_mutes m WHERE m.muter_user_id=? AND m.muted_user_id=l.user_id)
+           ORDER BY l.updated_at DESC,l.id DESC LIMIT 9`,
+        )
+        .bind(
+          marker,
+          rawCursor,
+          cursor?.[1] || "",
+          cursor?.[1] || "",
+          cursor?.[2] || "",
+          userId || "",
+          userId || "",
+          userId || "",
+        )
+        .all<{
+          id: string;
+          user_id: string;
+          title: string;
+          updated_at: string;
+          username: string | null;
+          item_count: number;
+          likes: number;
+        }>()
+    ).results;
+    const shelves = rows.slice(0, 8);
+    const last = shelves.at(-1);
+    return json({
+      station: station.slug,
+      shelves,
+      nextCursor: rows.length > 8 && last ? last.updated_at + "|" + last.id : null,
+    });
   }
   if (method === "GET" && path === "/social/discover") {
     const term = (url.searchParams.get("q") || "").trim().replace(/^@/, "").slice(0, 100),
