@@ -44,8 +44,8 @@ assert.ok(backend.includes("commerce_sounds_purchase_attribution(order_id,statio
 assert.ok(backend.includes("stationBySlug(input.soundsStation)"), "Checkout station allowlist required");
 assert.ok(backend.includes("input.soundsRecording"), "Recording is optional but bounded");
 const api = readFileSync("src/features/fore/api.server.ts", "utf8");
-assert.ok(api.includes("edgeCountry"), "Anonymous collector territory is edge-derived");
-assert.ok(!api.includes('handleSoundsAnalytics(request, env, "/sounds/events", "ZZ")'));
+assert.ok(api.includes('handleSoundsAnalytics(request, env, "/sounds/events", "ZZ")'),
+  "Relayed traffic must not be misrepresented as the Cloudflare ingress country");
 const analytics = readFileSync("src/features/fore/cove-sounds-analytics.server.ts", "utf8");
 assert.ok(analytics.includes('request.headers.get("sec-gpc")'), "Server GPC enforced");
 assert.ok(analytics.includes('request.headers.get("dnt")'), "Server DNT enforced");
