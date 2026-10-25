@@ -66,13 +66,13 @@ export async function serveLeanAnonymousBootstrap(
     }
   };
   const rawDb = env.DB!;
-  const configDb = rawDb as typeof rawDb & {
-    withSession?: (constraint: "first-unconstrained") => typeof rawDb;
-  };
-  const readMetadata = () =>
-    typeof configDb.withSession === "function"
-      ? configDb.withSession("first-unconstrained")
-      : rawDb;
+  // Stage evidence: geo-replica metadata sessions stalled for 1.5-5.8s
+  // while the concurrently executed primary rights SQL finished in ~90ms.
+  // This is PUBLIC presentation data only, but each request needs a fresh
+  // authoritative market/translation view. A primary binding avoids the
+  // cross-replica bootstrap/session path and is testable independently.
+  // No cross-request cache or stale legal grants are introduced.
+  const readMetadata = () => rawDb;
   const ip = request.headers.get("cf-connecting-ip")!.trim();
   // No cookie/account data is present. This same canonical resolver also
   // drives resolveStorefrontContext's country for anonymous visitors.
@@ -80,7 +80,7 @@ export async function serveLeanAnonymousBootstrap(
   const d1Metrics: { sqlDurationMs?: number; rowsRead?: number; attempts?: number } = {};
   let homepageRows: Record<string, unknown>[] | null = null;
   // Launch the authoritative primary-rights query *before* waiting for
-  // independent replica presentation reads. No book leaves the Worker until
+  // fresh primary presentation reads. No book leaves the Worker until
   // the rate limiter, markets, context, page and rights checks ALL succeed.
   const contextPromise = timed(
     "context",
