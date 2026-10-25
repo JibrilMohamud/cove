@@ -6,8 +6,10 @@ on:
       - "drizzle/0086_catalog_legal_withdrawal_guard.sql"
       - "infra/catalog-index/**"
       - "src/storefront-strangler/catalog-index-*.ts"
+      - "wrangler.catalog-query.example.jsonc"
       - "scripts/check-isolated-catalog-index.mjs"
       - "scripts/check-catalog-withdrawal-guard.mjs"
+      - "scripts/check-isolated-catalog-query.mjs"
       - "scripts/build-storefront-strangler.mjs"
       - ".github/workflows/isolated-catalog-index.yml"
   workflow_dispatch:
@@ -25,6 +27,7 @@ jobs:
       - run: npm ci
       - run: node scripts/check-isolated-catalog-index.mjs
       - run: node scripts/check-catalog-withdrawal-guard.mjs
+      - run: node scripts/check-isolated-catalog-query.mjs
       - run: node scripts/build-storefront-strangler.mjs
       - run: npm run typecheck
       - run: npm run test:rights
