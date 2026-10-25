@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep private aggregate reporting and SQL guards together. */
 import assert from "node:assert/strict";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
