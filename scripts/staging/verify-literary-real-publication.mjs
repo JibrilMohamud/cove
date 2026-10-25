@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
-import {
-  artifact, isolated, owner, primary, query,
-} from "./literary-isolated-operator-lib.mjs";
+import { artifact, isolated, owner, primary, query } from "./literary-isolated-operator-lib.mjs";
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const initial = await query(isolated, "SELECT COUNT(*) n FROM literary_legacy_reconcile_receipts");
@@ -32,7 +30,9 @@ for (let round = 0; round < 75; round++) {
       const canonical = await query(
         primary,
         "SELECT fingerprint,revision,status,coverage FROM literary_profiles" +
-          " WHERE product_id='" + job.product_id + "'",
+          " WHERE product_id='" +
+          job.product_id +
+          "'",
       );
       assert.deepEqual(canonical, [
         {
