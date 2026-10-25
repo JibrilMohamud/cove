@@ -12,6 +12,7 @@ on:
       - "src/server.ts"
       - "src/features/fore/**"
       - "scripts/check-taxonomy-noop-fts-write.py"
+      - "scripts/check-taxonomy-differential-reconcile.py"
       - "scripts/check-literary-genre-rights-query.mjs"
       - "scripts/audio_pipeline/**"
       - "scripts/build-persistence-backend.mjs"
@@ -53,6 +54,7 @@ on:
       - "src/server.ts"
       - "src/features/fore/**"
       - "scripts/check-taxonomy-noop-fts-write.py"
+      - "scripts/check-taxonomy-differential-reconcile.py"
       - "scripts/audio_pipeline/**"
       - "scripts/build-persistence-backend.mjs"
       - "scripts/check-persistence-backend.mjs"
@@ -142,6 +144,7 @@ jobs:
           node scripts/check-taxonomy-presentation-count-cache.mjs
           node scripts/check-taxonomy-count-refresh-lease.mjs
           python3 scripts/check-taxonomy-noop-fts-write.py
+          python3 scripts/check-taxonomy-differential-reconcile.py
           node scripts/check-sparse-taxonomy-rights-counts.mjs
           node scripts/check-secondary-channel-index.mjs
           node scripts/check-external-identifier-index.mjs
