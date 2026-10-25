@@ -799,7 +799,10 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
         quoteId: z.string().min(8).max(120),
         idempotencyKey: z.string().min(16).max(200),
         soundsStation: z.string().max(80).optional(),
-        soundsRecording: z.string().regex(/^(?:cm_[0-9]{1,15}|ex_[0-9a-f-]{36})$/).optional(),
+        soundsRecording: z
+          .string()
+          .regex(/^(?:cm_[0-9]{1,15}|ex_[0-9a-f-]{36})$/)
+          .optional(),
       })
       .parse(raw),
     db = env.DB;
@@ -894,9 +897,12 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
   // The foreign-keyed order makes later aggregation independently verifiable
   // against the paid/refunded state; no click analytics are written to D1.
   if (input.soundsStation && stationBySlug(input.soundsStation)) {
-    await db.prepare(
-      "INSERT OR IGNORE INTO commerce_sounds_purchase_attribution(order_id,station_slug,recording_id,captured_at) VALUES(?,?,?,?)",
-    ).bind(orderId, input.soundsStation, input.soundsRecording || null, at).run();
+    await db
+      .prepare(
+        "INSERT OR IGNORE INTO commerce_sounds_purchase_attribution(order_id,station_slug,recording_id,captured_at) VALUES(?,?,?,?)",
+      )
+      .bind(orderId, input.soundsStation, input.soundsRecording || null, at)
+      .run();
   }
   for (const item of items) {
     const lineTax = Number(item.taxMinor || 0),
