@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import {
-  artifact, isolated, owner, primary, query, worker,
+  artifact,
+  isolated,
+  owner,
+  primary,
+  query,
+  worker,
 } from "./literary-isolated-operator-lib.mjs";
 
 assert.deepEqual(await owner(), {
