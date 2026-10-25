@@ -12,6 +12,7 @@ on:
       - "src/server.ts"
       - "src/features/fore/**"
       - "scripts/check-taxonomy-noop-fts-write.py"
+      - "scripts/check-catalog-fts-text-only-update.py"
       - "scripts/check-taxonomy-differential-reconcile.py"
       - "scripts/check-taxonomy-queued-outbox-noop.py"
       - "scripts/check-search-outbox-atomic-ack.mjs"
@@ -58,6 +59,7 @@ on:
       - "src/server.ts"
       - "src/features/fore/**"
       - "scripts/check-taxonomy-noop-fts-write.py"
+      - "scripts/check-catalog-fts-text-only-update.py"
       - "scripts/check-taxonomy-differential-reconcile.py"
       - "scripts/check-taxonomy-queued-outbox-noop.py"
       - "scripts/check-search-outbox-atomic-ack.mjs"
@@ -154,6 +156,7 @@ jobs:
           node scripts/check-taxonomy-presentation-count-cache.mjs
           node scripts/check-taxonomy-count-refresh-lease.mjs
           python3 scripts/check-taxonomy-noop-fts-write.py
+          python3 scripts/check-catalog-fts-text-only-update.py
           python3 scripts/check-taxonomy-differential-reconcile.py
           python3 scripts/check-taxonomy-queued-outbox-noop.py
           node scripts/check-search-outbox-atomic-ack.mjs
