@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Schema and safety gates are colocated for reviewer audit; normalize after canary. */
 import {
   COVE_SOUNDS_STATIONS, stationRecordings, type CoveSoundsRecording,
 } from "../features/fore/cove-sounds-stations";
