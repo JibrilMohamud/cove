@@ -22,8 +22,11 @@ on:
 permissions:
   contents: read
 
+# Serialize the post-publication staging campaign with the real-catalog
+# cold acceptance run. Both workflows must leave the shared primary alone
+# until the previous one has finished, including its cleanup.
 concurrency:
-  group: cove-strangler-ephemeral-capacity-stage
+  group: cove-exclusive-real-primary-cold-acceptance
   cancel-in-progress: false
 
 jobs:
