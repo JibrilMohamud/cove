@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep privacy-redacted LCP diagnostics next to the observational gate. */
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { chromium, devices } from "@playwright/test";
@@ -53,9 +54,21 @@ try {
         });
       }
       await page.addInitScript(() => {
-        window.__covePaint = { lcp: null };
+        // Aggregate-only Core Web Vitals attribution. Do not log text, URL,
+        // image title, cover identifier, IP, or user-controlled attributes.
+        window.__covePaint = { lcp: null, target: "unknown", loadDelay: null, renderDelay: null };
         new PerformanceObserver((list) => {
-          for (const entry of list.getEntries()) window.__covePaint.lcp = entry.startTime;
+          for (const entry of list.getEntries()) {
+            const el = entry.element;
+            const tag = el?.tagName?.toLowerCase();
+            window.__covePaint = {
+              lcp: entry.startTime,
+              target: tag === "img" ? "image" : tag === "h1" ? "heading" :
+                tag === "h2" ? "subheading" : tag === "p" ? "paragraph" : "other",
+              loadDelay: entry.loadTime > 0 ? Math.round(entry.loadTime - performance.getEntriesByType("navigation")[0].responseStart) : null,
+              renderDelay: entry.loadTime > 0 ? Math.round(entry.renderTime - entry.loadTime) : null,
+            };
+          }
         }).observe({ type: "largest-contentful-paint", buffered: true });
       });
       let failure = null;
@@ -132,6 +145,21 @@ try {
           return {
             ttfbMs: nav?.responseStart ?? null,
             lcpMs: window.__covePaint?.lcp ?? null,
+            lcpTarget: window.__covePaint?.target ?? "unknown",
+            lcpLoadDelayMs: window.__covePaint?.loadDelay ?? null,
+            lcpRenderDelayMs: window.__covePaint?.renderDelay ?? null,
+            // Only aggregate initiator/timing buckets; never asset URLs.
+            resourceByType: performance.getEntriesByType("resource")
+              .reduce((acc, resource) => {
+                const category = resource.initiatorType === "img" ? "image" :
+                  resource.initiatorType === "script" ? "script" :
+                  resource.initiatorType === "link" ? "link" : "other";
+                const bucket = acc[category] || { count: 0, lastResponseEndMs: 0 };
+                bucket.count++;
+                bucket.lastResponseEndMs = Math.max(bucket.lastResponseEndMs, Math.round(resource.responseEnd));
+                acc[category] = bucket;
+                return acc;
+              }, {}),
             cards: document.querySelectorAll(".book-card").length,
             hydrated: document.documentElement.dataset.coveClientReady === "true",
             scriptTags: document.querySelectorAll("script[src]").length,
