@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Initial music discovery UI follows the existing SoundtrackLibrary style until layout normalization. */
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteShell } from "@/features/fore/App";
 import { CoveSoundsPage } from "@/features/fore/CoveSounds";
@@ -16,8 +17,11 @@ export const Route = createFileRoute("/sounds/$slug")({
       { name: "twitter:card", content: "summary_large_image" },
     ] };
   },
-  component: () => {
-    const { slug } = Route.useParams();
-    return <SiteShell active="/sounds" title="Cove Sounds"><CoveSoundsPage slug={slug} /></SiteShell>;
-  },
+  component: StationRoute,
 });
+
+function StationRoute() {
+  const { slug } = Route.useParams();
+  return <SiteShell active="/sounds" title="Cove Sounds"><CoveSoundsPage slug={slug} /></SiteShell>;
+}
+
