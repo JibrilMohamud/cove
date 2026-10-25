@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
-const origin = process.env.COVE_SOUNDS_PUBLIC_ORIGIN ||
-  "https://cove-jibrilmohamuds-projects.vercel.app";
+const origin =
+  process.env.COVE_SOUNDS_PUBLIC_ORIGIN || "https://cove-jibrilmohamuds-projects.vercel.app";
 const canonical = new URL(origin);
 assert.equal(canonical.protocol, "https:");
 assert.equal(canonical.pathname, "/");
@@ -33,17 +33,25 @@ assert.notEqual(music.fallback, true, "US private snapshot unexpectedly disabled
 assert.notEqual(books.fallback, true, "US private book candidates unexpectedly disabled");
 assert.ok(Array.isArray(music.recordings));
 assert.ok(music.recordings.length > 0 && music.recordings.length <= 8);
-assert.ok(music.recordings.every((item) =>
-  typeof item.audioUrl === "string" &&
-  /^\/api\/fore\/soundtracks\/recordings\/(cm_[0-9]+|ex_[a-f0-9-]{36})\/audio$/.test(item.audioUrl)
-), "Only canonical rights-fenced media links may be served");
+assert.ok(
+  music.recordings.every(
+    (item) =>
+      typeof item.audioUrl === "string" &&
+      /^\/api\/fore\/soundtracks\/recordings\/(cm_[0-9]+|ex_[a-f0-9-]{36})\/audio$/.test(
+        item.audioUrl,
+      ),
+  ),
+  "Only canonical rights-fenced media links may be served",
+);
 assert.ok(Array.isArray(books.books));
 assert.ok(books.books.length > 0 && books.books.length <= 12);
-console.log(JSON.stringify({
-  result: "COVE_SOUNDS_PUBLIC_ACCEPTANCE_PASS",
-  origin,
-  stations: 6,
-  approvedMusicCandidates: music.recordings.length,
-  authorizedBookEditions: books.books.length,
-  checked: ["SSR", "current US snapshots", "playback URL fencing", "book retail authority"],
-}));
+console.log(
+  JSON.stringify({
+    result: "COVE_SOUNDS_PUBLIC_ACCEPTANCE_PASS",
+    origin,
+    stations: 6,
+    approvedMusicCandidates: music.recordings.length,
+    authorizedBookEditions: books.books.length,
+    checked: ["SSR", "current US snapshots", "playback URL fencing", "book retail authority"],
+  }),
+);
