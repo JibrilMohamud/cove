@@ -32,6 +32,7 @@ jobs:
         with: { node-version: "22", cache: npm }
       - run: npm ci
       - run: node scripts/check-isolated-catalog-index.mjs
+      - run: node scripts/check-isolated-catalog-graph.mjs
       - run: node scripts/check-catalog-withdrawal-guard.mjs
       - run: node scripts/check-isolated-catalog-query.mjs
       - run: node scripts/check-catalog-normalization-publication.mjs

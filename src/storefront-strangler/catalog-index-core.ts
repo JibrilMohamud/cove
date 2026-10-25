@@ -18,6 +18,13 @@ export type RawCatalogIndexRow = {
   ingest_status: string | null;
   copyright: number | null;
   updated_at: string | null;
+  // Source-only fields. The isolated graph processor must not read legal grants.
+  formats_json?: string | null;
+  source_id?: string | null;
+  source_item_id?: string | null;
+  source_url?: string | null;
+  content_hash?: string | null;
+  epub_status?: string | null;
 };
 export type CatalogIndexDocument = {
   productId: string;

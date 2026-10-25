@@ -4,6 +4,7 @@ import {
   type RawCatalogIndexRow,
 } from "./catalog-index-core";
 import { prepareIsolatedCanonicalMetadata, catalogPreparationWrite } from "./catalog-normalization-core";
+import { prepareIsolatedCatalogGraph, catalogGraphWrite } from "./catalog-graph-core";
 
 type Statement = {
   bind(...v: unknown[]): Statement;
@@ -20,7 +21,7 @@ export type CatalogCaptureEnv = {
 };
 const LEASE_MS = 90_000;
 const BATCH_SIZE = 16;
-const SELECTION = "id,title,summary,authors_json,subjects_json,bookshelves_json,languages_json,rights_status,commercial_use_status,ingest_status,copyright,updated_at";
+const SELECTION = "id,title,summary,authors_json,subjects_json,bookshelves_json,languages_json,rights_status,commercial_use_status,ingest_status,copyright,updated_at,formats_json,source_id,source_item_id,source_url,content_hash,epub_status";
 
 async function assertIsolated(env: CatalogCaptureEnv) {
   if (env.COVE_CATALOG_INDEX_CAPTURE_ENABLED !== "1")
@@ -42,9 +43,13 @@ async function writeRows(db: DB, rows: RawCatalogIndexRow[], changes: Array<{ id
     const preparation = catalogPreparationWrite(
       prepareIsolatedCanonicalMetadata(row, change.id, change.seq)
     );
+    const graph = catalogGraphWrite(
+      prepareIsolatedCatalogGraph(row, change.id, change.seq)
+    );
     await db.batch([
       db.prepare(write.sql).bind(...write.binds),
       db.prepare(preparation.sql).bind(...preparation.binds),
+      db.prepare(graph.sql).bind(...graph.binds),
     ]);
   }
 }

@@ -913,6 +913,13 @@ async function getBook(env: CoveEnv, id: string, userId?: string): Promise<Catal
   if (id.startsWith("fore_") || id.startsWith("prd_"))
     throw new ApiError(404, "This edition is unavailable.");
 
+  // Production customer GETs must never bootstrap source ingestion, rebuild
+  // the contributor/taxonomy/FTS graph, write legal grants or fetch arbitrary
+  // source files. Canonical publishing is a separate fenced processing lane.
+  // Unpublished editions remain invisible until verified publication.
+  if (env.FORE_ENVIRONMENT === "production")
+    throw new ApiError(404, "This edition has not been published.");
+
   const stored = await db
     .prepare("SELECT copyright,source_url FROM gutenberg_source_cache WHERE id=?")
     .bind(id)
