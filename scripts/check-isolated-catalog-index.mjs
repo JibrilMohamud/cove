@@ -50,7 +50,9 @@ source.execute("""CREATE TABLE gutenberg_source_cache (
   id TEXT PRIMARY KEY, title TEXT, summary TEXT, authors_json TEXT,
   subjects_json TEXT, bookshelves_json TEXT, languages_json TEXT,
   formats_json TEXT, rights_status TEXT, commercial_use_status TEXT,
-  ingest_status TEXT,copyright INTEGER,download_count INTEGER
+  ingest_status TEXT,copyright INTEGER,download_count INTEGER,
+  source_id TEXT,rights_territories_json TEXT,rights_evidence_url TEXT,
+  source_metadata_json TEXT DEFAULT '{}'
 )""")
 source.executescript(Path('drizzle/0085_isolated_catalog_changefeed.sql').read_text())
 source.execute("INSERT INTO gutenberg_source_cache(id,title) VALUES('2701','Initial')")
