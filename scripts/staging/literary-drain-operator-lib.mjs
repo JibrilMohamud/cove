@@ -55,7 +55,10 @@ export async function verifyWorkerTopology() {
     ]);
     assert.ok(!worker.subdomain?.enabled && !worker.subdomain?.previews_enabled);
     assert.equal(settings.routes?.length || 0, 0);
-    assert.deepEqual(schedule.schedules.map((x) => x.cron), ["* * * * *"]);
+    assert.deepEqual(
+      schedule.schedules.map((x) => x.cron),
+      ["* * * * *"],
+    );
     const b = settings.bindings || [];
     const vars = Object.fromEntries(
       b.filter((x) => x.type === "plain_text").map((x) => [x.name, x.text]),
@@ -64,7 +67,10 @@ export async function verifyWorkerTopology() {
     assert.equal(vars.FORE_CONTENT_PREPARE_ENABLED, "1");
     assert.equal(vars.FORE_CONTENT_D1_ADMISSION_MAX_MS, "100");
     assert.deepEqual(
-      b.filter((x) => x.type === "d1").map((x) => x.database_id).sort(),
+      b
+        .filter((x) => x.type === "d1")
+        .map((x) => x.database_id)
+        .sort(),
       [primary, content].sort(),
     );
     assert.ok(
@@ -102,8 +108,5 @@ export async function leases() {
 }
 export function evidenceFile(filename, evidence) {
   mkdirSync("artifacts/literary-cutover", { recursive: true });
-  writeFileSync(
-    "artifacts/literary-cutover/" + filename,
-    JSON.stringify(evidence, null, 2) + "\n",
-  );
+  writeFileSync("artifacts/literary-cutover/" + filename, JSON.stringify(evidence, null, 2) + "\n");
 }
