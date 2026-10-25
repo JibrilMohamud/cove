@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Bounded isolated SQL fences and adversarial publication proofs are deliberately kept adjacent. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";

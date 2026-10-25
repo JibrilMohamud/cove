@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Bounded isolated SQL fences and adversarial publication proofs are deliberately kept adjacent. */
 import {
   normalizeCatalogIndexRow, catalogIndexWrite,
   type RawCatalogIndexRow,

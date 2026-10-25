@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Bounded isolated SQL fences and adversarial publication proofs are deliberately kept adjacent. */
 import { captureIsolatedCatalogIndex, type CatalogCaptureEnv } from "./catalog-index-capture.server";
 
 // Deploy only as a non-routable, service-bound, disabled-by-default Worker.

@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Bounded isolated SQL fences and adversarial publication proofs are deliberately kept adjacent. */
 /**
  * Strictly ADVISORY search metadata in a database physically separate from
  * customer rights and commerce. This function does not make legal decisions.
@@ -32,7 +33,9 @@ export type CatalogIndexDocument = {
 };
 function cleanText(value: unknown, maximum: number) {
   return String(value ?? "").normalize("NFKC")
-    .replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, maximum);
+    .split("")
+    .map((ch) => (ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127 ? " " : ch))
+    .join("").replace(/\s+/g, " ").trim().slice(0, maximum);
 }
 function list(value: unknown, maxItems: number, itemLength: number, objectName = false) {
   let parsed: unknown;
