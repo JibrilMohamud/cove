@@ -24,10 +24,12 @@ for (const [path, role] of [
   assert.deepEqual(cfg.triggers?.crons, ["* * * * *"]);
   assert.ok(!cfg.routes && !cfg.route && !cfg.queues);
 }
-assert.ok(preflight.includes('assert.deepEqual(owner, []'));
+assert.ok(preflight.includes("assert.deepEqual(owner, []"));
 assert.ok(preflight.includes('assert.deepEqual(frontier, [{ status: "disarmed"'));
 assert.ok(preflight.includes("sourceObjects.find"));
 assert.ok(preflight.includes("sourceMetadata[0]?.content_hash"));
-assert.ok(verifier.includes('settings.routes?.length || 0'));
-assert.ok(verifier.includes('FORE_LITERARY_DRAIN_RECONCILE_ENABLED'));
-console.log("LITERARY_DRAIN_DEPLOY_POLICY_PASS protected owner-fenced no-public-ingress deployment");
+assert.ok(verifier.includes("settings.routes?.length || 0"));
+assert.ok(verifier.includes("FORE_LITERARY_DRAIN_RECONCILE_ENABLED"));
+console.log(
+  "LITERARY_DRAIN_DEPLOY_POLICY_PASS protected owner-fenced no-public-ingress deployment",
+);
