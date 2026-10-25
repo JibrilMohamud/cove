@@ -118,3 +118,11 @@ const fullAccess = deliverySource.slice(deliverySource.indexOf("async function r
 assert.ok(fullAccess.includes("gutenberg_source_cache WHERE id=? AND copyright=0"));
 assert.ok(fullAccess.indexOf("if (!legalSource)") < fullAccess.indexOf("if (await activeEntitlement"),
   "Existing entitlements must not override source takedowns");
+
+// The old canonical writer must not recreate active offers or editions from
+// legally withdrawn or inconsistent source data on delayed retries.
+const normalizedSql = fs.readFileSync("src/features/fore/catalog-model.server.ts", "utf8")
+  .split("export function personalImportStatements")[0];
+assert.ok(normalizedSql.includes("CASE WHEN c.copyright=0 AND c.ingest_status='active' AND c.rights_status='public-domain'"));
+assert.ok(normalizedSql.includes("CASE WHEN copyright=0 AND ingest_status='active' AND rights_status='public-domain'"));
+assert.ok(normalizedSql.includes("WHERE c.id=? AND c.copyright=0 AND c.ingest_status='active'"));
