@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Schema and safety gates are colocated for reviewer audit; normalize after canary. */
 import type { CoveEnv } from "./api.server";
 import { stationBySlug } from "./cove-sounds-stations";
 import { ApiError, json } from "./service";
