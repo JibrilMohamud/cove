@@ -28,8 +28,9 @@ export type CatalogGraphDocument = {
   sourceItemId: string;
 };
 function clean(input: unknown, max: number) {
-  return String(input ?? "").normalize("NFKC")
-    .replace(/[\x00-\x1f\x7f]/g," ").replace(/\s+/g," ").trim().slice(0,max);
+  return [...String(input ?? "").normalize("NFKC")]
+    .map(ch => ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127 ? " " : ch)
+    .join("").replace(/\s+/g," ").trim().slice(0,max);
 }
 function values(raw: string|null|undefined, limit: number, len: number, obj=false) {
   if (raw && raw.length>65536) throw Error("catalog_graph_unbounded_input");
@@ -59,7 +60,7 @@ export function prepareIsolatedCatalogGraph(
   try{
     const value=JSON.parse(source?.formats_json||"{}");
     if(value && typeof value==="object" && !Array.isArray(value)) formats=value;
-  }catch{}
+  } catch { formats = {}; }
   const assets=visible ? Object.fromEntries(
     ["image/jpeg","image/png","application/epub+zip","text/html"]
       .map(key=>[key,allowedAsset(formats[key])])
