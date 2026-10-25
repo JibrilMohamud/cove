@@ -1,5 +1,5 @@
 import { networkCountry, resolveStorefrontContext } from "./localization.server";
-import { resolveStorefrontPage } from "./taxonomy.server";
+import { projectedAnonymousHomePage, resolveStorefrontPage } from "./taxonomy.server";
 import { firstPaintStorefrontShelf } from "./search.server";
 import { enforceFirstPaintRateLimit } from "./storefront-read-rate-limit.server";
 import type { CoveEnv } from "./api.server";
@@ -77,6 +77,7 @@ export async function serveLeanAnonymousBootstrap(
   // drives resolveStorefrontContext's country for anonymous visitors.
   const trustedCountry = networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country;
   const d1Metrics: { sqlDurationMs?: number; rowsRead?: number; attempts?: number } = {};
+  let homepageRows: Record<string, unknown>[] | null = null;
   // Launch the authoritative primary-rights query *before* waiting for
   // independent replica presentation reads. No book leaves the Worker until
   // the rate limiter, markets, context, page and rights checks ALL succeed.
@@ -88,18 +89,27 @@ export async function serveLeanAnonymousBootstrap(
       null,
       env.FORE_DEFAULT_TERRITORY || "US",
       true,
+      (rows) => { homepageRows = rows; },
     ),
   );
   const pagePromise = contextPromise.then((context) =>
     timed(
       "page",
-      resolveStorefrontPage(
-        readMetadata(),
-        "/",
-        context.rightsCountry,
-        context.language,
-        context.locale,
-      ),
+      homepageRows && homepageRows.length <= 64
+        ? Promise.resolve(
+            projectedAnonymousHomePage(
+              homepageRows,
+              context.rightsCountry,
+              context.language,
+            ),
+          )
+        : resolveStorefrontPage(
+            readMetadata(),
+            "/",
+            context.rightsCountry,
+            context.language,
+            context.locale,
+          ),
     ),
   );
   const [context, , catalog, page] = await Promise.all([
