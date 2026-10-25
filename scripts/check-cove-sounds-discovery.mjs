@@ -92,8 +92,9 @@ assert.deepEqual(
 assert.deepEqual(stationRecordings(gothic, []), []);
 assert.ok(readFileSync("src/routes/sounds.tsx", "utf8").includes('createFileRoute("/sounds")'));
 assert.ok(
-  readFileSync("src/routes/sounds.$slug.tsx", "utf8").includes('createFileRoute("/sounds/$slug")'),
+  readFileSync("src/routes/sounds_.$slug.tsx", "utf8").includes('createFileRoute("/sounds/$slug")'),
 );
+assert.ok(readFileSync("src/routeTree.gen.ts", "utf8").includes("SoundsSlugRoute"));
 const view = readFileSync("src/features/fore/CoveSounds.tsx", "utf8");
 assert.ok(view.includes('api<RecordingCatalog>("/soundtracks/recordings")'));
 assert.ok(view.includes('"/books/" + encodeURIComponent(id) + "/literary-profile/playlist'));
