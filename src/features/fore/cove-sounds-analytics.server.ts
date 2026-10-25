@@ -6,7 +6,7 @@ import { ApiError, json } from "./service";
 const EVENTS = new Set([
   "station_view", "music_open", "track_select", "book_open",
   "book_preview", "reading_intent", "share", "shelf_open", "shelf_create",
-  "purchase_intent",
+  "purchase_intent", "reading_started", "purchase_observed",
 ]);
 /** Intent / UI funnel analytics, not verified commerce or reading completion.
  * Aggregate-only; no IP, user ID, order ID, product ID, URL, cookies or query.
