@@ -67,6 +67,12 @@ console.log(
     stations: 6,
     approvedMusicCandidates: music.recordings.length,
     authorizedBookEditions: books.books.length,
-    checked: ["SSR", "territory gate", "rights-safe fallback or live snapshots", "playback URL fencing", "book retail authority"],
+    checked: [
+      "SSR",
+      "territory gate",
+      "rights-safe fallback or live snapshots",
+      "playback URL fencing",
+      "book retail authority",
+    ],
   }),
 );
