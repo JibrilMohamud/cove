@@ -212,7 +212,8 @@ try {
       headers: visitorHeaders,
     });
     let limitCalls = 0,
-      authoritativeRights = 0;
+      authoritativeRights = 0,
+      primaryPresentationReads = 0;
     const sessionModes = [];
     const proxyDb = new Proxy(env.DB, {
       get(target, property) {
@@ -242,6 +243,8 @@ try {
           };
         if (property === "prepare")
           return (sql) => {
+            if (/FROM storefront_markets m\s+LEFT JOIN storefront_market_locales ml/i.test(sql))
+              primaryPresentationReads++;
             if (/\beligible AS MATERIALIZED/i.test(sql)) {
               assert.match(sql, /retail_product_availability_rows/i);
               assert.match(
@@ -318,11 +321,13 @@ try {
     );
     assert.equal(value.catalogQuery, expected.catalogQuery);
     assert.equal(authoritativeRights, 1, "Exactly one primary rights query");
+    assert.equal(primaryPresentationReads, 1,
+      "First paint must resolve fresh country/locale/page on primary without a replica session");
     assert.equal(limitCalls, 1, "Exactly one enforced Cloudflare edge limit");
     assert.deepEqual(
       sessionModes,
-      ["first-unconstrained"],
-      "Exactly one replica presentation read: combined market/locale/menu/page",
+      [],
+      "Lean first paint must not open a potentially slow/lagged replica session",
     );
   }
   assert.ok(joinedMarketLocaleReads >= 4, "One live joined market/locale read per bootstrap");
