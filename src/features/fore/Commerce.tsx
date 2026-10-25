@@ -28,7 +28,7 @@ import {
   downloadBlob,
 } from "./client";
 import { BookArt } from "./Store";
-import { reportSoundsConversion } from "./cove-sounds-attribution.client";
+import { reportSoundsConversion } from "./cove-sounds-attribution";
 import { RequestFailure } from "./RequestFailure";
 
 declare global {
