@@ -19,6 +19,7 @@ import { loadEdition } from "./audio-client";
 import { cueForAudio, type AudioEdition } from "./domain";
 import { loadBookMetadata } from "./epub";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { reportSoundsConversion } from "./cove-sounds-attribution.client";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouterState } from "@tanstack/react-router";
 import {
@@ -413,6 +414,13 @@ export function ReaderPage({ id }: { id: string }) {
       navigationType: "unknown",
       pageProgressionDirection: "default",
     });
+  // Only a prepared, non-preview book counts as a reading start.
+  // The browser-tab referral is optional, expires quickly, and transmits no
+  // title, passage, user or product identity to anonymous analytics.
+  useEffect(() => {
+    if (ready && !previewMode && !error && bookQuery.isSuccess)
+      reportSoundsConversion("reading_started", id);
+  }, [ready, previewMode, error, bookQuery.isSuccess, id]);
   const formatRef = useRef(formatInfo);
   formatRef.current = formatInfo;
   chromeVisibleRef.current = chromeVisible;
