@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
-  "name": "cove-sounds-publication-disabled",
+  "name": "cove-sounds-publication",
   "main": ".output/strangler/sounds-publication.mjs",
   "compatibility_date": "2026-10-25",
   "compatibility_flags": ["nodejs_compat"],
