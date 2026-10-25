@@ -17,7 +17,8 @@ END;
 --> statement-breakpoint
 CREATE TRIGGER IF NOT EXISTS catalog_index_source_au
 AFTER UPDATE OF title,summary,authors_json,subjects_json,bookshelves_json,languages_json,
- formats_json,rights_status,commercial_use_status,ingest_status,copyright
+ formats_json,rights_status,commercial_use_status,ingest_status,copyright,
+ source_id,rights_territories_json,rights_evidence_url,source_metadata_json
 ON gutenberg_source_cache
 WHEN old.title IS NOT new.title OR old.summary IS NOT new.summary
  OR old.authors_json IS NOT new.authors_json
@@ -29,6 +30,11 @@ WHEN old.title IS NOT new.title OR old.summary IS NOT new.summary
  OR old.commercial_use_status IS NOT new.commercial_use_status
  OR old.ingest_status IS NOT new.ingest_status
  OR old.copyright IS NOT new.copyright
+ OR old.source_id IS NOT new.source_id
+ OR old.rights_territories_json IS NOT new.rights_territories_json
+ OR old.rights_evidence_url IS NOT new.rights_evidence_url
+ OR COALESCE(json_extract(old.source_metadata_json,'$.rightsFingerprint'),'') IS NOT
+    COALESCE(json_extract(new.source_metadata_json,'$.rightsFingerprint'),'')
 BEGIN
  INSERT INTO catalog_index_changefeed(cache_id,operation) VALUES(new.id,'upsert');
 END;

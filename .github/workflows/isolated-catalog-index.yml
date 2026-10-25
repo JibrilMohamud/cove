@@ -5,6 +5,9 @@ on:
       - "drizzle/0085_isolated_catalog_changefeed.sql"
       - "drizzle/0086_catalog_legal_withdrawal_guard.sql"
       - "infra/catalog-index/**"
+      - "drizzle/0087_fenced_canonical_metadata_receipts.sql"
+      - "src/storefront-strangler/catalog-normalization-*.ts"
+      - "scripts/check-catalog-normalization-publication.mjs"
       - "src/storefront-strangler/catalog-index-*.ts"
       - "wrangler.catalog-query.example.jsonc"
       - "scripts/check-isolated-catalog-index.mjs"
@@ -30,6 +33,7 @@ jobs:
       - run: node scripts/check-isolated-catalog-index.mjs
       - run: node scripts/check-catalog-withdrawal-guard.mjs
       - run: node scripts/check-isolated-catalog-query.mjs
+      - run: node scripts/check-catalog-normalization-publication.mjs
       - run: node scripts/check-isolated-catalog-authority.mjs
       - run: node scripts/build-storefront-strangler.mjs
       - run: npm run typecheck

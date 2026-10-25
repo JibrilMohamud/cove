@@ -3,6 +3,7 @@ import {
   normalizeCatalogIndexRow, catalogIndexWrite,
   type RawCatalogIndexRow,
 } from "./catalog-index-core";
+import { prepareIsolatedCanonicalMetadata, catalogPreparationWrite } from "./catalog-normalization-core";
 
 type Statement = {
   bind(...v: unknown[]): Statement;
@@ -10,7 +11,7 @@ type Statement = {
   all<T>(): Promise<{ results: T[] }>;
   run(): Promise<{ meta?: { changes?: number } }>;
 };
-type DB = { prepare(sql: string): Statement };
+type DB = { prepare(sql: string): Statement; batch(statements: Statement[]): Promise<unknown> };
 type Source = DB & { withSession(constraint: "first-unconstrained"): DB };
 export type CatalogCaptureEnv = {
   SOURCE_DB: Source;
@@ -38,7 +39,13 @@ async function writeRows(db: DB, rows: RawCatalogIndexRow[], changes: Array<{ id
     const row = change.operation === "delete" ? null : byId.get(change.id) || null;
     const doc = normalizeCatalogIndexRow(row, change.id, change.seq);
     const write = catalogIndexWrite(doc);
-    await db.prepare(write.sql).bind(...write.binds).run();
+    const preparation = catalogPreparationWrite(
+      prepareIsolatedCanonicalMetadata(row, change.id, change.seq)
+    );
+    await db.batch([
+      db.prepare(write.sql).bind(...write.binds),
+      db.prepare(preparation.sql).bind(...preparation.binds),
+    ]);
   }
 }
 async function renew(db: DB, owner: string) {
