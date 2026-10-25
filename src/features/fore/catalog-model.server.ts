@@ -307,7 +307,8 @@ export function commercialCatalogStatements(db: DB, externalId: string, at: stri
   ];
 }
 
-export function personalImportStatements(  db: DB,
+export function personalImportStatements(
+  db: DB,
   input: {
     id: string;
     userId: string;
