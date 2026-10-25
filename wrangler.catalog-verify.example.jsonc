@@ -1,0 +1,18 @@
+{
+  // Staging-only QA; no public ingress, production route or schedule.
+  "name": "cove-catalog-verifier-staged",
+  "main": ".output/strangler/catalog-index-verify.mjs",
+  "compatibility_date": "2026-10-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {"enabled":true},
+  "d1_databases": [
+    {"binding":"PRIMARY_DB","database_name":"REPLACE_CANONICAL_STAGING_DB",
+     "database_id":"REPLACE_WITH_STAGING_RIGHTS_DB_ID"}
+  ],
+  "services": [
+    {"binding":"CATALOG_QUERY","service":"cove-catalog-query-staged"}
+  ],
+  "vars": {"COVE_CATALOG_INDEX_VERIFY_ENABLED":"0"}
+}
