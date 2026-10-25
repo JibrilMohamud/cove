@@ -3,10 +3,10 @@
 -- The trigger is confined to authoritative status, offer and grant rows.
 -- Never use independent metadata/FTS as a source of legal permission.
 CREATE TRIGGER IF NOT EXISTS catalog_source_legal_withdrawal_au
-AFTER UPDATE OF copyright,ingest_status,rights_status,commercial_use_status,
+AFTER UPDATE OF source_id,copyright,ingest_status,rights_status,commercial_use_status,
  rights_territories_json,rights_evidence_url,source_metadata_json
 ON gutenberg_source_cache
-WHEN new.copyright IS NOT 0 OR new.ingest_status<>'active'
+WHEN old.source_id IS NOT new.source_id OR new.copyright IS NOT 0 OR new.ingest_status<>'active'
  OR new.rights_status<>'public-domain' OR new.commercial_use_status<>'approved'
  OR old.rights_evidence_url IS NOT new.rights_evidence_url
  OR COALESCE(json_extract(old.source_metadata_json,'$.rightsFingerprint'),'')
@@ -21,10 +21,10 @@ WHEN new.copyright IS NOT 0 OR new.ingest_status<>'active'
 BEGIN
  UPDATE rights_grants SET status='suspended',updated_at=datetime('now')
  WHERE edition_id='ed_gutenberg_'||new.id AND status='active'
-   AND source='gutenberg-'||new.source_id||'-public-domain'
+   AND source IN ('gutenberg-'||old.source_id||'-public-domain','gutenberg-'||new.source_id||'-public-domain')
    AND decision='allow'
    AND (
-      new.copyright IS NOT 0 OR new.ingest_status<>'active'
+      old.source_id IS NOT new.source_id OR new.copyright IS NOT 0 OR new.ingest_status<>'active'
       OR new.rights_status<>'public-domain'
       OR new.commercial_use_status<>'approved'
       OR old.rights_evidence_url IS NOT new.rights_evidence_url
