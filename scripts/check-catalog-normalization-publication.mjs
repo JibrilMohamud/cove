@@ -131,13 +131,28 @@ try {
   primary.batch=async (writes)=>{primaryBatchCalls++;return executePrimaryBatch(writes);};
   await assert.rejects(()=>publishFencedCanonicalMetadata({...safe,COVE_CATALOG_NORMALIZATION_PUBLISH_ENABLED:"0"},["2701"]),/disabled/);
   await assert.rejects(()=>publishFencedCanonicalMetadata({...safe,COVE_CATALOG_PUBLICATION_PRIMARY_ID:"production"},["2701"]),/unsafe/);
+  // Observe actual write activity, not merely the monotonic receipt result.
+  // A replay and a territory-only revision must not dirty unchanged canonical
+  // metadata rows (which would contend with live primary rights reads).
+  primarySql.exec(`
+    CREATE TABLE canonical_metadata_writes(target TEXT);
+    CREATE TRIGGER audit_work_changes AFTER UPDATE ON works BEGIN
+      INSERT INTO canonical_metadata_writes VALUES('work');
+    END;
+    CREATE TRIGGER audit_edition_changes AFTER UPDATE ON editions BEGIN
+      INSERT INTO canonical_metadata_writes VALUES('edition');
+    END;
+  `);
+  const metadataWriteCount=()=>primarySql.prepare("SELECT COUNT(*) n FROM canonical_metadata_writes").get().n;
   await indexCurrent();
   const firstResult=await publishFencedCanonicalMetadata(safe,["2701"]);
   assert.equal(firstResult.published[0].applied,true);
   assert.equal(title(),"Initial Title");
   assert.equal(receipt().revision,1);
   assert.equal(primarySql.prepare("SELECT title FROM works").get().title,"Initial Title");
+  assert.equal(metadataWriteCount(),2,"First publish must update one work and one edition");
   assert.equal((await publishFencedCanonicalMetadata(safe,["2701"])).published[0].applied,false);
+  assert.equal(metadataWriteCount(),2,"A replay must not write either canonical metadata row");
   // Source metadata changes in the primary BEFORE the preparation propagates.
   primarySql.prepare("UPDATE gutenberg_source_cache SET title=? WHERE id='2701'").run("New Book");
   assert.equal(version(),2);
@@ -147,6 +162,7 @@ try {
   assert.equal((await publishFencedCanonicalMetadata(safe,["2701"])).published[0].applied,true);
   assert.equal(receipt().revision,2);
   assert.equal(title(),"New Book");
+  assert.equal(metadataWriteCount(),4,"Changed source text must still update both canonical rows");
   // Replaying old revision cannot overwrite a newer source or receipt.
   const stale={...prepareIsolatedCanonicalMetadata(first,"2701",1)};
   assert.throws(
@@ -168,6 +184,7 @@ try {
   assert.equal((await publishFencedCanonicalMetadata(safe,["2701"])).published[0].applied,false);
   await indexCurrent();
   assert.equal((await publishFencedCanonicalMetadata(safe,["2701"])).published[0].applied,true);
+  assert.equal(metadataWriteCount(),4,"A territory-only revision must not dirty unchanged work/edition rows");
   assert.equal(primarySql.prepare("SELECT status FROM rights_grants WHERE territory_code='CA'").get().status,"suspended");
   // A fresh but withdrawn source MUST NOT be accepted.
   primarySql.prepare("UPDATE gutenberg_source_cache SET rights_status='quarantined' WHERE id='2701'").run();
