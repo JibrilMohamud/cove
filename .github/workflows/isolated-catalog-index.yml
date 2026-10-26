@@ -31,6 +31,7 @@ on:
       - "src/storefront-strangler/commercial-entitlement-core.ts"
       - "scripts/check-paid-entitlement-authority.mjs"
       - "scripts/check-paid-access-consumer.mjs"
+      - "scripts/check-refund-legal-writer-wiring.mjs"
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
       - "src/features/fore/retail.server.ts"
       - "src/features/fore/commerce.server.ts"
@@ -74,6 +75,7 @@ jobs:
       - run: node scripts/check-commercial-legal-authority.mjs
       - run: node scripts/check-paid-entitlement-authority.mjs
       - run: node scripts/check-paid-access-consumer.mjs
+      - run: node scripts/check-refund-legal-writer-wiring.mjs
       - run: node scripts/build-storefront-strangler.mjs
       - run: npm run typecheck
       - run: npm run test:rights
