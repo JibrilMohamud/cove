@@ -61,6 +61,7 @@ const save = () => fs.writeFileSync(directory + "/results.json", JSON.stringify(
 const names = [];
 const kvKeys = [];
 let syntheticFixture = null;
+let fixtureActivated = false;
 let origin, gate;
 evidence.workers = names;
 let shutdown;
@@ -69,16 +70,17 @@ function cleanup() {
     closeStageTransport();
     /* eslint-disable prettier/prettier -- Stage-only rollback and rights proof. */
     if (syntheticFixture) {
-      // Restore ONLY the dedicated synthetic capacity candidate IDs, even when
-      // this run failed before deploying its first Worker. Never touch
-      // production, user rights, or unrelated operator-origin products.
+      // Atomic QA rollback: never leave a storefront offer with the wrong
+      // catalog source after a failed/cancelled measurement.
       try {
-        const q=syntheticFixture;
-        await sql(primary,q.dropOffers.sql,q.dropOffers.params);
-        const result=await sql(primary,q.restore.sql,q.restore.params);
-        if ((result.meta?.changes||0)!==REQUIRED_BOOK_CARDS) evidence.cleanupFailed=true;
+        const q = syntheticFixture;
+        const result = await api("POST", `/accounts/${account}/d1/database/${primary}/query`, {
+          batch: [q.dropOffers, q.restore],
+        });
+        if (fixtureActivated && result[1]?.meta?.changes !== REQUIRED_BOOK_CARDS)
+          evidence.cleanupFailed = true;
       } catch {
-        evidence.cleanupFailed=true;
+        evidence.cleanupFailed = true;
       }
     }
     /* eslint-enable prettier/prettier */
@@ -605,6 +607,25 @@ try {
     },
   });
   /* eslint-disable prettier/prettier -- Bounded synthetic market fixture must be auditable. */
+  // Recover a previous GitHub Actions cancellation before touching any
+  // new fixture. This QA D1 contains only perf-synth-* products; permanent
+  // content and production rights are physically separate. GitHub workflow
+  // concurrency serializes hosted-capacity jobs on this database.
+  const recovery = await api(
+    "POST",
+    `/accounts/${account}/d1/database/${primary}/query`,
+    { batch: [
+      { sql: `UPDATE products SET source_name='gutenberg'
+          WHERE source_name='operator'
+            AND id GLOB 'perf-synth-[0-9][0-9][0-9][0-9][0-9][0-9]'` },
+      { sql: `DELETE FROM offers WHERE id LIKE 'cove-arch-qa-%'
+          AND product_id GLOB 'perf-synth-[0-9][0-9][0-9][0-9][0-9][0-9]'` },
+    ]},
+  );
+  evidence.recoveredSyntheticQA = {
+    sourceLabels: recovery[0]?.meta?.changes ?? null,
+    offers: recovery[1]?.meta?.changes ?? null,
+  };
   const snapshot=JSON.parse(fs.readFileSync(directory + "/presentation.json","utf8"));
   // Existing 50k-row capacity fixture contains *operator-issued* retail grants
   // but mislabels all products Gutenberg and has no Gutenberg evidence or
@@ -618,6 +639,7 @@ try {
   const changed=await sql(primary,syntheticFixture.operatorize.sql,syntheticFixture.operatorize.params);
   assert.equal(changed.meta?.changes,REQUIRED_BOOK_CARDS,
     "Refused to mutate non-synthetic or already reassigned product provenance");
+  fixtureActivated = true;
   const offerWrite=syntheticFixture.issueOffers;
   const added=await sql(primary,offerWrite.sql,offerWrite.params);
   assert.equal(added.meta?.changes,REQUIRED_BOOK_CARDS,
