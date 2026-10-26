@@ -193,8 +193,14 @@ export function persistSourceWithdrawal(sql:AuthoritySql,raw:unknown){
     if(existing.source_id!==sourceId||existing.territory!==territory)
       throw Error("denial_operation_reused_with_different_scope");
     const current=readAuthority(sql,sourceId,territory==="*"?"US":territory);
-    return {applied:!current.allowed && current.revision!==null &&
-      current.revision>=existing.revision,revision:existing.revision,state:current};
+    const regrantedAfterGlobalWithdrawal=territory==="*" &&
+      sql.exec<{one:number}>(
+        "SELECT 1 one FROM cove_legal_fences WHERE source_id=? AND revision>? AND verdict='allow' LIMIT 1",
+        sourceId,existing.revision
+      ).toArray().length>0;
+    return {applied:!current.allowed && !regrantedAfterGlobalWithdrawal &&
+      current.revision!==null && current.revision>=existing.revision,
+      revision:existing.revision,state:current};
   }
   const highest=sql.exec<{max_revision:number|null}>(
     "SELECT MAX(revision) max_revision FROM cove_legal_fences WHERE source_id=?",
