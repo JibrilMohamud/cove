@@ -53,3 +53,34 @@ export async function publishAfterPrimaryApproval<T>(
   await confirmed(authority,secret,"/publish-allow",command,{currency});
   return output;
 }
+
+/**
+ * Preferred writer path: the strongly consistent owner allocates the legal
+ * epoch itself and durably records denial BEFORE primary D1 can mutate.
+ * Each canonical writer must supply a stable idempotency key from its own
+ * source event. Old event counters do NOT authorize a new global revision.
+ */
+export async function denyWithOwnedSourceEpoch<T>(
+  authority:PrivateAuthorityPort,secret:string,
+  operation:{sourceId:string;territory:string;operationId:string},
+  mutatePrimary:(ownerRevision:number)=>Promise<T>
+):Promise<T>{
+  validateAuthorityCommand({
+    sourceId:operation.sourceId,territory:operation.territory,
+    revision:1,action:"deny"
+  });
+  if(!/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(operation.operationId))
+    throw Error("denial_operation_invalid");
+  const response=await authority.fetch(
+    authorizedRequest(secret,"/deny-next",operation)
+  );
+  if(response.status!==200) throw Error("authority_fence_unavailable");
+  const receipt=await response.json() as {
+    applied?:unknown;revision?:unknown;state?:{allowed?:unknown;revision?:unknown};
+  };
+  if(receipt?.applied!==true||!Number.isSafeInteger(receipt.revision)||
+      (receipt.revision as number)<=0||receipt.state?.allowed!==false||
+      receipt.state?.revision!==(receipt.revision as number))
+    throw Error("authority_fence_unconfirmed");
+  return mutatePrimary(receipt.revision as number);
+}
