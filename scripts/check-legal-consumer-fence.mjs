@@ -62,6 +62,28 @@ try{
     {...active,LEGAL_AUTHORITY:paidOwner},
     [{id:"prd_commercial_a17",source_name:"commercial"}],"US","USD");
   assert.equal(paidCalls,1,"Paid proof is independently obtained from commercial owner");
+  await requireStageLegalConsumerProof({...active,LEGAL_AUTHORITY:paidOwner},[{
+    id:"prd_commercial_a17",source_name:"commercial",
+    expectedEditionId:"ed_commercial_a17",
+    expectedGrantId:"right_valid_17",
+    expectedContractVersionId:"rcv_17",
+  }],"US","USD");
+  assert.equal(paidCalls,2);
+  await assert.rejects(requireStageLegalConsumerProof({...active,LEGAL_AUTHORITY:paidOwner},[{
+    id:"prd_commercial_a17",source_name:"commercial",
+    expectedEditionId:"ed_commercial_a17",
+    expectedGrantId:"right_revoked_11",
+    expectedContractVersionId:"rcv_17",
+  }],"US","USD"),e=>e.status===503,
+    "Stale canonical pricing cannot borrow a newer grant's owner proof");
+  await assert.rejects(requireStageLegalConsumerProof({...active,LEGAL_AUTHORITY:paidOwner},[{
+    id:"prd_commercial_a17",source_name:"commercial",
+    expectedEditionId:"ed_commercial_a17",
+    expectedGrantId:"right_valid_17",
+    expectedContractVersionId:"rcv_older",
+  }],"US","USD"),e=>e.status===503,
+    "Changed contract version invalidates old pricing decisions");
+
   assert.equal(calls,1,"Paid product must NEVER be certified by free owner");
   await assert.rejects(
     requireStageLegalConsumerProof(active,[{id:"prd_commercial_a17",source_name:"commercial"}],"US","USD"),
