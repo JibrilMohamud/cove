@@ -197,6 +197,8 @@ export function readCommercialProofs(
      JOIN cove_commercial_authority a
        ON a.product_id=p.product_id AND a.epoch=p.epoch AND a.verdict='allow'
      WHERE p.valid_until>?
+       AND p.contract_id IS NOT NULL AND length(p.contract_id)>=3
+       AND p.contract_version_id IS NOT NULL AND length(p.contract_version_id)>=3
      ORDER BY CAST(candidate.key AS INTEGER) LIMIT 25`,
     JSON.stringify(ids),territory,channel,now
   ).toArray();
