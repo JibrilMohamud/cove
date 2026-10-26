@@ -135,11 +135,25 @@ export function publishFreshCommercialProof(
   const state=current(sql,p.productId);
   if((state?.epoch??0)!==expectedEpoch)
     return {applied:false,epoch:state?.epoch??null};
-  const epoch=expectedEpoch+1;
-  if(!Number.isSafeInteger(epoch))throw Error("commercial_epoch_exhausted");
-  // Same SQLite transaction: epoch change and one matching canonical grant.
-  // A previous US proof can never remain authorized after an unrelated CA
-  // regrant unless it has been republished under the new product epoch.
+  const old=sql.exec<{
+    epoch:number;edition_id:string;grant_id:string;
+    contract_id:string|null;contract_version_id:string|null
+  }>("SELECT epoch,edition_id,grant_id,contract_id,contract_version_id FROM cove_commercial_scope_proofs WHERE product_id=? AND territory=? AND channel=?",
+    p.productId,p.territory,p.channel).toArray()[0];
+  // Positive refreshes of an unchanged exact grant must NOT invalidate
+  // every paid buyer's entitlement. Global epochs advance only on genuine
+  // legal withdrawal/reinstatement; new markets can publish independently.
+  // A changed grant/contract in the SAME currently allowed epoch is illegal
+  // without a prior owner DENY, even if primary D1 appears to approve it.
+  if(state?.verdict==="allow"&&old?.epoch===state.epoch&&
+     (old.edition_id!==p.editionId || old.grant_id!==p.grantId||
+      old.contract_id!==p.contractId||
+      old.contract_version_id!==p.contractVersionId))
+    throw Error("commercial_rights_change_requires_prior_denial");
+  const epoch=state?.verdict==="allow"?state.epoch:expectedEpoch+1;
+  if(!Number.isSafeInteger(epoch)||epoch<=0)
+    throw Error("commercial_epoch_exhausted");
+  // Same SQLite transaction: one current owner epoch and exact canonical grant.
   sql.exec(`INSERT INTO cove_commercial_authority(product_id,epoch,verdict)
     VALUES(?,?,'allow') ON CONFLICT(product_id) DO UPDATE SET
     epoch=excluded.epoch,verdict='allow'`,p.productId,epoch);
