@@ -3,6 +3,11 @@ import { DurableObject } from "cloudflare:workers";
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
 import { resolveProductRights } from "../features/fore/rights.server";
 import {
+  captureEntitlementEpoch,createPaidEntitlementSchema,
+  denyPaidEntitlement,publishFreshEntitlement,readPaidAccess,
+  validatePaidEntitlementScope,
+} from "./commercial-entitlement-core";
+import {
   captureCommercialEpoch, createCommercialAuthoritySchema,
   denyCommercialProduct, denyCommercialProductsBatch,
   publishFreshCommercialProof, readCommercialProofs,
@@ -47,6 +52,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     createAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
     createAuthorityProofSchema(ctx.storage.sql as unknown as AuthoritySql);
     createCommercialAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
+    createPaidEntitlementSchema(ctx.storage.sql as unknown as AuthoritySql);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -62,7 +68,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     const route=new URL(request.url).pathname;
     if(!["/deny","/deny-next","/deny-next-batch","/verify","/publish-allow","/authorize-batch",
       "/commercial/deny-next","/commercial/deny-batch","/commercial/publish-verified",
-      "/commercial/authorize-batch"].includes(route))
+      "/commercial/authorize-batch",
+      "/commercial/entitlement/deny-next",
+      "/commercial/entitlement/publish-verified",
+      "/commercial/entitlement/authorize"].includes(route))
       return new Response(null,{status:404,headers:noStore});
     if (request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
       return new Response(null,{status:415,headers:noStore});
@@ -74,6 +83,70 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
     try {
+      if(route==="/commercial/entitlement/deny-next"){
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const verdict=storage.transactionSync(()=>denyPaidEntitlement(sql,raw));
+        return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
+      }
+      if(route==="/commercial/entitlement/authorize"){
+        const row=readPaidAccess(sql,raw);
+        return Response.json({schema:"cove.paid-access.v1",allowed:!!row,proof:row},
+          {headers:noStore});
+      }
+      if(route==="/commercial/entitlement/publish-verified"){
+        const scope=validatePaidEntitlementScope(raw);
+        const input=raw as {territory?:unknown;channel?:unknown};
+        if(typeof input.territory!=="string" ||
+           !/^[A-Z]{2}$/.test(input.territory)||
+           !["retail","subscription","library"].includes(String(input.channel)))
+          return new Response(null,{status:400,headers:noStore});
+        // Product permission must already be published. Entitlement alone
+        // NEVER overrides a global paid-contract withdrawal.
+        const rights=readCommercialProofs(sql,[scope.productId],
+          input.territory,input.channel as CommercialChannel);
+        if(rights.length!==1)return new Response(null,{status:409,headers:noStore});
+        const expected=captureEntitlementEpoch(sql,scope);
+        const ent=await env.PRIMARY_DB.prepare(
+          "SELECT id,user_id,product_id,status,entitlement_type,source,starts_at,ends_at,order_item_id FROM entitlements WHERE id=? AND user_id=? AND product_id=?"
+        ).bind(scope.entitlementId,scope.userId,scope.productId)
+          .first<{id:string;user_id:string;product_id:string;status:string;
+            entitlement_type:string;source:string;starts_at:string|null;
+            ends_at:string|null;order_item_id:string|null}>();
+        if(!ent||ent.status!=="active"||ent.entitlement_type!=="purchase"||
+           ent.source!=="commerce"||!ent.order_item_id)
+          return new Response(null,{status:409,headers:noStore});
+        const clock=new Date().toISOString();
+        if((ent.starts_at&&ent.starts_at>clock)||
+           (ent.ends_at&&ent.ends_at<=clock))
+          return new Response(null,{status:409,headers:noStore});
+        const order=await env.PRIMARY_DB.prepare(
+          "SELECT coi.entitlement_status,co.status order_status FROM commerce_order_items coi JOIN commerce_orders co ON co.id=coi.order_id WHERE coi.id=? AND coi.product_id=? AND co.user_id=?"
+        ).bind(ent.order_item_id,scope.productId,scope.userId)
+          .first<{entitlement_status:string;order_status:string}>();
+        if(!order||order.entitlement_status!=="granted"||
+           order.order_status!=="paid")
+          return new Response(null,{status:409,headers:noStore});
+        const hold=await env.PRIMARY_DB.prepare(
+          "SELECT 1 ok FROM risk_holds rh JOIN commerce_order_items oi ON oi.order_id=rh.subject_id WHERE rh.domain='buyer' AND rh.subject_type='order' AND rh.status='active' AND rh.hold_scope IN ('checkout','entitlement') AND oi.id=? LIMIT 1"
+        ).bind(ent.order_item_id).first<{ok:number}>();
+        if(hold)return new Response(null,{status:409,headers:noStore});
+        const expiry=Math.min(Date.now()+5*60000,
+          ent.ends_at?Date.parse(ent.ends_at):Number.POSITIVE_INFINITY,
+          Date.parse(rights[0].valid_until));
+        if(!Number.isFinite(expiry)||expiry<=Date.now())
+          return new Response(null,{status:409,headers:noStore});
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const receipt=storage.transactionSync(()=>
+          publishFreshEntitlement(sql,{...scope,
+            validUntil:new Date(expiry).toISOString()
+          },expected)
+        );
+        return Response.json(receipt,{status:receipt.applied?200:409,headers:noStore});
+      }
       if(route==="/commercial/deny-batch"){
         const storage=this.ctx.storage as typeof this.ctx.storage & {
           transactionSync<T>(fn:()=>T):T;
