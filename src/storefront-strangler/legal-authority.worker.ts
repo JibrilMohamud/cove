@@ -2,7 +2,8 @@
 import { DurableObject } from "cloudflare:workers";
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
 import {
-  applyAuthorityCommand, createAuthoritySchema, readAuthority,
+  applyAuthorityCommand, createAuthoritySchema, createAuthorityProofSchema,
+  readAuthority, readAuthorizedPresentations, storeAuthorizedPresentationProof,
   validateAuthorityCommand, type AuthoritySql,
 } from "./legal-authority-core";
 
@@ -19,6 +20,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   constructor(ctx: { storage: { sql: unknown } }, env: LegalAuthorityEnv) {
     super(ctx, env);
     createAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
+    createAuthorityProofSchema(ctx.storage.sql as unknown as AuthoritySql);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -35,14 +37,14 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return new Response(null,{status:401,headers:noStore});
     if(request.method!=="POST") return new Response(null,{status:405,headers:noStore});
     const route=new URL(request.url).pathname;
-    if(!["/deny","/verify","/publish-allow"].includes(route))
+    if(!["/deny","/verify","/publish-allow","/authorize-batch"].includes(route))
       return new Response(null,{status:404,headers:noStore});
     if (request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
       return new Response(null,{status:415,headers:noStore});
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>512) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(route==="/authorize-batch"?24000:512)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
@@ -52,6 +54,15 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         if(!input||typeof input.sourceId!=="string"||typeof input.territory!=="string")
           return new Response(null,{status:400,headers:noStore});
         return Response.json(readAuthority(sql,input.sourceId,input.territory),
+          {headers:noStore});
+      }
+      if(route==="/authorize-batch") {
+        const input=raw as {ids?:unknown;territory?:unknown;currency?:unknown};
+        if(!input||!Array.isArray(input.ids)||
+           typeof input.territory!=="string"||typeof input.currency!=="string")
+          return new Response(null,{status:400,headers:noStore});
+        const rows=readAuthorizedPresentations(sql,input.ids,input.territory,input.currency);
+        return Response.json({schema:"cove.legal-authorized.v1",rows},
           {headers:noStore});
       }
       const command=validateAuthorityCommand(raw);
@@ -80,7 +91,18 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           !authorized[0].offer_json)
         return new Response(null,{status:409,headers:noStore});
       const verdict=applyAuthorityCommand(sql,command);
-      return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
+      if(!verdict.applied)
+        return Response.json(verdict,{status:409,headers:noStore});
+      // No await between granting this exact version and persisting its
+      // canonical offer proof: requests cannot see a mixed logical revision.
+      storeAuthorizedPresentationProof(sql,command,input.currency,{
+        productId:authorized[0].product_id,
+        editionId:authorized[0].edition_id,
+        productPublicId:authorized[0].product_public_id || null,
+        editionPublicId:authorized[0].edition_public_id || null,
+        offerJson:authorized[0].offer_json,
+      });
+      return Response.json(verdict,{status:200,headers:noStore});
     } catch(error) {
       console.error("cove_legal_authority_closed",error instanceof Error?error.name:"unknown");
       return new Response(null,{status:503,headers:noStore});
