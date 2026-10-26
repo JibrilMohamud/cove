@@ -14,6 +14,66 @@ type ConsumerProduct={
 };
 const productPattern=/^prd_gutenberg_(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/;
 const QA_PRIMARY="5e3a6b69-6f3d-4b19-b837-01f7aa56ce87";
+const commercialPattern=/^prd_[a-zA-Z0-9_-]{3,120}$/;
+type CommercialProofRow={
+  product_id?:unknown;edition_id?:unknown;grant_id?:unknown;
+  contract_id?:unknown;contract_version_id?:unknown;valid_until?:unknown;
+  epoch?:unknown;
+};
+/** Strong authority is checked for authenticated commercial actions only.
+ * The owner snapshot proves current *product rights*; the existing primary
+ * purchase/entitlement and contract delivery checks are additional mandatory
+ * conditions. Product proof alone NEVER creates an entitlement.
+ */
+async function authorizeStageCommercialProducts(
+  env:StageLegalConsumerEnv,products:ConsumerProduct[],territory:string,
+  channel:"retail"|"subscription"|"library"
+) {
+  const ids=products.map(p=>p.id);
+  if(ids.some(id=>!commercialPattern.test(id)||
+      id.startsWith("prd_gutenberg_")) || new Set(ids).size!==ids.length)
+    throw new ApiError(503,"Commercial product identity is not canonical.");
+  let rows:unknown;
+  try {
+    const response=await env.LEGAL_AUTHORITY!.getByName("cove-staged-legal-global-v1")
+      .fetch(new Request("https://legal-authority.internal/commercial/authorize-batch",{
+        method:"POST",headers:{"content-type":"application/json",
+          "authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET},
+        body:JSON.stringify({ids,territory,channel})
+      }));
+    if(response.status!==200)throw Error("commercial_owner_unavailable");
+    const parsed=await response.json() as {schema?:unknown;rows?:unknown};
+    if(parsed?.schema!=="cove.commercial-legal.v1"||
+       !Array.isArray(parsed.rows))throw Error("commercial_owner_invalid");
+    rows=parsed.rows;
+  }catch{
+    throw new ApiError(503,"Independent commercial rights authority unavailable.");
+  }
+  const results=rows as CommercialProofRow[];
+  if(results.length!==ids.length)
+    throw new ApiError(451,"Commercial distribution rights are withdrawn or not yet authorized.");
+  const observed=new Set<string>();
+  for(const p of results){
+    if(!p||typeof p.product_id!=="string"||
+       !ids.includes(p.product_id)||observed.has(p.product_id)||
+       typeof p.edition_id!=="string"||
+       !/^[a-zA-Z0-9_-]{3,160}$/.test(p.edition_id) ||
+       typeof p.grant_id!=="string"||
+       !/^[a-zA-Z0-9_-]{3,180}$/.test(p.grant_id) ||
+       (p.contract_id!==null&&(typeof p.contract_id!=="string"||
+         !/^[a-zA-Z0-9_-]{3,180}$/.test(p.contract_id))) ||
+       (p.contract_version_id!==null&&(typeof p.contract_version_id!=="string"||
+         !/^[a-zA-Z0-9_-]{3,180}$/.test(p.contract_version_id))) ||
+       (p.contract_version_id!==null&&!p.contract_id)||
+       typeof p.valid_until!=="string"||
+       !Number.isFinite(Date.parse(p.valid_until))||
+       Date.parse(p.valid_until)<=Date.now()||
+       !Number.isSafeInteger(p.epoch)||Number(p.epoch)<=0)
+      throw new ApiError(503,"Commercial legal proof identity or epoch invalid.");
+    observed.add(p.product_id);
+  }
+}
+
 
 /**
  * Opt-in QA consumer fence for detail, checkout, EPUB and offline licensing.
@@ -44,12 +104,14 @@ export async function requireStageLegalConsumerProof(
   // rights grants and cannot be covered by a public-domain owner proof.
   const publicProducts=products.filter(p=>p.source_name!=="upload");
   if(!publicProducts.length)return;
-  if(publicProducts.some(p=>p.source_name!=="gutenberg" ||
-       !productPattern.test(p.id) ||
+  const paid=publicProducts.filter(p=>p.source_name!=="gutenberg");
+  if(paid.length)await authorizeStageCommercialProducts(env,paid,territory,"retail");
+  const free=publicProducts.filter(p=>p.source_name==="gutenberg");
+  if(!free.length)return;
+  if(free.some(p=>!productPattern.test(p.id) ||
        p.id!=="prd_gutenberg_"+p.source_external_id))
-    throw new ApiError(503,
-      "Commercial-edition legal ownership has not been migrated; customer operation withheld.");
-  const ids=publicProducts.map(p=>p.id);
+    throw new ApiError(503,"Public-domain source identity mismatch.");
+  const ids=free.map(p=>p.id);
   if(new Set(ids).size!==ids.length)
     throw new ApiError(503,"Duplicate legal-owner product.");
   let rows:unknown;
