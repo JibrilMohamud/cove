@@ -19,7 +19,7 @@ try {
   const db=new DatabaseSync(":memory:");
   const sql={exec(statement,...args){
     const stmt=db.prepare(statement);
-    return {toArray:()=>/^s*SELECT/i.test(statement)?stmt.all(...args):
+    return {toArray:()=>/^\s*SELECT\b/i.test(statement)?stmt.all(...args):
       (stmt.run(...args),[])};
   }};
   core.createAuthoritySchema(sql);
@@ -57,8 +57,10 @@ try {
   assert.deepEqual(core.readAuthorizedPresentations(sql,[proof.productId],"US","USD"),[],
     "Book detail, checkout and protected delivery must independently see denial");
   assert.equal(core.readAuthority(sql,"2701","US").allowed,false);
-  assert.equal((await client.authorizeHomepageWithLegalOwner({
-    async fetch(){throw Error("owner-down");}},secret,page).count,1);
+  await assert.rejects(()=>client.authorizeHomepageWithLegalOwner({
+    async fetch(){throw Error("owner-down");}},secret,page),/owner-down/,
+    "A failed strong owner cannot fall back to R2/KV or previous D1 grants");
+  console.log("PASS: owner-backed homepage never leaks withdrawn or unproved market books");
 } catch(error) {
   // Not used: all failures should be asserted below, never swallowed.
   throw error;
