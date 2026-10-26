@@ -26,6 +26,8 @@ on:
   pull_request:
     paths:
       - "src/storefront-strangler/**"
+      - "src/lib/security-headers.ts"
+      - "scripts/check-storefront-single-response.mjs"
       - "src/lib/literary-*.ts"
       - "src/content-processing.worker.ts"
       - "scripts/check-isolated-data-plane.mjs"
@@ -61,6 +63,7 @@ jobs:
       - run: node scripts/check-unbiased-random.mjs
       - run: node scripts/check-capacity-release-gate.mjs
       - run: node scripts/check-stage-capacity-fixture.mjs
+      - run: node scripts/check-storefront-single-response.mjs
       - run: node scripts/check-publication-feed.mjs
       - run: npm run test:literary-prepare-outbox
       - run: npm run test:literary-preparation-domain
