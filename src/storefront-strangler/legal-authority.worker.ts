@@ -4,7 +4,8 @@ import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/
 import { resolveProductRights } from "../features/fore/rights.server";
 import {
   captureCommercialEpoch, createCommercialAuthoritySchema,
-  denyCommercialProduct, publishFreshCommercialProof, readCommercialProofs,
+  denyCommercialProduct, denyCommercialProductsBatch,
+  publishFreshCommercialProof, readCommercialProofs,
   commercialProductId, type CommercialChannel,
 } from "./commercial-legal-core";
 import {
@@ -60,7 +61,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     if(request.method!=="POST") return new Response(null,{status:405,headers:noStore});
     const route=new URL(request.url).pathname;
     if(!["/deny","/deny-next","/deny-next-batch","/verify","/publish-allow","/authorize-batch",
-      "/commercial/deny-next","/commercial/publish-verified",
+      "/commercial/deny-next","/commercial/deny-batch","/commercial/publish-verified",
       "/commercial/authorize-batch"].includes(route))
       return new Response(null,{status:404,headers:noStore});
     if (request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
@@ -68,11 +69,20 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(["/authorize-batch","/deny-next-batch","/commercial/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
     try {
+      if(route==="/commercial/deny-batch"){
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const receipt=storage.transactionSync(()=>
+          denyCommercialProductsBatch(sql,raw)
+        );
+        return Response.json(receipt,{status:200,headers:noStore});
+      }
       if(route==="/commercial/deny-next"){
         const storage=this.ctx.storage as typeof this.ctx.storage & {
           transactionSync<T>(fn:()=>T):T;
