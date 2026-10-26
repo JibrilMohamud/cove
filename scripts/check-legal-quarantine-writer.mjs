@@ -42,6 +42,14 @@ try {
     if(request.headers.get("authorization")!=="Bearer "+secret)
       return new Response(null,{status:401});
     const cmd=await request.json();
+    if(new URL(request.url).pathname==="/deny-next-batch"){
+      db.exec("BEGIN");
+      try {
+        const result=core.persistSourceWithdrawalsBatch(sql,cmd);
+        db.exec("COMMIT");
+        return Response.json(result,{status:result.applied?200:409});
+      }catch(e){db.exec("ROLLBACK");return new Response(null,{status:400});}
+    }
     const result=core.persistSourceWithdrawal(sql,cmd);
     return Response.json(result,{status:result.applied?200:409});
   }};
@@ -140,6 +148,38 @@ try {
     "Wrong-country evidence may never produce a positive receipt");
   assert.equal((await post({...evidenceCmd,evidenceId:"x';DELETE"},
     {},"/evidence/revoke")).status,400);
+  db.prepare("INSERT INTO gutenberg_source_cache VALUES('2705','public-domain','approved','active')").run();
+  db.prepare("INSERT INTO gutenberg_source_cache VALUES('2706','public-domain','approved','active')").run();
+  operations.length=0;
+  const retraction={operations:[
+    {sourceId:"2705",operationId:"stale:2705:1"},
+    {sourceId:"2706",operationId:"stale:2706:1"}
+  ]};
+  assert.equal((await post(retraction,{},"/source/retract-batch")).status,200);
+  assert.deepEqual(operations,["authority","canonical-atomic-batch"],
+    "One owner batch must precede one canonical DB batch");
+  assert.deepEqual(db.prepare(
+    "SELECT id,ingest_status FROM gutenberg_source_cache WHERE id IN ('2705','2706') ORDER BY id"
+  ).all(),[{id:"2705",ingest_status:"stale"},{id:"2706",ingest_status:"stale"}]);
+  for(const sourceId of ["2705","2706"])
+    assert.deepEqual(core.readAuthority(sql,sourceId,"US"),{allowed:false,revision:1});
+  assert.equal((await post(retraction,{},"/source/retract-batch")).status,200);
+  assert.equal(core.readAuthority(sql,"2705","CA").revision,1,
+    "Source batch event replay cannot allocate new rights epochs");
+  assert.equal((await post({operations:[
+    retraction.operations[0],retraction.operations[0]
+  ]},{},"/source/retract-batch")).status,503,
+    "Duplicate source in one batch cannot receive a success receipt");
+  db.prepare("INSERT INTO gutenberg_source_cache VALUES('2707','public-domain','approved','active')").run();
+  operations.length=0;failOwner=true;
+  assert.equal((await post({operations:[
+    {sourceId:"2707",operationId:"stale:2707:1"}
+  ]},{},"/source/retract-batch")).status,503);
+  assert.deepEqual(operations,["authority"]);
+  assert.equal(db.prepare(
+    "SELECT ingest_status FROM gutenberg_source_cache WHERE id='2707'"
+  ).get().ingest_status,"active","Unavailable owner cannot allow D1 retraction");
+  failOwner=false;
   db.close();
-  console.log("PASS: QA canonical quarantine and per-country evidence revocation are owner-denied before D1, replay-safe and market-isolated");
+  console.log("PASS: QA source quarantine, independent-country evidence withdrawal and atomic source retraction batch, fail closed, replay safe");
 }finally{rmSync(directory,{force:true,recursive:true});}
