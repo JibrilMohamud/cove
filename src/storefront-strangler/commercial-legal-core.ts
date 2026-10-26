@@ -18,11 +18,12 @@ export function validateCommercialProof(p:CommercialProof,now=Date.now()) {
      !territoryPattern.test(p.territory) ||
      !["retail","subscription","library"].includes(p.channel) ||
      !/^[a-zA-Z0-9_-]{3,180}$/.test(p.grantId) ||
-     (p.contractId!==null &&
-        (typeof p.contractId!=="string"||!/^[a-zA-Z0-9_-]{3,180}$/.test(p.contractId))) ||
-     (p.contractVersionId!==null &&
-        (typeof p.contractVersionId!=="string"||!/^[a-zA-Z0-9_-]{3,180}$/.test(p.contractVersionId))) ||
-     (p.contractVersionId!==null&&!p.contractId) ||
+     // Paid distribution requires a specific effective contract VERSION.
+     // A missing contract must never be accepted as public-domain proof.
+     typeof p.contractId!=="string" ||
+     !/^[a-zA-Z0-9_-]{3,180}$/.test(p.contractId) ||
+     typeof p.contractVersionId!=="string" ||
+     !/^[a-zA-Z0-9_-]{3,180}$/.test(p.contractVersionId) ||
      typeof p.validUntil!=="string"||!isoTime.test(p.validUntil) ||
      !Number.isFinite(Date.parse(p.validUntil)) ||
      Date.parse(p.validUntil)<=now ||
