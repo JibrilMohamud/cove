@@ -1988,44 +1988,44 @@ export async function runRegionalCatalogIngestion(
         if (env.COVE_LEGAL_QUARANTINE_WRITER_STAGE === "1") {
           await retractStaleRegionalSourcesStage(env, sourceId, cycleStartedAt, staleCount);
         } else {
-        // Source retractions/corrections fail closed. Keep the canonical object for audit, but
-        // remove storefront eligibility until the item is observed and re-verified again.
-        await db
-          .prepare(
-            `UPDATE gutenberg_source_cache SET ingest_status='stale',rights_status='quarantined',commercial_use_status='quarantined',
-          epub_status='pending',epub_next_attempt_at='',last_error='Source item was absent from the latest complete catalog snapshot.',updated_at=?
-          WHERE source_id=? AND last_seen_at<? AND ingest_status NOT IN ('stale','quarantined')`,
-          )
-          .bind(completed, sourceId, cycleStartedAt)
-          .run();
-        await db
-          .prepare(
-            `UPDATE products SET storefront_status='inactive',updated_at=? WHERE source_name='gutenberg' AND source_external_id IN
-          (SELECT id FROM gutenberg_source_cache WHERE source_id=? AND ingest_status='stale')`,
-          )
-          .bind(completed, sourceId)
-          .run();
-        await db
-          .prepare(
-            `UPDATE offers SET active=0,updated_at=? WHERE product_id IN
-          (SELECT p.id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
-          )
-          .bind(completed, sourceId)
-          .run();
-        await db
-          .prepare(
-            `UPDATE editions SET release_status='unavailable',updated_at=? WHERE id IN
-          (SELECT p.edition_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
-          )
-          .bind(completed, sourceId)
-          .run();
-        await db
-          .prepare(
-            `UPDATE rights_grants SET status='suspended',updated_at=? WHERE source=? AND edition_id IN
-          (SELECT p.edition_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
-          )
-          .bind(completed, `gutenberg-${sourceId}-public-domain`, sourceId)
-          .run();
+          // Source retractions/corrections fail closed. Keep the canonical object for audit, but
+          // remove storefront eligibility until the item is observed and re-verified again.
+          await db
+            .prepare(
+              `UPDATE gutenberg_source_cache SET ingest_status='stale',rights_status='quarantined',commercial_use_status='quarantined',
+            epub_status='pending',epub_next_attempt_at='',last_error='Source item was absent from the latest complete catalog snapshot.',updated_at=?
+            WHERE source_id=? AND last_seen_at<? AND ingest_status NOT IN ('stale','quarantined')`,
+            )
+            .bind(completed, sourceId, cycleStartedAt)
+            .run();
+          await db
+            .prepare(
+              `UPDATE products SET storefront_status='inactive',updated_at=? WHERE source_name='gutenberg' AND source_external_id IN
+            (SELECT id FROM gutenberg_source_cache WHERE source_id=? AND ingest_status='stale')`,
+            )
+            .bind(completed, sourceId)
+            .run();
+          await db
+            .prepare(
+              `UPDATE offers SET active=0,updated_at=? WHERE product_id IN
+            (SELECT p.id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
+            )
+            .bind(completed, sourceId)
+            .run();
+          await db
+            .prepare(
+              `UPDATE editions SET release_status='unavailable',updated_at=? WHERE id IN
+            (SELECT p.edition_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
+            )
+            .bind(completed, sourceId)
+            .run();
+          await db
+            .prepare(
+              `UPDATE rights_grants SET status='suspended',updated_at=? WHERE source=? AND edition_id IN
+            (SELECT p.edition_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
+            )
+            .bind(completed, `gutenberg-${sourceId}-public-domain`, sourceId)
+            .run();
         }
       }
     }
