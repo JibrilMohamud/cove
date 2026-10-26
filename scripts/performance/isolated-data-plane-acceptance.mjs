@@ -270,8 +270,10 @@ async function sample(model = "projection", path = "/") {
     const catalogMs = /(?:^|, )cove_catalog;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
     const firstIsolate = /(?:^|, )cove_isolate_first;desc="([01])"/.exec(serverTiming);
     const isolateSeen = /(?:^|, )cove_isolate_seen;desc="(\d{1,3})"/.exec(serverTiming);
-    const { body, ms, firstHeadersMs, completedAtUnixMs } =
-      await measureCompleteStageResponse(r, started);
+    const { body, ms, firstHeadersMs, completedAtUnixMs } = await measureCompleteStageResponse(
+      r,
+      started,
+    );
     const wireBytes = transportSpan?.wireBytes ?? null;
     const decodedBytes = transportSpan?.decodedBytes ?? null;
     const contentEncoding = r.headers.get("content-encoding") || "identity";
