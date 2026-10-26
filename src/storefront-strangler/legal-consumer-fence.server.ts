@@ -68,6 +68,10 @@ export async function requireStagePaidEntitlementAccess(
   if(!proof||typeof proof.edition_id!=="string"||
      typeof proof.grant_id!=="string"||
      !/^[a-zA-Z0-9_-]{3,180}$/.test(proof.grant_id)||
+     typeof proof.contract_id!=="string"||
+     !/^[a-zA-Z0-9_-]{3,180}$/.test(proof.contract_id)||
+     typeof proof.contract_version_id!=="string"||
+     !/^[a-zA-Z0-9_-]{3,180}$/.test(proof.contract_version_id)||
      !Number.isSafeInteger(proof.product_epoch) ||
      Number(proof.product_epoch)<=0 ||
      !Number.isSafeInteger(proof.entitlement_epoch) ||
@@ -125,11 +129,10 @@ async function authorizeStageCommercialProducts(
        !/^[a-zA-Z0-9_-]{3,160}$/.test(p.edition_id) ||
        typeof p.grant_id!=="string"||
        !/^[a-zA-Z0-9_-]{3,180}$/.test(p.grant_id) ||
-       (p.contract_id!==null&&(typeof p.contract_id!=="string"||
-         !/^[a-zA-Z0-9_-]{3,180}$/.test(p.contract_id))) ||
-       (p.contract_version_id!==null&&(typeof p.contract_version_id!=="string"||
-         !/^[a-zA-Z0-9_-]{3,180}$/.test(p.contract_version_id))) ||
-       (p.contract_version_id!==null&&!p.contract_id)||
+       typeof p.contract_id!=="string"||
+       !/^[a-zA-Z0-9_-]{3,180}$/.test(p.contract_id) ||
+       typeof p.contract_version_id!=="string"||
+       !/^[a-zA-Z0-9_-]{3,180}$/.test(p.contract_version_id) ||
        typeof p.valid_until!=="string"||
        !Number.isFinite(Date.parse(p.valid_until))||
        Date.parse(p.valid_until)<=Date.now()||
