@@ -1,12 +1,35 @@
 /* eslint-disable prettier/prettier -- Protected rights and purchase lease must share strong owner state. */
 import assert from "node:assert/strict";
 import {DatabaseSync} from "node:sqlite";
-import {mkdtempSync,rmSync} from "node:fs";
+import {mkdtempSync,rmSync,readFileSync} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {pathToFileURL} from "node:url";
 import {build} from "esbuild";
 
+// Every paid audiobook byte/license and Biosync timing path must invoke
+// the same buyer-specific owner check as protected EPUB redemption. A
+// subscription cannot masquerade as a retail purchase proof.
+const audio=readFileSync("src/features/fore/commercial-audio.server.ts","utf8");
+assert.ok(audio.includes("async function requireCommercialAudioOwner("));
+assert.ok(audio.includes('if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") return;'));
+assert.ok(audio.includes("await requireStagePaidEntitlementAccess(env, {"));
+assert.ok(audio.includes('channel: "retail"'));
+for(const endpoint of [
+  'match[2] === "tracks"',
+  'match[2] === "playback"',
+  'match[2] === "biosync"',
+  'match[2] === "offline-license" && match[3] === "verify"',
+  'match[2] === "offline-license" && !match[3]',
+  'match[2] === "complete"',
+]){
+  const start=audio.indexOf(endpoint);
+  assert.ok(start>=0,"Protected audio endpoint missing: "+endpoint);
+  const end=audio.indexOf("  if (match[2]",start+endpoint.length);
+  const section=audio.slice(start,end<0?start+11500:end);
+  assert.ok(section.includes("await requireCommercialAudioOwner(env,"),
+    "Protected audio endpoint missing owner authorization: "+endpoint);
+}
 const dir=mkdtempSync(path.join(os.tmpdir(),"cove-protected-paid-"));
 try{
   const load=async(src,out)=>{
