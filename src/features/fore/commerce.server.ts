@@ -12,6 +12,7 @@ import {
 } from "./finance.server";
 import { promotionPermitted } from "./rights.server";
 import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
+import { certifyStagePaidSettlement } from "../../storefront-strangler/paid-settlement-publication.server";
 import {
   assertPreorderPurchaseAllowed,
   completePreorderRefundJob,
@@ -1359,7 +1360,11 @@ export async function finalizePaidOrder(
   const db = env.DB,
     order = await db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(orderId).first<any>();
   if (!order) throw new ApiError(404, "Order not found.");
-  if (["paid", "partially_refunded", "refunded"].includes(order.status)) return order;
+  if (["paid", "partially_refunded", "refunded"].includes(order.status)) {
+    if (order.status === "paid")
+      await certifyStagePaidSettlement(env, String(order.id), String(order.user_id));
+    return order;
+  }
   const at = now();
   await consumeTender(db, order);
   await db
@@ -1638,6 +1643,11 @@ export async function finalizePaidOrder(
   } catch (e) {
     console.error("Purchase receipt notification enqueue failed", e);
   }
+  // D1 order settlement is not a paid delivery authorization. Only a
+  // successfully acknowledged independent owner proof releases protected
+  // content; on failure the signed Stripe event is replayable from the paid
+  // branch above without resettling the financial ledger.
+  await certifyStagePaidSettlement(env, String(order.id), String(order.user_id));
   return db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(orderId).first<any>();
 }
 
