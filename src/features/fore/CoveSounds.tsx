@@ -256,7 +256,7 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
   const [message, setMessage] = useState("");
   const [browse, setBrowse] = useState(false);
   const publicShelves = useInfiniteQuery({
-    queryKey: ["cove-sounds-station-shelves-v2", station.slug, data.user?.id || "guest"],
+    queryKey: ["cove-sounds-station-shelves-v2", station.slug],
     initialPageParam: "",
     queryFn: ({ pageParam, signal }) => api<{ shelves: PublicShelf[]; nextCursor: string | null }>(
       "/social/sounds/stations/" + station.slug + "/shelves" +
@@ -264,7 +264,10 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
       "GET", undefined, { signal },
     ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-    enabled: browse && typeof window !== "undefined",
+    // Shelves are public and only fetched on explicit intent. A state-only
+    // enabled transition can lose its first fetch in iPad WebKit when the
+    // account context hydrates on the same render; refetch() is deliberate.
+    enabled: false,
     staleTime: 60_000,
     retry: false,
   });
@@ -298,7 +301,7 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
         <Sparkles size={17} aria-hidden="true" /> {busy ? "Creating…" : "Create a public listening shelf"}
       </button>
       {message && <p role="alert">{message}</p>}
-      <button type="button" className="sounds-explore-button" onClick={() => { trackSounds(station, "shelf_open"); setBrowse(true); if (browse) void publicShelves.refetch(); }} disabled={browse && publicShelves.isPending}>
+      <button type="button" className="sounds-explore-button" onClick={() => { trackSounds(station, "shelf_open"); setBrowse(true); void publicShelves.refetch(); }} disabled={browse && publicShelves.isPending}>
         <BookOpen size={16} aria-hidden="true" /> {browse ? "Refresh reader-created shelves" : "Explore reader-created shelves"}
       </button>
       {browse && publicShelves.isPending && <p role="status">Finding public listening shelves…</p>}
