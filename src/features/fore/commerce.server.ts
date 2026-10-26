@@ -12,7 +12,10 @@ import {
 } from "./finance.server";
 import { promotionPermitted } from "./rights.server";
 import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
-import { certifyStagePaidSettlement } from "../../storefront-strangler/paid-settlement-publication.server";
+import {
+  assertStagePaidOrderNotWithdrawn,
+  certifyStagePaidSettlement,
+} from "../../storefront-strangler/paid-settlement-publication.server";
 import {
   assertPreorderPurchaseAllowed,
   completePreorderRefundJob,
@@ -1365,6 +1368,9 @@ export async function finalizePaidOrder(
       await certifyStagePaidSettlement(env, String(order.id), String(order.user_id));
     return order;
   }
+  // Negative order authority precedes every tender/ledger mutation. A
+  // previously refunded Stripe intent cannot be reprocessed into a sale.
+  await assertStagePaidOrderNotWithdrawn(env, String(order.id));
   const at = now();
   await consumeTender(db, order);
   await db
