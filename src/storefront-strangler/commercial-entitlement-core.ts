@@ -24,6 +24,7 @@ export function createPaidEntitlementSchema(sql:AuthoritySql) {
     product_id TEXT NOT NULL,
     epoch INTEGER NOT NULL CHECK(epoch>0),
     verdict TEXT NOT NULL CHECK(verdict IN ('deny','allow')),
+    product_epoch INTEGER,
     valid_until TEXT
   ) WITHOUT ROWID`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cove_paid_entitlement_ops(
@@ -65,10 +66,10 @@ export function denyPaidEntitlement(sql:AuthoritySql,raw:unknown){
   const epoch=(prior?.epoch??0)+1;
   if(!Number.isSafeInteger(epoch))throw Error("paid_entitlement_epoch_exhausted");
   sql.exec(`INSERT INTO cove_paid_entitlement_authority(
-    entitlement_id,user_id,product_id,epoch,verdict,valid_until)
-    VALUES(?,?,?,?,'deny',NULL)
+    entitlement_id,user_id,product_id,epoch,verdict,product_epoch,valid_until)
+    VALUES(?,?,?,?,'deny',NULL,NULL)
     ON CONFLICT(entitlement_id) DO UPDATE SET epoch=excluded.epoch,
-      verdict='deny',valid_until=NULL`,
+      verdict='deny',product_epoch=NULL,valid_until=NULL`,
     scope.entitlementId,scope.userId,scope.productId,epoch
   );
   sql.exec("INSERT INTO cove_paid_entitlement_ops(operation_id,entitlement_id,epoch) VALUES(?,?,?)",
@@ -79,7 +80,9 @@ export function publishFreshEntitlement(
   sql:AuthoritySql,raw:unknown,expectedEpoch:number,now=Date.now()
 ){
   const scope=validatePaidEntitlementScope(raw);
-  const {validUntil}=raw as {validUntil?:unknown};
+  const {validUntil,productEpoch}=raw as {validUntil?:unknown;productEpoch?:unknown};
+  if(!Number.isSafeInteger(productEpoch)||Number(productEpoch)<=0)
+    throw Error("invalid_entitlement_product_epoch");
   if(typeof validUntil!=="string"||
      !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(validUntil)||
      !Number.isFinite(Date.parse(validUntil))||
@@ -95,11 +98,11 @@ export function publishFreshEntitlement(
   const epoch=expectedEpoch+1;
   if(!Number.isSafeInteger(epoch))throw Error("paid_entitlement_epoch_exhausted");
   sql.exec(`INSERT INTO cove_paid_entitlement_authority(
-    entitlement_id,user_id,product_id,epoch,verdict,valid_until)
-    VALUES(?,?,?,?,'allow',?)
+    entitlement_id,user_id,product_id,epoch,verdict,product_epoch,valid_until)
+    VALUES(?,?,?,?,'allow',?,?)
     ON CONFLICT(entitlement_id) DO UPDATE SET epoch=excluded.epoch,
-      verdict='allow',valid_until=excluded.valid_until`,
-    scope.entitlementId,scope.userId,scope.productId,epoch,validUntil
+      verdict='allow',product_epoch=excluded.product_epoch,valid_until=excluded.valid_until`,
+    scope.entitlementId,scope.userId,scope.productId,epoch,Number(productEpoch),validUntil
   );
   return {applied:true,epoch};
 }
@@ -127,6 +130,7 @@ export function readPaidAccess(sql:AuthoritySql,raw:unknown,now=new Date().toISO
      JOIN cove_commercial_scope_proofs p ON p.product_id=e.product_id
      JOIN cove_commercial_authority a
        ON a.product_id=p.product_id AND a.epoch=p.epoch AND a.verdict='allow'
+     AND e.product_epoch=p.epoch
      WHERE e.entitlement_id=? AND e.user_id=? AND e.product_id=? AND e.verdict='allow'
        AND e.valid_until>? AND p.valid_until>?
        AND p.territory=? AND p.channel=? LIMIT 1`,
