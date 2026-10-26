@@ -53,6 +53,24 @@ const post=async(path,body,authorization=gate)=>{
   const payload=r.status===200?await r.json():null;
   return {status:r.status,payload};
 };
+// A new workers.dev hostname can be live in one colo before another.
+// Retry ONLY read-only assertions while an edge returns a transient route
+// 404/503. A positive proof, denial or 401 remains mandatory at the end;
+// never replay owner mutations, payment settlement or revocation writes.
+const readOwner=async(path,body,authorization=gate,expected=200)=>{
+  assert.ok(["/verify","/authorize-batch","/commercial/authorize-batch"].includes(path));
+  let reply;
+  for(let i=0;i<8;i++){
+    try{reply=await post(path,body,authorization);}
+    catch(error){
+      if(i===7)throw error;
+      await sleep(750);continue;
+    }
+    if(reply.status===expected || ![404,503].includes(reply.status))return reply;
+    if(i<7)await sleep(750);
+  }
+  return reply;
+};
 try{
   const owner=JSON.parse(fs.readFileSync("wrangler.legal-authority.example.jsonc","utf8"));
   assert.equal(owner.workers_dev,false);
@@ -136,7 +154,7 @@ try{
     params:[sourceId]});
   assert.equal(before[0]?.results?.[0]?.rights_status,"public-domain");
 
-  assert.equal((await post("/verify",{sourceId,territory:"CA"})).payload?.allowed,false);
+  assert.equal((await readOwner("/verify",{sourceId,territory:"CA"})).payload?.allowed,false);
   const withdrawal=await post("/deny-next",{
     sourceId,territory:"*",operationId:"qa:"+runId+":source:deny"
   });
@@ -149,17 +167,17 @@ try{
   assert.equal(replay.status,200);
   assert.equal(replay.payload?.revision,1,"Repeated writer delivery retains original epoch");
   for(const territory of ["US","CA","AU"]){
-    const decision=await post("/verify",{sourceId,territory});
+    const decision=await readOwner("/verify",{sourceId,territory});
     assert.equal(decision.status,200);
     assert.deepEqual(decision.payload,{allowed:false,revision:1},
       "Same owner must deny every country after source-wide withdrawal");
   }
-  const offerings=await post("/authorize-batch",{
+  const offerings=await readOwner("/authorize-batch",{
     ids:["prd_gutenberg_"+sourceId],territory:"US",currency:"USD"
   });
   assert.equal(offerings.status,200);
   assert.deepEqual(offerings.payload?.rows,[],"Denied source cannot expose stale free retail offer");
-  const unauthorized=await post("/verify",{sourceId,territory:"US"},"0".repeat(64));
+  const unauthorized=await readOwner("/verify",{sourceId,territory:"US"},"0".repeat(64));
   assert.equal(unauthorized.status,401);
   const quarantined=await post("/quarantine",{
     sourceId,operationId:"qa:"+runId+":quarantine:1",
@@ -176,7 +194,7 @@ try{
     ingest_status:"quarantined"
   },"Canonical source status changed only by the narrowly scoped writer");
   for(const territory of ["US","CA","AU"]) {
-    const state=await post("/verify",{sourceId,territory});
+    const state=await readOwner("/verify",{sourceId,territory});
     assert.deepEqual(state.payload,{allowed:false,revision:2},
       "Writer's source-wide fence immediately precedes and dominates primary mutation");
   }
@@ -185,7 +203,7 @@ try{
     message:"independently-confirmed-qa-source-withdrawal"
   });
   assert.equal(repeated.status,200);
-  assert.deepEqual((await post("/verify",{sourceId,territory:"US"})).payload,
+  assert.deepEqual((await readOwner("/verify",{sourceId,territory:"US"})).payload,
     {allowed:false,revision:2},"Duplicate writer event must not allocate another revision");
   console.log("PASS: LIVE QA: owner DENY -> private canonical writer -> D1 quarantine -> 3-country denial -> exact replay");
   // Separate source and market fixtures: US evidence can be withdrawn
@@ -216,16 +234,16 @@ try{
   assert.deepEqual(grants[0]?.results,[{territory_code:"CA",status:"active"},
     {territory_code:"US",status:"suspended"}],
     "US evidence withdrawal must not revoke Canada's independent grant");
-  assert.deepEqual((await post("/verify",{sourceId:evidenceSourceId,territory:"US"})).payload,
+  assert.deepEqual((await readOwner("/verify",{sourceId:evidenceSourceId,territory:"US"})).payload,
     {allowed:false,revision:1});
-  assert.deepEqual((await post("/verify",{sourceId:evidenceSourceId,territory:"CA"})).payload,
+  assert.deepEqual((await readOwner("/verify",{sourceId:evidenceSourceId,territory:"CA"})).payload,
     {allowed:false,revision:null},
     "CA owner remains unseeded/denied, never implicitly granted by D1 alone");
   assert.equal((await post("/evidence/revoke",{
     sourceId:evidenceSourceId,territory:"US",evidenceId,
     operationId:"qa:"+runId+":evidence-us:withdraw"
   })).status,200);
-  assert.equal((await post("/verify",{sourceId:evidenceSourceId,territory:"US"})).payload?.revision,1,
+  assert.equal((await readOwner("/verify",{sourceId:evidenceSourceId,territory:"US"})).payload?.revision,1,
     "Idempotent evidence replay must keep its original owner revision");
   console.log("PASS: LIVE QA: strong owner US evidence denial -> atomic D1 evidence+grant revoke; CA grant unaffected and no inferred owner allow");
   seededRetractions=true;
@@ -251,18 +269,18 @@ try{
     "QA D1 rows must be made ineligible by the atomic source retraction");
   for(const id of retractIds){
     for(const country of ["US","CA","AU"])
-      assert.deepEqual((await post("/verify",{sourceId:id,territory:country})).payload,
+      assert.deepEqual((await readOwner("/verify",{sourceId:id,territory:country})).payload,
         {allowed:false,revision:1});
   }
   assert.equal((await post("/source/retract-batch",withdrawals)).status,200);
-  assert.equal((await post("/verify",{sourceId:retractIds[0],territory:"US"})).payload?.revision,1,
+  assert.equal((await readOwner("/verify",{sourceId:retractIds[0],territory:"US"})).payload?.revision,1,
     "Idempotent replay may not advance source denial epoch");
   console.log("PASS: LIVE QA: one transaction withdraws multiple sources, one canonical D1 batch retracts, US/CA/AU deny and replay preserves revisions");
 
   // Commercial licensed editions are separate from Gutenberg proof rows.
   // The owner denies and atomically acknowledges two contract-affected
   // product IDs without requiring a fabricated positive grant/entitlement.
-  const unseededPaid=await post("/commercial/authorize-batch",{
+  const unseededPaid=await readOwner("/commercial/authorize-batch",{
     ids:paidIds,territory:"US",channel:"retail"
   });
   assert.equal(unseededPaid.status,200);
@@ -280,7 +298,7 @@ try{
   const paidRetry=await post("/commercial/deny-batch",paidOps);
   assert.equal(paidRetry.status,200);
   assert.deepEqual(paidRetry.payload?.receipts?.map(r=>r.epoch),[1,1]);
-  assert.deepEqual((await post("/commercial/authorize-batch",{
+  assert.deepEqual((await readOwner("/commercial/authorize-batch",{
     ids:paidIds,territory:"US",channel:"retail"
   })).payload,{schema:"cove.commercial-legal.v1",rows:[]},
   "Owner denial must exclude paid products immediately, across replay");
@@ -306,7 +324,7 @@ try{
   let persistent=null;
   for(let i=0;i<8;i++){
     try {
-      const reply=await post("/verify",{sourceId,territory:"CA"});
+      const reply=await readOwner("/verify",{sourceId,territory:"CA"});
       if(reply.status===200 && reply.payload?.revision===2){
         persistent=reply.payload;break;
       }
@@ -318,7 +336,7 @@ try{
   assert.deepEqual((await post("/commercial/order/deny-next",
     paidOrderDenial)).payload,wholeOrder.payload,
     "Whole-order refund veto must persist through real Cloudflare Worker redeploy");
-  const persistedPaid=await post("/commercial/authorize-batch",{
+  const persistedPaid=await readOwner("/commercial/authorize-batch",{
     ids:paidIds,territory:"US",channel:"retail"
   });
   assert.deepEqual(persistedPaid.payload,{schema:"cove.commercial-legal.v1",rows:[]});
