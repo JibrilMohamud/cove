@@ -32,6 +32,7 @@ try{
   const input={
     entitlementId:"2be93243-1057-4fdc-a393-f8666bd97378",
     userId:"user_purchase_17",productId:"prd_commercial_a17",
+    orderId:"order_purchase_17",
     territory:"US",channel:"retail"
   };
   const doc={productId:input.productId,editionId:"ed_commercial_a17",
@@ -97,6 +98,11 @@ try{
   });
   await assert.rejects(check(),e=>e.status===451,
     "Refund revocation denies buyer even when product remains authorized");
+  assert.deepEqual(entitlement.denyPaidOrder(sql,{
+    orderId:input.orderId,operationId:"order-refund:purchase17"
+  }),{applied:true,orderId:input.orderId});
+  await assert.rejects(check(),e=>e.status===451,
+    "A single full-order denial vetoes a previously granted entitlement");
   await assert.rejects(check({...env,LEGAL_AUTHORITY:{
     getByName:()=>({async fetch(){throw Error("rpc_unavailable");}})
   }}),e=>e.status===503,"Outage must never fall back to primary or KV allow");
