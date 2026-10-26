@@ -194,37 +194,37 @@ try {
     sourceId:"2701",territory:"*",operationId:"../../escape"
   }),/invalid_denial_operation/);
   const batchRaw={operations:[
-    {sourceId:"2702",territory:"*",operationId:"regional:2702:retracted"},
-    {sourceId:"2703",territory:"*",operationId:"regional:2703:retracted"}
+    {sourceId:"7070707012",territory:"*",operationId:"regional:7070707012:retracted"},
+    {sourceId:"7070707013",territory:"*",operationId:"regional:7070707013:retracted"}
   ]};
   assert.equal(validateWithdrawalBatch(batchRaw).length,2);
   assert.throws(()=>validateWithdrawalBatch({operations:[batchRaw.operations[0],batchRaw.operations[0]]}),
     /duplicate_denial_batch_key/);
   assert.throws(()=>validateWithdrawalBatch({operations:[batchRaw.operations[0],
     {...batchRaw.operations[1],sourceId:"../../fake"}]}),/invalid_authority_command/);
-  assert.deepEqual(readAuthority(sql,"2702","US"),{allowed:false,revision:null});
+  assert.deepEqual(readAuthority(sql,"7070707012","US"),{allowed:false,revision:null});
   db.exec("BEGIN");
   const pair=persistSourceWithdrawalsBatch(sql,batchRaw);
   db.exec("COMMIT");
   assert.equal(pair.applied,true);
   assert.deepEqual(pair.receipts.map(x=>x.revision),[1,1]);
-  assert.deepEqual(readAuthority(sql,"2702","US"),{allowed:false,revision:1});
-  assert.deepEqual(readAuthority(sql,"2703","CA"),{allowed:false,revision:1});
+  assert.deepEqual(readAuthority(sql,"7070707012","US"),{allowed:false,revision:1});
+  assert.deepEqual(readAuthority(sql,"7070707013","CA"),{allowed:false,revision:1});
   db.exec("BEGIN");
   const duplicate=persistSourceWithdrawalsBatch(sql,batchRaw);
   db.exec("COMMIT");
   assert.equal(duplicate.applied,true);
   assert.deepEqual(duplicate.receipts.map(x=>x.revision),[1,1],
     "Canonical retraction event replay must retain owner epochs");
-  const abort={operations:[{sourceId:"2704",territory:"*",operationId:"regional:2704:retracted"},
-    {sourceId:"2703",territory:"*",operationId:"regional:2702:retracted"}]};
+  const abort={operations:[{sourceId:"7070707014",territory:"*",operationId:"regional:7070707014:retracted"},
+    {sourceId:"7070707013",territory:"*",operationId:"regional:7070707012:retracted"}]};
   db.exec("BEGIN");
   try {
     assert.throws(()=>persistSourceWithdrawalsBatch(sql,abort),
       /denial_operation_reused_with_different_scope/);
     db.exec("ROLLBACK");
   }catch(e){db.exec("ROLLBACK");throw e;}
-  assert.deepEqual(readAuthority(sql,"2704","US"),{allowed:false,revision:null},
+  assert.deepEqual(readAuthority(sql,"7070707014","US"),{allowed:false,revision:null},
     "Atomic owner transaction rolls back first withdrawal if later command fails");
   db.close();
   console.log("PASS: persistent deny-first legal fence, stale/equal positive rejection, global withdrawal, territory isolation, recovery");
