@@ -99,6 +99,10 @@ try{
     await assert.rejects(check(forged),e=>e.status===503,
       "Forged paid lease must fail closed: "+field);
   }
+  db.prepare("UPDATE cove_commercial_scope_proofs SET contract_version_id=NULL WHERE product_id=?").run(input.productId);
+  await assert.rejects(check(),e=>e.status===451,
+    "An old contractless rights row must NOT authorize protected delivery");
+  db.prepare("UPDATE cove_commercial_scope_proofs SET contract_version_id=? WHERE product_id=?").run(doc.contractVersionId,input.productId);
   await assert.rejects(check(owner,{...input,userId:"user_other_18"}),
     e=>e.status===451,"Cannot borrow another buyer's purchase proof");
   product.denyCommercialProduct(sql,{
