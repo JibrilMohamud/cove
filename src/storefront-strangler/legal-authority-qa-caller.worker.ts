@@ -33,12 +33,15 @@ export default {
     if(uri.search || !["/deny-next","/deny-next-batch","/verify","/authorize-batch","/quarantine","/evidence/revoke","/source/retract-batch",
         "/commercial/deny-next","/commercial/deny-batch",
         "/commercial/authorize-batch","/commercial/publish-verified",
-        "/commercial/suspend-grant","/commercial/suspend-contract"].includes(uri.pathname))
+        "/commercial/suspend-grant","/commercial/suspend-contract",
+        "/commercial/entitlement/deny-next","/commercial/entitlement/publish-verified",
+        "/commercial/entitlement/authorize","/commercial/entitlement/revoke"].includes(uri.pathname))
       return new Response(null,{status:404,headers:noStore});
     const isWriter=uri.pathname==="/quarantine" || uri.pathname==="/evidence/revoke" ||
       uri.pathname==="/source/retract-batch" ||
       uri.pathname==="/commercial/suspend-grant" ||
-      uri.pathname==="/commercial/suspend-contract";
+      uri.pathname==="/commercial/suspend-contract" ||
+      uri.pathname==="/commercial/entitlement/revoke";
     if(isWriter && (!env.LEGAL_WRITER?.fetch ||
        !/^[a-f0-9]{64}$/.test(env.COVE_LEGAL_WRITER_SECRET||"")))
       return new Response(null,{status:503,headers:noStore});
