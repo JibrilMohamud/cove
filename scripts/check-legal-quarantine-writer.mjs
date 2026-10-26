@@ -166,8 +166,8 @@ try {
   assert.deepEqual(core.readAuthority(sql,"2702","CA"),{allowed:true,revision:2},
     "Withdrawing US evidence may not revoke the separately authorized CA market");
   assert.equal(db.prepare("SELECT status FROM gutenberg_rights_evidence WHERE id='gre_2702_us'").get().status,"revoked");
-  assert.equal(db.prepare("SELECT status FROM rights_grants WHERE territory_code='US'").get().status,"suspended");
-  assert.equal(db.prepare("SELECT status FROM rights_grants WHERE territory_code='CA'").get().status,"active");
+  assert.equal(db.prepare("SELECT status FROM rights_grants WHERE territory_code='US' AND source='gutenberg-pg_us-public-domain'").get().status,"suspended");
+  assert.equal(db.prepare("SELECT status FROM rights_grants WHERE territory_code='CA' AND source='gutenberg-pg_us-public-domain'").get().status,"active");
   assert.equal((await post(evidenceCmd,{},"/evidence/revoke")).status,200);
   assert.equal(core.readAuthority(sql,"2702","US").revision,3,
     "Retry cannot allocate a new source epoch");
