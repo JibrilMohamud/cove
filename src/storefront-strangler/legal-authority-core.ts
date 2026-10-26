@@ -218,6 +218,54 @@ export function persistSourceWithdrawal(sql:AuthoritySql,raw:unknown){
   return {applied:true,revision,state:result.state};
 }
 
+
+/**
+ * Capture the owner revision BEFORE awaiting primary-D1 positive verification.
+ * Reinstatement has no authority unless the caller supplies precisely the
+ * next revision and the same owner state remains unchanged until commit.
+ *
+ * This closes an ABA hazard: a withdrawal can be acknowledged while a slow
+ * primary query is pending. That old query must never resurrect the item.
+ */
+export function capturePositiveVerificationFence(sql:AuthoritySql,raw:unknown):number {
+  const command=validateAuthorityCommand(raw);
+  if(command.action!=="allow"||command.territory==="*")
+    throw Error("positive_verification_requires_territory");
+  const highest=sql.exec<{max_revision:number|null}>(
+    "SELECT MAX(revision) max_revision FROM cove_legal_fences WHERE source_id=?",
+    command.sourceId
+  ).toArray()[0]?.max_revision ?? 0;
+  if(!Number.isSafeInteger(highest)||highest<0||
+      highest >= Number.MAX_SAFE_INTEGER-1 ||
+      command.revision!==highest+1)
+    throw Error("positive_verification_stale_revision");
+  return highest;
+}
+
+export function commitFreshPositiveVerification(
+  sql:AuthoritySql,raw:unknown,expectedBaseRevision:number,
+  currency:string,proof:VerifiedOfferProof
+){
+  const command=validateAuthorityCommand(raw);
+  validateVerifiedOfferProof(command,currency,proof);
+  if(!Number.isSafeInteger(expectedBaseRevision) || expectedBaseRevision<0 ||
+      command.revision!==expectedBaseRevision+1)
+    throw Error("positive_verification_invalid_fence");
+  const highest=sql.exec<{max_revision:number|null}>(
+    "SELECT MAX(revision) max_revision FROM cove_legal_fences WHERE source_id=?",
+    command.sourceId
+  ).toArray()[0]?.max_revision ?? 0;
+  if(highest!==expectedBaseRevision)
+    return {applied:false,state:readAuthority(sql,command.sourceId,command.territory)};
+  // The read/check/write sequence is synchronous and executes in one DO
+  // event turn. No network await may interleave a later deny after this
+  // revision check but before the offer proof is committed.
+  const verdict=applyAuthorityCommand(sql,command);
+  if(!verdict.applied) return verdict;
+  storeAuthorizedPresentationProof(sql,command,currency,proof);
+  return verdict;
+}
+
 export function applyAuthorityCommand(sql: AuthoritySql, raw: unknown) {
   const c=validateAuthorityCommand(raw);
   if (c.territory==="*") {
