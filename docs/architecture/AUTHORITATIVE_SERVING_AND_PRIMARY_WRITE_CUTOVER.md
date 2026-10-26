@@ -1,0 +1,103 @@
+# Authoritative serving and primary-write cutover — release-blocked
+
+Status: **architecture contract only**. Not deployed, not used for customer
+authorization, not proof of the <800 ms public HTTP SLA. PR #351 remains draft.
+
+## Evidence, 2026-10-25 / GitHub Actions 40252409966
+
+The third synthetic cold round succeeded, as did all cold rounds (594, 453,
+616 ms). The 32-request burst later contained a **valid HTTP 200**, Ray
+`a50594bfb9d03ad6-LAX`, in **968.31 ms**. Worker handler: **185 ms**;
+primary-D1 service: **181 ms**, SQL: **4.9 ms**; approximately **783 ms** lay
+outside the measured Worker handler. The full independent 100-RPS campaign
+was not reached. There is no basis for declaring a release pass.
+
+Two separate tail sources require independent solutions:
+1. Primary-D1 service time under mixed rights/publication traffic, even when
+   SQL is fast and presentations come from independent KV/R2.
+2. Edge/HTTP delivery delay outside the Worker, which moving SQL or
+   shortening a query cannot fix. Do not classify all external time as D1 time.
+
+## Safe target ownership
+
+Keep candidate ranking, taxonomy, normalized book metadata, FTS, audio work,
+and publication preparation **physically outside the rights authority DB**.
+Primary D1 retains source/legal evidence, grants, offers, entitlements, and
+a minimal fenced publication receipt until a separately certified owner
+migration. *Do not disable the legacy `commercialCatalogStatements` owner
+until every legal/provenance/publication dependency has a replacement.*
+
+A geographically appropriate strongly consistent authority service (a
+Durable Object is one candidate, not yet selected) may eventually serve an
+anonymous snapshot of the specifically authorized 24-card homepage. It MUST
+NOT merely mirror primary-D1 grants asynchronously and call them current.
+No independent D1 read replica, KV TTL, signed R2 document, or stale tombstone
+can independently authorize a book.
+
+## Mandatory write/authority protocol
+
+- **Writer closure:** inventory and fence every mutation of source status,
+  provenance, evidence, active grant, offer, edition release, market currency,
+  and product suppression, including admin/backfill/cron/emergency SQL.
+  Requests outside the fenced owner must fail, not fall back to legacy writes.
+- **Withdrawal first:** durably record a denial and monotonic source/territory
+  generation at the strongly consistent serving authority BEFORE committing
+  the corresponding canonical withdrawal. If the second leg fails, keep the
+  conservative denial and retry reconciliation. Never wait for an async
+  changefeed to hide an exposed grant.
+- **Positive grant last:** validate current canonical source, evidence,
+  explicit jurisdiction and offer; commit the legal grant before attempting
+  a version-fenced serving allowance. An older positive command cannot
+  outrun a newer revocation. A missing/unknown generation means deny.
+- **Read linearization:** the authorizer must read the current durable state
+  from the owner (or a provably equivalent same-owner read), not an
+  eventually consistent cross-region cache. Co-located in-memory projection
+  is safe only if all writes serialize at that same owner and restart reload
+  is fail-closed.
+- **Checkout, reader and detail parity:** all customer-facing rights decisions
+  must observe the same synchronous denial barrier. An alternate homepage
+  authorizer is *not* sufficient while checkout or asset delivery can race it.
+- **Rollback:** default to the existing fresh-primary check, or deny if that
+  dependency is unavailable. Never switch on the alternate path when the
+  source-writer fence is incomplete. Rollback must not resurrect grants from
+  stale replicas or caches.
+
+## Required adversarial acceptance (same immutable release SHA)
+
+1. Withdraw a currently visible grant, territory, evidence and source while
+   homepage, detail, checkout and delivery requests are in flight; after the
+   denial linearization point, **zero** new successful authorizations.
+2. Crash between deny-first and primary commit; repair by replay, retaining
+   denial. Crash between positive canonical proof and new allowance; continue
+   denying until valid replay.
+3. Replay reordered, duplicated, missing and lower-revision allow/deny
+   messages. Only explicit later legally verified grants may reinstate.
+4. Drop DO/authority connection, drain/interrupt a publisher lease, evict an
+   isolate, and change regions. All paths fail closed; no stale KV/R2 offer
+   becomes available.
+5. Prove writer closure under the **real mixed source-ingestion and royalty /
+   commerce load**, not just synthetic unrelated D1 writes.
+6. Separately test HTTP/2 and HTTP/3 edge delivery, service-handler time,
+   Cloudflare Ray, region, and D1 SQL/service duration. Cloudflare-managed
+   response tails must be demonstrably absent under the unchanged contract;
+   do not hide them by warming or discarding slow sessions.
+7. Require three cold rounds under 800 ms, every 1/4/8/16/32-concurrent
+   request under 800 ms, and two complete 12,000/12,000-request 100-RPS
+   phases with zero drops, p95 <600, p99 <750, max <800 ms. Repeat
+   book-detail, commerce/entitlement, revoked-asset and mobile p75 LCP gates
+   at the same release SHA.
+
+## Immediate safe progress in this branch
+
+- Fenced primary metadata publication now avoids UPDATE writes when the
+  normalized work/edition fields are unchanged (including retries and
+  territory-only source revisions).
+- Taxonomy mapping and ancestor reconciliation now executes four dependent
+  statements in one atomic D1 batch rather than four separate service calls.
+- The hosted benchmark logs per-burst Cloudflare Ray, transport and service
+  timings while retaining every slow sample and the original strict gate.
+
+None of these targeted reductions removes the full legacy primary writer or
+solves the independently observed Cloudflare delivery tails. Production
+routing, primary migration, authority cutover and release certification
+remain disabled pending the full adversarial evidence.
