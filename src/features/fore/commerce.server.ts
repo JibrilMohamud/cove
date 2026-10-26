@@ -198,28 +198,15 @@ async function cartPricing(db: CatalogDB, userId: string, territory: string, env
   if (currencies.size !== 1)
     throw new ApiError(409, "All items in an order must use the same currency.");
   const currency = [...currencies][0];
-  if (env) {
-    await requireStageLegalConsumerProof(
-      env,
-      snap.items.map((item: any) => {
-        const productId = String(item.book?.productId || "");
-        const sourceId = String(item.book?.sourceExternalId || "");
-        return {
-          id: productId,
-          source_name: productId === "prd_gutenberg_" + sourceId ? "gutenberg" : "commercial",
-          source_external_id: sourceId,
-        };
-      }),
-      territory.toUpperCase(),
-      currency,
-    );
-  }
   const items = [] as any[];
   for (const x of snap.items as any[]) {
     await assertPreorderPurchaseAllowed(db, userId, String(x.book.productId));
     const d = await resolvePricingDecision(db, String(x.book.productId), territory, {
       userId,
-      persist: true,
+      // The staged owner is the publication authority. Pricing may still
+      // read canonical D1, but must not mutate rights_decisions through the
+      // legacy API while the canonical write lock is enabled.
+      persist: env?.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1",
     });
     if (!d) throw new ApiError(409, "A cart item is no longer purchasable in your storefront.");
     items.push({
@@ -267,6 +254,22 @@ async function cartPricing(db: CatalogDB, userId: string, territory: string, env
   if (finalCurrencies.size !== 1)
     throw new ApiError(409, "All items in an order must resolve to the same currency.");
   const resolvedCurrency = [...finalCurrencies][0];
+  if (env) {
+    await requireStageLegalConsumerProof(
+      env,
+      items.map((item) => ({
+        id: item.productId,
+        source_name:
+          item.productId === "prd_gutenberg_" + item.externalId ? "gutenberg" : "commercial",
+        source_external_id: item.externalId,
+        expectedEditionId: item.rightsSnapshot.editionId,
+        expectedGrantId: item.rightsGrantId,
+        expectedContractVersionId: item.rightsSnapshot.contractVersionId,
+      })),
+      territory.toUpperCase(),
+      resolvedCurrency,
+    );
+  }
   const fingerprint = await sha256(
     JSON.stringify(
       items.map((x) => [
