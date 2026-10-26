@@ -37,6 +37,16 @@ export function createPaidEntitlementSchema(sql:AuthoritySql) {
   sql.exec(`CREATE TABLE IF NOT EXISTS cove_paid_entitlement_orders(
     entitlement_id TEXT PRIMARY KEY,order_id TEXT NOT NULL
   ) WITHOUT ROWID`);
+  // Binding a buyer to a product epoch alone is insufficient: independent
+  // country or channel grants can share that epoch. Old leases missing this
+  // immutable acquisition snapshot deliberately fail closed on read.
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_paid_entitlement_scopes(
+    entitlement_id TEXT PRIMARY KEY,
+    territory TEXT NOT NULL,channel TEXT NOT NULL,
+    edition_id TEXT NOT NULL,grant_id TEXT NOT NULL,
+    contract_id TEXT NOT NULL,contract_version_id TEXT NOT NULL,
+    FOREIGN KEY(entitlement_id) REFERENCES cove_paid_entitlement_orders(entitlement_id)
+  ) WITHOUT ROWID`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cove_paid_refunded_orders(
     order_id TEXT PRIMARY KEY
   ) WITHOUT ROWID`);
@@ -173,6 +183,23 @@ export function publishFreshEntitlement(
     market.territory,market.channel as CommercialChannel);
   if(currentRights.length!==1||currentRights[0].epoch!==Number(productEpoch))
     throw Error("paid_entitlement_product_epoch_stale");
+  const right=currentRights[0];
+  if(typeof right.contract_id!=="string" || typeof right.contract_version_id!=="string")
+    throw Error("paid_entitlement_contract_missing");
+  const priorScope=sql.exec<{
+    territory:string;channel:string;edition_id:string;grant_id:string;
+    contract_id:string;contract_version_id:string
+  }>(`SELECT territory,channel,edition_id,grant_id,contract_id,contract_version_id
+      FROM cove_paid_entitlement_scopes WHERE entitlement_id=?`,
+    scope.entitlementId).toArray()[0];
+  if(priorScope && (
+    priorScope.territory!==market.territory ||
+    priorScope.channel!==market.channel ||
+    priorScope.edition_id!==right.edition_id ||
+    priorScope.grant_id!==right.grant_id ||
+    priorScope.contract_id!==right.contract_id ||
+    priorScope.contract_version_id!==right.contract_version_id
+  ))throw Error("paid_entitlement_acquisition_scope_changed");
   const prior=current(sql,scope.entitlementId);
   if(prior &&(prior.user_id!==scope.userId||prior.product_id!==scope.productId))
     throw Error("paid_entitlement_scope_changed");
@@ -215,6 +242,11 @@ export function publishFreshEntitlement(
   sql.exec(`INSERT INTO cove_paid_entitlement_orders(entitlement_id,order_id)
     VALUES(?,?) ON CONFLICT(entitlement_id) DO UPDATE
     SET order_id=excluded.order_id`,scope.entitlementId,orderId);
+  sql.exec(`INSERT INTO cove_paid_entitlement_scopes(
+    entitlement_id,territory,channel,edition_id,grant_id,contract_id,contract_version_id)
+    VALUES(?,?,?,?,?,?,?) ON CONFLICT(entitlement_id) DO NOTHING`,
+    scope.entitlementId,market.territory,market.channel,
+    right.edition_id,right.grant_id,right.contract_id,right.contract_version_id);
   return {applied:true,epoch};
 }
 /**
@@ -242,7 +274,11 @@ export function readPaidAccess(sql:AuthoritySql,raw:unknown,now=new Date().toISO
             CASE WHEN e.valid_until<p.valid_until THEN e.valid_until ELSE p.valid_until END valid_until
      FROM cove_paid_entitlement_authority e
      JOIN cove_paid_entitlement_orders eo ON eo.entitlement_id=e.entitlement_id
+     JOIN cove_paid_entitlement_scopes s ON s.entitlement_id=e.entitlement_id
      JOIN cove_commercial_scope_proofs p ON p.product_id=e.product_id
+       AND p.territory=s.territory AND p.channel=s.channel
+       AND p.edition_id=s.edition_id AND p.grant_id=s.grant_id
+       AND p.contract_id=s.contract_id AND p.contract_version_id=s.contract_version_id
      JOIN cove_commercial_authority a
        ON a.product_id=p.product_id AND a.epoch=p.epoch AND a.verdict='allow'
      AND e.product_epoch=p.epoch
