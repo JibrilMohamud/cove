@@ -38,15 +38,17 @@ export function syntheticOperatorFixturePlan(productIds, runId) {
             AND rg.decision='allow' AND rg.status='active'
             AND rg.sales_channel='retail')`,params,
     },
-    // Every synthetic card has an explicit time-unbounded FREE retail offer.
-    issueOffers:ids.map(id=>({
-        sql:`INSERT INTO offers(id,product_id,offer_type,currency,amount_minor,
+    // One bounded primary QA transaction; no per-book Cloudflare API calls.
+    // The catalog's live grants remain the ONLY sale authorization source.
+    issueOffers:{
+      sql:`INSERT INTO offers(id,product_id,offer_type,currency,amount_minor,
           active,created_at,updated_at,sales_channel)
-          SELECT ?,p.id,'free','USD',0,1,datetime('now'),datetime('now'),'retail'
-          FROM products p WHERE p.id=? AND p.source_name='operator'
-            AND NOT EXISTS(SELECT 1 FROM offers o WHERE o.product_id=p.id AND o.active=1 AND o.sales_channel='retail')`,
-        params:[prefix+id,id],
-      })),
+        SELECT ?||p.id,p.id,'free','USD',0,1,datetime('now'),datetime('now'),'retail'
+        FROM products p WHERE p.id IN (${list}) AND p.source_name='operator'
+          AND NOT EXISTS(SELECT 1 FROM offers o
+            WHERE o.product_id=p.id AND o.active=1 AND o.sales_channel='retail')`,
+      params:[prefix,...ids],
+    },
     verify:{
       sql:`SELECT COUNT(DISTINCT p.id) n FROM products p
         JOIN offers o ON o.product_id=p.id AND o.sales_channel='retail'

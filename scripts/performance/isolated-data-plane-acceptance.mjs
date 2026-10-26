@@ -612,10 +612,10 @@ try {
   const changed=await sql(primary,syntheticFixture.operatorize.sql,syntheticFixture.operatorize.params);
   assert.equal(changed.meta?.changes,REQUIRED_BOOK_CARDS,
     "Refused to mutate non-synthetic or already reassigned product provenance");
-  for (const q of syntheticFixture.issueOffers) {
-    const added=await sql(primary,q.sql,q.params);
-    assert.equal(added.meta?.changes,1,"Synthetic QA storefront offer could not be activated");
-  }
+  const offerWrite=syntheticFixture.issueOffers;
+  const added=await sql(primary,offerWrite.sql,offerWrite.params);
+  assert.equal(added.meta?.changes,REQUIRED_BOOK_CARDS,
+    "Synthetic QA storefront retail offers could not be activated");
   const proof=await sql(primary,syntheticFixture.verify.sql,syntheticFixture.verify.params);
   assert.equal(proof.results?.[0]?.n,REQUIRED_BOOK_CARDS,
     "No 24-book authoritative-and-purchasable synthetic storefront fixture");

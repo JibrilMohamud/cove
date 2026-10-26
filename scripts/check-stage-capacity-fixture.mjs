@@ -4,7 +4,7 @@ import { syntheticOperatorFixturePlan,REQUIRED_BOOK_CARDS } from "./performance/
 const ids=Array.from({length:128},(_,i)=>"perf-synth-"+String(i+1).padStart(6,"0"));
 const plan=syntheticOperatorFixturePlan(ids,"40247093368");
 assert.equal(plan.ids.length,REQUIRED_BOOK_CARDS);
-assert.equal(plan.issueOffers.length,REQUIRED_BOOK_CARDS);
+assert.equal(plan.issueOffers.params.length,REQUIRED_BOOK_CARDS+1);
 assert.throws(()=>syntheticOperatorFixturePlan(["actual-book"],"40247093368"));
 assert.throws(()=>syntheticOperatorFixturePlan(ids,"wrong-name"));
 assert.throws(()=>syntheticOperatorFixturePlan(Array.from({length:128},()=>ids[0]),"40247093368"));
@@ -26,10 +26,9 @@ for(const id of ids){
 const select=(q)=>db.prepare(q.sql).get(...q.params).n;
 assert.equal(select(plan.preflight),24);
 assert.equal(db.prepare(plan.operatorize.sql).run(...plan.operatorize.params).changes,24);
-for(const q of plan.issueOffers)
- assert.equal(db.prepare(q.sql).run(...q.params).changes,1);
+assert.equal(db.prepare(plan.issueOffers.sql).run(...plan.issueOffers.params).changes,24);
 assert.equal(select(plan.verify),24);
-assert.equal(db.prepare(plan.issueOffers[0].sql).run(...plan.issueOffers[0].params).changes,0);
+assert.equal(db.prepare(plan.issueOffers.sql).run(...plan.issueOffers.params).changes,0);
 db.prepare("UPDATE rights_grants SET status='revoked' WHERE id=?").run("rg-"+ids[0]);
 assert.equal(select(plan.verify),23,"A withdrawn operator grant must disappear even with a prior active offer");
 db.prepare("UPDATE rights_grants SET status='active' WHERE id=?").run("rg-"+ids[0]);
