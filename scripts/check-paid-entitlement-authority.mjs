@@ -100,9 +100,20 @@ try{
   }),{applied:true,orderId:scope.orderId},"Full-order refund replay is idempotent");
   assert.throws(()=>lease(3),/paid_order_already_revoked/,
     "A refunded order can NEVER regrant access, even after re-verification");
-  assert.deepEqual(lease(3,"order_purchase_new_18"),{applied:true,epoch:5});
-  assert.equal(verify()?.entitlement_epoch,5,
-    "A separately paid new order may establish a newly verified buyer proof");
+  assert.throws(()=>lease(3,"order_purchase_new_18"),
+    /paid_entitlement_order_swap_forbidden/,
+    "A new order can never launder an old or refunded entitlement ID");
+  const newPurchase={...scope,
+    entitlementId:"217ae8bb-bbf0-4cea-bcdb-b776189af818",
+    orderId:"order_purchase_new_18"};
+  assert.deepEqual(ent.publishFreshEntitlement(sql(),{
+    ...newPurchase,productEpoch:3,
+    validUntil:new Date(Date.now()+180000).toISOString()
+  },0),{applied:true,epoch:1});
+  assert.equal(ent.readPaidAccess(sql(),{...newPurchase,
+    territory:"US",channel:"retail"})?.entitlement_epoch,1,
+    "A new paid order must use its own distinct entitlement identity");
+  assert.equal(verify(),null,"Refunded entitlement ID must remain denied");
   assert.throws(()=>ent.denyPaidOrder(sql(),{
     orderId:"another_purchase_18",operationId:"order-refund:purchase17"
   }),/paid_order_denial_scope_collision/);
