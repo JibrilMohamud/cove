@@ -16,6 +16,7 @@ import {
 } from "../staging/strangler-http-transport.mjs";
 import { takeAnonymizedTcpSnapshot, compareTcpSnapshots } from "./anonymized-tcp-evidence.mjs";
 import { projectedRequestFailure, strictProjectionPhasePass } from "./capacity-release-gate.mjs";
+import { measureCompleteStageResponse } from "./complete-response-timing.mjs";
 import {
   syntheticOperatorFixturePlan,
   REQUIRED_BOOK_CARDS,
@@ -262,18 +263,15 @@ async function sample(model = "projection", path = "/") {
       },
       signal: AbortSignal.timeout(10000),
     });
-    // Keep both clocks: the release gate measures a COMPLETE verified body,
-    // not merely the arrival of HTTP/2 response headers.
-    const firstHeadersMs = performance.now() - started;
+    // Capture first-header and end-of-body clocks independently.
     const transportSpan = stageTransportSpan(r);
     const serverTiming = r.headers.get("server-timing") || "";
     const handlerMs = /(?:^|, )cove_handler;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
     const catalogMs = /(?:^|, )cove_catalog;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
     const firstIsolate = /(?:^|, )cove_isolate_first;desc="([01])"/.exec(serverTiming);
     const isolateSeen = /(?:^|, )cove_isolate_seen;desc="(\d{1,3})"/.exec(serverTiming);
-    const body = await r.text();
-    const ms = performance.now() - started;
-    const completedAtUnixMs = Date.now();
+    const { body, ms, firstHeadersMs, completedAtUnixMs } =
+      await measureCompleteStageResponse(r, started);
     const wireBytes = transportSpan?.wireBytes ?? null;
     const decodedBytes = transportSpan?.decodedBytes ?? null;
     const contentEncoding = r.headers.get("content-encoding") || "identity";
