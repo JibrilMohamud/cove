@@ -11,6 +11,7 @@ on:
       - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
       - "wrangler.legal-quarantine-qa.example.jsonc"
       - "scripts/check-legal-quarantine-writer.mjs"
+      - "scripts/staging/sweep-expired-legal-qa-callers.mjs"
       - "wrangler.legal-authority.example.jsonc"
       - "scripts/build-storefront-strangler.mjs"
       - ".github/workflows/legal-authority-private-qa.yml"
@@ -43,6 +44,9 @@ jobs:
           node scripts/check-legal-authority-read.mjs
           node scripts/check-legal-primary-write-lock.mjs
           node scripts/check-legal-quarantine-writer.mjs
+          node scripts/staging/sweep-expired-legal-qa-callers.mjs --self-test
+      - name: Clean up any expired legal QA callers from prior interrupted jobs
+        run: node scripts/staging/sweep-expired-legal-qa-callers.mjs
       - name: Compile isolated authority entrypoint
         run: node scripts/build-storefront-strangler.mjs
       - name: Enforce physically nonroutable disabled QA deployment
@@ -79,3 +83,7 @@ jobs:
       - name: Certify actual QA service-binding withdrawal and restore disabled state
         run: node scripts/staging/prove-private-legal-owner.mjs
 
+
+      - name: Sweep expired QA callers after proof or failure
+        if: always()
+        run: node scripts/staging/sweep-expired-legal-qa-callers.mjs
