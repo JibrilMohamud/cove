@@ -24,7 +24,17 @@ const LEGAL_TABLES = [
   "commerce_orders", "commerce_order_items", "commerce_refunds",
   "commercial_delivery_grants", "commercial_entitlement_delivery_usage",
   "entitlement_ownership_records", "risk_holds", "asset_versions",
-  "digital_assets", "publication_versions"
+  "digital_assets", "publication_versions",
+  // Audiobook performance rights, narration agreements, publication,
+  // protected audio bytes and offline licenses are paid legal writers too.
+  // Disabling only EPUB writes would leave revocation bypasses elsewhere.
+  "commercial_audio_profiles", "commercial_audio_narrators",
+  "commercial_audio_chapters", "commercial_audio_files",
+  "commercial_audio_qc_jobs", "commercial_audio_qc_runs",
+  "narration_agreements", "narration_agreement_terminations",
+  "commercial_biosync_links", "audio_offline_licenses",
+  "publishing_rights_declarations", "publishing_rights_evidence",
+  "publishing_publication_versions", "publishing_release_lifecycles"
 ] as const;
 
 // Detect mutating SQL anywhere in the statement, not merely at position 0:
