@@ -4,6 +4,7 @@ import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";
 import { drmSatisfiesRequirement, resolveProductRights } from "./rights.server";
 import { recordSyncProjection } from "./sync.server";
+import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
 
 type DB = CoveEnv["DB"];
 const uid = (p: string) => `${p}_${crypto.randomUUID()}`;
@@ -539,6 +540,14 @@ export async function issueCommercialEpubGrant(
       })
       .parse(raw),
     db = env.DB;
+  // The public-domain-only QA authority does not approve paid contracts.
+  // Never create a delivery token or mutate ownership under a missing proof.
+  await requireStageLegalConsumerProof(
+    env,
+    [{ id: x.productId, source_name: "commercial" }],
+    (requestMeta(request).country || env.FORE_DEFAULT_TERRITORY || "US").toUpperCase(),
+    "USD",
+  );
   const {
     product,
     entitlement: ent,
@@ -738,6 +747,12 @@ export async function serveCommercialEpubGrant(env: CoveEnv, rawToken: string, r
       .bind(hash)
       .first<any>();
   if (!grant) throw new ApiError(404, "Delivery grant not found.");
+  await requireStageLegalConsumerProof(
+    env,
+    [{ id: String(grant.product_id), source_name: "commercial" }],
+    (requestMeta(request).country || env.FORE_DEFAULT_TERRITORY || "US").toUpperCase(),
+    "USD",
+  );
   const fail = async (status: number, msg: string, reason: string) => {
     await audit(db, {
       grantId: grant.id,
