@@ -25,6 +25,11 @@ on:
       - "scripts/check-legal-authority-read.mjs"
       - "scripts/check-legal-primary-write-lock.mjs"
       - "scripts/check-legal-quarantine-writer.mjs"
+      - "scripts/check-legal-consumer-fence.mjs"
+      - "src/storefront-strangler/legal-consumer-fence.server.ts"
+      - "src/features/fore/retail.server.ts"
+      - "src/features/fore/commerce.server.ts"
+      - "src/features/fore/delivery.server.ts"
       - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
       - "wrangler.legal-quarantine-qa.example.jsonc"
       - "src/storefront-strangler/legal-primary-write-lock.ts"
@@ -60,6 +65,7 @@ jobs:
       - run: node scripts/check-legal-authority-read.mjs
       - run: node scripts/check-legal-primary-write-lock.mjs
       - run: node scripts/check-legal-quarantine-writer.mjs
+      - run: node scripts/check-legal-consumer-fence.mjs
       - run: node scripts/build-storefront-strangler.mjs
       - run: npm run typecheck
       - run: npm run test:rights
