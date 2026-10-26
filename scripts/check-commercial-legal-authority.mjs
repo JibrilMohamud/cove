@@ -34,6 +34,12 @@ try {
     /invalid_commercial_proof/,"A paid proof must identify a canonical grant");
   assert.throws(()=>core.validateCommercialProof({...proof,contractVersionId:"rcv_17",contractId:null}),
     /invalid_commercial_proof/,"Versioned contract must have exact parent");
+  assert.throws(()=>core.validateCommercialProof({...proof,contractId:null,contractVersionId:null}),
+    /invalid_commercial_proof/,"Paid retail distribution never inherits a contract-free public-domain proof");
+  assert.throws(()=>core.validateCommercialProof({...proof,contractVersionId:null}),
+    /invalid_commercial_proof/,"Even a valid contract requires a precise version");
+  assert.throws(()=>core.validateCommercialProof({...proof,territory:"*"}),
+    /invalid_commercial_proof/,"A global wildcard cannot stand in for country approval");
   assert.throws(()=>core.validateCommercialProof({...proof,validUntil:new Date(Date.now()+48*3600000).toISOString()}),
     /invalid_commercial_proof/,"Long-lived cached allowances are forbidden");
   assert.equal(core.captureCommercialEpoch(sql(),{productId:id}),0);
