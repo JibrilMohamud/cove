@@ -83,7 +83,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       if(route==="/deny-next-batch") {
         // Transaction boundary is mandatory even when an unexpected receipt
         // throws mid-batch: all owner fences persist or none persist.
-        const verdict=this.ctx.storage.transactionSync(()=>
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const verdict=storage.transactionSync(()=>
           persistSourceWithdrawalsBatch(sql,raw)
         );
         return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
