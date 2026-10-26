@@ -41,28 +41,79 @@ export default {
       return new Response(null,{status:401,headers});
     const pathname=new URL(request.url).pathname;
     const isEvidence=pathname==="/evidence/revoke";
+    const isRetractionBatch=pathname==="/source/retract-batch";
     if(request.method!=="POST" ||
-       (pathname!=="/quarantine" && !isEvidence) ||
+       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch) ||
        request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json" ||
        request.headers.has("cookie"))
       return new Response(null,{status:405,headers});
     let cmd:{sourceId?:unknown;operationId?:unknown;message?:unknown;
-      evidenceId?:unknown;territory?:unknown};
+      evidenceId?:unknown;territory?:unknown;operations?:unknown};
     try{
       const text=await request.text();
-      if(text.length>900)return new Response(null,{status:413,headers});
+      if(text.length>(isRetractionBatch?5000:900))
+        return new Response(null,{status:413,headers});
       cmd=JSON.parse(text);
     }catch{return new Response(null,{status:400,headers});}
-    if(!cmd||!sourceIdRegex.test(String(cmd.sourceId||"")) ||
+    if(!cmd || !isRetractionBatch && (
+       !sourceIdRegex.test(String(cmd.sourceId||"")) ||
        !opIdRegex.test(String(cmd.operationId||"")) ||
        (isEvidence
          ? typeof cmd.evidenceId!=="string" ||
            !/^gre_[a-z0-9_:-]{1,120}$/.test(cmd.evidenceId) ||
            typeof cmd.territory!=="string" ||
            !/^[A-Z]{2}$/.test(cmd.territory)
-         : typeof cmd.message!=="string"||cmd.message.length>500))
+         : typeof cmd.message!=="string"||cmd.message.length>500)))
       return new Response(null,{status:400,headers});
     try{
+      if(isRetractionBatch){
+        // A bounded source retraction has ONE strongly consistent owner
+        // transaction and ONE atomic primary-D1 batch, never O(N) network
+        // calls to both databases. A missing receipt means no canonical
+        // mutation. No public caller can exercise this QA-only endpoint.
+        if(!Array.isArray(cmd.operations) || cmd.operations.length<1 ||
+           cmd.operations.length>25)
+          return new Response(null,{status:400,headers});
+        const seen=new Set<string>();
+        const operations=cmd.operations.map((raw:unknown)=>{
+          if(!raw||typeof raw!=="object")throw Error("invalid_retraction");
+          const item=raw as Record<string,unknown>;
+          if(typeof item.sourceId!=="string"||
+             !sourceIdRegex.test(item.sourceId) ||
+             typeof item.operationId!=="string" ||
+             !opIdRegex.test(item.operationId) ||
+             seen.has(item.sourceId))
+            throw Error("invalid_retraction");
+          seen.add(item.sourceId);
+          return {sourceId:item.sourceId,territory:"*",operationId:item.operationId};
+        });
+        const owner=await env.LEGAL_PRIVATE.fetch(new Request(
+          "https://legal-authority.internal/deny-next-batch",{
+            method:"POST",
+            headers:{"authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,
+              "content-type":"application/json"},
+            body:JSON.stringify({operations})
+          }
+        ));
+        if(owner.status!==200)throw Error("owner_batch_denied");
+        const receipt=await owner.json() as {
+          applied?:boolean;
+          receipts?:Array<{sourceId?:string;operationId?:string;applied?:boolean;revision?:number}>;
+        };
+        if(receipt.applied!==true || !Array.isArray(receipt.receipts) ||
+           receipt.receipts.length!==operations.length ||
+           receipt.receipts.some((r,i)=>!r.applied ||
+             !Number.isSafeInteger(r.revision) || r.revision!<=0 ||
+             r.sourceId!==operations[i].sourceId ||
+             r.operationId!==operations[i].operationId))
+          throw Error("owner_batch_receipt_unconfirmed");
+        const statements=operations.map(op=>env.PRIMARY_DB.prepare(
+          "UPDATE gutenberg_source_cache SET rights_status='quarantined',commercial_use_status='quarantined',ingest_status='stale' WHERE id=?"
+        ).bind(op.sourceId));
+        await env.PRIMARY_DB.batch(statements);
+        return Response.json({retracted:operations.length},
+          {status:200,headers});
+      }
       if(isEvidence) {
         // An evidence withdrawal applies to one exact jurisdiction. It
         // MUST NOT revoke another rights holder's grant or a different
