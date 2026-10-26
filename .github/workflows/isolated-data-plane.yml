@@ -33,6 +33,7 @@ on:
       - "scripts/staging/check-publication-feed-live.mjs"
       - "infra/discovery/**"
       - "scripts/performance/isolated-data-plane-acceptance.mjs"
+      - "scripts/performance/cloudflare-delivery-attribution.mjs"
       - "scripts/performance/synthetic-operator-fixture.mjs"
       - "scripts/check-stage-capacity-fixture.mjs"
       - "scripts/performance/capacity-release-gate.mjs"
@@ -65,6 +66,7 @@ jobs:
       - run: npm run test:literary-prepared-projection
       - run: node scripts/check-storefront-prepared-catalog.mjs
       - run: node scripts/check-isolated-http-metric.mjs
+      - run: node scripts/performance/cloudflare-delivery-attribution.mjs --self-test
       - run: npm run test:rights && npm run test:commerce
       - run: npm run typecheck
       - run: node scripts/build-storefront-strangler.mjs && npm run build:content-processing
@@ -106,6 +108,12 @@ jobs:
       - run: npm ci
       - run: node scripts/build-storefront-strangler.mjs
       - run: node scripts/performance/isolated-data-plane-acceptance.mjs
+      - name: Correlate failed requests with Cloudflare Worker and edge telemetry
+        if: always()
+        run: |
+          if [ -f artifacts/isolated-data-plane/results.json ]; then
+            node scripts/performance/cloudflare-delivery-attribution.mjs
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
