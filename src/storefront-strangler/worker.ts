@@ -3,9 +3,8 @@ import { isolateWorkerCountry } from "../lib/cloudflare-country.server";
 import { verifyFastCountryClaim } from "../lib/fast-storefront-relay.server";
 import {
   rejectUnauthenticatedStagingRequest,
-  stageNoStore,
 } from "../lib/cloudflare-ssr-stage-gate.server";
-import { applySecurityHeaders } from "../lib/security-headers";
+import { buildSecurityHeaders } from "../lib/security-headers";
 import {
   canUseLeanAnonymousBootstrap,
   readTrustedLeanBootstrapJson,
@@ -199,10 +198,13 @@ export default {
         headers: { "cache-control": "no-store" },
       });
     const finish = (response: Response) => {
-      // Stage-only total handler clock: excludes pre-isolate edge queueing.
-      // This never exposes private SQL, identities, or grant decisions.
+      // Materialized bootstrap HTML is already legal-authorized. Build all
+      // security/stage headers first and wrap its body exactly ONCE.
+      // The prior path constructed three additional Responses around the
+      // same stream after authorization. Those extra workerd streaming
+      // boundaries can defer first-header delivery without improving safety.
+      const headers = buildSecurityHeaders(request, response.headers, env);
       if (!customerGateway) {
-        const headers = new Headers(response.headers);
         headers.set(
           "server-timing",
           [
@@ -214,19 +216,19 @@ export default {
             .filter(Boolean)
             .join(", "),
         );
-        response = new Response(response.body, { status: response.status, headers });
-      }
-      const secured = applySecurityHeaders(request, response, env);
-      if (!customerGateway) {
-        const headers = new Headers(secured.headers);
         const placement = request.headers.get("cf-placement") || "";
         if (/^(?:remote|local)-[A-Z]{3}$/.test(placement))
           headers.set("x-cove-stage-placement", placement);
-        return stageNoStore(new Response(secured.body, { status: secured.status, headers }), true);
+        headers.set("cache-control", "no-store, max-age=0");
+        headers.set("x-robots-tag", "noindex, nofollow, noarchive");
+      } else {
+        headers.set("cache-control", "private, no-store");
       }
-      const headers = new Headers(secured.headers);
-      headers.set("cache-control", "private, no-store");
-      return new Response(secured.body, { status: secured.status, headers });
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
     };
     // Stage bearer authorizes this gateway, not a customer session at CORE.
     const delegate = () => {
