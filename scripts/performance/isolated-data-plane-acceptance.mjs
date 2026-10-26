@@ -262,8 +262,9 @@ async function sample(model = "projection", path = "/") {
       },
       signal: AbortSignal.timeout(10000),
     });
-    const ms = performance.now() - started;
-    const completedAtUnixMs = Date.now();
+    // Keep both clocks: the release gate measures a COMPLETE verified body,
+    // not merely the arrival of HTTP/2 response headers.
+    const firstHeadersMs = performance.now() - started;
     const transportSpan = stageTransportSpan(r);
     const serverTiming = r.headers.get("server-timing") || "";
     const handlerMs = /(?:^|, )cove_handler;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
@@ -271,6 +272,8 @@ async function sample(model = "projection", path = "/") {
     const firstIsolate = /(?:^|, )cove_isolate_first;desc="([01])"/.exec(serverTiming);
     const isolateSeen = /(?:^|, )cove_isolate_seen;desc="(\d{1,3})"/.exec(serverTiming);
     const body = await r.text();
+    const ms = performance.now() - started;
+    const completedAtUnixMs = Date.now();
     const wireBytes = transportSpan?.wireBytes ?? null;
     const decodedBytes = transportSpan?.decodedBytes ?? null;
     const contentEncoding = r.headers.get("content-encoding") || "identity";
@@ -293,6 +296,7 @@ async function sample(model = "projection", path = "/") {
     return {
       ok,
       ms,
+      firstHeadersMs,
       completedAtUnixMs,
       status: r.status,
       transportSpan: transportSpan
@@ -301,6 +305,14 @@ async function sample(model = "projection", path = "/") {
             responseMs:
               transportSpan.sent && transportSpan.received
                 ? transportSpan.received - transportSpan.sent
+                : null,
+            fullResponseMs:
+              transportSpan.sent && transportSpan.ended
+                ? transportSpan.ended - transportSpan.sent
+                : null,
+            bodyDeliveryMs:
+              transportSpan.received && transportSpan.ended
+                ? transportSpan.ended - transportSpan.received
                 : null,
             wireBytes,
             decodedBytes,
