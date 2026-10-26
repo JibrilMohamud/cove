@@ -3,6 +3,7 @@ import {denyWithOwnedSourceEpoch} from "./legal-authority-coordinator";
 
 type WriteDB={
   prepare(query:string):{bind(...args:unknown[]):{run():Promise<unknown>}};
+  batch(statements:unknown[]):Promise<unknown>;
 };
 type QaWriterEnv={
   PRIMARY_DB:WriteDB;
@@ -36,11 +37,15 @@ export default {
     if(!qaWriterConfigured(env))return new Response(null,{status:503,headers});
     if(request.headers.get("authorization")!=="Bearer "+env.COVE_LEGAL_WRITER_SECRET)
       return new Response(null,{status:401,headers});
-    if(request.method!=="POST" || new URL(request.url).pathname!=="/quarantine" ||
+    const pathname=new URL(request.url).pathname;
+    const isEvidence=pathname==="/evidence/revoke";
+    if(request.method!=="POST" ||
+       (pathname!=="/quarantine" && !isEvidence) ||
        request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json" ||
        request.headers.has("cookie"))
       return new Response(null,{status:405,headers});
-    let cmd:{sourceId?:unknown;operationId?:unknown;message?:unknown};
+    let cmd:{sourceId?:unknown;operationId?:unknown;message?:unknown;
+      evidenceId?:unknown;territory?:unknown};
     try{
       const text=await request.text();
       if(text.length>900)return new Response(null,{status:413,headers});
@@ -48,9 +53,35 @@ export default {
     }catch{return new Response(null,{status:400,headers});}
     if(!cmd||!sourceIdRegex.test(String(cmd.sourceId||"")) ||
        !opIdRegex.test(String(cmd.operationId||"")) ||
-       typeof cmd.message!=="string"||cmd.message.length>500)
+       (isEvidence
+         ? typeof cmd.evidenceId!=="string" ||
+           !/^gre_[a-z0-9_:-]{1,120}$/.test(cmd.evidenceId) ||
+           typeof cmd.territory!=="string" ||
+           !/^[A-Z]{2}$/.test(cmd.territory)
+         : typeof cmd.message!=="string"||cmd.message.length>500))
       return new Response(null,{status:400,headers});
     try{
+      if(isEvidence) {
+        // An evidence withdrawal applies to one exact jurisdiction. It
+        // MUST NOT revoke another rights holder's grant or a different
+        // country. The DB batch is atomic and begins only after owner ACK.
+        await denyWithOwnedSourceEpoch(
+          env.LEGAL_PRIVATE,env.COVE_RIGHTS_OWNER_SECRET!,{
+            sourceId:cmd.sourceId as string,territory:cmd.territory as string,
+            operationId:cmd.operationId as string
+          },async()=>{
+            const evidence=env.PRIMARY_DB.prepare(
+              "UPDATE gutenberg_rights_evidence SET status='revoked' WHERE id=? AND cache_id=? AND territory_code=? AND status='approved'"
+            ).bind(cmd.evidenceId,cmd.sourceId,cmd.territory);
+            const grant=env.PRIMARY_DB.prepare(
+              "UPDATE rights_grants SET status='suspended' WHERE edition_id=? AND territory_code=? AND source='gutenberg-pg_us-public-domain' AND decision='allow' AND status='active'"
+            ).bind("ed_gutenberg_"+cmd.sourceId,cmd.territory);
+            return env.PRIMARY_DB.batch([evidence,grant]);
+          }
+        );
+        return Response.json({evidenceRevoked:true,territory:cmd.territory},
+          {status:200,headers});
+      }
       // The only legal mutation allowed by this service. The DO commits the
       // revocation before ANY SQL may execute. No generic SQL or delegated
       // batch endpoint exists; the legacy caller has no raw QA writer binding.
