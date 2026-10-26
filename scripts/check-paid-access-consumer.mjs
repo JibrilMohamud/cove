@@ -20,8 +20,12 @@ try{
   const consumer=await load("src/storefront-strangler/legal-consumer-fence.server.ts","consumer");
   const db=new DatabaseSync(":memory:");
   const sql={exec(q,...args){
+    // Cloudflare SQLite executes mutations eagerly. The Node fixture must
+    // match that: returning a lazy toArray() would silently skip CREATEs
+    // and positive/negative legal writes not read through a cursor.
     const st=db.prepare(q);
-    return {toArray:()=>/^\s*SELECT\b/i.test(q)?st.all(...args):(st.run(...args),[])};
+    const rows=/^\s*SELECT\b/i.test(q)?st.all(...args):(st.run(...args),[]);
+    return {toArray:()=>rows};
   }};
   product.createCommercialAuthoritySchema(sql);
   entitlement.createPaidEntitlementSchema(sql);
