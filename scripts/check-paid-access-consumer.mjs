@@ -57,6 +57,8 @@ try{
   const check=(user=owner,who=input)=>consumer.requireStagePaidEntitlementAccess(user,who);
   await check({},"");
   assert.equal(ownerCalls,0,"Existing production route MUST NOT contact QA owner");
+  assert.equal(entitlement.readPaidAccess(sql,input),null,
+    "Empty strong product/entitlement fixture must return denied without throwing");
   await assert.rejects(check(),e=>e.status===451,
     "Even a known order cannot read before rights and entitlement proofs");
   assert.deepEqual(product.publishFreshCommercialProof(sql,doc,0),
