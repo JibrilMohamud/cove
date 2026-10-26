@@ -14,7 +14,8 @@ try {
     entryPoints:["src/storefront-strangler/legal-authority-core.ts"],
     outfile:artifact,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"
   });
-  const {createAuthoritySchema, readAuthority, applyAuthorityCommand}=
+  const {createAuthoritySchema, createAuthorityProofSchema, readAuthority, applyAuthorityCommand,
+    storeAuthorizedPresentationProof,readAuthorizedPresentations}=
     await import(pathToFileURL(artifact).href);
   const sqlitePath=path.join(directory,"persistent.sqlite");
   const makeSql=db=>({
@@ -31,6 +32,14 @@ try {
   let db=new DatabaseSync(sqlitePath);
   let sql=makeSql(db);
   createAuthoritySchema(sql);
+  createAuthorityProofSchema(sql);
+  const proof={productId:'prd_gutenberg_2701',editionId:'ed_gutenberg_2701',
+    productPublicId:'book-2701',editionPublicId:'edition-2701',
+    offerJson:JSON.stringify({type:'public-domain',currency:'USD',amountMinor:0})};
+  const candidates=['prd_gutenberg_2701'];
+  const batch=(country='US',currency='USD')=>
+    readAuthorizedPresentations(sql,candidates,country,currency);
+  assert.deepEqual(batch(),[], 'Unseeded market authorization MUST deny');
   const cmd=(revision,action,territory="US")=>({
     sourceId:"2701",territory,revision,action
   });
@@ -46,17 +55,31 @@ try {
   assert.equal(state().allowed,false);
   assert.equal(applyAuthorityCommand(sql,cmd(11,"allow")).applied,true);
   assert.deepEqual(state(),{allowed:true,revision:11});
+  assert.deepEqual(batch(),[],"An allow flag without an exact primary proof cannot authorize");
+  assert.deepEqual(
+    storeAuthorizedPresentationProof(sql,cmd(11,"allow"),"USD",proof),
+    {allowed:true,revision:11}
+  );
+  assert.equal(batch().length,1);
+  assert.equal(batch()[0].edition_id,proof.editionId);
+  assert.deepEqual(batch("CA"),[],"Country grant not inferred");
+  assert.deepEqual(batch("US","CAD"),[],"Currency proof not inferred");
   assert.equal(applyAuthorityCommand(sql,cmd(11,"deny")).applied,true,
     "Same-revision denial must dominate positive grant");
   assert.equal(applyAuthorityCommand(sql,cmd(11,"allow")).applied,false);
   assert.equal(state().allowed,false);
+  assert.deepEqual(batch(),[],"Equal-version denial immediately revokes stored proof");
   assert.equal(applyAuthorityCommand(sql,cmd(12,"allow")).applied,true);
   assert.equal(state().allowed,true);
+  assert.deepEqual(batch(),[],"Old rev11 proof never authorizes new rev12");
+  storeAuthorizedPresentationProof(sql,cmd(12,"allow"),"USD",proof);
+  assert.equal(batch().length,1);
   // A global source withdrawal blocks every territory, including those with
   // previously allowed state. A later explicit fresh positive proof is needed.
   assert.equal(applyAuthorityCommand(sql,cmd(13,"deny","*")).applied,true);
   assert.equal(state().allowed,false);
   assert.deepEqual(state("CA"),{allowed:false,revision:13});
+  assert.deepEqual(batch(),[],"Source-wide withdrawal atomically revokes old offer");
   assert.equal(applyAuthorityCommand(sql,cmd(13,"allow")).applied,false);
   assert.equal(state().allowed,false,
     "Global denial wins over equal-revision territory permission");
@@ -64,6 +87,14 @@ try {
   assert.equal(state().allowed,true);
   assert.equal(state("CA").allowed,false,
     "US reinstatement cannot authorize an unrelated territory");
+  assert.deepEqual(batch(),[],"No grandfathering of prior offer after fresh allow");
+  storeAuthorizedPresentationProof(sql,cmd(14,"allow"),"USD",proof);
+  assert.equal(batch().length,1);
+  assert.throws(()=>storeAuthorizedPresentationProof(sql,cmd(12,"allow"),"USD",proof),
+    /authority_positive_revision_unconfirmed/);
+  assert.throws(()=>storeAuthorizedPresentationProof(sql,cmd(14,"allow"),"USD",
+    {...proof,offerJson:JSON.stringify({type:"ebook",currency:"USD",amountMinor:100})}),
+    /invalid_authority_offer/);
   assert.equal(applyAuthorityCommand(sql,cmd(12,"deny","*")).applied,false);
   assert.equal(applyAuthorityCommand(sql,{
     sourceId:"2702",territory:"CA",revision:20,action:"allow"
@@ -88,12 +119,16 @@ try {
   db=new DatabaseSync(sqlitePath);
   sql=makeSql(db);
   createAuthoritySchema(sql);
+  createAuthorityProofSchema(sql);
   assert.deepEqual(state(),{allowed:true,revision:14});
+  assert.equal(batch().length,1,"Positive proof survives Durable Object isolate eviction");
   assert.equal(applyAuthorityCommand(sql,cmd(15,"deny")).applied,true);
+  assert.deepEqual(batch(),[]);
   db.close();
   db=new DatabaseSync(sqlitePath);
   sql=makeSql(db);
   assert.deepEqual(state(),{allowed:false,revision:15});
+  assert.deepEqual(batch(),[],"Withdrawal survives durable restart");
   db.close();
   console.log("PASS: persistent deny-first legal fence, stale/equal positive rejection, global withdrawal, territory isolation, recovery");
 } finally {fs.rmSync(directory,{recursive:true,force:true});}
