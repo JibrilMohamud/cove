@@ -57,7 +57,12 @@ export async function syncEditionTaxonomy(
   // heartbeat. Existing manual links and exact-match mapping provenance remain
   // untouched. Retries repair missing/stale assignments; changed confidence
   // re-enters the existing INSERT path.
-  await db
+  // Reconcile derived mappings atomically in ONE D1 service roundtrip.
+  // Each statement remains ordered: remove stale mappings, restore current
+  // mappings, remove stale ancestors, restore current closure. A failed batch
+  // cannot leave half of a taxonomy update published on PRIMARY.
+  await db.batch([
+    db
     .prepare(
       `WITH source_values(source_scheme,source_value) AS (
         SELECT c.scheme,c.name FROM edition_categories ec
@@ -82,8 +87,8 @@ export async function syncEditionTaxonomy(
             AND e.confidence=edition_taxonomy_nodes.confidence)`,
     )
     .bind(editionId, editionId, editionId)
-    .run();
-  await db
+    ,
+    db
     .prepare(
       `INSERT OR IGNORE INTO edition_taxonomy_nodes(edition_id,taxonomy_node_id,source,confidence,is_primary,created_at)
     SELECT DISTINCT src.edition_id,m.taxonomy_node_id,'mapping',CASE WHEN m.match_mode='exact' THEN 1.0 ELSE 0.85 END,0,?
@@ -101,11 +106,11 @@ export async function syncEditionTaxonomy(
         OR (m.match_mode='contains' AND lower(src.source_value) LIKE '%'||lower(m.source_value)||'%'))`,
     )
     .bind(at, editionId, editionId)
-    .run();
+    ,
   // Before rebuilding the ancestor closure, remove only ancestors which
   // are no longer reachable (or whose confidence changed). Unchanged rows
   // no longer incur a primary-D1 delete + insert on every ingestion sweep.
-  await db
+    db
     .prepare(
       `WITH RECURSIVE ancestors(node_id,parent_id,confidence) AS (
         SELECT n.id,n.parent_id,et.confidence
@@ -122,8 +127,8 @@ export async function syncEditionTaxonomy(
             AND a.confidence=edition_taxonomy_nodes.confidence)`,
     )
     .bind(editionId, editionId)
-    .run();
-  await db
+    ,
+    db
     .prepare(
       `WITH RECURSIVE ancestors(edition_id,node_id,parent_id,confidence) AS (
       SELECT et.edition_id,n.id,n.parent_id,et.confidence
@@ -138,7 +143,8 @@ export async function syncEditionTaxonomy(
     SELECT edition_id,node_id,'ancestor',confidence,0,? FROM ancestors`,
     )
     .bind(editionId, at)
-    .run();
+    ,
+  ]);
   // Avoid firing FTS5 UPDATE triggers when assignments are unchanged.
   // The preceding mapping/ancestor reconciliation still runs every time,
   // including after a partial previous attempt or a changed mapping rule.
