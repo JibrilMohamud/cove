@@ -1,4 +1,5 @@
 import { scopeStageLegalWriterEnv } from "../../storefront-strangler/legal-primary-write-lock";
+import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
 import { saveTasteControls, loadTasteControls } from "./discovery-intelligence.server";
 import { validateStoredEpub } from "./stored-epub.server";
 import { createAuth, resolvedIdentity } from "./auth.server";
@@ -494,6 +495,11 @@ export type CoveEnv = {
   COVE_CANONICAL_LEGAL_WRITE_LOCK?: string;
   COVE_LEGAL_QUARANTINE_WRITER_STAGE?: string;
   COVE_LEGAL_WRITER_PRIMARY_ID?: string;
+  COVE_LEGAL_CONSUMER_STAGE_ENABLED?: string;
+  COVE_RIGHTS_OWNER_SECRET?: string;
+  LEGAL_AUTHORITY?: {
+    getByName(name: string): { fetch(request: Request): Promise<Response> };
+  };
   COVE_LEGAL_QUARANTINE_SECRET?: string;
   LEGAL_QUARANTINE_WRITER?: { fetch(request: Request): Promise<Response> };
   // Stage-only candidate: independent low-cardinality anonymous metrics.
@@ -2509,6 +2515,18 @@ async function requireFullBookAccess(
   territory: string,
 ) {
   if (product.source_name === "upload") return;
+  await requireStageLegalConsumerProof(
+    env,
+    [
+      {
+        id: String(product.id),
+        source_name: String(product.source_name),
+        source_external_id: String(product.source_external_id || ""),
+      },
+    ],
+    territory.toUpperCase(),
+    "USD",
+  );
   const db = database(env);
   // A verified source takedown is different from an ordinary territorial
   // license expiry. Previously issued entitlements do NOT bypass a Gutenberg
@@ -4882,9 +4900,20 @@ async function handleCoveRequest(
     }
     if (request.method === "GET" && path.startsWith("/products/") && path.endsWith("/detail")) {
       const ref = decodeURIComponent(path.slice("/products/".length, -"/detail".length));
-      return json(
-        await productDetail(database(env), ref, identity(request)?.id || null, storefrontTerritory),
+      const detail = await productDetail(
+        database(env), ref, identity(request)?.id || null, storefrontTerritory,
       );
+      await requireStageLegalConsumerProof(
+        env,
+        [{
+          id: String(detail.book.productId),
+          source_name: String(detail.commerce.source),
+          source_external_id: String(detail.book.sourceExternalId || ""),
+        }],
+        storefrontTerritory,
+        String(detail.commerce.offer?.currency || "USD"),
+      );
+      return json(detail);
     }
     if (request.method === "GET" && path.startsWith("/books/")) {
       const bits = path.split("/");
@@ -4895,15 +4924,22 @@ async function handleCoveRequest(
         return await getDownloadEpub(env, id, identity(request)?.id, storefrontTerritory, request);
       if (bits[3] === "preview" && bits[4] === "epub")
         return await getPreviewEpub(env, id, identity(request)?.id, storefrontTerritory);
-      if (bits[3] === "detail")
-        return json(
-          await productDetail(
-            database(env),
-            id,
-            identity(request)?.id || null,
-            storefrontTerritory,
-          ),
+      if (bits[3] === "detail") {
+        const detail = await productDetail(
+          database(env), id, identity(request)?.id || null, storefrontTerritory,
         );
+        await requireStageLegalConsumerProof(
+          env,
+          [{
+            id: String(detail.book.productId),
+            source_name: String(detail.commerce.source),
+            source_external_id: String(detail.book.sourceExternalId || ""),
+          }],
+          storefrontTerritory,
+          String(detail.commerce.offer?.currency || "USD"),
+        );
+        return json(detail);
+      }
       const viewerId = identity(request)?.id;
       const product = await resolveProduct(database(env), id, viewerId);
       if (
