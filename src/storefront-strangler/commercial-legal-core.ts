@@ -88,6 +88,39 @@ export function denyCommercialProduct(sql:AuthoritySql,raw:unknown) {
   );
   return {applied:true,epoch};
 }
+/**
+ * Batch contract/grant revocations serialize in one owner transaction.
+ * The SQL transaction is supplied by the DO and MUST roll back if any old
+ * event has since been superseded by a fresh authorized publication.
+ */
+export function validateCommercialDenialBatch(raw:unknown){
+  if(!raw||typeof raw!=="object"||Array.isArray(raw))
+    throw Error("invalid_commercial_denial_batch");
+  const ops=(raw as {operations?:unknown}).operations;
+  if(!Array.isArray(ops)||ops.length<1||ops.length>25)
+    throw Error("invalid_commercial_denial_batch");
+  const ids=new Set<string>(),events=new Set<string>();
+  return ops.map(item=>{
+    if(!item||typeof item!=="object"||Array.isArray(item))
+      throw Error("invalid_commercial_denial_batch");
+    const op=item as {productId?:unknown;operationId?:unknown};
+    const productId=validId(op.productId);
+    if(typeof op.operationId!=="string"||
+       !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(op.operationId)||
+       ids.has(productId)||events.has(op.operationId))
+      throw Error("invalid_commercial_denial_batch");
+    ids.add(productId);events.add(op.operationId);
+    return {productId,operationId:op.operationId};
+  });
+}
+export function denyCommercialProductsBatch(sql:AuthoritySql,raw:unknown){
+  const operations=validateCommercialDenialBatch(raw);
+  const receipts=operations.map(op=>({productId:op.productId,
+    operationId:op.operationId,...denyCommercialProduct(sql,op)}));
+  if(receipts.some(r=>!r.applied))
+    throw Error("commercial_denial_batch_superseded");
+  return {applied:true,receipts};
+}
 /** A slow canonical verification cannot regrant after an acknowledged withdrawal. */
 export function captureCommercialEpoch(sql:AuthoritySql,raw:unknown) {
   const id=validId((raw as {productId?:unknown})?.productId);
