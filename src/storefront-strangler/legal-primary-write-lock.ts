@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- This staged legal-writer fence uses explicit conservative SQL patterns. */
 /**
  * Staging cutover safety barrier. Once enabled, no legacy API route may
  * mutate a canonical legal/commerce authorization table through the raw D1
@@ -78,4 +79,17 @@ export function makeStageLegalWriterLock<T extends {
       return typeof value==="function"?value.bind(target):value;
     }
   });
+}
+
+export function scopeStageLegalWriterEnv<T extends {
+  COVE_SSR_STAGING?:string;
+  COVE_CANONICAL_LEGAL_WRITE_LOCK?:string;
+  DB:{prepare(sql:string):unknown;batch(statements:unknown[]):Promise<unknown>};
+}>(env:T):T {
+  if(env.COVE_CANONICAL_LEGAL_WRITE_LOCK!=="1")return env;
+  // Never silently ignore a cutover flag on a production Worker, and never
+  // turn on a new legal data plane without independently validated writers.
+  if(env.COVE_SSR_STAGING!=="1")
+    throw Error("production_legal_writer_cutover_not_certified");
+  return {...env,DB:makeStageLegalWriterLock(env.DB)};
 }
