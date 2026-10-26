@@ -38,4 +38,17 @@ assert.ok(owner.includes('if(route==="/commercial/entitlement/deny-batch")'));
 assert.ok(owner.includes("storage.transactionSync(()=>")||
   owner.includes("storage.transactionSync(() =>"));
 assert.ok(core.includes("denyPaidEntitlementsBatch("));
-console.log("PASS: full-refund Stripe webhook fails closed before financial acknowledgment; one bounded private owner denial before canonical buyer batch; no production activation");
+const chargeback=commerce.slice(commerce.indexOf("async function syncDispute("),
+  commerce.indexOf("export async function ",commerce.indexOf("async function syncDispute(")));
+assert.ok(chargeback.length>1000,"Chargeback webhook implementation could not be inspected");
+assert.ok(commerce.includes('await syncDispute(env, obj, type)'),
+  "Dispute handler must receive the same legal-owner env as refund handler");
+const chargebackDenial=chargeback.indexOf('await stageRevokeRefundEntitlements(env, String(order.id), "dispute-loss:" + d.id)');
+const disputeWrite=chargeback.indexOf("INSERT INTO commerce_disputes");
+const lostEntitlement=chargeback.indexOf("UPDATE entitlements SET status='revoked'");
+assert.ok(chargebackDenial>=0 && disputeWrite>chargebackDenial &&
+  lostEntitlement>disputeWrite,
+  "Lost dispute must durably fence the whole paid order BEFORE canonical dispute or entitlement mutation");
+assert.match(chargeback,/if \(env\.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1"\)\s+await db/,
+  "The owner-controlled stage writer, not legacy webhook, reconciles revoked entitlements");
+console.log("PASS: refund and chargeback owner-first webhook fencing, replay-safe whole-order denial, canonical mutation strictly afterwards");
