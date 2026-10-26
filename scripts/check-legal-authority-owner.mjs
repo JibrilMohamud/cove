@@ -154,6 +154,14 @@ try {
   });
   assert.equal(newer.revision,18);
   assert.deepEqual(batch(),[],"New durable withdrawal immediately revokes checkout proof");
+  assert.equal(applyAuthorityCommand(sql,cmd(19,"allow","CA")).applied,true);
+  assert.equal(persistSourceWithdrawal(sql,{
+    sourceId:"2701",territory:"*",operationId:"checkout:source:2701:withdraw:2"
+  }).applied,false,"A fresh CA grant prevents a stale global ACK even if US remains denied");
+  assert.equal(persistSourceWithdrawal(sql,{
+    sourceId:"2701",territory:"*",operationId:"rights:source:2701:withdraw:3"
+  }).revision,20);
+  assert.equal(state("CA").allowed,false,"New global denial revokes CA immediately");
   assert.throws(()=>persistSourceWithdrawal(sql,{
     sourceId:"2701",territory:"*",operationId:"../../escape"
   }),/invalid_denial_operation/);
