@@ -100,14 +100,16 @@ function stageAcceleratedPresentation(
 ): PrivatePresentationStore {
   const existing = stageKvStore.get(r2);
   if (existing?.kv === kv) return existing.adapter;
-  const adapter=hedgedPrivatePresentation(r2,kv,{
-    hedgeAfterMs:45,
-    onEvidence: evidence=>{
+  const adapter = hedgedPrivatePresentation(r2, kv, {
+    hedgeAfterMs: 45,
+    onEvidence: (evidence) => {
       // No source URLs, book identities or secrets in provider diagnostics.
-      if(evidence.hedged && ((evidence.r2Ms??0)>140 || evidence.kvMs===null ||
-          evidence.kvMs>140))
-        console.warn("cove_presentation_storage_hedge",evidence);
-    }
+      if (
+        evidence.hedged &&
+        ((evidence.r2Ms ?? 0) > 140 || evidence.kvMs === null || evidence.kvMs > 140)
+      )
+        console.warn("cove_presentation_storage_hedge", evidence);
+    },
   });
   stageKvStore.set(r2, { kv, adapter });
   return adapter;
