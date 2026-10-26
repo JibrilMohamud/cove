@@ -66,6 +66,25 @@ try{
   assert.equal(verify({ ...ctx,userId:"user_paid_18"}),null);
   assert.equal(verify({...ctx,territory:"CA"}),null);
   assert.equal(verify({...ctx,channel:"library"}),null);
+  // Another independently legal market may share the product epoch.
+  // It NEVER inherits this buyer's US retail acquisition.
+  const caBase=commercial.captureCommercialEpoch(sql(),{productId});
+  assert.deepEqual(commercial.publishFreshCommercialProof(sql(),{
+    productId,editionId:"ed_commercial_a17",territory:"CA",channel:"retail",
+    grantId:"ca_right_other_17",contractId:"ca_contract_other_17",
+    contractVersionId:"ca_version_other_17",
+    validUntil:new Date(Date.now()+900000).toISOString()
+  },caBase),{applied:true,epoch:1});
+  assert.equal(verify({...ctx,territory:"CA"}),null,
+    "A US buyer entitlement may not gain Canadian rights from a separate grant");
+  assert.throws(()=>ent.publishFreshEntitlement(sql(),{
+    ...ctx,territory:"CA",productEpoch:1,
+    validUntil:new Date(Date.now()+180000).toISOString()
+  },ent.captureEntitlementEpoch(sql(),scope)),
+    /paid_entitlement_acquisition_scope_changed/,
+    "An existing purchase cannot swap territory or contract during renewal");
+  assert.equal(verify()?.grant_id,"right_valid_17",
+    "Unrelated territory publications do not disrupt the original grant");
   assert.equal(verify(ctx,new Date(Date.now()+240000).toISOString()),null,
     "Expired buyer proof cannot be served by a stale cache");
   assert.throws(()=>ent.captureEntitlementEpoch(sql(),{
@@ -83,6 +102,19 @@ try{
   assert.deepEqual(lease(3),{applied:true,epoch:2},
     "Renewal after fresh rights epoch must preserve new buyer epoch");
   assert.equal(verify()?.entitlement_epoch,2);
+  db.prepare("UPDATE cove_paid_entitlement_scopes SET grant_id=? WHERE entitlement_id=?")
+    .run("forged_right_other",entitlementId);
+  assert.equal(verify(),null,"Stored acquisition scope must match current owner proof");
+  db.prepare("UPDATE cove_paid_entitlement_scopes SET grant_id=? WHERE entitlement_id=?")
+    .run("right_valid_17",entitlementId);
+  assert.equal(verify()?.entitlement_epoch,2);
+  db.prepare("DELETE FROM cove_paid_entitlement_scopes WHERE entitlement_id=?")
+    .run(entitlementId);
+  assert.equal(verify(),null,"Legacy entitlements missing acquisition scope deny");
+  // A separate canonical verification must republish before the buyer
+  // is allowed; the reader cannot silently infer a missing scope.
+  assert.deepEqual(lease(3),{applied:true,epoch:2});
+  assert.equal(verify()?.territory,"US");
   const staleEntBase=ent.captureEntitlementEpoch(sql(),scope);
   assert.deepEqual(ent.denyPaidEntitlement(sql(),{
     ...scope,operationId:"refund:paid_17:revoked"
