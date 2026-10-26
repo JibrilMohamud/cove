@@ -21,6 +21,7 @@ const writerKey=randomBytes(32).toString("hex");
 const sourceId=String((Number(runId)%800000000)+100000000);
 const evidenceSourceId=String(Number(sourceId)+1);
 const retractIds=[String(Number(sourceId)+2),String(Number(sourceId)+3)];
+const paidIds=["prd_commercial_"+runId+"_a","prd_commercial_"+runId+"_b"];
 const evidenceId="gre_qa_"+evidenceSourceId+"_us";
 const expires=Date.now()+12*60*1000;
 let authorityEnabled=false,callerStarted=false,writerEnabled=false,seeded=false,seededEvidence=false,seededRetractions=false;
@@ -247,6 +248,33 @@ try{
     "Idempotent replay may not advance source denial epoch");
   console.log("PASS: LIVE QA: one transaction withdraws multiple sources, one canonical D1 batch retracts, US/CA/AU deny and replay preserves revisions");
 
+  // Commercial licensed editions are separate from Gutenberg proof rows.
+  // The owner denies and atomically acknowledges two contract-affected
+  // product IDs without requiring a fabricated positive grant/entitlement.
+  const unseededPaid=await post("/commercial/authorize-batch",{
+    ids:paidIds,territory:"US",channel:"retail"
+  });
+  assert.equal(unseededPaid.status,200);
+  assert.deepEqual(unseededPaid.payload,
+    {schema:"cove.commercial-legal.v1",rows:[]},
+    "No unverified paid offer may become authorized from missing primary rows");
+  const paidOps={operations:paidIds.map((productId,i)=>({
+    productId,operationId:"qa:"+runId+":commercial-withdrawal:"+i
+  }))};
+  const paidWithdrawal=await post("/commercial/deny-batch",paidOps);
+  assert.equal(paidWithdrawal.status,200,
+    "Licensed products must be durably denied in one SQL DO transaction");
+  assert.equal(paidWithdrawal.payload?.applied,true);
+  assert.deepEqual(paidWithdrawal.payload?.receipts?.map(r=>r.epoch),[1,1]);
+  const paidRetry=await post("/commercial/deny-batch",paidOps);
+  assert.equal(paidRetry.status,200);
+  assert.deepEqual(paidRetry.payload?.receipts?.map(r=>r.epoch),[1,1]);
+  assert.deepEqual((await post("/commercial/authorize-batch",{
+    ids:paidIds,territory:"US",channel:"retail"
+  })).payload,{schema:"cove.commercial-legal.v1",rows:[]},
+  "Owner denial must exclude paid products immediately, across replay");
+  console.log("PASS: LIVE QA: commercial grants independently deny by product, atomic 2-product contract fence, zero default allowances and replay epochs");
+
   // Verify the committed denial through a new version of the *actual* QA
   // Worker. This exercises provider persistence, not just an in-process
   // Node SQLite reopen test. Version publication is not a capacity probe.
@@ -263,6 +291,10 @@ try{
   }
   assert.deepEqual(persistent,{allowed:false,revision:2},
     "Source-wide withdrawal must survive a real Cloudflare Worker redeploy");
+  const persistedPaid=await post("/commercial/authorize-batch",{
+    ids:paidIds,territory:"US",channel:"retail"
+  });
+  assert.deepEqual(persistedPaid.payload,{schema:"cove.commercial-legal.v1",rows:[]});
   console.log("PASS: live protected caller -> private service binding -> SQLite DO: unseeded denial, source withdrawal, replay, 3-territory withdrawal, offer hiding, access control and Worker version persistence");
 }finally{
   const errors=[];
