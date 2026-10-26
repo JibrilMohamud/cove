@@ -255,8 +255,12 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [browse, setBrowse] = useState(false);
+  const viewerKey = data.user?.id || "guest";
+  const latestViewer = useRef(viewerKey);
   const publicShelves = useInfiniteQuery({
-    queryKey: ["cove-sounds-station-shelves-v2", station.slug],
+    // Moderated public shelves are filtered by *viewer* blocks and mutes.
+    // This key may never be shared across logged-in identities.
+    queryKey: ["cove-sounds-station-shelves-v2", station.slug, viewerKey],
     initialPageParam: "",
     queryFn: ({ pageParam, signal }) => api<{ shelves: PublicShelf[]; nextCursor: string | null }>(
       "/social/sounds/stations/" + station.slug + "/shelves" +
@@ -264,13 +268,20 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
       "GET", undefined, { signal },
     ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-    // Shelves are public and only fetched on explicit intent. A state-only
-    // enabled transition can lose its first fetch in iPad WebKit when the
-    // account context hydrates on the same render; refetch() is deliberate.
+    // Load only on explicit intent. An enabled-state transition alone can
+    // lose the first request in iPad WebKit; refetch() is deliberate.
     enabled: false,
     staleTime: 60_000,
     retry: false,
   });
+  // If account identity hydrates or switches after the first tap, refetch
+  // with the NEW viewer-specific query key. A cached blocked/muted shelf
+  // from another identity must never appear or authorize the next request.
+  useEffect(() => {
+    if (latestViewer.current === viewerKey) return;
+    latestViewer.current = viewerKey;
+    if (browse) void publicShelves.refetch();
+  }, [viewerKey, browse, publicShelves.refetch]);
   const shelves = publicShelves.data?.pages.flatMap((page) => page.shelves) || [];
   async function createShelf() {
     if (!data.user) { signIn(); return; }
