@@ -218,7 +218,7 @@ export async function authorizeHomepagePresentation(
     presentation.candidates.currency,
     metrics,
   );
-  return assembleAuthorizedHomepagePresentation(presentation,rows);
+  return assembleAuthorizedHomepagePresentation(presentation, rows);
 }
 
 /** The only builder for primary- or *fully fenced* owner-authorized rows.
