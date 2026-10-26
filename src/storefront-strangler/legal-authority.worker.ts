@@ -16,7 +16,7 @@ type LegalAuthorityEnv = {
 // completely separate canonical QA D1. Real production is NOT enrolled.
 const STAGE_PRIMARY = "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87";
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
-  constructor(ctx: DurableObjectState, env: LegalAuthorityEnv) {
+  constructor(ctx: { storage: { sql: unknown } }, env: LegalAuthorityEnv) {
     super(ctx, env);
     createAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
   }
