@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Deny-first refund ordering and exact gated route are auditable invariants. */
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
