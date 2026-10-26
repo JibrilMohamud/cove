@@ -173,6 +173,10 @@ export async function stageFetch(url, options = {}) {
     });
     stream.once("end", () => {
       finished = true;
+      // The response-headers timestamp is NOT complete-delivery latency.
+      // Record the last received body byte before synchronous decompression.
+      // The acceptance caller additionally counts decode and validation.
+      span.ended = performance.now();
       cleanup();
       try {
         const encoded = Buffer.concat(chunks);
