@@ -36,6 +36,12 @@ export function createAuthoritySchema(sql: AuthoritySql) {
     verdict TEXT NOT NULL CHECK(verdict IN ('deny','allow')),
     PRIMARY KEY(source_id,territory)
   ) WITHOUT ROWID`);
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_legal_denial_operations(
+    operation_id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL,
+    territory TEXT NOT NULL,
+    revision INTEGER NOT NULL CHECK(revision>0)
+  ) WITHOUT ROWID`);
 }
 type FenceRow = { revision: number; verdict: "deny" | "allow"; territory: string };
 export function readAuthority(sql: AuthoritySql, sourceId: string, territory: string) {
@@ -158,6 +164,52 @@ export function readAuthorizedPresentations(
      ORDER BY CAST(candidate.key AS INTEGER) LIMIT 25`,
     JSON.stringify(ids),territory,currency,territory,territory
   ).toArray();
+}
+
+
+/**
+ * Allocate a durable, source-wide monotonic revision for a withdrawal.
+ * The idempotency key comes from the canonical writer event identity. Never
+ * allow an older feed seq or a client wall clock to be used as authority.
+ *
+ * Writes are performed synchronously without a network await. Fence FIRST,
+ * receipt SECOND: a crash between them errs toward another denial, never a
+ * positive grant or a false acknowledgement.
+ */
+export function persistSourceWithdrawal(sql:AuthoritySql,raw:unknown){
+  if(!raw||typeof raw!=="object") throw Error("invalid_denial_operation");
+  const item=raw as Record<string,unknown>;
+  const {sourceId,territory,operationId}=item;
+  if(typeof sourceId!=="string"||typeof territory!=="string"||
+      typeof operationId!=="string"||
+      !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(operationId))
+    throw Error("invalid_denial_operation");
+  validateAuthorityCommand({sourceId,territory,revision:1,action:"deny"});
+  const existing=sql.exec<{source_id:string;territory:string;revision:number}>(
+    "SELECT source_id,territory,revision FROM cove_legal_denial_operations WHERE operation_id=?",
+    operationId
+  ).toArray()[0];
+  if(existing){
+    if(existing.source_id!==sourceId||existing.territory!==territory)
+      throw Error("denial_operation_reused_with_different_scope");
+    const current=readAuthority(sql,sourceId,territory==="*"?"US":territory);
+    return {applied:!current.allowed && current.revision!==null &&
+      current.revision>=existing.revision,revision:existing.revision,state:current};
+  }
+  const highest=sql.exec<{max_revision:number|null}>(
+    "SELECT MAX(revision) max_revision FROM cove_legal_fences WHERE source_id=?",
+    sourceId
+  ).toArray()[0]?.max_revision ?? 0;
+  if(!Number.isSafeInteger(highest)||highest<0||
+      highest>=Number.MAX_SAFE_INTEGER-1) throw Error("legal_revision_exhausted");
+  const revision=highest+1;
+  const result=applyAuthorityCommand(sql,{sourceId,territory,revision,action:"deny"});
+  if(!result.applied) throw Error("denial_not_persisted");
+  sql.exec(
+    "INSERT INTO cove_legal_denial_operations(operation_id,source_id,territory,revision) VALUES(?,?,?,?)",
+    operationId,sourceId,territory,revision
+  );
+  return {applied:true,revision,state:result.state};
 }
 
 export function applyAuthorityCommand(sql: AuthoritySql, raw: unknown) {
