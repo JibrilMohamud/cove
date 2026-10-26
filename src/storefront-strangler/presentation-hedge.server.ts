@@ -27,7 +27,7 @@ export function hedgedPrivatePresentation(
   return {async get(key:string){
     const started=clock();
     let kvMs:number|null=null,r2Ms:number|null=null,hedged=false;
-    let timer:ReturnType<typeof setTimeout>|undefined;
+    const timerRef:{handle?:ReturnType<typeof setTimeout>}={};
     let startR2:(()=>void)|undefined;
     let finishHedge:(value:{size:number;text():Promise<string>})=>void=()=>{};
     const backup=new Promise<{size:number;text():Promise<string>}>((resolve,reject)=>{
@@ -35,7 +35,7 @@ export function hedgedPrivatePresentation(
       startR2=()=>{
         if(hedged)return;
         hedged=true;
-        if(timer!==undefined)clearTimeout(timer);
+        if(timerRef.handle!==undefined)clearTimeout(timerRef.handle);
         const startedR2=clock();
         void r2.get(key).then(value=>{
           r2Ms=clock()-startedR2;
@@ -49,7 +49,7 @@ export function hedgedPrivatePresentation(
     const fast=kv.get(key,{type:"text",cacheTtl:30}).then(body=>{
       kvMs=clock()-started;
       if(body===null)throw Error("Private KV presentation missing");
-      if(timer!==undefined)clearTimeout(timer);
+      if(timerRef.handle!==undefined)clearTimeout(timerRef.handle);
       const value={size:new TextEncoder().encode(body).byteLength,
         text:async()=>body};
       // Retire the waiting hedge when KV wins: no orphaned timer or R2 read.
@@ -60,12 +60,12 @@ export function hedgedPrivatePresentation(
       startR2?.();
       throw error;
     });
-    timer=setTimeout(()=>startR2?.(),hedgeAfterMs);
+    timerRef.handle=setTimeout(()=>startR2?.(),hedgeAfterMs);
     try {
       const winner=await Promise.any([fast,backup]);
       options.onEvidence?.({selected:hedged&&r2Ms!==null?"r2":"kv",
         kvMs,r2Ms,hedged});
       return winner;
-    }finally{if(timer!==undefined)clearTimeout(timer);}
+    }finally{if(timerRef.handle!==undefined)clearTimeout(timerRef.handle);}
   }};
 }
