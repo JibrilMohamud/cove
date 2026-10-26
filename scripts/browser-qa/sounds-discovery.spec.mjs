@@ -9,6 +9,14 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
   const errors = [];
   const reads = { recordings: 0, catalog: 0, shelves: 0 };
   const funnelEvents = [];
+  const musicPaths = new Set([
+    "/api/fore/sounds/stations/gothic-hour/recordings",
+    "/api/fore/soundtracks/recordings",
+  ]);
+  const catalogPaths = new Set([
+    "/api/fore/sounds/stations/gothic-hour/books",
+    "/api/fore/catalog",
+  ]);
   await page.route("**/api/fore/sounds/events", async (route) => {
     const payload = route.request().postDataJSON();
     funnelEvents.push(payload);
@@ -20,12 +28,9 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("request", (req) => {
     const path = new URL(req.url()).pathname;
-    // The isolated discovery snapshot is the preferred network path;
-    // a 404 while rollout is disabled permits one legacy fallback.
-    if (path === "/api/fore/sounds/stations/gothic-hour/recordings" ||
-        path === "/api/fore/soundtracks/recordings") reads.recordings++;
-    if (path === "/api/fore/sounds/stations/gothic-hour/books" ||
-        path === "/api/fore/catalog") reads.catalog++;
+    // Count the independent snapshot or guarded 404 fallback after intent.
+    if (musicPaths.has(path)) reads.recordings++;
+    if (catalogPaths.has(path)) reads.catalog++;
     if (path.includes("/api/fore/social/sounds/stations/")) reads.shelves++;
   });
   const html = await request.get("/sounds/gothic-hour");
@@ -44,22 +49,14 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
   await page.waitForTimeout(400);
   expect(reads).toEqual({ recordings: 0, catalog: 0, shelves: 0 });
 
-  const musicRequest = page.waitForRequest(
-    (req) => ["/api/fore/sounds/stations/gothic-hour/recordings", "/api/fore/soundtracks/recordings"].includes(new URL(req.url()).pathname),
-  );
   await page.getByRole("button", { name: "Explore rights-reviewed music" }).click();
-  await musicRequest;
   await expect.poll(() => reads.recordings).toBeGreaterThan(0);
   expect(reads.recordings).toBeLessThanOrEqual(2);
   await expect.poll(() => funnelEvents.some((item) => item.event === "music_open")).toBe(true);
   expect(reads.catalog).toBe(0);
   expect(reads.shelves).toBe(0);
 
-  const catalogRequest = page.waitForRequest(
-    (req) => ["/api/fore/sounds/stations/gothic-hour/books", "/api/fore/catalog"].includes(new URL(req.url()).pathname),
-  );
   await page.getByRole("button", { name: "Check book editions available in my region" }).click();
-  await catalogRequest;
   await expect.poll(() => reads.catalog).toBeGreaterThan(0);
   expect(reads.shelves).toBe(0);
 
