@@ -112,12 +112,16 @@ assert.ok(view.includes('enabled: checkBooks && typeof window !== "undefined"'))
 assert.ok(view.includes('enabled: listenRequested && typeof window !== "undefined"'));
 // Keep shelves strictly opt-in, but WebKit must fetch immediately on first tap
 // rather than relying on a state-only React Query enabled transition.
-assert.ok(view.includes('enabled: false,'));
-assert.ok(view.includes('setBrowse(true); void publicShelves.refetch();'));
-assert.ok(view.includes('["cove-sounds-station-shelves-v2", station.slug, viewerKey]'),
-  "Blocked/muted user filtering must remain scoped to the current viewer.");
-assert.ok(view.includes('if (browse) void publicShelves.refetch();'),
-  "Changing account identity while browsing must refetch the viewer-scoped page.");
+assert.ok(view.includes("enabled: false,"));
+assert.ok(view.includes("setBrowse(true); void publicShelves.refetch();"));
+assert.ok(
+  view.includes('["cove-sounds-station-shelves-v2", station.slug, viewerKey]'),
+  "Blocked/muted user filtering must remain scoped to the current viewer.",
+);
+assert.ok(
+  view.includes("if (browse) void publicShelves.refetch();"),
+  "Changing account identity while browsing must refetch the viewer-scoped page.",
+);
 const social = readFileSync("src/features/fore/social.server.ts", "utf8");
 assert.ok(social.includes("LIMIT 9"), "Only one bounded page of shelves can be scanned.");
 assert.ok(social.includes("sp.profile_visibility='public'"));
