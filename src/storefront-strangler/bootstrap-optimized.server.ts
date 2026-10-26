@@ -8,6 +8,7 @@ import {
   authorizeHomepagePresentation,
 } from "./homepage-presentation.server";
 import { authorizeHomepageWithLegalOwner } from "./legal-authority-read.server";
+import { hedgedPrivatePresentation } from "./presentation-hedge.server";
 import type { FirstPaintD1QueryMetrics } from "../features/fore/catalog-model.server";
 import { networkCountry, resolveAnonymousHomepageContext } from "./localization-optimized.server";
 import { formatGenericStorefrontPageRecord } from "./page-record";
@@ -99,20 +100,15 @@ function stageAcceleratedPresentation(
 ): PrivatePresentationStore {
   const existing = stageKvStore.get(r2);
   if (existing?.kv === kv) return existing.adapter;
-  const adapter: PrivatePresentationStore = {
-    async get(key) {
-      let body: string | null;
-      try {
-        body = await kv.get(key, { type: "text", cacheTtl: 30 });
-      } catch {
-        // Failure of this advisory read is never a rights/price bypass. R2
-        // remains the verified durable snapshot and still fails closed.
-        return r2.get(key);
-      }
-      if (body === null) return r2.get(key);
-      return { size: new TextEncoder().encode(body).byteLength, text: async () => body };
-    },
-  };
+  const adapter=hedgedPrivatePresentation(r2,kv,{
+    hedgeAfterMs:45,
+    onEvidence: evidence=>{
+      // No source URLs, book identities or secrets in provider diagnostics.
+      if(evidence.hedged && ((evidence.r2Ms??0)>140 || evidence.kvMs===null ||
+          evidence.kvMs>140))
+        console.warn("cove_presentation_storage_hedge",evidence);
+    }
+  });
   stageKvStore.set(r2, { kv, adapter });
   return adapter;
 }
