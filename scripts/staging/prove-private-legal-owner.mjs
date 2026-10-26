@@ -100,6 +100,11 @@ try{
   // workers.dev hostname. The readiness poll is NOT part of a capacity
   // measurement and never warms the future hosted-capacity campaign.
   let ready=false;
+  // Emit only HTTP status codes and exception classes on failure. Do not
+  // disclose gate material, auth tokens, request bodies, or protected state.
+  // Without these bounded diagnostics a 503 private-binding misconfiguration
+  // is indistinguishable from a workers.dev DNS propagation delay.
+  const readinessFailures=new Map();
   for(let i=0;i<32;i++){
     await sleep(2000);
     try{
@@ -108,9 +113,15 @@ try{
         assert.equal(result.payload.revision,null,"Unseeded source must start denied");
         ready=true;break;
       }
-    }catch{}
+      const key="http_"+result.status;
+      readinessFailures.set(key,(readinessFailures.get(key)||0)+1);
+    }catch(error){
+      const key="network_"+(error instanceof Error?error.name:"unknown");
+      readinessFailures.set(key,(readinessFailures.get(key)||0)+1);
+    }
   }
-  assert.ok(ready,"QA owner service-binding never became usable");
+  assert.ok(ready,"QA owner service-binding never became usable: "+
+    JSON.stringify(Object.fromEntries(readinessFailures)));
   // This database is the minimal, isolated canonical-publication QA fixture,
   // not production. Seed one private synthetic row to prove the real writer
   // can modify canonical D1 ONLY after the same DO has fenced all countries.
