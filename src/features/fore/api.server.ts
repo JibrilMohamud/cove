@@ -4911,15 +4911,20 @@ async function handleCoveRequest(
     if (request.method === "GET" && path.startsWith("/products/") && path.endsWith("/detail")) {
       const ref = decodeURIComponent(path.slice("/products/".length, -"/detail".length));
       const detail = await productDetail(
-        database(env), ref, identity(request)?.id || null, storefrontTerritory,
+        database(env),
+        ref,
+        identity(request)?.id || null,
+        storefrontTerritory,
       );
       await requireStageLegalConsumerProof(
         env,
-        [{
-          id: String(detail.book.productId),
-          source_name: String(detail.commerce.source),
-          source_external_id: String(detail.book.sourceExternalId || ""),
-        }],
+        [
+          {
+            id: String(detail.book.productId),
+            source_name: String(detail.commerce.source),
+            source_external_id: String(detail.book.sourceExternalId || ""),
+          },
+        ],
         storefrontTerritory,
         String(detail.commerce.offer?.currency || "USD"),
       );
@@ -4936,15 +4941,20 @@ async function handleCoveRequest(
         return await getPreviewEpub(env, id, identity(request)?.id, storefrontTerritory);
       if (bits[3] === "detail") {
         const detail = await productDetail(
-          database(env), id, identity(request)?.id || null, storefrontTerritory,
+          database(env),
+          id,
+          identity(request)?.id || null,
+          storefrontTerritory,
         );
         await requireStageLegalConsumerProof(
           env,
-          [{
-            id: String(detail.book.productId),
-            source_name: String(detail.commerce.source),
-            source_external_id: String(detail.book.sourceExternalId || ""),
-          }],
+          [
+            {
+              id: String(detail.book.productId),
+              source_name: String(detail.commerce.source),
+              source_external_id: String(detail.book.sourceExternalId || ""),
+            },
+          ],
           storefrontTerritory,
           String(detail.commerce.offer?.currency || "USD"),
         );
