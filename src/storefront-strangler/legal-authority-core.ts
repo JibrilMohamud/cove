@@ -127,33 +127,37 @@ export type AuthorityPresentationRow = {
 export function readAuthorizedPresentations(
   sql: AuthoritySql, ids: string[], territory:string, currency:string
 ):AuthorityPresentationRow[] {
-  if (!Array.isArray(ids) || ids.length>24 ||
+  if (!Array.isArray(ids) || ids.length>128 ||
       !/^[A-Z]{2}$/.test(territory) || !/^[A-Z]{3}$/.test(currency) ||
       ids.some(id=>typeof id!=="string" ||
         !/^prd_gutenberg_(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/.test(id)) ||
       new Set(ids).size!==ids.length) throw Error("invalid_authority_batch");
   if (!ids.length) return [];
-  const rows:AuthorityPresentationRow[]=[];
-  // Synchronous reads on the SAME single DO; no R2/KV staleness. Bounds
-  // prevent resource abuse and unknown/unseeded sources are always omitted.
-  for(const productId of ids) {
-    const sourceId=productId.slice("prd_gutenberg_".length);
-    const state=readAuthority(sql,sourceId,territory);
-    if(!state.allowed) continue;
-    const result=sql.exec<AuthorityPresentationRow & {revision:number}>(
-      `SELECT revision,product_id,edition_id,product_public_id,edition_public_id,offer_json
-       FROM cove_authorized_offer_proofs
-       WHERE source_id=? AND territory=? AND currency=? AND revision=?
-         AND product_id=? LIMIT 1`,
-      sourceId,territory,currency,state.revision
-    ).toArray()[0];
-    if (result) rows.push({
-      product_id:result.product_id, edition_id:result.edition_id,
-      product_public_id:result.product_public_id,
-      edition_public_id:result.edition_public_id,offer_json:result.offer_json
-    });
-  }
-  return rows;
+  // One strongly consistent SQL read per request, not 128 subrequests:
+  // revocations are committed before acknowledgment and no replica or KV
+  // allowance is consulted. The revision equality invalidates old offers.
+  // Equal-revision global DENY outranks a local allow.
+  return sql.exec<AuthorityPresentationRow>(
+    `SELECT p.product_id,p.edition_id,p.product_public_id,
+            p.edition_public_id,p.offer_json
+     FROM json_each(?) candidate
+     JOIN cove_authorized_offer_proofs p
+       ON p.product_id=candidate.value AND p.territory=? AND p.currency=?
+     WHERE (
+       SELECT f.verdict FROM cove_legal_fences f
+       WHERE f.source_id=p.source_id AND f.territory IN (?,'*')
+       ORDER BY f.revision DESC,
+         CASE WHEN f.verdict='deny' THEN 0 ELSE 1 END LIMIT 1
+     )='allow'
+     AND p.revision=(
+       SELECT f.revision FROM cove_legal_fences f
+       WHERE f.source_id=p.source_id AND f.territory IN (?,'*')
+       ORDER BY f.revision DESC,
+         CASE WHEN f.verdict='deny' THEN 0 ELSE 1 END LIMIT 1
+     )
+     ORDER BY CAST(candidate.key AS INTEGER) LIMIT 25`,
+    JSON.stringify(ids),territory,currency,territory,territory
+  ).toArray();
 }
 
 export function applyAuthorityCommand(sql: AuthoritySql, raw: unknown) {
