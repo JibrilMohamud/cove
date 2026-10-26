@@ -73,6 +73,43 @@ try {
   assert.deepEqual(read("US","library"),[],"Retail purchase grant cannot authorize a library loan");
   assert.deepEqual(read("US","retail",new Date(Date.now()+250000).toISOString()),[],
     "Expired proof must deny even if an invalidation job never runs");
+  // Subject-wide withdrawal must scale beyond the old 25-product limit.
+  // All 35 independent editions share one commercial contract, yet only a
+  // single owner SQLite tombstone is needed to deny every active grant.
+  const many=Array.from({length:35},(_,i)=>"prd_bulk_"+String(i+1).padStart(3,"0"));
+  for(const productId of many){
+    const base=core.captureCommercialEpoch(sql(),{productId});
+    assert.deepEqual(core.publishFreshCommercialProof(sql(),{
+      ...proof,productId,editionId:"ed_"+productId,grantId:"grant_"+productId,
+      contractId:"contract_bulk_35",contractVersionId:"contract_bulk_version_1"
+    },base),{applied:true,epoch:1});
+  }
+  const manyRead=()=>many.flatMap(productId=>core.readCommercialProofs(
+    sql(),[productId],"US","retail"));
+  assert.equal(manyRead().length,35);
+  const subject={subjectKind:"contract",subjectId:"contract_bulk_35",
+    operationId:"contract:bulk35:withdraw"};
+  assert.deepEqual(core.denyCommercialSubject(sql(),subject),{
+    applied:true,subjectKind:"contract",subjectId:"contract_bulk_35"
+  });
+  assert.equal(manyRead().length,0,"One contract revocation must instantly deny all 35 books");
+  assert.deepEqual(core.denyCommercialSubject(sql(),subject),{
+    applied:true,subjectKind:"contract",subjectId:"contract_bulk_35"
+  },"Identical owner withdrawal retry must be idempotent");
+  assert.throws(()=>core.denyCommercialSubject(sql(),{
+    ...subject,subjectId:"different_contract"
+  }),/commercial_subject_op_scope_collision/);
+  assert.throws(()=>core.publishFreshCommercialProof(sql(),{
+    ...proof,productId:many[0],editionId:"ed_"+many[0],
+    grantId:"grant_"+many[0],contractId:"contract_bulk_35",
+    contractVersionId:"contract_bulk_version_2"
+  },1),/commercial_subject_withdrawal_terminal/,
+  "New contract version may not revive the revoked contract ID");
+  assert.deepEqual(core.denyCommercialSubject(sql(),{
+    subjectKind:"grant",subjectId:"right_valid_17",
+    operationId:"grant:valid17:withdraw"
+  }),{applied:true,subjectKind:"grant",subjectId:"right_valid_17"});
+  assert.deepEqual(read(),[],"One grant tombstone immediately denies independently allowed product");
   const stale=core.captureCommercialEpoch(sql(),{productId:id});
   const denied=core.denyCommercialProduct(sql(),{
     productId:id,operationId:"contract:17:revoked"
