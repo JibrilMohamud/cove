@@ -1419,11 +1419,7 @@ async function retractStaleRegionalSourcesStage(
       sourceId: row.id,
       operationId:
         "stale:" +
-        (
-          await sha256Hex(
-            JSON.stringify([sourceId, row.id, cycleStartedAt]),
-          )
-        ).slice(0, 32),
+        (await sha256Hex(JSON.stringify([sourceId, row.id, cycleStartedAt]))).slice(0, 32),
     })),
   );
   const response = await env.LEGAL_QUARANTINE_WRITER.fetch(
