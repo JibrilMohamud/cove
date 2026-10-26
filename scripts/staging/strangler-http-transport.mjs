@@ -225,3 +225,22 @@ export function closeStageTransport() {
     live?.close();
   }
 }
+
+/**
+ * Diagnostic-only socket identifiers. No addresses, authentication headers,
+ * TLS keys or payloads are exposed. Used to correlate kernel retransmission
+ * counters with the exact HTTP/2 sessions of slow measured responses.
+ */
+export function stageTransportSessionSnapshot() {
+  return sessionPool.flatMap(slot=>{
+    const socket=slot.client?.socket;
+    if(!socket || !Number.isInteger(socket.localPort)) return [];
+    return [{
+      sessionId:slot.id,
+      localPort:socket.localPort,
+      bytesRead:Number(socket.bytesRead)||0,
+      bytesWritten:Number(socket.bytesWritten)||0,
+      connected:!socket.destroyed
+    }];
+  });
+}
