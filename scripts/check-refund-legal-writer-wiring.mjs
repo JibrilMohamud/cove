@@ -23,6 +23,10 @@ assert.ok(writer.includes('e.order_item_id IN (SELECT id FROM commerce_order_ite
 assert.ok(writer.includes('ORDER BY e.id LIMIT 26'));
 const writerBody=writer.slice(writer.indexOf("if(isRefundBatch){"),
   writer.indexOf("if(isEntitlement){"));
+assert.ok(writerBody.indexOf("/commercial/order/deny-next")>=0&&
+  writerBody.indexOf("/commercial/order/deny-next")<
+  writerBody.indexOf("/commercial/entitlement/deny-batch"),
+  "One whole-order denial must commit before any per-item batch or D1 scan");
 assert.ok(writerBody.indexOf("/commercial/entitlement/deny-batch")>=0&&
   writerBody.indexOf("/commercial/entitlement/deny-batch")<
   writerBody.indexOf("await env.PRIMARY_DB.batch("),
