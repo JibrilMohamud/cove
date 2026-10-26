@@ -2810,6 +2810,16 @@ async function getPreviewEpub(env: CoveEnv, id: string, userId?: string, territo
     product = await resolveProduct(db, id, userId);
   if (product.source_name === "upload")
     throw new ApiError(404, "Personal imports do not expose public samples.");
+  await requireStageLegalConsumerProof(
+    env,
+    [{
+      id: String(product.id),
+      source_name: String(product.source_name),
+      source_external_id: String(product.source_external_id || ""),
+    }],
+    territory.toUpperCase(),
+    "USD",
+  );
   const rights = await resolveProductRights(db, String(product.id), territory.toUpperCase(), {
     salesChannel: "retail",
     persist: true,
@@ -4942,6 +4952,16 @@ async function handleCoveRequest(
       }
       const viewerId = identity(request)?.id;
       const product = await resolveProduct(database(env), id, viewerId);
+      await requireStageLegalConsumerProof(
+        env,
+        [{
+          id: String(product.id),
+          source_name: String(product.source_name),
+          source_external_id: String(product.source_external_id || ""),
+        }],
+        storefrontTerritory,
+        "USD",
+      );
       if (
         product.source_name !== "upload" &&
         !(await activeEntitlement(database(env), viewerId, product.id))
