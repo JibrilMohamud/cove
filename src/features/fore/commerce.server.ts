@@ -1397,12 +1397,22 @@ export async function finalizePaidOrder(
       chargedMinor: Number(item.total_minor || 0),
     });
     if (!preorder) {
-      await db
+      // A purchase entitlement ID permanently belongs to its original
+      // buyer/order item. Under concurrent Stripe success deliveries a new
+      // checkout must NEVER launder a revoked or older entitlement into a
+      // different purchase receipt. A genuine repurchase requires a distinct
+      // entitlement identity and schema migration, not an upsert rebind.
+      const entitlementWrite = await db
         .prepare(
-          `INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,order_item_id,granted_at,updated_at) VALUES(?,?,?,'purchase','active','commerce',?,?,?) ON CONFLICT(user_id,product_id,entitlement_type) DO UPDATE SET status='active',order_item_id=excluded.order_item_id,updated_at=excluded.updated_at`,
+          `INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,order_item_id,granted_at,updated_at) VALUES(?,?,?,'purchase','active','commerce',?,?,?) ON CONFLICT(user_id,product_id,entitlement_type) DO UPDATE SET status='active',updated_at=excluded.updated_at WHERE entitlements.order_item_id=excluded.order_item_id AND entitlements.status='active'`,
         )
         .bind(crypto.randomUUID(), order.user_id, item.product_id, item.id, at, at)
         .run();
+      if (Number(entitlementWrite.meta?.changes ?? entitlementWrite.changes ?? 0) !== 1)
+        throw new ApiError(
+          409,
+          "A previous purchase entitlement cannot be assigned to another order.",
+        );
       const product = await db
         .prepare("SELECT source_external_id FROM products WHERE id=?")
         .bind(item.product_id)
