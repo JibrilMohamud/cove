@@ -34,6 +34,7 @@ on:
       - "infra/discovery/**"
       - "scripts/performance/isolated-data-plane-acceptance.mjs"
       - "scripts/performance/cloudflare-delivery-attribution.mjs"
+      - "scripts/performance/anonymized-tcp-evidence.mjs"
       - "scripts/performance/synthetic-operator-fixture.mjs"
       - "scripts/check-stage-capacity-fixture.mjs"
       - "scripts/performance/capacity-release-gate.mjs"
@@ -67,6 +68,7 @@ jobs:
       - run: node scripts/check-storefront-prepared-catalog.mjs
       - run: node scripts/check-isolated-http-metric.mjs
       - run: node scripts/performance/cloudflare-delivery-attribution.mjs --self-test
+      - run: node scripts/performance/anonymized-tcp-evidence.mjs --self-test
       - run: npm run test:rights && npm run test:commerce
       - run: npm run typecheck
       - run: node scripts/build-storefront-strangler.mjs && npm run build:content-processing
