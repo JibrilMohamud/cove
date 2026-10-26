@@ -387,8 +387,10 @@ async function deploy(round) {
   const secretFile = path.join(privateDirectory, "secrets.json");
   const deployBeganAt = Date.now();
   try {
-    fs.writeFileSync(secretFile, JSON.stringify({ COVE_SSR_STAGING_GATE_KEY: gate }),
-      { mode: 0o600, flag: "wx" });
+    fs.writeFileSync(secretFile, JSON.stringify({ COVE_SSR_STAGING_GATE_KEY: gate }), {
+      mode: 0o600,
+      flag: "wx",
+    });
     await deployStage(config, secretFile);
   } finally {
     fs.rmSync(privateDirectory, { recursive: true, force: true });
@@ -397,14 +399,20 @@ async function deploy(round) {
   for (let attempt = 0; attempt < 20; attempt++) {
     const latest = (await api("GET", `/accounts/${account}/workers/scripts/${name}/deployments`))
       .deployments[0];
-    if (Date.parse(latest.created_on) >= deployBeganAt - 30000 &&
-        latest.versions.length === 1 && latest.versions[0].percentage === 100) {
+    if (
+      Date.parse(latest.created_on) >= deployBeganAt - 30000 &&
+      latest.versions.length === 1 &&
+      latest.versions[0].percentage === 100
+    ) {
       publishedAt = Date.parse(latest.created_on);
       break;
     }
     await new Promise((r) => setTimeout(r, 1500));
   }
-  assert.ok(Number.isFinite(publishedAt), "Single-version code-and-secret rollout timestamp unavailable");
+  assert.ok(
+    Number.isFinite(publishedAt),
+    "Single-version code-and-secret rollout timestamp unavailable",
+  );
   const subdomain = await api("GET", `/accounts/${account}/workers/scripts/${name}/subdomain`);
   assert.equal(subdomain.enabled, true, "Staging route is not enabled");
   // Brand-new workers.dev routes can still return edge-generated 404 after
