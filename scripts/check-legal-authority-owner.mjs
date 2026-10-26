@@ -57,7 +57,7 @@ try {
   assert.equal(applyAuthorityCommand(sql,cmd(13,"deny","*")).applied,true);
   assert.equal(state().allowed,false);
   assert.deepEqual(state("CA"),{allowed:false,revision:13});
-  assert.equal(applyAuthorityCommand(sql,cmd(13,"allow")).applied,true);
+  assert.equal(applyAuthorityCommand(sql,cmd(13,"allow")).applied,false);
   assert.equal(state().allowed,false,
     "Global denial wins over equal-revision territory permission");
   assert.equal(applyAuthorityCommand(sql,cmd(14,"allow")).applied,true);
@@ -65,6 +65,17 @@ try {
   assert.equal(state("CA").allowed,false,
     "US reinstatement cannot authorize an unrelated territory");
   assert.equal(applyAuthorityCommand(sql,cmd(12,"deny","*")).applied,false);
+  assert.equal(applyAuthorityCommand(sql,{
+    sourceId:"2702",territory:"CA",revision:20,action:"allow"
+  }).applied,true);
+  assert.equal(applyAuthorityCommand(sql,{
+    sourceId:"2702",territory:"*",revision:19,action:"deny"
+  }).applied,false,"A stale global denial must not be acknowledged");
+  assert.equal(readAuthority(sql,"2702","CA").allowed,true);
+  assert.equal(applyAuthorityCommand(sql,{
+    sourceId:"2702",territory:"*",revision:21,action:"deny"
+  }).applied,true);
+  assert.equal(readAuthority(sql,"2702","CA").allowed,false);
   assert.equal(state().allowed,true);
   assert.throws(()=>applyAuthorityCommand(sql,cmd(15,"allow","*")),/invalid_authority_command/);
   assert.throws(()=>applyAuthorityCommand(sql,cmd(0,"allow")),/invalid_authority_command/);
