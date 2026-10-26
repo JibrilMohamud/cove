@@ -90,7 +90,7 @@ const post=async(path,body,authorization=gate)=>{
 const postStableDenial=async(path,body)=>{
   assert.ok(["/deny-next","/deny-next-batch","/source/retract-batch",
     "/commercial/deny-next","/commercial/deny-batch",
-    "/commercial/order/deny-next"].includes(path));
+    "/commercial/subject/deny-next","/commercial/order/deny-next"].includes(path));
   const ops=Array.isArray(body?.operations)?body.operations:[body];
   assert.ok(ops.length>0&&ops.every(x=>
     typeof x?.operationId==="string"&&x.operationId.startsWith("qa:"+runId+":") ||
@@ -367,6 +367,22 @@ try{
     wholeOrder.payload,"Retry cannot un-withdraw the whole paid order");
   console.log("PASS: LIVE QA: one strongly consistent whole-order buyer denial and replay regardless of order line count");
 
+  // A contract may cover thousands of books; certify one durable
+  // subject-wide veto and replay through the actual private Durable Object.
+  const contractVeto={
+    subjectKind:"contract",subjectId:"contract_qa_"+runId,
+    operationId:"qa:"+runId+":contract-veto"
+  };
+  const contractReceipt=await postStableDenial("/commercial/subject/deny-next",contractVeto);
+  assert.equal(contractReceipt.status,200);
+  assert.deepEqual(contractReceipt.payload,{
+    applied:true,subjectKind:"contract",subjectId:contractVeto.subjectId
+  });
+  assert.deepEqual((await postStableDenial("/commercial/subject/deny-next",
+    contractVeto)).payload,contractReceipt.payload,
+    "Single contract veto retry must not revoke an unrelated subject");
+  console.log("PASS: LIVE QA: strongly consistent single-write contract veto with idempotent operation receipt");
+
   // Verify the committed denial through a new version of the *actual* QA
   // Worker. This exercises provider persistence, not just an in-process
   // Node SQLite reopen test. Version publication is not a capacity probe.
@@ -386,6 +402,9 @@ try{
   assert.deepEqual((await postStableDenial("/commercial/order/deny-next",
     paidOrderDenial)).payload,wholeOrder.payload,
     "Whole-order refund veto must persist through real Cloudflare Worker redeploy");
+  assert.deepEqual((await postStableDenial("/commercial/subject/deny-next",
+    contractVeto)).payload,contractReceipt.payload,
+    "Contract-wide veto must persist through real Cloudflare Worker redeploy");
   const persistedPaid=await readOwner("/commercial/authorize-batch",{
     ids:paidIds,territory:"US",channel:"retail"
   });
