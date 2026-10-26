@@ -63,6 +63,13 @@ try {
   );
   assert.equal(batch().length,1);
   assert.equal(batch()[0].edition_id,proof.editionId);
+  assert.deepEqual(storeAuthorizedPresentationProof(sql,cmd(11,"allow"),"USD",proof),
+    {allowed:true,revision:11},"Exact same-version offer retry is idempotent");
+  assert.throws(()=>storeAuthorizedPresentationProof(sql,cmd(11,"allow"),"USD",
+    {...proof,editionPublicId:"changed-edition-id"}),/authority_offer_proof_conflict/,
+    "An old in-flight writer cannot substitute a different offer at the same epoch");
+  assert.equal(batch()[0].edition_public_id,proof.editionPublicId,
+    "Verified offer proof never changes within a legal epoch");
   assert.deepEqual(batch("CA"),[],"Country grant not inferred");
   assert.deepEqual(batch("US","CAD"),[],"Currency proof not inferred");
   assert.equal(applyAuthorityCommand(sql,cmd(11,"deny")).applied,true,
