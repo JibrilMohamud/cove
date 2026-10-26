@@ -36,6 +36,7 @@ on:
       - "src/features/fore/retail.server.ts"
       - "src/features/fore/commerce.server.ts"
       - "src/features/fore/delivery.server.ts"
+      - "src/features/fore/commercial-audio.server.ts"
       - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
       - "wrangler.legal-quarantine-qa.example.jsonc"
       - "src/storefront-strangler/legal-primary-write-lock.ts"
