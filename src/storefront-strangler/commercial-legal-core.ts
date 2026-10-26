@@ -59,6 +59,14 @@ export function createCommercialAuthoritySchema(sql:AuthoritySql){
     operation_id TEXT NOT NULL UNIQUE,
     PRIMARY KEY(subject_kind,subject_id)
   ) WITHOUT ROWID`);
+  // Record EVERY accepted replay identity, not merely the first operation
+  // that withdrew a subject. Otherwise a later operationId could be reused
+  // against a different contract after an idempotent second suspension.
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_commercial_subject_denial_ops(
+    operation_id TEXT PRIMARY KEY,
+    subject_kind TEXT NOT NULL,
+    subject_id TEXT NOT NULL
+  ) WITHOUT ROWID`);
 }
 type EpochRow={epoch:number;verdict:"deny"|"allow"};
 const current=(sql:AuthoritySql,id:string)=>
@@ -148,7 +156,7 @@ export function denyCommercialSubject(sql:AuthoritySql,raw:unknown){
     throw Error("invalid_commercial_subject_denial");
   const oldOp=sql.exec<{
     subject_kind:string;subject_id:string
-  }>("SELECT subject_kind,subject_id FROM cove_commercial_subject_denials WHERE operation_id=?",
+  }>("SELECT subject_kind,subject_id FROM cove_commercial_subject_denial_ops WHERE operation_id=?",
     operationId).toArray()[0];
   if(oldOp&&(oldOp.subject_kind!==subjectKind||oldOp.subject_id!==subjectId))
     throw Error("commercial_subject_op_scope_collision");
@@ -158,6 +166,10 @@ export function denyCommercialSubject(sql:AuthoritySql,raw:unknown){
   if(!oldSubject)sql.exec(
     "INSERT INTO cove_commercial_subject_denials(subject_kind,subject_id,operation_id) VALUES(?,?,?)",
     subjectKind,subjectId,operationId
+  );
+  if(!oldOp)sql.exec(
+    "INSERT INTO cove_commercial_subject_denial_ops(operation_id,subject_kind,subject_id) VALUES(?,?,?)",
+    operationId,subjectKind,subjectId
   );
   return {applied:true,subjectKind,subjectId};
 }
