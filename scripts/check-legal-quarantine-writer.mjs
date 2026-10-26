@@ -50,7 +50,7 @@ try {
   core.createAuthoritySchema(sql);core.createAuthorityProofSchema(sql);
   commercial.createCommercialAuthoritySchema(sql);
   const secret="e".repeat(64),auth="f".repeat(64),operations=[];
-  let failPrimary=false,failOwner=false;
+  let failPrimary=false,failPrimaryBatch=false,failOwner=false;
   const owner={async fetch(request){
     operations.push("authority");
     if(failOwner)return new Response(null,{status:503});
@@ -100,7 +100,7 @@ try {
     },
     async batch(statements){
       operations.push("canonical-atomic-batch");
-      if(failPrimary)throw Error("primary-unavailable");
+      if(failPrimary||failPrimaryBatch)throw Error("primary-unavailable");
       db.exec("BEGIN");
       try{
         const all=statements.map(entry=>db.prepare(entry.sql).run(...entry.params));
@@ -243,12 +243,12 @@ try {
   assert.equal(db.prepare("SELECT status FROM rights_contracts WHERE id='rcontract_18'").get().status,
     "active");
   failOwner=false;operations.length=0;
-  failPrimary=true;
+  failPrimaryBatch=true;
   assert.equal((await post({targetId:"rcontract_18",operationId:"contract-suspend:18:v2"},
     {},"/commercial/suspend-contract")).status,503);
   assert.equal(commercial.captureCommercialEpoch(sql,{productId:"prd_commercial_c19"}),2,
     "D1 failure must leave strong denial committed");
-  failPrimary=false;
+  failPrimaryBatch=false;
   db.close();
   console.log("PASS: QA source quarantine, independent-country evidence withdrawal and atomic source retraction batch, fail closed, replay safe");
 }finally{rmSync(directory,{force:true,recursive:true});}
