@@ -1,0 +1,137 @@
+/* eslint-disable prettier/prettier -- Strong private paid-entitlement revocation is a separate legal trust boundary. */
+import type {AuthoritySql} from "./legal-authority-core";
+import {commercialProductId,type CommercialChannel} from "./commercial-legal-core";
+
+const entityId=/^[a-zA-Z0-9_-]{8,160}$/;
+const userIdPattern=/^[a-zA-Z0-9_-]{8,160}$/;
+const opIdPattern=/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
+type EntitlementScope={entitlementId:string;userId:string;productId:string};
+export function validatePaidEntitlementScope(raw:unknown):EntitlementScope {
+  if(!raw||typeof raw!=="object"||Array.isArray(raw))
+    throw Error("invalid_paid_entitlement_scope");
+  const r=raw as Record<string,unknown>;
+  if(typeof r.entitlementId!=="string"||!entityId.test(r.entitlementId)||
+     typeof r.userId!=="string"||!userIdPattern.test(r.userId)||
+     typeof r.productId!=="string"||!commercialProductId.test(r.productId)||
+     r.productId.startsWith("prd_gutenberg_"))
+    throw Error("invalid_paid_entitlement_scope");
+  return {entitlementId:r.entitlementId,userId:r.userId,productId:r.productId};
+}
+export function createPaidEntitlementSchema(sql:AuthoritySql) {
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_paid_entitlement_authority(
+    entitlement_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    product_id TEXT NOT NULL,
+    epoch INTEGER NOT NULL CHECK(epoch>0),
+    verdict TEXT NOT NULL CHECK(verdict IN ('deny','allow')),
+    valid_until TEXT
+  ) WITHOUT ROWID`);
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_paid_entitlement_ops(
+    operation_id TEXT PRIMARY KEY,
+    entitlement_id TEXT NOT NULL,
+    epoch INTEGER NOT NULL CHECK(epoch>0)
+  ) WITHOUT ROWID`);
+}
+type EntRow={entitlement_id:string;user_id:string;product_id:string;
+  epoch:number;verdict:"deny"|"allow";valid_until:string|null};
+const current=(sql:AuthoritySql,id:string)=>
+  sql.exec<EntRow>(
+    "SELECT entitlement_id,user_id,product_id,epoch,verdict,valid_until FROM cove_paid_entitlement_authority WHERE entitlement_id=?",
+    id
+  ).toArray()[0];
+export function captureEntitlementEpoch(sql:AuthoritySql,raw:unknown) {
+  const q=validatePaidEntitlementScope(raw);
+  const prior=current(sql,q.entitlementId);
+  if(prior &&(prior.user_id!==q.userId||prior.product_id!==q.productId))
+    throw Error("paid_entitlement_scope_changed");
+  return prior?.epoch??0;
+}
+export function denyPaidEntitlement(sql:AuthoritySql,raw:unknown){
+  const scope=validatePaidEntitlementScope(raw);
+  const op=(raw as Record<string,unknown>).operationId;
+  if(typeof op!=="string"||!opIdPattern.test(op))throw Error("invalid_entitlement_denial_op");
+  const oldOp=sql.exec<{entitlement_id:string;epoch:number}>(
+    "SELECT entitlement_id,epoch FROM cove_paid_entitlement_ops WHERE operation_id=?",op
+  ).toArray()[0];
+  const prior=current(sql,scope.entitlementId);
+  if(prior &&(prior.user_id!==scope.userId||prior.product_id!==scope.productId))
+    throw Error("paid_entitlement_scope_changed");
+  if(oldOp){
+    if(oldOp.entitlement_id!==scope.entitlementId)
+      throw Error("paid_entitlement_denial_collision");
+    return {applied:!!prior&&prior.verdict==="deny"&&prior.epoch>=oldOp.epoch,
+      epoch:oldOp.epoch};
+  }
+  const epoch=(prior?.epoch??0)+1;
+  if(!Number.isSafeInteger(epoch))throw Error("paid_entitlement_epoch_exhausted");
+  sql.exec(`INSERT INTO cove_paid_entitlement_authority(
+    entitlement_id,user_id,product_id,epoch,verdict,valid_until)
+    VALUES(?,?,?,?,'deny',NULL)
+    ON CONFLICT(entitlement_id) DO UPDATE SET epoch=excluded.epoch,
+      verdict='deny',valid_until=NULL`,
+    scope.entitlementId,scope.userId,scope.productId,epoch
+  );
+  sql.exec("INSERT INTO cove_paid_entitlement_ops(operation_id,entitlement_id,epoch) VALUES(?,?,?)",
+    op,scope.entitlementId,epoch);
+  return {applied:true,epoch};
+}
+export function publishFreshEntitlement(
+  sql:AuthoritySql,raw:unknown,expectedEpoch:number,now=Date.now()
+){
+  const scope=validatePaidEntitlementScope(raw);
+  const {validUntil}=raw as {validUntil?:unknown};
+  if(typeof validUntil!=="string"||
+     !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/.test(validUntil)||
+     !Number.isFinite(Date.parse(validUntil))||
+     Date.parse(validUntil)<=now||Date.parse(validUntil)>now+30*60000)
+    throw Error("invalid_entitlement_lease");
+  if(!Number.isSafeInteger(expectedEpoch)||expectedEpoch<0)
+    throw Error("invalid_entitlement_base_epoch");
+  const prior=current(sql,scope.entitlementId);
+  if(prior &&(prior.user_id!==scope.userId||prior.product_id!==scope.productId))
+    throw Error("paid_entitlement_scope_changed");
+  if((prior?.epoch??0)!==expectedEpoch)
+    return {applied:false,epoch:prior?.epoch??null};
+  const epoch=expectedEpoch+1;
+  if(!Number.isSafeInteger(epoch))throw Error("paid_entitlement_epoch_exhausted");
+  sql.exec(`INSERT INTO cove_paid_entitlement_authority(
+    entitlement_id,user_id,product_id,epoch,verdict,valid_until)
+    VALUES(?,?,?,?,'allow',?)
+    ON CONFLICT(entitlement_id) DO UPDATE SET epoch=excluded.epoch,
+      verdict='allow',valid_until=excluded.valid_until`,
+    scope.entitlementId,scope.userId,scope.productId,epoch,validUntil
+  );
+  return {applied:true,epoch};
+}
+/**
+ * Product legality and buyer entitlement checked from one SQLite snapshot.
+ * A contract/product withdrawal or a refund revocation invalidates access
+ * immediately without KV propagation and without a primary D1 read.
+ */
+export function readPaidAccess(sql:AuthoritySql,raw:unknown,now=new Date().toISOString()){
+  const input=raw as {territory?:unknown;channel?:unknown};
+  const scope=validatePaidEntitlementScope(raw);
+  if(!input||typeof input.territory!=="string"||
+     !/^[A-Z]{2}$/.test(input.territory)||
+     !["retail","subscription","library"].includes(String(input.channel))||
+     !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/.test(now))
+    throw Error("invalid_paid_access_request");
+  const rows=sql.exec<{
+    edition_id:string;grant_id:string;contract_id:string|null;
+    contract_version_id:string|null;product_epoch:number;entitlement_epoch:number;
+    valid_until:string
+  }>(`SELECT p.edition_id,p.grant_id,p.contract_id,p.contract_version_id,
+            p.epoch product_epoch,e.epoch entitlement_epoch,
+            CASE WHEN e.valid_until<p.valid_until THEN e.valid_until ELSE p.valid_until END valid_until
+     FROM cove_paid_entitlement_authority e
+     JOIN cove_commercial_scope_proofs p ON p.product_id=e.product_id
+     JOIN cove_commercial_authority a
+       ON a.product_id=p.product_id AND a.epoch=p.epoch AND a.verdict='allow'
+     WHERE e.entitlement_id=? AND e.user_id=? AND e.product_id=? AND e.verdict='allow'
+       AND e.valid_until>? AND p.valid_until>?
+       AND p.territory=? AND p.channel=? LIMIT 1`,
+    scope.entitlementId,scope.userId,scope.productId,now,now,
+    input.territory,input.channel as CommercialChannel
+  ).toArray();
+  return rows[0]??null;
+}
