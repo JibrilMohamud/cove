@@ -11,6 +11,7 @@ import {
   reverseRoyaltiesForRefund,
 } from "./finance.server";
 import { promotionPermitted } from "./rights.server";
+import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
 import {
   assertPreorderPurchaseAllowed,
   completePreorderRefundJob,
@@ -184,7 +185,9 @@ function moneySplit(total: number, weights: number[]) {
   return out;
 }
 
-async function cartPricing(db: CatalogDB, userId: string, territory: string) {
+async function cartPricing(
+  db: CatalogDB, userId: string, territory: string, env?: CoveEnv,
+) {
   const snap = await cartSnapshot(db, userId, territory);
   if (!snap.items.length) throw new ApiError(409, "Your cart is empty.");
   const bad = snap.items.filter((x: any) => !x.available || !x.offer || !x.book?.productId);
@@ -197,6 +200,23 @@ async function cartPricing(db: CatalogDB, userId: string, territory: string) {
   if (currencies.size !== 1)
     throw new ApiError(409, "All items in an order must use the same currency.");
   const currency = [...currencies][0];
+  if (env) {
+    await requireStageLegalConsumerProof(
+      env,
+      snap.items.map((item: any) => {
+        const productId = String(item.book?.productId || "");
+        const sourceId = String(item.book?.sourceExternalId || "");
+        return {
+          id: productId,
+          source_name:
+            productId === "prd_gutenberg_" + sourceId ? "gutenberg" : "commercial",
+          source_external_id: sourceId,
+        };
+      }),
+      territory.toUpperCase(),
+      currency,
+    );
+  }
   const items = [] as any[];
   for (const x of snap.items as any[]) {
     await assertPreorderPurchaseAllowed(db, userId, String(x.book.productId));
@@ -421,7 +441,7 @@ export async function checkoutQuote(env: CoveEnv, user: User, raw: unknown) {
       "Checkout territory must match the billing country used for tax and payment.",
     );
   const db = env.DB,
-    cart = await cartPricing(db, user.id, territory);
+    cart = await cartPricing(db, user.id, territory, env);
   const promo = await promoFor(db, user.id, input.promoCode, cart.subtotalMinor, cart.currency);
   const eligibleSet = new Set<string>((promo?.eligibleProducts || []).map(String));
   const eligibleWeights = cart.items.map((x) =>
@@ -823,7 +843,7 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
     .bind(input.quoteId, user.id, now())
     .first<any>();
   if (!quote) throw new ApiError(409, "This checkout quote expired. Recalculate your total.");
-  const cart = await cartPricing(db, user.id, String(quote.territory_code)),
+  const cart = await cartPricing(db, user.id, String(quote.territory_code), env),
     currentFingerprint = cart.fingerprint;
   if (currentFingerprint !== quote.cart_fingerprint)
     throw new ApiError(409, "Your cart changed. Recalculate checkout before paying.");
