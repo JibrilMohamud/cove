@@ -101,3 +101,51 @@ None of these targeted reductions removes the full legacy primary writer or
 solves the independently observed Cloudflare delivery tails. Production
 routing, primary migration, authority cutover and release certification
 remain disabled pending the full adversarial evidence.
+
+## Implemented on this branch (stage only, not production-routable)
+
+- `legal-authority-core.ts` persists monotonic per-source/per-country
+  deny/allow versions in strongly consistent SQLite-backed Durable Object
+  storage. It checks source-wide denial on every territory read. Missing
+  scopes fail closed; equal-version denial defeats allowance.
+- `legal-authority.worker.ts` uses a private, secret-gated entrypoint
+  that is physically pinned to the existing canonical-publication **QA**
+  primary D1. Positive transitions require a fresh primary check for
+  source/evidence/territory and a current retail offer. The default worker
+  `fetch` is 404; no public route or customer binding has been created.
+- `legal-authority-coordinator.ts` orders canonical mutations:
+  durable owner denial acknowledged **before** any primary mutation;
+  positive grants are committed on primary first and only later made
+  visible by a separately checked owner allowance. Any timeout or stale
+  acknowledgement aborts the relevant transition, preserving denial.
+- SQLite adversarial tests cover duplicate/stale/equal revision replay,
+  multi-territory and source-wide withdrawal, persistent restart, owner
+  outage, source mutation crash and approval publication failure.
+- Wrangler configuration is an intentionally **disabled example**, not
+  evidence of an active online rights authority. The new Worker is not
+  bound into homepage, detail, checkout or protected delivery.
+
+**Why cutover is still blocked:** direct production legal writes remain
+possible through existing processing/administrative paths. Until all
+such writers are fenced, cached owner allowances could become stale.
+We therefore retain live primary authorization and production routing
+unchanged. The staged ledger does not itself improve hosted-capacity.
+
+## Latest hosted run: 40254586807 (PR #351)
+
+The isolated hosted run passed **3/3 cold rounds** and all **1/4/8/16/32**
+concurrency bursts. Its first full 12,000-request 100-RPS phase passed
+with **12,000/12,000 valid**, zero drops, p95 **173 ms**, p99 **272 ms**,
+maximum **698 ms**. The second full phase stopped after request 8,593
+when one valid 200 response took **1,295.8 ms**; Worker handler was
+**59 ms**, SQL **4.4 ms**, and approximately **1,237 ms** was outside the
+handler. Cloudflare Ray: `a505c22f9eb75e41-DFW`. No application
+retries or ignored samples may classify this as passing.
+
+Because the long HTTP/2 delivery delay is outside the Worker, it cannot
+be deterministically cured by deleting additional D1 statements.
+Until geographically diverse runs demonstrate elimination of the edge
+tail—or Cloudflare infrastructure changes explain/correct it—the
+**absolute every-request <800 ms** contractual release criterion remains
+unmet. Do not substitute percentile-only claims, remove extreme values,
+or change which traffic counts.
