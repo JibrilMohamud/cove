@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Expiring stage-only QA proxy keeps guard conditions explicit. */
 /**
  * Protected, short-lived staging proof caller. NOT a customer route.
  * Only forwards a tiny, exact set of test operations to the separately
