@@ -38,7 +38,7 @@ try {
   for(const territory of ["US","CA"]){
     db.prepare("INSERT INTO gutenberg_rights_evidence VALUES(?,?,?,?,?)")
       .run("gre_2702_"+territory.toLowerCase(),"pg_us","2702",territory,"approved");
-    db.prepare("INSERT INTO rights_grants VALUES(?,?,?,?,?)")
+    db.prepare("INSERT INTO rights_grants(edition_id,source,territory_code,decision,status) VALUES(?,?,?,?,?)")
       .run("ed_gutenberg_2702","gutenberg-pg_us-public-domain",territory,"allow","active");
   }
 
