@@ -48,6 +48,114 @@ export function readAuthority(sql: AuthoritySql, sourceId: string, territory: st
   const state=rows[0];
   return { allowed: state?.verdict === "allow", revision: state?.revision ?? null };
 }
+
+/**
+ * Positive proof storage is not a cache of untrusted presentation fields.
+ * Proofs are keyed to the exact rights revision, verified country, currency,
+ * edition identity and canonical retail offer. Denial disables old proofs
+ * without asynchronous cache invalidation.
+ */
+export type VerifiedOfferProof = {
+  productId: string;
+  editionId: string;
+  productPublicId: string | null;
+  editionPublicId: string | null;
+  offerJson: string;
+};
+export function validateVerifiedOfferProof(
+  command: AuthorityCommand, currency: string, proof: VerifiedOfferProof
+) {
+  if (command.action !== "allow" || command.territory === "*" ||
+      !/^[A-Z]{3}$/.test(currency) ||
+      !proof || proof.productId !== "prd_gutenberg_" + command.sourceId ||
+      proof.editionId !== "ed_gutenberg_" + command.sourceId ||
+      (proof.productPublicId !== null &&
+        (typeof proof.productPublicId !== "string" || proof.productPublicId.length > 160)) ||
+      (proof.editionPublicId !== null &&
+        (typeof proof.editionPublicId !== "string" || proof.editionPublicId.length > 160)) ||
+      typeof proof.offerJson !== "string" || proof.offerJson.length > 512)
+    throw Error("invalid_authority_offer");
+  let offer: unknown;
+  try { offer = JSON.parse(proof.offerJson); }
+  catch { throw Error("invalid_authority_offer"); }
+  // The initial independent authority supports only free public-domain
+  // Gutenberg grants. Paid/subscription offers require separate entitlement
+  // and money invariants and MUST continue consulting the live primary.
+  const record = offer as Record<string, unknown> | null;
+  if (!record || Array.isArray(record) || record.type !== "public-domain" ||
+      record.currency !== currency || record.amountMinor !== 0 ||
+      Object.keys(record).sort().join(",") !== "amountMinor,currency,type")
+    throw Error("invalid_authority_offer");
+}
+export function createAuthorityProofSchema(sql: AuthoritySql) {
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_authorized_offer_proofs(
+    source_id TEXT NOT NULL, territory TEXT NOT NULL, currency TEXT NOT NULL,
+    revision INTEGER NOT NULL CHECK(revision > 0),
+    product_id TEXT NOT NULL, edition_id TEXT NOT NULL,
+    product_public_id TEXT, edition_public_id TEXT,
+    offer_json TEXT NOT NULL,
+    PRIMARY KEY(source_id, territory, currency)
+  ) WITHOUT ROWID`);
+}
+export function storeAuthorizedPresentationProof(
+  sql: AuthoritySql, raw: unknown, currency: string, proof: VerifiedOfferProof
+) {
+  const command = validateAuthorityCommand(raw);
+  validateVerifiedOfferProof(command,currency,proof);
+  const decision = readAuthority(sql,command.sourceId,command.territory);
+  if (!decision.allowed || decision.revision !== command.revision)
+    throw Error("authority_positive_revision_unconfirmed");
+  // Only the current exact rev may expose an offer. A stale publication may
+  // never overwrite the latest proof, even if both are positive.
+  sql.exec(`INSERT INTO cove_authorized_offer_proofs(
+    source_id,territory,currency,revision,product_id,edition_id,
+    product_public_id,edition_public_id,offer_json
+  ) VALUES(?,?,?,?,?,?,?,?,?)
+  ON CONFLICT(source_id,territory,currency) DO UPDATE SET
+    revision=excluded.revision, product_id=excluded.product_id,
+    edition_id=excluded.edition_id,product_public_id=excluded.product_public_id,
+    edition_public_id=excluded.edition_public_id,offer_json=excluded.offer_json
+  WHERE excluded.revision >= cove_authorized_offer_proofs.revision`,
+    command.sourceId,command.territory,currency,command.revision,
+    proof.productId,proof.editionId,proof.productPublicId,proof.editionPublicId,proof.offerJson);
+  return readAuthority(sql,command.sourceId,command.territory);
+}
+export type AuthorityPresentationRow = {
+  product_id:string; edition_id:string; product_public_id:string|null;
+  edition_public_id:string|null; offer_json:string;
+};
+export function readAuthorizedPresentations(
+  sql: AuthoritySql, ids: string[], territory:string, currency:string
+):AuthorityPresentationRow[] {
+  if (!Array.isArray(ids) || ids.length>24 ||
+      !/^[A-Z]{2}$/.test(territory) || !/^[A-Z]{3}$/.test(currency) ||
+      ids.some(id=>typeof id!=="string" ||
+        !/^prd_gutenberg_(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/.test(id)) ||
+      new Set(ids).size!==ids.length) throw Error("invalid_authority_batch");
+  if (!ids.length) return [];
+  const rows:AuthorityPresentationRow[]=[];
+  // Synchronous reads on the SAME single DO; no R2/KV staleness. Bounds
+  // prevent resource abuse and unknown/unseeded sources are always omitted.
+  for(const productId of ids) {
+    const sourceId=productId.slice("prd_gutenberg_".length);
+    const state=readAuthority(sql,sourceId,territory);
+    if(!state.allowed) continue;
+    const result=sql.exec<AuthorityPresentationRow & {revision:number}>(
+      `SELECT revision,product_id,edition_id,product_public_id,edition_public_id,offer_json
+       FROM cove_authorized_offer_proofs
+       WHERE source_id=? AND territory=? AND currency=? AND revision=?
+         AND product_id=? LIMIT 1`,
+      sourceId,territory,currency,state.revision
+    ).toArray()[0];
+    if (result) rows.push({
+      product_id:result.product_id, edition_id:result.edition_id,
+      product_public_id:result.product_public_id,
+      edition_public_id:result.edition_public_id,offer_json:result.offer_json
+    });
+  }
+  return rows;
+}
+
 export function applyAuthorityCommand(sql: AuthoritySql, raw: unknown) {
   const c=validateAuthorityCommand(raw);
   if (c.territory==="*") {
