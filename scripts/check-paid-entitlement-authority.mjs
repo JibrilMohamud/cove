@@ -88,9 +88,10 @@ try{
     ...scope,operationId:"refund:paid_17:revoked"
   }),{applied:true,epoch:3});
   assert.equal(verify(),null,"Refund fence invalidates even a product-still-allowed proof");
-  assert.deepEqual(ent.publishFreshEntitlement(sql(),{...ctx,productEpoch:3,
+  assert.throws(()=>ent.publishFreshEntitlement(sql(),{...ctx,productEpoch:3,
     validUntil:new Date(Date.now()+180000).toISOString()},staleEntBase),
-    {applied:false,epoch:3},"Old Stripe webhook cannot regrant refunded entitlement");
+    /paid_entitlement_revocation_terminal/,
+    "Old Stripe webhook cannot regrant revoked entitlement even with a stale base epoch");
   assert.deepEqual(ent.denyPaidEntitlement(sql(),{
     ...scope,operationId:"refund:paid_17:revoked"
   }),{applied:true,epoch:3},"Refund retry is idempotent");
