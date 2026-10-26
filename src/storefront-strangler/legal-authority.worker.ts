@@ -122,11 +122,18 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
            (ent.ends_at&&ent.ends_at<=clock))
           return new Response(null,{status:409,headers:noStore});
         const order=await env.PRIMARY_DB.prepare(
-          "SELECT coi.entitlement_status,co.status order_status FROM commerce_order_items coi JOIN commerce_orders co ON co.id=coi.order_id WHERE coi.id=? AND coi.product_id=? AND co.user_id=?"
+          "SELECT coi.entitlement_status,co.status order_status,coi.rights_grant_id,coi.rights_snapshot_json FROM commerce_order_items coi JOIN commerce_orders co ON co.id=coi.order_id WHERE coi.id=? AND coi.product_id=? AND co.user_id=?"
         ).bind(ent.order_item_id,scope.productId,scope.userId)
-          .first<{entitlement_status:string;order_status:string}>();
+          .first<{entitlement_status:string;order_status:string;
+          rights_grant_id:string|null;rights_snapshot_json:string|null}>();
         if(!order||order.entitlement_status!=="granted"||
-           order.order_status!=="paid")
+           order.order_status!=="paid" ||
+           order.rights_grant_id!==rights[0].grant_id)
+          return new Response(null,{status:409,headers:noStore});
+        let purchased:unknown=null;
+        try{purchased=JSON.parse(order.rights_snapshot_json||"");}catch{}
+        const acquired=purchased as {contractVersionId?:unknown}|null;
+        if(!acquired || acquired.contractVersionId!==rights[0].contract_version_id)
           return new Response(null,{status:409,headers:noStore});
         const hold=await env.PRIMARY_DB.prepare(
           "SELECT 1 ok FROM risk_holds rh JOIN commerce_order_items oi ON oi.order_id=rh.subject_id WHERE rh.domain='buyer' AND rh.subject_type='order' AND rh.status='active' AND rh.hold_scope IN ('checkout','entitlement') AND oi.id=? LIMIT 1"
@@ -142,6 +149,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         };
         const receipt=storage.transactionSync(()=>
           publishFreshEntitlement(sql,{...scope,
+            productEpoch:rights[0].epoch,
             validUntil:new Date(expiry).toISOString()
           },expected)
         );
