@@ -10,7 +10,7 @@ import {
 } from "./commercial-entitlement-core";
 import {
   captureCommercialEpoch, createCommercialAuthoritySchema,
-  denyCommercialProduct, denyCommercialProductsBatch,
+  denyCommercialProduct, denyCommercialProductsBatch, denyCommercialSubject,
   publishFreshCommercialProof, readCommercialProofs,
   commercialProductId, type CommercialChannel,
 } from "./commercial-legal-core";
@@ -68,7 +68,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     if(request.method!=="POST") return new Response(null,{status:405,headers:noStore});
     const route=new URL(request.url).pathname;
     if(!["/deny","/deny-next","/deny-next-batch","/verify","/publish-allow","/authorize-batch",
-      "/commercial/deny-next","/commercial/deny-batch","/commercial/publish-verified",
+      "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next","/commercial/publish-verified",
       "/commercial/authorize-batch",
       "/commercial/order/deny-next",
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
@@ -186,6 +186,13 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           },expected)
         );
         return Response.json(receipt,{status:receipt.applied?200:409,headers:noStore});
+      }
+      if(route==="/commercial/subject/deny-next"){
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const receipt=storage.transactionSync(()=>denyCommercialSubject(sql,raw));
+        return Response.json(receipt,{status:200,headers:noStore});
       }
       if(route==="/commercial/deny-batch"){
         const storage=this.ctx.storage as typeof this.ctx.storage & {
