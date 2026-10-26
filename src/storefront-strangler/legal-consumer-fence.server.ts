@@ -11,6 +11,8 @@ export type StageLegalConsumerEnv={
 };
 type ConsumerProduct={
   id:string;source_name:string;source_external_id?:string|null;
+  expectedEditionId?:string|null;expectedGrantId?:string|null;
+  expectedContractVersionId?:string|null;
 };
 const productPattern=/^prd_gutenberg_(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/;
 const QA_PRIMARY="5e3a6b69-6f3d-4b19-b837-01f7aa56ce87";
@@ -53,6 +55,7 @@ async function authorizeStageCommercialProducts(
   if(results.length!==ids.length)
     throw new ApiError(451,"Commercial distribution rights are withdrawn or not yet authorized.");
   const observed=new Set<string>();
+  const expected=new Map(products.map(p=>[p.id,p]));
   for(const p of results){
     if(!p||typeof p.product_id!=="string"||
        !ids.includes(p.product_id)||observed.has(p.product_id)||
@@ -70,6 +73,15 @@ async function authorizeStageCommercialProducts(
        Date.parse(p.valid_until)<=Date.now()||
        !Number.isSafeInteger(p.epoch)||Number(p.epoch)<=0)
       throw new ApiError(503,"Commercial legal proof identity or epoch invalid.");
+    const exact=expected.get(p.product_id);
+    if(!exact ||
+       (exact.expectedEditionId!==undefined &&
+         p.edition_id!==exact.expectedEditionId) ||
+       (exact.expectedGrantId!==undefined &&
+         p.grant_id!==exact.expectedGrantId) ||
+       (exact.expectedContractVersionId!==undefined &&
+         p.contract_version_id!==exact.expectedContractVersionId))
+      throw new ApiError(503,"Commercial grant or contract version differs from canonical pricing.");
     observed.add(p.product_id);
   }
 }
