@@ -34,10 +34,10 @@ export function createPaidEntitlementSchema(sql:AuthoritySql) {
   ) WITHOUT ROWID`);
 }
 type EntRow={entitlement_id:string;user_id:string;product_id:string;
-  epoch:number;verdict:"deny"|"allow";valid_until:string|null};
+  epoch:number;verdict:"deny"|"allow";product_epoch:number|null;valid_until:string|null};
 const current=(sql:AuthoritySql,id:string)=>
   sql.exec<EntRow>(
-    "SELECT entitlement_id,user_id,product_id,epoch,verdict,valid_until FROM cove_paid_entitlement_authority WHERE entitlement_id=?",
+    "SELECT entitlement_id,user_id,product_id,epoch,verdict,product_epoch,valid_until FROM cove_paid_entitlement_authority WHERE entitlement_id=?",
     id
   ).toArray()[0];
 export function captureEntitlementEpoch(sql:AuthoritySql,raw:unknown) {
@@ -95,8 +95,15 @@ export function publishFreshEntitlement(
     throw Error("paid_entitlement_scope_changed");
   if((prior?.epoch??0)!==expectedEpoch)
     return {applied:false,epoch:prior?.epoch??null};
-  const epoch=expectedEpoch+1;
-  if(!Number.isSafeInteger(epoch))throw Error("paid_entitlement_epoch_exhausted");
+  // A fresh *verified* lease for the identical buyer and product epoch is
+  // a renewal, not a new grant. Keep the entitlement epoch stable to avoid
+  // gratuitous consumer/token invalidation every five minutes. An owner
+  // denial or a new product rights epoch still requires a new epoch.
+  const sameGrant=prior?.verdict==="allow"&&
+    prior.product_epoch===Number(productEpoch);
+  const epoch=sameGrant?expectedEpoch:expectedEpoch+1;
+  if(!Number.isSafeInteger(epoch)||epoch<=0)
+    throw Error("paid_entitlement_epoch_exhausted");
   sql.exec(`INSERT INTO cove_paid_entitlement_authority(
     entitlement_id,user_id,product_id,epoch,verdict,product_epoch,valid_until)
     VALUES(?,?,?,?,'allow',?,?)
