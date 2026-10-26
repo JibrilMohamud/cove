@@ -50,6 +50,23 @@ export function readAuthority(sql: AuthoritySql, sourceId: string, territory: st
 }
 export function applyAuthorityCommand(sql: AuthoritySql, raw: unknown) {
   const c=validateAuthorityCommand(raw);
+  if (c.territory==="*") {
+    // A source-wide denial must outrank every previously acknowledged
+    // territory state, not just the existing wildcard row. A writer with
+    // a stale global revision is rejected and may not mutate primary rights.
+    const highest=sql.exec<{max_revision:number|null}>(
+      "SELECT MAX(revision) max_revision FROM cove_legal_fences WHERE source_id=?",
+      c.sourceId
+    ).toArray()[0]?.max_revision ?? 0;
+    const existing=sql.exec<FenceRow>(
+      "SELECT revision,verdict,territory FROM cove_legal_fences WHERE source_id=? AND territory='*'",
+      c.sourceId
+    ).toArray()[0];
+    const replay=existing?.revision===c.revision && existing.verdict==="deny" &&
+      c.revision===highest;
+    if(highest >= c.revision && !replay)
+      return { applied:false, state:readAuthority(sql,c.sourceId,"US") };
+  }
   // Only a strictly newer revision can change the verdict. At equal
   // revision DENY wins; an equal/stale ALLOW can never reinstate rights.
   sql.exec(`INSERT INTO cove_legal_fences(source_id,territory,revision,verdict)
@@ -66,7 +83,8 @@ export function applyAuthorityCommand(sql: AuthoritySql, raw: unknown) {
     c.sourceId,c.territory
   ).toArray()[0];
   if (!state) throw Error("authority_write_not_durable");
-  const applied=state.revision===c.revision &&
-    state.verdict===c.action;
-  return { applied, state: readAuthority(sql,c.sourceId,c.territory==="*"?"US":c.territory) };
+  const effective=readAuthority(sql,c.sourceId,c.territory==="*"?"US":c.territory);
+  const applied=state.revision===c.revision && state.verdict===c.action &&
+    (c.action!=="allow" || effective.allowed);
+  return { applied, state: effective };
 }
