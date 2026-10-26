@@ -29,7 +29,8 @@ const receipt=writerBody.indexOf("orderReceipt.applied");
 const update=writerBody.indexOf("UPDATE entitlements SET status='revoked'");
 assert.ok(denial>=0 && receipt>denial && update>receipt,
   "Durable order-wide denial and verified receipt MUST precede canonical entitlement writes");
-assert.ok(writerBody.indexOf("await env.PRIMARY_DB.prepare(")>update,
+assert.ok(writerBody.indexOf("await env.PRIMARY_DB.prepare(")>receipt &&
+  writerBody.indexOf("await env.PRIMARY_DB.prepare(")<update,
   "Canonical reconciliation must execute only after the owner receipt");
 assert.ok(!writerBody.includes("/commercial/entitlement/deny-batch"),
   "Whole-order refund cannot be truncated by a 25-item owner batch");
