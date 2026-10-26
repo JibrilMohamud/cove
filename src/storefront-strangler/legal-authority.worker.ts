@@ -1,6 +1,12 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
 import { DurableObject } from "cloudflare:workers";
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
+import { resolveProductRights } from "../features/fore/rights.server";
+import {
+  captureCommercialEpoch, createCommercialAuthoritySchema,
+  denyCommercialProduct, publishFreshCommercialProof, readCommercialProofs,
+  commercialProductId, type CommercialChannel,
+} from "./commercial-legal-core";
 import {
   applyAuthorityCommand, capturePositiveVerificationFence, commitFreshPositiveVerification,
   createAuthoritySchema, createAuthorityProofSchema,
@@ -39,6 +45,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     super(ctx, env);
     createAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
     createAuthorityProofSchema(ctx.storage.sql as unknown as AuthoritySql);
+    createCommercialAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -52,18 +59,92 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return new Response(null,{status:401,headers:noStore});
     if(request.method!=="POST") return new Response(null,{status:405,headers:noStore});
     const route=new URL(request.url).pathname;
-    if(!["/deny","/deny-next","/deny-next-batch","/verify","/publish-allow","/authorize-batch"].includes(route))
+    if(!["/deny","/deny-next","/deny-next-batch","/verify","/publish-allow","/authorize-batch",
+      "/commercial/deny-next","/commercial/publish-verified",
+      "/commercial/authorize-batch"].includes(route))
       return new Response(null,{status:404,headers:noStore});
     if (request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
       return new Response(null,{status:415,headers:noStore});
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(["/authorize-batch","/deny-next-batch"].includes(route)?24000:512)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(["/authorize-batch","/deny-next-batch","/commercial/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
     try {
+      if(route==="/commercial/deny-next"){
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const verdict=storage.transactionSync(()=>
+          denyCommercialProduct(sql,raw)
+        );
+        return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
+      }
+      if(route==="/commercial/authorize-batch"){
+        const input=raw as {ids?:unknown;territory?:unknown;channel?:unknown};
+        if(!input||!Array.isArray(input.ids)||
+           typeof input.territory!=="string"||typeof input.channel!=="string")
+          return new Response(null,{status:400,headers:noStore});
+        const rows=readCommercialProofs(
+          sql,input.ids,input.territory,input.channel as CommercialChannel
+        );
+        return Response.json({schema:"cove.commercial-legal.v1",rows},
+          {headers:noStore});
+      }
+      if(route==="/commercial/publish-verified"){
+        const input=raw as {productId?:unknown;territory?:unknown;channel?:unknown};
+        if(!input||typeof input.productId!=="string"||
+           !commercialProductId.test(input.productId) ||
+           input.productId.startsWith("prd_gutenberg_")||
+           typeof input.territory!=="string"||
+           !/^[A-Z]{2}$/.test(input.territory)||
+           !["retail","subscription","library"].includes(String(input.channel)))
+          return new Response(null,{status:400,headers:noStore});
+        const startEpoch=captureCommercialEpoch(sql,input);
+        const product=await env.PRIMARY_DB.prepare(
+          "SELECT id,source_name,edition_id FROM products WHERE id=?"
+        ).bind(input.productId).first<{
+          id:string;source_name:string;edition_id:string
+        }>();
+        if(!product || ["gutenberg","upload"].includes(product.source_name))
+          return new Response(null,{status:409,headers:noStore});
+        // The canonical evaluator checks territorial grant priority, contract
+        // version scope, license language, DRM, channel and current status.
+        // Persist=false: owner publication does NOT add primary D1 writes.
+        const decision=await resolveProductRights(
+          env.PRIMARY_DB,input.productId,input.territory,{
+            salesChannel:input.channel as CommercialChannel,persist:false
+          }
+        );
+        if(!decision.allowed || !decision.grantId ||
+           decision.editionId!==product.edition_id ||
+           decision.productId!==product.id)
+          return new Response(null,{status:409,headers:noStore});
+        const now=Date.now();
+        const upperBound=now+30*60*1000;
+        const ends=[decision.endsAt,
+          (decision.contractPolicy as {effectiveTo?:unknown}|null)?.effectiveTo]
+          .filter((v):v is string=>typeof v==="string"&&v.length>0)
+          .map(v=>Date.parse(v));
+        if(ends.some(t=>!Number.isFinite(t) || t<=now))
+          return new Response(null,{status:409,headers:noStore});
+        const expiresAt=Math.min(upperBound,...ends);
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const verdict=storage.transactionSync(()=>
+          publishFreshCommercialProof(sql,{
+            productId:product.id,editionId:product.edition_id,
+            territory:input.territory as string,channel:input.channel as CommercialChannel,
+            grantId:decision.grantId!,contractId:decision.contractId,
+            contractVersionId:decision.contractVersionId,
+            validUntil:new Date(expiresAt).toISOString(),
+          },startEpoch)
+        );
+        return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
+      }
       if(route==="/verify") {
         const input=raw as {sourceId?:unknown;territory?:unknown};
         if(!input||typeof input.sourceId!=="string"||typeof input.territory!=="string")
