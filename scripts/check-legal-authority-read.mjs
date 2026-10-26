@@ -19,8 +19,10 @@ try {
   const db=new DatabaseSync(":memory:");
   const sql={exec(statement,...args){
     const stmt=db.prepare(statement);
-    return {toArray:()=>/^\s*SELECT\b/i.test(statement)?stmt.all(...args):
-      (stmt.run(...args),[])};
+    const rows=/^\s*SELECT\b/i.test(statement)
+      ? stmt.all(...args)
+      : (stmt.run(...args),[]);
+    return {toArray:()=>rows};
   }};
   core.createAuthoritySchema(sql);
   core.createAuthorityProofSchema(sql);
