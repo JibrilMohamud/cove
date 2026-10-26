@@ -27,7 +27,7 @@ for(const endpoint of [
   assert.ok(start>=0,"Protected audio endpoint missing: "+endpoint);
   const end=audio.indexOf("  if (match[2]",start+endpoint.length);
   const section=audio.slice(start,end<0?start+11500:end);
-  assert.ok(section.includes("requireCommercialAudioOwner(env,"),
+  assert.ok(/requireCommercialAudioOwner\(\s*env,/.test(section),
     "Protected audio endpoint missing owner authorization: "+endpoint);
   if(endpoint==='match[2] === "biosync"'){
     assert.ok(section.includes("await Promise.all([") &&
