@@ -1,3 +1,4 @@
+import { scopeStageLegalWriterEnv } from "../../storefront-strangler/legal-primary-write-lock";
 import { saveTasteControls, loadTasteControls } from "./discovery-intelligence.server";
 import { validateStoredEpub } from "./stored-epub.server";
 import { createAuth, resolvedIdentity } from "./auth.server";
@@ -489,6 +490,8 @@ export type CoveEnv = {
     limit(input: { key: string }): Promise<{ success: boolean }>;
   };
   COVE_SSR_STAGING?: string;
+  // QA-only: reject every unfenced canonical grant/offer/evidence mutation.
+  COVE_CANONICAL_LEGAL_WRITE_LOCK?: string;
   // Stage-only candidate: independent low-cardinality anonymous metrics.
   COVE_OPS_TELEMETRY_MODE?: string;
   OPS_ANALYTICS?: {
@@ -1662,6 +1665,7 @@ function regionalBook(item: RegionalCatalogItem) {
 
 /** Asset maintenance cannot roll back or mislabel committed catalog metadata. */
 export async function runCatalogAssetMaintenance(env: CoveEnv, limit = 1, deadlineMs = Infinity) {
+  env = scopeStageLegalWriterEnv(env);
   let attempted = 0;
   try {
     return await cachePendingEpubs(env, limit, deadlineMs, () => {
@@ -1684,6 +1688,7 @@ export async function runRegionalCatalogIngestion(
   epubLimit = 1,
   deadlineMs = Infinity,
 ) {
+  env = scopeStageLegalWriterEnv(env);
   const db = database(env);
   const current = now();
   const due = await db
@@ -2022,6 +2027,7 @@ export async function runCatalogIngestion(
   epubLimit = 1,
   options: { deadlineMs?: number; includeRegional?: boolean; deferSearchSync?: boolean } = {},
 ) {
+  env = scopeStageLegalWriterEnv(env);
   const deadlineMs = options.deadlineMs ?? Infinity;
   if (Date.now() >= deadlineMs) return { skipped: "deadline" };
   epubLimit = Math.max(0, Math.min(16, Math.floor(Number(epubLimit) || 0)));
@@ -2816,6 +2822,7 @@ async function rateLimitFirstPaint(request: Request, env: CoveEnv, userId: strin
 }
 
 export async function runRecommendationMaintenance(env: CoveEnv) {
+  env = scopeStageLegalWriterEnv(env);
   const db = database(env);
   const [recommendations, wishlistAlerts] = await Promise.all([
     maintainRecommendations(db),
@@ -2825,6 +2832,7 @@ export async function runRecommendationMaintenance(env: CoveEnv) {
 }
 
 export async function runPublishingReleaseMaintenance(env: CoveEnv) {
+  env = scopeStageLegalWriterEnv(env);
   return advancePublishingReleaseSchedules(database(env));
 }
 
@@ -2903,6 +2911,7 @@ export async function handleCoveApi(
   env: CoveEnv,
   execution?: ApiExecutionContext,
 ): Promise<Response | null> {
+  env = scopeStageLegalWriterEnv(env);
   if (!new URL(request.url).pathname.startsWith("/api/fore/")) return null;
   // Aggregate-only interaction telemetry has no user, commerce or territorial
   // rights dependency. Handle it before auth/context/HTTP D1 logging.
