@@ -76,6 +76,29 @@ try{
   },0),{applied:true,epoch:1});
   await check();
   assert.equal(ownerCalls,3,"One combined DO RPC per protected request");
+  const verified=entitlement.readPaidAccess(sql,input);
+  assert.equal(verified.order_id,input.orderId,"Proof is bound to the paid order");
+  assert.equal(verified.territory,input.territory);
+  assert.equal(verified.channel,input.channel);
+  // A 200 response from a private binding is not sufficient if it carries
+  // another customer's, market's or item's valid-looking purchase lease.
+  for(const [field,value] of [
+    ["user_id","user_purchase_18"],
+    ["product_id","prd_commercial_b18"],
+    ["entitlement_id","another_paid_entitlement_18"],
+    ["order_id","bad"],
+    ["territory","CA"],
+    ["channel","subscription"],
+    ["edition_id",""],
+    ["contract_version_id",null]
+  ]){
+    const forged={...owner,LEGAL_AUTHORITY:{getByName:()=>({
+      async fetch(){return Response.json({schema:"cove.paid-access.v1",
+        allowed:true,proof:{...verified,[field]:value}});}
+    })}};
+    await assert.rejects(check(forged),e=>e.status===503,
+      "Forged paid lease must fail closed: "+field);
+  }
   await assert.rejects(check(owner,{...input,userId:"user_other_18"}),
     e=>e.status===451,"Cannot borrow another buyer's purchase proof");
   product.denyCommercialProduct(sql,{
