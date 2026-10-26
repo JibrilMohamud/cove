@@ -15,26 +15,38 @@ try{
     assertStagePaidOrderNotWithdrawn:preflight}=await import(pathToFileURL(outfile).href);
   const orderId="order_purchase_17",userId="user_purchase_17",
     productId="prd_commercial_a17",entitlementId="2be93243-1057-4fdc-a393-f8666bd97378";
-  const order={id:orderId,user_id:userId,territory_code:"US",status:"paid"};
+  const order={id:orderId,user_id:userId,territory_code:"US",status:"pending_payment"};
   const items=[
     {id:"item_paid_17",product_id:productId,sales_channel:"retail",
-      entitlement_status:"granted",preorder_id:null,entitlement_id:entitlementId},
+      entitlement_status:"granted",preorder_id:null,entitlement_id:entitlementId,
+      rights_grant_id:"grant_17",
+      rights_snapshot_json:JSON.stringify({grantId:"grant_17",editionId:"ed_17",
+        contractId:"contract_17",contractVersionId:"version_17",
+        territory:"US",salesChannel:"retail"})},
     {id:"item_preorder_18",product_id:"prd_commercial_b18",sales_channel:"retail",
       entitlement_status:"pending",preorder_id:"preorder_18",entitlement_id:null}
   ];
   let calls=[],reads=0,ownerStatus=200,ownerPayload={applied:true,epoch:1};
   let veto=false,orderChecks=0;
+  let rightsRows=[{product_id:productId,edition_id:"ed_17",grant_id:"grant_17",
+    contract_id:"contract_17",contract_version_id:"version_17",
+    epoch:1,valid_until:new Date(Date.now()+900000).toISOString()}];
   const db={prepare(sql){
     return {bind(...args){
       return {
         async first(){
           reads++;
           assert.match(sql,/FROM commerce_orders WHERE id=/);
-          assert.deepEqual(args,[orderId,userId]);
+          assert.deepEqual(args.length===1?args:[...args],
+            args.length===1?[orderId]:[orderId,userId]);
           return order;
         },
         async all(){
           reads++;
+          if(sql.includes("FROM commerce_order_items WHERE order_id=?")){
+            assert.deepEqual(args,[orderId]);
+            return {results:items};
+          }
           assert.match(sql,/FROM commerce_order_items oi/);
           assert.deepEqual(args,[userId,orderId]);
           return {results:items};
@@ -56,6 +68,11 @@ try{
         },{status:ownerStatus});
       }
       calls.push({path:route,body:supplied});
+      if(route==="/commercial/authorize-batch"){
+        assert.deepEqual(supplied,{ids:[productId],territory:"US",channel:"retail"});
+        return Response.json({schema:"cove.commercial-legal.v1",rows:rightsRows},
+          {status:ownerStatus});
+      }
       return Response.json(ownerPayload,{status:ownerStatus});
     }};
   }};
@@ -71,6 +88,18 @@ try{
   assert.equal(orderChecks,0);
   await preflight(env,orderId);
   assert.equal(orderChecks,1,"Owner must confirm no previous refunded-order veto");
+  assert.equal(calls.length,1,"Preflight must check live paid market rights");
+  rightsRows=[];
+  await assert.rejects(preflight(env,orderId),e=>e.status===451,
+    "Owner must refuse a stale checkout snapshot before Stripe tender");
+  rightsRows=[{product_id:productId,edition_id:"ed_17",grant_id:"grant_17",
+    contract_id:"contract_17",contract_version_id:"version_17",
+    epoch:1,valid_until:new Date(Date.now()+900000).toISOString()}];
+  const originalSnapshot=items[0].rights_snapshot_json;
+  items[0].rights_snapshot_json="{}";
+  await assert.rejects(preflight(env,orderId),e=>e.status===451,
+    "Unverified or changed acquisition scope may not charge the buyer");
+  items[0].rights_snapshot_json=originalSnapshot;
   veto=true;
   await assert.rejects(preflight(env,orderId),e=>e.status===409,
     "Strong owner tombstone must reject a new settlement BEFORE tender mutation");
@@ -82,8 +111,9 @@ try{
     e=>e.status===503,"Production cannot borrow a temporary staging owner");
   await assert.rejects(certify({...env,COVE_SSR_STAGING:"0"},orderId,userId),
     e=>e.status===503,"Never enable an isolated owner via a production environment");
+  order.status="paid";calls=[];
   await certify(env,orderId,userId);
-  assert.equal(reads,2);
+  assert.ok(reads>=4,"Both canonical preflight and post-settlement proof read D1");
   assert.deepEqual(calls,[{path:"/commercial/entitlement/publish-verified",
     body:{entitlementId,userId,productId,territory:"US",channel:"retail"}}],
     "Only an exact paid buyer entitlement is sent for canonical verification");
