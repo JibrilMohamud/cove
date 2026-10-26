@@ -50,6 +50,15 @@ export function createCommercialAuthoritySchema(sql:AuthoritySql){
     product_id TEXT NOT NULL,
     epoch INTEGER NOT NULL CHECK(epoch>0)
   ) WITHOUT ROWID`);
+  // One contract may cover thousands of editions. Subject tombstones make
+  // withdrawal O(1) and immediately effective for ALL stored product proofs,
+  // without bounded product fanout or eventually-consistent invalidations.
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_commercial_subject_denials(
+    subject_kind TEXT NOT NULL CHECK(subject_kind IN ('grant','contract')),
+    subject_id TEXT NOT NULL,
+    operation_id TEXT NOT NULL UNIQUE,
+    PRIMARY KEY(subject_kind,subject_id)
+  ) WITHOUT ROWID`);
 }
 type EpochRow={epoch:number;verdict:"deny"|"allow"};
 const current=(sql:AuthoritySql,id:string)=>
@@ -122,6 +131,36 @@ export function denyCommercialProductsBatch(sql:AuthoritySql,raw:unknown){
     throw Error("commercial_denial_batch_superseded");
   return {applied:true,receipts};
 }
+/**
+ * Permanent subject-level veto, idempotent by operation ID. A legally
+ * reverified replacement must have a NEW grant or contract identity; merely
+ * refreshing a product's epoch cannot revive a withdrawn subject.
+ */
+export function denyCommercialSubject(sql:AuthoritySql,raw:unknown){
+  if(!raw||typeof raw!=="object"||Array.isArray(raw))
+    throw Error("invalid_commercial_subject_denial");
+  const {subjectKind,subjectId,operationId}=raw as Record<string,unknown>;
+  if(!["grant","contract"].includes(String(subjectKind))||
+     typeof subjectId!=="string"||
+     !/^[a-zA-Z0-9_-]{3,180}$/.test(subjectId)||
+     typeof operationId!=="string"||
+     !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(operationId))
+    throw Error("invalid_commercial_subject_denial");
+  const oldOp=sql.exec<{
+    subject_kind:string;subject_id:string
+  }>("SELECT subject_kind,subject_id FROM cove_commercial_subject_denials WHERE operation_id=?",
+    operationId).toArray()[0];
+  if(oldOp&&(oldOp.subject_kind!==subjectKind||oldOp.subject_id!==subjectId))
+    throw Error("commercial_subject_op_scope_collision");
+  const oldSubject=sql.exec<{operation_id:string}>(
+    "SELECT operation_id FROM cove_commercial_subject_denials WHERE subject_kind=? AND subject_id=?",
+    subjectKind,subjectId).toArray()[0];
+  if(!oldSubject)sql.exec(
+    "INSERT INTO cove_commercial_subject_denials(subject_kind,subject_id,operation_id) VALUES(?,?,?)",
+    subjectKind,subjectId,operationId
+  );
+  return {applied:true,subjectKind,subjectId};
+}
 /** A slow canonical verification cannot regrant after an acknowledged withdrawal. */
 export function captureCommercialEpoch(sql:AuthoritySql,raw:unknown) {
   const id=validId((raw as {productId?:unknown})?.productId);
@@ -131,6 +170,9 @@ export function publishFreshCommercialProof(
   sql:AuthoritySql,p:CommercialProof,expectedEpoch:number,now=Date.now()
 ){
   validateCommercialProof(p,now);
+  if(sql.exec("SELECT 1 ok FROM cove_commercial_subject_denials WHERE (subject_kind='grant' AND subject_id=?) OR (subject_kind='contract' AND subject_id=?) LIMIT 1",
+    p.grantId,p.contractId).toArray().length)
+    throw Error("commercial_subject_withdrawal_terminal");
   if(!Number.isSafeInteger(expectedEpoch)||expectedEpoch<0)
     throw Error("commercial_invalid_base_epoch");
   const state=current(sql,p.productId);
@@ -197,6 +239,9 @@ export function readCommercialProofs(
      JOIN cove_commercial_authority a
        ON a.product_id=p.product_id AND a.epoch=p.epoch AND a.verdict='allow'
      WHERE p.valid_until>?
+       AND NOT EXISTS(SELECT 1 FROM cove_commercial_subject_denials s
+         WHERE (s.subject_kind='grant' AND s.subject_id=p.grant_id)
+           OR (s.subject_kind='contract' AND s.subject_id=p.contract_id))
        AND p.contract_id IS NOT NULL AND length(p.contract_id)>=3
        AND p.contract_version_id IS NOT NULL AND length(p.contract_version_id)>=3
      ORDER BY CAST(candidate.key AS INTEGER) LIMIT 25`,
