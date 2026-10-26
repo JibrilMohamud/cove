@@ -275,6 +275,19 @@ try{
   "Owner denial must exclude paid products immediately, across replay");
   console.log("PASS: LIVE QA: commercial grants independently deny by product, atomic 2-product contract fence, zero default allowances and replay epochs");
 
+  const paidOrderDenial={
+    orderId:"order_refund_"+runId,
+    operationId:"order-refund:"+runId
+  };
+  const wholeOrder=await post("/commercial/order/deny-next",paidOrderDenial);
+  assert.equal(wholeOrder.status,200);
+  assert.deepEqual(wholeOrder.payload,{
+    applied:true,orderId:paidOrderDenial.orderId
+  },"One owner event must fence any number of refunded entitlements");
+  assert.deepEqual((await post("/commercial/order/deny-next",paidOrderDenial)).payload,
+    wholeOrder.payload,"Retry cannot un-withdraw the whole paid order");
+  console.log("PASS: LIVE QA: one strongly consistent whole-order buyer denial and replay regardless of order line count");
+
   // Verify the committed denial through a new version of the *actual* QA
   // Worker. This exercises provider persistence, not just an in-process
   // Node SQLite reopen test. Version publication is not a capacity probe.
@@ -291,6 +304,9 @@ try{
   }
   assert.deepEqual(persistent,{allowed:false,revision:2},
     "Source-wide withdrawal must survive a real Cloudflare Worker redeploy");
+  assert.deepEqual((await post("/commercial/order/deny-next",
+    paidOrderDenial)).payload,wholeOrder.payload,
+    "Whole-order refund veto must persist through real Cloudflare Worker redeploy");
   const persistedPaid=await post("/commercial/authorize-batch",{
     ids:paidIds,territory:"US",channel:"retail"
   });
