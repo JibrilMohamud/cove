@@ -2541,10 +2541,11 @@ async function processStripeEvent(env: CoveEnv, event: any) {
       if (obj.status === "succeeded") await applyRefundSuccess(env, r.id, obj);
     }
   } else if (type.startsWith("charge.dispute.")) {
-    await syncDispute(db, obj, type);
+    await syncDispute(env, obj, type);
   }
 }
-async function syncDispute(db: CatalogDB, d: any, eventType: string) {
+async function syncDispute(env: CoveEnv, d: any, eventType: string) {
+  const db = env.DB;
   const charge = String(typeof d.charge === "string" ? d.charge : d.charge?.id || ""),
     order = charge
       ? await db
@@ -2553,6 +2554,14 @@ async function syncDispute(db: CatalogDB, d: any, eventType: string) {
           .first<any>()
       : null,
     at = now();
+  // A confirmed chargeback loss must revoke buyer access in the strong
+  // owner BEFORE committing canonical D1 dispute, order or entitlement state.
+  // The same provider dispute ID is the replay-safe operation receipt.
+  if (order && eventType === "charge.dispute.closed" && d.status === "lost") {
+    if (typeof d.id !== "string" || !/^[a-zA-Z0-9_-]{8,120}$/.test(d.id))
+      throw new ApiError(409, "Chargeback identity is invalid.");
+    await stageRevokeRefundEntitlements(env, String(order.id), "dispute-loss:" + d.id);
+  }
   await db
     .prepare(
       `INSERT INTO commerce_disputes(provider_dispute_id,order_id,charge_id,amount_minor,currency,reason,status,evidence_due_at,created_at,updated_at,closed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(provider_dispute_id) DO UPDATE SET status=excluded.status,reason=excluded.reason,evidence_due_at=excluded.evidence_due_at,updated_at=excluded.updated_at,closed_at=excluded.closed_at`,
@@ -2610,12 +2619,13 @@ async function syncDispute(db: CatalogDB, d: any, eventType: string) {
         .prepare("UPDATE commerce_orders SET status='chargeback_lost',updated_at=? WHERE id=?")
         .bind(at, order.id)
         .run();
-      await db
-        .prepare(
-          "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase'",
-        )
-        .bind(at, order.user_id, order.id)
-        .run();
+      if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+        await db
+          .prepare(
+            "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase'",
+          )
+          .bind(at, order.user_id, order.id)
+          .run();
       if (amount) {
         await ledger(
           db,
