@@ -258,6 +258,15 @@ try {
   assert.equal(db.prepare("SELECT status FROM rights_grants WHERE id='right_valid_17'").get().status,
     "active");
   operations.length=0;
+  // One publisher contract with >25 editions MUST be withdrawable in
+  // one owner write without enumeration, paging, or a partially live tail.
+  for(let i=0;i<30;i++){
+    const suffix=String(i).padStart(2,"0");
+    db.prepare("INSERT INTO products VALUES(?,?,'partner')")
+      .run("prd_contract_bulk_"+suffix,"ed_contract_bulk_"+suffix);
+    db.prepare("INSERT INTO rights_grants(id,edition_id,source,territory_code,decision,status,contract_id) VALUES(?,?,?,?,?,?,?)")
+      .run("right_contract_bulk_"+suffix,"ed_contract_bulk_"+suffix,"operator","US","allow","active","rcontract_17");
+  }
   const contractSuspend={targetId:"rcontract_17",operationId:"contract-suspend:17:v1"};
   assert.equal((await post(contractSuspend,{},"/commercial/suspend-contract")).status,200);
   assert.deepEqual(operations,["canonical-scope-discovery","authority","canonical-atomic-batch"]);
@@ -265,13 +274,14 @@ try {
     "suspended");
   assert.deepEqual(db.prepare(
     "SELECT status FROM rights_grants WHERE contract_id='rcontract_17' ORDER BY id"
-  ).all().map(v=>v.status),["suspended","suspended"]);
+  ).all().map(v=>v.status),Array(32).fill("suspended"),
+    "Owner subject-wide veto must reconcile all 32 contract grants");
   assert.equal(db.prepare("SELECT status FROM rights_contracts WHERE id='rcontract_18'").get().status,
     "active","Other publisher contract unaffected");
   assert.equal((await post(contractSuspend,{},"/commercial/suspend-contract")).status,200,
     "Same legal change is idempotent");
   const nowEpoch=commercial.captureCommercialEpoch(sql,{productId:"prd_commercial_a17"});
-  assert.equal(nowEpoch,1);
+  assert.equal(nowEpoch,0,"Global subject denial does not require per-product epoch writes");
   failOwner=true;operations.length=0;
   assert.equal((await post({targetId:"rcontract_18",operationId:"contract-suspend:18:v1"},
     {},"/commercial/suspend-contract")).status,503);
