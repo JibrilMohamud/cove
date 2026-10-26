@@ -48,7 +48,9 @@ try{
   assert.equal(owner.workers_dev,false);
   assert.deepEqual(owner.routes,[]);
   assert.equal(owner.d1_databases[0].database_id,"5e3a6b69-6f3d-4b19-b837-01f7aa56ce87");
+  assert.equal(owner.vars.COVE_RIGHTS_OWNER_ENABLED,"0");
   owner.vars.COVE_RIGHTS_OWNER_ENABLED="1";
+  owner.vars.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT=String(expires);
   fs.writeFileSync(ownerCfg,JSON.stringify(owner));
   authorityEnabled=true;
   cli(["deploy","--config",ownerCfg]);
