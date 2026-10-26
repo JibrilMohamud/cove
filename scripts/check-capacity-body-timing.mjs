@@ -7,11 +7,7 @@ let deliver;
 const pending = new Promise((resolve) => {
   deliver = resolve;
 });
-const completion = measureCompleteStageResponse(
-  { text: () => pending },
-  900,
-  () => clock,
-);
+const completion = measureCompleteStageResponse({ text: () => pending }, 900, () => clock);
 await Promise.resolve();
 clock = 1740;
 deliver("complete-book-body");
