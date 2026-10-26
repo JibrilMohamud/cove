@@ -5,7 +5,7 @@ import { resolveProductRights } from "../features/fore/rights.server";
 import {
   captureEntitlementEpoch,createPaidEntitlementSchema,
   denyPaidOrder,denyPaidEntitlement,denyPaidEntitlementsBatch,
-  publishFreshEntitlement,readPaidAccess,
+  publishFreshEntitlement,readPaidAccess,readPaidOrderPermission,
   validatePaidEntitlementScope,
 } from "./commercial-entitlement-core";
 import {
@@ -70,7 +70,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     if(!["/deny","/deny-next","/deny-next-batch","/verify","/publish-allow","/authorize-batch",
       "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next","/commercial/publish-verified",
       "/commercial/authorize-batch",
-      "/commercial/order/deny-next",
+      "/commercial/order/deny-next","/commercial/order/verify",
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/authorize"].includes(route))
@@ -85,6 +85,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
     try {
+      if(route==="/commercial/order/verify"){
+        return Response.json(readPaidOrderPermission(sql,raw),{headers:noStore});
+      }
       if(route==="/commercial/order/deny-next"){
         const storage=this.ctx.storage as typeof this.ctx.storage & {
           transactionSync<T>(fn:()=>T):T;
