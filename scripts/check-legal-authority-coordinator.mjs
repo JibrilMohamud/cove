@@ -11,7 +11,7 @@ try{
   const file=path.join(folder,"writer.mjs");
   await build({entryPoints:["src/storefront-strangler/legal-authority-coordinator.ts"],
     outfile:file,bundle:true,format:"esm",platform:"node",target:"node22",logLevel:"silent"});
-  const {denyBeforePrimaryMutation,publishAfterPrimaryApproval}=await import(pathToFileURL(file).href);
+  const {denyBeforePrimaryMutation,denyWithOwnedSourceEpoch,publishAfterPrimaryApproval}=await import(pathToFileURL(file).href);
   const db=new DatabaseSync(":memory:");
   const sql={exec(statement,...args){
     const stmt=db.prepare(statement);
@@ -21,7 +21,7 @@ try{
   const corefile=path.join(folder,"core.mjs");
   await build({entryPoints:["src/storefront-strangler/legal-authority-core.ts"],
     outfile:corefile,bundle:true,format:"esm",platform:"node",target:"node22",logLevel:"silent"});
-  const {applyAuthorityCommand,readAuthority,createAuthoritySchema}=await import(pathToFileURL(corefile).href);
+  const {applyAuthorityCommand,persistSourceWithdrawal,readAuthority,createAuthoritySchema}=await import(pathToFileURL(corefile).href);
   createAuthoritySchema(sql);
   const secret="a".repeat(64);
   let primaryActive=true;
@@ -32,7 +32,9 @@ try{
     const cmd=await req.json();
     if(new URL(req.url).pathname==="/publish-allow"&&!permitPositive)
       return new Response(null,{status:409});
-    const result=applyAuthorityCommand(sql,cmd);
+    const result=new URL(req.url).pathname==='/deny-next'
+      ? persistSourceWithdrawal(sql,cmd)
+      : applyAuthorityCommand(sql,cmd);
     return Response.json(result,{status:result.applied?200:409});
   }};
   const input=(revision,action)=>({sourceId:"2701",territory:"US",revision,action});
@@ -71,6 +73,20 @@ try{
   await assert.rejects(()=>publishAfterPrimaryApproval(authority,secret,input(5,"allow"),"USD",
     async()=>{permitPositive=true;return "stale";}),/authority_fence_unavailable/);
   assert.equal(readAuthority(sql,"2701","US").allowed,false);
+  let acceptedEpoch=0;
+  const ownerEpochOp={sourceId:"2701",territory:"*",operationId:"source-2701-withdraw-next"};
+  assert.equal(await denyWithOwnedSourceEpoch(authority,secret,ownerEpochOp,
+    async revision=>{acceptedEpoch=revision;await mutation();return "owner-denied";}),
+    "owner-denied");
+  assert.equal(acceptedEpoch,7);
+  assert.equal(readAuthority(sql,"2701","US").allowed,false);
+  assert.equal(await denyWithOwnedSourceEpoch(authority,secret,ownerEpochOp,
+    async revision=>revision),7,"Event replay preserves the same epoch");
+  await assert.rejects(()=>denyWithOwnedSourceEpoch({
+    async fetch(){return new Response(null,{status:503});}
+  },secret,{...ownerEpochOp,operationId:"source-2701-withdraw-next-2"},
+    async()=>{throw Error("must-not-mutate-primary");}),
+    /authority_fence_unavailable/);
   db.close();
   console.log("PASS: durable denial precedes primary writes, failure stays denied, positive publication last, stale/failed ACK rejects");
 }finally{fs.rmSync(folder,{recursive:true,force:true});}
