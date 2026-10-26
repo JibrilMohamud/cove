@@ -111,8 +111,25 @@ export function storeAuthorizedPresentationProof(
   const decision = readAuthority(sql,command.sourceId,command.territory);
   if (!decision.allowed || decision.revision !== command.revision)
     throw Error("authority_positive_revision_unconfirmed");
-  // Only the current exact rev may expose an offer. A stale publication may
-  // never overwrite the latest proof, even if both are positive.
+  // An allowance revision is an immutable legal proof: a duplicate may only
+  // replay the identical edition and price. Never let two market writers
+  // race to silently replace the offer for the same confirmed legal epoch.
+  const old=sql.exec<{
+    revision:number;product_id:string;edition_id:string;
+    product_public_id:string|null;edition_public_id:string|null;offer_json:string;
+  }>(
+    "SELECT revision,product_id,edition_id,product_public_id,edition_public_id,offer_json FROM cove_authorized_offer_proofs WHERE source_id=? AND territory=? AND currency=?",
+    command.sourceId,command.territory,currency
+  ).toArray()[0];
+  if (old && (old.revision>command.revision ||
+      (old.revision===command.revision &&
+        (old.product_id!==proof.productId || old.edition_id!==proof.editionId ||
+        old.product_public_id!==proof.productPublicId ||
+        old.edition_public_id!==proof.editionPublicId ||
+        old.offer_json!==proof.offerJson))))
+    throw Error("authority_offer_proof_conflict");
+  // Only strictly newer revisions update the immutable proof. Exact replay
+  // remains a no-op, preserving retries without accepting changed offers.
   sql.exec(`INSERT INTO cove_authorized_offer_proofs(
     source_id,territory,currency,revision,product_id,edition_id,
     product_public_id,edition_public_id,offer_json
@@ -121,7 +138,7 @@ export function storeAuthorizedPresentationProof(
     revision=excluded.revision, product_id=excluded.product_id,
     edition_id=excluded.edition_id,product_public_id=excluded.product_public_id,
     edition_public_id=excluded.edition_public_id,offer_json=excluded.offer_json
-  WHERE excluded.revision >= cove_authorized_offer_proofs.revision`,
+  WHERE excluded.revision > cove_authorized_offer_proofs.revision`,
     command.sourceId,command.territory,currency,command.revision,
     proof.productId,proof.editionId,proof.productPublicId,proof.editionPublicId,proof.offerJson);
   return readAuthority(sql,command.sourceId,command.territory);
