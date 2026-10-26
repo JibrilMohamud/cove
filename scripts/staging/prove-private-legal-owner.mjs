@@ -103,7 +103,8 @@ const postStableDenial=async(path,body)=>{
   }
 };
 const readOwner=async(path,body,authorization=gate,expected=200)=>{
-  assert.ok(["/verify","/authorize-batch","/commercial/authorize-batch"].includes(path));
+  assert.ok(["/verify","/authorize-batch","/commercial/authorize-batch",
+    "/commercial/order/verify"].includes(path));
   let reply;
   for(let i=0;i<8;i++){
     try{reply=await post(path,body,authorization);}
@@ -358,6 +359,12 @@ try{
     orderId:"order_refund_"+runId,
     operationId:"order-refund:"+runId
   };
+  assert.deepEqual((await readOwner("/commercial/order/verify",{
+    orderId:paidOrderDenial.orderId
+  })).payload,{
+    schema:"cove.paid-order-permission.v1",
+    orderId:paidOrderDenial.orderId,allowed:true
+  },"Unrevoked buyer order is eligible for later canonical settlement, never itself a grant");
   const wholeOrder=await postStableDenial("/commercial/order/deny-next",paidOrderDenial);
   assert.equal(wholeOrder.status,200);
   assert.deepEqual(wholeOrder.payload,{
@@ -365,6 +372,12 @@ try{
   },"One owner event must fence any number of refunded entitlements");
   assert.deepEqual((await postStableDenial("/commercial/order/deny-next",paidOrderDenial)).payload,
     wholeOrder.payload,"Retry cannot un-withdraw the whole paid order");
+  assert.deepEqual((await readOwner("/commercial/order/verify",{
+    orderId:paidOrderDenial.orderId
+  })).payload,{
+    schema:"cove.paid-order-permission.v1",
+    orderId:paidOrderDenial.orderId,allowed:false
+  },"Revoked order must be blocked before Stripe tender consumption");
   console.log("PASS: LIVE QA: one strongly consistent whole-order buyer denial and replay regardless of order line count");
 
   // A contract may cover thousands of books; certify one durable
