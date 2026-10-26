@@ -31,7 +31,8 @@ export function classifyProtectedLegalSql(sql:string) {
     throw Error("invalid_legal_sql");
   // Fail even on a statement with comments before a mutating query. Parsing
   // the complete SQL string avoids bypasses through WITH or a semicolon.
-  if (PRIVILEGED_DDL.test(sql)) return ["privileged-sql"];\n  const matches=[...sql.matchAll(MUTATION)]
+  if (PRIVILEGED_DDL.test(sql)) return ["privileged-sql"];
+  const matches=[...sql.matchAll(MUTATION)]
     .map(match=>match[1]!.toLowerCase()).filter(name=>legal.has(name));
   return [...new Set(matches)];
 }
