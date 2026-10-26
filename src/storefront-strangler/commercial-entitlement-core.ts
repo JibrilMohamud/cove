@@ -178,6 +178,13 @@ export function publishFreshEntitlement(
     throw Error("paid_entitlement_scope_changed");
   if(sql.exec("SELECT order_id FROM cove_paid_refunded_orders WHERE order_id=?",orderId).toArray().length)
     throw Error("paid_order_already_revoked");
+  // A denial is terminal for THIS entitlement ID. Otherwise a lagging
+  // canonical entitlement row could reauthorize the same refunded or held
+  // buyer immediately after an acknowledged owner-first withdrawal.
+  // Legitimate reinstatement requires a separately verified new entitlement
+  // identity and immutable purchase receipt, never replay of this ID.
+  if(prior?.verdict==="deny")
+    throw Error("paid_entitlement_revocation_terminal");
   const previousOrder=sql.exec<{order_id:string}>(
     "SELECT order_id FROM cove_paid_entitlement_orders WHERE entitlement_id=?",
     scope.entitlementId
