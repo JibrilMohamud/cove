@@ -70,6 +70,24 @@ const post=async(path,body,authorization=gate)=>{
 // Retry ONLY read-only assertions while an edge returns a transient route
 // 404/503. A positive proof, denial or 401 remains mandatory at the end;
 // never replay owner mutations, payment settlement or revocation writes.
+// Test-only exact-operation replay on an edge-generated 404. All mutations
+// are owner-idempotent by immutable operationId; a 200 still must carry and
+// validate a durable receipt. Do not repeat 503, timeouts or unknown writes.
+const postStableDenial=async(path,body)=>{
+  assert.ok(["/deny-next","/deny-next-batch","/source/retract-batch",
+    "/commercial/deny-next","/commercial/deny-batch",
+    "/commercial/order/deny-next"].includes(path));
+  const ops=Array.isArray(body?.operations)?body.operations:[body];
+  assert.ok(ops.length>0&&ops.every(x=>
+    typeof x?.operationId==="string"&&x.operationId.startsWith("qa:"+runId+":") ||
+    typeof x?.operationId==="string"&&x.operationId.startsWith("order-refund:"+runId)
+  ),"No mutable QA request may be retried without a stable operation ID");
+  for(let attempt=0;attempt<10;attempt++){
+    const result=await post(path,body);
+    if(result.status!==404||attempt===9)return result;
+    await sleep(1000);
+  }
+};
 const readOwner=async(path,body,authorization=gate,expected=200)=>{
   assert.ok(["/verify","/authorize-batch","/commercial/authorize-batch"].includes(path));
   let reply;
@@ -167,13 +185,13 @@ try{
   assert.equal(before[0]?.results?.[0]?.rights_status,"public-domain");
 
   assert.equal((await readOwner("/verify",{sourceId,territory:"CA"})).payload?.allowed,false);
-  const withdrawal=await post("/deny-next",{
+  const withdrawal=await postStableDenial("/deny-next",{
     sourceId,territory:"*",operationId:"qa:"+runId+":source:deny"
   });
   assert.equal(withdrawal.status,200,"Deny-first receipt must be durable");
   assert.equal(withdrawal.payload?.applied,true);
   assert.equal(withdrawal.payload?.revision,1);
-  const replay=await post("/deny-next",{
+  const replay=await postStableDenial("/deny-next",{
     sourceId,territory:"*",operationId:"qa:"+runId+":source:deny"
   });
   assert.equal(replay.status,200);
@@ -267,7 +285,7 @@ try{
   const withdrawals={operations:retractIds.map((id,i)=>({
     sourceId:id,operationId:"qa:"+runId+":source-batch:"+i
   }))};
-  const sourceBatch=await post("/source/retract-batch",withdrawals);
+  const sourceBatch=await postStableDenial("/source/retract-batch",withdrawals);
   assert.equal(sourceBatch.status,200,
     "Strong owner must atomically commit two source-wide denials before D1 mutation");
   assert.equal(sourceBatch.payload?.retracted,2);
@@ -284,7 +302,7 @@ try{
       assert.deepEqual((await readOwner("/verify",{sourceId:id,territory:country})).payload,
         {allowed:false,revision:1});
   }
-  assert.equal((await post("/source/retract-batch",withdrawals)).status,200);
+  assert.equal((await postStableDenial("/source/retract-batch",withdrawals)).status,200);
   assert.equal((await readOwner("/verify",{sourceId:retractIds[0],territory:"US"})).payload?.revision,1,
     "Idempotent replay may not advance source denial epoch");
   console.log("PASS: LIVE QA: one transaction withdraws multiple sources, one canonical D1 batch retracts, US/CA/AU deny and replay preserves revisions");
@@ -302,12 +320,12 @@ try{
   const paidOps={operations:paidIds.map((productId,i)=>({
     productId,operationId:"qa:"+runId+":commercial-withdrawal:"+i
   }))};
-  const paidWithdrawal=await post("/commercial/deny-batch",paidOps);
+  const paidWithdrawal=await postStableDenial("/commercial/deny-batch",paidOps);
   assert.equal(paidWithdrawal.status,200,
     "Licensed products must be durably denied in one SQL DO transaction");
   assert.equal(paidWithdrawal.payload?.applied,true);
   assert.deepEqual(paidWithdrawal.payload?.receipts?.map(r=>r.epoch),[1,1]);
-  const paidRetry=await post("/commercial/deny-batch",paidOps);
+  const paidRetry=await postStableDenial("/commercial/deny-batch",paidOps);
   assert.equal(paidRetry.status,200);
   assert.deepEqual(paidRetry.payload?.receipts?.map(r=>r.epoch),[1,1]);
   assert.deepEqual((await readOwner("/commercial/authorize-batch",{
@@ -320,12 +338,12 @@ try{
     orderId:"order_refund_"+runId,
     operationId:"order-refund:"+runId
   };
-  const wholeOrder=await post("/commercial/order/deny-next",paidOrderDenial);
+  const wholeOrder=await postStableDenial("/commercial/order/deny-next",paidOrderDenial);
   assert.equal(wholeOrder.status,200);
   assert.deepEqual(wholeOrder.payload,{
     applied:true,orderId:paidOrderDenial.orderId
   },"One owner event must fence any number of refunded entitlements");
-  assert.deepEqual((await post("/commercial/order/deny-next",paidOrderDenial)).payload,
+  assert.deepEqual((await postStableDenial("/commercial/order/deny-next",paidOrderDenial)).payload,
     wholeOrder.payload,"Retry cannot un-withdraw the whole paid order");
   console.log("PASS: LIVE QA: one strongly consistent whole-order buyer denial and replay regardless of order line count");
 
@@ -345,7 +363,7 @@ try{
   }
   assert.deepEqual(persistent,{allowed:false,revision:2},
     "Source-wide withdrawal must survive a real Cloudflare Worker redeploy");
-  assert.deepEqual((await post("/commercial/order/deny-next",
+  assert.deepEqual((await postStableDenial("/commercial/order/deny-next",
     paidOrderDenial)).payload,wholeOrder.payload,
     "Whole-order refund veto must persist through real Cloudflare Worker redeploy");
   const persistedPaid=await readOwner("/commercial/authorize-batch",{
