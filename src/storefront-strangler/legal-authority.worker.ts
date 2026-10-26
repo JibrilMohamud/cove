@@ -151,8 +151,21 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         let purchased:unknown=null;
         try{purchased=JSON.parse(order.rights_snapshot_json||"");}
         catch{return new Response(null,{status:409,headers:noStore});}
-        const acquired=purchased as {contractVersionId?:unknown}|null;
-        if(!acquired || acquired.contractVersionId!==rights[0].contract_version_id)
+        // The paid order's original acquisition identity must match ALL
+        // dimensions of the fresh legal proof, not only a contract version.
+        // An unrelated grant, edition, contract or market cannot launder
+        // a settled buyer entitlement into a new legal scope.
+        const acquired=purchased as {
+          grantId?:unknown;editionId?:unknown;territory?:unknown;
+          salesChannel?:unknown;contractId?:unknown;contractVersionId?:unknown
+        }|null;
+        if(!acquired ||
+           acquired.grantId!==rights[0].grant_id ||
+           acquired.editionId!==rights[0].edition_id ||
+           acquired.territory!==input.territory ||
+           acquired.salesChannel!==input.channel ||
+           acquired.contractId!==rights[0].contract_id ||
+           acquired.contractVersionId!==rights[0].contract_version_id)
           return new Response(null,{status:409,headers:noStore});
         const hold=await env.PRIMARY_DB.prepare(
           "SELECT 1 ok FROM risk_holds rh JOIN commerce_order_items oi ON oi.order_id=rh.subject_id WHERE rh.domain='buyer' AND rh.subject_type='order' AND rh.status='active' AND rh.hold_scope IN ('checkout','entitlement') AND oi.id=? LIMIT 1"
