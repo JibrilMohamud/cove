@@ -106,18 +106,61 @@ try{
   assert.deepEqual(offerings.payload?.rows,[],"Denied source cannot expose stale free retail offer");
   const unauthorized=await post("/verify",{sourceId,territory:"US"},"0".repeat(64));
   assert.equal(unauthorized.status,401);
-  console.log("PASS: live protected caller -> private service binding -> SQLite DO: unseeded denial, source withdrawal, replay, 3-territory withdrawal, offer hiding and access control");
+  // Verify the committed denial through a new version of the *actual* QA
+  // Worker. This exercises provider persistence, not just an in-process
+  // Node SQLite reopen test. Version publication is not a capacity probe.
+  cli(["deploy","--config",ownerCfg]);
+  let persistent=null;
+  for(let i=0;i<8;i++){
+    try {
+      const reply=await post("/verify",{sourceId,territory:"CA"});
+      if(reply.status===200 && reply.payload?.revision===1){
+        persistent=reply.payload;break;
+      }
+    }catch{}
+    await sleep(1000);
+  }
+  assert.deepEqual(persistent,{allowed:false,revision:1},
+    "Source-wide withdrawal must survive a real Cloudflare Worker redeploy");
+  console.log("PASS: live protected caller -> private service binding -> SQLite DO: unseeded denial, source withdrawal, replay, 3-territory withdrawal, offer hiding, access control and Worker version persistence");
 }finally{
   const errors=[];
   if(authorityEnabled){
     try{cli(["deploy","--config","wrangler.legal-authority.example.jsonc"]);}
     catch(e){errors.push("owner_disable_"+String(e.message).slice(0,120));}
   }
+  if(authorityEnabled){
+    // A disabled deployment is the first safety boundary. Removing the
+    // short-lived QA signing secret is the independent second boundary.
+    try{
+      const response=await fetch(
+        "https://api.cloudflare.com/client/v4/accounts/"+account+
+        "/workers/scripts/cove-legal-authority-private-qa-example/secrets/COVE_RIGHTS_OWNER_SECRET",{
+          method:"DELETE",headers:{authorization:"Bearer "+token},
+          signal:AbortSignal.timeout(15000)
+        }
+      );
+      if(!response.ok)throw Error("http_"+response.status);
+      const payload=await response.json().catch(()=>null);
+      if(payload && payload.success===false)
+        throw Error("cloudflare_secret_delete_rejected");
+    }catch(e){errors.push("owner_qa_secret_delete_"+String(e.message).slice(0,120));}
+  }
   if(callerStarted){
     try{await api("DELETE","/accounts/"+account+"/workers/scripts/"+caller);}
     catch(e){errors.push("caller_remove_"+String(e.message).slice(0,120));}
   }
+  // Never accept a green certificate based only on successful commands:
+  // independently verify the *effective* current Worker configuration.
+  try{
+    const settings=await api("GET","/accounts/"+account+
+      "/workers/scripts/cove-legal-authority-private-qa-example/settings");
+    assert.equal(settings.bindings?.find(b=>b.name==="COVE_RIGHTS_OWNER_ENABLED")?.text,"0");
+    assert.equal(settings.bindings?.some(b=>b.name==="COVE_RIGHTS_OWNER_SECRET"),false);
+    const scripts=await api("GET","/accounts/"+account+"/workers/scripts");
+    assert.equal(scripts?.some(worker=>worker.id===caller),false);
+  }catch(e){errors.push("rollback_verification_"+String(e.message).slice(0,120));}
   for(const file of [ownerCfg,callerCfg])try{fs.unlinkSync(file);}catch{}
   if(errors.length)throw Error("legal_qa_rollback_failed:"+errors.join(","));
-  console.log("PASS: owner returned to disabled nonroutable configuration and ephemeral public QA caller deleted");
+  console.log("PASS: owner disabled, QA bearer secret deleted, temporary public caller removed and state independently verified");
 }
