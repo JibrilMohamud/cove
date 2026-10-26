@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier -- Owner proof is a customer-access trust boundary. */
-import {ApiError} from "../features/fore/errors";
+import {ApiError} from "../features/fore/service";
 
 export type StageLegalConsumerEnv={
   COVE_SSR_STAGING?:string;
