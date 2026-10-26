@@ -49,6 +49,19 @@ const sleep=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
 // Wrangler's --secrets-file publishes code and secrets atomically in ONE
 // Worker version. "deploy" followed by three "secret put" calls exposed
 // partially configured public QA routes across different Cloudflare colos.
+// Strict, read-only control-plane verification. A deployment ACK is NOT
+// evidence that the region serving workers.dev has the necessary bindings.
+const verifyDeployedSecrets=async(name,expected)=>{
+  let known=[];
+  for(let attempt=0;attempt<8;attempt++){
+    const settings=await api("GET","/accounts/"+account+"/workers/scripts/"+name+"/settings");
+    known=(settings?.bindings||[]).filter(b=>b.type==="secret_text").map(b=>b.name);
+    if(expected.every(key=>known.includes(key)))return;
+    await sleep(700);
+  }
+  throw Error("Missing QA secret binding names on "+name+": "+
+    expected.filter(key=>!known.includes(key)).join(","));
+};
 const deployWithSecrets=(config,secrets)=>{
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),"cove-qa-secret-"));
   const filename=path.join(directory,"secrets.json");
@@ -64,7 +77,8 @@ const post=async(path,body,authorization=gate)=>{
     body:JSON.stringify(body),signal:AbortSignal.timeout(10000)
   });
   const payload=r.status===200?await r.json():null;
-  return {status:r.status,payload};
+  const layer=r.headers.get("x-cove-qa-unavailable-layer");
+  return {status:r.status,payload,layer:["caller","owner","writer"].includes(layer)?layer:null};
 };
 // A new workers.dev hostname can be live in one colo before another.
 // Retry ONLY read-only assertions while an edge returns a transient route
@@ -113,6 +127,7 @@ try{
   fs.writeFileSync(ownerCfg,JSON.stringify(owner));
   authorityEnabled=true;
   deployWithSecrets(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret});
+  await verifyDeployedSecrets(owner.name,["COVE_RIGHTS_OWNER_SECRET"]);
 
   const writer=JSON.parse(fs.readFileSync("wrangler.legal-quarantine-qa.example.jsonc","utf8"));
   assert.equal(writer.name,writerName);
@@ -129,6 +144,8 @@ try{
   deployWithSecrets(writerCfg,{
     COVE_LEGAL_WRITER_SECRET:writerKey,COVE_RIGHTS_OWNER_SECRET:secret
   });
+  await verifyDeployedSecrets(writerName,
+    ["COVE_LEGAL_WRITER_SECRET","COVE_RIGHTS_OWNER_SECRET"]);
 
   const proxy=JSON.parse(fs.readFileSync("wrangler.legal-qa-caller.example.jsonc","utf8"));
   assert.equal(proxy.services[0].service,owner.name);
@@ -143,6 +160,8 @@ try{
     COVE_LEGAL_QA_GATE:gate,COVE_RIGHTS_OWNER_SECRET:secret,
     COVE_LEGAL_WRITER_SECRET:writerKey
   });
+  await verifyDeployedSecrets(caller,
+    ["COVE_LEGAL_QA_GATE","COVE_RIGHTS_OWNER_SECRET","COVE_LEGAL_WRITER_SECRET"]);
 
   // Configuration/Workers metadata can precede propagation of a new
   // workers.dev hostname. The readiness poll is NOT part of a capacity
@@ -161,7 +180,8 @@ try{
         assert.equal(result.payload.revision,null,"Unseeded source must start denied");
         ready=true;break;
       }
-      const key="http_"+result.status;
+      const key="http_"+result.status+
+        (result.status===503?"_"+(result.layer||"unattributed"):"");
       readinessFailures.set(key,(readinessFailures.get(key)||0)+1);
     }catch(error){
       const key="network_"+(error instanceof Error?error.name:"unknown");
