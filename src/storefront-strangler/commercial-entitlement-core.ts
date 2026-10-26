@@ -87,6 +87,17 @@ export function denyPaidOrder(sql:AuthoritySql,raw:unknown){
   );
   return {applied:true,orderId};
 }
+/** Negative authority is checked BEFORE tender consumption. An unknown
+ * order has no positive buyer entitlement; this only rejects a previous
+ * durable refund, fraud hold or withdrawal for its immutable order ID. */
+export function readPaidOrderPermission(sql:AuthoritySql,raw:unknown){
+  const orderId=(raw as {orderId?:unknown}|null)?.orderId;
+  if(typeof orderId!=="string"||!entityId.test(orderId))
+    throw Error("invalid_paid_order_permission_request");
+  const denied=sql.exec("SELECT 1 ok FROM cove_paid_refunded_orders WHERE order_id=? LIMIT 1",
+    orderId).toArray().length>0;
+  return {schema:"cove.paid-order-permission.v1",orderId,allowed:!denied};
+}
 export function captureEntitlementEpoch(sql:AuthoritySql,raw:unknown) {
   const q=validatePaidEntitlementScope(raw);
   const prior=current(sql,q.entitlementId);
