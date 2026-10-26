@@ -16,6 +16,7 @@ try {
   };
   const core=await load("src/storefront-strangler/legal-authority-core.ts","core");
   const commercial=await load("src/storefront-strangler/commercial-legal-core.ts","commercial");
+  const paidEnt=await load("src/storefront-strangler/commercial-entitlement-core.ts","paid-ent");
   const writer=(await load("src/storefront-strangler/legal-quarantine-qa.writer.ts","writer")).default;
   const db=new DatabaseSync(":memory:");
   db.exec("CREATE TABLE gutenberg_source_cache(id TEXT PRIMARY KEY,rights_status TEXT,commercial_use_status TEXT,ingest_status TEXT)");
@@ -26,6 +27,7 @@ try {
   db.exec("ALTER TABLE rights_grants ADD COLUMN contract_id TEXT");
   db.exec("CREATE TABLE rights_contracts(id TEXT PRIMARY KEY,status TEXT)");
   db.exec("CREATE TABLE products(id TEXT PRIMARY KEY,edition_id TEXT,source_name TEXT)");
+  db.exec("CREATE TABLE entitlements(id TEXT PRIMARY KEY,user_id TEXT,product_id TEXT,status TEXT)");
   db.exec("INSERT INTO rights_contracts VALUES('rcontract_17','active')");
   db.exec("INSERT INTO rights_contracts VALUES('rcontract_18','active')");
   db.exec("INSERT INTO products VALUES('prd_commercial_a17','ed_commercial_a17','partner')");
@@ -49,14 +51,23 @@ try {
   }};
   core.createAuthoritySchema(sql);core.createAuthorityProofSchema(sql);
   commercial.createCommercialAuthoritySchema(sql);
+  paidEnt.createPaidEntitlementSchema(sql);
   const secret="e".repeat(64),auth="f".repeat(64),operations=[];
-  let failPrimary=false,failPrimaryBatch=false,failOwner=false;
+  let failPrimary=false,failPrimaryBatch=false,failPrimaryWrite=false,failOwner=false;
   const owner={async fetch(request){
     operations.push("authority");
     if(failOwner)return new Response(null,{status:503});
     if(request.headers.get("authorization")!=="Bearer "+secret)
       return new Response(null,{status:401});
     const cmd=await request.json();
+    if(new URL(request.url).pathname==="/commercial/entitlement/deny-next"){
+      db.exec("BEGIN");
+      try{
+        const result=paidEnt.denyPaidEntitlement(sql,cmd);
+        db.exec("COMMIT");
+        return Response.json(result,{status:result.applied?200:409});
+      }catch{db.exec("ROLLBACK");return new Response(null,{status:409});}
+    }
     if(new URL(request.url).pathname==="/commercial/deny-batch"){
       db.exec("BEGIN");
       try{
@@ -82,7 +93,7 @@ try {
         sql:stmt,params,
         async run(){
           operations.push("canonical-write");
-          if(failPrimary)throw Error("primary-unavailable");
+          if(failPrimary||failPrimaryWrite)throw Error("primary-unavailable");
           db.prepare(stmt).run(...params);
           return {success:true};
         },
@@ -249,6 +260,37 @@ try {
   assert.equal(commercial.captureCommercialEpoch(sql,{productId:"prd_commercial_c19"}),2,
     "D1 failure must leave strong denial committed");
   failPrimaryBatch=false;
+  const entitlementId="dc6197f2-945c-4362-b4bc-7dd928f3c980";
+  db.prepare("INSERT INTO entitlements VALUES(?,?,?,'active')").run(
+    entitlementId,"user_paid_17","prd_commercial_a17"
+  );
+  operations.length=0;
+  const revoke={entitlementId,operationId:"refund:order17:ent17"};
+  assert.equal((await post(revoke,{},"/commercial/entitlement/revoke")).status,200);
+  assert.deepEqual(operations,["canonical-evidence-check","authority","canonical-write"],
+    "D1 beneficiary discovery, strong paid buyer deny, THEN canonical entitlement revoke");
+  assert.equal(db.prepare("SELECT status FROM entitlements WHERE id=?").get(entitlementId).status,
+    "revoked");
+  assert.equal(paidEnt.captureEntitlementEpoch(sql,{
+    entitlementId,userId:"user_paid_17",productId:"prd_commercial_a17"
+  }),1);
+  assert.equal((await post(revoke,{},"/commercial/entitlement/revoke")).status,200,
+    "Refund event replay must not reinstate paid access");
+  operations.length=0;failOwner=true;
+  db.prepare("UPDATE entitlements SET status='active' WHERE id=?").run(entitlementId);
+  assert.equal((await post({...revoke,operationId:"refund:order17:ent18"},
+    {},"/commercial/entitlement/revoke")).status,503);
+  assert.deepEqual(operations,["canonical-evidence-check","authority"]);
+  assert.equal(db.prepare("SELECT status FROM entitlements WHERE id=?").get(entitlementId).status,
+    "active","An unavailable strong owner cannot commit a refund revocation");
+  failOwner=false;failPrimaryWrite=true;
+  const loss=await post({...revoke,operationId:"refund:order17:ent19"},
+    {},"/commercial/entitlement/revoke");
+  assert.equal(loss.status,503);
+  assert.equal(paidEnt.captureEntitlementEpoch(sql,{
+    entitlementId,userId:"user_paid_17",productId:"prd_commercial_a17"
+  }),2,"Failed canonical refund update leaves owner denial in place");
+  failPrimaryWrite=false;
   db.close();
   console.log("PASS: QA source quarantine, independent-country evidence withdrawal and atomic source retraction batch, fail closed, replay safe");
 }finally{rmSync(directory,{force:true,recursive:true});}
