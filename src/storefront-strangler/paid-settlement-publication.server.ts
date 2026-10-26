@@ -24,6 +24,43 @@ type PaidOrder={id:string;user_id:string;territory_code:string;status:string};
  * Reprocessing an already-paid signed webhook is an intentional recovery
  * mechanism for failures after the canonical order becomes paid.
  */
+/**
+ * Before a signed payment's canonical settlement side effects, consult the
+ * durable refunded-order tombstone. This is not a positive rights grant:
+ * publication still requires all canonical and owner checks AFTER payment.
+ * An owner outage fails closed before tender or financial mutations.
+ */
+export async function assertStagePaidOrderNotWithdrawn(env:CoveEnv,orderId:string):Promise<void>{
+  if(env.COVE_LEGAL_CONSUMER_STAGE_ENABLED!=="1")return;
+  if(env.COVE_SSR_STAGING!=="1"||
+     env.COVE_CANONICAL_LEGAL_WRITE_LOCK!=="1"||
+     env.COVE_LEGAL_WRITER_PRIMARY_ID!==STAGE_PRIMARY||
+     !/^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET||"")||
+     !env.LEGAL_AUTHORITY?.getByName||!identity.test(orderId))
+    throw new ApiError(503,"Paid settlement owner is not certified.");
+  let payload:unknown;
+  try{
+    const reply=await env.LEGAL_AUTHORITY
+      .getByName("cove-staged-legal-global-v1")
+      .fetch(new Request("https://legal-authority.internal/commercial/order/verify",{
+        method:"POST",
+        headers:{"content-type":"application/json",
+          "authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET},
+        body:JSON.stringify({orderId})
+      }));
+    if(reply.status!==200)throw Error("owner_unavailable");
+    payload=await reply.json();
+  }catch{
+    throw new ApiError(503,"Paid-order owner unavailable before settlement.");
+  }
+  const result=payload as {schema?:unknown;orderId?:unknown;allowed?:unknown}|null;
+  if(!result||result.schema!=="cove.paid-order-permission.v1"||result.orderId!==orderId||
+     typeof result.allowed!=="boolean")
+    throw new ApiError(503,"Paid-order owner receipt malformed.");
+  if(!result.allowed)
+    throw new ApiError(409,"This order has already been revoked.");
+}
+
 export async function certifyStagePaidSettlement(
   env:CoveEnv,orderId:string,userId:string
 ):Promise<void>{
