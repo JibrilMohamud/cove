@@ -309,8 +309,8 @@ try {
     entitlementId,userId:"user_paid_17",productId:"prd_commercial_a17"
   }),2,"Failed canonical refund update leaves owner denial in place");
   failPrimaryWrite=false;
-  // Full-order refunds revoke every canonical paid buyer in ONE strong owner
-  // transaction, then ONE atomic canonical batch; no caller-supplied scopes.
+  // One owner-order veto instantly withdraws every buyer proof. A single
+  // indexed D1 UPDATE reconciles any number of items without RPC fanout.
   const refundOrderId="co_refund_21";
   const refundEnts=[
     {id:"02419dc7-6868-48e7-a1f5-c39f172bee0a",product:"prd_commercial_a17",item:"co_item_21"},
@@ -322,19 +322,30 @@ try {
     db.prepare("INSERT INTO entitlements(id,user_id,product_id,status,entitlement_type,order_item_id) VALUES(?,?,?,'active','purchase',?)")
       .run(row.id,"user_paid_17",row.product,row.item);
   }
+  // A 32-item order proves that the former 25-entitlement ceiling is gone.
+  for(let i=0;i<30;i++){
+    const item="co_large_item_"+i,entitlement="ent_large_refund_"+i;
+    db.prepare("INSERT INTO commerce_order_items VALUES(?,?)").run(item,refundOrderId);
+    db.prepare("INSERT INTO entitlements(id,user_id,product_id,status,entitlement_type,order_item_id) VALUES(?,?,?,'active','purchase',?)")
+      .run(entitlement,"user_paid_17","prd_commercial_large_"+i,item);
+  }
+  const importItem="co_public_domain_refund",importEnt="ent_public_domain_refund";
+  db.prepare("INSERT INTO commerce_order_items VALUES(?,?)").run(importItem,refundOrderId);
+  db.prepare("INSERT INTO entitlements(id,user_id,product_id,status,entitlement_type,order_item_id) VALUES(?,?,?,'active','purchase',?)")
+    .run(importEnt,"user_paid_17","prd_gutenberg_2701",importItem);
   operations.length=0;
   const fullRefund={orderId:refundOrderId,operationId:"refund_paid_order_21"};
   assert.equal((await post(fullRefund,{},"/commercial/entitlement/revoke-order")).status,200);
-  assert.deepEqual(operations,[
-    "canonical-evidence-check","authority","canonical-scope-discovery",
-    "authority","canonical-atomic-batch"
-  ],"One whole-order denial MUST precede per-entitlement owner and canonical batches");
+  assert.deepEqual(operations,["canonical-evidence-check","authority","canonical-write"],
+    "ONE strong order veto before ONE indexed canonical UPDATE for all 33 items");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM entitlements WHERE status='revoked' AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?)").get(refundOrderId).n,
+    33,"Even an oversized mixed paid/public-domain purchase has every entitlement revoked");
   for(const row of refundEnts){
     assert.equal(db.prepare("SELECT status FROM entitlements WHERE id=?").get(row.id).status,
       "revoked");
     assert.equal(paidEnt.captureEntitlementEpoch(sql,{
       entitlementId:row.id,userId:"user_paid_17",productId:row.product
-    }),1);
+    }),0,"One whole-order fence does not churn 33 independent buyer epochs");
   }
   assert.equal((await post(fullRefund,{},"/commercial/entitlement/revoke-order")).status,200,
     "Exact full-refund event replay may not mutate buyer entitlement epochs");
@@ -346,19 +357,21 @@ try {
   }),null);
   assert.equal(paidEnt.captureEntitlementEpoch(sql,{
     entitlementId:refundEnts[0].id,userId:"user_paid_17",productId:refundEnts[0].product
-  }),1);
+  }),0);
   operations.length=0;failOwner=true;
   assert.equal((await post({...fullRefund,operationId:"refund_paid_order_22"},
     {},"/commercial/entitlement/revoke-order")).status,503);
   assert.deepEqual(operations,["canonical-evidence-check","authority"],
     "Owner outage must prevent even discovering/changing canonical refund entitlements");
-  failOwner=false;failPrimaryBatch=true;
+  failOwner=false;failPrimaryWrite=true;
+  db.prepare("UPDATE entitlements SET status='active' WHERE id=?").run(refundEnts[0].id);
   assert.equal((await post({...fullRefund,operationId:"refund_paid_order_23"},
     {},"/commercial/entitlement/revoke-order")).status,503);
-  assert.equal(paidEnt.captureEntitlementEpoch(sql,{
-    entitlementId:refundEnts[0].id,userId:"user_paid_17",productId:refundEnts[0].product
-  }),2,"Post-denial DB write failure must leave buyer explicitly denied");
-  failPrimaryBatch=false;
+  assert.equal(db.prepare("SELECT status FROM entitlements WHERE id=?").get(refundEnts[0].id).status,
+    "active","Simulated D1 failure must occur after the whole-order owner denial");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM cove_paid_refunded_orders WHERE order_id=?").get(refundOrderId).n,
+    1,"Post-denial D1 failure MUST NOT restore buyer rights at the owner");
+  failPrimaryWrite=false;
   db.close();
   console.log("PASS: QA source quarantine, independent-country evidence withdrawal and atomic source retraction batch, fail closed, replay safe");
 }finally{rmSync(directory,{force:true,recursive:true});}
