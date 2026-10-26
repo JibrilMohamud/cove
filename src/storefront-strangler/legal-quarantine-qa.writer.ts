@@ -112,48 +112,15 @@ export default {
         const orderReceipt=await orderOwner.json() as {applied?:boolean;orderId?:string};
         if(!orderReceipt.applied || orderReceipt.orderId!==orderId)
           throw Error("refund_order_owner_receipt_invalid");
-        const matching=await env.PRIMARY_DB.prepare(
-          "SELECT e.id,e.user_id,e.product_id,e.status FROM entitlements e WHERE e.user_id=? AND e.order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND e.entitlement_type='purchase' ORDER BY e.id LIMIT 26"
-        ).bind(order.user_id,orderId).all<{
-          id:string;user_id:string;product_id:string;status:string
-        }>();
-        if(matching.results.length>25 ||
-           matching.results.some(e=>!["active","revoked"].includes(e.status)||
-             !/^[a-zA-Z0-9_-]{8,160}$/.test(e.id)||
-             !/^[a-zA-Z0-9_-]{8,160}$/.test(e.user_id)||
-             !/^prd_[a-zA-Z0-9_-]{3,120}$/.test(e.product_id)||
-             e.product_id.startsWith("prd_gutenberg_")))
-          throw Error("refund_unsupported_entitlements");
-        if(!matching.results.length)
-          return Response.json({revoked:0},{status:200,headers});
-        const ops=matching.results.map((e,i)=>({
-          entitlementId:e.id,userId:e.user_id,productId:e.product_id,
-          operationId:"refund:"+cmd.operationId+":"+i
-        }));
-        const owner=await env.LEGAL_PRIVATE.fetch(new Request(
-          "https://legal-authority.internal/commercial/entitlement/deny-batch",{
-            method:"POST",
-            headers:{"authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,
-              "content-type":"application/json"},
-            body:JSON.stringify({operations:ops})
-          }
-        ));
-        if(owner.status!==200)throw Error("refund_owner_unavailable");
-        const proof=await owner.json() as {
-          applied?:boolean;receipts?:Array<{
-            entitlementId?:string;applied?:boolean;epoch?:number
-          }>
-        };
-        if(proof.applied!==true||!Array.isArray(proof.receipts)||
-           proof.receipts.length!==ops.length||
-           proof.receipts.some((r,i)=>r.entitlementId!==ops[i].entitlementId||
-             !r.applied||!Number.isSafeInteger(r.epoch)||Number(r.epoch)<=0))
-          throw Error("refund_owner_receipt_invalid");
-        await env.PRIMARY_DB.batch(matching.results.map(e=>env.PRIMARY_DB.prepare(
-          "UPDATE entitlements SET status='revoked' WHERE id=? AND user_id=? AND product_id=? AND status='active'"
-        ).bind(e.id,e.user_id,e.product_id)));
-        return Response.json({revoked:matching.results.length},
-          {status:200,headers});
+        // Once the whole paid order has a durable negative fence, one
+        // atomic, indexed canonical UPDATE reconciles all of its entitlements.
+        // There is no 25-item RPC fanout and no unrevoked tail in a large
+        // order. This also handles mixed commercial/public-domain carts,
+        // without ever granting either type of access.
+        await env.PRIMARY_DB.prepare(
+          "UPDATE entitlements SET status='revoked' WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase' AND status='active'"
+        ).bind(order.user_id,orderId).run();
+        return Response.json({orderDenied:true},{status:200,headers});
       }
       if(isEntitlement){
         const entitlementId=cmd.entitlementId as string;
