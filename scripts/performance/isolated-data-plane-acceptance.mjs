@@ -261,6 +261,7 @@ async function sample(model = "projection", path = "/") {
       signal: AbortSignal.timeout(10000),
     });
     const ms = performance.now() - started;
+    const completedAtUnixMs = Date.now();
     const transportSpan = stageTransportSpan(r);
     const serverTiming = r.headers.get("server-timing") || "";
     const handlerMs = /(?:^|, )cove_handler;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
@@ -290,6 +291,7 @@ async function sample(model = "projection", path = "/") {
     return {
       ok,
       ms,
+      completedAtUnixMs,
       status: r.status,
       transportSpan: transportSpan
         ? {
