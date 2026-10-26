@@ -234,14 +234,18 @@ export async function serveLeanAnonymousBootstrap(
       ? stageAcceleratedPresentation(env.PRESENTATION, env.PRESENTATION_KV)
       : env.PRESENTATION;
   const stagedLegalOwnerRead = env.COVE_LEGAL_OWNER_STAGE_READ_ENABLED === "1";
-  if (stagedLegalOwnerRead &&
-      !(env.COVE_SSR_STAGING==="1" &&
-        env.COVE_STRANGLER_MODE==="production-acceptance" &&
-        env.COVE_STRANGLER_DATABASE_ID==="4bd657ac-8789-403e-a28c-93aba8d0a989" &&
-        env.COVE_LEGAL_OWNER_WRITER_CLOSURE_AUDITED==="1" &&
-        typeof env.LEGAL_AUTHORITY?.getByName==="function" &&
-        /^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET || "") &&
-        model==="2"))
+  if (
+    stagedLegalOwnerRead &&
+    !(
+      env.COVE_SSR_STAGING === "1" &&
+      env.COVE_STRANGLER_MODE === "production-acceptance" &&
+      env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989" &&
+      env.COVE_LEGAL_OWNER_WRITER_CLOSURE_AUDITED === "1" &&
+      typeof env.LEGAL_AUTHORITY?.getByName === "function" &&
+      /^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET || "") &&
+      model === "2"
+    )
+  )
     throw Error("Legal owner read not certified for protected staging");
   const presentationStore = presentationBinding
     ? namespacedPresentationStore(presentationBinding, env.COVE_PRESENTATION_PREFIX, model === "2")
@@ -275,12 +279,16 @@ export async function serveLeanAnonymousBootstrap(
     admission,
     model === "2"
       ? Promise.all([projection!, admission]).then(([p]) =>
-          timed("catalog", stagedLegalOwnerRead
-            ? authorizeHomepageWithLegalOwner(
-                env.LEGAL_AUTHORITY!.getByName("cove-staged-legal-global-v1"),
-                env.COVE_RIGHTS_OWNER_SECRET!,p
-              )
-            : authorizeHomepagePresentation(rawDb, p, d1Metrics)),
+          timed(
+            "catalog",
+            stagedLegalOwnerRead
+              ? authorizeHomepageWithLegalOwner(
+                  env.LEGAL_AUTHORITY!.getByName("cove-staged-legal-global-v1"),
+                  env.COVE_RIGHTS_OWNER_SECRET!,
+                  p,
+                )
+              : authorizeHomepagePresentation(rawDb, p, d1Metrics),
+          ),
         )
       : model === "1"
         ? timed(
