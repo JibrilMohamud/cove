@@ -51,6 +51,17 @@ Commercial work must not add owner or D1 RPCs to anonymous first paint.
   scope itself, refuses >25 affected products, requires the private
   owner denial receipts **before** canonical SQL, and never accepts
   caller-supplied arbitrary SQL. Partial D1 failure leaves owner denial.
+- Full Stripe-success **refund** webhooks now have an opt-in QA-only owner
+  handoff: before the canonical refund is acknowledged, the private writer
+  discovers every buyer entitlement for the order, serializes at most
+  25 denial operations in one Durable Object transaction, then updates
+  exactly those entitlements in one canonical D1 batch. It fails closed
+  if an owner receipt is missing or D1 fails; the same refund event may be
+  retried without advancing the denial epoch. Zero additional calls occur
+  on anonymous homepage loads, product cards or music discovery routes.
+  The legacy direct entitlement mutation remains only when the stage
+  ownership flag is off. **Real production Stripe webhook cutover is not
+  yet activated.**
 - The existing staged `scopeStageLegalWriterEnv` write lock denies all
   unfenced legal mutations in the legacy API/cron and never enables on
   production. Consumer opt-in additionally requires exact QA-D1 ID, a
@@ -76,7 +87,14 @@ expires. Do not advertise instantaneous disconnected-device revocation.
 
 ## Unfinished and mandatory before production
 
-1. **Close every writer.** Enumerate and move all direct grant/contract,
+1. **Close every writer.** Full-refund revocation is now present for the
+   QA-only staging event, but paid purchase **issuance** and paid order
+   settlement/recovery must be moved to a durable, idempotent outbox
+   executor before the legal write lock can activate. A captured payment
+   cannot be left "paid" with unfulfilled entitlements on a retry;
+   no ad hoc owner lookup in a public request should be used to conceal
+   missing fulfillment.
+   Enumerate and move all direct grant/contract,
    scope/territory-language, source evidence and canonical publication
    writers, publishing contracts and policy-version transitions, purchase
    fulfillment, refund, disputes/chargebacks, entitlement grants/revokes,
