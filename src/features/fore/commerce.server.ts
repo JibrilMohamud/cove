@@ -1408,9 +1408,11 @@ export async function finalizePaidOrder(
         )
         .bind(crypto.randomUUID(), order.user_id, item.product_id, item.id, at, at)
         .run();
-      if (
-        Number(entitlementWrite.meta?.changes ?? (entitlementWrite as { changes?: number }).changes ?? 0) !== 1
-      )
+      const affectedEntitlement = entitlementWrite as {
+        meta?: { changes?: number };
+        changes?: number;
+      };
+      if (Number(affectedEntitlement.meta?.changes ?? affectedEntitlement.changes ?? 0) !== 1)
         throw new ApiError(
           409,
           "A previous purchase entitlement cannot be assigned to another order.",
