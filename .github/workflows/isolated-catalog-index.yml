@@ -29,6 +29,8 @@ on:
       - "src/storefront-strangler/commercial-legal-core.ts"
       - "scripts/check-commercial-legal-authority.mjs"
       - "src/storefront-strangler/commercial-entitlement-core.ts"
+      - "src/storefront-strangler/paid-settlement-publication.server.ts"
+      - "scripts/check-staged-paid-settlement.mjs"
       - "scripts/check-paid-entitlement-authority.mjs"
       - "scripts/check-paid-access-consumer.mjs"
       - "scripts/check-refund-legal-writer-wiring.mjs"
@@ -77,6 +79,7 @@ jobs:
       - run: node scripts/check-commercial-legal-authority.mjs
       - run: node scripts/check-paid-entitlement-authority.mjs
       - run: node scripts/check-paid-access-consumer.mjs
+      - run: node scripts/check-staged-paid-settlement.mjs
       - run: node scripts/check-refund-legal-writer-wiring.mjs
       - run: node scripts/check-immutable-paid-fulfillment.mjs
       - run: node scripts/build-storefront-strangler.mjs
