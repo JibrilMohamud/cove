@@ -31,6 +31,9 @@ on:
       - "src/lib/literary-*.ts"
       - "src/content-processing.worker.ts"
       - "scripts/check-isolated-data-plane.mjs"
+      - "scripts/check-presentation-storage-hedge.mjs"
+      - "src/storefront-strangler/presentation-hedge.server.ts"
+      - "src/storefront-strangler/bootstrap-optimized.server.ts"
       - "scripts/check-publication-feed.mjs"
       - "scripts/staging/check-publication-feed-live.mjs"
       - "infra/discovery/**"
@@ -62,6 +65,7 @@ jobs:
         with: { node-version: "22", cache: npm }
       - run: npm ci
       - run: npm run test:isolated-data-plane
+      - run: node scripts/check-presentation-storage-hedge.mjs
       - run: node scripts/check-unbiased-random.mjs
       - run: node scripts/check-capacity-release-gate.mjs
       - run: node scripts/check-capacity-body-timing.mjs
