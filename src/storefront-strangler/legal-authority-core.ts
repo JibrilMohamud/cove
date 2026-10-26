@@ -21,7 +21,7 @@ export function validateAuthorityCommand(raw: unknown): AuthorityCommand {
   if (typeof input.sourceId !== "string" ||
       !/^(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/.test(input.sourceId) ||
       typeof input.territory !== "string" ||
-      !/^(?:[A-Z]{2}|\\*)$/.test(input.territory) ||
+      !/^(?:[A-Z]{2}|\*)$/.test(input.territory) ||
       !Number.isSafeInteger(input.revision) || (input.revision as number) <= 0 ||
       (input.action !== "deny" && input.action !== "allow") ||
       (input.action === "allow" && input.territory === "*"))
