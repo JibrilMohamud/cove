@@ -11,13 +11,16 @@ assert.match(account||"",/^[a-f0-9]{32}$/);
 assert.ok(token&&/^\d{8,15}$/.test(runId||""));
 const ownerCfg="wrangler.legal-authority.proof.jsonc";
 const callerCfg="wrangler.legal-authority.proof-caller.jsonc";
+const writerCfg="wrangler.legal-authority.proof-writer.jsonc";
+const writerName="cove-legal-quarantine-qa-private";
 const caller="cove-private-legal-proof-"+runId;
 const origin="https://"+caller+".cove-jibrilmohamud.workers.dev";
 const gate=randomBytes(32).toString("hex");
 const secret=randomBytes(32).toString("hex");
+const writerKey=randomBytes(32).toString("hex");
 const sourceId=String((Number(runId)%800000000)+100000000);
 const expires=Date.now()+12*60*1000;
-let authorityEnabled=false,callerStarted=false;
+let authorityEnabled=false,callerStarted=false,writerEnabled=false,seeded=false;
 const cli=(args,input)=>{
   const result=spawnSync("npm",["exec","--yes","--package=wrangler@4.151.0","--","wrangler",...args],{
     input,encoding:"utf8",timeout:160000,
@@ -26,9 +29,12 @@ const cli=(args,input)=>{
   if(result.status!==0)throw Error("wrangler_"+args[0]+"_failed: "+
     String(result.stderr||"").replace(/Bearer\s+\S+/g,"Bearer [masked]").slice(-600));
 };
-const api=async(method,path)=>{
+const api=async(method,path,body=undefined)=>{
   const response=await fetch("https://api.cloudflare.com/client/v4"+path,{
-    method,headers:{authorization:"Bearer "+token},signal:AbortSignal.timeout(15000)});
+    method,headers:{authorization:"Bearer "+token,
+      ...(body===undefined?{}:{"content-type":"application/json"})},
+    body:body===undefined?undefined:JSON.stringify(body),
+    signal:AbortSignal.timeout(15000)});
   const result=await response.json();
   if(!result.success)throw Error("cloudflare_control_"+method+"_"+response.status);
   return result.result;
@@ -56,8 +62,25 @@ try{
   cli(["deploy","--config",ownerCfg]);
   cli(["secret","put","COVE_RIGHTS_OWNER_SECRET","--config",ownerCfg],secret);
 
+  const writer=JSON.parse(fs.readFileSync("wrangler.legal-quarantine-qa.example.jsonc","utf8"));
+  assert.equal(writer.name,writerName);
+  assert.equal(writer.workers_dev,false);
+  assert.deepEqual(writer.routes,[]);
+  assert.equal(writer.d1_databases[0].database_id,
+    "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87");
+  assert.equal(writer.services[0].service,owner.name);
+  assert.equal(writer.vars.COVE_LEGAL_WRITER_ENABLED,"0");
+  writer.vars.COVE_LEGAL_WRITER_ENABLED="1";
+  writer.vars.COVE_LEGAL_WRITER_EXPIRES_AT=String(expires);
+  fs.writeFileSync(writerCfg,JSON.stringify(writer));
+  writerEnabled=true;
+  cli(["deploy","--config",writerCfg]);
+  cli(["secret","put","COVE_LEGAL_WRITER_SECRET","--config",writerCfg],writerKey);
+  cli(["secret","put","COVE_RIGHTS_OWNER_SECRET","--config",writerCfg],secret);
+
   const proxy=JSON.parse(fs.readFileSync("wrangler.legal-qa-caller.example.jsonc","utf8"));
   assert.equal(proxy.services[0].service,owner.name);
+  proxy.services.push({binding:"LEGAL_WRITER",service:writerName});
   proxy.name=caller;
   proxy.workers_dev=true;
   proxy.vars.COVE_LEGAL_QA_CALLER_ENABLED="1";
@@ -67,6 +90,7 @@ try{
   cli(["deploy","--config",callerCfg]);
   cli(["secret","put","COVE_LEGAL_QA_GATE","--config",callerCfg],gate);
   cli(["secret","put","COVE_RIGHTS_OWNER_SECRET","--config",callerCfg],secret);
+  cli(["secret","put","COVE_LEGAL_WRITER_SECRET","--config",callerCfg],writerKey);
 
   // Configuration/Workers metadata can precede propagation of a new
   // workers.dev hostname. The readiness poll is NOT part of a capacity
