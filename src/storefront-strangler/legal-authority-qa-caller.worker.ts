@@ -30,7 +30,7 @@ export default {
        request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
       return new Response(null,{status:405,headers:noStore});
     const uri=new URL(request.url);
-    if(uri.search || !["/deny-next","/verify","/authorize-batch","/quarantine","/evidence/revoke"].includes(uri.pathname))
+    if(uri.search || !["/deny-next","/deny-next-batch","/verify","/authorize-batch","/quarantine","/evidence/revoke"].includes(uri.pathname))
       return new Response(null,{status:404,headers:noStore});
     const isWriter=uri.pathname==="/quarantine" || uri.pathname==="/evidence/revoke";
     if(isWriter && (!env.LEGAL_WRITER?.fetch ||
