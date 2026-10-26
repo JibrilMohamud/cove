@@ -66,12 +66,16 @@ export function fencedCanonicalMetadataStatements(db: DB, doc: CatalogPreparedMe
   const verify=`EXISTS (SELECT 1 FROM catalog_canonical_publication_receipts r
     WHERE r.source_id=? AND r.revision=? AND r.title=?) AND ${guarded}`;
   const allowArgs=[id,doc.revision,doc.title,...guardArgs];
+  // Do not acquire unnecessary PRIMARY write locks on retry, or on a
+  // rights-only/feed revision whose normalized metadata did not change.
+  // Exact source, legal status and monotonic receipt checks still execute
+  // transactionally; the values are never copied from a stale index grant.
   const work=db.prepare(`UPDATE works SET title=?,description=?,updated_at=datetime('now')
-    WHERE id=? AND ${verify}`)
-    .bind(doc.title,doc.description,"wrk_gutenberg_"+id,...allowArgs);
+    WHERE id=? AND (title IS NOT ? OR description IS NOT ?) AND ${verify}`)
+    .bind(doc.title,doc.description,"wrk_gutenberg_"+id,doc.title,doc.description,...allowArgs);
   const edition=db.prepare(`UPDATE editions SET title=?,description=?,updated_at=datetime('now')
-    WHERE id=? AND ${verify}`)
-    .bind(doc.title,doc.description,"ed_gutenberg_"+id,...allowArgs);
+    WHERE id=? AND (title IS NOT ? OR description IS NOT ?) AND ${verify}`)
+    .bind(doc.title,doc.description,"ed_gutenberg_"+id,doc.title,doc.description,...allowArgs);
   return [receipt,work,edition];
 }
 export async function publishFencedCanonicalMetadata(env: CanonicalPublisherEnv, ids: string[]) {
