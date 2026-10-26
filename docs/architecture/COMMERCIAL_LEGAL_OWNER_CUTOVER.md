@@ -68,6 +68,29 @@ Commercial work must not add owner or D1 RPCs to anonymous first paint.
   live private DO binding and an operator secret. No public callback
   authorizes paid grants.
 
+## Paid grant and protected audio hardening on PR #351
+
+- Buyer-specific proof now stores an **immutable acquisition scope** in the
+  strongly consistent owner: territory, sales channel, edition, rights grant,
+  contract, and contract version. Reading a paid lease joins all six dimensions
+  against the current owner grant in one SQLite query; same-product epochs in
+  different countries cannot expand a customer's rights. Historical leases
+  without this scope fail closed. Stale purchase claims and replayed Stripe
+  success cannot override a terminal entitlement or refunded-order denial.
+- Protected commercial EPUB, offline EPUB, commercial audiobook streaming,
+  offline audio issuance/reverification, chapter access, playback and Biosync
+  now have staged buyer-specific owner gates. Biosync must prove *both* purchased
+  editions. A subscription/catalog allowance without a verified independent
+  buyer proof is denied, **not silently promoted to retail access**.
+- Loss of a Stripe dispute now has the same idempotent staged owner-first
+  whole-order veto as a completed refund, before canonical dispute and
+  entitlement records are mutated. This does **not** yet migrate production
+  dispute writers.
+- The opted-in staging write lock also denies legacy contract-affecting audio
+  profile/narration, publication, protected audio asset and offline license
+  mutations until dedicated owner-fenced executors take over. It is not itself
+  an executor or a production cutover.
+
 ## Additional customer invariants
 
 A product grant is **not** an entitlement. Checkout still verifies
