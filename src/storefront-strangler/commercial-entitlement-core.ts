@@ -284,6 +284,9 @@ export function readPaidAccess(sql:AuthoritySql,raw:unknown,now=new Date().toISO
      AND e.product_epoch=p.epoch
      WHERE e.entitlement_id=? AND e.user_id=? AND e.product_id=? AND e.verdict='allow'
        AND NOT EXISTS(SELECT 1 FROM cove_paid_refunded_orders d WHERE d.order_id=eo.order_id)
+       AND NOT EXISTS(SELECT 1 FROM cove_commercial_subject_denials sd
+         WHERE (sd.subject_kind='grant' AND sd.subject_id=p.grant_id)
+            OR (sd.subject_kind='contract' AND sd.subject_id=p.contract_id))
        AND e.valid_until>? AND p.valid_until>?
        AND p.contract_id IS NOT NULL AND length(p.contract_id)>=3
        AND p.contract_version_id IS NOT NULL AND length(p.contract_version_id)>=3
