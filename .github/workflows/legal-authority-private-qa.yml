@@ -15,7 +15,9 @@ permissions:
   contents: read
 concurrency:
   group: cove-private-legal-qa
-  cancel-in-progress: true
+  # Never terminate a live test while it owns temporary credentials.
+  # Queue the next run so the mandatory rollback completes first.
+  cancel-in-progress: false
 jobs:
   provision-disabled-private-authority:
     if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-catalog-normalization-20261025') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-catalog-normalization-20261025')
