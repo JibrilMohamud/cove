@@ -49,6 +49,8 @@ try{
   assert.deepEqual(newProduct(),{applied:true,epoch:1});
   assert.equal(verify(),null,"A paid product proof is NEVER a buyer entitlement");
   assert.deepEqual(lease(1),{applied:true,epoch:1});
+  assert.deepEqual(lease(1),{applied:true,epoch:1},
+    "Repeated primary-verified buyer lease must not churn the entitlement epoch");
   assert.equal(verify()?.grant_id,"right_valid_17");
   assert.equal(verify({ ...ctx,userId:"user_paid_18"}),null);
   assert.equal(verify({...ctx,territory:"CA"}),null);
@@ -65,6 +67,8 @@ try{
   assert.deepEqual(newProduct(),{applied:true,epoch:3});
   assert.equal(verify(),null,"Regranting a product cannot resurrect stale purchased entitlement");
   assert.deepEqual(lease(3),{applied:true,epoch:2});
+  assert.deepEqual(lease(3),{applied:true,epoch:2},
+    "Renewal after fresh rights epoch must preserve new buyer epoch");
   assert.equal(verify()?.entitlement_epoch,2);
   const staleEntBase=ent.captureEntitlementEpoch(sql(),scope);
   assert.deepEqual(ent.denyPaidEntitlement(sql(),{
