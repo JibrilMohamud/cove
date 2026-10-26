@@ -95,6 +95,23 @@ export default {
           "SELECT id,user_id FROM commerce_orders WHERE id=?"
         ).bind(orderId).first<{id:string;user_id:string}>();
         if(!order)throw Error("refund_order_not_found");
+        // ONE durable owner denial immediately fences ALL purchases under
+        // the order, including an order too large for the bounded per-item
+        // reconciliation batch. Nothing on a hot storefront path changes.
+        const orderOwner=await env.LEGAL_PRIVATE.fetch(new Request(
+          "https://legal-authority.internal/commercial/order/deny-next",{
+            method:"POST",
+            headers:{"authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,
+              "content-type":"application/json"},
+            body:JSON.stringify({
+              orderId,operationId:"order-refund:"+cmd.operationId
+            })
+          }
+        ));
+        if(orderOwner.status!==200)throw Error("refund_order_owner_unavailable");
+        const orderReceipt=await orderOwner.json() as {applied?:boolean;orderId?:string};
+        if(!orderReceipt.applied || orderReceipt.orderId!==orderId)
+          throw Error("refund_order_owner_receipt_invalid");
         const matching=await env.PRIMARY_DB.prepare(
           "SELECT e.id,e.user_id,e.product_id,e.status FROM entitlements e WHERE e.user_id=? AND e.order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND e.entitlement_type='purchase' ORDER BY e.id LIMIT 26"
         ).bind(order.user_id,orderId).all<{
