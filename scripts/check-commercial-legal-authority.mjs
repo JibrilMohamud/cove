@@ -40,7 +40,23 @@ try {
   assert.deepEqual(core.publishFreshCommercialProof(sql(),proof,0),{applied:true,epoch:1});
   assert.equal(read().length,1);
   assert.equal(read()[0].grant_id,proof.grantId);
-  assert.deepEqual(read("CA"),[],"US approval cannot grant Canadian rights");
+  assert.deepEqual(core.publishFreshCommercialProof(sql(),{
+    ...proof,validUntil:new Date(Date.now()+180000).toISOString()
+  },1),{applied:true,epoch:1},
+  "Refreshing the same verified offer must NOT churn every buyer entitlement");
+  assert.throws(()=>core.publishFreshCommercialProof(sql(),{
+    ...proof,grantId:"right_different_18"
+  },1),/commercial_rights_change_requires_prior_denial/,
+  "Grant substitution requires an acknowledged owner DENY first");
+  assert.equal(read()[0].grant_id,proof.grantId);
+  assert.deepEqual(core.publishFreshCommercialProof(sql(),{
+    ...proof,territory:"CA"
+  },1),{applied:true,epoch:1},
+  "Adding a separately verified country must not invalidate other market epochs");
+
+  assert.equal(read("CA").length,1,
+    "Canada is authorized ONLY because a separate CA-specific fresh proof was explicitly published");
+  assert.deepEqual(read("AU"),[],"No permission may be inferred for an unapproved country");
   assert.deepEqual(read("US","library"),[],"Retail purchase grant cannot authorize a library loan");
   assert.deepEqual(read("US","retail",new Date(Date.now()+150000).toISOString()),[],
     "Expired proof must deny even if an invalidation job never runs");
