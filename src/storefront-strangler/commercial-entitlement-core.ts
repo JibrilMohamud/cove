@@ -32,6 +32,17 @@ export function createPaidEntitlementSchema(sql:AuthoritySql) {
     entitlement_id TEXT NOT NULL,
     epoch INTEGER NOT NULL CHECK(epoch>0)
   ) WITHOUT ROWID`);
+  // No ALTER of an existing deployed buyer table is necessary. Older
+  // entitlements without a verified order binding fail closed on read.
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_paid_entitlement_orders(
+    entitlement_id TEXT PRIMARY KEY,order_id TEXT NOT NULL
+  ) WITHOUT ROWID`);
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_paid_refunded_orders(
+    order_id TEXT PRIMARY KEY
+  ) WITHOUT ROWID`);
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_paid_order_denial_ops(
+    operation_id TEXT PRIMARY KEY,order_id TEXT NOT NULL
+  ) WITHOUT ROWID`);
 }
 type EntRow={entitlement_id:string;user_id:string;product_id:string;
   epoch:number;verdict:"deny"|"allow";product_epoch:number|null;valid_until:string|null};
@@ -40,6 +51,32 @@ const current=(sql:AuthoritySql,id:string)=>
     "SELECT entitlement_id,user_id,product_id,epoch,verdict,product_epoch,valid_until FROM cove_paid_entitlement_authority WHERE entitlement_id=?",
     id
   ).toArray()[0];
+/**
+ * A whole paid order is revoked with ONE durable SQLite owner write,
+ * regardless of its line-item count. A failed D1 entitlement reconciliation
+ * cannot leave old buyer proofs usable. This order may NEVER be regranted:
+ * a legitimately new purchase must have a new canonical order ID.
+ */
+export function denyPaidOrder(sql:AuthoritySql,raw:unknown){
+  if(!raw||typeof raw!=="object"||Array.isArray(raw))
+    throw Error("invalid_paid_order_denial");
+  const {orderId,operationId}=raw as Record<string,unknown>;
+  if(typeof orderId!=="string"||!entityId.test(orderId)||
+     typeof operationId!=="string"||!opIdPattern.test(operationId))
+    throw Error("invalid_paid_order_denial");
+  const old=sql.exec<{order_id:string}>(
+    "SELECT order_id FROM cove_paid_order_denial_ops WHERE operation_id=?",
+    operationId
+  ).toArray()[0];
+  if(old&&old.order_id!==orderId)
+    throw Error("paid_order_denial_scope_collision");
+  sql.exec("INSERT OR IGNORE INTO cove_paid_refunded_orders(order_id) VALUES(?)",orderId);
+  if(!old)sql.exec(
+    "INSERT INTO cove_paid_order_denial_ops(operation_id,order_id) VALUES(?,?)",
+    operationId,orderId
+  );
+  return {applied:true,orderId};
+}
 export function captureEntitlementEpoch(sql:AuthoritySql,raw:unknown) {
   const q=validatePaidEntitlementScope(raw);
   const prior=current(sql,q.entitlementId);
@@ -110,7 +147,11 @@ export function publishFreshEntitlement(
   sql:AuthoritySql,raw:unknown,expectedEpoch:number,now=Date.now()
 ){
   const scope=validatePaidEntitlementScope(raw);
-  const {validUntil,productEpoch}=raw as {validUntil?:unknown;productEpoch?:unknown};
+  const {validUntil,productEpoch,orderId}=raw as {
+    validUntil?:unknown;productEpoch?:unknown;orderId?:unknown
+  };
+  if(typeof orderId!=="string"||!entityId.test(orderId))
+    throw Error("invalid_entitlement_order");
   if(!Number.isSafeInteger(productEpoch)||Number(productEpoch)<=0)
     throw Error("invalid_entitlement_product_epoch");
   if(typeof validUntil!=="string"||
@@ -123,6 +164,12 @@ export function publishFreshEntitlement(
   const prior=current(sql,scope.entitlementId);
   if(prior &&(prior.user_id!==scope.userId||prior.product_id!==scope.productId))
     throw Error("paid_entitlement_scope_changed");
+  if(sql.exec("SELECT order_id FROM cove_paid_refunded_orders WHERE order_id=?",orderId).toArray().length)
+    throw Error("paid_order_already_revoked");
+  const previousOrder=sql.exec<{order_id:string}>(
+    "SELECT order_id FROM cove_paid_entitlement_orders WHERE entitlement_id=?",
+    scope.entitlementId
+  ).toArray()[0];
   if((prior?.epoch??0)!==expectedEpoch)
     return {applied:false,epoch:prior?.epoch??null};
   // A fresh *verified* lease for the identical buyer and product epoch is
@@ -130,7 +177,7 @@ export function publishFreshEntitlement(
   // gratuitous consumer/token invalidation every five minutes. An owner
   // denial or a new product rights epoch still requires a new epoch.
   const sameGrant=prior?.verdict==="allow"&&
-    prior.product_epoch===Number(productEpoch);
+    prior.product_epoch===Number(productEpoch)&&previousOrder?.order_id===orderId;
   const epoch=sameGrant?expectedEpoch:expectedEpoch+1;
   if(!Number.isSafeInteger(epoch)||epoch<=0)
     throw Error("paid_entitlement_epoch_exhausted");
@@ -141,6 +188,9 @@ export function publishFreshEntitlement(
       verdict='allow',product_epoch=excluded.product_epoch,valid_until=excluded.valid_until`,
     scope.entitlementId,scope.userId,scope.productId,epoch,Number(productEpoch),validUntil
   );
+  sql.exec(`INSERT INTO cove_paid_entitlement_orders(entitlement_id,order_id)
+    VALUES(?,?) ON CONFLICT(entitlement_id) DO UPDATE
+    SET order_id=excluded.order_id`,scope.entitlementId,orderId);
   return {applied:true,epoch};
 }
 /**
@@ -164,11 +214,13 @@ export function readPaidAccess(sql:AuthoritySql,raw:unknown,now=new Date().toISO
             p.epoch product_epoch,e.epoch entitlement_epoch,
             CASE WHEN e.valid_until<p.valid_until THEN e.valid_until ELSE p.valid_until END valid_until
      FROM cove_paid_entitlement_authority e
+     JOIN cove_paid_entitlement_orders eo ON eo.entitlement_id=e.entitlement_id
      JOIN cove_commercial_scope_proofs p ON p.product_id=e.product_id
      JOIN cove_commercial_authority a
        ON a.product_id=p.product_id AND a.epoch=p.epoch AND a.verdict='allow'
      AND e.product_epoch=p.epoch
      WHERE e.entitlement_id=? AND e.user_id=? AND e.product_id=? AND e.verdict='allow'
+       AND NOT EXISTS(SELECT 1 FROM cove_paid_refunded_orders d WHERE d.order_id=eo.order_id)
        AND e.valid_until>? AND p.valid_until>?
        AND p.territory=? AND p.channel=? LIMIT 1`,
     scope.entitlementId,scope.userId,scope.productId,now,now,
