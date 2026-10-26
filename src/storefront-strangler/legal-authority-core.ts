@@ -237,6 +237,47 @@ export function persistSourceWithdrawal(sql:AuthoritySql,raw:unknown){
 
 
 /**
+ * Entire retraction batch is preflighted before the Durable Object begins its
+ * transactionSync. Each result is a committed, owner-assigned source epoch,
+ * never an inferred grant from a stale or unverified discovery snapshot.
+ */
+export function validateWithdrawalBatch(raw:unknown) {
+  if(!raw || typeof raw!=="object" || Array.isArray(raw))
+    throw Error("invalid_denial_batch");
+  const input=raw as {operations?:unknown};
+  if(!Array.isArray(input.operations) ||
+      input.operations.length===0 || input.operations.length>25)
+    throw Error("invalid_denial_batch");
+  const seen=new Set<string>();
+  return input.operations.map((item:unknown)=>{
+    if(!item || typeof item!=="object" || Array.isArray(item))
+      throw Error("invalid_denial_batch_item");
+    const op=item as Record<string,unknown>;
+    if(typeof op.sourceId!=="string"||op.territory!=="*"||
+        typeof op.operationId!=="string" ||
+        !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(op.operationId))
+      throw Error("invalid_denial_batch_item");
+    validateAuthorityCommand({
+      sourceId:op.sourceId,territory:"*",revision:1,action:"deny"
+    });
+    if(seen.has(op.sourceId)||seen.has(op.operationId))
+      throw Error("duplicate_denial_batch_key");
+    seen.add(op.sourceId);seen.add(op.operationId);
+    return {sourceId:op.sourceId,territory:"*" as const,operationId:op.operationId};
+  });
+}
+export function persistSourceWithdrawalsBatch(sql:AuthoritySql,raw:unknown) {
+  // Caller MUST enclose this entire loop in SQLite transactionSync. A partial
+  // set of legal withdrawals must never receive a batch-success receipt.
+  const commands=validateWithdrawalBatch(raw);
+  const receipts=commands.map(command=>({
+    sourceId:command.sourceId,operationId:command.operationId,
+    ...persistSourceWithdrawal(sql,command)
+  }));
+  return {applied:receipts.every(r=>r.applied),receipts};
+}
+
+/**
  * Capture the owner revision BEFORE awaiting primary-D1 positive verification.
  * Reinstatement has no authority unless the caller supplies precisely the
  * next revision and the same owner state remains unchanged until commit.
