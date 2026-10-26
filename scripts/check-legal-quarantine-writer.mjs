@@ -62,6 +62,14 @@ try {
     if(request.headers.get("authorization")!=="Bearer "+secret)
       return new Response(null,{status:401});
     const cmd=await request.json();
+    if(new URL(request.url).pathname==="/commercial/order/deny-next"){
+      db.exec("BEGIN");
+      try{
+        const result=paidEnt.denyPaidOrder(sql,cmd);
+        db.exec("COMMIT");
+        return Response.json(result);
+      }catch{db.exec("ROLLBACK");return new Response(null,{status:409});}
+    }
     if(new URL(request.url).pathname==="/commercial/entitlement/deny-batch"){
       db.exec("BEGIN");
       try{
@@ -317,8 +325,10 @@ try {
   operations.length=0;
   const fullRefund={orderId:refundOrderId,operationId:"refund_paid_order_21"};
   assert.equal((await post(fullRefund,{},"/commercial/entitlement/revoke-order")).status,200);
-  assert.deepEqual(operations,["canonical-evidence-check","canonical-scope-discovery","authority","canonical-atomic-batch"],
-    "One owner denial batch must precede one canonical SQL batch for full refund");
+  assert.deepEqual(operations,[
+    "canonical-evidence-check","authority","canonical-scope-discovery",
+    "authority","canonical-atomic-batch"
+  ],"One whole-order denial MUST precede per-entitlement owner and canonical batches");
   for(const row of refundEnts){
     assert.equal(db.prepare("SELECT status FROM entitlements WHERE id=?").get(row.id).status,
       "revoked");
@@ -328,14 +338,20 @@ try {
   }
   assert.equal((await post(fullRefund,{},"/commercial/entitlement/revoke-order")).status,200,
     "Exact full-refund event replay may not mutate buyer entitlement epochs");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM cove_paid_refunded_orders WHERE order_id=?")
+    .get(refundOrderId).n,1,"One durable order denial covers every original paid item");
+  assert.equal(paidEnt.readPaidAccess(sql,{
+    entitlementId:refundEnts[0].id,userId:"user_paid_17",
+    productId:refundEnts[0].product,territory:"US",channel:"retail"
+  }),null);
   assert.equal(paidEnt.captureEntitlementEpoch(sql,{
     entitlementId:refundEnts[0].id,userId:"user_paid_17",productId:refundEnts[0].product
   }),1);
   operations.length=0;failOwner=true;
   assert.equal((await post({...fullRefund,operationId:"refund_paid_order_22"},
     {},"/commercial/entitlement/revoke-order")).status,503);
-  assert.deepEqual(operations,["canonical-evidence-check","canonical-scope-discovery","authority"],
-    "Owner outage prevents canonical refund entitlements being mutated");
+  assert.deepEqual(operations,["canonical-evidence-check","authority"],
+    "Owner outage must prevent even discovering/changing canonical refund entitlements");
   failOwner=false;failPrimaryBatch=true;
   assert.equal((await post({...fullRefund,operationId:"refund_paid_order_23"},
     {},"/commercial/entitlement/revoke-order")).status,503);
