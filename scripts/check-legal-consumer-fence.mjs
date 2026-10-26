@@ -126,6 +126,6 @@ try{
     e=>e.status===503);
   await requireStageLegalConsumerProof(active,[
     {id:"upload_8abced12",source_name:"upload"}],"US","USD");
-  assert.equal(calls,1,"Personal imports never use public catalog rights grants");
+  assert.equal(calls,2,"Personal imports never issue additional public catalog rights requests");
   console.log("PASS: staging book/detail, checkout and protected license consumer fence uses exact owner proof, denies paid, withdrawn, forged, wrong-market and unavailable owner");
 }finally{rmSync(dir,{recursive:true,force:true});}
