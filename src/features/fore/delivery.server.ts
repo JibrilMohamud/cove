@@ -4,7 +4,7 @@ import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";
 import { drmSatisfiesRequirement, resolveProductRights } from "./rights.server";
 import { recordSyncProjection } from "./sync.server";
-import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
+import { requireStagePaidEntitlementAccess } from "../../storefront-strangler/legal-consumer-fence.server";
 
 type DB = CoveEnv["DB"];
 const uid = (p: string) => `${p}_${crypto.randomUUID()}`;
@@ -540,14 +540,6 @@ export async function issueCommercialEpubGrant(
       })
       .parse(raw),
     db = env.DB;
-  // The public-domain-only QA authority does not approve paid contracts.
-  // Never create a delivery token or mutate ownership under a missing proof.
-  await requireStageLegalConsumerProof(
-    env,
-    [{ id: x.productId, source_name: "commercial" }],
-    (requestMeta(request).country || env.FORE_DEFAULT_TERRITORY || "US").toUpperCase(),
-    "USD",
-  );
   const {
     product,
     entitlement: ent,
@@ -560,6 +552,11 @@ export async function issueCommercialEpubGrant(
       400,
       "Secure commercial grants are only used for commercial catalog assets.",
     );
+  await requireStagePaidEntitlementAccess(env,{
+    entitlementId:String(ent.id),userId,productId:String(product.id),
+    territory:(requestMeta(request).country||env.FORE_DEFAULT_TERRITORY||"US").toUpperCase(),
+    channel:"retail",
+  });
   const permanent = ["purchase", "gift", "publisher"].includes(String(ent.entitlement_type)),
     pvId = await resolvedPublicationVersion(db, ent, ownership, lifecycle);
   await assertDistributionAllowed(db, pvId, permanent);
@@ -747,12 +744,6 @@ export async function serveCommercialEpubGrant(env: CoveEnv, rawToken: string, r
       .bind(hash)
       .first<any>();
   if (!grant) throw new ApiError(404, "Delivery grant not found.");
-  await requireStageLegalConsumerProof(
-    env,
-    [{ id: String(grant.product_id), source_name: "commercial" }],
-    (requestMeta(request).country || env.FORE_DEFAULT_TERRITORY || "US").toUpperCase(),
-    "USD",
-  );
   const fail = async (status: number, msg: string, reason: string) => {
     await audit(db, {
       grantId: grant.id,
@@ -809,6 +800,12 @@ export async function serveCommercialEpubGrant(env: CoveEnv, rawToken: string, r
       "The entitlement backing this delivery is no longer active.",
       "entitlement_inactive",
     );
+  await requireStagePaidEntitlementAccess(env,{
+    entitlementId:String(ent.id),
+    userId:String(grant.user_id),productId:String(grant.product_id),
+    territory:(requestMeta(request).country||env.FORE_DEFAULT_TERRITORY||"US").toUpperCase(),
+    channel:"retail",
+  });
   const ownership = await db
       .prepare("SELECT * FROM entitlement_ownership_records WHERE entitlement_id=?")
       .bind(ent.id)
