@@ -495,7 +495,7 @@ export type CoveEnv = {
   COVE_LEGAL_QUARANTINE_WRITER_STAGE?: string;
   COVE_LEGAL_WRITER_PRIMARY_ID?: string;
   COVE_LEGAL_QUARANTINE_SECRET?: string;
-  LEGAL_QUARANTINE_WRITER?: { fetch(request:Request):Promise<Response> };
+  LEGAL_QUARANTINE_WRITER?: { fetch(request: Request): Promise<Response> };
   // Stage-only candidate: independent low-cardinality anonymous metrics.
   COVE_OPS_TELEMETRY_MODE?: string;
   OPS_ANALYTICS?: {
@@ -1415,8 +1415,7 @@ async function quarantineRegionalItem(env: CoveEnv, id: string, message: string)
         }),
       }),
     );
-    if (response.status !== 200)
-      throw new ApiError(503, "Legal quarantine could not be fenced.");
+    if (response.status !== 200) throw new ApiError(503, "Legal quarantine could not be fenced.");
     return;
   }
   await database(env)
