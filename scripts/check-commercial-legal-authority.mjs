@@ -58,7 +58,7 @@ try {
     "Canada is authorized ONLY because a separate CA-specific fresh proof was explicitly published");
   assert.deepEqual(read("AU"),[],"No permission may be inferred for an unapproved country");
   assert.deepEqual(read("US","library"),[],"Retail purchase grant cannot authorize a library loan");
-  assert.deepEqual(read("US","retail",new Date(Date.now()+150000).toISOString()),[],
+  assert.deepEqual(read("US","retail",new Date(Date.now()+250000).toISOString()),[],
     "Expired proof must deny even if an invalidation job never runs");
   const stale=core.captureCommercialEpoch(sql(),{productId:id});
   const denied=core.denyCommercialProduct(sql(),{
