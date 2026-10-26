@@ -149,3 +149,51 @@ tail—or Cloudflare infrastructure changes explain/correct it—the
 **absolute every-request <800 ms** contractual release criterion remains
 unmet. Do not substitute percentile-only claims, remove extreme values,
 or change which traffic counts.
+
+## Later stage-owner engineering and independently reproduced capacity blocker
+
+The next PR #351 hosted campaign (`40259003512`, job
+`121367394694`) **failed** despite three cold rounds and all five
+1/4/8/16/32-concurrency bursts passing. It stopped the first strict
+100-RPS phase after 1,390 valid samples (1,390/1,390, no drops) at a
+reported 998.08ms response maximum. The slowest measured SQL was ~3.5ms
+but the **primary D1 service request took 859ms**; Cloudflare Ray
+`a5060c1a8ec5cd6e-SJC`. A cluster of responses had 778–859ms D1
+service time with ~2.6–3.5ms SQL. This is distinct from the previous
+1,295.8ms edge/transport-tail Ray observed with a 59ms handler.
+
+To make independent legal serving implementable **without trusting old
+rights snapshots**, this branch now adds:
+
+- Revision-scoped, country/currency-specific, primary-verified free
+  Gutenberg offer proofs stored *in the legal owner*. An offer is returned
+  only if the effective legal version matches the exact proof version.
+- One indexed SQLite owner read for up to 128 bounded homepage candidates
+  (up to 25 results, same cap as the primary-authority query), rather than
+  a D1 network call per candidate.
+- Source-wide monotonic revision allocation inside the owner via
+  `/deny-next`, with a canonical source-event idempotency key. It denies
+  **before** its acknowledgement and before the primary writer callback.
+  A stale withdrawal receipt is never acknowledged after a newer grant.
+- A strict owner-backed homepage assembler with validation of identity,
+  edition and zero-priced public-domain offer; unknown, withdrawn,
+  cross-country or cross-currency results fail closed.
+- **Staging-only** homepage integration:
+  `COVE_LEGAL_OWNER_STAGE_READ_ENABLED=1` is accepted only with
+  `COVE_SSR_STAGING=1`, explicit primary-acceptance mode, the expected
+  database ID, an audited-writer-closure flag, a private DO binding and
+  a secret. Customer routing never activates this branch.
+- Local, destructive-only synthetic tests for restart, source-wide
+  withdrawal, mismatched country/currency, delayed replay, identity
+  tampering, owner outage, and denial-before-primary sequencing.
+
+This is still **not** a complete production cutover. The existing
+ingestion, regional rights/evidence, staff, offer, entitlement and asset
+mutation surfaces are not yet all fenced by the owner; the staged
+config is deliberately disabled and the required QA writer-closure
+assertion is not certified. Book details, checkout and protected
+delivery have NOT been switched. The original strict hosted-capacity
+workflow still uses primary D1 and must remain a failing release gate
+until the chosen release topology is actually deployed and validated.
+No fake pass by changing the fixture, phase duration, thresholds or
+percentile accounting is acceptable.
