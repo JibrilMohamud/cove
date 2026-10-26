@@ -170,6 +170,11 @@ export function publishFreshEntitlement(
     "SELECT order_id FROM cove_paid_entitlement_orders WHERE entitlement_id=?",
     scope.entitlementId
   ).toArray()[0];
+  // A purchase entitlement belongs permanently to ONE canonical order.
+  // A refund cannot be escaped by reusing its entitlement ID with a new
+  // receipt. A genuinely new purchase needs a distinct entitlement ID.
+  if(previousOrder && previousOrder.order_id!==orderId)
+    throw Error("paid_entitlement_order_swap_forbidden");
   if((prior?.epoch??0)!==expectedEpoch)
     return {applied:false,epoch:prior?.epoch??null};
   // A fresh *verified* lease for the identical buyer and product epoch is
