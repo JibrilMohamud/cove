@@ -15,7 +15,7 @@ try {
     outfile:artifact,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"
   });
   const {createAuthoritySchema, createAuthorityProofSchema, readAuthority, applyAuthorityCommand,
-    storeAuthorizedPresentationProof,readAuthorizedPresentations}=
+    storeAuthorizedPresentationProof,readAuthorizedPresentations,persistSourceWithdrawal}=
     await import(pathToFileURL(artifact).href);
   const sqlitePath=path.join(directory,"persistent.sqlite");
   const makeSql=db=>({
@@ -129,6 +129,34 @@ try {
   sql=makeSql(db);
   assert.deepEqual(state(),{allowed:false,revision:15});
   assert.deepEqual(batch(),[],"Withdrawal survives durable restart");
+  // Cross-service writer identity: the source-wide owner allocates its own
+  // monotonic epoch; stale event clocks cannot produce a false ACK.
+  const withdraw=persistSourceWithdrawal(sql,{
+    sourceId:"2701",territory:"*",operationId:"catalog:source:2701:withdraw:1"
+  });
+  assert.equal(withdraw.applied,true);
+  assert.equal(withdraw.revision,16);
+  assert.equal(persistSourceWithdrawal(sql,{
+    sourceId:"2701",territory:"*",operationId:"catalog:source:2701:withdraw:1"
+  }).revision,16,"Duplicate webhook/publisher replay does not add an epoch");
+  assert.throws(()=>persistSourceWithdrawal(sql,{
+    sourceId:"2702",territory:"*",operationId:"catalog:source:2701:withdraw:1"
+  }),/denial_operation_reused_with_different_scope/);
+  assert.equal(applyAuthorityCommand(sql,cmd(17,"allow")).applied,true);
+  storeAuthorizedPresentationProof(sql,cmd(17,"allow"),"USD",proof);
+  assert.equal(batch().length,1);
+  const old=persistSourceWithdrawal(sql,{
+    sourceId:"2701",territory:"*",operationId:"catalog:source:2701:withdraw:1"
+  });
+  assert.equal(old.applied,false,"Retry of past withdrawal must not acknowledge a new grant");
+  const newer=persistSourceWithdrawal(sql,{
+    sourceId:"2701",territory:"*",operationId:"checkout:source:2701:withdraw:2"
+  });
+  assert.equal(newer.revision,18);
+  assert.deepEqual(batch(),[],"New durable withdrawal immediately revokes checkout proof");
+  assert.throws(()=>persistSourceWithdrawal(sql,{
+    sourceId:"2701",territory:"*",operationId:"../../escape"
+  }),/invalid_denial_operation/);
   db.close();
   console.log("PASS: persistent deny-first legal fence, stale/equal positive rejection, global withdrawal, territory isolation, recovery");
 } finally {fs.rmSync(directory,{recursive:true,force:true});}
