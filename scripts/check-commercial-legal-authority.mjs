@@ -46,6 +46,13 @@ try {
   assert.deepEqual(core.publishFreshCommercialProof(sql(),proof,0),{applied:true,epoch:1});
   assert.equal(read().length,1);
   assert.equal(read()[0].grant_id,proof.grantId);
+  db.prepare("UPDATE cove_commercial_scope_proofs SET contract_id=NULL WHERE product_id=? AND territory='US'").run(id);
+  assert.deepEqual(read(),[],"Legacy owner records with missing contracts are never paid grants");
+  db.prepare("UPDATE cove_commercial_scope_proofs SET contract_id=? WHERE product_id=? AND territory='US'").run(proof.contractId,id);
+  db.prepare("UPDATE cove_commercial_scope_proofs SET contract_version_id=NULL WHERE product_id=? AND territory='US'").run(id);
+  assert.deepEqual(read(),[],"Legacy owner records with missing contract versions remain denied");
+  db.prepare("UPDATE cove_commercial_scope_proofs SET contract_version_id=? WHERE product_id=? AND territory='US'").run(proof.contractVersionId,id);
+  assert.equal(read().length,1);
   assert.deepEqual(core.publishFreshCommercialProof(sql(),{
     ...proof,validUntil:new Date(Date.now()+180000).toISOString()
   },1),{applied:true,epoch:1},
