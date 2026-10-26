@@ -99,6 +99,14 @@ try {
   assert.throws(()=>core.denyCommercialSubject(sql(),{
     ...subject,subjectId:"different_contract"
   }),/commercial_subject_op_scope_collision/);
+  const secondOp={...subject,operationId:"contract:bulk35:withdraw-replay"};
+  assert.deepEqual(core.denyCommercialSubject(sql(),secondOp),{
+    applied:true,subjectKind:"contract",subjectId:"contract_bulk_35"
+  });
+  assert.throws(()=>core.denyCommercialSubject(sql(),{
+    ...secondOp,subjectId:"another_contract"
+  }),/commercial_subject_op_scope_collision/,
+    "Every replay operation ID must remain permanently bound to its first subject");
   assert.throws(()=>core.publishFreshCommercialProof(sql(),{
     ...proof,productId:many[0],editionId:"ed_"+many[0],
     grantId:"grant_"+many[0],contractId:"contract_bulk_35",
