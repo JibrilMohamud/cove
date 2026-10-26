@@ -25,7 +25,7 @@ try {
     write.run(id,user,product,orderItem,new Date().toISOString(),new Date().toISOString()).changes;
   assert.equal(insert("ent_1","item_original"),1);
   assert.equal(insert("ent_2","item_original"),1,"Identical Stripe replay is idempotent");
-  assert.deepEqual(db.prepare("SELECT id,order_item_id,status FROM entitlements WHERE user_id='user_1'").get(),
+  assert.deepEqual({...db.prepare("SELECT id,order_item_id,status FROM entitlements WHERE user_id='user_1'").get()},
     {id:"ent_1",order_item_id:"item_original",status:"active"},
     "Idempotent replay never replaces the canonical entitlement identity");
   assert.equal(insert("ent_other","item_new_purchase"),0,
