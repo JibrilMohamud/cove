@@ -193,6 +193,10 @@ try{
   console.log("PASS: live protected caller -> private service binding -> SQLite DO: unseeded denial, source withdrawal, replay, 3-territory withdrawal, offer hiding, access control and Worker version persistence");
 }finally{
   const errors=[];
+  if(writerEnabled){
+    try{cli(["deploy","--config","wrangler.legal-quarantine-qa.example.jsonc"]);}
+    catch(e){errors.push("writer_disable_"+String(e.message).slice(0,120));}
+  }
   if(authorityEnabled){
     try{cli(["deploy","--config","wrangler.legal-authority.example.jsonc"]);}
     catch(e){errors.push("owner_disable_"+String(e.message).slice(0,120));}
@@ -214,6 +218,33 @@ try{
         throw Error("cloudflare_secret_delete_rejected");
     }catch(e){errors.push("owner_qa_secret_delete_"+String(e.message).slice(0,120));}
   }
+  if(writerEnabled){
+    // The writer's owner key and its independent caller key were deliberately
+    // temporary, not permanent Cloudflare account configuration.
+    try{
+      const settings=await api("GET","/accounts/"+account+
+        "/workers/scripts/"+writerName+"/settings");
+      for(const name of ["COVE_LEGAL_WRITER_SECRET","COVE_RIGHTS_OWNER_SECRET"]){
+        if(!settings.bindings?.some(b=>b.name===name))continue;
+        const response=await fetch(
+          "https://api.cloudflare.com/client/v4/accounts/"+account+
+          "/workers/scripts/"+writerName+"/secrets/"+name,{
+            method:"DELETE",headers:{authorization:"Bearer "+token},
+            signal:AbortSignal.timeout(15000)
+          }
+        );
+        if(!response.ok)throw Error("secret_delete_http_"+response.status+"_"+name);
+      }
+    }catch(e){errors.push("writer_qa_secret_delete_"+String(e.message).slice(0,120));}
+  }
+  if(seeded){
+    try{
+      await api("POST","/accounts/"+account+
+        "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query",{
+          sql:"DELETE FROM gutenberg_source_cache WHERE id=?",params:[sourceId]
+        });
+    }catch(e){errors.push("synthetic_source_cleanup_"+String(e.message).slice(0,120));}
+  }
   if(callerStarted){
     try{await api("DELETE","/accounts/"+account+"/workers/scripts/"+caller);}
     catch(e){errors.push("caller_remove_"+String(e.message).slice(0,120));}
@@ -225,10 +256,16 @@ try{
       "/workers/scripts/cove-legal-authority-private-qa-example/settings");
     assert.equal(settings.bindings?.find(b=>b.name==="COVE_RIGHTS_OWNER_ENABLED")?.text,"0");
     assert.equal(settings.bindings?.some(b=>b.name==="COVE_RIGHTS_OWNER_SECRET"),false);
+    if(writerEnabled){
+      const w=await api("GET","/accounts/"+account+"/workers/scripts/"+writerName+"/settings");
+      assert.equal(w.bindings?.find(b=>b.name==="COVE_LEGAL_WRITER_ENABLED")?.text,"0");
+      assert.equal(w.bindings?.some(b=>b.name==="COVE_LEGAL_WRITER_SECRET"),false);
+      assert.equal(w.bindings?.some(b=>b.name==="COVE_RIGHTS_OWNER_SECRET"),false);
+    }
     const scripts=await api("GET","/accounts/"+account+"/workers/scripts");
     assert.equal(scripts?.some(worker=>worker.id===caller),false);
   }catch(e){errors.push("rollback_verification_"+String(e.message).slice(0,120));}
-  for(const file of [ownerCfg,callerCfg])try{fs.unlinkSync(file);}catch{}
+  for(const file of [ownerCfg,callerCfg,writerCfg])try{fs.unlinkSync(file);}catch{}
   if(errors.length)throw Error("legal_qa_rollback_failed:"+errors.join(","));
-  console.log("PASS: owner disabled, QA bearer secret deleted, temporary public caller removed and state independently verified");
+  console.log("PASS: legal owner and quarantine writer disabled, both secrets deleted, synthetic D1 row cleaned and public QA caller deleted");
 }
