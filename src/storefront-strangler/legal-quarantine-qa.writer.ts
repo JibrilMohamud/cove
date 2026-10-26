@@ -164,11 +164,10 @@ export default {
         // A single license contract can cover >25 books. Never truncate a
         // withdrawal by paging product IDs; owner atomically denies the
         // immutable subject ID and reads join it before any canonical write.
-        const exists=await env.PRIMARY_DB.prepare(subjectKind==="grant"
-          ?"SELECT id FROM rights_grants WHERE id=?"
-          :"SELECT id FROM rights_contracts WHERE id=?")
-          .bind(subjectId).first<{id:string}>();
-        if(!exists)throw Error("commercial_subject_not_found");
+        // Negative legal authority MUST be writable when primary D1 is
+        // unavailable. This private authenticated writer records the exact
+        // subject denial first; canonical D1 is only an after-the-fact
+        // reconciliation sink, never a prerequisite for withdrawal.
         const owner=await env.LEGAL_PRIVATE.fetch(new Request(
           "https://legal-authority.internal/commercial/subject/deny-next",{
             method:"POST",
