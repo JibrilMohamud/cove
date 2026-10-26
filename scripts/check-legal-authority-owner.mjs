@@ -22,7 +22,7 @@ try {
       // Cloudflare SQL.exec is eager. Match that behavior exactly: a write
       // must commit even when its returned cursor is deliberately ignored.
       const prepared=db.prepare(statement);
-      const rows=/^\\s*SELECT\\b/i.test(statement)
+      const rows=/^\s*SELECT\b/i.test(statement)
         ? prepared.all(...args)
         : (prepared.run(...args),[]);
       return {toArray:()=>rows};
