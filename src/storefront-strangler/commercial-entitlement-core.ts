@@ -212,10 +212,13 @@ export function readPaidAccess(sql:AuthoritySql,raw:unknown,now=new Date().toISO
      !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/.test(now))
     throw Error("invalid_paid_access_request");
   const rows=sql.exec<{
-    edition_id:string;grant_id:string;contract_id:string|null;
-    contract_version_id:string|null;product_epoch:number;entitlement_epoch:number;
-    valid_until:string
-  }>(`SELECT p.edition_id,p.grant_id,p.contract_id,p.contract_version_id,
+    entitlement_id:string;user_id:string;product_id:string;order_id:string;
+    territory:string;channel:string;edition_id:string;grant_id:string;
+    contract_id:string|null;contract_version_id:string|null;
+    product_epoch:number;entitlement_epoch:number;valid_until:string
+  }>(`SELECT e.entitlement_id,e.user_id,e.product_id,eo.order_id,
+            p.territory,p.channel,p.edition_id,p.grant_id,
+            p.contract_id,p.contract_version_id,
             p.epoch product_epoch,e.epoch entitlement_epoch,
             CASE WHEN e.valid_until<p.valid_until THEN e.valid_until ELSE p.valid_until END valid_until
      FROM cove_paid_entitlement_authority e
