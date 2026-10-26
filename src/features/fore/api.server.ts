@@ -1381,6 +1381,68 @@ async function insertRegionalEvidence(
   return { territories, evidenceId: firstEvidenceId };
 }
 
+/**
+ * Stage-only source retractions: a bounded legal-owner transaction is
+ * acknowledged BEFORE any cached source is marked stale in QA primary D1.
+ * This path is deliberately unavailable to production and does not claim
+ * to replace product/offer/entitlement writer closure.
+ */
+async function retractStaleRegionalSourcesStage(
+  env: CoveEnv,
+  sourceId: string,
+  cycleStartedAt: string,
+  expectedCount: number,
+) {
+  if (
+    env.COVE_SSR_STAGING !== "1" ||
+    env.COVE_CANONICAL_LEGAL_WRITE_LOCK !== "1" ||
+    env.COVE_LEGAL_WRITER_PRIMARY_ID !== "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87" ||
+    !env.LEGAL_QUARANTINE_WRITER?.fetch ||
+    !/^[a-f0-9]{64}$/.test(env.COVE_LEGAL_QUARANTINE_SECRET || "")
+  )
+    throw new ApiError(503, "Stale-source legal owner is not certified for staging.");
+  // Refuse partial publication work. The next stage executor can split a
+  // large feed across multiple fully fenced transactions, but may never
+  // silently fall back to the old bulk D1 writer under a locked owner.
+  if (expectedCount < 1 || expectedCount > 25)
+    throw new ApiError(503, "Stale-source withdrawal exceeds the certified batch bound.");
+  const rows = await database(env)
+    .prepare(
+      "SELECT id FROM gutenberg_source_cache WHERE source_id=? AND last_seen_at<? AND ingest_status NOT IN ('stale','quarantined') ORDER BY id LIMIT 26",
+    )
+    .bind(sourceId, cycleStartedAt)
+    .all<{ id: string }>();
+  if (rows.results.length !== expectedCount)
+    throw new ApiError(503, "Stale-source snapshot changed before legal denial.");
+  const operations = await Promise.all(
+    rows.results.map(async (row) => ({
+      sourceId: row.id,
+      operationId:
+        "stale:" +
+        (
+          await sha256Hex(
+            JSON.stringify([sourceId, row.id, cycleStartedAt]),
+          )
+        ).slice(0, 32),
+    })),
+  );
+  const response = await env.LEGAL_QUARANTINE_WRITER.fetch(
+    new Request("https://legal-quarantine.internal/source/retract-batch", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer " + env.COVE_LEGAL_QUARANTINE_SECRET,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ operations }),
+    }),
+  );
+  if (response.status !== 200)
+    throw new ApiError(503, "Source retraction was not acknowledged by the legal owner.");
+  const receipt = (await response.json()) as { retracted?: number };
+  if (receipt.retracted !== operations.length)
+    throw new ApiError(503, "Incomplete legal source-retraction receipt.");
+}
+
 async function quarantineRegionalItem(env: CoveEnv, id: string, message: string) {
   if (env.COVE_LEGAL_QUARANTINE_WRITER_STAGE === "1") {
     // Only an independently audited, locked QA caller may reach the
@@ -1923,6 +1985,9 @@ export async function runRegionalCatalogIngestion(
         .first<any>();
       staleCount = Number(stale?.count || 0);
       if (staleCount) {
+        if (env.COVE_LEGAL_QUARANTINE_WRITER_STAGE === "1") {
+          await retractStaleRegionalSourcesStage(env, sourceId, cycleStartedAt, staleCount);
+        } else {
         // Source retractions/corrections fail closed. Keep the canonical object for audit, but
         // remove storefront eligibility until the item is observed and re-verified again.
         await db
@@ -1961,6 +2026,7 @@ export async function runRegionalCatalogIngestion(
           )
           .bind(completed, `gutenberg-${sourceId}-public-domain`, sourceId)
           .run();
+        }
       }
     }
 
