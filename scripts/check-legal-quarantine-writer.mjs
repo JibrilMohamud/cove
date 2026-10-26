@@ -250,7 +250,7 @@ try {
   operations.length=0;
   const grantSuspend={targetId:"right_valid_19",operationId:"grant-suspend:19:v1"};
   assert.equal((await post(grantSuspend,{},"/commercial/suspend-grant")).status,200);
-  assert.deepEqual(operations,["canonical-scope-discovery","authority","canonical-atomic-batch"]);
+  assert.deepEqual(operations,["canonical-evidence-check","authority","canonical-atomic-batch"]);
   assert.equal(commercial.readCommercialProofs(sql,
     ["prd_commercial_c19"],"US","retail").length,0);
   assert.equal(db.prepare("SELECT status FROM rights_grants WHERE id='right_valid_19'").get().status,
@@ -269,7 +269,7 @@ try {
   }
   const contractSuspend={targetId:"rcontract_17",operationId:"contract-suspend:17:v1"};
   assert.equal((await post(contractSuspend,{},"/commercial/suspend-contract")).status,200);
-  assert.deepEqual(operations,["canonical-scope-discovery","authority","canonical-atomic-batch"]);
+  assert.deepEqual(operations,["canonical-evidence-check","authority","canonical-atomic-batch"]);
   assert.equal(db.prepare("SELECT status FROM rights_contracts WHERE id='rcontract_17'").get().status,
     "suspended");
   assert.deepEqual(db.prepare(
@@ -285,7 +285,7 @@ try {
   failOwner=true;operations.length=0;
   assert.equal((await post({targetId:"rcontract_18",operationId:"contract-suspend:18:v1"},
     {},"/commercial/suspend-contract")).status,503);
-  assert.deepEqual(operations,["canonical-scope-discovery","authority"],
+  assert.deepEqual(operations,["canonical-evidence-check","authority"],
     "Owner outage cannot permit canonical contract update");
   assert.equal(db.prepare("SELECT status FROM rights_contracts WHERE id='rcontract_18'").get().status,
     "active");
