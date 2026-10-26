@@ -35,6 +35,8 @@ on:
       - "scripts/staging/check-publication-feed-live.mjs"
       - "infra/discovery/**"
       - "scripts/performance/isolated-data-plane-acceptance.mjs"
+      - "scripts/performance/complete-response-timing.mjs"
+      - "scripts/check-capacity-body-timing.mjs"
       - "scripts/performance/cloudflare-delivery-attribution.mjs"
       - "scripts/performance/anonymized-tcp-evidence.mjs"
       - "scripts/performance/synthetic-operator-fixture.mjs"
@@ -62,6 +64,7 @@ jobs:
       - run: npm run test:isolated-data-plane
       - run: node scripts/check-unbiased-random.mjs
       - run: node scripts/check-capacity-release-gate.mjs
+      - run: node scripts/check-capacity-body-timing.mjs
       - run: node scripts/check-stage-capacity-fixture.mjs
       - run: node scripts/check-storefront-single-response.mjs
       - run: node scripts/check-publication-feed.mjs
