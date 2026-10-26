@@ -40,10 +40,53 @@ try{
   assert.equal(calls,0,"Existing production code never contacts experimental QA owner");
   await requireStageLegalConsumerProof(active,[input],"US","USD");
   assert.equal(calls,1);
+  // A commercial sale needs an independent paid grant proof, never a
+  // Gutenberg public-domain substitute.
+  let paidCalls=0;
+  const paidOwner={getByName(name){
+    assert.equal(name,"cove-staged-legal-global-v1");
+    return {async fetch(request){
+      paidCalls++;
+      assert.equal(new URL(request.url).pathname,"/commercial/authorize-batch");
+      const body=await request.json();
+      assert.deepEqual(body,{ids:["prd_commercial_a17"],territory:"US",channel:"retail"});
+      return Response.json({schema:"cove.commercial-legal.v1",rows:[{
+        product_id:"prd_commercial_a17",edition_id:"ed_commercial_a17",
+        grant_id:"right_valid_17",contract_id:"rcontract_17",
+        contract_version_id:"rcv_17",
+        valid_until:new Date(Date.now()+100000).toISOString(),epoch:3
+      }]});
+    }};
+  }};
+  await requireStageLegalConsumerProof(
+    {...active,LEGAL_AUTHORITY:paidOwner},
+    [{id:"prd_commercial_a17",source_name:"commercial"}],"US","USD");
+  assert.equal(paidCalls,1,"Paid proof is independently obtained from commercial owner");
+  assert.equal(calls,1,"Paid product must NEVER be certified by free owner");
   await assert.rejects(
-    requireStageLegalConsumerProof(active,[{id:"prd_001",source_name:"commercial"}],"US","USD"),
-    e=>e.status===503);
-  assert.equal(calls,1,"Paid product must NOT be certified by a free owner");
+    requireStageLegalConsumerProof(active,[{id:"prd_commercial_a17",source_name:"commercial"}],"US","USD"),
+    e=>e.status===503,"Wrong proof response schema from the free owner fails closed");
+  assert.equal(calls,2);
+  const commercialDenied={getByName:()=>({async fetch(){
+    return Response.json({schema:"cove.commercial-legal.v1",rows:[]});
+  }})};
+  await assert.rejects(requireStageLegalConsumerProof(
+    {...active,LEGAL_AUTHORITY:commercialDenied},
+    [{id:"prd_commercial_a17",source_name:"commercial"}],"US","USD"),
+    e=>e.status===451,"A withdrawn paid grant must block purchase");
+  const commercialForged={getByName:()=>({async fetch(){
+    return Response.json({schema:"cove.commercial-legal.v1",rows:[{
+      product_id:"prd_commercial_a17",edition_id:"ed_commercial_a17",
+      grant_id:"right_valid_17",contract_id:"rcontract_17",
+      contract_version_id:"rcv_17",
+      valid_until:new Date(Date.now()-100).toISOString(),epoch:3
+    }]});
+  }})};
+  await assert.rejects(requireStageLegalConsumerProof(
+    {...active,LEGAL_AUTHORITY:commercialForged},
+    [{id:"prd_commercial_a17",source_name:"commercial"}],"US","USD"),
+    e=>e.status===503,"Expired owner proof cannot issue new delivery grants");
+
   await assert.rejects(requireStageLegalConsumerProof(
     {...active,COVE_CANONICAL_LEGAL_WRITE_LOCK:"0"},[input],"US","USD"),
     e=>e.status===503);
