@@ -17,7 +17,14 @@ const LEGAL_TABLES = [
   "rights_contracts", "rights_contract_languages", "rights_contract_versions",
   "rights_parties", "rights_decisions", "gutenberg_rights_evidence",
   "gutenberg_source_cache", "offers", "products", "editions",
-  "entitlements", "delivery_grants", "offline_epub_licenses"
+  "entitlements", "delivery_grants", "offline_epub_licenses",
+  // The paid-rights cutover is incomplete if legacy checkout, webhooks,
+  // order settlement, buyer holds, or protected-delivery issuance can
+  // silently mutate a positive customer authorization behind the owner.
+  "commerce_orders", "commerce_order_items", "commerce_refunds",
+  "commercial_delivery_grants", "commercial_entitlement_delivery_usage",
+  "entitlement_ownership_records", "risk_holds", "asset_versions",
+  "digital_assets", "publication_versions"
 ] as const;
 
 // Detect mutating SQL anywhere in the statement, not merely at position 0:
