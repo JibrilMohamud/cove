@@ -27,7 +27,9 @@ try {
   db.exec("ALTER TABLE rights_grants ADD COLUMN contract_id TEXT");
   db.exec("CREATE TABLE rights_contracts(id TEXT PRIMARY KEY,status TEXT)");
   db.exec("CREATE TABLE products(id TEXT PRIMARY KEY,edition_id TEXT,source_name TEXT)");
-  db.exec("CREATE TABLE entitlements(id TEXT PRIMARY KEY,user_id TEXT,product_id TEXT,status TEXT)");
+  db.exec("CREATE TABLE entitlements(id TEXT PRIMARY KEY,user_id TEXT,product_id TEXT,status TEXT,entitlement_type TEXT,order_item_id TEXT)");
+  db.exec("CREATE TABLE commerce_orders(id TEXT PRIMARY KEY,user_id TEXT)");
+  db.exec("CREATE TABLE commerce_order_items(id TEXT PRIMARY KEY,order_id TEXT)");
   db.exec("INSERT INTO rights_contracts VALUES('rcontract_17','active')");
   db.exec("INSERT INTO rights_contracts VALUES('rcontract_18','active')");
   db.exec("INSERT INTO products VALUES('prd_commercial_a17','ed_commercial_a17','partner')");
@@ -60,6 +62,14 @@ try {
     if(request.headers.get("authorization")!=="Bearer "+secret)
       return new Response(null,{status:401});
     const cmd=await request.json();
+    if(new URL(request.url).pathname==="/commercial/entitlement/deny-batch"){
+      db.exec("BEGIN");
+      try{
+        const result=paidEnt.denyPaidEntitlementsBatch(sql,cmd);
+        db.exec("COMMIT");
+        return Response.json(result);
+      }catch{db.exec("ROLLBACK");return new Response(null,{status:409});}
+    }
     if(new URL(request.url).pathname==="/commercial/entitlement/deny-next"){
       db.exec("BEGIN");
       try{
@@ -261,7 +271,7 @@ try {
     "D1 failure must leave strong denial committed");
   failPrimaryBatch=false;
   const entitlementId="dc6197f2-945c-4362-b4bc-7dd928f3c980";
-  db.prepare("INSERT INTO entitlements VALUES(?,?,?,'active')").run(
+  db.prepare("INSERT INTO entitlements(id,user_id,product_id,status) VALUES(?,?,?,'active')").run(
     entitlementId,"user_paid_17","prd_commercial_a17"
   );
   operations.length=0;
@@ -291,6 +301,48 @@ try {
     entitlementId,userId:"user_paid_17",productId:"prd_commercial_a17"
   }),2,"Failed canonical refund update leaves owner denial in place");
   failPrimaryWrite=false;
+  // Full-order refunds revoke every canonical paid buyer in ONE strong owner
+  // transaction, then ONE atomic canonical batch; no caller-supplied scopes.
+  const refundOrderId="co_refund_21";
+  const refundEnts=[
+    {id:"02419dc7-6868-48e7-a1f5-c39f172bee0a",product:"prd_commercial_a17",item:"co_item_21"},
+    {id:"98fd74fa-af84-4d87-a450-d84d30241a67",product:"prd_commercial_b18",item:"co_item_22"}
+  ];
+  db.prepare("INSERT INTO commerce_orders VALUES(?,?)").run(refundOrderId,"user_paid_17");
+  for(const row of refundEnts){
+    db.prepare("INSERT INTO commerce_order_items VALUES(?,?)").run(row.item,refundOrderId);
+    db.prepare("INSERT INTO entitlements(id,user_id,product_id,status,entitlement_type,order_item_id) VALUES(?,?,?,'active','purchase',?)")
+      .run(row.id,"user_paid_17",row.product,row.item);
+  }
+  operations.length=0;
+  const fullRefund={orderId:refundOrderId,operationId:"refund_paid_order_21"};
+  assert.equal((await post(fullRefund,{},"/commercial/entitlement/revoke-order")).status,200);
+  assert.deepEqual(operations,["canonical-evidence-check","canonical-scope-discovery","authority","canonical-atomic-batch"],
+    "One owner denial batch must precede one canonical SQL batch for full refund");
+  for(const row of refundEnts){
+    assert.equal(db.prepare("SELECT status FROM entitlements WHERE id=?").get(row.id).status,
+      "revoked");
+    assert.equal(paidEnt.captureEntitlementEpoch(sql,{
+      entitlementId:row.id,userId:"user_paid_17",productId:row.product
+    }),1);
+  }
+  assert.equal((await post(fullRefund,{},"/commercial/entitlement/revoke-order")).status,200,
+    "Exact full-refund event replay may not mutate buyer entitlement epochs");
+  assert.equal(paidEnt.captureEntitlementEpoch(sql,{
+    entitlementId:refundEnts[0].id,userId:"user_paid_17",productId:refundEnts[0].product
+  }),1);
+  operations.length=0;failOwner=true;
+  assert.equal((await post({...fullRefund,operationId:"refund_paid_order_22"},
+    {},"/commercial/entitlement/revoke-order")).status,503);
+  assert.deepEqual(operations,["canonical-evidence-check","canonical-scope-discovery","authority"],
+    "Owner outage prevents canonical refund entitlements being mutated");
+  failOwner=false;failPrimaryBatch=true;
+  assert.equal((await post({...fullRefund,operationId:"refund_paid_order_23"},
+    {},"/commercial/entitlement/revoke-order")).status,503);
+  assert.equal(paidEnt.captureEntitlementEpoch(sql,{
+    entitlementId:refundEnts[0].id,userId:"user_paid_17",productId:refundEnts[0].product
+  }),2,"Post-denial DB write failure must leave buyer explicitly denied");
+  failPrimaryBatch=false;
   db.close();
   console.log("PASS: QA source quarantine, independent-country evidence withdrawal and atomic source retraction batch, fail closed, replay safe");
 }finally{rmSync(directory,{force:true,recursive:true});}
