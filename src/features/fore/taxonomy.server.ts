@@ -63,7 +63,7 @@ export async function syncEditionTaxonomy(
   // cannot leave half of a taxonomy update published on PRIMARY.
   await db.batch([
     db
-    .prepare(
+      .prepare(
       `WITH source_values(source_scheme,source_value) AS (
         SELECT c.scheme,c.name FROM edition_categories ec
           JOIN categories c ON c.id=ec.category_id WHERE ec.edition_id=?
@@ -86,10 +86,9 @@ export async function syncEditionTaxonomy(
           WHERE e.taxonomy_node_id=edition_taxonomy_nodes.taxonomy_node_id
             AND e.confidence=edition_taxonomy_nodes.confidence)`,
     )
-    .bind(editionId, editionId, editionId)
-    ,
+      .bind(editionId, editionId, editionId),
     db
-    .prepare(
+      .prepare(
       `INSERT OR IGNORE INTO edition_taxonomy_nodes(edition_id,taxonomy_node_id,source,confidence,is_primary,created_at)
     SELECT DISTINCT src.edition_id,m.taxonomy_node_id,'mapping',CASE WHEN m.match_mode='exact' THEN 1.0 ELSE 0.85 END,0,?
     FROM (
@@ -105,13 +104,12 @@ export async function syncEditionTaxonomy(
         OR (m.match_mode='prefix' AND lower(src.source_value) LIKE lower(m.source_value)||'%')
         OR (m.match_mode='contains' AND lower(src.source_value) LIKE '%'||lower(m.source_value)||'%'))`,
     )
-    .bind(at, editionId, editionId)
-    ,
-  // Before rebuilding the ancestor closure, remove only ancestors which
-  // are no longer reachable (or whose confidence changed). Unchanged rows
-  // no longer incur a primary-D1 delete + insert on every ingestion sweep.
+      .bind(at, editionId, editionId),
+    // Before rebuilding the ancestor closure, remove only ancestors which
+    // are no longer reachable (or whose confidence changed). Unchanged rows
+    // no longer incur a primary-D1 delete + insert on every ingestion sweep.
     db
-    .prepare(
+      .prepare(
       `WITH RECURSIVE ancestors(node_id,parent_id,confidence) AS (
         SELECT n.id,n.parent_id,et.confidence
         FROM edition_taxonomy_nodes et JOIN storefront_taxonomy_nodes n ON n.id=et.taxonomy_node_id
@@ -126,10 +124,9 @@ export async function syncEditionTaxonomy(
           WHERE a.node_id=edition_taxonomy_nodes.taxonomy_node_id
             AND a.confidence=edition_taxonomy_nodes.confidence)`,
     )
-    .bind(editionId, editionId)
-    ,
+      .bind(editionId, editionId),
     db
-    .prepare(
+      .prepare(
       `WITH RECURSIVE ancestors(edition_id,node_id,parent_id,confidence) AS (
       SELECT et.edition_id,n.id,n.parent_id,et.confidence
       FROM edition_taxonomy_nodes et JOIN storefront_taxonomy_nodes n ON n.id=et.taxonomy_node_id
@@ -142,8 +139,7 @@ export async function syncEditionTaxonomy(
     INSERT OR IGNORE INTO edition_taxonomy_nodes(edition_id,taxonomy_node_id,source,confidence,is_primary,created_at)
     SELECT edition_id,node_id,'ancestor',confidence,0,? FROM ancestors`,
     )
-    .bind(editionId, at)
-    ,
+      .bind(editionId, at),
   ]);
   // Avoid firing FTS5 UPDATE triggers when assignments are unchanged.
   // The preceding mapping/ancestor reconciliation still runs every time,
