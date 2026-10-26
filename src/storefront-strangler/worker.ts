@@ -1,9 +1,7 @@
 import type { CoveEnv } from "../features/fore/api.server";
 import { isolateWorkerCountry } from "../lib/cloudflare-country.server";
 import { verifyFastCountryClaim } from "../lib/fast-storefront-relay.server";
-import {
-  rejectUnauthenticatedStagingRequest,
-} from "../lib/cloudflare-ssr-stage-gate.server";
+import { rejectUnauthenticatedStagingRequest } from "../lib/cloudflare-ssr-stage-gate.server";
 import { buildSecurityHeaders } from "../lib/security-headers";
 import {
   canUseLeanAnonymousBootstrap,
