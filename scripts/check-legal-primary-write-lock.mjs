@@ -27,6 +27,11 @@ try {
     "DELETE FROM offline_epub_licenses WHERE id=?",
     "-- legal review\n UPDATE rights_contracts SET status='active'",
     "SELECT 1; UPDATE offers SET active=1",
+    "UPDATE main.\"rights_grants\" SET status='active' WHERE id=?",
+    "INSERT INTO \"main\".\"offers\"(id) VALUES(?)",
+    "DELETE FROM [main].[entitlements] WHERE id=?",
+    "CREATE TRIGGER regrant AFTER INSERT ON cove_arch_load BEGIN UPDATE rights_grants SET status='active'; END",
+    "PRAGMA writable_schema=ON",
   ];
   for(const sql of deny){
     assert.ok(classifyProtectedLegalSql(sql).length>0,"Fails to recognize: "+sql);
