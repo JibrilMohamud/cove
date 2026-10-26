@@ -127,6 +127,28 @@ try{
     await assert.rejects(check(forged),e=>e.status===503,
       "Forged paid lease must fail closed: "+field);
   }
+  const other={...input,
+    productId:"prd_other_contract_19",
+    entitlementId:"e3c726a0-9be3-43b6-b2c5-5b6dd88e22b5",
+    orderId:"order_other_contract_19"
+  };
+  const secondDoc={...doc,productId:other.productId,editionId:"ed_other_contract_19",
+    grantId:"grant_other_contract_19",contractId:"contract_shared_other_19",
+    contractVersionId:"version_shared_other_19"};
+  assert.deepEqual(product.publishFreshCommercialProof(sql,secondDoc,0),
+    {applied:true,epoch:1});
+  assert.deepEqual(entitlement.publishFreshEntitlement(sql,{
+    ...other,productEpoch:1,validUntil:new Date(Date.now()+90000).toISOString()
+  },0),{applied:true,epoch:1});
+  await check(owner,other);
+  product.denyCommercialSubject(sql,{subjectKind:"contract",
+    subjectId:secondDoc.contractId,operationId:"contract:shared19:revoked"});
+  await assert.rejects(check(owner,other),e=>e.status===451,
+    "Subject-wide contract withdrawal invalidates existing buyer lease instantly");
+  assert.throws(()=>product.publishFreshCommercialProof(sql,secondDoc,1),
+    /commercial_subject_withdrawal_terminal/,
+    "Rechecking a canonical D1 row must not reissue a revoked contract ID");
+  await check(owner,input);
   db.prepare("UPDATE cove_commercial_scope_proofs SET contract_version_id=NULL WHERE product_id=?").run(input.productId);
   await assert.rejects(check(),e=>e.status===451,
     "An old contractless rights row must NOT authorize protected delivery");
