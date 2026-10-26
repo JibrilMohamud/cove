@@ -5,7 +5,7 @@ import {
   applyAuthorityCommand, capturePositiveVerificationFence, commitFreshPositiveVerification,
   createAuthoritySchema, createAuthorityProofSchema,
   readAuthority, readAuthorizedPresentations,
-  persistSourceWithdrawal,
+  persistSourceWithdrawal, persistSourceWithdrawalsBatch,
   validateAuthorityCommand, type AuthoritySql,
 } from "./legal-authority-core";
 
@@ -52,14 +52,14 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return new Response(null,{status:401,headers:noStore});
     if(request.method!=="POST") return new Response(null,{status:405,headers:noStore});
     const route=new URL(request.url).pathname;
-    if(!["/deny","/deny-next","/verify","/publish-allow","/authorize-batch"].includes(route))
+    if(!["/deny","/deny-next","/deny-next-batch","/verify","/publish-allow","/authorize-batch"].includes(route))
       return new Response(null,{status:404,headers:noStore});
     if (request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
       return new Response(null,{status:415,headers:noStore});
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(route==="/authorize-batch"?24000:512)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(["/authorize-batch","/deny-next-batch"].includes(route)?24000:512)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
@@ -79,6 +79,14 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const rows=readAuthorizedPresentations(sql,input.ids,input.territory,input.currency);
         return Response.json({schema:"cove.legal-authorized.v1",rows},
           {headers:noStore});
+      }
+      if(route==="/deny-next-batch") {
+        // Transaction boundary is mandatory even when an unexpected receipt
+        // throws mid-batch: all owner fences persist or none persist.
+        const verdict=this.ctx.storage.transactionSync(()=>
+          persistSourceWithdrawalsBatch(sql,raw)
+        );
+        return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
       }
       if(route==="/deny-next") {
         const verdict=persistSourceWithdrawal(sql,raw);
