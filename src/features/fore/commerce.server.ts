@@ -999,6 +999,10 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
       .run();
   }
   try {
+    // Refuse stale paid-contract, market or order authority before allocating
+    // buyer tender OR creating a Stripe PaymentIntent. Final settlement also
+    // rechecks the owner to close the time-of-check/time-of-use gap.
+    await assertStagePaidOrderNotWithdrawn(env, orderId);
     await reserveTender(db, { ...order, gift_card_hash: quote.gift_card_hash });
     await reservePromo(db, { ...order, promo_code_hash: quote.promo_code_hash });
   } catch (e) {
