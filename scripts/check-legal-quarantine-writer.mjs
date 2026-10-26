@@ -19,6 +19,15 @@ try {
   const db=new DatabaseSync(":memory:");
   db.exec("CREATE TABLE gutenberg_source_cache(id TEXT PRIMARY KEY,rights_status TEXT,commercial_use_status TEXT,ingest_status TEXT)");
   db.prepare("INSERT INTO gutenberg_source_cache VALUES('2701','public-domain','approved','active')").run();
+  db.exec("CREATE TABLE gutenberg_rights_evidence(id TEXT PRIMARY KEY,source_id TEXT,cache_id TEXT,territory_code TEXT,status TEXT)");
+  db.exec("CREATE TABLE rights_grants(edition_id TEXT,source TEXT,territory_code TEXT,decision TEXT,status TEXT)");
+  for(const territory of ["US","CA"]){
+    db.prepare("INSERT INTO gutenberg_rights_evidence VALUES(?,?,?,?,?)")
+      .run("gre_2702_"+territory.toLowerCase(),"pg_us","2702",territory,"approved");
+    db.prepare("INSERT INTO rights_grants VALUES(?,?,?,?,?)")
+      .run("ed_gutenberg_2702","gutenberg-pg_us-public-domain",territory,"allow","active");
+  }
+
   const sql={exec(statement,...args){
     const stmt=db.prepare(statement);
     const results=/^\s*SELECT\b/i.test(statement)?stmt.all(...args):(stmt.run(...args),[]);
@@ -38,14 +47,30 @@ try {
   }};
   const primary={
     prepare(stmt){
-      assert.match(stmt,/^UPDATE gutenberg_source_cache SET rights_status='quarantined'/);
-      return {bind(sourceId){return {async run(){
-        operations.push("canonical-write");
-        if(failPrimary)throw Error("primary-unavailable");
-        db.prepare("UPDATE gutenberg_source_cache SET rights_status='quarantined',commercial_use_status='quarantined',ingest_status='quarantined' WHERE id=?")
-          .run(sourceId);
-        return {success:true};
-      }};}};
+      return {bind(...params){return {
+        sql:stmt,params,
+        async run(){
+          operations.push("canonical-write");
+          if(failPrimary)throw Error("primary-unavailable");
+          db.prepare(stmt).run(...params);
+          return {success:true};
+        },
+        async first(){
+          operations.push("canonical-evidence-check");
+          if(failPrimary)throw Error("primary-unavailable");
+          return db.prepare(stmt).get(...params)??null;
+        }
+      };}};
+    },
+    async batch(statements){
+      operations.push("canonical-atomic-batch");
+      if(failPrimary)throw Error("primary-unavailable");
+      db.exec("BEGIN");
+      try{
+        const all=statements.map(entry=>db.prepare(entry.sql).run(...entry.params));
+        db.exec("COMMIT");
+        return all;
+      }catch(e){db.exec("ROLLBACK");throw e;}
     }
   };
   const env={
@@ -55,8 +80,8 @@ try {
     COVE_LEGAL_WRITER_EXPIRES_AT:String(Date.now()+4*60*1000),
     COVE_LEGAL_WRITER_SECRET:auth,COVE_RIGHTS_OWNER_SECRET:secret
   };
-  const post=async(input,overrides={})=>writer.fetch(
-    new Request("https://legal-quarantine.internal/quarantine",{method:"POST",
+  const post=async(input,overrides={},route="/quarantine")=>writer.fetch(
+    new Request("https://legal-quarantine.internal"+route,{method:"POST",
       headers:{"authorization":"Bearer "+auth,"content-type":"application/json"},
       body:JSON.stringify(input)}),{...env,...overrides}
   );
@@ -87,6 +112,34 @@ try {
   assert.deepEqual(operations,["authority","canonical-write"]);
   assert.deepEqual(core.readAuthority(sql,"2701","US"),{allowed:false,revision:2},
     "A post-fence canonical D1 failure MUST retain newly committed denial");
+  // A country-specific evidence withdrawal must not poison other markets.
+  failPrimary=false;operations.length=0;
+  assert.equal(core.applyAuthorityCommand(sql,{
+    sourceId:"2702",territory:"US",revision:1,action:"allow"
+  }).applied,true);
+  assert.equal(core.applyAuthorityCommand(sql,{
+    sourceId:"2702",territory:"CA",revision:2,action:"allow"
+  }).applied,true);
+  const evidenceCmd={sourceId:"2702",territory:"US",
+    evidenceId:"gre_2702_us",operationId:"evidence:2702:us:withdraw:1"};
+  const withdrawn=await post(evidenceCmd,{},"/evidence/revoke");
+  assert.equal(withdrawn.status,200);
+  assert.deepEqual(operations,["authority","canonical-evidence-check","canonical-atomic-batch"],
+    "Owner denial must precede exact evidence verification and atomic D1 writes");
+  assert.deepEqual(core.readAuthority(sql,"2702","US"),{allowed:false,revision:3});
+  assert.deepEqual(core.readAuthority(sql,"2702","CA"),{allowed:true,revision:2},
+    "Withdrawing US evidence may not revoke the separately authorized CA market");
+  assert.equal(db.prepare("SELECT status FROM gutenberg_rights_evidence WHERE id='gre_2702_us'").get().status,"revoked");
+  assert.equal(db.prepare("SELECT status FROM rights_grants WHERE territory_code='US'").get().status,"suspended");
+  assert.equal(db.prepare("SELECT status FROM rights_grants WHERE territory_code='CA'").get().status,"active");
+  assert.equal((await post(evidenceCmd,{},"/evidence/revoke")).status,200);
+  assert.equal(core.readAuthority(sql,"2702","US").revision,3,
+    "Retry cannot allocate a new source epoch");
+  assert.equal((await post({...evidenceCmd,evidenceId:"gre_2702_ca",
+    operationId:"evidence:2702:us:wrong-scope"},{},"/evidence/revoke")).status,503,
+    "Wrong-country evidence may never produce a positive receipt");
+  assert.equal((await post({...evidenceCmd,evidenceId:"x';DELETE"},
+    {},"/evidence/revoke")).status,400);
   db.close();
-  console.log("PASS: independently bound QA writer denies before primary D1, prevents bypasses, enforces scoped auth, preserves failed-mutation revocation");
+  console.log("PASS: QA canonical quarantine and per-country evidence revocation are owner-denied before D1, replay-safe and market-isolated");
 }finally{rmSync(directory,{force:true,recursive:true});}
