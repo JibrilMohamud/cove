@@ -23,7 +23,7 @@ const LEGAL_TABLES = [
 // Detect mutating SQL anywhere in the statement, not merely at position 0:
 // writable CTEs, nested statements and multi-statement strings also fail.
 // Conservative false positives are safe on an opt-in write-closure audit.
-const MUTATION = /\b(?:INSERT\s+(?:OR\s+\w+\s+)?INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+\w+)?|DELETE\s+FROM|DROP\s+TABLE|ALTER\s+TABLE|CREATE\s+(?:TEMP\s+|TEMPORARY\s+)?TABLE)\s+(?:["'`\[]?[a-z_][a-z0-9_]*["'`\]]?\s*\.\s*)?["'`\[]?([a-z_][a-z0-9_]*)/gi;
+const MUTATION = /\b(?:INSERT\s+(?:OR\s+\w+\s+)?INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+\w+)?|DELETE\s+FROM|DROP\s+TABLE|ALTER\s+TABLE|CREATE\s+(?:TEMP\s+|TEMPORARY\s+)?TABLE)\s+(?:["'`\x5b]?[a-z_][a-z0-9_]*["'`\]]?\s*\.\s*)?["'`\x5b]?([a-z_][a-z0-9_]*)/gi;
 const PRIVILEGED_DDL = /\b(?:CREATE\s+(?:TEMP\s+)?TRIGGER|DROP\s+TRIGGER|ATTACH\s+DATABASE|DETACH\s+DATABASE|PRAGMA\s+writable_schema)\b/i;
 const legal=new Set<string>(LEGAL_TABLES);
 export function classifyProtectedLegalSql(sql:string) {
