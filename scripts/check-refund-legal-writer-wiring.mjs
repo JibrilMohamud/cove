@@ -19,18 +19,20 @@ assert.ok(commerce.includes('env.COVE_SSR_STAGING !== "1"')&&
   commerce.includes('env.COVE_LEGAL_QUARANTINE_WRITER_STAGE !== "1"'),
   "Strong owner refund route must remain QA-only and require locked legacy legal writes");
 assert.ok(writer.includes('const isRefundBatch=pathname==="/commercial/entitlement/revoke-order"'));
-assert.ok(writer.includes('e.order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?)'));
-assert.ok(writer.includes('ORDER BY e.id LIMIT 26'));
+assert.ok(writer.includes("order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?)"));
+assert.ok(writer.includes("entitlement_type='purchase' AND status='active'"),
+  "Reconcile only live purchase entitlements belonging to the order");
 const writerBody=writer.slice(writer.indexOf("if(isRefundBatch){"),
   writer.indexOf("if(isEntitlement){"));
-assert.ok(writerBody.indexOf("/commercial/order/deny-next")>=0&&
-  writerBody.indexOf("/commercial/order/deny-next")<
-  writerBody.indexOf("/commercial/entitlement/deny-batch"),
-  "One whole-order denial must commit before any per-item batch or D1 scan");
-assert.ok(writerBody.indexOf("/commercial/entitlement/deny-batch")>=0&&
-  writerBody.indexOf("/commercial/entitlement/deny-batch")<
-  writerBody.indexOf("await env.PRIMARY_DB.batch("),
-  "Owner receipt MUST come before canonical refund entitlement writes");
+const denial=writerBody.indexOf("/commercial/order/deny-next");
+const receipt=writerBody.indexOf("orderReceipt.applied");
+const update=writerBody.indexOf("UPDATE entitlements SET status='revoked'");
+assert.ok(denial>=0 && receipt>denial && update>receipt,
+  "Durable order-wide denial and verified receipt MUST precede canonical entitlement writes");
+assert.ok(writerBody.indexOf("await env.PRIMARY_DB.prepare(")>update,
+  "Canonical reconciliation must execute only after the owner receipt");
+assert.ok(!writerBody.includes("/commercial/entitlement/deny-batch"),
+  "Whole-order refund cannot be truncated by a 25-item owner batch");
 assert.ok(owner.includes('if(route==="/commercial/entitlement/deny-batch")'));
 assert.ok(owner.includes("storage.transactionSync(()=>")||
   owner.includes("storage.transactionSync(() =>"));
