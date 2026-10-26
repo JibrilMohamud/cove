@@ -16,6 +16,68 @@ type ConsumerProduct={
 };
 const productPattern=/^prd_gutenberg_(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/;
 const QA_PRIMARY="5e3a6b69-6f3d-4b19-b837-01f7aa56ce87";
+/** A paid buyer's delivery is authorized only if BOTH the current paid
+ * product grant and exact buyer entitlement are present in the same private
+ * owner snapshot. This is a single RPC + a single indexed SQLite read;
+ * existing device, publisher distribution and fraud controls remain required.
+ */
+export async function requireStagePaidEntitlementAccess(
+  env:StageLegalConsumerEnv,
+  input:{
+    entitlementId:string;userId:string;productId:string;territory:string;
+    channel:"retail"|"subscription"|"library";
+  }
+) {
+  if(env.COVE_LEGAL_CONSUMER_STAGE_ENABLED!=="1")return;
+  if(env.COVE_SSR_STAGING!=="1" ||
+     env.COVE_CANONICAL_LEGAL_WRITE_LOCK!=="1" ||
+     env.COVE_LEGAL_WRITER_PRIMARY_ID!==QA_PRIMARY ||
+     !/^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET||"") ||
+     !env.LEGAL_AUTHORITY?.getByName ||
+     !input||typeof input.entitlementId!=="string"||
+     !/^[a-zA-Z0-9_-]{8,160}$/.test(input.entitlementId) ||
+     typeof input.userId!=="string" ||
+     !/^[a-zA-Z0-9_-]{8,160}$/.test(input.userId) ||
+     typeof input.productId!=="string" ||
+     !commercialPattern.test(input.productId) ||
+     input.productId.startsWith("prd_gutenberg_") ||
+     !/^[A-Z]{2}$/.test(input.territory) ||
+     !["retail","subscription","library"].includes(input.channel))
+    throw new ApiError(503,"Paid entitlement owner is not configured or scoped.");
+  let payload:unknown;
+  try {
+    const response=await env.LEGAL_AUTHORITY
+      .getByName("cove-staged-legal-global-v1")
+      .fetch(new Request("https://legal-authority.internal/commercial/entitlement/authorize",{
+        method:"POST",
+        headers:{"authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,
+          "content-type":"application/json"},
+        body:JSON.stringify(input)
+      }));
+    if(response.status!==200)throw Error("owner_outage");
+    payload=await response.json();
+  }catch{
+    throw new ApiError(503,"Protected paid-entitlement owner unavailable.");
+  }
+  const result=payload as {schema?:unknown;allowed?:unknown;proof?:Record<string,unknown>}|null;
+  if(!result||result.schema!=="cove.paid-access.v1")
+    throw new ApiError(503,"Paid-entitlement proof malformed.");
+  if(result.allowed!==true)
+    throw new ApiError(451,"This purchase's distribution or entitlement access is not authorized.");
+  const proof=result.proof;
+  if(!proof||typeof proof.edition_id!=="string"||
+     typeof proof.grant_id!=="string"||
+     !/^[a-zA-Z0-9_-]{3,180}$/.test(proof.grant_id)||
+     !Number.isSafeInteger(proof.product_epoch) ||
+     Number(proof.product_epoch)<=0 ||
+     !Number.isSafeInteger(proof.entitlement_epoch) ||
+     Number(proof.entitlement_epoch)<=0 ||
+     typeof proof.valid_until!=="string"||
+     !Number.isFinite(Date.parse(proof.valid_until)) ||
+     Date.parse(proof.valid_until)<=Date.now())
+    throw new ApiError(503,"Paid entitlement proof expired or corrupt.");
+}
+
 const commercialPattern=/^prd_[a-zA-Z0-9_-]{3,120}$/;
 type CommercialProofRow={
   product_id?:unknown;edition_id?:unknown;grant_id?:unknown;
