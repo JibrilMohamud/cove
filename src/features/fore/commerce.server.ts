@@ -185,9 +185,7 @@ function moneySplit(total: number, weights: number[]) {
   return out;
 }
 
-async function cartPricing(
-  db: CatalogDB, userId: string, territory: string, env?: CoveEnv,
-) {
+async function cartPricing(db: CatalogDB, userId: string, territory: string, env?: CoveEnv) {
   const snap = await cartSnapshot(db, userId, territory);
   if (!snap.items.length) throw new ApiError(409, "Your cart is empty.");
   const bad = snap.items.filter((x: any) => !x.available || !x.offer || !x.book?.productId);
@@ -208,8 +206,7 @@ async function cartPricing(
         const sourceId = String(item.book?.sourceExternalId || "");
         return {
           id: productId,
-          source_name:
-            productId === "prd_gutenberg_" + sourceId ? "gutenberg" : "commercial",
+          source_name: productId === "prd_gutenberg_" + sourceId ? "gutenberg" : "commercial",
           source_external_id: sourceId,
         };
       }),
