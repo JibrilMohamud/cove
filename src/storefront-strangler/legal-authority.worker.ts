@@ -131,7 +131,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
            order.rights_grant_id!==rights[0].grant_id)
           return new Response(null,{status:409,headers:noStore});
         let purchased:unknown=null;
-        try{purchased=JSON.parse(order.rights_snapshot_json||"");}catch{}
+        try{purchased=JSON.parse(order.rights_snapshot_json||"");}
+        catch{return new Response(null,{status:409,headers:noStore});}
         const acquired=purchased as {contractVersionId?:unknown}|null;
         if(!acquired || acquired.contractVersionId!==rights[0].contract_version_id)
           return new Response(null,{status:409,headers:noStore});
