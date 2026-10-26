@@ -245,7 +245,7 @@ export function publishFreshEntitlement(
   sql.exec(`INSERT INTO cove_paid_entitlement_scopes(
     entitlement_id,territory,channel,edition_id,grant_id,contract_id,contract_version_id)
     VALUES(?,?,?,?,?,?,?) ON CONFLICT(entitlement_id) DO NOTHING`,
-    scope.entitlementId,market.territory,market.channel,
+    scope.entitlementId,market.territory,market.channel as CommercialChannel,
     right.edition_id,right.grant_id,right.contract_id,right.contract_version_id);
   return {applied:true,epoch};
 }
