@@ -12,7 +12,9 @@ import {
   stageTransport,
   stageTransportSpan,
   stageTransportCounters,
+  stageTransportSessionSnapshot,
 } from "../staging/strangler-http-transport.mjs";
+import {takeAnonymizedTcpSnapshot,compareTcpSnapshots} from "./anonymized-tcp-evidence.mjs";
 import { projectedRequestFailure, strictProjectionPhasePass } from "./capacity-release-gate.mjs";
 import {
   syntheticOperatorFixturePlan,
@@ -402,6 +404,9 @@ async function phase(model) {
     cancelledUnsent = 0,
     irreversibleFailure = null;
   const pendingTimers = new Map();
+  // Capture baseline kernel TCP counters BEFORE the measured 100-RPS window.
+  // Never hide any slow request; this is diagnostic-only.
+  const tcpBefore = await takeAnonymizedTcpSnapshot(stageTransportSessionSnapshot());
   const loopDelay = monitorEventLoopDelay({ resolution: 10 });
   loopDelay.enable();
   const stopOnViolation = (code, row) => {
@@ -502,7 +507,20 @@ async function phase(model) {
   stopped = true;
   await Promise.all([bg, controlLoop]);
   loopDelay.disable();
+  // The HTTP/2 sessions are still alive when samples settle. Read per-socket
+  // Linux recovery counters AFTER measuring all completed requests, not during
+  // the timed request scheduler. No edge IP or bearer is persisted.
+  const tcpAfter=irreversibleFailure
+    ? await takeAnonymizedTcpSnapshot(stageTransportSessionSnapshot())
+    : null;
+  const slowestSessions=[...rows].sort((a,b)=>b.ms-a.ms).slice(0,8)
+    .map(r=>r.transportSpan?.sessionId).filter(Number.isInteger);
+  const tcpEvidence=irreversibleFailure
+    ? compareTcpSnapshots(tcpBefore,tcpAfter,slowestSessions)
+    : null;
+  if(tcpEvidence)console.log("ARCH_TCP_RECOVERY",JSON.stringify(tcpEvidence));
   const result = {
+    tcpEvidence,
     clientEventLoopMaxMs: loopDelay.max / 1e6,
     clientEventLoopP99Ms: loopDelay.percentile(99) / 1e6,
     model,
