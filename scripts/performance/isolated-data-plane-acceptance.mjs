@@ -319,6 +319,8 @@ async function sample(model = "projection", path = "/") {
       isolateOrdinal: isolateSeen ? Number(isolateSeen[1]) : null,
       timing: serverTiming,
       failure: r.headers.get("x-cove-stage-failure"),
+      failureSubphase: r.headers.get("x-cove-stage-failure-subphase"),
+      failureKind: r.headers.get("x-cove-stage-failure-kind"),
       placement: r.headers.get("x-cove-stage-placement"),
     };
   } catch (e) {
@@ -577,6 +579,8 @@ async function phase(model) {
           isolateFirst: row.isolateFirst,
           isolateOrdinal: row.isolateOrdinal,
           failure: row.failure,
+          failureSubphase: row.failureSubphase,
+          failureKind: row.failureKind,
           placement: row.placement,
           transportCode: row.transportCode,
         })),
