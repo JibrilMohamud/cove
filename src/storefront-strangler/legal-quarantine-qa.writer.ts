@@ -2,7 +2,9 @@
 import {denyWithOwnedSourceEpoch} from "./legal-authority-coordinator";
 
 type WriteDB={
-  prepare(query:string):{bind(...args:unknown[]):{run():Promise<unknown>}};
+  prepare(query:string):{bind(...args:unknown[]):{
+    run():Promise<unknown>;first<T=Record<string,unknown>>():Promise<T|null>
+  }};
   batch(statements:unknown[]):Promise<unknown>;
 };
 type QaWriterEnv={
@@ -70,6 +72,15 @@ export default {
             sourceId:cmd.sourceId as string,territory:cmd.territory as string,
             operationId:cmd.operationId as string
           },async()=>{
+            // The owner is already denied. Now verify evidence really belongs
+            // to this source and market, rather than accepting a guessed ID.
+            // A nonexistent source MUST NOT yield a successful legal mutation.
+            const existing=await env.PRIMARY_DB.prepare(
+              "SELECT status FROM gutenberg_rights_evidence WHERE id=? AND cache_id=? AND territory_code=? AND source_id='pg_us'"
+            ).bind(cmd.evidenceId,cmd.sourceId,cmd.territory)
+              .first<{status:string}>();
+            if(!existing || !["approved","revoked"].includes(existing.status))
+              throw Error("legal_evidence_scope_not_found");
             const evidence=env.PRIMARY_DB.prepare(
               "UPDATE gutenberg_rights_evidence SET status='revoked' WHERE id=? AND cache_id=? AND territory_code=? AND status='approved'"
             ).bind(cmd.evidenceId,cmd.sourceId,cmd.territory);
