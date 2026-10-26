@@ -29,7 +29,7 @@ try{
   ent.createPaidEntitlementSchema(sql());
   const productId="prd_commercial_a17",userId="user_paid_17",
     entitlementId="6e61cc19-3fd1-4b17-93b3-33f11b4bb9ad";
-  const scope={entitlementId,userId,productId};
+  const scope={entitlementId,userId,productId,orderId:"order_purchase_17"};
   const ctx={...scope,territory:"US",channel:"retail"};
   const verify=(input=ctx,now=new Date().toISOString())=>ent.readPaidAccess(sql(),input,now);
   const newProduct=()=>{
@@ -40,9 +40,9 @@ try{
       validUntil:new Date(Date.now()+1200000).toISOString()
     },base);
   };
-  const lease=(productEpoch)=>{
+  const lease=(productEpoch,orderId=scope.orderId)=>{
     const base=ent.captureEntitlementEpoch(sql(),scope);
-    return ent.publishFreshEntitlement(sql(),{...scope,productEpoch,
+    return ent.publishFreshEntitlement(sql(),{...scope,orderId,productEpoch,
       validUntil:new Date(Date.now()+180000).toISOString()},base);
   };
   assert.equal(verify(),null,"No entitlement or product proof: deny");
@@ -91,6 +91,21 @@ try{
   assert.deepEqual(ent.denyPaidEntitlement(sql(),{
     ...scope,operationId:"refund:paid_17:revoked"
   }),{applied:false,epoch:3},"Old event replay cannot certify later legal state");
+  assert.deepEqual(ent.denyPaidOrder(sql(),{
+    orderId:scope.orderId,operationId:"order-refund:purchase17"
+  }),{applied:true,orderId:scope.orderId});
+  assert.equal(verify(),null,"One owner order denial revokes every entitlement backed by it");
+  assert.deepEqual(ent.denyPaidOrder(sql(),{
+    orderId:scope.orderId,operationId:"order-refund:purchase17"
+  }),{applied:true,orderId:scope.orderId},"Full-order refund replay is idempotent");
+  assert.throws(()=>lease(3),/paid_order_already_revoked/,
+    "A refunded order can NEVER regrant access, even after re-verification");
+  assert.deepEqual(lease(3,"order_purchase_new_18"),{applied:true,epoch:5});
+  assert.equal(verify()?.entitlement_epoch,5,
+    "A separately paid new order may establish a newly verified buyer proof");
+  assert.throws(()=>ent.denyPaidOrder(sql(),{
+    orderId:"another_purchase_18",operationId:"order-refund:purchase17"
+  }),/paid_order_denial_scope_collision/);
   db.close();
   console.log("PASS: paid entitlement proof one indexed owner read, exact buyer, contract product epoch, refund, stale webhook, territory, TTL, persistence and replay");
 }finally{fs.rmSync(root,{recursive:true,force:true});}
