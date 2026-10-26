@@ -674,6 +674,25 @@ try {
     const rows = await Promise.all(Array.from({ length: concurrency }, () => sample()));
     evidence.bursts.push({ concurrency, ...summary(rows), rows });
     save();
+    // Keep the absolute release gate unchanged, but make the first failing
+    // burst diagnosable without downloading a private artifact. Retain the
+    // complete unfiltered request samples in results.json for Ray analysis.
+    console.log("ARCH_BURST_TAIL", JSON.stringify({
+      concurrency,
+      ...summary(rows),
+      slowest: [...rows].sort((a, b) => b.ms - a.ms).slice(0, 8).map((row) => ({
+        ok: row.ok, status: row.status, ms: row.ms,
+        ray: row.ray, colo: row.colo, timing: row.timing,
+        transportSpan: row.transportSpan,
+        handlerMs: row.handlerMs,
+        catalogServiceMs: row.catalogServiceMs,
+        outsideHandlerMs: row.outsideHandlerMs,
+        isolateFirst: row.isolateFirst,
+        failure: row.failure,
+        transportCode: row.transportCode,
+        error: row.error,
+      })),
+    }));
     const invalid = rows.find((row) => projectedRequestFailure(row));
     if (failFast && invalid) {
       evidence.failFast = {
