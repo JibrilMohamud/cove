@@ -160,7 +160,7 @@ try {
     "One owner batch must precede one canonical DB batch");
   assert.deepEqual(db.prepare(
     "SELECT id,ingest_status FROM gutenberg_source_cache WHERE id IN ('2705','2706') ORDER BY id"
-  ).all(),[{id:"2705",ingest_status:"stale"},{id:"2706",ingest_status:"stale"}]);
+  ).all().map(row=>({...row})),[{id:"2705",ingest_status:"stale"},{id:"2706",ingest_status:"stale"}]);
   for(const sourceId of ["2705","2706"])
     assert.deepEqual(core.readAuthority(sql,sourceId,"US"),{allowed:false,revision:1});
   assert.equal((await post(retraction,{},"/source/retract-batch")).status,200);
