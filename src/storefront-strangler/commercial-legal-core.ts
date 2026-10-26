@@ -148,7 +148,7 @@ export function denyCommercialSubject(sql:AuthoritySql,raw:unknown){
   if(!raw||typeof raw!=="object"||Array.isArray(raw))
     throw Error("invalid_commercial_subject_denial");
   const {subjectKind,subjectId,operationId}=raw as Record<string,unknown>;
-  if(!["grant","contract"].includes(String(subjectKind))||
+  if((subjectKind!=="grant"&&subjectKind!=="contract")||
      typeof subjectId!=="string"||
      !/^[a-zA-Z0-9_-]{3,180}$/.test(subjectId)||
      typeof operationId!=="string"||
