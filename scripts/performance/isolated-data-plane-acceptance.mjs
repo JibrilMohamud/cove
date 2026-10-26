@@ -14,6 +14,7 @@ import {
   stageTransportCounters,
 } from "../staging/strangler-http-transport.mjs";
 import { projectedRequestFailure, strictProjectionPhasePass } from "./capacity-release-gate.mjs";
+import { syntheticOperatorFixturePlan, REQUIRED_BOOK_CARDS } from "./synthetic-operator-fixture.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const primary = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
@@ -56,12 +57,26 @@ const evidence = {
 const save = () => fs.writeFileSync(directory + "/results.json", JSON.stringify(evidence, null, 2));
 const names = [];
 const kvKeys = [];
+let syntheticFixture = null;
 let origin, gate;
 evidence.workers = names;
 let shutdown;
 function cleanup() {
   return (shutdown ||= (async () => {
     closeStageTransport();
+    if (syntheticFixture) {
+      // Restore ONLY the dedicated synthetic capacity candidate IDs, even when
+      // this run failed before deploying its first Worker. Never touch
+      // production, user rights, or unrelated operator-origin products.
+      try {
+        const q=syntheticFixture;
+        await sql(primary,q.dropOffers.sql,q.dropOffers.params);
+        const result=await sql(primary,q.restore.sql,q.restore.params);
+        if ((result.meta?.changes||0)!==REQUIRED_BOOK_CARDS) evidence.cleanupFailed=true;
+      } catch {
+        evidence.cleanupFailed=true;
+      }
+    }
     for (const key of kvKeys) {
       try {
         await api(
@@ -257,6 +272,12 @@ async function sample(model = "projection", path = "/") {
           ? JSON.parse(body).country === "US"
           : body.includes('data-rights-country="US"') &&
             body.includes('id="thin-discovery-form"') &&
+            // Previously a 200 HTML shell with ZERO authorized books could
+            // pass the capacity gate after Gutenberg proof was hardened.
+            // Assert real live-primary-authorized cards, not merely HTTP 200.
+            [...body.matchAll(/data-product="(perf-synth-[0-9]{6})"/g)].length ===
+              REQUIRED_BOOK_CARDS &&
+            body.includes('data-product="perf-synth-000001"') &&
             !body.includes('data-product="perf-synth-000107"') &&
             !body.includes('data-product="perf-synth-000097"'));
     return {
@@ -578,6 +599,29 @@ try {
       await putPrivateStageKv(`campaign/${runId}/synthetic/` + key, body);
     },
   });
+  const snapshot=JSON.parse(fs.readFileSync(directory + "/presentation.json","utf8"));
+  // Existing 50k-row capacity fixture contains *operator-issued* retail grants
+  // but mislabels all products Gutenberg and has no Gutenberg evidence or
+  // offers. Those rows were categorically ineligible, so previous 200-shell
+  // benchmarks measured an EMPTY bookstore. Make ONLY 24 synthetic QA cards
+  // coherent with the grants they already own, then restore in cleanup.
+  syntheticFixture=syntheticOperatorFixturePlan(snapshot.candidates?.productIds,runId);
+  const preflight=await sql(primary,syntheticFixture.preflight.sql,syntheticFixture.preflight.params);
+  assert.equal(preflight.results?.[0]?.n,REQUIRED_BOOK_CARDS,
+    "Synthetic QA operator-grant fixture is missing authoritative US allow grants");
+  const changed=await sql(primary,syntheticFixture.operatorize.sql,syntheticFixture.operatorize.params);
+  assert.equal(changed.meta?.changes,REQUIRED_BOOK_CARDS,
+    "Refused to mutate non-synthetic or already reassigned product provenance");
+  for (const q of syntheticFixture.issueOffers) {
+    const added=await sql(primary,q.sql,q.params);
+    assert.equal(added.meta?.changes,1,"Synthetic QA storefront offer could not be activated");
+  }
+  const proof=await sql(primary,syntheticFixture.verify.sql,syntheticFixture.verify.params);
+  assert.equal(proof.results?.[0]?.n,REQUIRED_BOOK_CARDS,
+    "No 24-book authoritative-and-purchasable synthetic storefront fixture");
+  evidence.authenticatedFixture={operatorBooks:REQUIRED_BOOK_CARDS,
+    legalAuthority:"live-primary-retail-grant",offerSource:"primary-only"};
+  save();
   for (let round = 1; round <= 3; round++) {
     await deploy(round);
     const cold = await sample();

@@ -33,6 +33,8 @@ on:
       - "scripts/staging/check-publication-feed-live.mjs"
       - "infra/discovery/**"
       - "scripts/performance/isolated-data-plane-acceptance.mjs"
+      - "scripts/performance/synthetic-operator-fixture.mjs"
+      - "scripts/check-stage-capacity-fixture.mjs"
       - "scripts/performance/capacity-release-gate.mjs"
       - "scripts/check-capacity-release-gate.mjs"
       - "scripts/staging/strangler-http-transport.mjs"
@@ -56,6 +58,7 @@ jobs:
       - run: npm run test:isolated-data-plane
       - run: node scripts/check-unbiased-random.mjs
       - run: node scripts/check-capacity-release-gate.mjs
+      - run: node scripts/check-stage-capacity-fixture.mjs
       - run: node scripts/check-publication-feed.mjs
       - run: npm run test:literary-prepare-outbox
       - run: npm run test:literary-preparation-domain
