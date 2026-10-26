@@ -1,0 +1,155 @@
+/* eslint-disable prettier/prettier -- Legal contract proofs require explicit, deterministic revocation semantics. */
+import type { AuthoritySql } from "./legal-authority-core";
+
+/** Paid rights are NOT Gutenberg: no public domain fallback, no inferred entitlement. */
+export const commercialProductId=/^prd_[a-zA-Z0-9_-]{3,120}$/;
+export type CommercialChannel="retail"|"subscription"|"library";
+const territoryPattern=/^[A-Z]{2}$/;
+const isoTime=/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z$/;
+export type CommercialProof={
+  productId:string;editionId:string;territory:string;channel:CommercialChannel;
+  grantId:string;contractId:string|null;contractVersionId:string|null;
+  validUntil:string;
+};
+export function validateCommercialProof(p:CommercialProof,now=Date.now()) {
+  if(!p||!commercialProductId.test(p.productId) ||
+     p.productId.startsWith("prd_gutenberg_") ||
+     typeof p.editionId!=="string"|| !/^[a-zA-Z0-9_-]{3,160}$/.test(p.editionId) ||
+     !territoryPattern.test(p.territory) ||
+     !["retail","subscription","library"].includes(p.channel) ||
+     !/^[a-zA-Z0-9_-]{3,180}$/.test(p.grantId) ||
+     (p.contractId!==null &&
+        (typeof p.contractId!=="string"||!/^[a-zA-Z0-9_-]{3,180}$/.test(p.contractId))) ||
+     (p.contractVersionId!==null &&
+        (typeof p.contractVersionId!=="string"||!/^[a-zA-Z0-9_-]{3,180}$/.test(p.contractVersionId))) ||
+     (p.contractVersionId!==null&&!p.contractId) ||
+     typeof p.validUntil!=="string"||!isoTime.test(p.validUntil) ||
+     !Number.isFinite(Date.parse(p.validUntil)) ||
+     Date.parse(p.validUntil)<=now ||
+     Date.parse(p.validUntil)>now+24*3600*1000
+  )throw Error("invalid_commercial_proof");
+  return p;
+}
+export function createCommercialAuthoritySchema(sql:AuthoritySql){
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_commercial_authority(
+    product_id TEXT PRIMARY KEY,
+    epoch INTEGER NOT NULL CHECK(epoch>0),
+    verdict TEXT NOT NULL CHECK(verdict IN ('deny','allow'))
+  ) WITHOUT ROWID`);
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_commercial_scope_proofs(
+    product_id TEXT NOT NULL,territory TEXT NOT NULL,channel TEXT NOT NULL,
+    epoch INTEGER NOT NULL CHECK(epoch>0),
+    edition_id TEXT NOT NULL,grant_id TEXT NOT NULL,
+    contract_id TEXT,contract_version_id TEXT,
+    valid_until TEXT NOT NULL,
+    PRIMARY KEY(product_id,territory,channel)
+  ) WITHOUT ROWID`);
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_commercial_withdrawal_ops(
+    operation_id TEXT PRIMARY KEY,
+    product_id TEXT NOT NULL,
+    epoch INTEGER NOT NULL CHECK(epoch>0)
+  ) WITHOUT ROWID`);
+}
+type EpochRow={epoch:number;verdict:"deny"|"allow"};
+const current=(sql:AuthoritySql,id:string)=>
+  sql.exec<EpochRow>(
+    "SELECT epoch,verdict FROM cove_commercial_authority WHERE product_id=?",id
+  ).toArray()[0];
+function validId(id:unknown){
+  if(typeof id!=="string"||!commercialProductId.test(id)||id.startsWith("prd_gutenberg_"))
+    throw Error("invalid_commercial_product");
+  return id;
+}
+export function denyCommercialProduct(sql:AuthoritySql,raw:unknown) {
+  if(!raw||typeof raw!=="object"||Array.isArray(raw))throw Error("invalid_commercial_denial");
+  const {productId,operationId}=raw as Record<string,unknown>;
+  const id=validId(productId);
+  if(typeof operationId!=="string"||
+     !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(operationId))
+    throw Error("invalid_commercial_denial");
+  const existing=sql.exec<{product_id:string;epoch:number}>(
+    "SELECT product_id,epoch FROM cove_commercial_withdrawal_ops WHERE operation_id=?",
+    operationId
+  ).toArray()[0];
+  const state=current(sql,id);
+  if(existing) {
+    if(existing.product_id!==id)throw Error("commercial_denial_scope_collision");
+    return {applied:!!state && state.verdict==="deny"&&state.epoch>=existing.epoch,
+      epoch:existing.epoch};
+  }
+  const epoch=(state?.epoch??0)+1;
+  if(!Number.isSafeInteger(epoch)||epoch<=0)throw Error("commercial_epoch_exhausted");
+  sql.exec(`INSERT INTO cove_commercial_authority(product_id,epoch,verdict)
+    VALUES(?,?,'deny') ON CONFLICT(product_id) DO UPDATE SET
+    epoch=excluded.epoch,verdict='deny'`,id,epoch);
+  sql.exec(
+    "INSERT INTO cove_commercial_withdrawal_ops(operation_id,product_id,epoch) VALUES(?,?,?)",
+    operationId,id,epoch
+  );
+  return {applied:true,epoch};
+}
+/** A slow canonical verification cannot regrant after an acknowledged withdrawal. */
+export function captureCommercialEpoch(sql:AuthoritySql,raw:unknown) {
+  const id=validId((raw as {productId?:unknown})?.productId);
+  return current(sql,id)?.epoch??0;
+}
+export function publishFreshCommercialProof(
+  sql:AuthoritySql,p:CommercialProof,expectedEpoch:number,now=Date.now()
+){
+  validateCommercialProof(p,now);
+  if(!Number.isSafeInteger(expectedEpoch)||expectedEpoch<0)
+    throw Error("commercial_invalid_base_epoch");
+  const state=current(sql,p.productId);
+  if((state?.epoch??0)!==expectedEpoch)
+    return {applied:false,epoch:state?.epoch??null};
+  const epoch=expectedEpoch+1;
+  if(!Number.isSafeInteger(epoch))throw Error("commercial_epoch_exhausted");
+  // Same SQLite transaction: epoch change and one matching canonical grant.
+  // A previous US proof can never remain authorized after an unrelated CA
+  // regrant unless it has been republished under the new product epoch.
+  sql.exec(`INSERT INTO cove_commercial_authority(product_id,epoch,verdict)
+    VALUES(?,?,'allow') ON CONFLICT(product_id) DO UPDATE SET
+    epoch=excluded.epoch,verdict='allow'`,p.productId,epoch);
+  sql.exec(`INSERT INTO cove_commercial_scope_proofs(
+    product_id,territory,channel,epoch,edition_id,grant_id,
+    contract_id,contract_version_id,valid_until)
+    VALUES(?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(product_id,territory,channel) DO UPDATE SET
+    epoch=excluded.epoch,edition_id=excluded.edition_id,
+    grant_id=excluded.grant_id,contract_id=excluded.contract_id,
+    contract_version_id=excluded.contract_version_id,valid_until=excluded.valid_until`,
+    p.productId,p.territory,p.channel,epoch,p.editionId,p.grantId,
+    p.contractId,p.contractVersionId,p.validUntil
+  );
+  return {applied:true,epoch};
+}
+export type CommercialReadRow={
+  product_id:string;edition_id:string;grant_id:string;
+  contract_id:string|null;contract_version_id:string|null;
+  valid_until:string;epoch:number;
+};
+/** ONE SQLite query for up to 25 purchases; no D1, KV or cache staleness. */
+export function readCommercialProofs(
+  sql:AuthoritySql,ids:string[],territory:string,channel:CommercialChannel,now=new Date().toISOString()
+):CommercialReadRow[] {
+  if(!Array.isArray(ids)||ids.length>25||
+     ids.some(id=>typeof id!=="string"||!commercialProductId.test(id)||
+       id.startsWith("prd_gutenberg_")) ||
+     new Set(ids).size!==ids.length ||
+     !territoryPattern.test(territory)||
+     !["retail","subscription","library"].includes(channel)||
+     typeof now!=="string"||!isoTime.test(now))throw Error("invalid_commercial_batch");
+  if(!ids.length)return [];
+  return sql.exec<CommercialReadRow>(
+    `SELECT p.product_id,p.edition_id,p.grant_id,p.contract_id,
+            p.contract_version_id,p.valid_until,p.epoch
+     FROM json_each(?) candidate
+     JOIN cove_commercial_scope_proofs p
+       ON p.product_id=candidate.value AND p.territory=? AND p.channel=?
+     JOIN cove_commercial_authority a
+       ON a.product_id=p.product_id AND a.epoch=p.epoch AND a.verdict='allow'
+     WHERE p.valid_until>?
+     ORDER BY CAST(candidate.key AS INTEGER) LIMIT 25`,
+    JSON.stringify(ids),territory,channel,now
+  ).toArray();
+}
