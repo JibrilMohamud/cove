@@ -53,7 +53,7 @@ try{
   };
   const lease=(productEpoch,orderId=scope.orderId)=>{
     const base=ent.captureEntitlementEpoch(sql(),scope);
-    return ent.publishFreshEntitlement(sql(),{...scope,orderId,productEpoch,
+    return ent.publishFreshEntitlement(sql(),{...ctx,orderId,productEpoch,
       validUntil:new Date(Date.now()+180000).toISOString()},base);
   };
   assert.equal(verify(),null,"No entitlement or product proof: deny");
@@ -75,6 +75,8 @@ try{
     productId,operationId:"contract:17:withdraw"
   }),{applied:true,epoch:2});
   assert.equal(verify(),null,"Immediate contract/product withdrawal revokes read access");
+  assert.throws(()=>lease(1),/paid_entitlement_product_epoch_stale/,
+    "A stale canonical D1 read cannot acknowledge a positive buyer grant after owner withdrawal");
   assert.deepEqual(newProduct(),{applied:true,epoch:3});
   assert.equal(verify(),null,"Regranting a product cannot resurrect stale purchased entitlement");
   assert.deepEqual(lease(3),{applied:true,epoch:2});
@@ -86,7 +88,7 @@ try{
     ...scope,operationId:"refund:paid_17:revoked"
   }),{applied:true,epoch:3});
   assert.equal(verify(),null,"Refund fence invalidates even a product-still-allowed proof");
-  assert.deepEqual(ent.publishFreshEntitlement(sql(),{...scope,productEpoch:3,
+  assert.deepEqual(ent.publishFreshEntitlement(sql(),{...ctx,productEpoch:3,
     validUntil:new Date(Date.now()+180000).toISOString()},staleEntBase),
     {applied:false,epoch:3},"Old Stripe webhook cannot regrant refunded entitlement");
   assert.deepEqual(ent.denyPaidEntitlement(sql(),{
@@ -114,7 +116,7 @@ try{
   assert.throws(()=>lease(3,"order_purchase_new_18"),
     /paid_entitlement_order_swap_forbidden/,
     "A new order can never launder an old or refunded entitlement ID");
-  const newPurchase={...scope,
+  const newPurchase={...ctx,
     entitlementId:"217ae8bb-bbf0-4cea-bcdb-b776189af818",
     orderId:"order_purchase_new_18"};
   assert.deepEqual(ent.publishFreshEntitlement(sql(),{
