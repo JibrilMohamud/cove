@@ -1,6 +1,6 @@
 /* eslint-disable prettier/prettier -- Strong private paid-entitlement revocation is a separate legal trust boundary. */
 import type {AuthoritySql} from "./legal-authority-core";
-import {commercialProductId,type CommercialChannel} from "./commercial-legal-core";
+import {commercialProductId,readCommercialProofs,type CommercialChannel} from "./commercial-legal-core";
 
 const entityId=/^[a-zA-Z0-9_-]{8,160}$/;
 const userIdPattern=/^[a-zA-Z0-9_-]{8,160}$/;
@@ -161,6 +161,18 @@ export function publishFreshEntitlement(
     throw Error("invalid_entitlement_lease");
   if(!Number.isSafeInteger(expectedEpoch)||expectedEpoch<0)
     throw Error("invalid_entitlement_base_epoch");
+  const market=raw as {territory?:unknown;channel?:unknown};
+  if(typeof market.territory!=="string" || !/^[A-Z]{2}$/.test(market.territory) ||
+     !["retail","subscription","library"].includes(String(market.channel)))
+    throw Error("invalid_entitlement_market");
+  // A canonical D1 verification may have awaited several services. In that
+  // interval the owner may have accepted a paid contract/grant withdrawal.
+  // Recheck CURRENT product permission inside the SAME synchronous owner
+  // transaction as the buyer write; a stale positive receipt is forbidden.
+  const currentRights=readCommercialProofs(sql,[scope.productId],
+    market.territory,market.channel as CommercialChannel);
+  if(currentRights.length!==1||currentRights[0].epoch!==Number(productEpoch))
+    throw Error("paid_entitlement_product_epoch_stale");
   const prior=current(sql,scope.entitlementId);
   if(prior &&(prior.user_id!==scope.userId||prior.product_id!==scope.productId))
     throw Error("paid_entitlement_scope_changed");
