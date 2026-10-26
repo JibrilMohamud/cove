@@ -105,11 +105,19 @@ try {
     contractVersionId:"contract_bulk_version_2"
   },1),/commercial_subject_withdrawal_terminal/,
   "New contract version may not revive the revoked contract ID");
+  const grantOnlyProduct="prd_grant_scope_17";
+  assert.deepEqual(core.publishFreshCommercialProof(sql(),{
+    ...proof,productId:grantOnlyProduct,editionId:"ed_grant_scope_17",
+    grantId:"grant_scope_17",contractId:"contract_grant_scope_17",
+    contractVersionId:"contract_grant_scope_version_1"
+  },0),{applied:true,epoch:1});
+  assert.equal(core.readCommercialProofs(sql(),[grantOnlyProduct],"US","retail").length,1);
   assert.deepEqual(core.denyCommercialSubject(sql(),{
-    subjectKind:"grant",subjectId:"right_valid_17",
+    subjectKind:"grant",subjectId:"grant_scope_17",
     operationId:"grant:valid17:withdraw"
-  }),{applied:true,subjectKind:"grant",subjectId:"right_valid_17"});
-  assert.deepEqual(read(),[],"One grant tombstone immediately denies independently allowed product");
+  }),{applied:true,subjectKind:"grant",subjectId:"grant_scope_17"});
+  assert.deepEqual(core.readCommercialProofs(sql(),[grantOnlyProduct],"US","retail"),[],
+    "One grant tombstone immediately denies independently allowed product");
   const stale=core.captureCommercialEpoch(sql(),{productId:id});
   const denied=core.denyCommercialProduct(sql(),{
     productId:id,operationId:"contract:17:revoked"
