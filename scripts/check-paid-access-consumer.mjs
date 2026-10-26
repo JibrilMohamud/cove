@@ -27,8 +27,13 @@ for(const endpoint of [
   assert.ok(start>=0,"Protected audio endpoint missing: "+endpoint);
   const end=audio.indexOf("  if (match[2]",start+endpoint.length);
   const section=audio.slice(start,end<0?start+11500:end);
-  assert.ok(section.includes("await requireCommercialAudioOwner(env,"),
+  assert.ok(section.includes("requireCommercialAudioOwner(env,"),
     "Protected audio endpoint missing owner authorization: "+endpoint);
+  if(endpoint==='match[2] === "biosync"'){
+    assert.ok(section.includes("await Promise.all([") &&
+      section.includes("String(link.ebook_product_id)"),
+      "Biosync must verify both audiobook and ebook buyer proofs");
+  }
 }
 const dir=mkdtempSync(path.join(os.tmpdir(),"cove-protected-paid-"));
 try{
