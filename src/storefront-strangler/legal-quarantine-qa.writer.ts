@@ -103,7 +103,7 @@ export default {
         if(receipt.applied!==true || !Array.isArray(receipt.receipts) ||
            receipt.receipts.length!==operations.length ||
            receipt.receipts.some((r,i)=>!r.applied ||
-             !Number.isSafeInteger(r.revision) || r.revision!<=0 ||
+             !Number.isSafeInteger(r.revision) || Number(r.revision)<=0 ||
              r.sourceId!==operations[i].sourceId ||
              r.operationId!==operations[i].operationId))
           throw Error("owner_batch_receipt_unconfirmed");
