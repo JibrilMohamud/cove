@@ -19,8 +19,13 @@ try {
   const sqlitePath=path.join(directory,"persistent.sqlite");
   const makeSql=db=>({
     exec(statement,...args) {
-      const run=db.prepare(statement);
-      return {toArray:()=>run.all(...args)};
+      // Cloudflare SQL.exec is eager. Match that behavior exactly: a write
+      // must commit even when its returned cursor is deliberately ignored.
+      const prepared=db.prepare(statement);
+      const rows=/^\\s*SELECT\\b/i.test(statement)
+        ? prepared.all(...args)
+        : (prepared.run(...args),[]);
+      return {toArray:()=>rows};
     }
   });
   let db=new DatabaseSync(sqlitePath);
