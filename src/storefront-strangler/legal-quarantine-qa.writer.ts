@@ -45,26 +45,32 @@ export default {
     const isRetractionBatch=pathname==="/source/retract-batch";
     const isCommercial=pathname==="/commercial/suspend-grant" ||
       pathname==="/commercial/suspend-contract";
+    const isEntitlement=pathname==="/commercial/entitlement/revoke";
     if(request.method!=="POST" ||
-       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch && !isCommercial) ||
+       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch && !isCommercial && !isEntitlement) ||
        request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json" ||
        request.headers.has("cookie"))
       return new Response(null,{status:405,headers});
     let cmd:{sourceId?:unknown;operationId?:unknown;message?:unknown;
       evidenceId?:unknown;territory?:unknown;operations?:unknown;
-      targetId?:unknown};
+      targetId?:unknown;entitlementId?:unknown};
     try{
       const text=await request.text();
       if(text.length>(isRetractionBatch?5000:900))
         return new Response(null,{status:413,headers});
       cmd=JSON.parse(text);
     }catch{return new Response(null,{status:400,headers});}
-    if(!cmd || isCommercial && (
+    if(!cmd || isEntitlement && (
+      typeof cmd.entitlementId!=="string" ||
+      !/^[a-zA-Z0-9_-]{8,160}$/.test(cmd.entitlementId) ||
+      typeof cmd.operationId!=="string" ||
+      !opIdRegex.test(cmd.operationId)
+    ) || isCommercial && (
       typeof cmd.targetId!=="string" ||
       !/^[a-zA-Z0-9_-]{3,160}$/.test(cmd.targetId) ||
       typeof cmd.operationId!=="string" ||
       !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,80}$/.test(cmd.operationId)
-    ) || !isRetractionBatch && !isCommercial && (
+    ) || !isRetractionBatch && !isCommercial && !isEntitlement && (
        !sourceIdRegex.test(String(cmd.sourceId||"")) ||
        !opIdRegex.test(String(cmd.operationId||"")) ||
        (isEvidence
@@ -75,6 +81,42 @@ export default {
          : typeof cmd.message!=="string"||cmd.message.length>500)))
       return new Response(null,{status:400,headers});
     try{
+      if(isEntitlement){
+        const entitlementId=cmd.entitlementId as string;
+        // Only canonical D1 may determine the beneficiary, product and
+        // current grant state. No caller-supplied user or product identity.
+        const row=await env.PRIMARY_DB.prepare(
+          "SELECT id,user_id,product_id,status FROM entitlements WHERE id=?"
+        ).bind(entitlementId).first<{
+          id:string;user_id:string;product_id:string;status:string
+        }>();
+        if(!row||!["active","revoked"].includes(row.status)||
+           !/^prd_[a-zA-Z0-9_-]{3,120}$/.test(row.product_id)||
+           row.product_id.startsWith("prd_gutenberg_"))
+          throw Error("invalid_entitlement_scope");
+        const operation={
+          entitlementId:row.id,userId:row.user_id,productId:row.product_id,
+          operationId:cmd.operationId as string
+        };
+        const owner=await env.LEGAL_PRIVATE.fetch(new Request(
+          "https://legal-authority.internal/commercial/entitlement/deny-next",{
+            method:"POST",
+            headers:{"authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,
+              "content-type":"application/json"},
+            body:JSON.stringify(operation)
+          }
+        ));
+        if(owner.status!==200)throw Error("entitlement_owner_unavailable");
+        const receipt=await owner.json() as {applied?:boolean;epoch?:number};
+        if(!receipt.applied||!Number.isSafeInteger(receipt.epoch)||
+           Number(receipt.epoch)<=0)
+          throw Error("entitlement_owner_receipt_invalid");
+        await env.PRIMARY_DB.prepare(
+          "UPDATE entitlements SET status='revoked' WHERE id=? AND user_id=? AND product_id=? AND status='active'"
+        ).bind(row.id,row.user_id,row.product_id).run();
+        return Response.json({revoked:true,epoch:receipt.epoch},
+          {status:200,headers});
+      }
       if(isCommercial){
         // The operator requests a narrow suspension. Discover ALL products
         // impacted by the grant/contract, not a caller-supplied subset.
