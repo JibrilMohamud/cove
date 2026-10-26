@@ -492,6 +492,10 @@ export type CoveEnv = {
   COVE_SSR_STAGING?: string;
   // QA-only: reject every unfenced canonical grant/offer/evidence mutation.
   COVE_CANONICAL_LEGAL_WRITE_LOCK?: string;
+  COVE_LEGAL_QUARANTINE_WRITER_STAGE?: string;
+  COVE_LEGAL_WRITER_PRIMARY_ID?: string;
+  COVE_LEGAL_QUARANTINE_SECRET?: string;
+  LEGAL_QUARANTINE_WRITER?: { fetch(request:Request):Promise<Response> };
   // Stage-only candidate: independent low-cardinality anonymous metrics.
   COVE_OPS_TELEMETRY_MODE?: string;
   OPS_ANALYTICS?: {
@@ -1378,6 +1382,43 @@ async function insertRegionalEvidence(
 }
 
 async function quarantineRegionalItem(env: CoveEnv, id: string, message: string) {
+  if (env.COVE_LEGAL_QUARANTINE_WRITER_STAGE === "1") {
+    // Only an independently audited, locked QA caller may reach the
+    // physically separate writer service. It owns the raw canonical D1
+    // binding, while this API's D1 is denied all direct legal mutations.
+    if (
+      env.COVE_SSR_STAGING !== "1" ||
+      env.COVE_CANONICAL_LEGAL_WRITE_LOCK !== "1" ||
+      env.COVE_LEGAL_WRITER_PRIMARY_ID !== "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87" ||
+      !env.LEGAL_QUARANTINE_WRITER?.fetch ||
+      !/^[a-f0-9]{64}$/.test(env.COVE_LEGAL_QUARANTINE_SECRET || "")
+    )
+      throw new ApiError(503, "Legal quarantine writer is not certified for staging.");
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(id + "\u0000" + message),
+    );
+    const hex = Array.from(new Uint8Array(digest).slice(0, 8))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    const response = await env.LEGAL_QUARANTINE_WRITER.fetch(
+      new Request("https://legal-quarantine.internal/quarantine", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer " + env.COVE_LEGAL_QUARANTINE_SECRET,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          sourceId: id,
+          operationId: "regional:" + id + ":" + hex,
+          message: message.slice(0, 500),
+        }),
+      }),
+    );
+    if (response.status !== 200)
+      throw new ApiError(503, "Legal quarantine could not be fenced.");
+    return;
+  }
   await database(env)
     .prepare(
       `UPDATE gutenberg_source_cache SET rights_status='quarantined',commercial_use_status='quarantined',ingest_status='quarantined',
