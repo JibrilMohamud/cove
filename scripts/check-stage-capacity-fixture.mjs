@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Preserve fixture rollback and withdrawal proof next to SQL assertions. */
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { syntheticOperatorFixturePlan,REQUIRED_BOOK_CARDS } from "./performance/synthetic-operator-fixture.mjs";

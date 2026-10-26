@@ -14,7 +14,10 @@ import {
   stageTransportCounters,
 } from "../staging/strangler-http-transport.mjs";
 import { projectedRequestFailure, strictProjectionPhasePass } from "./capacity-release-gate.mjs";
-import { syntheticOperatorFixturePlan, REQUIRED_BOOK_CARDS } from "./synthetic-operator-fixture.mjs";
+import {
+  syntheticOperatorFixturePlan,
+  REQUIRED_BOOK_CARDS,
+} from "./synthetic-operator-fixture.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const primary = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
@@ -64,6 +67,7 @@ let shutdown;
 function cleanup() {
   return (shutdown ||= (async () => {
     closeStageTransport();
+    /* eslint-disable prettier/prettier -- Stage-only rollback and rights proof. */
     if (syntheticFixture) {
       // Restore ONLY the dedicated synthetic capacity candidate IDs, even when
       // this run failed before deploying its first Worker. Never touch
@@ -77,6 +81,7 @@ function cleanup() {
         evidence.cleanupFailed=true;
       }
     }
+    /* eslint-enable prettier/prettier */
     for (const key of kvKeys) {
       try {
         await api(
@@ -599,6 +604,7 @@ try {
       await putPrivateStageKv(`campaign/${runId}/synthetic/` + key, body);
     },
   });
+  /* eslint-disable prettier/prettier -- Bounded synthetic market fixture must be auditable. */
   const snapshot=JSON.parse(fs.readFileSync(directory + "/presentation.json","utf8"));
   // Existing 50k-row capacity fixture contains *operator-issued* retail grants
   // but mislabels all products Gutenberg and has no Gutenberg evidence or
@@ -622,6 +628,7 @@ try {
   evidence.authenticatedFixture={operatorBooks:REQUIRED_BOOK_CARDS,
     legalAuthority:"live-primary-retail-grant",offerSource:"primary-only"};
   save();
+  /* eslint-enable prettier/prettier */
   for (let round = 1; round <= 3; round++) {
     await deploy(round);
     const cold = await sample();

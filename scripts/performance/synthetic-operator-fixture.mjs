@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Keep bounded QA source-ownership and retail-authorization SQL visible together. */
 // Strictly stage-only operator-grant fixture. The 50k synthetic records carry
 // rights_grants.source='operator', not Gutenberg source/evidence. The existing
 // capacity seed mislabels their products as Gutenberg and carries zero offers:
