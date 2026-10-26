@@ -107,6 +107,20 @@ try{
     }catch{}
   }
   assert.ok(ready,"QA owner service-binding never became usable");
+  // This database is the minimal, isolated canonical-publication QA fixture,
+  // not production. Seed one private synthetic row to prove the real writer
+  // can modify canonical D1 ONLY after the same DO has fenced all countries.
+  const qaD1="/accounts/"+account+
+    "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query";
+  await api("POST",qaD1,{sql:
+    "INSERT OR IGNORE INTO gutenberg_source_cache(id,source_id,title,rights_status,commercial_use_status,ingest_status) VALUES(?,'pg_us','Private QA rights revocation fixture','public-domain','approved','active')",
+    params:[sourceId]});
+  seeded=true;
+  const before=await api("POST",qaD1,{sql:
+    "SELECT rights_status,commercial_use_status FROM gutenberg_source_cache WHERE id=?",
+    params:[sourceId]});
+  assert.equal(before[0]?.results?.[0]?.rights_status,"public-domain");
+
   assert.equal((await post("/verify",{sourceId,territory:"CA"})).payload?.allowed,false);
   const withdrawal=await post("/deny-next",{
     sourceId,territory:"*",operationId:"qa:"+runId+":source:deny"
@@ -132,6 +146,34 @@ try{
   assert.deepEqual(offerings.payload?.rows,[],"Denied source cannot expose stale free retail offer");
   const unauthorized=await post("/verify",{sourceId,territory:"US"},"0".repeat(64));
   assert.equal(unauthorized.status,401);
+  const quarantined=await post("/quarantine",{
+    sourceId,operationId:"qa:"+runId+":quarantine:1",
+    message:"independently-confirmed-qa-source-withdrawal"
+  });
+  assert.equal(quarantined.status,200,
+    "Private writer must deny at strong owner then mutate canonical QA D1");
+  assert.equal(quarantined.payload?.quarantined,true);
+  const after=await api("POST",qaD1,{sql:
+    "SELECT rights_status,commercial_use_status,ingest_status FROM gutenberg_source_cache WHERE id=?",
+    params:[sourceId]});
+  assert.deepEqual(after[0]?.results?.[0],{
+    rights_status:"quarantined",commercial_use_status:"quarantined",
+    ingest_status:"quarantined"
+  },"Canonical source status changed only by the narrowly scoped writer");
+  for(const territory of ["US","CA","AU"]) {
+    const state=await post("/verify",{sourceId,territory});
+    assert.deepEqual(state.payload,{allowed:false,revision:2},
+      "Writer's source-wide fence immediately precedes and dominates primary mutation");
+  }
+  const repeated=await post("/quarantine",{
+    sourceId,operationId:"qa:"+runId+":quarantine:1",
+    message:"independently-confirmed-qa-source-withdrawal"
+  });
+  assert.equal(repeated.status,200);
+  assert.deepEqual((await post("/verify",{sourceId,territory:"US"})).payload,
+    {allowed:false,revision:2},"Duplicate writer event must not allocate another revision");
+  console.log("PASS: LIVE QA: owner DENY -> private canonical writer -> D1 quarantine -> 3-country denial -> exact replay");
+
   // Verify the committed denial through a new version of the *actual* QA
   // Worker. This exercises provider persistence, not just an in-process
   // Node SQLite reopen test. Version publication is not a capacity probe.
@@ -140,13 +182,13 @@ try{
   for(let i=0;i<8;i++){
     try {
       const reply=await post("/verify",{sourceId,territory:"CA"});
-      if(reply.status===200 && reply.payload?.revision===1){
+      if(reply.status===200 && reply.payload?.revision===2){
         persistent=reply.payload;break;
       }
     }catch{}
     await sleep(1000);
   }
-  assert.deepEqual(persistent,{allowed:false,revision:1},
+  assert.deepEqual(persistent,{allowed:false,revision:2},
     "Source-wide withdrawal must survive a real Cloudflare Worker redeploy");
   console.log("PASS: live protected caller -> private service binding -> SQLite DO: unseeded denial, source withdrawal, replay, 3-territory withdrawal, offer hiding, access control and Worker version persistence");
 }finally{
