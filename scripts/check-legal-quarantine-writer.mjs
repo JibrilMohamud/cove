@@ -15,12 +15,26 @@ try {
     return import(pathToFileURL(outfile).href);
   };
   const core=await load("src/storefront-strangler/legal-authority-core.ts","core");
+  const commercial=await load("src/storefront-strangler/commercial-legal-core.ts","commercial");
   const writer=(await load("src/storefront-strangler/legal-quarantine-qa.writer.ts","writer")).default;
   const db=new DatabaseSync(":memory:");
   db.exec("CREATE TABLE gutenberg_source_cache(id TEXT PRIMARY KEY,rights_status TEXT,commercial_use_status TEXT,ingest_status TEXT)");
   db.prepare("INSERT INTO gutenberg_source_cache VALUES('2701','public-domain','approved','active')").run();
   db.exec("CREATE TABLE gutenberg_rights_evidence(id TEXT PRIMARY KEY,source_id TEXT,cache_id TEXT,territory_code TEXT,status TEXT)");
   db.exec("CREATE TABLE rights_grants(edition_id TEXT,source TEXT,territory_code TEXT,decision TEXT,status TEXT)");
+  db.exec("ALTER TABLE rights_grants ADD COLUMN id TEXT");
+  db.exec("ALTER TABLE rights_grants ADD COLUMN contract_id TEXT");
+  db.exec("CREATE TABLE rights_contracts(id TEXT PRIMARY KEY,status TEXT)");
+  db.exec("CREATE TABLE products(id TEXT PRIMARY KEY,edition_id TEXT,source_name TEXT)");
+  db.exec("INSERT INTO rights_contracts VALUES('rcontract_17','active')");
+  db.exec("INSERT INTO rights_contracts VALUES('rcontract_18','active')");
+  db.exec("INSERT INTO products VALUES('prd_commercial_a17','ed_commercial_a17','partner')");
+  db.exec("INSERT INTO products VALUES('prd_commercial_b18','ed_commercial_b18','partner')");
+  db.exec("INSERT INTO products VALUES('prd_commercial_c19','ed_commercial_c19','partner')");
+  db.exec("INSERT INTO rights_grants(id,edition_id,source,territory_code,decision,status,contract_id) VALUES('right_valid_17','ed_commercial_a17','operator','US','allow','active','rcontract_17')");
+  db.exec("INSERT INTO rights_grants(id,edition_id,source,territory_code,decision,status,contract_id) VALUES('right_valid_18','ed_commercial_b18','operator','US','allow','active','rcontract_17')");
+  db.exec("INSERT INTO rights_grants(id,edition_id,source,territory_code,decision,status,contract_id) VALUES('right_valid_19','ed_commercial_c19','operator','US','allow','active','rcontract_18')");
+
   for(const territory of ["US","CA"]){
     db.prepare("INSERT INTO gutenberg_rights_evidence VALUES(?,?,?,?,?)")
       .run("gre_2702_"+territory.toLowerCase(),"pg_us","2702",territory,"approved");
@@ -34,6 +48,7 @@ try {
     return {toArray:()=>results};
   }};
   core.createAuthoritySchema(sql);core.createAuthorityProofSchema(sql);
+  commercial.createCommercialAuthoritySchema(sql);
   const secret="e".repeat(64),auth="f".repeat(64),operations=[];
   let failPrimary=false,failOwner=false;
   const owner={async fetch(request){
@@ -42,6 +57,14 @@ try {
     if(request.headers.get("authorization")!=="Bearer "+secret)
       return new Response(null,{status:401});
     const cmd=await request.json();
+    if(new URL(request.url).pathname==="/commercial/deny-batch"){
+      db.exec("BEGIN");
+      try{
+        const result=commercial.denyCommercialProductsBatch(sql,cmd);
+        db.exec("COMMIT");
+        return Response.json(result);
+      }catch{db.exec("ROLLBACK");return new Response(null,{status:409});}
+    }
     if(new URL(request.url).pathname==="/deny-next-batch"){
       db.exec("BEGIN");
       try {
@@ -62,6 +85,11 @@ try {
           if(failPrimary)throw Error("primary-unavailable");
           db.prepare(stmt).run(...params);
           return {success:true};
+        },
+        async all(){
+          operations.push("canonical-scope-discovery");
+          if(failPrimary)throw Error("primary-unavailable");
+          return {results:db.prepare(stmt).all(...params)};
         },
         async first(){
           operations.push("canonical-evidence-check");
@@ -180,6 +208,47 @@ try {
     "SELECT ingest_status FROM gutenberg_source_cache WHERE id='2707'"
   ).get().ingest_status,"active","Unavailable owner cannot allow D1 retraction");
   failOwner=false;
+  // Physically isolated licensed-grant and contract operations must
+  // discover ALL affected paid products before one atomic owner denial.
+  operations.length=0;
+  const grantSuspend={targetId:"right_valid_19",operationId:"grant-suspend:19:v1"};
+  assert.equal((await post(grantSuspend,{},"/commercial/suspend-grant")).status,200);
+  assert.deepEqual(operations,["canonical-scope-discovery","authority","canonical-atomic-batch"]);
+  assert.equal(commercial.readCommercialProofs(sql,
+    ["prd_commercial_c19"],"US","retail").length,0);
+  assert.equal(db.prepare("SELECT status FROM rights_grants WHERE id='right_valid_19'").get().status,
+    "suspended");
+  assert.equal(db.prepare("SELECT status FROM rights_grants WHERE id='right_valid_17'").get().status,
+    "active");
+  operations.length=0;
+  const contractSuspend={targetId:"rcontract_17",operationId:"contract-suspend:17:v1"};
+  assert.equal((await post(contractSuspend,{},"/commercial/suspend-contract")).status,200);
+  assert.deepEqual(operations,["canonical-scope-discovery","authority","canonical-atomic-batch"]);
+  assert.equal(db.prepare("SELECT status FROM rights_contracts WHERE id='rcontract_17'").get().status,
+    "suspended");
+  assert.deepEqual(db.prepare(
+    "SELECT status FROM rights_grants WHERE contract_id='rcontract_17' ORDER BY id"
+  ).all().map(v=>v.status),["suspended","suspended"]);
+  assert.equal(db.prepare("SELECT status FROM rights_contracts WHERE id='rcontract_18'").get().status,
+    "active","Other publisher contract unaffected");
+  assert.equal((await post(contractSuspend,{},"/commercial/suspend-contract")).status,200,
+    "Same legal change is idempotent");
+  const nowEpoch=commercial.captureCommercialEpoch(sql,{productId:"prd_commercial_a17"});
+  assert.equal(nowEpoch,1);
+  failOwner=true;operations.length=0;
+  assert.equal((await post({targetId:"rcontract_18",operationId:"contract-suspend:18:v1"},
+    {},"/commercial/suspend-contract")).status,503);
+  assert.deepEqual(operations,["canonical-scope-discovery","authority"],
+    "Owner outage cannot permit canonical contract update");
+  assert.equal(db.prepare("SELECT status FROM rights_contracts WHERE id='rcontract_18'").get().status,
+    "active");
+  failOwner=false;operations.length=0;
+  failPrimary=true;
+  assert.equal((await post({targetId:"rcontract_18",operationId:"contract-suspend:18:v2"},
+    {},"/commercial/suspend-contract")).status,503);
+  assert.equal(commercial.captureCommercialEpoch(sql,{productId:"prd_commercial_c19"}),2,
+    "D1 failure must leave strong denial committed");
+  failPrimary=false;
   db.close();
   console.log("PASS: QA source quarantine, independent-country evidence withdrawal and atomic source retraction batch, fail closed, replay safe");
 }finally{rmSync(directory,{force:true,recursive:true});}
