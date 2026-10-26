@@ -13,12 +13,19 @@ export function classifyDeliverySample(sample, worker) {
   const cfWallMs = worker && Number.isFinite(worker.wallTimeMs) ? worker.wallTimeMs : null;
   const workerHandlerMs = Number.isFinite(sample.handlerMs) ? sample.handlerMs : null;
   const workMs = cfWallMs ?? workerHandlerMs;
+  const headersMs=Number.isFinite(sample.firstHeadersMs)
+    ? sample.firstHeadersMs : sample.ms;
+  const bodyMs=Math.max(0,sample.ms-headersMs);
   const outsideMs = workMs === null ? null : Math.max(0, sample.ms - workMs);
+  const outsideFirstHeadersMs = workMs === null ? null : Math.max(0,headersMs-workMs);
   return {
     ray: sample.ray,
     colo: sample.colo,
     status: sample.status,
-    totalClientFirstHeadersMs: sample.ms,
+    totalClientResponseMs: sample.ms,
+    clientFirstHeadersMs: headersMs,
+    clientBodyDeliveryAndDecodeMs: bodyMs,
+    outsideWorkerToFirstHeadersMs: outsideFirstHeadersMs,
     workerWallMs: cfWallMs,
     workerHandlerMs,
     outsideWorkerMs: outsideMs,
@@ -28,9 +35,12 @@ export function classifyDeliverySample(sample, worker) {
     edgeDeliveryRate: worker?.edgeDeliveryRate ?? null,
     sessionId: sample.transportSpan?.sessionId ?? null,
     // This is an attribution hypothesis, NOT proof of packet loss.
-    classification: outsideMs !== null && sample.ms >= 800 && outsideMs > 500 &&
-      workMs < 200 ? "edge-or-client-delivery-tail" :
-      sample.ms >= 800 && workMs !== null && workMs >= 500 ? "worker-or-data-service-tail" :
+    classification: outsideFirstHeadersMs !== null && headersMs >= 800 &&
+        outsideFirstHeadersMs > 500 && workMs < 200 ? "edge-or-client-delivery-tail" :
+      sample.ms >= 800 && bodyMs > 500 && workMs !== null && workMs < 200
+        ? "body-delivery-or-decode-tail" :
+      sample.ms >= 800 && workMs !== null && workMs >= 500
+        ? "worker-or-data-service-tail" :
       "insufficient-evidence-or-within-gate"
   };
 }
@@ -43,6 +53,12 @@ if (process.argv.includes("--self-test")) {
   assert.equal(p.outsideWorkerMs,2034.13);
   assert.equal(p.sessionId,73);
   assert.equal(p.sqlMs,4.4);
+  const bodyTail=classifyDeliverySample({
+    ray:"body",ms:1280,firstHeadersMs:80,handlerMs:24,
+    transportSpan:{bodyDeliveryMs:1200}
+  },null);
+  assert.equal(bodyTail.clientBodyDeliveryAndDecodeMs,1200);
+  assert.equal(bodyTail.classification,"body-delivery-or-decode-tail");
   assert.equal(classifyDeliverySample({ray:"r",ms:920,handlerMs:850},null).classification,
     "worker-or-data-service-tail");
   console.log("PASS: Cloudflare Ray attribution preserves every failing request");
