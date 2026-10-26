@@ -7,6 +7,17 @@ import {pathToFileURL} from "node:url";
 import {DatabaseSync} from "node:sqlite";
 import {build} from "esbuild";
 
+// The positive lease writer must verify the immutable purchase snapshot
+// against the legal owner's independent product/market proof before commit.
+const writer=fs.readFileSync("src/storefront-strangler/legal-authority.worker.ts","utf8");
+for(const invariant of [
+  "acquired.grantId!==rights[0].grant_id",
+  "acquired.editionId!==rights[0].edition_id",
+  "acquired.territory!==input.territory",
+  "acquired.salesChannel!==input.channel",
+  "acquired.contractId!==rights[0].contract_id",
+  "acquired.contractVersionId!==rights[0].contract_version_id"
+])assert.ok(writer.includes(invariant),"Missing immutable paid purchase scope: "+invariant);
 const root=fs.mkdtempSync(path.join(os.tmpdir(),"cove-paid-owner-"));
 try{
   const load=async(source,name)=>{
