@@ -28,6 +28,8 @@ on:
       - "scripts/check-legal-consumer-fence.mjs"
       - "src/storefront-strangler/commercial-legal-core.ts"
       - "scripts/check-commercial-legal-authority.mjs"
+      - "src/storefront-strangler/commercial-entitlement-core.ts"
+      - "scripts/check-paid-entitlement-authority.mjs"
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
       - "src/features/fore/retail.server.ts"
       - "src/features/fore/commerce.server.ts"
@@ -69,6 +71,7 @@ jobs:
       - run: node scripts/check-legal-quarantine-writer.mjs
       - run: node scripts/check-legal-consumer-fence.mjs
       - run: node scripts/check-commercial-legal-authority.mjs
+      - run: node scripts/check-paid-entitlement-authority.mjs
       - run: node scripts/build-storefront-strangler.mjs
       - run: npm run typecheck
       - run: npm run test:rights
