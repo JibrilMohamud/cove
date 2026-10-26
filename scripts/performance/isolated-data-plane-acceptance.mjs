@@ -14,10 +14,7 @@ import {
   stageTransportCounters,
   stageTransportSessionSnapshot,
 } from "../staging/strangler-http-transport.mjs";
-import {
-  takeAnonymizedTcpSnapshot,
-  compareTcpSnapshots,
-} from "./anonymized-tcp-evidence.mjs";
+import { takeAnonymizedTcpSnapshot, compareTcpSnapshots } from "./anonymized-tcp-evidence.mjs";
 import { projectedRequestFailure, strictProjectionPhasePass } from "./capacity-release-gate.mjs";
 import {
   syntheticOperatorFixturePlan,
