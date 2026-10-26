@@ -86,7 +86,8 @@ export async function requireStageLegalConsumerProof(
       throw new ApiError(503,"Legal-owner proof identity mismatch.");
     found.add(row.product_id);
     let offer:unknown;
-    try{offer=JSON.parse(row.offer_json);}catch{}
+    try{offer=JSON.parse(row.offer_json);}
+    catch{throw new ApiError(503,"Legal-owner offer proof malformed.");}
     const p=offer as Record<string,unknown>|null;
     if(!p||Array.isArray(p) || p.type!=="public-domain"||
        p.amountMinor!==0||p.currency!==currency ||
