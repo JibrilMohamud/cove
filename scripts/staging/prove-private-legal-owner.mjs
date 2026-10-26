@@ -20,9 +20,10 @@ const secret=randomBytes(32).toString("hex");
 const writerKey=randomBytes(32).toString("hex");
 const sourceId=String((Number(runId)%800000000)+100000000);
 const evidenceSourceId=String(Number(sourceId)+1);
+const retractIds=[String(Number(sourceId)+2),String(Number(sourceId)+3)];
 const evidenceId="gre_qa_"+evidenceSourceId+"_us";
 const expires=Date.now()+12*60*1000;
-let authorityEnabled=false,callerStarted=false,writerEnabled=false,seeded=false,seededEvidence=false;
+let authorityEnabled=false,callerStarted=false,writerEnabled=false,seeded=false,seededEvidence=false,seededRetractions=false;
 const cli=(args,input)=>{
   const result=spawnSync("npm",["exec","--yes","--package=wrangler@4.151.0","--","wrangler",...args],{
     input,encoding:"utf8",timeout:160000,
@@ -215,6 +216,36 @@ try{
   assert.equal((await post("/verify",{sourceId:evidenceSourceId,territory:"US"})).payload?.revision,1,
     "Idempotent evidence replay must keep its original owner revision");
   console.log("PASS: LIVE QA: strong owner US evidence denial -> atomic D1 evidence+grant revoke; CA grant unaffected and no inferred owner allow");
+  seededRetractions=true;
+  for(const id of retractIds){
+    await api("POST",qaD1,{sql:
+      "INSERT INTO gutenberg_source_cache(id,source_id,title,rights_status,commercial_use_status,ingest_status) VALUES(?,'pg_us','Private QA staged source retraction','public-domain','approved','active')",
+      params:[id]});
+  }
+  const withdrawals={operations:retractIds.map((id,i)=>({
+    sourceId:id,operationId:"qa:"+runId+":source-batch:"+i
+  }))};
+  const sourceBatch=await post("/source/retract-batch",withdrawals);
+  assert.equal(sourceBatch.status,200,
+    "Strong owner must atomically commit two source-wide denials before D1 mutation");
+  assert.equal(sourceBatch.payload?.retracted,2);
+  const sourceRows=await api("POST",qaD1,{sql:
+    "SELECT id,rights_status,ingest_status,commercial_use_status FROM gutenberg_source_cache WHERE id IN (?,?) ORDER BY id",
+    params:retractIds});
+  assert.equal(sourceRows[0]?.results?.length,2);
+  assert.ok(sourceRows[0]?.results?.every(x=>
+    x.rights_status==="quarantined" && x.ingest_status==="stale" &&
+    x.commercial_use_status==="quarantined"),
+    "QA D1 rows must be made ineligible by the atomic source retraction");
+  for(const id of retractIds){
+    for(const country of ["US","CA","AU"])
+      assert.deepEqual((await post("/verify",{sourceId:id,territory:country})).payload,
+        {allowed:false,revision:1});
+  }
+  assert.equal((await post("/source/retract-batch",withdrawals)).status,200);
+  assert.equal((await post("/verify",{sourceId:retractIds[0],territory:"US"})).payload?.revision,1,
+    "Idempotent replay may not advance source denial epoch");
+  console.log("PASS: LIVE QA: one transaction withdraws multiple sources, one canonical D1 batch retracts, US/CA/AU deny and replay preserves revisions");
 
   // Verify the committed denial through a new version of the *actual* QA
   // Worker. This exercises provider persistence, not just an in-process
@@ -286,6 +317,14 @@ try{
           sql:"DELETE FROM gutenberg_source_cache WHERE id=?",params:[sourceId]
         });
     }catch(e){errors.push("synthetic_source_cleanup_"+String(e.message).slice(0,120));}
+  }
+  if(seededRetractions){
+    try {
+      await api("POST","/accounts/"+account+
+        "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query",{
+          sql:"DELETE FROM gutenberg_source_cache WHERE id IN (?,?)",params:retractIds
+        });
+    }catch(e){errors.push("synthetic_retractions_cleanup_"+String(e.message).slice(0,120));}
   }
   if(seededEvidence){
     try{
