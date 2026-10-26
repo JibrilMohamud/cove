@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Diagnostic report formatting is intentionally compact and auditable. */
 /**
  * Strict release-gate attribution: compare each sampled client first-header
  * duration against the very same Cloudflare Ray's Worker wall time.
