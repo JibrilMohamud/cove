@@ -95,6 +95,10 @@ try{
   rightsRows=[{product_id:productId,edition_id:"ed_17",grant_id:"grant_17",
     contract_id:"contract_17",contract_version_id:"version_17",
     epoch:1,valid_until:new Date(Date.now()+900000).toISOString()}];
+  rightsRows[0].valid_until="not-a-date";
+  await assert.rejects(preflight(env,orderId),e=>e.status===451,
+    "Malformed legal proof expiries must never authorize payment");
+  rightsRows[0].valid_until=new Date(Date.now()+900000).toISOString();
   const originalSnapshot=items[0].rights_snapshot_json;
   items[0].rights_snapshot_json="{}";
   await assert.rejects(preflight(env,orderId),e=>e.status===451,
