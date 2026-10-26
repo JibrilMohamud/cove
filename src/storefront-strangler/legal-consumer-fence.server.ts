@@ -65,7 +65,19 @@ export async function requireStagePaidEntitlementAccess(
   if(result.allowed!==true)
     throw new ApiError(451,"This purchase's distribution or entitlement access is not authorized.");
   const proof=result.proof;
-  if(!proof||typeof proof.edition_id!=="string"||
+  // A positive owner response is never a transferable bearer allowance.
+  // Bind the returned immutable purchase scope to THIS authorization call,
+  // even if a private service is misconfigured or a previous proof is replayed.
+  if(!proof||
+     proof.entitlement_id!==input.entitlementId ||
+     proof.user_id!==input.userId ||
+     proof.product_id!==input.productId ||
+     proof.territory!==input.territory ||
+     proof.channel!==input.channel ||
+     typeof proof.order_id!=="string" ||
+     !/^[a-zA-Z0-9_-]{8,160}$/.test(proof.order_id) ||
+     typeof proof.edition_id!=="string"||
+     !/^[a-zA-Z0-9_-]{3,160}$/.test(proof.edition_id) ||
      typeof proof.grant_id!=="string"||
      !/^[a-zA-Z0-9_-]{3,180}$/.test(proof.grant_id)||
      typeof proof.contract_id!=="string"||
