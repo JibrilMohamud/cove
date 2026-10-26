@@ -9,6 +9,7 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
   const errors = [];
   const reads = { recordings: 0, catalog: 0, shelves: 0 };
   const funnelEvents = [];
+  const shelfSearches = [];
   const musicPaths = new Set([
     "/api/fore/sounds/stations/gothic-hour/recordings",
     "/api/fore/soundtracks/recordings",
@@ -31,7 +32,10 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
     // Count the independent snapshot or guarded 404 fallback after intent.
     if (musicPaths.has(path)) reads.recordings++;
     if (catalogPaths.has(path)) reads.catalog++;
-    if (path.includes("/api/fore/social/sounds/stations/")) reads.shelves++;
+    if (path === "/api/fore/social/sounds/stations/gothic-hour/shelves") {
+      reads.shelves++;
+      shelfSearches.push(new URL(req.url()).search);
+    }
   });
   const html = await request.get("/sounds/gothic-hour");
   expect(html.ok()).toBeTruthy();
@@ -60,13 +64,9 @@ test("Cove Sounds atmosphere is instantly available and loads discovery on inten
   await expect.poll(() => reads.catalog).toBeGreaterThan(0);
   expect(reads.shelves).toBe(0);
 
-  const shelvesRequest = page.waitForRequest(
-    (req) => new URL(req.url()).pathname === "/api/fore/social/sounds/stations/gothic-hour/shelves",
-  );
   await page.getByRole("button", { name: "Explore reader-created shelves" }).click();
-  const requestFromPage = await shelvesRequest;
-  expect(new URL(requestFromPage.url()).search).toBe("");
-  await expect.poll(() => reads.shelves).toBe(1);
+  await expect.poll(() => reads.shelves).toBeGreaterThan(0);
+  expect(shelfSearches).toEqual([""]);
   const shelves = await request.get("/api/fore/social/sounds/stations/gothic-hour/shelves");
   expect(shelves.ok()).toBeTruthy();
   const body = await shelves.json();
