@@ -4,6 +4,7 @@ import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/
 import {
   applyAuthorityCommand, createAuthoritySchema, createAuthorityProofSchema,
   readAuthority, readAuthorizedPresentations, storeAuthorizedPresentationProof,
+  persistSourceWithdrawal,
   validateAuthorityCommand, type AuthoritySql,
 } from "./legal-authority-core";
 
@@ -37,7 +38,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       return new Response(null,{status:401,headers:noStore});
     if(request.method!=="POST") return new Response(null,{status:405,headers:noStore});
     const route=new URL(request.url).pathname;
-    if(!["/deny","/verify","/publish-allow","/authorize-batch"].includes(route))
+    if(!["/deny","/deny-next","/verify","/publish-allow","/authorize-batch"].includes(route))
       return new Response(null,{status:404,headers:noStore});
     if (request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
       return new Response(null,{status:415,headers:noStore});
@@ -64,6 +65,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const rows=readAuthorizedPresentations(sql,input.ids,input.territory,input.currency);
         return Response.json({schema:"cove.legal-authorized.v1",rows},
           {headers:noStore});
+      }
+      if(route==="/deny-next") {
+        const verdict=persistSourceWithdrawal(sql,raw);
+        return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
       }
       const command=validateAuthorityCommand(raw);
       if(route==="/deny") {
