@@ -46,21 +46,27 @@ export default {
     const isCommercial=pathname==="/commercial/suspend-grant" ||
       pathname==="/commercial/suspend-contract";
     const isEntitlement=pathname==="/commercial/entitlement/revoke";
+    const isRefundBatch=pathname==="/commercial/entitlement/revoke-order";
     if(request.method!=="POST" ||
-       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch && !isCommercial && !isEntitlement) ||
+       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch) ||
        request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json" ||
        request.headers.has("cookie"))
       return new Response(null,{status:405,headers});
     let cmd:{sourceId?:unknown;operationId?:unknown;message?:unknown;
       evidenceId?:unknown;territory?:unknown;operations?:unknown;
-      targetId?:unknown;entitlementId?:unknown};
+      targetId?:unknown;entitlementId?:unknown;orderId?:unknown};
     try{
       const text=await request.text();
       if(text.length>(isRetractionBatch?5000:900))
         return new Response(null,{status:413,headers});
       cmd=JSON.parse(text);
     }catch{return new Response(null,{status:400,headers});}
-    if(!cmd || isEntitlement && (
+    if(!cmd || isRefundBatch && (
+      typeof cmd.orderId!=="string" ||
+      !/^[a-zA-Z0-9_-]{8,160}$/.test(cmd.orderId) ||
+      typeof cmd.operationId!=="string" ||
+      !opIdRegex.test(cmd.operationId)
+    ) || isEntitlement && (
       typeof cmd.entitlementId!=="string" ||
       !/^[a-zA-Z0-9_-]{8,160}$/.test(cmd.entitlementId) ||
       typeof cmd.operationId!=="string" ||
@@ -70,7 +76,7 @@ export default {
       !/^[a-zA-Z0-9_-]{3,160}$/.test(cmd.targetId) ||
       typeof cmd.operationId!=="string" ||
       !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,80}$/.test(cmd.operationId)
-    ) || !isRetractionBatch && !isCommercial && !isEntitlement && (
+    ) || !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && (
        !sourceIdRegex.test(String(cmd.sourceId||"")) ||
        !opIdRegex.test(String(cmd.operationId||"")) ||
        (isEvidence
@@ -81,6 +87,57 @@ export default {
          : typeof cmd.message!=="string"||cmd.message.length>500)))
       return new Response(null,{status:400,headers});
     try{
+      if(isRefundBatch){
+        const orderId=cmd.orderId as string;
+        // The writer, not Stripe nor a caller-supplied product list, derives
+        // the exact buyer and entitlements of the settled order.
+        const order=await env.PRIMARY_DB.prepare(
+          "SELECT id,user_id FROM commerce_orders WHERE id=?"
+        ).bind(orderId).first<{id:string;user_id:string}>();
+        if(!order)throw Error("refund_order_not_found");
+        const matching=await env.PRIMARY_DB.prepare(
+          "SELECT e.id,e.user_id,e.product_id,e.status FROM entitlements e WHERE e.user_id=? AND e.order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND e.entitlement_type='purchase' ORDER BY e.id LIMIT 26"
+        ).bind(order.user_id,orderId).all<{
+          id:string;user_id:string;product_id:string;status:string
+        }>();
+        if(matching.results.length>25 ||
+           matching.results.some(e=>!["active","revoked"].includes(e.status)||
+             !/^[a-zA-Z0-9_-]{8,160}$/.test(e.id)||
+             !/^[a-zA-Z0-9_-]{8,160}$/.test(e.user_id)||
+             !/^prd_[a-zA-Z0-9_-]{3,120}$/.test(e.product_id)||
+             e.product_id.startsWith("prd_gutenberg_")))
+          throw Error("refund_unsupported_entitlements");
+        if(!matching.results.length)
+          return Response.json({revoked:0},{status:200,headers});
+        const ops=matching.results.map((e,i)=>({
+          entitlementId:e.id,userId:e.user_id,productId:e.product_id,
+          operationId:"refund:"+cmd.operationId+":"+i
+        }));
+        const owner=await env.LEGAL_PRIVATE.fetch(new Request(
+          "https://legal-authority.internal/commercial/entitlement/deny-batch",{
+            method:"POST",
+            headers:{"authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,
+              "content-type":"application/json"},
+            body:JSON.stringify({operations:ops})
+          }
+        ));
+        if(owner.status!==200)throw Error("refund_owner_unavailable");
+        const proof=await owner.json() as {
+          applied?:boolean;receipts?:Array<{
+            entitlementId?:string;applied?:boolean;epoch?:number
+          }>
+        };
+        if(proof.applied!==true||!Array.isArray(proof.receipts)||
+           proof.receipts.length!==ops.length||
+           proof.receipts.some((r,i)=>r.entitlementId!==ops[i].entitlementId||
+             !r.applied||!Number.isSafeInteger(r.epoch)||Number(r.epoch)<=0))
+          throw Error("refund_owner_receipt_invalid");
+        await env.PRIMARY_DB.batch(matching.results.map(e=>env.PRIMARY_DB.prepare(
+          "UPDATE entitlements SET status='revoked' WHERE id=? AND user_id=? AND product_id=? AND status='active'"
+        ).bind(e.id,e.user_id,e.product_id)));
+        return Response.json({revoked:matching.results.length},
+          {status:200,headers});
+      }
       if(isEntitlement){
         const entitlementId=cmd.entitlementId as string;
         // Only canonical D1 may determine the beneficiary, product and
