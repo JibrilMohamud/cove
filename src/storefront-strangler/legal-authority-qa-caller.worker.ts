@@ -36,7 +36,8 @@ export default {
         "/commercial/suspend-grant","/commercial/suspend-contract",
         "/commercial/entitlement/deny-next","/commercial/entitlement/publish-verified",
         "/commercial/entitlement/authorize","/commercial/entitlement/revoke",
-        "/commercial/entitlement/deny-batch","/commercial/entitlement/revoke-order"].includes(uri.pathname))
+        "/commercial/entitlement/deny-batch","/commercial/entitlement/revoke-order",
+        "/commercial/order/deny-next".includes(uri.pathname))
       return new Response(null,{status:404,headers:noStore});
     const isWriter=uri.pathname==="/quarantine" || uri.pathname==="/evidence/revoke" ||
       uri.pathname==="/source/retract-batch" ||
