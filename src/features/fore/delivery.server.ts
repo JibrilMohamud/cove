@@ -552,10 +552,12 @@ export async function issueCommercialEpubGrant(
       400,
       "Secure commercial grants are only used for commercial catalog assets.",
     );
-  await requireStagePaidEntitlementAccess(env,{
-    entitlementId:String(ent.id),userId,productId:String(product.id),
-    territory:(requestMeta(request).country||env.FORE_DEFAULT_TERRITORY||"US").toUpperCase(),
-    channel:"retail",
+  await requireStagePaidEntitlementAccess(env, {
+    entitlementId: String(ent.id),
+    userId,
+    productId: String(product.id),
+    territory: (requestMeta(request).country || env.FORE_DEFAULT_TERRITORY || "US").toUpperCase(),
+    channel: "retail",
   });
   const permanent = ["purchase", "gift", "publisher"].includes(String(ent.entitlement_type)),
     pvId = await resolvedPublicationVersion(db, ent, ownership, lifecycle);
@@ -800,11 +802,12 @@ export async function serveCommercialEpubGrant(env: CoveEnv, rawToken: string, r
       "The entitlement backing this delivery is no longer active.",
       "entitlement_inactive",
     );
-  await requireStagePaidEntitlementAccess(env,{
-    entitlementId:String(ent.id),
-    userId:String(grant.user_id),productId:String(grant.product_id),
-    territory:(requestMeta(request).country||env.FORE_DEFAULT_TERRITORY||"US").toUpperCase(),
-    channel:"retail",
+  await requireStagePaidEntitlementAccess(env, {
+    entitlementId: String(ent.id),
+    userId: String(grant.user_id),
+    productId: String(grant.product_id),
+    territory: (requestMeta(request).country || env.FORE_DEFAULT_TERRITORY || "US").toUpperCase(),
+    channel: "retail",
   });
   const ownership = await db
       .prepare("SELECT * FROM entitlement_ownership_records WHERE entitlement_id=?")
