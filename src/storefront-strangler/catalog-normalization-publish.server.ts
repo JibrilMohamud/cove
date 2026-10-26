@@ -91,19 +91,37 @@ export async function publishFencedCanonicalMetadata(env: CanonicalPublisherEnv,
     source_summary: string|null; title: string; description: string;
   }>();
   const byId=new Map(result.results.map((r) => [r.source_id,r]));
-  const report=[];
+  const ready:{ id:string; writes:Statement[] }[]=[];
+  const skipped=new Map<string,string>();
   for (const id of ids) {
     const row=byId.get(id);
-    if (!row || row.visible!==1) {report.push({id,applied:false,reason:"missing_or_withdrawn"});continue;}
+    if (!row || row.visible!==1) {
+      skipped.set(id,"missing_or_withdrawn");
+      continue;
+    }
     const doc:CatalogPreparedMetadata={
       schema:"cove.catalog.normalized.v1",sourceId:id,revision:row.revision,
       visible:row.visible,sourceTitle:row.source_title,sourceSummary:row.source_summary,
       title:row.title,description:row.description,
     };
-    // Cloudflare D1 batch is a transaction: the verified receipt and both
-    // canonical metadata writes either commit together or none commit.
-    const writes=await env.PRIMARY_DB.batch(fencedCanonicalMetadataStatements(env.PRIMARY_DB,doc));
-    report.push({id,applied:Number(writes[0]?.meta?.changes || 0)===1});
+    // Prevalidate *all* untrusted isolated data before any canonical mutation.
+    // Every document still has its own exact-source, feed/revision and legal
+    // guards inside the primary transaction.
+    ready.push({id,writes:fencedCanonicalMetadataStatements(env.PRIMARY_DB,doc)});
   }
-  return {published:report};
+  const changed=new Map<string,boolean>();
+  if (ready.length) {
+    // Up to eight documents x (receipt, work, edition) = 24 bounded SQL
+    // statements. One primary service roundtrip and one all-or-nothing D1
+    // transaction, rather than eight transactions competing with storefront
+    // authorization. A retry is safe: unchanged receipt revisions do nothing.
+    const writes=await env.PRIMARY_DB.batch(ready.flatMap((r)=>r.writes));
+    if (writes.length!==ready.length*3)
+      throw Error("catalog_incomplete_publication_receipt");
+    for (let i=0;i<ready.length;i++)
+      changed.set(ready[i].id,Number(writes[i*3]?.meta?.changes || 0)===1);
+  }
+  return {published:ids.map((id)=>skipped.has(id)
+    ? {id,applied:false,reason:skipped.get(id)}
+    : {id,applied:changed.get(id)===true})};
 }

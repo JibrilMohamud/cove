@@ -126,6 +126,9 @@ try {
   const safe={PRIMARY_DB:primary,CATALOG_INDEX_DB:isolated,
     COVE_CATALOG_NORMALIZATION_PUBLISH_ENABLED:"1",
     COVE_CATALOG_PUBLICATION_PRIMARY_ID:"5e3a6b69-6f3d-4b19-b837-01f7aa56ce87"};
+  let primaryBatchCalls=0;
+  const executePrimaryBatch=primary.batch.bind(primary);
+  primary.batch=async (writes)=>{primaryBatchCalls++;return executePrimaryBatch(writes);};
   await assert.rejects(()=>publishFencedCanonicalMetadata({...safe,COVE_CATALOG_NORMALIZATION_PUBLISH_ENABLED:"0"},["2701"]),/disabled/);
   await assert.rejects(()=>publishFencedCanonicalMetadata({...safe,COVE_CATALOG_PUBLICATION_PRIMARY_ID:"production"},["2701"]),/unsafe/);
   await indexCurrent();
@@ -172,6 +175,41 @@ try {
   assert.equal((await publishFencedCanonicalMetadata(safe,["2701"])).published[0].applied,false);
   assert.equal(primarySql.prepare("SELECT storefront_status FROM products").get().storefront_status,"inactive");
   assert.equal(primarySql.prepare("SELECT status FROM rights_grants WHERE territory_code='US'").get().status,"suspended");
+  // A mix of two ready sources and one withdrawn source must submit ONE
+  // bounded primary D1 transaction (six statements), retain input ordering,
+  // and skip the withdrawn source without restoring its storefront rights.
+  for (const sourceId of ["2702","2703"]) {
+    primarySql.prepare(`INSERT INTO gutenberg_source_cache
+      (id,title,summary,authors_json,subjects_json,bookshelves_json,
+       languages_json,formats_json,source_id,ingest_status,copyright,
+       rights_status,commercial_use_status,rights_territories_json,
+       rights_evidence_url,source_metadata_json)
+       VALUES(?,?,?,'[]','[]','[]','["en"]','{}','pg_us','active',0,
+         'public-domain','approved','["US"]','https://rights.example','{}')`)
+      .run(sourceId,"Title "+sourceId,"Summary "+sourceId);
+    primarySql.prepare("INSERT INTO works VALUES(?,?,'before','')")
+      .run("wrk_gutenberg_"+sourceId,"Old");
+    primarySql.prepare("INSERT INTO editions VALUES(?,?,'before','','available')")
+      .run("ed_gutenberg_"+sourceId,"Old");
+    const sourceRow=primarySql.prepare("SELECT * FROM gutenberg_source_cache WHERE id=?")
+      .get(sourceId);
+    const prep=prepareIsolatedCanonicalMetadata(sourceRow,sourceId,version());
+    const q=catalogPreparationWrite(prep);
+    isolatedSql.prepare(q.sql).run(...q.binds);
+  }
+  const beforeMulti=primaryBatchCalls;
+  const multi=await publishFencedCanonicalMetadata(safe,["2702","2701","2703"]);
+  assert.equal(primaryBatchCalls,beforeMulti+1,
+    "All ready books must commit in one bounded primary D1 batch");
+  assert.deepEqual(multi.published.map(x=>x.applied),[true,false,true]);
+  assert.equal(multi.published[1].reason,"missing_or_withdrawn");
+  assert.equal(primarySql.prepare("SELECT title FROM editions WHERE id='ed_gutenberg_2702'")
+    .get().title,"Title 2702");
+  assert.equal(primarySql.prepare("SELECT title FROM works WHERE id='wrk_gutenberg_2703'")
+    .get().title,"Title 2703");
+  assert.equal((await publishFencedCanonicalMetadata(safe,["2702","2703"]))
+    .published.every(x=>x.applied===false),true,
+    "A replayed batch may never republish an already committed revision");
   // Rollback of cross-statement failure must not produce a positive receipt.
   primarySql.exec("DROP TRIGGER IF EXISTS deny_work_changes");
   primarySql.exec(`CREATE TRIGGER deny_work_changes BEFORE UPDATE ON works
