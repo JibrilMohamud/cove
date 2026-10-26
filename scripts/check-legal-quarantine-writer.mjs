@@ -86,6 +86,14 @@ try {
         return Response.json(result,{status:result.applied?200:409});
       }catch{db.exec("ROLLBACK");return new Response(null,{status:409});}
     }
+    if(new URL(request.url).pathname==="/commercial/subject/deny-next"){
+      db.exec("BEGIN");
+      try{
+        const receipt=commercial.denyCommercialSubject(sql,cmd);
+        db.exec("COMMIT");
+        return Response.json(receipt);
+      }catch{db.exec("ROLLBACK");return new Response(null,{status:409});}
+    }
     if(new URL(request.url).pathname==="/commercial/deny-batch"){
       db.exec("BEGIN");
       try{
@@ -275,8 +283,10 @@ try {
   failPrimaryBatch=true;
   assert.equal((await post({targetId:"rcontract_18",operationId:"contract-suspend:18:v2"},
     {},"/commercial/suspend-contract")).status,503);
-  assert.equal(commercial.captureCommercialEpoch(sql,{productId:"prd_commercial_c19"}),2,
-    "D1 failure must leave strong denial committed");
+  assert.deepEqual(sql.exec(
+    "SELECT subject_id FROM cove_commercial_subject_denials WHERE subject_kind='contract' AND subject_id=?",
+    "rcontract_18").toArray().map(r=>r.subject_id),["rcontract_18"],
+    "D1 failure must retain durable global subject denial");
   failPrimaryBatch=false;
   const entitlementId="dc6197f2-945c-4362-b4bc-7dd928f3c980";
   db.prepare("INSERT INTO entitlements(id,user_id,product_id,status) VALUES(?,?,?,'active')").run(
