@@ -4,7 +4,7 @@ import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/
 import { resolveProductRights } from "../features/fore/rights.server";
 import {
   captureEntitlementEpoch,createPaidEntitlementSchema,
-  denyPaidEntitlement,denyPaidEntitlementsBatch,
+  denyPaidOrder,denyPaidEntitlement,denyPaidEntitlementsBatch,
   publishFreshEntitlement,readPaidAccess,
   validatePaidEntitlementScope,
 } from "./commercial-entitlement-core";
@@ -70,6 +70,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     if(!["/deny","/deny-next","/deny-next-batch","/verify","/publish-allow","/authorize-batch",
       "/commercial/deny-next","/commercial/deny-batch","/commercial/publish-verified",
       "/commercial/authorize-batch",
+      "/commercial/order/deny-next",
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/authorize"].includes(route))
@@ -84,6 +85,13 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
     try {
+      if(route==="/commercial/order/deny-next"){
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const receipt=storage.transactionSync(()=>denyPaidOrder(sql,raw));
+        return Response.json(receipt,{status:200,headers:noStore});
+      }
       if(route==="/commercial/entitlement/deny-batch"){
         const storage=this.ctx.storage as typeof this.ctx.storage & {
           transactionSync<T>(fn:()=>T):T;
@@ -132,9 +140,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
            (ent.ends_at&&ent.ends_at<=clock))
           return new Response(null,{status:409,headers:noStore});
         const order=await env.PRIMARY_DB.prepare(
-          "SELECT coi.entitlement_status,co.status order_status,coi.rights_grant_id,coi.rights_snapshot_json FROM commerce_order_items coi JOIN commerce_orders co ON co.id=coi.order_id WHERE coi.id=? AND coi.product_id=? AND co.user_id=?"
+          "SELECT co.id order_id,coi.entitlement_status,co.status order_status,coi.rights_grant_id,coi.rights_snapshot_json FROM commerce_order_items coi JOIN commerce_orders co ON co.id=coi.order_id WHERE coi.id=? AND coi.product_id=? AND co.user_id=?"
         ).bind(ent.order_item_id,scope.productId,scope.userId)
-          .first<{entitlement_status:string;order_status:string;
+          .first<{order_id:string;entitlement_status:string;order_status:string;
           rights_grant_id:string|null;rights_snapshot_json:string|null}>();
         if(!order||order.entitlement_status!=="granted"||
            order.order_status!=="paid" ||
@@ -160,7 +168,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         };
         const receipt=storage.transactionSync(()=>
           publishFreshEntitlement(sql,{...scope,
-            productEpoch:rights[0].epoch,
+            orderId:order.order_id,productEpoch:rights[0].epoch,
             validUntil:new Date(expiry).toISOString()
           },expected)
         );
