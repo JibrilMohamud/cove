@@ -14,11 +14,26 @@ type LegalAuthorityEnv = {
   COVE_RIGHTS_OWNER_SECRET?: string;
   COVE_RIGHTS_OWNER_ENABLED?: string;
   COVE_RIGHTS_OWNER_PRIMARY_ID?: string;
+  COVE_RIGHTS_OWNER_TEST_EXPIRES_AT?: string;
   LEGAL_AUTHORITY?: {getByName(name:string):{fetch(request:Request):Promise<Response>}};
 };
 // Never accept an unspecified primary binding. This is a newly provisioned,
 // completely separate canonical QA D1. Real production is NOT enrolled.
 const STAGE_PRIMARY = "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87";
+function qaOwnerLeaseLive(env:LegalAuthorityEnv) {
+  const expires=Number(env.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT);
+  const now=Date.now();
+  // An interrupted GitHub job cannot accidentally leave the QA legal owner
+  // operable. A fresh, strictly bounded lease is required by BOTH the Worker
+  // entrypoint and its Durable Object; no stale toggle can bypass this fence.
+  return env.COVE_RIGHTS_OWNER_ENABLED==="1" &&
+    env.COVE_RIGHTS_OWNER_PRIMARY_ID===STAGE_PRIMARY &&
+    Number.isSafeInteger(expires) && expires>now &&
+    expires<=now+15*60*1000 &&
+    !!env.COVE_RIGHTS_OWNER_SECRET &&
+    /^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET);
+}
+
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   constructor(ctx: { storage: { sql: unknown } }, env: LegalAuthorityEnv) {
     super(ctx, env);
@@ -29,10 +44,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   async fetch(request: Request): Promise<Response> {
     const noStore={ "cache-control": "no-store" };
     const env=this.env;
-    if (env.COVE_RIGHTS_OWNER_ENABLED!=="1" ||
-        env.COVE_RIGHTS_OWNER_PRIMARY_ID!==STAGE_PRIMARY ||
-        !env.COVE_RIGHTS_OWNER_SECRET ||
-        !/^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET))
+    if (!qaOwnerLeaseLive(env))
       return new Response(null,{status:503,headers:noStore});
     // All calls must arrive by private service binding with an independent
     // operator secret. Nothing on this Worker should be publicly routed.
@@ -122,11 +134,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
 // The Durable Object remains the single legal serialization point.
 export default {
   async fetch(request:Request,env:LegalAuthorityEnv):Promise<Response> {
-    if(env.COVE_RIGHTS_OWNER_ENABLED!=="1" ||
-       env.COVE_RIGHTS_OWNER_PRIMARY_ID!==STAGE_PRIMARY ||
-       !env.COVE_RIGHTS_OWNER_SECRET ||
-       !/^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET) ||
-       !env.LEGAL_AUTHORITY?.getByName)
+    if(!qaOwnerLeaseLive(env) || !env.LEGAL_AUTHORITY?.getByName)
       return new Response(null,{status:503,headers:{"cache-control":"no-store"}});
     if(request.headers.get("authorization")!=="Bearer "+env.COVE_RIGHTS_OWNER_SECRET)
       return new Response(null,{status:401,headers:{"cache-control":"no-store"}});
