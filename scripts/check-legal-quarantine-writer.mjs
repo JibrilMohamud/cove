@@ -290,6 +290,14 @@ try {
   assert.equal(db.prepare("SELECT status FROM rights_contracts WHERE id='rcontract_18'").get().status,
     "active");
   failOwner=false;operations.length=0;
+  failPrimary=true;
+  assert.equal((await post({targetId:"rcontract_18",operationId:"contract-suspend:18:d1-outage"},
+    {},"/commercial/suspend-contract")).status,503);
+  assert.deepEqual(operations,["authority","canonical-atomic-batch"],
+    "D1 outage must never precede or suppress the durable subject denial");
+  assert.equal(db.prepare("SELECT COUNT(*) n FROM cove_commercial_subject_denials WHERE subject_kind='contract' AND subject_id='rcontract_18'").get().n,1,
+    "Owner denial must persist even when canonical D1 cannot be read or mutated");
+  failPrimary=false;operations.length=0;
   failPrimaryBatch=true;
   assert.equal((await post({targetId:"rcontract_18",operationId:"contract-suspend:18:v2"},
     {},"/commercial/suspend-contract")).status,503);
