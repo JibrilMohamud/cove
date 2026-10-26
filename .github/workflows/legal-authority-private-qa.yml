@@ -5,6 +5,9 @@ on:
     paths:
       - "src/storefront-strangler/legal-authority-*.ts"
       - "src/storefront-strangler/legal-primary-write-lock.ts"
+      - "src/storefront-strangler/legal-authority-qa-caller.worker.ts"
+      - "scripts/staging/prove-private-legal-owner.mjs"
+      - "wrangler.legal-qa-caller.example.jsonc"
       - "wrangler.legal-authority.example.jsonc"
       - "scripts/build-storefront-strangler.mjs"
       - ".github/workflows/legal-authority-private-qa.yml"
@@ -67,3 +70,6 @@ jobs:
             "Isolated legal authority script has not been deployed");
           console.log("PASS: Cloudflare lists the non-public disabled legal-authority Worker");
           '
+      - name: Certify actual QA service-binding withdrawal and restore disabled state
+        run: node scripts/staging/prove-private-legal-owner.mjs
+
