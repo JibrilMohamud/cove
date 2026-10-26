@@ -15,7 +15,8 @@ try {
     outfile:artifact,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent"
   });
   const {createAuthoritySchema, createAuthorityProofSchema, readAuthority, applyAuthorityCommand,
-    storeAuthorizedPresentationProof,readAuthorizedPresentations,persistSourceWithdrawal}=
+    storeAuthorizedPresentationProof,readAuthorizedPresentations,persistSourceWithdrawal,
+    capturePositiveVerificationFence,commitFreshPositiveVerification}=
     await import(pathToFileURL(artifact).href);
   const sqlitePath=path.join(directory,"persistent.sqlite");
   const makeSql=db=>({
@@ -162,6 +163,25 @@ try {
     sourceId:"2701",territory:"*",operationId:"rights:source:2701:withdraw:3"
   }).revision,20);
   assert.equal(state("CA").allowed,false,"New global denial revokes CA immediately");
+  const started=capturePositiveVerificationFence(sql,cmd(21,"allow"));
+  assert.equal(started,20,"Regrant obtains the next owner epoch before D1 work");
+  assert.equal(persistSourceWithdrawal(sql,{
+    sourceId:"2701",territory:"*",operationId:"rights:source:2701:withdraw:4"
+  }).revision,21);
+  assert.equal(commitFreshPositiveVerification(sql,cmd(21,"allow"),started,"USD",proof).applied,false,
+    "Primary proof begun before an acknowledged withdrawal must not restore rights");
+  assert.deepEqual(batch(),[],"Delayed primary query cannot resurrect withdrawn offer");
+  assert.throws(()=>capturePositiveVerificationFence(sql,cmd(21,"allow")),
+    /positive_verification_stale_revision/);
+  const fresh=capturePositiveVerificationFence(sql,cmd(22,"allow"));
+  assert.equal(fresh,21);
+  assert.equal(commitFreshPositiveVerification(sql,cmd(22,"allow"),fresh,"USD",proof).applied,true,
+    "Only newly verified D1 proof after withdrawal can publish an allowance");
+  assert.equal(batch().length,1);
+  assert.equal(persistSourceWithdrawal(sql,{
+    sourceId:"2701",territory:"*",operationId:"rights:source:2701:withdraw:5"
+  }).revision,23);
+  assert.deepEqual(batch(),[],"Later revocation dominates the new offer immediately");
   assert.throws(()=>persistSourceWithdrawal(sql,{
     sourceId:"2701",territory:"*",operationId:"../../escape"
   }),/invalid_denial_operation/);
