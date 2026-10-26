@@ -19,8 +19,10 @@ const gate=randomBytes(32).toString("hex");
 const secret=randomBytes(32).toString("hex");
 const writerKey=randomBytes(32).toString("hex");
 const sourceId=String((Number(runId)%800000000)+100000000);
+const evidenceSourceId=String(Number(sourceId)+1);
+const evidenceId="gre_qa_"+evidenceSourceId+"_us";
 const expires=Date.now()+12*60*1000;
-let authorityEnabled=false,callerStarted=false,writerEnabled=false,seeded=false;
+let authorityEnabled=false,callerStarted=false,writerEnabled=false,seeded=false,seededEvidence=false;
 const cli=(args,input)=>{
   const result=spawnSync("npm",["exec","--yes","--package=wrangler@4.151.0","--","wrangler",...args],{
     input,encoding:"utf8",timeout:160000,
@@ -173,6 +175,46 @@ try{
   assert.deepEqual((await post("/verify",{sourceId,territory:"US"})).payload,
     {allowed:false,revision:2},"Duplicate writer event must not allocate another revision");
   console.log("PASS: LIVE QA: owner DENY -> private canonical writer -> D1 quarantine -> 3-country denial -> exact replay");
+  // Separate source and market fixtures: US evidence can be withdrawn
+  // without touching an otherwise-authorized CA grant on the SAME edition.
+  seededEvidence=true;
+  const now=new Date().toISOString();
+  await api("POST",qaD1,{sql:
+    "INSERT INTO gutenberg_rights_evidence(id,source_id,cache_id,determination,territory_code,evidence_url,evidence_hash,status) VALUES(?, 'pg_us', ?, 'public-domain', 'US', 'https://www.gutenberg.org/', 'qa-us-v1', 'approved')",
+    params:[evidenceId,evidenceSourceId]});
+  for(const country of ["US","CA"]){
+    await api("POST",qaD1,{sql:
+      "INSERT INTO rights_grants(edition_id,source,territory_code,decision,status,updated_at) VALUES(?, 'gutenberg-pg_us-public-domain', ?, 'allow', 'active', ?)",
+      params:["ed_gutenberg_"+evidenceSourceId,country,now]});
+  }
+  const evidenceResult=await post("/evidence/revoke",{
+    sourceId:evidenceSourceId,territory:"US",evidenceId,
+    operationId:"qa:"+runId+":evidence-us:withdraw"
+  });
+  assert.equal(evidenceResult.status,200,
+    "Evidence revocation must fence owner before atomic D1 country update");
+  assert.equal(evidenceResult.payload?.evidenceRevoked,true);
+  const evidenceState=await api("POST",qaD1,{sql:
+    "SELECT status FROM gutenberg_rights_evidence WHERE id=?",params:[evidenceId]});
+  assert.equal(evidenceState[0]?.results?.[0]?.status,"revoked");
+  const grants=await api("POST",qaD1,{sql:
+    "SELECT territory_code,status FROM rights_grants WHERE edition_id=? ORDER BY territory_code",
+    params:["ed_gutenberg_"+evidenceSourceId]});
+  assert.deepEqual(grants[0]?.results,[{territory_code:"CA",status:"active"},
+    {territory_code:"US",status:"suspended"}],
+    "US evidence withdrawal must not revoke Canada's independent grant");
+  assert.deepEqual((await post("/verify",{sourceId:evidenceSourceId,territory:"US"})).payload,
+    {allowed:false,revision:1});
+  assert.deepEqual((await post("/verify",{sourceId:evidenceSourceId,territory:"CA"})).payload,
+    {allowed:false,revision:null},
+    "CA owner remains unseeded/denied, never implicitly granted by D1 alone");
+  assert.equal((await post("/evidence/revoke",{
+    sourceId:evidenceSourceId,territory:"US",evidenceId,
+    operationId:"qa:"+runId+":evidence-us:withdraw"
+  })).status,200);
+  assert.equal((await post("/verify",{sourceId:evidenceSourceId,territory:"US"})).payload?.revision,1,
+    "Idempotent evidence replay must keep its original owner revision");
+  console.log("PASS: LIVE QA: strong owner US evidence denial -> atomic D1 evidence+grant revoke; CA grant unaffected and no inferred owner allow");
 
   // Verify the committed denial through a new version of the *actual* QA
   // Worker. This exercises provider persistence, not just an in-process
@@ -244,6 +286,15 @@ try{
           sql:"DELETE FROM gutenberg_source_cache WHERE id=?",params:[sourceId]
         });
     }catch(e){errors.push("synthetic_source_cleanup_"+String(e.message).slice(0,120));}
+  }
+  if(seededEvidence){
+    try{
+      const qa="/accounts/"+account+
+        "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query";
+      await api("POST",qa,{sql:"DELETE FROM gutenberg_rights_evidence WHERE id=?",params:[evidenceId]});
+      await api("POST",qa,{sql:"DELETE FROM rights_grants WHERE edition_id=? AND source='gutenberg-pg_us-public-domain'",
+        params:["ed_gutenberg_"+evidenceSourceId]});
+    }catch(e){errors.push("synthetic_evidence_cleanup_"+String(e.message).slice(0,120));}
   }
   if(callerStarted){
     try{await api("DELETE","/accounts/"+account+"/workers/scripts/"+caller);}
