@@ -112,7 +112,7 @@ export async function assertStagePaidOrderNotWithdrawn(env:CoveEnv,orderId:strin
       const snapshot=JSON.parse(line.rights_snapshot_json||"null");
       if(snapshot&&typeof snapshot==="object"&&!Array.isArray(snapshot))
         acquired=snapshot;
-    }catch{}
+    }catch{acquired=null;}
     if(!row||!acquired||row.product_id!==line.product_id||
        row.grant_id!==line.rights_grant_id||
        acquired.grantId!==row.grant_id||
