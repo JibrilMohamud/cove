@@ -9,7 +9,7 @@ assert.ok(match[1].includes("WHERE entitlements.order_item_id=excluded.order_ite
   "Existing purchases may never move to another order item");
 assert.ok(match[1].includes("entitlements.status='active'"),
   "Refunded/revoked purchases must not be resurrected by old Stripe replay");
-assert.ok(commerce.includes("entitlementWrite.meta?.changes"),
+assert.ok(commerce.includes("affectedEntitlement.meta?.changes"),
   "Settlement must reject an unfulfilled or conflicting canonical entitlement write");
 
 const db=new DatabaseSync(":memory:");
