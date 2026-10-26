@@ -124,7 +124,9 @@ export async function assertStagePaidOrderNotWithdrawn(env:CoveEnv,orderId:strin
        typeof row.contract_id!=="string"||
        typeof row.contract_version_id!=="string"||
        !Number.isSafeInteger(row.epoch)||Number(row.epoch)<=0||
-       typeof row.valid_until!=="string"||Date.parse(row.valid_until)<=Date.now())
+       typeof row.valid_until!=="string"||
+       !Number.isFinite(Date.parse(row.valid_until))||
+       Date.parse(row.valid_until)<=Date.now())
       throw new ApiError(451,"Purchase contract or grant has changed since checkout.");
   }
 }
