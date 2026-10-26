@@ -211,14 +211,24 @@ export async function authorizeHomepagePresentation(
   presentation: Awaited<ReturnType<typeof readHomepagePresentation>>,
   metrics?: FirstPaintD1QueryMetrics,
 ) {
-  const { candidates, displayBooks } = presentation;
   const rows = await authorizeStorefrontPresentationIds(
     primary,
-    candidates.productIds,
-    candidates.country,
-    candidates.currency,
+    presentation.candidates.productIds,
+    presentation.candidates.country,
+    presentation.candidates.currency,
     metrics,
   );
+  return assembleAuthorizedHomepagePresentation(presentation,rows);
+}
+
+/** The only builder for primary- or *fully fenced* owner-authorized rows.
+ * The caller of this pure builder must have performed a fresh authorization
+ * decision; untrusted candidate metadata cannot supply offers or grants. */
+export function assembleAuthorizedHomepagePresentation(
+  presentation: Awaited<ReturnType<typeof readHomepagePresentation>>,
+  rows: Awaited<ReturnType<typeof authorizeStorefrontPresentationIds>>,
+) {
+  const { candidates, displayBooks } = presentation;
   const metadata = new Map(displayBooks.map((b) => [b.productId, b]));
   const books: CatalogBook[] = [];
   for (const row of rows) {
