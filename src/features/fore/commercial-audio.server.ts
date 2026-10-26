@@ -1128,16 +1128,14 @@ async function requireCommercialAudioOwner(
   if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") return;
   let id = entitlementId;
   if (!id) {
-    const ent = await env.DB
-      .prepare(
-        "SELECT id FROM entitlements WHERE user_id=? AND product_id=? AND entitlement_type='purchase' AND status='active' AND (starts_at IS NULL OR starts_at<=?) AND (ends_at IS NULL OR ends_at>?) LIMIT 1",
-      )
+    const ent = await env.DB.prepare(
+      "SELECT id FROM entitlements WHERE user_id=? AND product_id=? AND entitlement_type='purchase' AND status='active' AND (starts_at IS NULL OR starts_at<=?) AND (ends_at IS NULL OR ends_at>?) LIMIT 1",
+    )
       .bind(userId, productId, now(), now())
       .first<{ id: string }>();
     id = ent?.id;
   }
-  if (!id)
-    throw new ApiError(451, "Independent audiobook purchase authorization is unavailable.");
+  if (!id) throw new ApiError(451, "Independent audiobook purchase authorization is unavailable.");
   await requireStagePaidEntitlementAccess(env, {
     entitlementId: id,
     userId,
@@ -1854,7 +1852,13 @@ export async function handleCommercialAudio(
       .bind(userId, row.product_id, now(), now())
       .first<any>();
     if (!ent) throw new ApiError(403, "A purchase entitlement is required for offline audio.");
-    await requireCommercialAudioOwner(env, userId, String(row.product_id), territory, String(ent.id));
+    await requireCommercialAudioOwner(
+      env,
+      userId,
+      String(row.product_id),
+      territory,
+      String(ent.id),
+    );
     const licensePolicy = await db
         .prepare("SELECT max_devices FROM licenses WHERE entitlement_id=?")
         .bind(ent.id)
