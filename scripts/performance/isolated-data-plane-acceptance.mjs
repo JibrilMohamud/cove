@@ -1,6 +1,8 @@
 // Protected synthetic-only ABBA campaign. All failures and arrivals are retained.
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { spawnSync } from "node:child_process";
@@ -143,10 +145,10 @@ function cli(args, input) {
 // Some freshly provisioned Workers are briefly absent from Cloudflare's
 // versions API (10007). Retry only this pre-traffic provisioning race. No
 // benchmark request or app error is replayed or ignored.
-async function deployStage(config) {
+async function deployStage(config, secretsFile) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      cli(["deploy", "--config", config]);
+      cli(["deploy", "--config", config, "--secrets-file", secretsFile]);
       return;
     } catch (error) {
       if (attempt === 3 || !/Worker does not exist|code:\s*10007/i.test(String(error))) throw error;
@@ -376,21 +378,33 @@ async function deploy(round) {
   assert.ok(!JSON.stringify(c).includes(production));
   const config = "wrangler.arch-campaign.jsonc";
   fs.writeFileSync(config, JSON.stringify(c));
-  await deployStage(config);
-  const before = (await api("GET", `/accounts/${account}/workers/scripts/${name}/deployments`))
-    .deployments[0].id;
-  cli(["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", config], gate);
+  // Code, gateway secret and route must be one globally deployed version.
+  // Previously the initial public deploy preceded "secret put", which created
+  // a second rollout. An old isolate intermittently answered HTTP 503 with
+  // "Staging credentials unavailable" during the burst (Cloudflare Ray
+  // a50c06e6cf3c29bc, 2ms wall). Never expose a version lacking its gate.
+  const privateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "cove-stage-secrets-"));
+  const secretFile = path.join(privateDirectory, "secrets.json");
+  const deployBeganAt = Date.now();
+  try {
+    fs.writeFileSync(secretFile, JSON.stringify({ COVE_SSR_STAGING_GATE_KEY: gate }),
+      { mode: 0o600, flag: "wx" });
+    await deployStage(config, secretFile);
+  } finally {
+    fs.rmSync(privateDirectory, { recursive: true, force: true });
+  }
   let publishedAt = null;
   for (let attempt = 0; attempt < 20; attempt++) {
     const latest = (await api("GET", `/accounts/${account}/workers/scripts/${name}/deployments`))
       .deployments[0];
-    if (latest.id !== before && latest.versions.some((v) => v.percentage === 100)) {
+    if (Date.parse(latest.created_on) >= deployBeganAt - 30000 &&
+        latest.versions.length === 1 && latest.versions[0].percentage === 100) {
       publishedAt = Date.parse(latest.created_on);
       break;
     }
     await new Promise((r) => setTimeout(r, 1500));
   }
-  assert.ok(Number.isFinite(publishedAt), "Stage secret rollout timestamp unavailable");
+  assert.ok(Number.isFinite(publishedAt), "Single-version code-and-secret rollout timestamp unavailable");
   const subdomain = await api("GET", `/accounts/${account}/workers/scripts/${name}/subdomain`);
   assert.equal(subdomain.enabled, true, "Staging route is not enabled");
   // Brand-new workers.dev routes can still return edge-generated 404 after
