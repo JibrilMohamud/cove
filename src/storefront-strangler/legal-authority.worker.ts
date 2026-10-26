@@ -2,8 +2,9 @@
 import { DurableObject } from "cloudflare:workers";
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
 import {
-  applyAuthorityCommand, createAuthoritySchema, createAuthorityProofSchema,
-  readAuthority, readAuthorizedPresentations, storeAuthorizedPresentationProof,
+  applyAuthorityCommand, capturePositiveVerificationFence, commitFreshPositiveVerification,
+  createAuthoritySchema, createAuthorityProofSchema,
+  readAuthority, readAuthorizedPresentations,
   persistSourceWithdrawal,
   validateAuthorityCommand, type AuthoritySql,
 } from "./legal-authority-core";
@@ -87,6 +88,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       // active market offer; the hot /verify path never consults D1.
       // It is NOT sufficient to enable production until ALL canonical legal
       // mutation writers have been enclosed in deny-first owner fencing.
+      const proofStartRevision=capturePositiveVerificationFence(sql,command);
       const authorized=await authorizeStorefrontPresentationIds(
         env.PRIMARY_DB,["prd_gutenberg_"+command.sourceId],
         command.territory,input.currency
@@ -95,18 +97,17 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           authorized[0].product_id!=="prd_gutenberg_"+command.sourceId ||
           !authorized[0].offer_json)
         return new Response(null,{status:409,headers:noStore});
-      const verdict=applyAuthorityCommand(sql,command);
+      const verdict=commitFreshPositiveVerification(
+        sql,command,proofStartRevision,input.currency,{
+          productId:authorized[0].product_id,
+          editionId:authorized[0].edition_id,
+          productPublicId:authorized[0].product_public_id || null,
+          editionPublicId:authorized[0].edition_public_id || null,
+          offerJson:authorized[0].offer_json,
+        }
+      );
       if(!verdict.applied)
         return Response.json(verdict,{status:409,headers:noStore});
-      // No await between granting this exact version and persisting its
-      // canonical offer proof: requests cannot see a mixed logical revision.
-      storeAuthorizedPresentationProof(sql,command,input.currency,{
-        productId:authorized[0].product_id,
-        editionId:authorized[0].edition_id,
-        productPublicId:authorized[0].product_public_id || null,
-        editionPublicId:authorized[0].edition_public_id || null,
-        offerJson:authorized[0].offer_json,
-      });
       return Response.json(verdict,{status:200,headers:noStore});
     } catch(error) {
       console.error("cove_legal_authority_closed",error instanceof Error?error.name:"unknown");
