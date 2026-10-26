@@ -1,6 +1,8 @@
 /* eslint-disable prettier/prettier -- Restricted live QA service-binding proof and cleanup are security boundaries. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {randomBytes} from "node:crypto";
 import {spawnSync} from "node:child_process";
 
@@ -44,6 +46,17 @@ const api=async(method,path,body=undefined)=>{
   return result.result;
 };
 const sleep=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
+// Wrangler's --secrets-file publishes code and secrets atomically in ONE
+// Worker version. "deploy" followed by three "secret put" calls exposed
+// partially configured public QA routes across different Cloudflare colos.
+const deployWithSecrets=(config,secrets)=>{
+  const directory=fs.mkdtempSync(path.join(os.tmpdir(),"cove-qa-secret-"));
+  const filename=path.join(directory,"secrets.json");
+  try{
+    fs.writeFileSync(filename,JSON.stringify(secrets),{mode:0o600,flag:"wx"});
+    cli(["deploy","--config",config,"--secrets-file",filename]);
+  }finally{fs.rmSync(directory,{recursive:true,force:true});}
+};
 const post=async(path,body,authorization=gate)=>{
   const r=await fetch(origin+path,{
     method:"POST",
@@ -81,8 +94,7 @@ try{
   owner.vars.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT=String(expires);
   fs.writeFileSync(ownerCfg,JSON.stringify(owner));
   authorityEnabled=true;
-  cli(["deploy","--config",ownerCfg]);
-  cli(["secret","put","COVE_RIGHTS_OWNER_SECRET","--config",ownerCfg],secret);
+  deployWithSecrets(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret});
 
   const writer=JSON.parse(fs.readFileSync("wrangler.legal-quarantine-qa.example.jsonc","utf8"));
   assert.equal(writer.name,writerName);
@@ -96,9 +108,9 @@ try{
   writer.vars.COVE_LEGAL_WRITER_EXPIRES_AT=String(expires);
   fs.writeFileSync(writerCfg,JSON.stringify(writer));
   writerEnabled=true;
-  cli(["deploy","--config",writerCfg]);
-  cli(["secret","put","COVE_LEGAL_WRITER_SECRET","--config",writerCfg],writerKey);
-  cli(["secret","put","COVE_RIGHTS_OWNER_SECRET","--config",writerCfg],secret);
+  deployWithSecrets(writerCfg,{
+    COVE_LEGAL_WRITER_SECRET:writerKey,COVE_RIGHTS_OWNER_SECRET:secret
+  });
 
   const proxy=JSON.parse(fs.readFileSync("wrangler.legal-qa-caller.example.jsonc","utf8"));
   assert.equal(proxy.services[0].service,owner.name);
@@ -109,10 +121,10 @@ try{
   proxy.vars.COVE_LEGAL_QA_EXPIRES_AT=String(expires);
   fs.writeFileSync(callerCfg,JSON.stringify(proxy));
   callerStarted=true;
-  cli(["deploy","--config",callerCfg]);
-  cli(["secret","put","COVE_LEGAL_QA_GATE","--config",callerCfg],gate);
-  cli(["secret","put","COVE_RIGHTS_OWNER_SECRET","--config",callerCfg],secret);
-  cli(["secret","put","COVE_LEGAL_WRITER_SECRET","--config",callerCfg],writerKey);
+  deployWithSecrets(callerCfg,{
+    COVE_LEGAL_QA_GATE:gate,COVE_RIGHTS_OWNER_SECRET:secret,
+    COVE_LEGAL_WRITER_SECRET:writerKey
+  });
 
   // Configuration/Workers metadata can precede propagation of a new
   // workers.dev hostname. The readiness poll is NOT part of a capacity
