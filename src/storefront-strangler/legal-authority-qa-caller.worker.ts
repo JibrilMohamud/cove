@@ -32,7 +32,7 @@ export default {
       return new Response(null,{status:405,headers:noStore});
     const uri=new URL(request.url);
     if(uri.search || !["/deny-next","/deny-next-batch","/verify","/authorize-batch","/quarantine","/evidence/revoke","/source/retract-batch",
-        "/commercial/deny-next","/commercial/deny-batch",
+        "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next",
         "/commercial/authorize-batch","/commercial/publish-verified",
         "/commercial/suspend-grant","/commercial/suspend-contract",
         "/commercial/entitlement/deny-next","/commercial/entitlement/publish-verified",
