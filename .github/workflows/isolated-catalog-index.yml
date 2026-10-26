@@ -24,6 +24,9 @@ on:
       - "scripts/check-legal-authority-coordinator.mjs"
       - "scripts/check-legal-authority-read.mjs"
       - "scripts/check-legal-primary-write-lock.mjs"
+      - "scripts/check-legal-quarantine-writer.mjs"
+      - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
+      - "wrangler.legal-quarantine-qa.example.jsonc"
       - "src/storefront-strangler/legal-primary-write-lock.ts"
       - "src/features/fore/api.server.ts"
       - "src/storefront-strangler/legal-authority-*.ts"
@@ -56,6 +59,7 @@ jobs:
       - run: node scripts/check-legal-authority-coordinator.mjs
       - run: node scripts/check-legal-authority-read.mjs
       - run: node scripts/check-legal-primary-write-lock.mjs
+      - run: node scripts/check-legal-quarantine-writer.mjs
       - run: node scripts/build-storefront-strangler.mjs
       - run: npm run typecheck
       - run: npm run test:rights
