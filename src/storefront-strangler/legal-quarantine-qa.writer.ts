@@ -3,7 +3,8 @@ import {denyWithOwnedSourceEpoch} from "./legal-authority-coordinator";
 
 type WriteDB={
   prepare(query:string):{bind(...args:unknown[]):{
-    run():Promise<unknown>;first<T=Record<string,unknown>>():Promise<T|null>
+    run():Promise<unknown>;first<T=Record<string,unknown>>():Promise<T|null>;
+    all<T=Record<string,unknown>>():Promise<{results:T[]}>
   }};
   batch(statements:unknown[]):Promise<unknown>;
 };
@@ -42,20 +43,28 @@ export default {
     const pathname=new URL(request.url).pathname;
     const isEvidence=pathname==="/evidence/revoke";
     const isRetractionBatch=pathname==="/source/retract-batch";
+    const isCommercial=pathname==="/commercial/suspend-grant" ||
+      pathname==="/commercial/suspend-contract";
     if(request.method!=="POST" ||
-       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch) ||
+       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch && !isCommercial) ||
        request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json" ||
        request.headers.has("cookie"))
       return new Response(null,{status:405,headers});
     let cmd:{sourceId?:unknown;operationId?:unknown;message?:unknown;
-      evidenceId?:unknown;territory?:unknown;operations?:unknown};
+      evidenceId?:unknown;territory?:unknown;operations?:unknown;
+      targetId?:unknown};
     try{
       const text=await request.text();
       if(text.length>(isRetractionBatch?5000:900))
         return new Response(null,{status:413,headers});
       cmd=JSON.parse(text);
     }catch{return new Response(null,{status:400,headers});}
-    if(!cmd || !isRetractionBatch && (
+    if(!cmd || isCommercial && (
+      typeof cmd.targetId!=="string" ||
+      !/^[a-zA-Z0-9_-]{3,160}$/.test(cmd.targetId) ||
+      typeof cmd.operationId!=="string" ||
+      !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,80}$/.test(cmd.operationId)
+    ) || !isRetractionBatch && !isCommercial && (
        !sourceIdRegex.test(String(cmd.sourceId||"")) ||
        !opIdRegex.test(String(cmd.operationId||"")) ||
        (isEvidence
@@ -66,6 +75,61 @@ export default {
          : typeof cmd.message!=="string"||cmd.message.length>500)))
       return new Response(null,{status:400,headers});
     try{
+      if(isCommercial){
+        // The operator requests a narrow suspension. Discover ALL products
+        // impacted by the grant/contract, not a caller-supplied subset.
+        // A 26th product makes the operation fail closed; no partial fencing.
+        const subject=isCommercial && pathname.endsWith("suspend-grant")
+          ?"grant":"contract";
+        const target=cmd.targetId as string;
+        const query=subject==="grant"
+          ?"SELECT DISTINCT p.id FROM rights_grants rg JOIN products p ON p.edition_id=rg.edition_id WHERE rg.id=? ORDER BY p.id LIMIT 26"
+          :"SELECT DISTINCT p.id FROM rights_grants rg JOIN products p ON p.edition_id=rg.edition_id WHERE rg.contract_id=? ORDER BY p.id LIMIT 26";
+        const matching=await env.PRIMARY_DB.prepare(query).bind(target)
+          .all<{id:string}>();
+        if(!matching.results.length||matching.results.length>25 ||
+           matching.results.some(r=>!/^prd_[a-zA-Z0-9_-]{3,120}$/.test(r.id)||
+              r.id.startsWith("prd_gutenberg_")))
+          throw Error("unsupported_commercial_scope");
+        const operations=matching.results.map((r,i)=>({
+          productId:r.id,operationId:"commercial:"+cmd.operationId+":"+i
+        }));
+        const owner=await env.LEGAL_PRIVATE.fetch(new Request(
+          "https://legal-authority.internal/commercial/deny-batch",{
+            method:"POST",
+            headers:{"authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,
+              "content-type":"application/json"},
+            body:JSON.stringify({operations})
+          }
+        ));
+        if(owner.status!==200)throw Error("commercial_owner_unavailable");
+        const receipt=await owner.json() as {
+          applied?:boolean;
+          receipts?:Array<{productId?:string;operationId?:string;applied?:boolean;epoch?:number}>;
+        };
+        if(receipt.applied!==true || !Array.isArray(receipt.receipts) ||
+           receipt.receipts.length!==operations.length ||
+           receipt.receipts.some((r,i)=>!r.applied||
+             !Number.isSafeInteger(r.epoch)||Number(r.epoch)<=0||
+             r.productId!==operations[i].productId||
+             r.operationId!==operations[i].operationId))
+          throw Error("commercial_owner_receipt_unconfirmed");
+        const statements=subject==="grant"?[
+          env.PRIMARY_DB.prepare(
+            "UPDATE rights_grants SET status='suspended' WHERE id=? AND status='active'"
+          ).bind(target)
+        ]:[
+          env.PRIMARY_DB.prepare(
+            "UPDATE rights_contracts SET status='suspended' WHERE id=? AND status='active'"
+          ).bind(target),
+          env.PRIMARY_DB.prepare(
+            "UPDATE rights_grants SET status='suspended' WHERE contract_id=? AND status='active'"
+          ).bind(target)
+        ];
+        await env.PRIMARY_DB.batch(statements);
+        return Response.json({suspended:true,subject,products:operations.length},
+          {status:200,headers});
+      }
       if(isRetractionBatch){
         // A bounded source retraction has ONE strongly consistent owner
         // transaction and ONE atomic primary-D1 batch, never O(N) network
