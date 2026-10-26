@@ -99,11 +99,13 @@ try{
   }),/paid_entitlement_denial_collision/);
   db.close();db=new DatabaseSync(file);
   assert.equal(verify(),null,"Revoked buyer state must persist across DO restarts");
-  assert.deepEqual(lease(3),{applied:true,epoch:4});
-  assert.equal(verify()?.entitlement_epoch,4);
+  assert.throws(()=>lease(3),/paid_entitlement_revocation_terminal/,
+    "Lagging primary D1 must never resurrect a revoked buyer identity");
+  assert.equal(verify(),null,"Restart and stale positive retries preserve denial");
   assert.deepEqual(ent.denyPaidEntitlement(sql(),{
     ...scope,operationId:"refund:paid_17:revoked"
-  }),{applied:false,epoch:3},"Old event replay cannot certify later legal state");
+  }),{applied:true,epoch:3},
+    "Owner denial remains monotonic and idempotent across restarts");
   assert.deepEqual(ent.denyPaidOrder(sql(),{
     orderId:scope.orderId,operationId:"order-refund:purchase17"
   }),{applied:true,orderId:scope.orderId});
@@ -114,8 +116,8 @@ try{
   assert.throws(()=>lease(3),/paid_order_already_revoked/,
     "A refunded order can NEVER regrant access, even after re-verification");
   assert.throws(()=>lease(3,"order_purchase_new_18"),
-    /paid_entitlement_order_swap_forbidden/,
-    "A new order can never launder an old or refunded entitlement ID");
+    /paid_entitlement_revocation_terminal/,
+    "A new order cannot launder a revoked entitlement ID");
   const newPurchase={...ctx,
     entitlementId:"217ae8bb-bbf0-4cea-bcdb-b776189af818",
     orderId:"order_purchase_new_18"};
