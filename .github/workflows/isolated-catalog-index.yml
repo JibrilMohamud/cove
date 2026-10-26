@@ -22,6 +22,7 @@ on:
       - "scripts/check-isolated-catalog-authority.mjs"
       - "scripts/check-legal-authority-owner.mjs"
       - "scripts/check-legal-authority-coordinator.mjs"
+      - "scripts/check-legal-authority-read.mjs"
       - "src/storefront-strangler/legal-authority-*.ts"
       - "wrangler.legal-authority.example.jsonc"
       - "wrangler.catalog-verify.example.jsonc"
@@ -50,6 +51,7 @@ jobs:
       - run: node scripts/check-isolated-catalog-authority.mjs
       - run: node scripts/check-legal-authority-owner.mjs
       - run: node scripts/check-legal-authority-coordinator.mjs
+      - run: node scripts/check-legal-authority-read.mjs
       - run: node scripts/build-storefront-strangler.mjs
       - run: npm run typecheck
       - run: npm run test:rights
