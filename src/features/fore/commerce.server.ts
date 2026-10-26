@@ -1972,8 +1972,8 @@ async function stageRevokeRefundEntitlements(env: CoveEnv, orderId: string, refu
   );
   if (response.status !== 200)
     throw new ApiError(503, "Refund owner did not acknowledge entitlement withdrawal.");
-  const receipt = (await response.json()) as { revoked?: unknown };
-  if (!Number.isSafeInteger(receipt.revoked) || Number(receipt.revoked) < 0)
+  const receipt = (await response.json()) as { orderDenied?: unknown };
+  if (receipt.orderDenied !== true)
     throw new ApiError(503, "Refund ownership receipt was invalid.");
 }
 
