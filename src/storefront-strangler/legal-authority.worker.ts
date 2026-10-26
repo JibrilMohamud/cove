@@ -14,6 +14,7 @@ type LegalAuthorityEnv = {
   COVE_RIGHTS_OWNER_SECRET?: string;
   COVE_RIGHTS_OWNER_ENABLED?: string;
   COVE_RIGHTS_OWNER_PRIMARY_ID?: string;
+  LEGAL_AUTHORITY?: {getByName(name:string):{fetch(request:Request):Promise<Response>}};
 };
 // Never accept an unspecified primary binding. This is a newly provisioned,
 // completely separate canonical QA D1. Real production is NOT enrolled.
@@ -115,6 +116,20 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     }
   }
 }
-// No public Worker fetch endpoint. Access is service-binding only, once
-// explicitly enrolled, and this staging authority cannot handle production.
-export default { fetch() { return new Response(null,{status:404}); } };
+// Service-binding-only entrypoint for the separately authenticated QA caller.
+// workers_dev=false, routes=[], no preview URLs; even this private entrypoint
+// is disabled unless the dedicated QA primary ID and secret match exactly.
+// The Durable Object remains the single legal serialization point.
+export default {
+  async fetch(request:Request,env:LegalAuthorityEnv):Promise<Response> {
+    if(env.COVE_RIGHTS_OWNER_ENABLED!=="1" ||
+       env.COVE_RIGHTS_OWNER_PRIMARY_ID!==STAGE_PRIMARY ||
+       !env.COVE_RIGHTS_OWNER_SECRET ||
+       !/^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET) ||
+       !env.LEGAL_AUTHORITY?.getByName)
+      return new Response(null,{status:503,headers:{"cache-control":"no-store"}});
+    if(request.headers.get("authorization")!=="Bearer "+env.COVE_RIGHTS_OWNER_SECRET)
+      return new Response(null,{status:401,headers:{"cache-control":"no-store"}});
+    return env.LEGAL_AUTHORITY.getByName("cove-staged-legal-global-v1").fetch(request);
+  }
+};
