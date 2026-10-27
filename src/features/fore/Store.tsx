@@ -1182,12 +1182,10 @@ export function StorePage({
       storefront.locale,
     ],
     queryFn: async ({ signal }) => {
-      const live = await api<StorefrontBootstrap>(
-        "/storefront/bootstrap",
-        "GET",
-        undefined,
-        { signal, retryReads: false },
-      );
+      const live = await api<StorefrontBootstrap>("/storefront/bootstrap", "GET", undefined, {
+        signal,
+        retryReads: false,
+      });
       return verifiedFirstPageShelf(live, {
         country: storefront.rightsCountry,
         currency: storefront.currency,
