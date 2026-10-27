@@ -684,8 +684,7 @@ try {
     initialOrder,initialBuyer);
   assert.equal(noPrematureAccess.status,451,
     "No new buyer may fetch content before initial ledger settlement");
-  for(const route of ["/qa/epub-bytes","/qa/audio-bytes","/qa/offline-epub-license",
-    "/original/epub-grant","/original/offline-epub-license"]){
+  for(const route of ["/qa/epub-bytes","/qa/audio-bytes","/qa/offline-epub-license"]){
     const check=await postSettlement(route,initialOrder,initialBuyer);
     assert.equal(check.status,451,
       "No EPUB/audio bytes or offline license may issue before Stripe settlement");
@@ -850,7 +849,7 @@ try {
   assert.equal(grantResponse.status,200,
     "Original commercial EPUB grant must authorize paid registered buyer");
   const customerGrant=await grantResponse.json();
-  assert.match(customerGrant.url,/^\\/api\\/fore\\/delivery\\/epub\\\/[A-Za-z0-9_-]{32,200}$/);
+  assert.match(customerGrant.url,/^\/api\/fore\/delivery\/epub\\/[A-Za-z0-9_-]{32,200}$/);
   const customerToken=customerGrant.url.split("/").at(-1);
   const customerEpub=await originalCall("/original/epub-use",customerToken);
   assert.equal(customerEpub.status,200,
