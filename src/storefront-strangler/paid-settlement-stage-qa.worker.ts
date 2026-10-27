@@ -6,6 +6,7 @@ import {stripeWebhook} from "../features/fore/commerce.server";
 import {issueCommercialEpubGrant,serveCommercialEpubGrant} from "../features/fore/delivery.server";
 import {issueOfflineEpubLicense} from "../features/fore/offline-epub.server";
 import {handleCommercialAudio} from "../features/fore/commercial-audio.server";
+import {resolveProductRights} from "../features/fore/rights.server";
 import {audioKeyId,base64Url,hashText,publicAudioKey} from "../features/fore/offline-audio-license";
 import {OFFLINE_EPUB_CONTEXT,OFFLINE_EPUB_MAX_MS} from "../features/fore/offline-epub-crypto";
 
@@ -70,7 +71,8 @@ export default {
       "/qa/epub-bytes","/qa/audio-bytes","/qa/offline-epub-license",
       "/original/epub-grant","/original/epub-use",
       "/original/offline-epub-license","/original/audio-track",
-      "/original/audio-offline","/original/audio-verify"].includes(url.pathname) && !signedStripe)
+      "/original/audio-offline","/original/audio-verify",
+      "/original/audio-preflight"].includes(url.pathname) && !signedStripe)
       return new Response(null,{status:404,headers});
     const interruptOwnerAfterPaid=signedStripe &&
       request.headers.get("x-cove-qa-interrupt-postpaid")==="1";
@@ -177,6 +179,29 @@ export default {
             },realRequest
           );
           return Response.json(license,{headers});
+        }
+        if(url.pathname==="/original/audio-preflight"){
+          const legal=await resolveProductRights(env.PRIMARY_DB!,PRODUCT,"US",{
+            salesChannel:"retail"
+          });
+          const source=await env.PRIMARY_DB!.prepare(
+            `SELECT pv.manifest_json FROM publishing_publications pp
+             JOIN publishing_release_lifecycles l
+               ON l.publishing_edition_id=(SELECT edition_id FROM publishing_submission_snapshots WHERE id=pp.submission_id)
+             JOIN publishing_publication_versions pv
+               ON pv.id=l.current_publication_version_id
+             WHERE pp.product_id=? ORDER BY pv.version_number DESC LIMIT 1`
+          ).bind(PRODUCT).first<{manifest_json:string}>();
+          let frozen:Record<string,unknown>|null=null;
+          try{frozen=JSON.parse(source?.manifest_json||"{}")?.sourceSnapshot?.commercialAudio||null;}
+          catch{}
+          return Response.json({
+            allowed:legal.allowed,reason:legal.reasonCode,
+            hasManifest:!!frozen,
+            narrators:Array.isArray(frozen?.narrators)?frozen.narrators.length:0,
+            agreements:Array.isArray(frozen?.agreements)?frozen.agreements.length:0,
+            chapters:Array.isArray(frozen?.chapters)?frozen.chapters.length:0
+          },{headers});
         }
         if(["/original/audio-track","/original/audio-offline",
             "/original/audio-verify"].includes(url.pathname)){
