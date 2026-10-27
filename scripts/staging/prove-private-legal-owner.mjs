@@ -104,7 +104,7 @@ const postStableDenial=async(path,body)=>{
 };
 const readOwner=async(path,body,authorization=gate,expected=200)=>{
   assert.ok(["/verify","/authorize-batch","/commercial/authorize-batch",
-    "/commercial/order/verify"].includes(path));
+    "/storefront/authorize-batch","/commercial/order/verify"].includes(path));
   let reply;
   for(let i=0;i<8;i++){
     try{reply=await post(path,body,authorization);}
@@ -338,6 +338,12 @@ try{
   assert.deepEqual(unseededPaid.payload,
     {schema:"cove.commercial-legal.v1",rows:[]},
     "No unverified paid offer may become authorized from missing primary rows");
+  const unknownPaidShelf=await readOwner("/storefront/authorize-batch",{
+    ids:paidIds,territory:"US",currency:"USD"
+  });
+  assert.deepEqual(unknownPaidShelf.payload,{
+    schema:"cove.storefront-owner.v1",rows:[]
+  },"No unverified commercial D1 offer may appear through the new independent owner");
   const paidOps={operations:paidIds.map((productId,i)=>({
     productId,operationId:"qa:"+runId+":commercial-withdrawal:"+i
   }))};
