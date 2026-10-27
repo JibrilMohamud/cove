@@ -36,8 +36,14 @@ try {
     { at: now + 20_000 },
     { catalog: { ...shelf.catalog, preview: false } },
     { catalog: { ...shelf.catalog, results: [{ productId: "" }] } },
-    { catalog: { ...shelf.catalog, results: Array.from({length: 61},(_,i)=>({productId:"prd_"+i})) } },
-  ]) assert.throws(() => verifiedFirstPageShelf({ ...shelf, ...incorrect }, expected, now));
+    {
+      catalog: {
+        ...shelf.catalog,
+        results: Array.from({ length: 61 }, (_, i) => ({ productId: "prd_" + i })),
+      },
+    },
+  ])
+    assert.throws(() => verifiedFirstPageShelf({ ...shelf, ...incorrect }, expected, now));
   assert.throws(() => verifiedFirstPageShelf(shelf, { ...expected, query: "q=search" }, now));
   const store = readFileSync("src/features/fore/Store.tsx", "utf8");
   assert.match(store, /enabled: !fastAnonymousHome \|\| !!matchingInitial\?\.catalog \|\| !!fastPreview \|\| fastShelf\.isError/);
@@ -52,7 +58,9 @@ try {
     readFileSync("src/features/fore/bookstore-first-paint.ts", "utf8"),
     /\b(?:INSERT|UPDATE|DELETE|sessionStorage|localStorage|grantAccess|publishEntitlement)\s*\(/i,
   );
-  console.log("PASS: first-page live shelf is country/currency/locale/query-scoped, fresh, preview-only; rich catalog remains authoritative");
+  console.log(
+    "PASS: first-page live shelf is country/currency/locale/query-scoped, fresh, preview-only; rich catalog remains authoritative",
+  );
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }
