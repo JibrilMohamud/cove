@@ -3,6 +3,8 @@ import {certifyStagePaidSettlement,assertStagePaidOrderNotWithdrawn} from "./pai
 import type {CoveEnv} from "../features/fore/api.server";
 import {requireStagePaidEntitlementAccess} from "./legal-consumer-fence.server";
 import {stripeWebhook} from "../features/fore/commerce.server";
+import {issueCommercialEpubGrant,serveCommercialEpubGrant} from "../features/fore/delivery.server";
+import {issueOfflineEpubLicense} from "../features/fore/offline-epub.server";
 import {audioKeyId,base64Url,hashText,publicAudioKey} from "../features/fore/offline-audio-license";
 import {OFFLINE_EPUB_CONTEXT,OFFLINE_EPUB_MAX_MS} from "../features/fore/offline-epub-crypto";
 
@@ -64,13 +66,16 @@ export default {
     const signedStripe=url.pathname==="/signed-stripe-settlement";
     if(!["/certify-paid","/preflight-paid","/authorize-delivery",
       "/certify-initial","/authorize-initial",
-      "/qa/epub-bytes","/qa/audio-bytes","/qa/offline-epub-license"].includes(url.pathname) && !signedStripe)
+      "/qa/epub-bytes","/qa/audio-bytes","/qa/offline-epub-license",
+      "/original/epub-grant","/original/epub-use",
+      "/original/offline-epub-license"].includes(url.pathname) && !signedStripe)
       return new Response(null,{status:404,headers});
     const interruptOwnerAfterPaid=signedStripe &&
       request.headers.get("x-cove-qa-interrupt-postpaid")==="1";
     const simulateOwnerOutage=!signedStripe &&
       request.headers.get("x-cove-qa-simulate-owner-outage")==="1";
-    const facade={...env,DB:env.PRIMARY_DB,
+    const facade={...env,DB:env.PRIMARY_DB,BUCKET:env.QA_MEDIA,
+      FORE_DEFAULT_TERRITORY:"US",
       STRIPE_TAX_ENABLED:"false",
       LEGAL_AUTHORITY:{
         getByName(name:string){
@@ -122,6 +127,63 @@ export default {
         const status=typeof e==="object"&&e!==null&&"status" in e?
           Number((e as {status:unknown}).status):503;
         return Response.json({ok:false},{status:[400,409,451,503].includes(status)?status:503,headers});
+      }
+    }
+    // Invoke the ORIGINAL Cove customer commercial media functions on an
+    // isolated D1, private R2 and synthetic registered-device fixture.
+    // All user identity/scope is fixed by an expiring, private bearer QA gate.
+    if(url.pathname.startsWith("/original/")){
+      let raw:{orderId?:unknown;userId?:unknown;token?:unknown};
+      try{
+        const text=await request.text();
+        if(text.length>500)return new Response(null,{status:413,headers});
+        raw=JSON.parse(text);
+      }catch{return new Response(null,{status:400,headers});}
+      if(!raw||!isInitial(env,raw.orderId,raw.userId)||
+         Object.keys(raw).some(k=>!["orderId","userId","token"].includes(k)))
+        return new Response(null,{status:400,headers});
+      const run=env.COVE_PAID_INITIAL_ORDER!.slice("order_initial_qa_".length),
+        deviceId="device_paid_qa_"+run,
+        deviceKey="device-qa-"+run+"-registered";
+      const realRequest=new Request("https://qa.cove.invalid/api/fore/delivery/epub",{
+        method:"GET",headers:{"x-fore-device-id":deviceId}
+      });
+      try{
+        if(url.pathname==="/original/epub-grant"){
+          if(raw.token!==undefined)return new Response(null,{status:400,headers});
+          const grant=await issueCommercialEpubGrant(facade,
+            env.COVE_PAID_INITIAL_BUYER!,{
+              productId:PRODUCT,purpose:"download",deviceId
+            },realRequest);
+          return Response.json(grant,{headers});
+        }
+        if(url.pathname==="/original/epub-use"){
+          if(typeof raw.token!=="string"||
+             !/^[A-Za-z0-9_-]{32,200}$/.test(raw.token))
+            return new Response(null,{status:400,headers});
+          const response=await serveCommercialEpubGrant(
+            facade,raw.token,realRequest
+          );
+          return new Response(response.body,{status:response.status,
+            headers:{...Object.fromEntries(response.headers),...headers}});
+        }
+        if(url.pathname==="/original/offline-epub-license"){
+          if(raw.token!==undefined)return new Response(null,{status:400,headers});
+          const license=await issueOfflineEpubLicense(
+            facade,env.COVE_PAID_INITIAL_BUYER!,{
+              productId:PRODUCT,deviceKey
+            },realRequest
+          );
+          return Response.json(license,{headers});
+        }
+        return new Response(null,{status:404,headers});
+      }catch(e){
+        const status=typeof e==="object"&&e!==null&&"status" in e?
+          Number((e as {status:unknown}).status):503;
+        // Never leak customer-specific media or SQL diagnostics.
+        return Response.json({ok:false},
+          {status:[400,401,403,404,409,410,428,451,503].includes(status)?
+            status:503,headers});
       }
     }
     let body:unknown;
