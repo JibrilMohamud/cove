@@ -100,3 +100,25 @@ export async function executeStageCanonicalAdminCommand(
     throw new ApiError(503,"Canonical legal owner write receipt does not match the request.");
   return {action:x.action,ownerFirst:true,receipt:ack};
 }
+
+/**
+ * Existing rights-editor POST endpoints may opt into the owner-first
+ * *negative-only* transition with an explicit, minimal command. Never accept
+ * a mixed edit+withdraw request: an uncommitted metadata edit cannot be
+ * represented as a durable owner-approved grant or contract revision.
+ * Active/new positive edits remain blocked by the staged DB write lock.
+ */
+export async function executeStageRightsEditorSuspension(
+  env:StageCanonicalAdminEnv,kind:"grant"|"contract",input:unknown
+){
+  const x=z.object({
+    ownerAction:z.literal("suspend"),
+    id:subjectId,
+    status:z.literal("suspended"),
+    operationId,
+  }).strict().parse(input);
+  return executeStageCanonicalAdminCommand(env,{
+    action:kind==="grant"?"suspend-grant":"suspend-contract",
+    targetId:x.id,operationId:x.operationId,
+  });
+}
