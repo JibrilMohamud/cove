@@ -213,9 +213,16 @@ export default {
         const status=typeof e==="object"&&e!==null&&"status" in e?
           Number((e as {status:unknown}).status):503;
         // Never leak customer-specific media or SQL diagnostics.
+        const labels:Record<string,string>={
+          "Commercial audiobook not found.":"audio_catalog_absent",
+          "This audiobook is not available in your storefront.":"audio_rights_or_manifest_unavailable",
+          "Audio chapter not found.":"audio_chapter_absent",
+          "Audio object is unavailable.":"audio_r2_object_absent"
+        };
         const category=e instanceof Error?
           (/no such table: ([a-z_]+)/i.exec(e.message)?.[0] ||
            /no such column: ([a-z_]+)/i.exec(e.message)?.[0] ||
+           labels[e.message] ||
            (/constraint failed/i.test(e.message)?"constraint_failed":"other_error")):
           "non_error";
         return Response.json({ok:false,qaErrorCategory:category},
