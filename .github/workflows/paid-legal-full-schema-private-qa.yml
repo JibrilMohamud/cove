@@ -5,6 +5,8 @@ on:
       - "src/storefront-strangler/legal-authority.worker.ts"
       - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
       - "src/storefront-strangler/paid-settlement-publication.server.ts"
+      - "src/storefront-strangler/paid-order-atomic-publication.ts"
+      - "scripts/check-paid-order-atomic-publication.mjs"
       - "src/storefront-strangler/paid-settlement-stage-qa.worker.ts"
       - "src/features/fore/commerce.server.ts"
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
@@ -25,7 +27,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   private-positive-owner:
-    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-catalog-normalization-20261025') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-catalog-normalization-20261025')
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["arch/isolated-catalog-normalization-20261025","security/atomic-paid-owner-order-20261027"]'), github.event.pull_request.head.ref)) || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["refs/heads/arch/isolated-catalog-normalization-20261025","refs/heads/security/atomic-paid-owner-order-20261027"]'), github.ref))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -39,6 +41,7 @@ jobs:
         with: { node-version: "22", cache: npm }
       - run: npm ci
       - run: node scripts/check-paid-entitlement-authority.mjs
+      - run: node scripts/check-paid-order-atomic-publication.mjs
       - run: node scripts/check-commercial-legal-authority.mjs
       - run: node scripts/check-staged-paid-settlement.mjs
       - run: node scripts/check-legal-consumer-fence.mjs
