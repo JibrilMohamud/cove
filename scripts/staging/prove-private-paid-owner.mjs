@@ -629,7 +629,12 @@ try {
   assert.equal(confirmed.status,"succeeded");
   assert.equal(confirmed.amount_received,399);
   const received=await until(()=>matchedPackets.find(x=>x.eventId&&x.status===200),
-    "deployed_signed_webhook",60000);
+    "deployed_signed_webhook",60000).catch(error=>{
+      console.error("QA signed webhook outcomes",
+        JSON.stringify(matchedPackets.map(x=>({status:x.status,eventIdPresent:!!x.eventId,
+          orderMatches:x.raw?.includes(test.orderId)})).slice(0,8)));
+      throw error;
+    });
   assert.equal(received.body?.ok,true,
     "Actual signed Cove webhook must publish strong owner entitlement");
   assert.equal(received.body?.duplicate,false);
