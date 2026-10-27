@@ -14,6 +14,8 @@ assert.match(account||"",/^[a-f0-9]{32}$/);
 assert.ok(token,"Cloudflare QA authorization required");
 const ownerName="cove-paid-legal-owner-"+runId;
 const callerName="cove-paid-legal-caller-"+runId;
+const settlementName="cove-paid-settlement-qa-"+runId;
+const settlementOrigin="https://"+settlementName+".cove-jibrilmohamud.workers.dev";
 const origin="https://"+callerName+".cove-jibrilmohamud.workers.dev";
 const primary="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
 const primaryName="cove-paid-commerce-legal-qa-20261027";
@@ -23,6 +25,7 @@ const expires=Date.now()+12*60_000;
 const temp=fs.mkdtempSync(path.join(process.cwd(),".cove-paid-proof-"));
 const ownerCfg=path.join(process.cwd(),".cove-paid-owner-proof-"+runId+".jsonc");
 const callerCfg=path.join(process.cwd(),".cove-paid-caller-proof-"+runId+".jsonc");
+const settlementCfg=path.join(process.cwd(),".cove-paid-settlement-proof-"+runId+".jsonc");
 const test={
   productId:"prd_paid_qa_20261027",
   entitlementId:"ent_paid_qa_20261027",
@@ -119,7 +122,7 @@ const assertNoRoute=(config)=>{
   assert.equal(config.d1_databases?.[0]?.database_name,primaryName);
   assert.equal(config.vars?.COVE_RIGHTS_OWNER_ENABLED,"0");
 };
-let ownerCreated=false,callerCreated=false;
+let ownerCreated=false,callerCreated=false,settlementCreated=false;
 let cleanupError=null;
 try {
   const original=JSON.parse(fs.readFileSync("wrangler.legal-paid-authority.example.jsonc","utf8"));
@@ -181,12 +184,63 @@ try {
     ids:[test.productId],territory:"CA",channel:"retail"
   });
   assert.deepEqual(wrongRegion.body?.rows,[],"Territory isolation required");
+  // Certified payment publication must flow through Cove's actual stage
+  // settlement function, not only a direct test POST to the DO. This Worker
+  // can operate on ONLY the fixed synthetic buyer and order in the separate
+  // canonical paid QA D1. It has an expiring gate and no customer routing.
+  const settlement=JSON.parse(fs.readFileSync(
+    "wrangler.legal-paid-settlement-stage-qa.example.jsonc","utf8"));
+  assert.equal(settlement.workers_dev,false);
+  assert.equal(settlement.preview_urls,false);
+  assert.deepEqual(settlement.routes,[]);
+  assert.equal(settlement.d1_databases?.[0]?.database_id,primary);
+  assert.equal(settlement.vars?.COVE_PAID_STAGE_QA_ENABLED,"0");
+  assert.equal(settlement.services?.[0]?.service,"cove-paid-legal-authority-qa");
+  settlement.name=settlementName;
+  settlement.workers_dev=true;
+  settlement.services[0].service=ownerName;
+  settlement.vars.COVE_PAID_STAGE_QA_ENABLED="1";
+  settlement.vars.COVE_PAID_STAGE_QA_EXPIRES_AT=String(expires);
+  fs.writeFileSync(settlementCfg,JSON.stringify(settlement));
+  settlementCreated=true;
+  deploy(settlementCfg,{
+    COVE_PAID_STAGE_QA_GATE:gate,COVE_RIGHTS_OWNER_SECRET:secret
+  });
+  await verifySecrets(settlementName,
+    ["COVE_PAID_STAGE_QA_GATE","COVE_RIGHTS_OWNER_SECRET"]);
+  const postSettlement=async(route)=>{
+    const response=await fetch(settlementOrigin+route,{
+      method:"POST",headers:{"content-type":"application/json",
+        "authorization":"Bearer "+gate},
+      body:JSON.stringify({orderId:test.orderId,userId:test.userId}),
+      signal:AbortSignal.timeout(12000)
+    });
+    return {status:response.status,body:response.status===200?await response.json():null};
+  };
+  // Do not repeat positive owner mutations on a network timeout. Wait for
+  // route propagation using only an already-PAID preflight refusal: no
+  // canonical writes, owner changes or payment charged at readiness.
+  let stageReady=false;
+  for(let n=0;n<24;n++){
+    await pause(1500);
+    let response;
+    try{response=await postSettlement("/preflight-paid");}
+    catch{continue;}
+    if(response.status===409){stageReady=true;break;}
+    if(![404,500,502,503,504].includes(response.status))
+      throw Error("Unexpected paid settlement QA stage readiness HTTP "+response.status);
+  }
+  assert.equal(stageReady,true,"Canonical QA settlement stage never became available");
   const ent=await post("/commercial/entitlement/publish-verified",{
     entitlementId:test.entitlementId,userId:test.userId,productId:test.productId,
     territory:"US",channel:"retail"
   });
   assert.equal(ent.status,200,"Canonical paid order did not publish real buyer receipt");
   assert.equal(ent.body?.applied,true);
+  const stagePublished=await postSettlement("/certify-paid");
+  assert.equal(stagePublished.status,200,
+    "Real deployed Cove paid-settlement function must reverify full-schema canonical buyer");
+  assert.equal(stagePublished.body?.ok,true);
   const input={entitlementId:test.entitlementId,userId:test.userId,
     productId:test.productId,territory:"US",channel:"retail"};
   const allowed=await read("/commercial/entitlement/authorize",input);
@@ -202,21 +256,25 @@ try {
   assert.equal(denied.body?.applied,true);
   const after=await read("/commercial/entitlement/authorize",input);
   assert.equal(after.body?.allowed,false,"Refund MUST immediately revoke protected paid entitlement");
+  const stageReplayed=await postSettlement("/certify-paid");
+  assert.notEqual(stageReplayed.status,200,
+    "After refund, actual staged paid settlement must never resurrect protected access");
   const replay=await post("/commercial/order/deny-next",refund);
   assert.deepEqual(replay.body,denied.body,"Refund replay must be idempotent");
   const forbidden=await post("/commercial/entitlement/publish-verified",input);
   assert.notEqual(forbidden.status,200,"Old paid order must never resurrect entitlement");
-  console.log("PASS: deployed full-schema paid owner, canonical grant and price, exact buyer, territory, refund and replay; no capacity D1 writes");
+  console.log("PASS: deployed full-schema paid owner, canonical grant and price, deployed settlement function, exact buyer, territory, refund and replay; no capacity D1 writes");
 } finally {
   // Physically distinct QA scripts and expiring credentials prevent production
   // exposure. DELETE is limited to names built from this exact CI run ID.
-  for(const [name,created] of [[callerName,callerCreated],[ownerName,ownerCreated]]){
+  for(const [name,created] of [[settlementName,settlementCreated],[callerName,callerCreated],[ownerName,ownerCreated]]){
     if(!created)continue;
     try{await api("DELETE","/workers/scripts/"+name);}
     catch(e){cleanupError=e;console.error("QA script cleanup failed: "+name);}
   }
   fs.rmSync(ownerCfg,{force:true});
   fs.rmSync(callerCfg,{force:true});
+  fs.rmSync(settlementCfg,{force:true});
   fs.rmSync(temp,{force:true,recursive:true});
   if(cleanupError)throw cleanupError;
 }
