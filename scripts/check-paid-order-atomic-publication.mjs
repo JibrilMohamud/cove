@@ -102,8 +102,9 @@ try{
   const db2=new DatabaseSync(":memory:");
   const sql2={exec(statement,...args){
     const q=db2.prepare(statement);
-    return {toArray:()=>/^\s*SELECT\b/i.test(statement)?q.all(...args):
-      (q.run(...args),[])};
+    const result=/^\s*SELECT\b/i.test(statement)?q.all(...args):
+      (q.run(...args),[]);
+    return {toArray:()=>result};
   }};
   ent.createPaidEntitlementSchema(sql2);
   legal.createCommercialAuthoritySchema(sql2);
