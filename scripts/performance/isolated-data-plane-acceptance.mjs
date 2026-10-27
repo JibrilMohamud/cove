@@ -434,73 +434,113 @@ async function deploy(round) {
 // previously invalidated a 100-RPS phase despite all storefront requests
 // passing. Fail every actual data-plane background error; retry nothing in
 // the measured phases.
-async function deployBackgroundLane(){
-  const name=`cove-arch-bg-${runId}`;
+async function deployBackgroundLane() {
+  const name = `cove-arch-bg-${runId}`;
   names.push(name);
-  backgroundOrigin=`https://${name}.cove-jibrilmohamud.workers.dev`;
-  backgroundGate=randomBytes(32).toString("hex");
-  const config="wrangler.arch-background.jsonc";
-  const lease=Date.now()+25*60_000;
-  const definition={
-    name,main:".output/strangler/capacity-background.mjs",
-    compatibility_date:"2026-10-25",workers_dev:true,preview_urls:false,routes:[],
-    d1_databases:[
-      {binding:"CONTENT_DB",database_name:"cove-literary-budget-stage-20261020",database_id:content},
-      {binding:"DISCOVERY_DB",database_name:"cove-perf-isolated-control-20261019",database_id:discovery}
+  backgroundOrigin = `https://${name}.cove-jibrilmohamud.workers.dev`;
+  backgroundGate = randomBytes(32).toString("hex");
+  const config = "wrangler.arch-background.jsonc";
+  const lease = Date.now() + 25 * 60_000;
+  const definition = {
+    name,
+    main: ".output/strangler/capacity-background.mjs",
+    compatibility_date: "2026-10-25",
+    workers_dev: true,
+    preview_urls: false,
+    routes: [],
+    d1_databases: [
+      {
+        binding: "CONTENT_DB",
+        database_name: "cove-literary-budget-stage-20261020",
+        database_id: content,
+      },
+      {
+        binding: "DISCOVERY_DB",
+        database_name: "cove-perf-isolated-control-20261019",
+        database_id: discovery,
+      },
     ],
-    vars:{COVE_BG_ENABLED:"1",COVE_BG_RUN_ID:runId,COVE_BG_EXPIRES_AT:String(lease)}
+    vars: {
+      COVE_BG_ENABLED: "1",
+      COVE_BG_RUN_ID: runId,
+      COVE_BG_EXPIRES_AT: String(lease),
+    },
   };
   assert.ok(!JSON.stringify(definition).includes(production));
-  fs.writeFileSync(config,JSON.stringify(definition));
-  const dir=fs.mkdtempSync(path.join(os.tmpdir(),"cove-stage-background-"));
-  const secret=path.join(dir,"secrets.json");
-  try{
-    fs.writeFileSync(secret,JSON.stringify({COVE_BG_KEY:backgroundGate}),
-      {mode:0o600,flag:"wx"});
-    await deployStage(config,secret);
-  }finally{
-    fs.rmSync(dir,{recursive:true,force:true});
+  fs.writeFileSync(config, JSON.stringify(definition));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cove-stage-background-"));
+  const secret = path.join(dir, "secrets.json");
+  try {
+    fs.writeFileSync(secret, JSON.stringify({ COVE_BG_KEY: backgroundGate }), {
+      mode: 0o600,
+      flag: "wx",
+    });
+    await deployStage(config, secret);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
   // First DATA-plane readiness is outside the cold and 100-RPS windows.
   // Require verified owner bindings, not a control-plane deployment ACK.
-  const statuses=new Map();
-  for(let n=0;n<40;n++){
-    await new Promise(r=>setTimeout(r,1500));
-    try{
-      const response=await fetch(backgroundOrigin+"/health",{
-        method:"POST",headers:{authorization:"Bearer "+backgroundGate,
-          "content-type":"application/json"},body:"{}",
-        signal:AbortSignal.timeout(10000)
+  const statuses = new Map();
+  for (let n = 0; n < 40; n++) {
+    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      const response = await fetch(backgroundOrigin + "/health", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer " + backgroundGate,
+          "content-type": "application/json",
+        },
+        body: "{}",
+        signal: AbortSignal.timeout(10000),
       });
-      if(response.status===200 && (await response.json()).ok===true){
-        evidence.backgroundReady={checks:n+1,initialFailures:Object.fromEntries(statuses)};
+      if (response.status === 200 && (await response.json()).ok === true) {
+        evidence.backgroundReady = {
+          checks: n + 1,
+          initialFailures: Object.fromEntries(statuses),
+        };
         save();
         return;
       }
-      const key="HTTP_"+response.status;
-      statuses.set(key,(statuses.get(key)||0)+1);
-    }catch(error){
-      const key="NETWORK_"+(error?.name||"unknown");
-      statuses.set(key,(statuses.get(key)||0)+1);
+      const key = "HTTP_" + response.status;
+      statuses.set(key, (statuses.get(key) || 0) + 1);
+    } catch (error) {
+      const key = "NETWORK_" + (error?.name || "unknown");
+      statuses.set(key, (statuses.get(key) || 0) + 1);
     }
   }
-  throw Error("capacity_background_lane_not_ready:"+
-    JSON.stringify(Object.fromEntries(statuses)));
+  throw Error(
+    "capacity_background_lane_not_ready:" +
+      JSON.stringify(Object.fromEntries(statuses)),
+  );
 }
-async function tickBackground(sequence){
-  const started=performance.now();
-  const response=await fetch(backgroundOrigin+"/tick",{
-    method:"POST",headers:{authorization:"Bearer "+backgroundGate,
-      "content-type":"application/json"},body:JSON.stringify({sequence}),
-    signal:AbortSignal.timeout(15000)
+async function tickBackground(sequence) {
+  const started = performance.now();
+  const response = await fetch(backgroundOrigin + "/tick", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer " + backgroundGate,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ sequence }),
+    signal: AbortSignal.timeout(15000),
   });
-  if(response.status!==200)throw Error("background_data_plane_http_"+response.status);
-  const value=await response.json();
-  if(value.ok!==true||value.sequence!==sequence||
-    !Array.isArray(value.meta)||value.meta.length!==2||
-    !Number.isInteger(value.discoveryRows)||value.discoveryRows<1)
+  if (response.status !== 200) throw Error("background_data_plane_http_" + response.status);
+  const value = await response.json();
+  if (
+    value.ok !== true ||
+    value.sequence !== sequence ||
+    !Array.isArray(value.meta) ||
+    value.meta.length !== 2 ||
+    !Number.isInteger(value.discoveryRows) ||
+    value.discoveryRows < 1
+  )
     throw Error("background_data_plane_invalid_receipt");
-  return {ms:performance.now()-started,serviceMs:value.durationMs,meta:value.meta};
+  return {
+    ms: performance.now() - started,
+    serviceMs: value.durationMs,
+    meta: value.meta,
+  };
 }
 async function phase(model) {
   const rows = [],
