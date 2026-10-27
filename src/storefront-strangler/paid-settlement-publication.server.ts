@@ -72,7 +72,7 @@ export async function assertStagePaidOrderNotWithdrawn(env:CoveEnv,orderId:strin
   ).bind(orderId).first<PaidOrder>();
   if(!order||!identity.test(order.user_id)||
      !/^[A-Z]{2}$/.test(order.territory_code)||
-     !["pending_payment","processing","authorized"].includes(order.status))
+     !["pending_payment","processing","authorized","payment_failed"].includes(order.status))
     throw new ApiError(409,"Canonical paid-order settlement scope invalid.");
   const lines=(await env.DB.prepare(
     "SELECT product_id,rights_grant_id,rights_snapshot_json,sales_channel,preorder_id FROM commerce_order_items WHERE order_id=? ORDER BY id LIMIT 26"
