@@ -1306,26 +1306,27 @@ export function StorePage({
     publishedAfter ||
     publishedBefore
   );
+  // A failed slow COUNT/facet request must never erase a verified live
+  // first-paint shelf. This is display-only; no rights or entitlements
+  // are conferred by the preview.
+  const catalogDisplay = result.data ?? fastPreview;
+  const books = catalogDisplay?.results || [];
   const home = ["/", "/store"].includes(landingPath) && !filtered && page === 1;
   const merch = useQuery<MerchResponse>({
     queryKey: ["merchandising", visitor, !!data.user],
     queryFn: () => api(`/merchandising?visitor=${encodeURIComponent(visitor)}`),
-    enabled: home && !!visitor,
+    enabled: home && !!visitor && books.length > 0,
     staleTime: 60_000,
     retry: 1,
   });
   const recommendations = useQuery<RecommendationResponse>({
     queryKey: ["recommendations-home", visitor, data.user?.id || "anonymous"],
     queryFn: () => api(`/recommendations/home?visitor=${encodeURIComponent(visitor)}&limit=12`),
-    enabled: home && !!visitor,
+    enabled: home && !!visitor && books.length > 0,
     staleTime: 5 * 60_000,
     retry: 1,
   });
-  // A failed slow COUNT/facet request must never erase a verified live
-  // first-paint shelf. This is display-only; no rights or entitlements
-  // are conferred by the preview.
-  const catalogDisplay = result.data ?? fastPreview;
-  const books = catalogDisplay?.results || [];
+
   const current = data.library
     .filter((x) => x.status === "reading")
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
