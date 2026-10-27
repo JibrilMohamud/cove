@@ -1,0 +1,81 @@
+/* eslint-disable prettier/prettier -- Isolated synthetic paid-settlement QA is a narrow trust boundary. */
+import {certifyStagePaidSettlement,assertStagePaidOrderNotWithdrawn} from "./paid-settlement-publication.server";
+import type {CoveEnv} from "../features/fore/api.server";
+
+type D1={prepare:(sql:string)=>unknown};
+type Env={
+  PRIMARY_DB?:D1;
+  LEGAL_PRIVATE?:{fetch:(request:Request)=>Promise<Response>};
+  COVE_PAID_STAGE_QA_ENABLED?:string;
+  COVE_PAID_STAGE_QA_EXPIRES_AT?:string;
+  COVE_PAID_STAGE_QA_GATE?:string;
+  COVE_RIGHTS_OWNER_SECRET?:string;
+  COVE_SSR_STAGING?:string;
+  COVE_CANONICAL_LEGAL_WRITE_LOCK?:string;
+  COVE_LEGAL_CONSUMER_STAGE_ENABLED?:string;
+  COVE_LEGAL_WRITER_PRIMARY_ID?:string;
+};
+const FULL_SCHEMA_QA="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
+const ORDER="order_paid_qa_20261027";
+const BUYER="user_paid_qa_20261027";
+function available(env:Env):boolean{
+  const exp=Number(env.COVE_PAID_STAGE_QA_EXPIRES_AT);
+  return env.COVE_PAID_STAGE_QA_ENABLED==="1" &&
+    env.COVE_SSR_STAGING==="1" &&
+    env.COVE_CANONICAL_LEGAL_WRITE_LOCK==="1" &&
+    env.COVE_LEGAL_CONSUMER_STAGE_ENABLED==="1" &&
+    env.COVE_LEGAL_WRITER_PRIMARY_ID===FULL_SCHEMA_QA &&
+    /^[a-f0-9]{64}$/.test(env.COVE_PAID_STAGE_QA_GATE||"") &&
+    /^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET||"") &&
+    Number.isSafeInteger(exp)&&exp>Date.now()&&exp<=Date.now()+20*60_000 &&
+    typeof env.LEGAL_PRIVATE?.fetch==="function" &&
+    typeof env.PRIMARY_DB?.prepare==="function";
+}
+export default {
+  async fetch(request:Request,env:Env):Promise<Response>{
+    const headers={"cache-control":"no-store"};
+    if(!available(env))return new Response(null,{status:503,headers});
+    if(request.headers.get("authorization")!=="Bearer "+env.COVE_PAID_STAGE_QA_GATE)
+      return new Response(null,{status:401,headers});
+    const url=new URL(request.url);
+    if(request.method!=="POST"||url.search||
+      request.headers.get("content-type")?.split(";")[0].trim()!=="application/json" ||
+      request.headers.has("cookie"))
+      return new Response(null,{status:405,headers});
+    if(!["/certify-paid","/preflight-paid"].includes(url.pathname))
+      return new Response(null,{status:404,headers});
+    let body:unknown;
+    try{
+      const raw=await request.text();
+      if(raw.length>200)return new Response(null,{status:413,headers});
+      body=JSON.parse(raw);
+    }catch{return new Response(null,{status:400,headers});}
+    if(!body||typeof body!=="object"||Array.isArray(body)||
+      (body as Record<string,unknown>).orderId!==ORDER||
+      (body as Record<string,unknown>).userId!==BUYER||
+      Object.keys(body).length!==2)
+      return new Response(null,{status:400,headers});
+    const facade={...env,DB:env.PRIMARY_DB,
+      LEGAL_AUTHORITY:{
+        getByName(name:string){
+          if(name!=="cove-staged-legal-global-v1")throw Error("invalid_owner_namespace");
+          return env.LEGAL_PRIVATE!;
+        }
+      }
+    } as unknown as CoveEnv;
+    try{
+      if(url.pathname==="/certify-paid")
+        await certifyStagePaidSettlement(facade,ORDER,BUYER);
+      else
+        await assertStagePaidOrderNotWithdrawn(facade,ORDER);
+      return Response.json({ok:true},{headers});
+    }catch(e){
+      // Status-only contract. Never expose paid buyer identity or canonical
+      // order, Stripe metadata, secrets, or the owner error body.
+      const code=typeof e==="object"&&e!==null&&"status" in e?
+        Number((e as {status:unknown}).status):503;
+      return Response.json({ok:false},
+        {status:[409,451,503].includes(code)?code:503,headers});
+    }
+  }
+};
