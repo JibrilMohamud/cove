@@ -1992,9 +1992,12 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
     // The immutable idempotency key lets a subsequent request recover even
     // when D1 rejected the provider receipt write below.
     providerAccepted = true;
+    // Keep the canonical refund PENDING until owner-first revocation
+    // and the ledger have acknowledged it. A provider-success event alone
+    // cannot publish a successful customer entitlement withdrawal.
     await db
       .prepare("UPDATE commerce_refunds SET provider_refund_id=?,status=?,updated_at=? WHERE id=?")
-      .bind(refund.id, refund.status || "pending", now(), id)
+      .bind(refund.id, refund.status === "succeeded" ? "pending" : refund.status || "pending", now(), id)
       .run();
     if (refund.status === "succeeded") await applyRefundSuccess(env, id, refund);
     return {
@@ -2070,7 +2073,7 @@ async function resumePersistedRefund(env: CoveEnv, r: PersistedRefundRow): Promi
       throw new ApiError(409, "Stripe refund receipt does not match the canonical order.");
     await db.prepare(
       "UPDATE commerce_refunds SET provider_refund_id=?,status=?,updated_at=? WHERE id=? AND succeeded_at IS NULL",
-    ).bind(provider.id, provider.status || "pending", now(), r.id).run();
+    ).bind(provider.id, provider.status === "succeeded" ? "pending" : provider.status || "pending", now(), r.id).run();
   } else {
     provider = { id: `internal_${r.id}`, status: "succeeded" };
   }
@@ -2680,11 +2683,18 @@ async function processStripeEvent(env: CoveEnv, event: any) {
       .bind(obj.id)
       .first<any>();
     if (r) {
-      await db
-        .prepare("UPDATE commerce_refunds SET status=?,updated_at=? WHERE id=?")
-        .bind(obj.status || r.status, now(), r.id)
-        .run();
-      if (obj.status === "succeeded") await applyRefundSuccess(env, r.id, obj);
+      // Stripe is the authority for payment movement, not for access. The
+      // strong owner must durably revoke before the local refund status
+      // becomes succeeded. If owner publication fails, the signed webhook
+      // remains replayable and the refund receipt remains pending.
+      if (obj.status === "succeeded") {
+        await applyRefundSuccess(env, r.id, obj);
+      } else if (!r.succeeded_at) {
+        await db
+          .prepare("UPDATE commerce_refunds SET status=?,updated_at=? WHERE id=? AND succeeded_at IS NULL")
+          .bind(obj.status || r.status, now(), r.id)
+          .run();
+      }
     }
   } else if (type.startsWith("charge.dispute.")) {
     await syncDispute(env, obj, type);
