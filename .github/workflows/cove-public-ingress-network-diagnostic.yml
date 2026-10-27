@@ -16,7 +16,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          for target in https://cove-puce-theta.vercel.app/ https://cove-jibrilmohamuds-projects.vercel.app/ https://cove-git-main-jibrilmohamuds-projects.vercel.app/ https://cove-puce-theta.vercel.app/offline.html https://cove-puce-theta.vercel.app/api/fore/health/ready https://cove-persistence-backend.cove-jibrilmohamud.workers.dev/__cove/health; do
+          for target in https://cove-puce-theta.vercel.app/ https://cove-jibrilmohamuds-projects.vercel.app/ https://cove-git-main-jibrilmohamuds-projects.vercel.app/ https://cove-puce-theta.vercel.app/offline.html https://cove-puce-theta.vercel.app/api/fore/health/ready https://cove-puce-theta.vercel.app/api/fore/account https://cove-puce-theta.vercel.app/api/fore/catalog https://cove-persistence-backend.cove-jibrilmohamud.workers.dev/__cove/health; do
             echo "Probe $target"
             for attempt in 1 2; do
               curl --silent --show-error --output /dev/null --connect-timeout 7 --max-time 16 --write-out 'status=%{http_code} ip=%{remote_ip} DNS=%{time_namelookup}s TLS=%{time_appconnect}s ttfb=%{time_starttransfer}s total=%{time_total}s\n' "$target"
@@ -34,3 +34,5 @@ jobs:
               echo "curl_exit=$?"
             done
           done
+
+# Post-alias-switch probe: pin the latest production traffic mapping.
