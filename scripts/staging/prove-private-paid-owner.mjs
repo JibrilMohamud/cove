@@ -342,6 +342,7 @@ try {
   settlement.workers_dev=true;
   settlement.services[0].service=ownerName;
   settlement.vars.COVE_PAID_STAGE_QA_ENABLED="1";
+  settlement.vars.STRIPE_LIVEMODE="false";
   settlement.vars.COVE_PAID_STAGE_QA_EXPIRES_AT=String(expires);
   fs.writeFileSync(settlementCfg,JSON.stringify(settlement));
   settlementCreated=true;
