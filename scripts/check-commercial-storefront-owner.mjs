@@ -18,6 +18,35 @@ try{
  const rights=await moduleFrom("src/storefront-strangler/commercial-legal-core.ts","rights");
  const owner=await moduleFrom("src/storefront-strangler/commercial-storefront-authority.ts","paid");
  const client=await moduleFrom("src/storefront-strangler/legal-authority-read.server.ts","client");
+ // A declaration of writer closure is not sufficient: the same staged
+ // gateway must have the mandatory canonical legal write lock installed
+ // before anonymous traffic can use owner-only read authorization.
+ const bootstrap=await moduleFrom("src/storefront-strangler/bootstrap-optimized.server.ts","bootstrap");
+ const bootstrapRequest=new Request("https://cove.test/api/fore/storefront/bootstrap",{
+   headers:{"x-cove-client-country":"US","cf-connecting-ip":"203.0.113.1"}
+ });
+ const stagedGateway={
+   DB:{prepare(){throw Error("should_not_reach_primary_d1")}},
+   COVE_STOREFRONT_READ_LIMITER:{async limit(){return {success:true}}},
+   PRESENTATION:{},
+   COVE_STRANGLER_READ_MODEL:"2",
+   COVE_SSR_STAGING:"1",
+   COVE_STRANGLER_MODE:"production-acceptance",
+   COVE_STRANGLER_DATABASE_ID:"4bd657ac-8789-403e-a28c-93aba8d0a989",
+   COVE_LEGAL_OWNER_STAGE_READ_ENABLED:"1",
+   COVE_LEGAL_OWNER_WRITER_CLOSURE_AUDITED:"1",
+   COVE_RIGHTS_OWNER_SECRET:"a".repeat(64),
+   LEGAL_AUTHORITY:{getByName(){throw Error("owner_must_not_be_called")}}
+ };
+ for(const lock of [undefined,"0"]){
+   await assert.rejects(
+     bootstrap.serveLeanAnonymousBootstrap(bootstrapRequest,{
+       ...stagedGateway,COVE_CANONICAL_LEGAL_WRITE_LOCK:lock
+     }),
+     /Legal owner read not certified for protected staging/,
+     "Staged owner reads must fail closed without canonical writer-lock closure"
+   );
+ }
  const db=new DatabaseSync(":memory:");
  const sql={exec(statement,...args){
    const q=db.prepare(statement);
