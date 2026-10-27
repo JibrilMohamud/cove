@@ -4,6 +4,8 @@ on:
     paths:
       - "src/storefront-strangler/legal-authority.worker.ts"
       - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
+      - "src/storefront-strangler/legal-admin-owner-commands.server.ts"
+      - "scripts/test-legal-admin-owner-commands.mjs"
       - "src/storefront-strangler/paid-settlement-publication.server.ts"
       - "src/storefront-strangler/paid-order-atomic-publication.ts"
       - "scripts/check-paid-order-atomic-publication.mjs"
@@ -33,7 +35,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   private-positive-owner:
-    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["arch/isolated-catalog-normalization-20261025","security/atomic-paid-owner-order-20261027","qa/real-initial-payment-media-20261027"]'), github.event.pull_request.head.ref)) || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["refs/heads/arch/isolated-catalog-normalization-20261025","refs/heads/security/atomic-paid-owner-order-20261027","refs/heads/qa/real-initial-payment-media-20261027"]'), github.ref))
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["arch/isolated-catalog-normalization-20261025","security/atomic-paid-owner-order-20261027","qa/real-initial-payment-media-20261027","arch/production-legal-writer-closure-20261027"]'), github.event.pull_request.head.ref)) || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["refs/heads/arch/isolated-catalog-normalization-20261025","refs/heads/security/atomic-paid-owner-order-20261027","refs/heads/qa/real-initial-payment-media-20261027","refs/heads/arch/production-legal-writer-closure-20261027"]'), github.ref))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -54,6 +56,7 @@ jobs:
       - run: node scripts/check-staged-paid-settlement.mjs
       - run: node scripts/check-legal-consumer-fence.mjs
       - run: node scripts/check-legal-quarantine-writer.mjs
+      - run: node scripts/test-legal-admin-owner-commands.mjs
       - run: node scripts/build-storefront-strangler.mjs
       - name: Install official Stripe test-event forwarder
         run: |
