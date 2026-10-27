@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Isolated sandbox fixtures preserve explicit security assertions and synthetic input construction. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
