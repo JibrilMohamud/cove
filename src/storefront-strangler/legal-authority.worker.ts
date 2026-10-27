@@ -453,7 +453,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           editionId:authorized[0].edition_id,
           productPublicId:authorized[0].product_public_id || null,
           editionPublicId:authorized[0].edition_public_id || null,
-          offerJson:authorized[0].offer_json,
+          offerJson:authorized[0].offer_json!,
         });
       });
       if(!verdict.applied)
