@@ -1800,12 +1800,12 @@ export function StorePage({
 
       {catalogDisplay?.search?.correctedQuery && (
         <p className="search-correction">
-          Showing results for <strong>{result.data.search.correctedQuery}</strong>.
+          Showing results for <strong>{catalogDisplay.search.correctedQuery}</strong>.
         </p>
       )}
       {catalogDisplay?.warning &&
-        (!books.length || !result.data.warning.includes("catalog updater is retrying")) && (
-          <p className="notice">{result.data.warning}</p>
+        (!books.length || !catalogDisplay.warning.includes("catalog updater is retrying")) && (
+          <p className="notice">{catalogDisplay.warning}</p>
         )}
       {result.error && !books.length ? (
         <div className="empty-state">
