@@ -312,6 +312,67 @@ try {
   const owned206 = await ownedTrack("bytes=0-63");
   assert.equal(owned206.status, 206);
   assert.deepEqual(Buffer.from(await owned206.arrayBuffer()), bytes.subarray(0, 64));
+  // The same actual HTTP handler must reauthorize offline issuance AND
+  // verification. Generate a one-test-only P-256 signing key; no production
+  // key, person, media or Cloudflare storage participates.
+  frozen.profile.offlineEligible = true;
+  frozen.agreements[0].permittedUses.push("offline");
+  const keyPair = await crypto.subtle.generateKey(
+    { name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"],
+  );
+  staged.FORE_OFFLINE_AUDIO_SIGNING_JWK = JSON.stringify(
+    await crypto.subtle.exportKey("jwk", keyPair.privateKey),
+  );
+  const deviceId = "device_audio_qa_" + randomUUID().replaceAll("-", "");
+  const deviceAt = new Date().toISOString();
+  await env.DB.prepare(
+    "INSERT INTO devices(id,user_id,device_key,name,platform,last_seen_at,created_at) VALUES(?,?,?,?,?,?,?)",
+  ).bind(deviceId, ownerBuyer, "qa-test-device-key-" + deviceId,
+    "QA offline audio device", "test", deviceAt, deviceAt).run();
+  const offlinePath = "/audio/ca_" + publishedId + "/offline-license";
+  const offline = (route, payload) => audio.handleCommercialAudio(
+    new Request("https://cove.qa/api/fore" + route, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+    staged, route, ownerBuyer, "US",
+  );
+  const issuedOffline = await offline(offlinePath, { deviceId, protocolVersion: 1 });
+  assert.equal(issuedOffline.status, 200);
+  const issuedLicense = await issuedOffline.json();
+  assert.ok(issuedLicense.licenseId && issuedLicense.token && issuedLicense.receipt?.signature);
+  const maxLeaseMs = 7 * 86400000;
+  const lifeMs = Date.parse(issuedLicense.expiresAt) - Date.now();
+  assert.ok(lifeMs > 0 && lifeMs <= maxLeaseMs,
+    "The actual signed commercial audio license must expire within seven days");
+  const persisted = await env.DB.prepare(
+    "SELECT status,expires_at FROM audio_offline_licenses WHERE id=?",
+  ).bind(issuedLicense.licenseId).first();
+  assert.equal(persisted.status, "active");
+  const verification = () => offline(offlinePath + "/verify", {
+    licenseId: issuedLicense.licenseId, token: issuedLicense.token,
+  });
+  const verifiedOffline = await verification();
+  assert.equal(verifiedOffline.status, 200);
+  assert.equal((await verifiedOffline.json()).valid, true);
+  ownerOutage = true;
+  await assert.rejects(verification(), (e) => e.status === 503,
+    "Even an unexpired signed license cannot renew or verify during an owner outage");
+  ownerOutage = false;
+  ownerEnabled = false;
+  await assert.rejects(verification(), (e) => e.status === 451,
+    "Immediate owner withdrawal must deny online offline-license verification");
+  assert.equal((await env.DB.prepare(
+    "SELECT status FROM audio_offline_licenses WHERE id=?",
+  ).bind(issuedLicense.licenseId).first()).status, "active",
+    "Denial must not depend on eventual canonical license reconciliation");
+  ownerEnabled = true;
+  ownerOutage = true;
+  await assert.rejects(offline(offlinePath, { deviceId, protocolVersion: 1 }),
+    (e) => e.status === 503,
+    "Offline-license issuance must fail closed before signing on an owner outage");
+  ownerOutage = false;
+  ownerEnabled = true;
   ownerOutage = true;
   await assert.rejects(ownedTrack(), (e) => e.status === 503,
     "A legal-owner outage must halt previously authorized audiobook delivery");
@@ -321,7 +382,7 @@ try {
     "Withdrawal must deny the actual audio route even while D1 entitlement is active");
   assert.ok(ownerReads >= 5, "Every protected audio request must recheck authority");
   console.log(
-    "PASS: synthetic private R2 200/206, live commercial audio HTTP handler, strong-owner buyer proof/denial, outage fail-closed, cross-user isolation and immediate withdrawal (disposable QA).",
+    "PASS: original audio 200/206 bytes, real commercial HTTP handler, 7-day signed offline audio issue/verify, owner proof/denial, outage fail-closed, cross-user isolation and immediate withdrawal (disposable QA).",
   );
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
