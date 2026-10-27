@@ -101,8 +101,10 @@ assert.match(await backendDown.text(), /Return to saved books/);
 serverUnavailable = false;
 assert.equal(await (await navigate(reconnect)).text(), "PRIVATE ACCOUNT HTML");
 for (const entries of storage.values())
-  assert.ok(![...entries.keys()].some((k) => k.includes("_cove_reconnect")),
-    "reconnect attempts never cache personalized HTML");
+  assert.ok(
+    ![...entries.keys()].some((k) => k.includes("_cove_reconnect")),
+    "reconnect attempts never cache personalized HTML",
+  );
 online = true;
 missing = true;
 handlers.install({ waitUntil: (p) => (installed = p) });
