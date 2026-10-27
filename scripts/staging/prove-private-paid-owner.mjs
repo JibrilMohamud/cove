@@ -53,11 +53,24 @@ const api=async(method,resource,body)=>{
   if(!r.ok||!j?.success)throw Error("Cloudflare control plane "+method+" "+r.status);
   return j.result;
 };
-const deploy=(file,secrets)=>{
+const deploy=async(file,secrets)=>{
   const keyfile=path.join(temp,path.basename(file)+".secrets.json");
   fs.writeFileSync(keyfile,JSON.stringify(secrets),{mode:0o600});
-  try { cli(["deploy","--config",file,"--secrets-file",keyfile]); }
-  finally { fs.rmSync(keyfile,{force:true}); }
+  try {
+    for(let attempt=1;attempt<=3;attempt++){
+      try {
+        cli(["deploy","--config",file,"--secrets-file",keyfile]);
+        return;
+      }catch(e){
+        // Cloudflare's Worker versions API briefly returns 10007 for a
+        // brand-new script immediately after creation. Retry ONLY this
+        // pre-traffic provisioning race, never a paid owner mutation.
+        if(attempt===3||!/Worker does not exist|code:\s*10007/i.test(String(e)))throw e;
+        console.warn("QA Worker provisioning delayed (10007); retry "+attempt);
+        await new Promise(r=>setTimeout(r,1500*attempt));
+      }
+    }
+  }finally { fs.rmSync(keyfile,{force:true}); }
 };
 const qaSql=async(sql,params=[])=>{
   const results=await api("POST","/d1/database/"+primary+"/query",{sql,params});
@@ -143,7 +156,7 @@ try {
   original.vars.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT=String(expires);
   fs.writeFileSync(ownerCfg,JSON.stringify(original));
   ownerCreated=true;
-  deploy(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret});
+  await deploy(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret});
   await verifySecrets(ownerName,["COVE_RIGHTS_OWNER_SECRET"]);
   const writer=JSON.parse(fs.readFileSync(
     "wrangler.legal-paid-writer.example.jsonc","utf8"));
@@ -158,7 +171,7 @@ try {
   writer.vars.COVE_LEGAL_WRITER_EXPIRES_AT=String(expires);
   fs.writeFileSync(writerCfg,JSON.stringify(writer));
   writerCreated=true;
-  deploy(writerCfg,{
+  await deploy(writerCfg,{
     COVE_LEGAL_WRITER_SECRET:writerSecret,COVE_RIGHTS_OWNER_SECRET:secret
   });
   await verifySecrets(writerName,["COVE_LEGAL_WRITER_SECRET","COVE_RIGHTS_OWNER_SECRET"]);
@@ -174,7 +187,7 @@ try {
   caller.vars.COVE_LEGAL_QA_EXPIRES_AT=String(expires);
   fs.writeFileSync(callerCfg,JSON.stringify(caller));
   callerCreated=true;
-  deploy(callerCfg,{COVE_LEGAL_QA_GATE:gate,COVE_RIGHTS_OWNER_SECRET:secret,
+  await deploy(callerCfg,{COVE_LEGAL_QA_GATE:gate,COVE_RIGHTS_OWNER_SECRET:secret,
     COVE_LEGAL_WRITER_SECRET:writerSecret});
   await verifySecrets(callerName,["COVE_LEGAL_QA_GATE","COVE_RIGHTS_OWNER_SECRET",
     "COVE_LEGAL_WRITER_SECRET"]);
@@ -245,7 +258,7 @@ try {
   settlement.vars.COVE_PAID_STAGE_QA_EXPIRES_AT=String(expires);
   fs.writeFileSync(settlementCfg,JSON.stringify(settlement));
   settlementCreated=true;
-  deploy(settlementCfg,{
+  await deploy(settlementCfg,{
     COVE_PAID_STAGE_QA_GATE:gate,COVE_RIGHTS_OWNER_SECRET:secret
   });
   await verifySecrets(settlementName,
