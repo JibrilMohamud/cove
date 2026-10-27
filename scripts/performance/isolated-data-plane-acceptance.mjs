@@ -68,6 +68,7 @@ const kvKeys = [];
 let syntheticFixture = null;
 let fixtureActivated = false;
 let origin, gate;
+let backgroundOrigin, backgroundGate;
 evidence.workers = names;
 let shutdown;
 function cleanup() {
@@ -427,6 +428,80 @@ async function deploy(round) {
   console.log("ARCH_ROUTE_PROPAGATION_GRACE", JSON.stringify({ round, waitMs }));
   await new Promise((r) => setTimeout(r, waitMs));
 }
+// A measured campaign's background reads/writes are issued through a
+// dedicated synthetic Worker using D1 bindings, not through the GitHub
+// runner's Cloudflare management API. That API's independent network failure
+// previously invalidated a 100-RPS phase despite all storefront requests
+// passing. Fail every actual data-plane background error; retry nothing in
+// the measured phases.
+async function deployBackgroundLane(){
+  const name=`cove-arch-bg-${runId}`;
+  names.push(name);
+  backgroundOrigin=`https://${name}.cove-jibrilmohamud.workers.dev`;
+  backgroundGate=randomBytes(32).toString("hex");
+  const config="wrangler.arch-background.jsonc";
+  const lease=Date.now()+25*60_000;
+  const definition={
+    name,main:".output/strangler/capacity-background.mjs",
+    compatibility_date:"2026-10-25",workers_dev:true,preview_urls:false,routes:[],
+    d1_databases:[
+      {binding:"CONTENT_DB",database_name:"cove-content-private-qa",database_id:content},
+      {binding:"DISCOVERY_DB",database_name:"cove-discovery-private-qa",database_id:discovery}
+    ],
+    vars:{COVE_BG_ENABLED:"1",COVE_BG_RUN_ID:runId,COVE_BG_EXPIRES_AT:String(lease)}
+  };
+  assert.ok(!JSON.stringify(definition).includes(production));
+  fs.writeFileSync(config,JSON.stringify(definition));
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),"cove-stage-background-"));
+  const secret=path.join(dir,"secrets.json");
+  try{
+    fs.writeFileSync(secret,JSON.stringify({COVE_BG_KEY:backgroundGate}),
+      {mode:0o600,flag:"wx"});
+    await deployStage(config,secret);
+  }finally{
+    fs.rmSync(dir,{recursive:true,force:true});
+  }
+  // First DATA-plane readiness is outside the cold and 100-RPS windows.
+  // Require verified owner bindings, not a control-plane deployment ACK.
+  const statuses=new Map();
+  for(let n=0;n<40;n++){
+    await new Promise(r=>setTimeout(r,1500));
+    try{
+      const response=await fetch(backgroundOrigin+"/health",{
+        method:"POST",headers:{authorization:"Bearer "+backgroundGate,
+          "content-type":"application/json"},body:"{}",
+        signal:AbortSignal.timeout(10000)
+      });
+      if(response.status===200 && (await response.json()).ok===true){
+        evidence.backgroundReady={checks:n+1,initialFailures:Object.fromEntries(statuses)};
+        save();
+        return;
+      }
+      const key="HTTP_"+response.status;
+      statuses.set(key,(statuses.get(key)||0)+1);
+    }catch(error){
+      const key="NETWORK_"+(error?.name||"unknown");
+      statuses.set(key,(statuses.get(key)||0)+1);
+    }
+  }
+  throw Error("capacity_background_lane_not_ready:"+
+    JSON.stringify(Object.fromEntries(statuses)));
+}
+async function tickBackground(sequence){
+  const started=performance.now();
+  const response=await fetch(backgroundOrigin+"/tick",{
+    method:"POST",headers:{authorization:"Bearer "+backgroundGate,
+      "content-type":"application/json"},body:JSON.stringify({sequence}),
+    signal:AbortSignal.timeout(15000)
+  });
+  if(response.status!==200)throw Error("background_data_plane_http_"+response.status);
+  const value=await response.json();
+  if(value.ok!==true||value.sequence!==sequence||
+    !Array.isArray(value.meta)||value.meta.length!==2||
+    !Number.isInteger(value.discoveryRows)||value.discoveryRows<1)
+    throw Error("background_data_plane_invalid_receipt");
+  return {ms:performance.now()-started,serviceMs:value.durationMs,meta:value.meta};
+}
 async function phase(model) {
   const rows = [],
     background = [],
@@ -470,21 +545,12 @@ async function phase(model) {
       try {
         // Physically independent claims/receipts and discovery ranking work. No
         // production writes, customer identity or artificial rights bypass.
-        const results = await Promise.all([
-          sql(
-            content,
-            "INSERT INTO cove_arch_load(run_id,sequence,payload) VALUES(?,?,?) ON CONFLICT(run_id) DO UPDATE SET sequence=excluded.sequence,payload=excluded.payload",
-            [runId, String(n), "derived-preparation-" + n],
-          ),
-          sql(
-            discovery,
-            "SELECT product_id FROM catalog_search_documents INDEXED BY idx_search_popular_stable WHERE currency='USD' AND availability='available' AND suppressed=0 ORDER BY fore_bestseller_score DESC,external_book_id ASC,product_id ASC LIMIT 128",
-          ),
-        ]);
+        const receipt=await tickBackground(n);
         background.push({
-          ok: true,
-          ms: performance.now() - began,
-          meta: results.map((r) => r.meta),
+          ok:true,
+          ms:performance.now()-began,
+          serviceMs:receipt.serviceMs,
+          meta:receipt.meta,
         });
       } catch (e) {
         background.push({ ok: false, error: e.message });
@@ -646,6 +712,7 @@ try {
     content,
     "CREATE TABLE IF NOT EXISTS cove_arch_load(run_id TEXT PRIMARY KEY,sequence INTEGER,payload TEXT)",
   );
+  await deployBackgroundLane();
   await produceHomepagePresentation(readOnlyDB(discovery), "US", {
     async get() {
       throw Error("producer must not read R2");
