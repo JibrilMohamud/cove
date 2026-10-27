@@ -77,6 +77,17 @@ export function publishCommercialStorefront(
        FROM cove_commercial_storefront_proofs
        WHERE product_id=? AND territory=? AND currency=?`,
     p.product_id,p.territory,p.currency).toArray()[0];
+  // A retail owner-first withdrawal may be acknowledged while the
+  // canonical D1 offer deactivation is still in flight. The old D1 row
+  // can therefore look active to a later positive publisher. Crossing an
+  // owner epoch with an UNCHANGED price and legal grant is not fresh
+  // publication evidence: refuse to resurrect the withdrawn offer.
+  if(old&&old.rights_epoch!==p.rights_epoch&&
+     old.offer_json===p.offer_json&&
+     old.grant_id===p.grant_id&&
+     old.contract_id===p.contract_id&&
+     old.contract_version_id===p.contract_version_id)
+    throw Error("commercial_offer_reinstatement_requires_changed_evidence");
   if(old&&old.rights_epoch===p.rights_epoch&&(
     old.edition_id!==p.edition_id||old.grant_id!==p.grant_id||
     old.contract_id!==p.contract_id||old.contract_version_id!==p.contract_version_id||
