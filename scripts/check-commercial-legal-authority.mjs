@@ -167,6 +167,23 @@ try {
     ...proof,grantId:"right_fresh_18"
   },2),{applied:true,epoch:3});
   assert.equal(read()[0].grant_id,"right_fresh_18");
+  // ABA scenario: a legal grant was revoked, later replaced, revoked
+  // again, and replaced again. An ancient owner proof must never become
+  // publishable merely because the current scope rows were overwritten.
+  assert.deepEqual(core.denyCommercialProduct(sql(),{
+    productId:id,operationId:"contract:17:second-withdrawal"
+  }),{applied:true,epoch:4});
+  assert.deepEqual(core.publishFreshCommercialProof(sql(),{
+    ...proof,grantId:"right_fresh_19"
+  },4),{applied:true,epoch:5});
+  assert.throws(()=>core.publishFreshCommercialProof(sql(),proof,5),
+    /commercial_reinstatement_requires_new_legal_evidence/,
+    "An overwritten original grant remains permanently retired in owner SQLite");
+  assert.throws(()=>core.publishFreshCommercialProof(sql(),{
+    ...proof,grantId:"right_fresh_18"
+  },5),/commercial_reinstatement_requires_new_legal_evidence/,
+    "Every intermediary withdrawn grant must remain permanently retired");
+  assert.equal(read()[0].grant_id,"right_fresh_19");
   assert.deepEqual(core.denyCommercialProduct(sql(),{
     productId:id,operationId:"contract:17:revoked"
   }),{applied:false,epoch:2},
