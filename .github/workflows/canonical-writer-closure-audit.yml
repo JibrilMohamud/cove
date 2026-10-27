@@ -7,6 +7,7 @@ on:
       - "src/**"
       - "scripts/check-canonical-writer-closure.mjs"
       - "scripts/test-canonical-writer-closure.mjs"
+      - "scripts/test-legal-primary-write-lock.mjs"
       - ".github/workflows/canonical-writer-closure-audit.yml"
   pull_request:
     paths:
@@ -28,6 +29,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
+      - name: Install runtime guard test dependencies
+        run: npm ci --ignore-scripts
+      - name: Prove actual staged D1 guard denies all protected-table mutations
+        run: node scripts/test-legal-primary-write-lock.mjs
       - name: Inventory all direct writers and verify fail-closed gate
         run: node scripts/test-canonical-writer-closure.mjs
       - name: Produce reviewable per-file mutation evidence
