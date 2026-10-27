@@ -236,6 +236,7 @@ try {
   const replaced = [];
   const projection = columns.map((column) => {
     if (column === "id") { replaced.push(commercialId); return "?"; }
+    if (column === "sku") { replaced.push("sku-" + commercialId); return "?"; }
     if (column === "source_name") { replaced.push("publisher"); return "?"; }
     if (column === "source_external_id") { replaced.push("qa-audio-" + commercialId); return "?"; }
     if (column === "public_id" || column === "slug") { replaced.push(commercialId); return "?"; }
