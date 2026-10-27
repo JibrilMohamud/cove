@@ -15,6 +15,9 @@ import {
   commercialProductId, type CommercialChannel,
 } from "./commercial-legal-core";
 import {
+  createCommercialStorefrontSchema,publishCommercialStorefront,readCommercialStorefront,
+} from "./commercial-storefront-authority";
+import {
   applyAuthorityCommand, capturePositiveVerificationFence, commitFreshPositiveVerification,
   createAuthoritySchema, createAuthorityProofSchema,
   readAuthority, readAuthorizedPresentations,
@@ -53,6 +56,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     createAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
     createAuthorityProofSchema(ctx.storage.sql as unknown as AuthoritySql);
     createCommercialAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
+    createCommercialStorefrontSchema(ctx.storage.sql as unknown as AuthoritySql);
     createPaidEntitlementSchema(ctx.storage.sql as unknown as AuthoritySql);
   }
 
@@ -70,6 +74,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     if(!["/deny","/deny-next","/deny-next-batch","/verify","/publish-allow","/authorize-batch",
       "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next","/commercial/publish-verified",
       "/commercial/authorize-batch",
+      "/storefront/authorize-batch","/storefront/publish-commercial",
       "/commercial/order/deny-next","/commercial/order/verify",
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
       "/commercial/entitlement/publish-verified",
@@ -80,7 +85,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     let raw:unknown;
     try {
       const bytes=await request.text();
-      if(bytes.length>(["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
+      if(bytes.length>(["/authorize-batch","/deny-next-batch","/commercial/authorize-batch","/commercial/deny-batch","/commercial/entitlement/deny-batch","/storefront/authorize-batch"].includes(route)?24000:1024)) return new Response(null,{status:413,headers:noStore});
       raw=JSON.parse(bytes);
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
@@ -214,6 +219,69 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           denyCommercialProduct(sql,raw)
         );
         return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
+      }
+      // Mixed free and contract-backed paid shelf. The entire authorization
+      // happens under one strongly consistent SQLite owner, never primary D1.
+      // Missing/unpublished rows are absent, not inferred from KV/R2.
+      if(route==="/storefront/authorize-batch"){
+        const input=raw as {ids?:unknown;territory?:unknown;currency?:unknown};
+        if(!input||!Array.isArray(input.ids)||input.ids.length>128||
+           new Set(input.ids).size!==input.ids.length||
+           input.ids.some(id=>typeof id!=="string"||
+             !/^prd_[a-zA-Z0-9_-]{3,120}$/.test(id))||
+           typeof input.territory!=="string"||!/^[A-Z]{2}$/.test(input.territory)||
+           typeof input.currency!=="string"||!/^[A-Z]{3}$/.test(input.currency))
+          return new Response(null,{status:400,headers:noStore});
+        const free=input.ids.filter((id):id is string=>
+          typeof id==="string"&&id.startsWith("prd_gutenberg_"));
+        const paid=input.ids.filter((id):id is string=>
+          typeof id==="string"&&!id.startsWith("prd_gutenberg_"));
+        const rows=[
+          ...readAuthorizedPresentations(sql,free,input.territory,input.currency),
+          ...readCommercialStorefront(sql,paid,input.territory,input.currency)
+        ];
+        const position=new Map(input.ids.map((id,i)=>[id,i]));
+        rows.sort((a,b)=>(position.get(a.product_id)??129)-(position.get(b.product_id)??129));
+        return Response.json({schema:"cove.storefront-owner.v1",rows:rows.slice(0,25)},
+          {headers:noStore});
+      }
+      if(route==="/storefront/publish-commercial"){
+        const input=raw as {productId?:unknown;territory?:unknown;currency?:unknown};
+        if(!input||typeof input.productId!=="string"||
+           !commercialProductId.test(input.productId)||
+           input.productId.startsWith("prd_gutenberg_")||
+           typeof input.territory!=="string"||!/^[A-Z]{2}$/.test(input.territory)||
+           typeof input.currency!=="string"||!/^[A-Z]{3}$/.test(input.currency))
+          return new Response(null,{status:400,headers:noStore});
+        const rights=readCommercialProofs(sql,[input.productId],
+          input.territory,"retail");
+        if(rights.length!==1)return new Response(null,{status:409,headers:noStore});
+        const row=(await authorizeStorefrontPresentationIds(
+          env.PRIMARY_DB,[input.productId],input.territory,input.currency
+        ))[0];
+        if(!row||row.product_id!==input.productId||
+           row.edition_id!==rights[0].edition_id||
+           !row.offer_json)
+          return new Response(null,{status:409,headers:noStore});
+        const now=Date.now();
+        const expires=Math.min(now+5*60_000,Date.parse(rights[0].valid_until));
+        const storage=this.ctx.storage as typeof this.ctx.storage&{
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const receipt=storage.transactionSync(()=>
+          publishCommercialStorefront(sql,{
+            product_id:row.product_id,edition_id:row.edition_id,
+            product_public_id:row.product_public_id,
+            edition_public_id:row.edition_public_id,
+            territory:input.territory as string,currency:input.currency as string,
+            rights_epoch:rights[0].epoch,
+            grant_id:rights[0].grant_id,contract_id:rights[0].contract_id!,
+            contract_version_id:rights[0].contract_version_id!,
+            offer_json:row.offer_json!,
+            valid_until:new Date(expires).toISOString()
+          })
+        );
+        return Response.json(receipt,{headers:noStore});
       }
       if(route==="/commercial/authorize-batch"){
         const input=raw as {ids?:unknown;territory?:unknown;channel?:unknown};
