@@ -26,7 +26,7 @@ const retractIds=[String(Number(sourceId)+2),String(Number(sourceId)+3)];
 const paidIds=["prd_commercial_"+runId+"_a","prd_commercial_"+runId+"_b"];
 const evidenceId="gre_qa_"+evidenceSourceId+"_us";
 const expires=Date.now()+12*60*1000;
-let authorityEnabled=false,callerStarted=false,writerEnabled=false,seeded=false,seededEvidence=false,seededRetractions=false;
+let authorityEnabled=false,callerStarted=false,writerEnabled=false,seeded=false,seededEvidence=false,seededRetractions=false,marketSchemaCreated=false;
 const cli=(args,input)=>{
   const result=spawnSync("npm",["exec","--yes","--package=wrangler@4.151.0","--","wrangler",...args],{
     input,encoding:"utf8",timeout:160000,
@@ -192,30 +192,50 @@ try{
   }
   assert.ok(ready,"QA owner service-binding never became usable: "+
     JSON.stringify(Object.fromEntries(readinessFailures)));
+  // The canonical-publication QA D1 deliberately omits market tables;
+  // provision an isolated exact-scope synthetic market for this one test,
+  // with a mandatory cleanup in finally. Production D1 is never touched.
+  const qaD1="/accounts/"+account+
+    "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query";
+  const marketTable=await api("POST",qaD1,{
+    sql:"SELECT name FROM sqlite_master WHERE type='table' AND name='storefront_markets'"
+  });
+  assert.equal(marketTable[0]?.results?.length,0,
+    "The private QA market fixture must not overwrite an existing table");
+  marketSchemaCreated=true;
+  await api("POST",qaD1,{sql:
+    "CREATE TABLE storefront_markets(country_code TEXT PRIMARY KEY, market_status TEXT NOT NULL CHECK(market_status IN ('active','paused')), checkout_enabled INTEGER NOT NULL, updated_at TEXT)"
+  });
+  await api("POST",qaD1,{sql:
+    "INSERT INTO storefront_markets(country_code,market_status,checkout_enabled) VALUES('QZ','active',1)"
+  });
   // Exercise the REAL deployed DO, private writer and expiring caller. QZ is
-  // an intentionally unlaunched synthetic market; never tombstone live US.
+  // a synthetic unlaunched market, never production US/CA customer geography.
   const marketDeny=await postStableDenial("/market/withdraw",{
     territory:"QZ",operationId:"qa:"+runId+":market:withdraw"
   });
   assert.equal(marketDeny.status,200,
     "The private market writer must ACK only after strong owner denial");
   assert.equal(marketDeny.payload?.marketWithdrawn,true);
+  const marketPersisted=await api("POST",qaD1,{sql:
+    "SELECT market_status,checkout_enabled FROM storefront_markets WHERE country_code='QZ'"
+  });
+  assert.equal(marketPersisted[0]?.results?.[0]?.market_status,"paused");
+  assert.equal(marketPersisted[0]?.results?.[0]?.checkout_enabled,0);
   const marketHidden=await readOwner("/authorize-batch",{
     ids:[],territory:"QZ",currency:"USD"
   },gate,409);
   assert.equal(marketHidden.status,409,
-    "A market tombstone vetoes owner retail reads without primary D1 or index fanout");
+    "Market tombstone vetoes owner retail reads without primary D1 or fanout");
   const marketReplay=await postStableDenial("/market/withdraw",{
     territory:"QZ",operationId:"qa:"+runId+":market:withdraw"
   });
   assert.equal(marketReplay.status,200,
-    "Replaying the exact market operation must reconcile without regrant");
+    "Exact market operation must reconcile without authorizing old grants");
 
   // This database is the minimal, isolated canonical-publication QA fixture,
   // not production. Seed one private synthetic row to prove the real writer
   // can modify canonical D1 ONLY after the same DO has fenced all countries.
-  const qaD1="/accounts/"+account+
-    "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query";
   await api("POST",qaD1,{sql:
     "INSERT OR IGNORE INTO gutenberg_source_cache(id,source_id,title,rights_status,commercial_use_status,ingest_status) VALUES(?,'pg_us','Private QA rights revocation fixture','public-domain','approved','active')",
     params:[sourceId]});
@@ -514,6 +534,13 @@ try{
         if(!response.ok)throw Error("secret_delete_http_"+response.status+"_"+name);
       }
     }catch(e){errors.push("writer_qa_secret_delete_"+String(e.message).slice(0,120));}
+  }
+  if(marketSchemaCreated){
+    try{
+      const qa="/accounts/"+account+
+        "/d1/database/5e3a6b69-6f3d-4b19-b837-01f7aa56ce87/query";
+      await api("POST",qa,{sql:"DROP TABLE IF EXISTS storefront_markets"});
+    }catch(e){errors.push("market_qa_table_cleanup_"+String(e.message).slice(0,120));}
   }
   if(seeded){
     try{
