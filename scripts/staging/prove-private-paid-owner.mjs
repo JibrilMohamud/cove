@@ -93,7 +93,7 @@ async function prepareInitialCommerceQaSchema(){
   assert.equal(records?.[0]?.success,true);
   const present=(await qaSql("SELECT type,name FROM sqlite_master WHERE type IN ('table','index')")).results;
   const existing=new Set(present.map(x=>x.type+":"+x.name));
-  const allowed=(name)=>/^(commerce_|finance_|publishing_|retail_|pricing_|promotion|risk_|entitlement|reading_|preview_|wishlist_|shopping_cart|notification|digital_assets$|asset_versions$|delivery_grants$|offline_epub_licenses$|audio_offline_licenses$|user_books$|user_library$|source_|publisher_|device_|preorders$|preorder_|catalog_|completion_events$|sync_)/.test(name);
+  const allowed=(name)=>/^(commerce_|finance_|publishing_|retail_|pricing_|promotion|risk_|entitlement|reading_|preview_|wishlist_|shopping_cart|notification|digital_assets$|asset_versions$|delivery_grants$|offline_epub_licenses$|audio_offline_licenses$|user_books$|user_library$|source_|publisher_|device_|preorders$|preorder_|completion_events$|sync_)/.test(name);
   const targetTables=new Set(records[0].results
     .filter(x=>x.type==="table"&&allowed(x.name)&&!x.name.startsWith("sqlite_"))
     .map(x=>x.name));
