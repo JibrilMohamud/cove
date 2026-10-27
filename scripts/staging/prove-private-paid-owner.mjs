@@ -97,7 +97,7 @@ async function prepareInitialCommerceQaSchema(){
   assert.equal(records?.[0]?.success,true);
   const present=(await qaSql("SELECT type,name FROM sqlite_master WHERE type IN ('table','index')")).results;
   const existing=new Set(present.map(x=>x.type+":"+x.name));
-  const allowed=(name)=>/^(commerce_|finance_|publishing_|retail_|pricing_|promotion|risk_|entitlement|reading_|preview_|wishlist_|shopping_cart|notification|digital_assets$|asset_versions$|delivery_grants$|offline_epub_licenses$|audio_offline_licenses$|user_books$|user_library$|source_|publisher_|device_|preorders$|preorder_|completion_events$|sync_)/.test(name);
+  const allowed=(name)=>/^(commerce_|finance_|publishing_|retail_|pricing_|promotion|risk_|entitlement|reading_|preview_|wishlist_|shopping_cart|notification|digital_assets$|asset_versions$|commercial_|devices$|annotation_|text_bookmarks$|delivery_grants$|offline_epub_licenses$|audio_offline_licenses$|user_books$|user_library$|source_|publisher_|device_|preorders$|preorder_|completion_events$|sync_)/.test(name);
   const targetTables=new Set(records[0].results
     .filter(x=>x.type==="table"&&allowed(x.name)&&!x.name.startsWith("sqlite_"))
     .map(x=>x.name));
@@ -468,6 +468,43 @@ try {
     "--file",audioFile,"--remote"]);
   const digest=bytes=>createHash("sha256").update(bytes).digest("hex");
   const epubSha=digest(epubBytes),audioSha=digest(audioBytes);
+  // The ORIGINAL delivery service resolves the buyer's real canonical
+  // product/edition/asset, rights snapshot, device and per-entitlement
+  // download policy. These rows are synthetic, fixed to this run and do not
+  // modify real catalog products or other customers.
+  const product=(await qaSql(
+    "SELECT id,edition_id FROM products WHERE id=?",
+    [test.productId]
+  )).results?.[0];
+  assert.equal(product?.id,test.productId);
+  const existingEpub=(await qaSql(
+    "SELECT id FROM digital_assets WHERE edition_id=? AND kind='epub' LIMIT 1",
+    [product.edition_id]
+  )).results;
+  assert.equal(existingEpub?.length,0,
+    "Original-route QA cannot replace an existing synthetic edition asset");
+  const runAsset="qa_epub_asset_"+runId;
+  const runVersion="qa_epub_version_"+runId;
+  const nowSql=new Date().toISOString();
+  await qaSql(
+    "INSERT INTO digital_assets(id,edition_id,kind,current_version_id,drm_status,downloadable,created_at,updated_at) VALUES(?,?,'epub',?,'none',1,?,?)",
+    [runAsset,product.edition_id,runVersion,nowSql,nowSql]
+  );
+  await qaSql(
+    "INSERT INTO asset_versions(id,asset_id,version_number,object_key,mime_type,size_bytes,sha256,created_at) VALUES(?,?,1,?,'application/epub+zip',?,?,?)",
+    [runVersion,runAsset,"qa/book.epub",epubBytes.length,epubSha,nowSql]
+  );
+  const qaDeviceId="device_paid_qa_"+runId;
+  const qaDeviceKey="device-qa-"+runId+"-registered";
+  await qaSql(
+    "INSERT INTO devices(id,user_id,device_key,name,platform,last_seen_at,created_at) VALUES(?,?,?,'Isolated QA EPUB reader','qa',?,?)",
+    [qaDeviceId,initialBuyer,qaDeviceKey,nowSql,nowSql]
+  );
+  await qaSql(
+    "INSERT INTO commercial_delivery_policies(product_id,require_device_registration,allow_file_download,allow_browser_read,created_at,updated_at) VALUES(?,1,1,1,?,?)",
+    [test.productId,nowSql,nowSql]
+  );
+  console.log("QA original EPUB/registered device private assets provisioned");
   const {privateKey}=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
   const offlineSigningJwk=JSON.stringify(privateKey.export({format:"jwk"}));
   const settlement=JSON.parse(fs.readFileSync(
@@ -647,7 +684,8 @@ try {
     initialOrder,initialBuyer);
   assert.equal(noPrematureAccess.status,451,
     "No new buyer may fetch content before initial ledger settlement");
-  for(const route of ["/qa/epub-bytes","/qa/audio-bytes","/qa/offline-epub-license"]){
+  for(const route of ["/qa/epub-bytes","/qa/audio-bytes","/qa/offline-epub-license",
+    "/original/epub-grant","/original/offline-epub-license"]){
     const check=await postSettlement(route,initialOrder,initialBuyer);
     assert.equal(check.status,451,
       "No EPUB/audio bytes or offline license may issue before Stripe settlement");
@@ -799,6 +837,45 @@ try {
   assert.equal((await mediaCall("/qa/offline-epub-license",
     {"x-cove-qa-simulate-owner-outage":"1"})).status,503,
     "Owner outage must block new offline license issuance");
+  // Call ORIGINAL customer functions against complete synthetic asset,
+  // registered device, grant usage and current owner proof.
+  const originalCall=(route,token,extra={})=>fetch(settlementOrigin+route,{
+    method:"POST",headers:{"content-type":"application/json",
+      authorization:"Bearer "+gate,...extra},
+    body:JSON.stringify({orderId:initialOrder,userId:initialBuyer,
+      ...(token?{token}:{})}),
+    signal:AbortSignal.timeout(12000)
+  });
+  const grantResponse=await originalCall("/original/epub-grant");
+  assert.equal(grantResponse.status,200,
+    "Original commercial EPUB grant must authorize paid registered buyer");
+  const customerGrant=await grantResponse.json();
+  assert.match(customerGrant.url,/^\\/api\\/fore\\/delivery\\/epub\\\/[A-Za-z0-9_-]{32,200}$/);
+  const customerToken=customerGrant.url.split("/").at(-1);
+  const customerEpub=await originalCall("/original/epub-use",customerToken);
+  assert.equal(customerEpub.status,200,
+    "Original commercial EPUB delivery must accept owner-authorized grant");
+  assert.equal(digest(Buffer.from(await customerEpub.arrayBuffer())),epubSha,
+    "Original commercial EPUB handler must return real private R2 asset bytes");
+  const originalOfflineResponse=await originalCall("/original/offline-epub-license");
+  assert.equal(originalOfflineResponse.status,200,
+    "Original EPUB offline issuer must verify registered device and owner");
+  const originalOffline=await originalOfflineResponse.json();
+  await verifyOfflineEpubReceipt(
+    originalOffline.receipt,offline.verificationKey,{
+      userId:initialBuyer,productId:test.productId,
+      assetVersionId:originalOffline.assetVersionId,
+      deviceKey:qaDeviceKey,expiresAt:originalOffline.expiresAt
+    }
+  );
+  const outageOriginal=await originalCall("/original/epub-grant",null,
+    {"x-cove-qa-simulate-owner-outage":"1"});
+  assert.equal(outageOriginal.status,503,
+    "Original commercial EPUB grant must fail closed on owner outage");
+  assert.equal((await originalCall("/original/offline-epub-license",null,
+    {"x-cove-qa-simulate-owner-outage":"1"})).status,503,
+    "Original EPUB offline issuer must fail closed on owner outage");
+  console.log("PASS: ORIGINAL Cove EPUB grant and token -> private R2 bytes; registered-device offline EPUB issuer -> original P-256 verifier; owner outage denies both");
 
   const initialRefund=await stripeRequest("refunds",{
     payment_intent:initialPaymentIntentId,
