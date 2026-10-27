@@ -18,11 +18,7 @@ export function countAvailableCandidatesFromFacet(
   if (facets.availability.length === 0) return 0;
   if (facets.availability.length !== 1) return null;
   const only = facets.availability[0];
-  if (
-    only.value !== "available" ||
-    !Number.isSafeInteger(only.count) ||
-    only.count < 0
-  )
+  if (only.value !== "available" || !Number.isSafeInteger(only.count) || only.count < 0)
     return null;
   return only.count;
 }
