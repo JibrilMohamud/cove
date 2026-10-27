@@ -8,6 +8,18 @@ const core=readFileSync("src/storefront-strangler/commercial-entitlement-core.ts
 const refund=commerce.slice(commerce.indexOf("async function applyRefundSuccess("),
   commerce.indexOf("export async function stripeWebhook("));
 assert.ok(refund.length>3000,"Could not inspect refund webhook");
+const webhookRefund=commerce.slice(
+  commerce.indexOf('type === "refund.updated" || type === "refund.created"'),
+  commerce.indexOf('type.startsWith("charge.dispute.")'));
+assert.ok(webhookRefund.includes('if (obj.status === "succeeded") {') &&
+  webhookRefund.includes('await applyRefundSuccess(env, r.id, obj);'),
+  "Signed Stripe refund success must be reconciled owner-first");
+assert.ok(!webhookRefund.includes('UPDATE commerce_refunds SET status=?,updated_at=? WHERE id=?")'),
+  "Webhook must never publish unowned provider success to canonical ledger");
+assert.ok(commerce.includes('refund.status === "succeeded" ? "pending" : refund.status'),
+  "Initial provider success is pending until durable owner and ledger acknowledgment");
+assert.ok(commerce.includes('provider.status === "succeeded" ? "pending" : provider.status'),
+  "Recovered provider success is pending until durable owner and ledger acknowledgment");
 const revoke=refund.indexOf('if (full || env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")');
 assert.ok(refund.includes("await stageRevokeRefundEntitlements(env, String(o.id), refundId)"),
   "Staged external partial refunds must conservatively deny the whole buyer order");
