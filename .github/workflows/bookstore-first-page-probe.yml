@@ -42,3 +42,20 @@ jobs:
               rm -f "$file"
             done
           done
+
+  browser-first-page:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.0-noble
+      options: --ipc=host
+    env:
+      HOME: /root
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - name: Assert cold Bookstore shows primary-rights books before a 6s catalog stall
+        run: npm run test:browser -- scripts/browser-qa/catalog.spec.mjs --project=chromium-desktop
