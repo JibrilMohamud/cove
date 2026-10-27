@@ -1988,10 +1988,9 @@ async function stageRevokeRefundEntitlements(env: CoveEnv, orderId: string, refu
   if (
     env.COVE_SSR_STAGING !== "1" ||
     env.COVE_CANONICAL_LEGAL_WRITE_LOCK !== "1" ||
-    ![
-      "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
-      "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
-    ].includes(env.COVE_LEGAL_WRITER_PRIMARY_ID || "") ||
+    !["5e3a6b69-6f3d-4b19-b837-01f7aa56ce87", "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"].includes(
+      env.COVE_LEGAL_WRITER_PRIMARY_ID || "",
+    ) ||
     env.COVE_LEGAL_QUARANTINE_WRITER_STAGE !== "1" ||
     !env.LEGAL_QUARANTINE_WRITER?.fetch ||
     !/^[a-f0-9]{64}$/.test(env.COVE_LEGAL_QUARANTINE_SECRET || "")
