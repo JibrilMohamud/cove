@@ -94,7 +94,7 @@ try{
   assert.throws(()=>transaction(lines.map((x,i)=>({...x,expectedEpoch:i===0?1:2}))),
     /paid_order_already_revoked/);
   const nextOrder="order_atomic_other_20261027";
-  assert.throws(()=>transaction(lines.map(x=>({...x,orderId:nextOrder}))),
+  assert.throws(()=>transaction(lines.map((x,i)=>({...x,orderId:nextOrder,expectedEpoch:i===0?1:2}))),
     /paid_entitlement_order_swap_forbidden|paid_entitlement_revocation_terminal/);
 
   // A single owner tombstone disables both historical paid proofs without
