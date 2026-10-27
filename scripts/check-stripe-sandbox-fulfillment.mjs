@@ -362,6 +362,18 @@ try {
   // retry the same canonical refund and provider idempotency key. The
   // pending owner receipt must not be misreported as a failed payment, nor
   // can replay cause a second refund or return a stale "succeeded" record.
+  const oversizedRefundKey = `sandbox-oversized-${randomUUID()}`;
+  await assert.rejects(
+    commerce.refundOrder(env, {
+      orderId: order.id, amountMinor: 101, idempotencyKey: oversizedRefundKey,
+    }),
+    (e) => e.status === 409,
+    "An amount above the remaining balance must not be silently clamped",
+  );
+  assert.equal((await db.prepare(
+    "SELECT COUNT(*) n FROM commerce_refunds WHERE idempotency_key=?",
+  ).bind(oversizedRefundKey).first()).n, 0,
+  "Rejected oversize refunds must not create provider-facing receipts");
   const refundKey = `sandbox-refund-${randomUUID()}`;
   let ownerAvailable = false;
   let denialAttempts = 0;
