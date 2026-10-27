@@ -363,7 +363,24 @@ try {
       body:JSON.stringify({orderId:test.orderId,userId:test.userId}),
       signal:AbortSignal.timeout(12000)
     });
-    return {status:response.status,body:response.status===200?await response.json():null};
+    return {status:response.status,body:response.status===200?await response.json():null,
+      ray:response.headers.get("cf-ray")};
+  };
+  // An ephemeral workers.dev route can intermittently return the platform's
+  // own 404 even after other paths have been served. An owner authorization
+  // QUERY makes no mutation, so a bounded route-only retry is safe. Record
+  // every such 404 with its Cloudflare Ray. NEVER retry positive publishing,
+  // signed Stripe payment/refund, or measured hosted-capacity requests here.
+  const readDelivery=async()=>{
+    let response;
+    for(let attempt=0;attempt<3;attempt++){
+      response=await postSettlement("/authorize-delivery");
+      if(response.status!==404)return response;
+      console.error("QA read-only workers.dev route 404",
+        JSON.stringify({attempt:attempt+1,ray:response.ray}));
+      if(attempt<2)await pause((attempt+1)*500);
+    }
+    return response;
   };
   // Do not repeat positive owner mutations on a network timeout. Wait for
   // route propagation using only an already-PAID preflight refusal: no
@@ -430,7 +447,7 @@ try {
   assert.equal(stagePublished.status,200,
     "Real deployed Cove paid-settlement function must reverify full-schema canonical buyer");
   assert.equal(stagePublished.body?.ok,true);
-  const deliveryAllowed=await postSettlement("/authorize-delivery");
+  const deliveryAllowed=await readDelivery();
   assert.equal(deliveryAllowed.status,200,
     "Protected paid delivery must require and accept the actual buyer-specific owner proof");
   assert.equal(deliveryAllowed.body?.ok,true);
@@ -469,7 +486,7 @@ try {
     "Owner-first refund must reconcile the synthetic canonical entitlement");
   const after=await read("/commercial/entitlement/authorize",input);
   assert.equal(after.body?.allowed,false,"Refund MUST immediately revoke protected paid entitlement");
-  const revokedDelivery=await postSettlement("/authorize-delivery");
+  const revokedDelivery=await readDelivery();
   assert.equal(revokedDelivery.status,451,
     "Protected paid delivery must deny the exact buyer after durable owner refund");
   const stageReplayed=await postSettlement("/certify-paid");
