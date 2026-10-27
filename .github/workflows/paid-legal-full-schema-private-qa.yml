@@ -9,6 +9,11 @@ on:
       - "scripts/check-paid-order-atomic-publication.mjs"
       - "scripts/check-stripe-terminal-order-states.mjs"
       - "src/storefront-strangler/paid-settlement-stage-qa.worker.ts"
+      - "src/features/fore/delivery.server.ts"
+      - "src/features/fore/commercial-audio.server.ts"
+      - "src/features/fore/offline-epub.server.ts"
+      - "src/features/fore/offline-audio.server.ts"
+      - "scripts/check-customer-media-owner-order.mjs"
       - "src/features/fore/commerce.server.ts"
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
       - "src/storefront-strangler/commercial-legal-core.ts"
@@ -44,6 +49,7 @@ jobs:
       - run: node scripts/check-paid-entitlement-authority.mjs
       - run: node scripts/check-paid-order-atomic-publication.mjs
       - run: node scripts/check-stripe-terminal-order-states.mjs
+      - run: node scripts/check-customer-media-owner-order.mjs
       - run: node scripts/check-commercial-legal-authority.mjs
       - run: node scripts/check-staged-paid-settlement.mjs
       - run: node scripts/check-legal-consumer-fence.mjs
