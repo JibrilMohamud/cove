@@ -1,0 +1,25 @@
+name: persistence-cancellation-cold-path
+on:
+  pull_request:
+    paths:
+      - "src/lib/persistence-backend.ts"
+      - "scripts/check-persistence-cancel-noise.mjs"
+      - ".github/workflows/persistence-cancellation-cold-path.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  classified-transport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Fail closed and distinguish genuine upstream failure from SSR cancellation
+        run: node scripts/check-persistence-cancel-noise.mjs
+      - name: Verify existing authoritative storefront recovery and hedging
+        run: npm run test:storefront-bootstrap
