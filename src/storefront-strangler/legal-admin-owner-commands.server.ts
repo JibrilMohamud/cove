@@ -32,6 +32,7 @@ const command=z.discriminatedUnion("action",[
   z.object({action:z.literal("withdraw-retail"),productId,operationId}).strict(),
   z.object({action:z.literal("publish-retail"),productId,territory,currency,operationId}).strict(),
   z.object({action:z.literal("pause-market"),territory,operationId}).strict(),
+  z.object({action:z.literal("revoke-entitlement"),entitlementId:z.string().regex(/^[a-zA-Z0-9_-]{8,160}$/),operationId}).strict(),
 ]);
 type OwnerAck={ [key:string]:unknown };
 export async function executeStageCanonicalAdminCommand(
@@ -54,6 +55,7 @@ export async function executeStageCanonicalAdminCommand(
     "withdraw-retail":"/commercial/retail/withdraw",
     "publish-retail":"/commercial/retail/publish-verified",
     "pause-market":"/market/withdraw",
+    "revoke-entitlement":"/commercial/entitlement/revoke",
   } as const;
   let reply:Response,ack:OwnerAck;
   try{
@@ -89,6 +91,9 @@ export async function executeStageCanonicalAdminCommand(
           Number(ack.ownerEpoch)>0;
       case "pause-market":
         return ack.marketWithdrawn===true && ack.territory===x.territory;
+      case "revoke-entitlement":
+        return ack.revoked===true && Number.isSafeInteger(ack.epoch) &&
+          Number(ack.epoch)>0;
     }
   })();
   if(!valid)
