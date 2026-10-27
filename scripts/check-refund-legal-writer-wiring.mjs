@@ -41,9 +41,23 @@ assert.ok(core.includes("denyPaidEntitlementsBatch("));
 const chargeback=commerce.slice(commerce.indexOf("async function syncDispute("),
   commerce.indexOf("export async function ",commerce.indexOf("async function syncDispute(")));
 assert.ok(chargeback.length>1000,"Chargeback webhook implementation could not be inspected");
+const stageRefund=commerce.slice(commerce.indexOf("async function stageRevokeRefundEntitlements("),
+  commerce.indexOf("async function applyRefundSuccess("));
+assert.ok(stageRefund.includes('"5e3a6b69-6f3d-4b19-b837-01f7aa56ce87"')&&
+  stageRefund.includes('"7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"'),
+  "The existing and complete canonical paid QA D1 are the only permitted staged refund sources");
+assert.ok(!stageRefund.includes('"4bd657ac-8789-403e-a28c-93aba8d0a989"')&&
+  !stageRefund.includes('"e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3"'),
+  "Never invoke the QA refund writer on production or hosted-capacity canonical DB");
 assert.ok(commerce.includes('await syncDispute(env, obj, type)'),
   "Dispute handler must receive the same legal-owner env as refund handler");
-const chargebackDenial=chargeback.indexOf('await stageRevokeRefundEntitlements(env, String(order.id), "dispute-loss:" + d.id)');
+const chargebackDenial=chargeback.indexOf("await stageRevokeRefundEntitlements(");
+const openFreeze=chargeback.indexOf("const stageDisputeOpened =");
+const lostFreeze=chargeback.indexOf('const confirmedLoss = eventType === "charge.dispute.closed"');
+assert.ok(openFreeze>=0&&lostFreeze>openFreeze&&chargebackDenial>lostFreeze,
+  "Fenced stage must also revoke access at dispute creation, not merely on chargeback loss");
+assert.ok(chargeback.includes('(stageDisputeOpened ? "dispute-open:" : "dispute-loss:") + d.id'),
+  "Stripe dispute revocation operation must use an immutable, replay-safe dispute event identity");
 const disputeWrite=chargeback.indexOf("INSERT INTO commerce_disputes");
 const lostEntitlement=chargeback.indexOf("UPDATE entitlements SET status='revoked'");
 assert.ok(chargebackDenial>=0 && disputeWrite>chargebackDenial &&
