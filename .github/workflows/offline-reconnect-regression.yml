@@ -1,0 +1,27 @@
+name: offline-reconnect-regression
+
+on:
+  pull_request:
+    paths:
+      - "public/sw.js"
+      - "src/offline-entry.tsx"
+      - "scripts/check-offline-shell.mjs"
+      - ".github/workflows/offline-reconnect-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preserve-downloads-and-reconnect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Prove offline fallback, clean reconnection and no private HTML cache
+        run: node scripts/check-offline-shell.mjs
