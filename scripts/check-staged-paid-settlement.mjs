@@ -155,5 +155,36 @@ try{
   items.push(...Array.from({length:24},(_,i)=>({...items[0],id:"extra_"+i})));
   await assert.rejects(certify(env,orderId,userId),e=>e.status===503,
     "Unbounded payment line fanout must fail closed");
-  console.log("PASS: signed-payment owner handoff is buyer-scoped, staging-gated, retry-safe, and refuses stale grants, offline owners, refunds and unbounded orders");
+  items.length=2;
+  const secondEntitlementId="21ea0be4-3b77-4ba3-a8f3-a992d7280c2e";
+  const secondProductId="prd_commercial_second_19";
+  items.push({...items[0],
+    id:"item_paid_19",product_id:secondProductId,
+    entitlement_id:secondEntitlementId});
+  const complete={applied:true,orderId,receipts:[
+    {entitlementId,epoch:1},
+    {entitlementId:secondEntitlementId,epoch:1}
+  ]};
+  ownerPayload=complete;calls=[];
+  await certify(env,orderId,userId);
+  assert.deepEqual(calls,[{
+    path:"/commercial/entitlement/publish-order-verified",
+    body:{orderId,userId,territory:"US",channel:"retail"}
+  }],"A two-book order must use exactly ONE canonical-verified strong-owner RPC");
+  ownerPayload={...complete,receipts:complete.receipts.slice(0,1)};
+  await assert.rejects(certify(env,orderId,userId),e=>e.status===503,
+    "A partial paid-order receipt cannot authorize ANY cart completion");
+  ownerPayload={...complete,receipts:[
+    {entitlementId,epoch:1},{entitlementId,epoch:1}
+  ]};
+  await assert.rejects(certify(env,orderId,userId),e=>e.status===503,
+    "Duplicate buyer receipts cannot masquerade as complete cart authorization");
+  ownerStatus=503;ownerPayload=complete;
+  await assert.rejects(certify(env,orderId,userId),e=>e.status===503,
+    "Owner outage during atomic multi-book settlement must never allow partial access");
+  ownerStatus=200;
+  items[2].entitlement_status="pending";
+  await assert.rejects(certify(env,orderId,userId),e=>e.status===409,
+    "A missing canonical paid item blocks the entire multi-book cart");
+  console.log("PASS: staged paid handoff requires one atomic full-order receipt; rejects incomplete, duplicate and unavailable owner proofs");
 }finally{rmSync(directory,{force:true,recursive:true});}
