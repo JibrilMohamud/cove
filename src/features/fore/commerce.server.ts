@@ -1885,6 +1885,15 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
     .bind(input.idempotencyKey)
     .first<PersistedRefundRow>();
   if (existing) {
+    // Idempotency receipts are bound to one immutable financial request, not
+    // just an opaque client key. Reusing a key across buyers/orders or a
+    // different requested refund must never disclose or settle another order.
+    if (
+      existing.order_id !== input.orderId ||
+      (input.amountMinor !== undefined && Number(existing.amount_minor) !== input.amountMinor) ||
+      String(existing.reason) !== input.reason
+    )
+      throw new ApiError(409, "Refund idempotency key is already bound to another request.");
     // An external Stripe refund can succeed before owner-first entitlement
     // withdrawal/ledger settlement. "succeeded" without succeeded_at is NOT
     // a completed refund. Reconcile the persisted provider operation before
