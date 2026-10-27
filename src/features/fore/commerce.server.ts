@@ -1372,6 +1372,12 @@ export async function finalizePaidOrder(
       await certifyStagePaidSettlement(env, String(order.id), String(order.user_id));
     return order;
   }
+  // No late/out-of-order Stripe success may reopen a canceled, revoked,
+  // disputed or otherwise terminal canonical order. This applies even
+  // when the staged legal owner is disabled; the owner check below is
+  // an additional requirement and never replaces terminal state.
+  if (!["pending_payment", "processing", "authorized", "payment_failed"].includes(order.status))
+    throw new ApiError(409, "Terminal or invalid order cannot be settled.");
   // Negative order authority precedes every tender/ledger mutation. A
   // previously refunded Stripe intent cannot be reprocessed into a sale.
   await assertStagePaidOrderNotWithdrawn(env, String(order.id));
@@ -2543,7 +2549,7 @@ async function processStripeEvent(env: CoveEnv, event: any) {
     if (o)
       await db
         .prepare(
-          "UPDATE commerce_orders SET status='authorized',authorized_at=?,updated_at=? WHERE id=? AND status NOT IN ('paid','refunded')",
+          "UPDATE commerce_orders SET status='authorized',authorized_at=?,updated_at=? WHERE id=? AND status IN ('pending_payment','processing')",
         )
         .bind(now(), now(), o.id)
         .run();
@@ -2561,7 +2567,7 @@ async function processStripeEvent(env: CoveEnv, event: any) {
     if (o) {
       await db
         .prepare(
-          "UPDATE commerce_orders SET status='payment_failed',failure_code=?,failure_message=?,updated_at=? WHERE id=? AND status NOT IN ('paid','refunded')",
+          "UPDATE commerce_orders SET status='payment_failed',failure_code=?,failure_message=?,updated_at=? WHERE id=? AND status IN ('pending_payment','processing','authorized')",
         )
         .bind(
           obj.last_payment_error?.code || null,
@@ -2598,7 +2604,7 @@ async function processStripeEvent(env: CoveEnv, event: any) {
       await releaseOrderReservations(db, o.id);
       await db
         .prepare(
-          "UPDATE commerce_orders SET status='canceled',canceled_at=?,updated_at=? WHERE id=? AND status NOT IN ('paid','refunded')",
+          "UPDATE commerce_orders SET status='canceled',canceled_at=?,updated_at=? WHERE id=? AND status IN ('pending_payment','processing','authorized','payment_failed')",
         )
         .bind(now(), now(), o.id)
         .run();

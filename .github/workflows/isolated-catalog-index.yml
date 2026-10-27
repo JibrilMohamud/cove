@@ -48,6 +48,9 @@ on:
       - "src/storefront-strangler/legal-primary-write-lock.ts"
       - "src/features/fore/api.server.ts"
       - "src/storefront-strangler/legal-authority-*.ts"
+      - "src/storefront-strangler/paid-order-atomic-publication.ts"
+      - "scripts/check-paid-order-atomic-publication.mjs"
+      - "scripts/check-stripe-terminal-order-states.mjs"
       - "src/storefront-strangler/market-authority-core.ts"
       - "scripts/check-market-authority-closure.mjs"
       - "wrangler.legal-authority.example.jsonc"
@@ -84,6 +87,8 @@ jobs:
       - run: node scripts/check-legal-consumer-fence.mjs
       - run: node scripts/check-commercial-legal-authority.mjs
       - run: node scripts/check-paid-entitlement-authority.mjs
+      - run: node scripts/check-paid-order-atomic-publication.mjs
+      - run: node scripts/check-stripe-terminal-order-states.mjs
       - run: node scripts/check-commercial-storefront-owner.mjs
       - run: node scripts/check-paid-access-consumer.mjs
       - run: node scripts/check-staged-paid-settlement.mjs
