@@ -1,0 +1,61 @@
+name: bookstore-first-page-probe
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/bookstore-first-page-probe.yml"
+      - "src/features/fore/Store.tsx"
+      - "src/features/fore/bookstore-first-paint.ts"
+      - "scripts/check-bookstore-first-page.mjs"
+      - "src/features/fore/storefront-loader.ts"
+      - "src/features/fore/search.server.ts"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify territory-scoped first page before full faceting
+        run: node scripts/check-bookstore-first-page.mjs
+      - name: Contrast live first-paint vs full-catalog page one and page two
+        shell: bash
+        run: |
+          set +e
+          for path in / /api/fore/storefront/bootstrap '/api/fore/catalog?search=&sort=popular&page=1&currency=USD' '/api/fore/catalog?search=&sort=popular&page=2&currency=USD'; do
+            echo "================= $path ================="
+            for i in 1 2; do
+              file="$(mktemp)"
+              curl --http2 -fsS -o /dev/null -D "$file" \
+                --connect-timeout 6 --max-time 22 \
+                --write-out 'response_status=%{http_code} remote_ip=%{remote_ip} ttfb=%{time_starttransfer}s total=%{time_total}s\\n' \
+                "https://cove-jibrilmohamuds-projects.vercel.app$path"
+              result=$?
+              echo "attempt=$i curl_exit=$result"
+              grep -iE '^(server-timing|x-cove-persistence|cache-control|cf-ray|x-vercel-id|content-type):' "$file" | cut -c1-800 || true
+              rm -f "$file"
+            done
+          done
+
+  browser-first-page:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.0-noble
+      options: --ipc=host
+    env:
+      HOME: /root
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm ci --no-audit --no-fund
+      - name: Assert cold Bookstore shows primary-rights books before a 6s catalog stall
+        run: npm run test:browser -- scripts/browser-qa/catalog.spec.mjs --project=chromium-desktop

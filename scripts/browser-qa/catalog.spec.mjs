@@ -145,3 +145,36 @@ test("initial bookstore serves books without JavaScript and refreshes full catal
     await context.close();
   }
 });
+
+test("cold first Bookstore page shows verified books before slow facet search, even on full-search failure", async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(45_000);
+  expect((await request.post("/__qa/seed?progress=1")).ok()).toBe(true);
+  let firstPageBootstrap = 0;
+  let fullCatalogRequests = 0;
+  let catalogAborted = false;
+  await page.route("**/api/fore/storefront/bootstrap", (route) => {
+    firstPageBootstrap++;
+    return route.continue();
+  });
+  await page.route("**/api/fore/catalog?**", async (route) => {
+    fullCatalogRequests++;
+    // Simulate the observed cold 20-second COUNT/facet stall.
+    await new Promise((resolve) => setTimeout(resolve, 6_000));
+    await route.abort("failed");
+    catalogAborted = true;
+  });
+  // Explicit sort keeps the default first page but disables SSR bootstrap.
+  // This exercises the fast client-only recovery after an SSR deadline.
+  await page.goto("/?sort=popular");
+  const book = page.locator(".book-grid:not(.merch-grid) .book-card").first();
+  await expect(book).toBeVisible({ timeout: 12_000 });
+  expect(firstPageBootstrap).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => fullCatalogRequests, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => catalogAborted, { timeout: 15_000 }).toBe(true);
+  // Never erase primary-authorized preview books because optional counts failed.
+  await expect(book).toBeVisible();
+  await expect(page.getByText("Books available to read")).toBeVisible();
+});

@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { StorefrontBootstrap } from "./storefront-bootstrap";
+import { verifiedFirstPageShelf } from "./bookstore-first-paint";
 
 export function BookArt({
   book,
@@ -1154,6 +1155,52 @@ export function StorePage({
   if (publishedAfter) params.set("publishedAfter", publishedAfter);
   if (publishedBefore) params.set("publishedBefore", publishedBefore);
 
+  // Cold HTML can have no SSR bootstrap after the strict rights-fetch deadline.
+  // In that case, get the same freshly authorized 24-book first-paint shelf
+  // rather than blocking visible cards on the full catalog COUNT and facets.
+  // The ordinary /catalog request still runs after these cards appear, keeping
+  // accurate filters, pagination totals and account-specific rules.
+  const fastAnonymousHome =
+    !data.user &&
+    landingPath === "/" &&
+    page === 1 &&
+    sort === "popular" &&
+    !q &&
+    params.toString() ===
+      new URLSearchParams({
+        search: "",
+        sort: "popular",
+        page: "1",
+        currency: storefront.currency,
+      }).toString();
+  const fastShelf = useQuery<CatalogResponse>({
+    queryKey: [
+      "bookstore-first-paint",
+      "v1",
+      storefront.rightsCountry,
+      storefront.currency,
+      storefront.locale,
+    ],
+    queryFn: async ({ signal }) => {
+      const live = await api<StorefrontBootstrap>("/storefront/bootstrap", "GET", undefined, {
+        signal,
+        retryReads: false,
+      });
+      return verifiedFirstPageShelf(live, {
+        country: storefront.rightsCountry,
+        currency: storefront.currency,
+        locale: storefront.locale,
+        query: params.toString(),
+      });
+    },
+    enabled: typeof window !== "undefined" && fastAnonymousHome && !matchingInitial?.catalog,
+    staleTime: 30_000,
+    gcTime: 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  const fastPreview = fastAnonymousHome ? fastShelf.data : undefined;
+
   // SSR already includes 24 *fresh, canonical rights-checked* book cards.
   // Avoid an immediate, heavyweight full-catalog read during critical paint:
   // the live API still re-authorizes every product detail, checkout and EPUB.
@@ -1171,6 +1218,10 @@ export function StorePage({
       data.user?.id || "guest",
     ],
     queryFn: ({ signal }) => api("/catalog?" + params, "GET", undefined, { signal }),
+    // Wait for the small live-rights shelf (or its explicit failure) before
+    // starting the 20s cold COUNT/facet request on an unbootstrapped homepage.
+    enabled: !fastAnonymousHome || !!matchingInitial?.catalog || !!fastPreview || fastShelf.isError,
+    placeholderData: fastAnonymousHome ? fastPreview : undefined,
     // A brief first-paint grace period prevents 24-card preview hydration
     // from competing with the very next server request for D1 capacity.
     // A bounded background refresh follows once the visual path has settled.
@@ -1255,22 +1306,27 @@ export function StorePage({
     publishedAfter ||
     publishedBefore
   );
+  // A failed slow COUNT/facet request must never erase a verified live
+  // first-paint shelf. This is display-only; no rights or entitlements
+  // are conferred by the preview.
+  const catalogDisplay = result.data ?? fastPreview;
+  const books = catalogDisplay?.results || [];
   const home = ["/", "/store"].includes(landingPath) && !filtered && page === 1;
   const merch = useQuery<MerchResponse>({
     queryKey: ["merchandising", visitor, !!data.user],
     queryFn: () => api(`/merchandising?visitor=${encodeURIComponent(visitor)}`),
-    enabled: home && !!visitor,
+    enabled: home && !!visitor && books.length > 0,
     staleTime: 60_000,
     retry: 1,
   });
   const recommendations = useQuery<RecommendationResponse>({
     queryKey: ["recommendations-home", visitor, data.user?.id || "anonymous"],
     queryFn: () => api(`/recommendations/home?visitor=${encodeURIComponent(visitor)}&limit=12`),
-    enabled: home && !!visitor,
+    enabled: home && !!visitor && books.length > 0,
     staleTime: 5 * 60_000,
     retry: 1,
   });
-  const books = result.data?.results || [];
+
   const current = data.library
     .filter((x) => x.status === "reading")
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
@@ -1538,10 +1594,10 @@ export function StorePage({
           <span className="catalog-count">
             {result.isFetching && !result.data
               ? "Finding books…"
-              : result.data?.preview
+              : catalogDisplay?.preview
                 ? "Books available to read"
-                : `${result.data?.count?.toLocaleString() || 0} books`}
-            {result.data?.ingestion?.status === "running" && <small> · Catalog updating</small>}
+                : `${catalogDisplay?.count?.toLocaleString() || 0} books`}
+            {catalogDisplay?.ingestion?.status === "running" && <small> · Catalog updating</small>}
           </span>
           <div className="filter-selects">
             <Select
@@ -1553,7 +1609,7 @@ export function StorePage({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All languages</SelectItem>
-                {(result.data?.facets?.languages || []).slice(0, 40).map((x) => (
+                {(catalogDisplay?.facets?.languages || []).slice(0, 40).map((x) => (
                   <SelectItem key={x.value} value={x.value}>
                     {x.value.toUpperCase()} ({x.count})
                   </SelectItem>
@@ -1569,7 +1625,7 @@ export function StorePage({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All formats</SelectItem>
-                {(result.data?.facets?.formats || []).map((x) => (
+                {(catalogDisplay?.facets?.formats || []).map((x) => (
                   <SelectItem key={x.value} value={x.value}>
                     {x.value} ({x.count})
                   </SelectItem>
@@ -1629,7 +1685,7 @@ export function StorePage({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All publishers</SelectItem>
-            {(result.data?.facets?.publishers || []).slice(0, 30).map((x) => (
+            {(catalogDisplay?.facets?.publishers || []).slice(0, 30).map((x) => (
               <SelectItem key={x.value} value={x.value}>
                 {x.value} ({x.count})
               </SelectItem>
@@ -1642,7 +1698,7 @@ export function StorePage({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All series</SelectItem>
-            {(result.data?.facets?.series || []).slice(0, 30).map((x) => (
+            {(catalogDisplay?.facets?.series || []).slice(0, 30).map((x) => (
               <SelectItem key={x.value} value={x.value}>
                 {x.value} ({x.count})
               </SelectItem>
@@ -1742,14 +1798,14 @@ export function StorePage({
         )}
       </div>
 
-      {result.data?.search?.correctedQuery && (
+      {catalogDisplay?.search?.correctedQuery && (
         <p className="search-correction">
-          Showing results for <strong>{result.data.search.correctedQuery}</strong>.
+          Showing results for <strong>{catalogDisplay.search.correctedQuery}</strong>.
         </p>
       )}
-      {result.data?.warning &&
-        (!books.length || !result.data.warning.includes("catalog updater is retrying")) && (
-          <p className="notice">{result.data.warning}</p>
+      {catalogDisplay?.warning &&
+        (!books.length || !catalogDisplay.warning.includes("catalog updater is retrying")) && (
+          <p className="notice">{catalogDisplay.warning}</p>
         )}
       {result.error && !books.length ? (
         <div className="empty-state">
@@ -1759,7 +1815,7 @@ export function StorePage({
             Try again
           </button>
         </div>
-      ) : result.isLoading ? (
+      ) : result.isLoading && !books.length ? (
         <div className="book-grid">
           {Array.from({ length: 12 }, (_, i) => (
             <div key={i}>
@@ -1776,8 +1832,8 @@ export function StorePage({
               book={b}
               priority={page === 1 && index < 2}
               onOpen={() => {
-                const queryId = result.data?.search?.queryId;
-                const position = (page - 1) * (result.data?.search?.pageSize || 24) + index + 1;
+                const queryId = catalogDisplay?.search?.queryId;
+                const position = (page - 1) * (catalogDisplay?.search?.pageSize || 24) + index + 1;
                 if (queryId && b.productId) {
                   void api("/search/click", "POST", {
                     queryId,
@@ -1826,7 +1882,7 @@ export function StorePage({
           <span>Page {page}</span>
           <button
             className="button outline"
-            disabled={!result.data?.next}
+            disabled={!catalogDisplay?.next}
             onClick={() => {
               update({ page: page + 1 }, "push");
               window.scrollTo({ top: 0, behavior: "smooth" });
