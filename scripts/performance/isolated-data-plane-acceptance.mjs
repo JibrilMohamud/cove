@@ -509,10 +509,7 @@ async function deployBackgroundLane() {
       statuses.set(key, (statuses.get(key) || 0) + 1);
     }
   }
-  throw Error(
-    "capacity_background_lane_not_ready:" +
-      JSON.stringify(Object.fromEntries(statuses)),
-  );
+  throw Error("capacity_background_lane_not_ready:" + JSON.stringify(Object.fromEntries(statuses)));
 }
 async function tickBackground(sequence) {
   const started = performance.now();
@@ -585,19 +582,23 @@ async function phase(model) {
       try {
         // Physically independent claims/receipts and discovery ranking work. No
         // production writes, customer identity or artificial rights bypass.
-        const receipt=await tickBackground(n);
+        const receipt = await tickBackground(n);
         background.push({
-          ok:true,
-          ms:performance.now()-began,
-          serviceMs:receipt.serviceMs,
-          meta:receipt.meta,
+          ok: true,
+          ms: performance.now() - began,
+          serviceMs: receipt.serviceMs,
+          meta: receipt.meta,
         });
       } catch (e) {
         const reason = e instanceof Error ? e.message : "unknown";
         background.push({ ok: false, error: reason });
         console.error(
           "ARCH_BACKGROUND_FAILURE",
-          JSON.stringify({ sample: n, cause: reason.slice(0, 120), elapsedMs: performance.now() - began }),
+          JSON.stringify({
+            sample: n,
+            cause: reason.slice(0, 120),
+            elapsedMs: performance.now() - began,
+          }),
         );
         stopOnViolation("background-failed");
       }
