@@ -46,7 +46,10 @@ try {
     assert.throws(() => verifiedFirstPageShelf({ ...shelf, ...incorrect }, expected, now));
   assert.throws(() => verifiedFirstPageShelf(shelf, { ...expected, query: "q=search" }, now));
   const store = readFileSync("src/features/fore/Store.tsx", "utf8");
-  assert.match(store, /enabled: !fastAnonymousHome \|\| !!matchingInitial\?\.catalog \|\| !!fastPreview \|\| fastShelf\.isError/);
+  assert.match(
+    store,
+    /enabled: !fastAnonymousHome \|\| !!matchingInitial\?\.catalog \|\| !!fastPreview \|\| fastShelf\.isError/,
+  );
   assert.match(store, /placeholderData: fastAnonymousHome \? fastPreview : undefined/);
   assert.match(store, /fastAnonymousHome && !matchingInitial\?\.catalog/);
   assert.match(store, /landingPath === "\/"/);
