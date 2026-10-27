@@ -62,7 +62,7 @@ const LEGAL_TABLES = [
   "commerce_store_credit_ledger", "commerce_promo_codes",
   "commerce_promo_redemptions", "finance_parties",
   "finance_royalty_contract_versions", "finance_royalty_contract_splits",
-  "finance_royalty_events", "publishing_outbox"
+  "finance_royalty_events", "publishing_outbox",
   // Closed under the static canonical writer registry. Keep these denial
   // predicates aligned with the CI registry, including settlement and asset
   // metadata tables that can influence subsequent customer authorization.
