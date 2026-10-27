@@ -27,7 +27,7 @@ const saved = () => (
       You are using Cove’s offline reading app. Saved books remain on this device.
     </p>
     <p>
-      <a href="/">Reconnect to online Cove</a>
+      <a href="/?_cove_reconnect=1">Reconnect to online Cove</a>
     </p>
     <DownloadsPage />
   </SiteShell>
