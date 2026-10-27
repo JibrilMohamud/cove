@@ -47,14 +47,16 @@ export default {
       pathname==="/commercial/suspend-contract";
     const isEntitlement=pathname==="/commercial/entitlement/revoke";
     const isRefundBatch=pathname==="/commercial/entitlement/revoke-order";
+    const isRetailPublication=pathname==="/commercial/retail/publish-verified";
     if(request.method!=="POST" ||
-       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch) ||
+       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && !isRetailPublication) ||
        request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json" ||
        request.headers.has("cookie"))
       return new Response(null,{status:405,headers});
     let cmd:{sourceId?:unknown;operationId?:unknown;message?:unknown;
       evidenceId?:unknown;territory?:unknown;operations?:unknown;
-      targetId?:unknown;entitlementId?:unknown;orderId?:unknown};
+      targetId?:unknown;entitlementId?:unknown;orderId?:unknown;
+      productId?:unknown;currency?:unknown};
     try{
       const text=await request.text();
       if(text.length>(isRetractionBatch?5000:900))
@@ -66,6 +68,13 @@ export default {
       !/^[a-zA-Z0-9_-]{8,160}$/.test(cmd.orderId) ||
       typeof cmd.operationId!=="string" ||
       !opIdRegex.test(cmd.operationId)
+    ) || isRetailPublication && (
+      typeof cmd.productId!=="string" ||
+      !/^prd_[a-zA-Z0-9_-]{3,120}$/.test(cmd.productId) ||
+      cmd.productId.startsWith("prd_gutenberg_") ||
+      typeof cmd.territory!=="string" || !/^[A-Z]{2}$/.test(cmd.territory) ||
+      typeof cmd.currency!=="string" || !/^[A-Z]{3}$/.test(cmd.currency) ||
+      typeof cmd.operationId!=="string" || !opIdRegex.test(cmd.operationId)
     ) || isEntitlement && (
       typeof cmd.entitlementId!=="string" ||
       !/^[a-zA-Z0-9_-]{8,160}$/.test(cmd.entitlementId) ||
@@ -76,7 +85,7 @@ export default {
       !/^[a-zA-Z0-9_-]{3,160}$/.test(cmd.targetId) ||
       typeof cmd.operationId!=="string" ||
       !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,80}$/.test(cmd.operationId)
-    ) || !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && (
+    ) || !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && !isRetailPublication && (
        !sourceIdRegex.test(String(cmd.sourceId||"")) ||
        !opIdRegex.test(String(cmd.operationId||"")) ||
        (isEvidence
@@ -87,6 +96,34 @@ export default {
          : typeof cmd.message!=="string"||cmd.message.length>500)))
       return new Response(null,{status:400,headers});
     try{
+      if(isRetailPublication){
+        // Owner verifies current canonical contract and retail offer itself,
+        // then transactionally binds both to the exact paid legal epoch.
+        // An interruption after rights publication leaves price unpublished
+        // until the same request can be safely retried.
+        const publication={productId:cmd.productId as string,
+          territory:cmd.territory as string,currency:cmd.currency as string};
+        const verify=async(route:string)=>{
+          const reply=await env.LEGAL_PRIVATE.fetch(new Request(
+            "https://legal-authority.internal"+route,{
+              method:"POST",headers:{
+                "authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,
+                "content-type":"application/json"
+              },body:JSON.stringify(publication)
+            }
+          ));
+          if(reply.status!==200)throw Error("positive_owner_publication_unavailable");
+          const result=await reply.json() as {applied?:boolean;epoch?:number};
+          if(result.applied!==true||!Number.isSafeInteger(result.epoch)||
+             result.epoch!<=0)
+            throw Error("positive_owner_publication_receipt_invalid");
+          return result.epoch!;
+        };
+        const rightsEpoch=await verify("/commercial/publish-verified");
+        const offerEpoch=await verify("/storefront/publish-commercial");
+        if(rightsEpoch!==offerEpoch)throw Error("commercial_storefront_epoch_changed");
+        return Response.json({published:true,ownerEpoch:offerEpoch},{status:200,headers});
+      }
       if(isRefundBatch){
         const orderId=cmd.orderId as string;
         // The writer, not Stripe nor a caller-supplied product list, derives
