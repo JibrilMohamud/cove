@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import {randomBytes,createHash,generateKeyPairSync} from "node:crypto";
 import {pathToFileURL} from "node:url";
+import {provisionPublishedQaAudio} from "./provision-original-audio-qa.mjs";
 import JSZip from "jszip";
 import {build} from "esbuild";
 import {spawnSync,spawn} from "node:child_process";
@@ -505,6 +506,10 @@ try {
     [test.productId,nowSql,nowSql]
   );
   console.log("QA original EPUB/registered device private assets provisioned");
+  await provisionPublishedQaAudio(qaSql,{
+    runId,productId:test.productId,buyerId:initialBuyer,
+    objectKey:"qa/chapter.wav",sha:audioSha,sizeBytes:audioBytes.length
+  });
   const {privateKey}=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
   const offlineSigningJwk=JSON.stringify(privateKey.export({format:"jwk"}));
   const settlement=JSON.parse(fs.readFileSync(
