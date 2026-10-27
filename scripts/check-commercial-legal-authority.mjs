@@ -134,6 +134,28 @@ try {
   assert.deepEqual(read(),[],"Committed withdrawal immediately disables old proof");
   assert.deepEqual(core.publishFreshCommercialProof(sql(),proof,stale),
     {applied:false,epoch:2},"Slow primary D1 allow cannot resurrect withdrawal");
+  // A withdrawal committed in the owner can outlive a failed canonical-D1
+  // update. A later canonical read of the old active grant is NOT new legal
+  // verification and must not regrant access, even at the latest epoch.
+  assert.throws(()=>core.publishFreshCommercialProof(sql(),proof,2),
+    /commercial_reinstatement_requires_new_legal_evidence/,
+    "Same old grant and contract version cannot resurrect an owner withdrawal");
+  assert.deepEqual(read(),[],"Old immutable legal evidence stays denied");
+  const priceOnlyProduct="prd_reprice_scope_17";
+  const priceOnly={...proof,productId:priceOnlyProduct,
+    editionId:"ed_reprice_scope_17",grantId:"grant_reprice_scope_17",
+    contractId:"contract_reprice_scope_17",
+    contractVersionId:"contract_reprice_version_1"};
+  assert.deepEqual(core.publishFreshCommercialProof(sql(),priceOnly,0),
+    {applied:true,epoch:1});
+  assert.deepEqual(core.denyCommercialProduct(sql(),{
+    productId:priceOnlyProduct,operationId:"retail:qa-price-revision-1"
+  }),{applied:true,epoch:2});
+  assert.deepEqual(core.publishFreshCommercialProof(sql(),priceOnly,2),
+    {applied:true,epoch:3},
+    "Retail offer repricing may retain independently valid distribution rights");
+  assert.equal(core.readCommercialProofs(sql(),[priceOnlyProduct],"US","retail").length,1);
+
   assert.deepEqual(read(),[]);
   assert.deepEqual(core.denyCommercialProduct(sql(),{
     productId:id,operationId:"contract:17:revoked"
