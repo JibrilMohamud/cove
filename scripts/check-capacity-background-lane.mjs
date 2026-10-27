@@ -14,16 +14,14 @@ const calls=[];
 const db=(kind)=>({
   prepare(sql){
     calls.push({kind,sql});
-    return {
-      bind(...args){
-        return {
-          async first(){return {ok:1};},
-          async run(){return {success:true,meta:{rows_written:2}};},
-          async all(){return {success:true,results:[{product_id:"perf-synth-123456"}],
-            meta:{rows_read:1}};}
-        };
-      }
+    const statement={
+      bind(){return statement;},
+      async first(){return {ok:1};},
+      async run(){return {success:true,meta:{rows_written:2}};},
+      async all(){return {success:true,results:[{product_id:"perf-synth-123456"}],
+        meta:{rows_read:1}};}
     };
+    return statement;
   }
 });
 const original={
