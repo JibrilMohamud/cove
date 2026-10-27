@@ -45,6 +45,15 @@ export function createCommercialAuthoritySchema(sql:AuthoritySql){
     valid_until TEXT NOT NULL,
     PRIMARY KEY(product_id,territory,channel)
   ) WITHOUT ROWID`);
+  // A rights-level withdrawal permanently retires each observed legal
+  // identity. Scope rows are reusable storage for current epochs, so checking
+  // only those rows would permit an ABA regrant after two successive contract
+  // replacements. Product-level retail holds deliberately do not retire them.
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_commercial_retired_evidence(
+    product_id TEXT NOT NULL,grant_id TEXT NOT NULL,
+    contract_id TEXT NOT NULL,contract_version_id TEXT NOT NULL,
+    PRIMARY KEY(product_id,grant_id,contract_id,contract_version_id)
+  ) WITHOUT ROWID`);
   sql.exec(`CREATE TABLE IF NOT EXISTS cove_commercial_withdrawal_ops(
     operation_id TEXT PRIMARY KEY,
     product_id TEXT NOT NULL,
@@ -97,6 +106,16 @@ export function denyCommercialProduct(sql:AuthoritySql,raw:unknown) {
   }
   const epoch=(state?.epoch??0)+1;
   if(!Number.isSafeInteger(epoch)||epoch<=0)throw Error("commercial_epoch_exhausted");
+  if(!operationId.startsWith("retail:")){
+    // Execute in the same DO storage transaction as the owner denial. Do not
+    // lose obsolete evidence when a later grant overwrites the current scope.
+    sql.exec(`INSERT OR IGNORE INTO cove_commercial_retired_evidence(
+      product_id,grant_id,contract_id,contract_version_id)
+      SELECT product_id,grant_id,contract_id,contract_version_id
+        FROM cove_commercial_scope_proofs
+        WHERE product_id=? AND contract_id IS NOT NULL
+          AND contract_version_id IS NOT NULL`,id);
+  }
   sql.exec(`INSERT INTO cove_commercial_authority(product_id,epoch,verdict)
     VALUES(?,?,'deny') ON CONFLICT(product_id) DO UPDATE SET
     epoch=excluded.epoch,verdict='deny'`,id,epoch);
@@ -182,6 +201,9 @@ export function publishFreshCommercialProof(
   sql:AuthoritySql,p:CommercialProof,expectedEpoch:number,now=Date.now()
 ){
   validateCommercialProof(p,now);
+  if(sql.exec("SELECT 1 retired FROM cove_commercial_retired_evidence WHERE product_id=? AND grant_id=? AND contract_id=? AND contract_version_id=? LIMIT 1",
+    p.productId,p.grantId,p.contractId,p.contractVersionId).toArray().length)
+    throw Error("commercial_reinstatement_requires_new_legal_evidence");
   if(sql.exec("SELECT 1 ok FROM cove_commercial_subject_denials WHERE (subject_kind='grant' AND subject_id=?) OR (subject_kind='contract' AND subject_id=?) LIMIT 1",
     p.grantId,p.contractId).toArray().length)
     throw Error("commercial_subject_withdrawal_terminal");
