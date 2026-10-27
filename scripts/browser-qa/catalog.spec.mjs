@@ -172,9 +172,7 @@ test("cold first Bookstore page shows verified books before slow facet search, e
   const book = page.locator(".book-grid:not(.merch-grid) .book-card").first();
   await expect(book).toBeVisible({ timeout: 12_000 });
   expect(firstPageBootstrap).toBeGreaterThanOrEqual(1);
-  await expect
-    .poll(() => fullCatalogRequests, { timeout: 10_000 })
-    .toBeGreaterThanOrEqual(1);
+  await expect.poll(() => fullCatalogRequests, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
   await expect.poll(() => catalogAborted, { timeout: 15_000 }).toBe(true);
   // Never erase primary-authorized preview books because optional counts failed.
   await expect(book).toBeVisible();
