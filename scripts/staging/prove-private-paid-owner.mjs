@@ -42,9 +42,12 @@ const cli=(args)=>{
   if(result.status!==0)throw Error("wrangler_"+args[0]+"_failed "+
     String(result.stderr||"").replace(/Bearer\s+\S+/g,"Bearer [redacted]").slice(-450));
 };
-const api=async(method,resource)=>{
+const api=async(method,resource,body)=>{
   const r=await fetch("https://api.cloudflare.com/client/v4/accounts/"+account+resource,{
-    method,headers:{authorization:"Bearer "+token},signal:AbortSignal.timeout(18000)
+    method,headers:{authorization:"Bearer "+token,
+      "content-type":"application/json"},
+    ...(body?{body:JSON.stringify(body)}:{}),
+    signal:AbortSignal.timeout(18000)
   });
   const j=await r.json().catch(()=>null);
   if(!r.ok||!j?.success)throw Error("Cloudflare control plane "+method+" "+r.status);
@@ -55,6 +58,11 @@ const deploy=(file,secrets)=>{
   fs.writeFileSync(keyfile,JSON.stringify(secrets),{mode:0o600});
   try { cli(["deploy","--config",file,"--secrets-file",keyfile]); }
   finally { fs.rmSync(keyfile,{force:true}); }
+};
+const qaSql=async(sql,params=[])=>{
+  const results=await api("POST","/d1/database/"+primary+"/query",{sql,params});
+  assert.equal(results?.[0]?.success,true,"Only the dedicated synthetic legal QA D1 may be used");
+  return results[0];
 };
 const pause=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
 const post=async(route,body)=>{
@@ -171,6 +179,14 @@ try {
   await verifySecrets(callerName,["COVE_LEGAL_QA_GATE","COVE_RIGHTS_OWNER_SECRET",
     "COVE_LEGAL_WRITER_SECRET"]);
   await readyOwner();
+  // The private writer below intentionally reconciles the synthetic buyer
+  // entitlement to 'revoked'. Recover only this exact test identity from a
+  // prior interrupted run; never write the capacity or customer database.
+  const restored=await qaSql(
+    "UPDATE entitlements SET status='active' WHERE id=? AND user_id=? AND product_id=? AND source='commerce' AND entitlement_type='purchase' AND status='revoked'",
+    [test.entitlementId,test.userId,test.productId]
+  );
+  assert.ok(Number.isInteger(restored.meta?.changes));
   // Real canonical D1 rights evaluation. No fabricated grant/contract IDs
   // accepted from the caller; strong owner verifies them itself before ACK.
   // Explicit private writer owns both positive rights and matching retail
@@ -281,9 +297,16 @@ try {
   });
   assert.equal(stolen.body?.allowed,false,"Cross-buyer access leaked");
   const refund={orderId:test.orderId,operationId:"qa:"+runId+":refund-paid-order"};
-  const denied=await post("/commercial/order/deny-next",refund);
-  assert.equal(denied.status,200,"Owner must ACK durable order withdrawal");
-  assert.equal(denied.body?.applied,true);
+  const denied=await post("/commercial/entitlement/revoke-order",refund);
+  assert.equal(denied.status,200,
+    "Private canonical refund writer must durably deny owner before D1 reconciliation");
+  assert.equal(denied.body?.orderDenied,true);
+  const revoked=await qaSql(
+    "SELECT status FROM entitlements WHERE id=? AND user_id=? AND product_id=?",
+    [test.entitlementId,test.userId,test.productId]
+  );
+  assert.equal(revoked.results?.[0]?.status,"revoked",
+    "Owner-first refund must reconcile the synthetic canonical entitlement");
   const after=await read("/commercial/entitlement/authorize",input);
   assert.equal(after.body?.allowed,false,"Refund MUST immediately revoke protected paid entitlement");
   const revokedDelivery=await postSettlement("/authorize-delivery");
@@ -292,11 +315,11 @@ try {
   const stageReplayed=await postSettlement("/certify-paid");
   assert.notEqual(stageReplayed.status,200,
     "After refund, actual staged paid settlement must never resurrect protected access");
-  const replay=await post("/commercial/order/deny-next",refund);
+  const replay=await post("/commercial/entitlement/revoke-order",refund);
   assert.deepEqual(replay.body,denied.body,"Refund replay must be idempotent");
   const forbidden=await post("/commercial/entitlement/publish-verified",input);
   assert.notEqual(forbidden.status,200,"Old paid order must never resurrect entitlement");
-  console.log("PASS: deployed full-schema paid owner, canonical grant and price via private writer, deployed settlement and protected consumer, exact buyer, territory, refund and replay; no capacity D1 writes");
+  console.log("PASS: deployed full-schema paid owner, canonical grant and price via private writer, deployed settlement and protected consumer, exact buyer, territory, owner-first canonical refund and replay; no capacity D1 writes");
 } finally {
   // Physically distinct QA scripts and expiring credentials prevent production
   // exposure. DELETE is limited to names built from this exact CI run ID.
@@ -305,6 +328,15 @@ try {
     try{await api("DELETE","/workers/scripts/"+name);}
     catch(e){cleanupError=e;console.error("QA script cleanup failed: "+name);}
   }
+  // This database contains only our fixed synthetic QA fixture, never live
+  // paid customers. Reinstate its test row after all ephemeral owner/writer
+  // routes are gone, so cancellation recovery and later campaigns are safe.
+  try {
+    await qaSql(
+      "UPDATE entitlements SET status='active' WHERE id=? AND user_id=? AND product_id=? AND source='commerce' AND entitlement_type='purchase' AND status='revoked'",
+      [test.entitlementId,test.userId,test.productId]
+    );
+  }catch(e){cleanupError=e;console.error("Synthetic QA entitlement restoration failed");}
   fs.rmSync(ownerCfg,{force:true});
   fs.rmSync(callerCfg,{force:true});
   fs.rmSync(writerCfg,{force:true});
