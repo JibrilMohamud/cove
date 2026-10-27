@@ -448,7 +448,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         if(marketIsWithdrawn(sql,command.territory))
           throw Error("market_withdrawn_during_source_verification");
         return commitFreshPositiveVerification(
-        sql,command,proofStartRevision,input.currency,{
+        sql,command,proofStartRevision,input.currency as string,{
           productId:authorized[0].product_id,
           editionId:authorized[0].edition_id,
           productPublicId:authorized[0].product_public_id || null,
