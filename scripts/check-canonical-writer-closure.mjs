@@ -59,6 +59,7 @@ const ignore=(name,path)=>
   name==="node_modules" || name===".git"||name==="dist"||
   name==="build"||name==="coverage"||name===".wrangler"||
   path.startsWith("scripts/staging/")||path.startsWith("scripts/check-")||
+  path.startsWith("scripts/test-")||
   path.includes("__tests__")||path.endsWith(".test.ts")||
   path.endsWith(".spec.ts")||path.endsWith(".d.ts")||
   path.startsWith("src/storefront-strangler/legal-quarantine-qa.writer.ts")||
