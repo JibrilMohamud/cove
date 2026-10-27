@@ -397,6 +397,23 @@ try {
     (e) => e.status === 503,
     "Stripe-successful refund must fail closed when owner denial is unavailable",
   );
+  // A client must not reuse the same refund key to view or reconcile
+  // another buyer's order, a different amount or a different reason.
+  // Fail before the owner/provider gets another request.
+  const deniedBefore = denialAttempts;
+  for (const changed of [
+    { orderId: "ord_unrelated_synthetic_20261027" },
+    { amountMinor: 50 },
+    { reason: "duplicate" },
+  ]) {
+    await assert.rejects(
+      commerce.refundOrder(stagedRefund, { ...refundRequest, ...changed }),
+      (e) => e.status === 409,
+      "Reusing a Stripe refund idempotency key with changed scope must fail",
+    );
+  }
+  assert.equal(denialAttempts, deniedBefore,
+    "Changed idempotency requests must never reach the legal-owner writer");
   const awaitingOwner = await db.prepare(
     "SELECT id,status,provider_refund_id,succeeded_at FROM commerce_refunds WHERE idempotency_key=?",
   ).bind(refundKey).first();
