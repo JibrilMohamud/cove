@@ -90,7 +90,8 @@ const post=async(path,body,authorization=gate)=>{
 const postStableDenial=async(path,body)=>{
   assert.ok(["/deny-next","/deny-next-batch","/source/retract-batch",
     "/commercial/deny-next","/commercial/deny-batch",
-    "/commercial/subject/deny-next","/commercial/order/deny-next"].includes(path));
+    "/commercial/subject/deny-next","/commercial/order/deny-next",
+    "/commercial/retail/withdraw"].includes(path));
   const ops=Array.isArray(body?.operations)?body.operations:[body];
   assert.ok(ops.length>0&&ops.every(x=>
     typeof x?.operationId==="string"&&x.operationId.startsWith("qa:"+runId+":") ||
@@ -360,6 +361,23 @@ try{
   })).payload,{schema:"cove.commercial-legal.v1",rows:[]},
   "Owner denial must exclude paid products immediately, across replay");
   console.log("PASS: LIVE QA: commercial grants independently deny by product, atomic 2-product contract fence, zero default allowances and replay epochs");
+  // The actual Cloudflare private writer must DENY the retail product at
+  // the Durable Object before canonical D1 offer reconciliation. A
+  // nonexistent synthetic QA listing still exercises exact authenticated
+  // writer -> owner -> D1 ordering without selling any customer product.
+  const retailWithdrawal={
+    productId:"prd_commercial_"+runId+"_retail",
+    operationId:"qa:"+runId+":retail-withdrawal"
+  };
+  const retailReceipt=await postStableDenial("/commercial/retail/withdraw",retailWithdrawal);
+  assert.equal(retailReceipt.status,200,
+    "Private commercial withdrawal requires a strong owner and D1 reconciliation");
+  assert.deepEqual(retailReceipt.payload,{withdrawn:true,ownerEpoch:1},
+    "Retail withdrawal must report the persisted product epoch, not an estimated cache veto");
+  assert.deepEqual((await postStableDenial("/commercial/retail/withdraw",
+    retailWithdrawal)).payload,retailReceipt.payload,
+    "Exact retail withdrawal retry must preserve the immutable product epoch");
+  console.log("PASS: LIVE QA: private retail DENY precedes canonical D1 and immutable withdrawal replay");
 
   const paidOrderDenial={
     orderId:"order_refund_"+runId,
@@ -424,6 +442,9 @@ try{
   assert.deepEqual((await postStableDenial("/commercial/subject/deny-next",
     contractVeto)).payload,contractReceipt.payload,
     "Contract-wide veto must persist through real Cloudflare Worker redeploy");
+  assert.deepEqual((await postStableDenial("/commercial/retail/withdraw",
+    retailWithdrawal)).payload,retailReceipt.payload,
+    "Strong retailer withdrawal epoch must persist across Cloudflare redeploy");
   const persistedPaid=await readOwner("/commercial/authorize-batch",{
     ids:paidIds,territory:"US",channel:"retail"
   });
