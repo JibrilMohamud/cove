@@ -1988,7 +1988,10 @@ async function stageRevokeRefundEntitlements(env: CoveEnv, orderId: string, refu
   if (
     env.COVE_SSR_STAGING !== "1" ||
     env.COVE_CANONICAL_LEGAL_WRITE_LOCK !== "1" ||
-    env.COVE_LEGAL_WRITER_PRIMARY_ID !== "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87" ||
+    ![
+      "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
+      "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+    ].includes(env.COVE_LEGAL_WRITER_PRIMARY_ID || "") ||
     env.COVE_LEGAL_QUARANTINE_WRITER_STAGE !== "1" ||
     !env.LEGAL_QUARANTINE_WRITER?.fetch ||
     !/^[a-f0-9]{64}$/.test(env.COVE_LEGAL_QUARANTINE_SECRET || "")
@@ -2588,13 +2591,24 @@ async function syncDispute(env: CoveEnv, d: any, eventType: string) {
           .first<any>()
       : null,
     at = now();
-  // A confirmed chargeback loss must revoke buyer access in the strong
-  // owner BEFORE committing canonical D1 dispute, order or entitlement state.
-  // The same provider dispute ID is the replay-safe operation receipt.
-  if (order && eventType === "charge.dispute.closed" && d.status === "lost") {
+  // For the fenced stage owner, freeze the purchase at the FIRST Stripe
+  // dispute rather than waiting until the bank confirms a loss. A later
+  // dispute-win event must not silently resurrect a withdrawn grant; fresh
+  // canonical verification and a new purchase identity are required.
+  // Legacy/non-cutover checkout retains its existing dispute policy.
+  const stageDisputeOpened =
+    env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" && eventType === "charge.dispute.created";
+  const confirmedLoss = eventType === "charge.dispute.closed" && d.status === "lost";
+  if (order && (stageDisputeOpened || confirmedLoss)) {
     if (typeof d.id !== "string" || !/^[a-zA-Z0-9_-]{8,120}$/.test(d.id))
       throw new ApiError(409, "Chargeback identity is invalid.");
-    await stageRevokeRefundEntitlements(env, String(order.id), "dispute-loss:" + d.id);
+    // The strong owner records a terminal whole-order denial BEFORE any
+    // canonical dispute/order mutation. Replay is keyed by Stripe dispute.
+    await stageRevokeRefundEntitlements(
+      env,
+      String(order.id),
+      (stageDisputeOpened ? "dispute-open:" : "dispute-loss:") + d.id,
+    );
   }
   await db
     .prepare(
