@@ -1,0 +1,28 @@
+name: cove-public-ingress-network-diagnostic
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/cove-public-ingress-network-diagnostic.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose-public-network:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe public Vercel and Cloudflare Worker connection (GET only)
+        shell: bash
+        run: |
+          set +e
+          for target in             "https://cove-puce-theta.vercel.app/"             "https://cove-puce-theta.vercel.app/offline.html"             "https://cove-puce-theta.vercel.app/api/fore/health/ready"             "https://cove-persistence-backend.cove-jibrilmohamud.workers.dev/__cove/health"; do
+            echo "::group::Target $(printf '%s' "$target" | cut -d/ -f3) - $(printf '%s' "$target" | cut -d/ -f4-)"
+            for attempt in 1 2; do
+              echo "attempt $attempt"
+              curl --silent --show-error --output /dev/null --connect-timeout 7 --max-time 16                 --write-out "HTTP %{http_code}, remote_ip %{remote_ip}, DNS %{time_namelookup}s, connect %{time_connect}s, TLS %{time_appconnect}s, first_byte %{time_starttransfer}s, total %{time_total}s\n" "$target"
+              echo "curl_exit=$?"
+            done
+            echo "::endgroup::"
+          done
+          echo "Read-only network diagnostic complete"
