@@ -5,6 +5,7 @@ import {requireStagePaidEntitlementAccess} from "./legal-consumer-fence.server";
 import {stripeWebhook} from "../features/fore/commerce.server";
 import {issueCommercialEpubGrant,serveCommercialEpubGrant} from "../features/fore/delivery.server";
 import {issueOfflineEpubLicense} from "../features/fore/offline-epub.server";
+import {handleCommercialAudio} from "../features/fore/commercial-audio.server";
 import {audioKeyId,base64Url,hashText,publicAudioKey} from "../features/fore/offline-audio-license";
 import {OFFLINE_EPUB_CONTEXT,OFFLINE_EPUB_MAX_MS} from "../features/fore/offline-epub-crypto";
 
@@ -68,7 +69,8 @@ export default {
       "/certify-initial","/authorize-initial",
       "/qa/epub-bytes","/qa/audio-bytes","/qa/offline-epub-license",
       "/original/epub-grant","/original/epub-use",
-      "/original/offline-epub-license"].includes(url.pathname) && !signedStripe)
+      "/original/offline-epub-license","/original/audio-track",
+      "/original/audio-offline","/original/audio-verify"].includes(url.pathname) && !signedStripe)
       return new Response(null,{status:404,headers});
     const interruptOwnerAfterPaid=signedStripe &&
       request.headers.get("x-cove-qa-interrupt-postpaid")==="1";
@@ -133,14 +135,14 @@ export default {
     // isolated D1, private R2 and synthetic registered-device fixture.
     // All user identity/scope is fixed by an expiring, private bearer QA gate.
     if(url.pathname.startsWith("/original/")){
-      let raw:{orderId?:unknown;userId?:unknown;token?:unknown};
+      let raw:{orderId?:unknown;userId?:unknown;token?:unknown;licenseId?:unknown};
       try{
         const text=await request.text();
         if(text.length>500)return new Response(null,{status:413,headers});
         raw=JSON.parse(text);
       }catch{return new Response(null,{status:400,headers});}
       if(!raw||!isInitial(env,raw.orderId,raw.userId)||
-         Object.keys(raw).some(k=>!["orderId","userId","token"].includes(k)))
+         Object.keys(raw).some(k=>!["orderId","userId","token","licenseId"].includes(k)))
         return new Response(null,{status:400,headers});
       const run=env.COVE_PAID_INITIAL_ORDER!.slice("order_initial_qa_".length),
         deviceId="device_paid_qa_"+run,
@@ -175,6 +177,36 @@ export default {
             },realRequest
           );
           return Response.json(license,{headers});
+        }
+        if(["/original/audio-track","/original/audio-offline",
+            "/original/audio-verify"].includes(url.pathname)){
+          const audioEdition="qa_audio_draft_"+run,
+            trackId="qa_audio_chapter_"+run,
+            path="/audio/ca_"+audioEdition;
+          const isStream=url.pathname==="/original/audio-track";
+          const isIssue=url.pathname==="/original/audio-offline";
+          if((isStream||isIssue)&&
+             (raw.token!==undefined||raw.licenseId!==undefined))
+            return new Response(null,{status:400,headers});
+          if(!isStream&&!isIssue&&
+             (typeof raw.token!=="string"||typeof raw.licenseId!=="string"))
+            return new Response(null,{status:400,headers});
+          const audioRequest=new Request("https://qa.cove.invalid"+path,{
+            method:isStream?"GET":"POST",
+            headers:{"content-type":"application/json",
+              ...(isStream?{"range":"bytes=0-127"}:{})},
+            ...(!isStream?{body:JSON.stringify(isIssue?
+              {deviceId,protocolVersion:1}:
+              {licenseId:raw.licenseId,token:raw.token})}:{})
+          });
+          const segment=isStream?"/tracks/"+trackId:
+            "/offline-license"+(isIssue?"":"/verify");
+          const response=await handleCommercialAudio(
+            audioRequest,facade,path+segment,env.COVE_PAID_INITIAL_BUYER!,"US"
+          );
+          if(!response)return new Response(null,{status:404,headers});
+          return new Response(response.body,{status:response.status,
+            headers:{...Object.fromEntries(response.headers),...headers}});
         }
         return new Response(null,{status:404,headers});
       }catch(e){
