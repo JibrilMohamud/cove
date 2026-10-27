@@ -1924,7 +1924,12 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
     .bind(o.id)
     .first<any>();
   const remainingTotal = Math.max(0, Number(o.total_minor) - Number(committed?.amount || 0));
-  const amount = Math.min(input.amountMinor || remainingTotal, remainingTotal);
+  // Persisted refund idempotency binds the original accepted amount. Never
+  // silently clamp an oversized request, because replaying that *identical*
+  // payload would then look like a changed financial command.
+  if (input.amountMinor !== undefined && input.amountMinor > remainingTotal)
+    throw new ApiError(409, "The requested refund exceeds the available order balance.");
+  const amount = input.amountMinor ?? remainingTotal;
   if (amount <= 0)
     throw new ApiError(
       409,
