@@ -1,0 +1,25 @@
+name: catalog-cold-count-regression
+on:
+  pull_request:
+    paths:
+      - "src/features/fore/search.server.ts"
+      - "src/features/fore/count-from-availability-facet.ts"
+      - "scripts/check-catalog-shared-facet-count.mjs"
+      - ".github/workflows/catalog-cold-count-regression.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-scoped-aggregate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: node scripts/check-catalog-shared-facet-count.mjs
+      - name: Existing public scoped counts and catalog-fetch regressions
+        run: node scripts/check-public-search-count-scope.mjs && node scripts/check-catalog-fetch.mjs

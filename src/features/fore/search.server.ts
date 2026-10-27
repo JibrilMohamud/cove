@@ -12,6 +12,7 @@ import { presentationSearchCount } from "./search-counts-cache.server";
 import { replicaEligiblePresentationRead } from "./presentation-replica.server";
 import { rightsScopedCachedPageQuery } from "./rights-scoped-cache-page";
 import { searchOutboxAcknowledgement } from "./search-outbox-ack";
+import { countAvailableCandidatesFromFacet } from "./count-from-availability-facet";
 
 type SearchEnv = {
   DB: CatalogDB;
@@ -1038,7 +1039,25 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
         : await countLive();
     return { count };
   };
-  let [rows, count] = await Promise.all([runIds(), runCount()]);
+  // With no text query and availability explicitly set to "available",
+  // the availability facet's grouped result is the EXACT same base,
+  // rights-scoped candidate population as the separate COUNT query.
+  // On a cache miss, avoid scanning the expensive legal view twice.
+  // If the facet contract changes, fall back to the original COUNT.
+  const sharedFacetCount = !input.query && !part.hasFts && input.availability === "available";
+  const [initialRows, initialCount, sharedFacets] = await Promise.all([
+    runIds(),
+    sharedFacetCount ? Promise.resolve<{ count: number } | null>(null) : runCount(),
+    sharedFacetCount
+      ? d1Facets(env.DB, input, expression)
+      : Promise.resolve<SearchFacets | null>(null),
+  ]);
+  let rows = initialRows;
+  let count = initialCount;
+  if (sharedFacets) {
+    const exact = countAvailableCandidatesFromFacet(input, part.hasFts, sharedFacets);
+    count = exact === null ? await runCount() : { count: exact };
+  }
   if (!count?.count && input.query) {
     const correction = await typoCorrection(env.DB, input.query);
     if (correction) {
@@ -1051,7 +1070,7 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
   const ids = rows.results.map((r: any) => String(r.product_id));
   const [books, facets] = await Promise.all([
     canonicalBooksByProductIds(env.DB, ids),
-    d1Facets(env.DB, input, expression),
+    sharedFacets || d1Facets(env.DB, input, expression),
   ]);
   try {
     await writeCatalogCache(
