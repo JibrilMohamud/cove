@@ -137,7 +137,8 @@ async function seedInitialPendingOrder(){
   }
   await clone("commerce_orders",test.orderId,"id",{
     id:initialOrder,user_id:initialBuyer,
-    invoice_number:"QA-"+runId,status:"pending_payment",
+    invoice_number:"QA-"+runId,idempotency_key:"qa:initial:"+runId,
+    status:"pending_payment",
     stripe_payment_intent_id:null,stripe_charge_id:null,
     receipt_url:null,paid_at:null
   });
