@@ -34,7 +34,14 @@ const LEGAL_TABLES = [
   "narration_agreements", "narration_agreement_terminations",
   "commercial_biosync_links", "audio_offline_licenses",
   "publishing_rights_declarations", "publishing_rights_evidence",
-  "publishing_publication_versions", "publishing_release_lifecycles"
+  "publishing_publication_versions", "publishing_release_lifecycles",
+  // These are not auxiliary drafts once linked to live titles: changing
+  // publication activation, publisher assignment, or royalty ownership can
+  // resurrect a paid offer without touching its existing offer row.
+  // Until owner-first command writers exist, stage must DENY them too.
+  "publishing_publications", "publishing_publication_activations",
+  "publishing_submission_snapshots", "publishing_edition_drafts",
+  "publisher_contract_assignments", "finance_royalty_contracts"
 ] as const;
 
 // Detect mutating SQL anywhere in the statement, not merely at position 0:
