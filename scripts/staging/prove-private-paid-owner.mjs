@@ -51,7 +51,7 @@ const api=async(method,resource,body)=>{
     signal:AbortSignal.timeout(18000)
   });
   const j=await r.json().catch(()=>null);
-  if(!r.ok||!j?.success)throw Error("Cloudflare control plane "+method+" "+r.status);
+  if(!r.ok||!j?.success)throw Error("Cloudflare control plane "+method+" "+r.status+" "+JSON.stringify((j?.errors||[]).map(e=>({code:e.code,message:String(e.message).slice(0,220)}))).slice(0,400));
   return j.result;
 };
 const deploy=async(file,secrets)=>{
