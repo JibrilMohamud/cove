@@ -909,6 +909,15 @@ try {
     "Original EPUB offline issuer must fail closed on owner outage");
   console.log("PASS: ORIGINAL Cove EPUB grant and token -> private R2 bytes; registered-device offline EPUB issuer -> original P-256 verifier; owner outage denies both");
 
+  const audioPreflight=await originalCall("/original/audio-preflight");
+  assert.equal(audioPreflight.status,200);
+  const audioProof=await audioPreflight.json();
+  assert.equal(audioProof.allowed,true,
+    "Original audio canonical rights denied synthetic purchase: "+audioProof.reason);
+  assert.equal(audioProof.hasManifest,true,"Original audio publication manifest missing");
+  assert.equal(audioProof.narrators,1);
+  assert.equal(audioProof.agreements,1);
+  assert.equal(audioProof.chapters,1);
   const audioRange=await originalCall("/original/audio-track");
   assert.equal(audioRange.status,206,
     "Original commercial-audio handler must send a real R2 byte range; status="+
