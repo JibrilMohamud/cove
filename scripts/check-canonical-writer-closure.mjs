@@ -49,7 +49,7 @@ const protectedTables=[
   "finance_royalty_contracts","finance_royalty_contract_versions",
   "finance_royalty_contract_splits","finance_royalty_events",
   "subscriptions","subscription_catalog","licenses","devices",
-  "publishing_accounts","publishing_titles","publishing_validation_jobs",
+  "finance_parties","publishing_accounts","publishing_titles","publishing_validation_jobs",
   "publishing_lifecycle_events","preorders","commercial_audio_playback"
 ];
 const legal=new Set(protectedTables);
