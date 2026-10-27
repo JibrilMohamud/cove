@@ -64,13 +64,52 @@ const LEGAL_TABLES = [
 const MUTATION = /\b(?:INSERT\s+(?:OR\s+\w+\s+)?INTO|REPLACE\s+INTO|UPDATE(?:\s+OR\s+\w+)?|DELETE\s+FROM|DROP\s+TABLE|ALTER\s+TABLE|CREATE\s+(?:TEMP\s+|TEMPORARY\s+)?TABLE)\s+(?:["'`\x5b]?[a-z_][a-z0-9_]*["'`\]]?\s*\.\s*)?["'`\x5b]?([a-z_][a-z0-9_]*)/gi;
 const PRIVILEGED_DDL = /\b(?:CREATE\s+(?:TEMP\s+)?TRIGGER|DROP\s+TRIGGER|ATTACH\s+DATABASE|DETACH\s+DATABASE|PRAGMA\s+writable_schema)\b/i;
 const legal=new Set<string>(LEGAL_TABLES);
+// SQLite accepts SQL comments BETWEEN mutation keywords and object names.
+// Scrubbing via a regex is unsafe: a quoted literal containing "--" could
+// remove all subsequent SQL, including a later unowned legal mutation.
+// Tokenize just enough to preserve quoted strings/identifiers while treating
+// real comments as whitespace. A malformed unfinished quote/comment fails
+// closed during the staging ownership audit.
+function neutralizeSqlComments(sql:string):string {
+  let result="",i=0;
+  let quote:string|null=null;
+  while(i<sql.length){
+    const c=sql[i]!,n=sql[i+1];
+    if(quote!==null){
+      result+=c;
+      if(c===quote){
+        if(n===quote){result+=n;i+=2;continue;}
+        quote=null;
+      }
+      i++;continue;
+    }
+    if(c==="'"||c==="\""||c==="`"||c==="["){
+      quote=c==="["?"]":c;result+=c;i++;continue;
+    }
+    if(c==="-"&&n==="-"){
+      result+=" ";i+=2;
+      while(i<sql.length&&sql[i]!=="\\n"&&sql[i]!=="\\r")i++;
+      continue;
+    }
+    if(c==="/"&&n==="*"){
+      result+=" ";i+=2;
+      const end=sql.indexOf("*/",i);
+      if(end<0)throw Error("invalid_legal_sql");
+      i=end+2;continue;
+    }
+    result+=c;i++;
+  }
+  if(quote!==null)throw Error("invalid_legal_sql");
+  return result;
+}
 export function classifyProtectedLegalSql(sql:string) {
   if (typeof sql!=="string" || sql.length>32768)
     throw Error("invalid_legal_sql");
-  // Fail even on a statement with comments before a mutating query. Parsing
-  // the complete SQL string avoids bypasses through WITH or a semicolon.
-  if (PRIVILEGED_DDL.test(sql)) return ["privileged-sql"];
-  const matches=[...sql.matchAll(MUTATION)]
+  // Writable CTEs and multi-statement strings stay visible, even if an
+  // untrusted-looking SQL fragment interposes comments between tokens.
+  const visible=neutralizeSqlComments(sql);
+  if (PRIVILEGED_DDL.test(visible)) return ["privileged-sql"];
+  const matches=[...visible.matchAll(MUTATION)]
     .map(match=>match[1]!.toLowerCase()).filter(name=>legal.has(name));
   return [...new Set(matches)];
 }
