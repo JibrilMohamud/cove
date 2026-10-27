@@ -18,13 +18,30 @@ export type PresentationReadEvidence={
  */
 export function hedgedPrivatePresentation(
   r2:PrivatePresentationStore,kv:KvPort,
-  options:{hedgeAfterMs?:number;onEvidence?:(data:PresentationReadEvidence)=>void;clock?:Clock}={}
+  options:{hedgeAfterMs?:number;cacheForMs?:number;onEvidence?:(data:PresentationReadEvidence)=>void;clock?:Clock}={}
 ):PrivatePresentationStore {
   const hedgeAfterMs=options.hedgeAfterMs??45;
   if(!Number.isSafeInteger(hedgeAfterMs)||hedgeAfterMs<1||hedgeAfterMs>500)
     throw Error("Invalid presentation hedge threshold");
+  const cacheForMs=options.cacheForMs??0;
+  if(!Number.isSafeInteger(cacheForMs)||cacheForMs<0||cacheForMs>5000)
+    throw Error("Invalid presentation cache duration");
   const clock=options.clock??(()=>Date.now());
+  // In-memory display BYTES ONLY: no offers, legal decisions, customer identity,
+  // entitlement or signed access proof can enter this layer. The separate
+  // authorization RPC/D1 read must run for EVERY request, including cache hits.
+  // This tiny bounded cache insulates warm isolates from anomalous KV/R2
+  // delivery tails without making display metadata an authority.
+  const hot=new Map<string,{body:string;size:number;until:number}>();
   return {async get(key:string){
+    const now=clock();
+    const hit=hot.get(key);
+    if(hit){
+      if(hit.until>now){
+        return {size:hit.size,text:async()=>hit.body};
+      }
+      hot.delete(key);
+    }
     const started=clock();
     let kvMs:number|null=null,r2Ms:number|null=null,hedged=false;
     const timerRef:{handle?:ReturnType<typeof setTimeout>}={};
@@ -65,7 +82,17 @@ export function hedgedPrivatePresentation(
       const winner=await Promise.any([fast,backup]);
       options.onEvidence?.({selected:hedged&&r2Ms!==null?"r2":"kv",
         kvMs,r2Ms,hedged});
-      return winner;
+      if(cacheForMs===0)return winner;
+      const body=await winner.text();
+      const size=new TextEncoder().encode(body).byteLength;
+      // Oversize or malformed display is still rejected by the downstream
+      // snapshot validator. Never retain oversized content in the isolate.
+      if(size<2||size>512*1024)
+        return {size,text:async()=>body};
+      hot.delete(key);
+      hot.set(key,{body,size,until:clock()+cacheForMs});
+      if(hot.size>8)hot.delete(hot.keys().next().value!);
+      return {size,text:async()=>body};
     }finally{if(timerRef.handle!==undefined)clearTimeout(timerRef.handle);}
   }};
 }

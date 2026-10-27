@@ -105,6 +105,9 @@ function stageAcceleratedPresentation(
   if (existing?.kv === kv) return existing.adapter;
   const adapter = hedgedPrivatePresentation(r2, kv, {
     hedgeAfterMs: 45,
+    // Display-only bytes are immutable, bounded to 2.5s per warm isolate.
+    // Every response still awaits the independent current D1/owner decision.
+    cacheForMs: 2500,
     onEvidence: (evidence) => {
       // No source URLs, book identities or secrets in provider diagnostics.
       if (

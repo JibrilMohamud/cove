@@ -17,6 +17,13 @@ const LEGAL_TABLES = [
   "rights_contracts", "rights_contract_languages", "rights_contract_versions",
   "rights_parties", "rights_decisions", "gutenberg_rights_evidence",
   "gutenberg_source_cache", "offers", "products", "editions",
+  // The anonymous authority SQL ALSO depends on these live publication
+  // and market tables. A raw D1 writer can resurrect availability or
+  // change market scope without touching the grant/offer tables above.
+  // The independent owner may replace primary reads only after these
+  // producers are migrated behind the same canonical write fence.
+  "catalog_search_documents", "retail_product_availability_rows",
+  "storefront_markets",
   "entitlements", "delivery_grants", "offline_epub_licenses",
   // The paid-rights cutover is incomplete if legacy checkout, webhooks,
   // order settlement, buyer holds, or protected-delivery issuance can

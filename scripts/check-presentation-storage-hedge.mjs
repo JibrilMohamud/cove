@@ -45,5 +45,34 @@ try{
   assert.equal(result.r2Calls,1);
   assert.throws(()=>hedgedPrivatePresentation({get:async()=>null},
     {get:async()=>null},{hedgeAfterMs:0}),/Invalid presentation hedge threshold/);
-  console.log("PASS: private presentation hedge skips unnecessary R2, avoids stalled KV, handles misses, and fails closed");
+  // Only immutable presentation BYTES may be reused. In particular, these
+  // hits must not be misinterpreted as authorization or paid-offer caches:
+  // the homepage's independent live authority operation remains mandatory.
+  let now=1000, kvReads=0, r2Reads=0, published="presentation-v1";
+  const warm=hedgedPrivatePresentation({
+    async get(){r2Reads++;return box("r2");}
+  },{
+    async get(){kvReads++;return published;}
+  },{hedgeAfterMs:20,cacheForMs:2500,clock:()=>now});
+  assert.equal(await (await warm.get("home/US.json")).text(),"presentation-v1");
+  published="presentation-v2";
+  assert.equal(await (await warm.get("home/US.json")).text(),"presentation-v1");
+  assert.equal(kvReads,1,"Warm display hit must not await a new KV/R2 read");
+  assert.equal(r2Reads,0,"Warm display must avoid unnecessary R2 service");
+  // Market-scoped display cannot bleed across countries.
+  assert.equal(await (await warm.get("home/CA.json")).text(),"presentation-v2");
+  assert.equal(kvReads,2);
+  now=3500;
+  assert.equal(await (await warm.get("home/US.json")).text(),"presentation-v2");
+  assert.equal(kvReads,3,"Expired display bytes must be fetched afresh");
+  // Bounded isolate footprint: ninth unique key evicts oldest.
+  for(let i=0;i<9;i++)await warm.get("home/"+i+".json");
+  const before=kvReads;
+  await warm.get("home/CA.json");
+  assert.equal(kvReads,before+1,"Hot presentation cache must evict at eight keys");
+  assert.throws(()=>hedgedPrivatePresentation({get:async()=>null},
+    {get:async()=>null},{cacheForMs:5001}),/Invalid presentation cache duration/);
+  assert.throws(()=>hedgedPrivatePresentation({get:async()=>null},
+    {get:async()=>null},{cacheForMs:-1}),/Invalid presentation cache duration/);
+  console.log("PASS: private presentation hedge skips unnecessary R2, avoids stalled KV, handles misses, bounds immutable display reuse, and fails closed");
 }finally{rmSync(dir,{recursive:true,force:true});}
