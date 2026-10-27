@@ -99,6 +99,11 @@ try{
   await assert.rejects(preflight(env,orderId),e=>e.status===451,
     "Malformed legal proof expiries must never authorize payment");
   rightsRows[0].valid_until=new Date(Date.now()+900000).toISOString();
+  // The canonical-schema QA owner now exercises the exact staged settlement
+  // contract; the prod database must remain impossible to opt into.
+  await preflight({...env,COVE_LEGAL_WRITER_PRIMARY_ID:"7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"},orderId);
+  await assert.rejects(preflight({...env,COVE_LEGAL_WRITER_PRIMARY_ID:"4bd657ac-8789-403e-a28c-93aba8d0a989"},orderId),
+    e=>e.status===503,"Customer production DB cannot borrow stage paid ownership");
   const originalSnapshot=items[0].rights_snapshot_json;
   items[0].rights_snapshot_json="{}";
   await assert.rejects(preflight(env,orderId),e=>e.status===451,
@@ -123,6 +128,10 @@ try{
     "Only an exact paid buyer entitlement is sent for canonical verification");
   await certify(env,orderId,userId);
   assert.equal(calls.length,2,"Already-paid Stripe event must retry owner reconciliation");
+  await certify({...env,COVE_LEGAL_WRITER_PRIMARY_ID:"7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"},orderId,userId);
+  assert.equal(calls.length,3,"Full-schema QA settlement requires exact owner publication");
+  await assert.rejects(certify({...env,COVE_LEGAL_WRITER_PRIMARY_ID:"4bd657ac-8789-403e-a28c-93aba8d0a989"},orderId,userId),
+    e=>e.status===503,"Production D1 cannot enable a temporary staging settlement owner");
   ownerStatus=503;
   await assert.rejects(certify(env,orderId,userId),e=>e.status===503,
     "Owner outage must never be accepted as successful payment authorization");
