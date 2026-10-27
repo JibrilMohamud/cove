@@ -934,13 +934,40 @@ try {
     String((await audioRange.clone().json().catch(()=>null))?.qaErrorCategory||"missing"));
   assert.equal(audioRange.headers.get("content-range"),
     "bytes 0-127/"+audioBytes.length);
-  assert.equal((await audioRange.arrayBuffer()).byteLength,128);
+  assert.deepEqual(Buffer.from(await audioRange.arrayBuffer()),
+    audioBytes.subarray(0,128),
+    "Original chapter streaming must return exact R2 PCM bytes, not merely a 206 header");
   const audioOfflineResponse=await originalCall("/original/audio-offline");
   assert.equal(audioOfflineResponse.status,200,
     "Original audiobook offline issuer must verify a paid, registered device");
   const audioLicense=await audioOfflineResponse.json();
   assert.ok(audioLicense.receipt?.signature && audioLicense.licenseId &&
     audioLicense.token && audioLicense.expiresAt);
+  const audioVerifierFile=path.join(temp,"offline-audio-verifier-qa.mjs");
+  await build({
+    entryPoints:["src/features/fore/offline-audio-license.ts"],
+    outfile:audioVerifierFile,platform:"node",format:"esm",bundle:true,
+    target:"node22",logLevel:"silent"
+  });
+  const {verifyOfflineAudioLicense}=await import(pathToFileURL(audioVerifierFile).href);
+  const expectedAudioEdition={
+    id:"ca_qa_audio_draft_"+runId,productId:test.productId,
+    tracks:[{id:"qa_audio_chapter_"+runId,sha256:audioSha}]
+  };
+  const audioClaims=await verifyOfflineAudioLicense(
+    audioLicense,audioLicense.verificationKey,{
+      userId:initialBuyer,deviceKey:qaDeviceKey,edition:expectedAudioEdition
+    }
+  );
+  assert.equal(audioClaims.userId,initialBuyer);
+  assert.ok(Date.parse(audioClaims.expiresAt)-Date.parse(audioClaims.issuedAt)<=7*86400000);
+  await assert.rejects(verifyOfflineAudioLicense(
+    audioLicense,audioLicense.verificationKey,{
+      userId:initialBuyer,deviceKey:"wrong-device-qa",
+      edition:expectedAudioEdition
+    }
+  ),/renewed access/i,
+    "Original signed audio offline lease must reject a different registered device");
   const audioVerify=await fetch(settlementOrigin+"/original/audio-verify",{
     method:"POST",headers:{"content-type":"application/json",
       authorization:"Bearer "+gate},
