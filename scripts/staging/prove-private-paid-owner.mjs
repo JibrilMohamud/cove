@@ -119,6 +119,25 @@ try {
   assert.equal(rights.body?.rows?.length,1,"Owner failed to store paid grant");
   assert.equal(rights.body.rows[0].grant_id,"rgrant_paid_qa_20261027");
   assert.equal(rights.body.rows[0].contract_version_id,"rcv_paid_qa_20261027");
+  // Positive price publication is a distinct canonical D1 check. A rights
+  // grant cannot fabricate a paid retail offer or change its currency.
+  const retail=await post("/storefront/publish-commercial",{
+    productId:test.productId,territory:"US",currency:"USD"
+  });
+  assert.equal(retail.status,200,"Canonical retail offer was not verified");
+  const shelf=await read("/storefront/authorize-batch",{
+    ids:[test.productId],territory:"US",currency:"USD"
+  });
+  assert.equal(shelf.body?.schema,"cove.storefront-owner.v1");
+  assert.equal(shelf.body?.rows?.length,1,"Owner rejected verified retail book");
+  assert.equal(shelf.body.rows[0].product_id,test.productId);
+  const displayOffer=JSON.parse(shelf.body.rows[0].offer_json);
+  assert.equal(displayOffer.currency,"USD");
+  assert.equal(displayOffer.amountMinor,399);
+  const wrongCurrency=await read("/storefront/authorize-batch",{
+    ids:[test.productId],territory:"US",currency:"EUR"
+  });
+  assert.deepEqual(wrongCurrency.body?.rows,[],"Currency cannot inherit a USD proof");
   const wrongRegion=await read("/commercial/authorize-batch",{
     ids:[test.productId],territory:"CA",channel:"retail"
   });
@@ -148,7 +167,7 @@ try {
   assert.deepEqual(replay.body,denied.body,"Refund replay must be idempotent");
   const forbidden=await post("/commercial/entitlement/publish-verified",input);
   assert.notEqual(forbidden.status,200,"Old paid order must never resurrect entitlement");
-  console.log("PASS: deployed full-schema paid owner, canonical grant, exact buyer, territory, refund and replay; no capacity D1 writes");
+  console.log("PASS: deployed full-schema paid owner, canonical grant and price, exact buyer, territory, refund and replay; no capacity D1 writes");
 } finally {
   // Physically distinct QA scripts and expiring credentials prevent production
   // exposure. DELETE is limited to names built from this exact CI run ID.
