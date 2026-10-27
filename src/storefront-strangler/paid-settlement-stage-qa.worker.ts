@@ -14,6 +14,8 @@ type Env={
   COVE_RIGHTS_OWNER_SECRET?:string;
   STRIPE_WEBHOOK_SECRET?:string;
   STRIPE_LIVEMODE?:string;
+  COVE_PAID_INITIAL_ORDER?:string;
+  COVE_PAID_INITIAL_BUYER?:string;
   COVE_SSR_STAGING?:string;
   COVE_CANONICAL_LEGAL_WRITE_LOCK?:string;
   COVE_LEGAL_CONSUMER_STAGE_ENABLED?:string;
@@ -24,6 +26,13 @@ const ORDER="order_paid_qa_20261027";
 const BUYER="user_paid_qa_20261027";
 const ENTITLEMENT="ent_paid_qa_20261027";
 const PRODUCT="prd_paid_qa_20261027";
+const isInitial=(env:Env,orderId:unknown,userId:unknown)=>
+  typeof env.COVE_PAID_INITIAL_ORDER==="string" &&
+  /^order_initial_qa_\d{8,15}$/.test(env.COVE_PAID_INITIAL_ORDER) &&
+  typeof env.COVE_PAID_INITIAL_BUYER==="string" &&
+  /^user_initial_qa_\d{8,15}$/.test(env.COVE_PAID_INITIAL_BUYER) &&
+  orderId===env.COVE_PAID_INITIAL_ORDER &&
+  userId===env.COVE_PAID_INITIAL_BUYER;
 function available(env:Env):boolean{
   const exp=Number(env.COVE_PAID_STAGE_QA_EXPIRES_AT);
   return env.COVE_PAID_STAGE_QA_ENABLED==="1" &&
@@ -49,13 +58,24 @@ export default {
       request.headers.has("cookie"))
       return new Response(null,{status:405,headers});
     const signedStripe=url.pathname==="/signed-stripe-settlement";
-    if(!["/certify-paid","/preflight-paid","/authorize-delivery"].includes(url.pathname) && !signedStripe)
+    if(!["/certify-paid","/preflight-paid","/authorize-delivery",
+      "/certify-initial","/authorize-initial"].includes(url.pathname) && !signedStripe)
       return new Response(null,{status:404,headers});
+    const interruptOwnerAfterPaid=signedStripe &&
+      request.headers.get("x-cove-qa-interrupt-postpaid")==="1";
     const facade={...env,DB:env.PRIMARY_DB,
+      STRIPE_TAX_ENABLED:"false",
       LEGAL_AUTHORITY:{
         getByName(name:string){
           if(name!=="cove-staged-legal-global-v1")throw Error("invalid_owner_namespace");
-          return env.LEGAL_PRIVATE!;
+          return {
+            fetch(ownerRequest:Request){
+              if(interruptOwnerAfterPaid &&
+                new URL(ownerRequest.url).pathname==="/commercial/entitlement/publish-verified")
+                return Promise.resolve(new Response(null,{status:503}));
+              return env.LEGAL_PRIVATE!.fetch(ownerRequest);
+            }
+          };
         }
       }
     } as unknown as CoveEnv;
@@ -79,7 +99,8 @@ export default {
       if(evt?.type!=="payment_intent.succeeded" || evt?.livemode!==false ||
          intent?.status!=="succeeded" || intent?.amount_received!==399 ||
          String(intent.currency).toLowerCase()!=="usd" ||
-         intent?.metadata?.fore_order_id!==ORDER ||
+         !(intent?.metadata?.fore_order_id===ORDER ||
+           intent?.metadata?.fore_order_id===env.COVE_PAID_INITIAL_ORDER) ||
          typeof intent?.id!=="string" || !/^pi_[a-zA-Z0-9]{8,100}$/.test(intent.id))
         return new Response(null,{status:400,headers});
       try{
@@ -101,20 +122,50 @@ export default {
       body=JSON.parse(raw);
     }catch{return new Response(null,{status:400,headers});}
     if(!body||typeof body!=="object"||Array.isArray(body)||
-      (body as Record<string,unknown>).orderId!==ORDER||
-      (body as Record<string,unknown>).userId!==BUYER||
-      Object.keys(body).length!==2)
+      Object.keys(body).length!==2||
+      !((body as Record<string,unknown>).orderId===ORDER &&
+        (body as Record<string,unknown>).userId===BUYER) &&
+      !isInitial(env,(body as Record<string,unknown>).orderId,
+        (body as Record<string,unknown>).userId))
       return new Response(null,{status:400,headers});
     try{
-      if(url.pathname==="/certify-paid")
+      const first=isInitial(env,(body as Record<string,unknown>).orderId,
+        (body as Record<string,unknown>).userId);
+      if(url.pathname==="/certify-initial" ||
+         (url.pathname==="/certify-paid"&&first))
+        await certifyStagePaidSettlement(facade,
+          env.COVE_PAID_INITIAL_ORDER!,env.COVE_PAID_INITIAL_BUYER!);
+      else if(url.pathname==="/certify-paid")
         await certifyStagePaidSettlement(facade,ORDER,BUYER);
       else if(url.pathname==="/preflight-paid")
-        await assertStagePaidOrderNotWithdrawn(facade,ORDER);
-      else
+        await assertStagePaidOrderNotWithdrawn(facade,
+          first?env.COVE_PAID_INITIAL_ORDER!:ORDER);
+      else if(url.pathname==="/authorize-initial"){
+        if(!first)return new Response(null,{status:400,headers});
+        const entitlement=await (env.PRIMARY_DB! as unknown as {
+          prepare(sql:string):{bind(...a:string[]):{
+            all<T>():Promise<{results:T[]}>}}
+        }).prepare(
+          `SELECT e.id FROM entitlements e JOIN commerce_order_items oi
+              ON oi.id=e.order_item_id WHERE oi.order_id=?
+              AND e.user_id=? AND e.product_id=? AND e.status='active'
+              AND e.entitlement_type='purchase' AND e.source='commerce' LIMIT 2`
+        ).bind(env.COVE_PAID_INITIAL_ORDER!,env.COVE_PAID_INITIAL_BUYER!,PRODUCT)
+          .all<{id:string}>();
+        if(entitlement.results.length!==1)return new Response(null,{status:451,headers});
+        await requireStagePaidEntitlementAccess(facade,{
+          entitlementId:entitlement.results[0]!.id,
+          userId:env.COVE_PAID_INITIAL_BUYER!,productId:PRODUCT,
+          territory:"US",channel:"retail"
+        });
+      }
+      else if(url.pathname==="/authorize-delivery"){
+        if(first)return new Response(null,{status:400,headers});
         await requireStagePaidEntitlementAccess(facade,{
           entitlementId:ENTITLEMENT,userId:BUYER,productId:PRODUCT,
           territory:"US",channel:"retail"
         });
+      } else return new Response(null,{status:404,headers});
       return Response.json({ok:true},{headers});
     }catch(e){
       // Status-only contract. Never expose paid buyer identity or canonical
