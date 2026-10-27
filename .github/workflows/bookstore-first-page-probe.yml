@@ -4,6 +4,8 @@ on:
     paths:
       - ".github/workflows/bookstore-first-page-probe.yml"
       - "src/features/fore/Store.tsx"
+      - "src/features/fore/bookstore-first-paint.ts"
+      - "scripts/check-bookstore-first-page.mjs"
       - "src/features/fore/storefront-loader.ts"
       - "src/features/fore/search.server.ts"
   workflow_dispatch:
@@ -14,6 +16,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify territory-scoped first page before full faceting
+        run: node scripts/check-bookstore-first-page.mjs
       - name: Contrast live first-paint vs full-catalog page one and page two
         shell: bash
         run: |
