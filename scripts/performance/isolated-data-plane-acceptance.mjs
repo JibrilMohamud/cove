@@ -553,7 +553,12 @@ async function phase(model) {
           meta:receipt.meta,
         });
       } catch (e) {
-        background.push({ ok: false, error: e.message });
+        const reason = e instanceof Error ? e.message : "unknown";
+        background.push({ ok: false, error: reason });
+        console.error(
+          "ARCH_BACKGROUND_FAILURE",
+          JSON.stringify({ sample: n, cause: reason.slice(0, 120), elapsedMs: performance.now() - began }),
+        );
         stopOnViolation("background-failed");
       }
       n++;
