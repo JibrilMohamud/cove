@@ -6,6 +6,8 @@ on:
       - ".github/workflows/cove-commerce-private-qa-deploy.yml"
       - ".github/workflows/strangler-hosted-capacity-evaluation.yml"
       - "scripts/check-release-staging-workflow-gates.mjs"
+      - "scripts/check-canonical-writer-closure.mjs"
+      - "scripts/test-canonical-writer-closure.mjs"
       - "scripts/staging/audit-cloudflare-production-domain.mjs"
       - ".github/workflows/cove-production-domain-preflight.yml"
       - ".github/workflows/isolated-commons-audio-technical-qa.yml"
@@ -34,6 +36,8 @@ jobs:
       - run: node --check scripts/check-release-staging-workflow-gates.mjs
       - run: node scripts/check-release-staging-workflow-gates.mjs
       - run: node scripts/staging/audit-cloudflare-production-domain.mjs --self-test
+      - name: Require reviewed inventory and fail-closed owner-only release gate
+        run: node scripts/test-canonical-writer-closure.mjs
       - run: npm ci --no-audit --no-fund
       - name: Enforce canonical rights, music handoff replay and legacy drain non-regression
         run: |
