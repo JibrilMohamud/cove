@@ -84,6 +84,40 @@ try{
  assert.throws(()=>owner.publishCommercialStorefront(sql,{...proof,
    offer_json:JSON.stringify({type:"public-domain",currency:"USD",amountMinor:0})}),
    /invalid_paid_retail_offer/);
+ // A retail withdrawal commits to the owner BEFORE its D1 offer update.
+ // Replaying the old canonical active offer while D1 is unavailable must
+ // NOT resurrect the exact old price; a newly verified changed offer may.
+ const priceProduct="prd_repriced_book_002";
+ const priceEdition="ed_repriced_book_002";
+ const priceRights={...commercial,productId:priceProduct,editionId:priceEdition,
+   grantId:"grant_repriced_book_002",contractId:"contract_repriced_book_002",
+   contractVersionId:"contract_repriced_version_1"};
+ const priceProof={...proof,product_id:priceProduct,edition_id:priceEdition,
+   grant_id:priceRights.grantId,contract_id:priceRights.contractId,
+   contract_version_id:priceRights.contractVersionId};
+ assert.deepEqual(rights.publishFreshCommercialProof(sql,priceRights,0),
+   {applied:true,epoch:1});
+ assert.deepEqual(owner.publishCommercialStorefront(sql,priceProof),
+   {applied:true,epoch:1});
+ assert.deepEqual(rights.denyCommercialProduct(sql,{
+   productId:priceProduct,operationId:"retail:qa-price-withdraw-002"
+ }),{applied:true,epoch:2});
+ assert.deepEqual(rights.publishFreshCommercialProof(sql,priceRights,2),
+   {applied:true,epoch:3},
+   "Retail repricing may retain valid contract and grant identities");
+ assert.deepEqual(owner.readCommercialStorefront(sql,[priceProduct],"US","USD"),[]);
+ assert.throws(()=>owner.publishCommercialStorefront(sql,{
+   ...priceProof,rights_epoch:3
+ }),/commercial_offer_reinstatement_requires_changed_evidence/,
+   "An old D1 retail offer cannot be republished just because the owner epoch advanced");
+ assert.deepEqual(owner.readCommercialStorefront(sql,[priceProduct],"US","USD"),[],
+   "Stale price publication leaves the product withdrawn");
+ assert.deepEqual(owner.publishCommercialStorefront(sql,{
+   ...priceProof,rights_epoch:3,offer_json:price(699)
+ }),{applied:true,epoch:3},
+   "A changed canonical offer can be republished with the same legal scope");
+ assert.equal(owner.readCommercialStorefront(sql,[priceProduct],"US","USD").length,1);
+
  const projection={candidates:{productIds:[productId],country:"US",currency:"USD"},
    displayBooks:[{productId,editionId,title:"Paid Book",authors:[],subjects:[],
      bookshelves:[],languages:["en"],sourceExternalId:null,formats:{},download_count:0}]};
