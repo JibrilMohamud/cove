@@ -1323,7 +1323,11 @@ export function StorePage({
     staleTime: 5 * 60_000,
     retry: 1,
   });
-  const books = result.data?.results || [];
+  // A failed slow COUNT/facet request must never erase a verified live
+  // first-paint shelf. This is display-only; no rights or entitlements
+  // are conferred by the preview.
+  const catalogDisplay = result.data ?? fastPreview;
+  const books = catalogDisplay?.results || [];
   const current = data.library
     .filter((x) => x.status === "reading")
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
@@ -1591,10 +1595,10 @@ export function StorePage({
           <span className="catalog-count">
             {result.isFetching && !result.data
               ? "Finding books…"
-              : result.data?.preview
+              : catalogDisplay?.preview
                 ? "Books available to read"
-                : `${result.data?.count?.toLocaleString() || 0} books`}
-            {result.data?.ingestion?.status === "running" && <small> · Catalog updating</small>}
+                : `${catalogDisplay?.count?.toLocaleString() || 0} books`}
+            {catalogDisplay?.ingestion?.status === "running" && <small> · Catalog updating</small>}
           </span>
           <div className="filter-selects">
             <Select
@@ -1606,7 +1610,7 @@ export function StorePage({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All languages</SelectItem>
-                {(result.data?.facets?.languages || []).slice(0, 40).map((x) => (
+                {(catalogDisplay?.facets?.languages || []).slice(0, 40).map((x) => (
                   <SelectItem key={x.value} value={x.value}>
                     {x.value.toUpperCase()} ({x.count})
                   </SelectItem>
@@ -1622,7 +1626,7 @@ export function StorePage({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All formats</SelectItem>
-                {(result.data?.facets?.formats || []).map((x) => (
+                {(catalogDisplay?.facets?.formats || []).map((x) => (
                   <SelectItem key={x.value} value={x.value}>
                     {x.value} ({x.count})
                   </SelectItem>
@@ -1682,7 +1686,7 @@ export function StorePage({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All publishers</SelectItem>
-            {(result.data?.facets?.publishers || []).slice(0, 30).map((x) => (
+            {(catalogDisplay?.facets?.publishers || []).slice(0, 30).map((x) => (
               <SelectItem key={x.value} value={x.value}>
                 {x.value} ({x.count})
               </SelectItem>
@@ -1695,7 +1699,7 @@ export function StorePage({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All series</SelectItem>
-            {(result.data?.facets?.series || []).slice(0, 30).map((x) => (
+            {(catalogDisplay?.facets?.series || []).slice(0, 30).map((x) => (
               <SelectItem key={x.value} value={x.value}>
                 {x.value} ({x.count})
               </SelectItem>
@@ -1795,12 +1799,12 @@ export function StorePage({
         )}
       </div>
 
-      {result.data?.search?.correctedQuery && (
+      {catalogDisplay?.search?.correctedQuery && (
         <p className="search-correction">
           Showing results for <strong>{result.data.search.correctedQuery}</strong>.
         </p>
       )}
-      {result.data?.warning &&
+      {catalogDisplay?.warning &&
         (!books.length || !result.data.warning.includes("catalog updater is retrying")) && (
           <p className="notice">{result.data.warning}</p>
         )}
@@ -1812,7 +1816,7 @@ export function StorePage({
             Try again
           </button>
         </div>
-      ) : result.isLoading ? (
+      ) : result.isLoading && !books.length ? (
         <div className="book-grid">
           {Array.from({ length: 12 }, (_, i) => (
             <div key={i}>
@@ -1829,8 +1833,8 @@ export function StorePage({
               book={b}
               priority={page === 1 && index < 2}
               onOpen={() => {
-                const queryId = result.data?.search?.queryId;
-                const position = (page - 1) * (result.data?.search?.pageSize || 24) + index + 1;
+                const queryId = catalogDisplay?.search?.queryId;
+                const position = (page - 1) * (catalogDisplay?.search?.pageSize || 24) + index + 1;
                 if (queryId && b.productId) {
                   void api("/search/click", "POST", {
                     queryId,
@@ -1879,7 +1883,7 @@ export function StorePage({
           <span>Page {page}</span>
           <button
             className="button outline"
-            disabled={!result.data?.next}
+            disabled={!catalogDisplay?.next}
             onClick={() => {
               update({ page: page + 1 }, "push");
               window.scrollTo({ top: 0, behavior: "smooth" });
