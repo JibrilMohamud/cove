@@ -6,12 +6,14 @@
 import assert from "node:assert/strict";
 import {createHash} from "node:crypto";
 export async function provisionPublishedQaAudio(qaSql,{runId,productId,
-  buyerId,objectKey,sha,sizeBytes}){
+  buyerId,objectKey,sha,sizeBytes,evidenceSha,evidenceSize}){
   assert.match(runId,/^[0-9]{8,15}$/);
   assert.equal(productId,"prd_paid_qa_20261027");
   assert.equal(buyerId,"user_initial_qa_"+runId);
   assert.equal(objectKey,"qa/chapter.wav");
   assert.match(sha,/^[a-f0-9]{64}$/);
+  assert.match(evidenceSha,/^[a-f0-9]{64}$/);
+  assert.ok(Number.isSafeInteger(evidenceSize)&&evidenceSize>0);
   const digest=value=>createHash("sha256").update(value).digest("hex");
   const time=new Date().toISOString(), id=n=>"qa_"+n+"_"+runId;
   const catalog=(await qaSql(
@@ -38,6 +40,26 @@ export async function provisionPublishedQaAudio(qaSql,{runId,productId,
   }
   await qaSql("INSERT INTO commercial_audio_profiles(edition_id,publishing_account_id,audio_publisher,copyright_notice,performance_rights_basis,identifier_type,identifier_value,active_policy_id,qc_status,rights_status,agreements_status,created_at,updated_at) VALUES(?,?,'Cove Synthetic QA','Original generated silence','Isolated synthetic QA; no third-party recording','other',?,?,'passed','verified','verified',?,?)",
     [edition,account,edition,policy.id,time,time]);
+  // The synthetic audiobook is independently attested in canonical
+  // publishing rights records. Its evidence is an original QA text asset
+  // uploaded to a private, short-lived R2 bucket by the parent script.
+  const declaration=id("rights_declaration"),evidence=id("rights_evidence");
+  await qaSql(
+    "INSERT INTO publishing_rights_declarations(id,edition_id,account_id,revision,rights_basis,authority_type,rights_owner_name,authority_attestation,no_infringement_attestation,evidence_complete_attestation,signature_name,signed_by_user_id,signed_at,status,created_at) VALUES(?,?,?,1,'owned','copyright_owner','Original QA generated recordings',1,1,1,'QA only',?,?,'verified',?)",
+    [declaration,edition,account,buyerId,time,time]
+  );
+  await qaSql(
+    "INSERT INTO publishing_rights_evidence(id,declaration_id,account_id,evidence_type,description,original_filename,mime_type,size_bytes,object_key,sha256,scan_status,verification_status,issued_by,created_by_user_id,created_at) VALUES(?,?,?,'other','Test-generated audio and narration authorization only','qa-rights.txt','text/plain',?,?,?,'clean','verified','QA test fixture',?,?)",
+    [evidence,declaration,account,evidenceSize,"qa/rights.txt",evidenceSha,buyerId,time]
+  );
+  await qaSql(
+    "INSERT INTO commercial_audio_narrators(id,edition_id,display_name,narration_type,created_at) VALUES(?,?,'Generated QA Silence','synthetic',?)",
+    [narrator,edition,time]
+  );
+  await qaSql(
+    "INSERT INTO narration_agreements(id,edition_id,narrator_id,agreement_type,evidence_id,territories_json,permitted_uses_json,signed_at,status,attested_by_user_id,created_at) VALUES(?,?,?,'synthetic_voice_license',?,'[\"US\"]','[\"retail\",\"preview\",\"offline\"]',?,'active',?,?)",
+    [agreement,edition,narrator,evidence,time,buyerId,time]
+  );
   // A frozen test publisher's narrator license is input to production's
   // independent rights predicate; it is NOT an actual rights clearance.
   const audio={
