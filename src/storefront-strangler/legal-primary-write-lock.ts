@@ -88,7 +88,7 @@ function neutralizeSqlComments(sql:string):string {
     }
     if(c==="-"&&n==="-"){
       result+=" ";i+=2;
-      while(i<sql.length&&sql[i]!=="\\n"&&sql[i]!=="\\r")i++;
+      while(i<sql.length&&sql[i]!=="\n"&&sql[i]!=="\r")i++;
       continue;
     }
     if(c==="/"&&n==="*"){
