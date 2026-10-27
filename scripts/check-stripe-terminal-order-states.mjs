@@ -4,10 +4,11 @@ import {readFileSync} from "node:fs";
 import {DatabaseSync} from "node:sqlite";
 
 const code=readFileSync("src/features/fore/commerce.server.ts","utf8");
-assert.match(code,/if\(!\["pending_payment","processing","authorized","payment_failed"\]\.includes\(order\.status\)\)/,
+const terminalGuard=/if\\s*\\(\\s*!\\["pending_payment",\\s*"processing",\\s*"authorized",\\s*"payment_failed"\\]\\.includes\\(order\\.status\\)\\s*\\)/;
+assert.match(code,terminalGuard,
   "First-time settlement must refuse canceled, partially refunded or revoked orders");
-assert.ok(code.indexOf('if(!["pending_payment","processing","authorized","payment_failed"].includes(order.status))')<
-  code.indexOf("await consumeTender(db, order);"),
+const match=terminalGuard.exec(code);
+assert.ok(match && (match.index<code.indexOf("await consumeTender(db, order);")),
   "Terminal-state settlement guard MUST precede tender consumption");
 
 const query=(status)=>{
