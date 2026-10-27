@@ -1,0 +1,97 @@
+/* eslint-disable prettier/prettier -- Security-sensitive, tightly scoped stage canonical commands. */
+import {z} from "zod/v3";
+import {ApiError} from "../features/fore/service";
+
+/**
+ * Actual Cove administrator -> authenticated, isolated owner-first writer.
+ * This is intentionally NOT a generic SQL executor or a production switch.
+ * The private writer requires its own independently leased QA DB and owner.
+ */
+export type StageCanonicalAdminEnv={
+  COVE_SSR_STAGING?:string;
+  COVE_CANONICAL_LEGAL_WRITE_LOCK?:string;
+  COVE_LEGAL_QUARANTINE_WRITER_STAGE?:string;
+  COVE_LEGAL_WRITER_PRIMARY_ID?:string;
+  COVE_LEGAL_QUARANTINE_SECRET?:string;
+  LEGAL_QUARANTINE_WRITER?:{fetch(request:Request):Promise<Response>};
+};
+const QA_DB_IDS=new Set([
+  "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
+  "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+]);
+const operationId=z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/);
+const productId=z.string().regex(/^prd_[a-zA-Z0-9_-]{3,120}$/).refine(
+  id=>!id.startsWith("prd_gutenberg_"),"Commercial product only"
+);
+const subjectId=z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/);
+const territory=z.string().regex(/^[A-Z]{2}$/);
+const currency=z.string().regex(/^[A-Z]{3}$/);
+const command=z.discriminatedUnion("action",[
+  z.object({action:z.literal("suspend-grant"),targetId:subjectId,operationId}).strict(),
+  z.object({action:z.literal("suspend-contract"),targetId:subjectId,operationId}).strict(),
+  z.object({action:z.literal("withdraw-retail"),productId,operationId}).strict(),
+  z.object({action:z.literal("publish-retail"),productId,territory,currency,operationId}).strict(),
+  z.object({action:z.literal("pause-market"),territory,operationId}).strict(),
+]);
+type OwnerAck={ [key:string]:unknown };
+export async function executeStageCanonicalAdminCommand(
+  env:StageCanonicalAdminEnv,input:unknown
+) {
+  // Never silently fall back to old raw D1 (including if only one QA
+  // binding or environment flag is absent). The writer separately checks
+  // its own 15-minute lease and exact independent D1 identity.
+  if(env.COVE_SSR_STAGING!=="1"||
+     env.COVE_CANONICAL_LEGAL_WRITE_LOCK!=="1"||
+     env.COVE_LEGAL_QUARANTINE_WRITER_STAGE!=="1"||
+     !QA_DB_IDS.has(env.COVE_LEGAL_WRITER_PRIMARY_ID||"")||
+     !/^[a-f0-9]{64}$/.test(env.COVE_LEGAL_QUARANTINE_SECRET||"")||
+     !env.LEGAL_QUARANTINE_WRITER?.fetch)
+    throw new ApiError(503,"Owner-first canonical writer is not configured for isolated staging.");
+  const x=command.parse(input);
+  const routes={
+    "suspend-grant":"/commercial/suspend-grant",
+    "suspend-contract":"/commercial/suspend-contract",
+    "withdraw-retail":"/commercial/retail/withdraw",
+    "publish-retail":"/commercial/retail/publish-verified",
+    "pause-market":"/market/withdraw",
+  } as const;
+  let reply:Response,ack:OwnerAck;
+  try{
+    reply=await env.LEGAL_QUARANTINE_WRITER.fetch(
+      new Request("https://legal-quarantine.internal"+routes[x.action],{
+        method:"POST",
+        headers:{
+          "authorization":"Bearer "+env.COVE_LEGAL_QUARANTINE_SECRET,
+          "content-type":"application/json",
+        },
+        body:JSON.stringify(x),
+      })
+    );
+    if(reply.status!==200)throw Error("owner_writer_unavailable");
+    ack=await reply.json() as OwnerAck;
+  }catch{
+    throw new ApiError(503,"Canonical legal owner write was not acknowledged.");
+  }
+  if(!ack||typeof ack!=="object"||Array.isArray(ack))
+    throw new ApiError(503,"Canonical legal owner write receipt malformed.");
+  const valid=(()=>{
+    switch(x.action){
+      case "suspend-grant":
+      case "suspend-contract":
+        return ack.suspended===true && ack.ownerDenied===true &&
+          ack.subject===(x.action==="suspend-grant"?"grant":"contract") &&
+          ack.subjectId===x.targetId;
+      case "withdraw-retail":
+        return ack.withdrawn===true && Number.isSafeInteger(ack.ownerEpoch) &&
+          Number(ack.ownerEpoch)>0;
+      case "publish-retail":
+        return ack.published===true && Number.isSafeInteger(ack.ownerEpoch) &&
+          Number(ack.ownerEpoch)>0;
+      case "pause-market":
+        return ack.marketWithdrawn===true && ack.territory===x.territory;
+    }
+  })();
+  if(!valid)
+    throw new ApiError(503,"Canonical legal owner write receipt does not match the request.");
+  return {action:x.action,ownerFirst:true,receipt:ack};
+}
