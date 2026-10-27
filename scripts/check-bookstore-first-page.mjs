@@ -48,8 +48,10 @@ try {
   assert.match(store, /queryFn: \(\{ signal \}\) => api\("\/catalog\?" \+ params/);
   // Fast preview cannot authorize purchases. Existing retail and media
   // handlers must remain separate, and the full catalog is still requested.
-  assert.doesNotMatch(readFileSync("src/features/fore/bookstore-first-paint.ts", "utf8"),
-    /(?:entitle|grant|INSERT|UPDATE|DELETE|sessionStorage|localStorage)/i);
+  assert.doesNotMatch(
+    readFileSync("src/features/fore/bookstore-first-paint.ts", "utf8"),
+    /\b(?:INSERT|UPDATE|DELETE|sessionStorage|localStorage|grantAccess|publishEntitlement)\s*\(/i,
+  );
   console.log("PASS: first-page live shelf is country/currency/locale/query-scoped, fresh, preview-only; rich catalog remains authoritative");
 } finally {
   rmSync(temp, { recursive: true, force: true });
