@@ -20,7 +20,8 @@ try{
  const db=new DatabaseSync(":memory:");
  const sql={exec(statement,...args){
    const q=db.prepare(statement);
-   return {toArray:()=>/^\s*SELECT\b/i.test(statement)?q.all(...args):(q.run(...args),[])};
+   const rows=/^\s*SELECT\b/i.test(statement)?q.all(...args):(q.run(...args),[]);
+   return {toArray:()=>rows};
  }};
  rights.createCommercialAuthoritySchema(sql);
  owner.createCommercialStorefrontSchema(sql);
