@@ -38,7 +38,8 @@ try {
       ]),
     ],
     [available, false, { availability: null }],
-  ]) assert.equal(exact(...bad), null, "Unproven total must use the original live COUNT");
+  ])
+    assert.equal(exact(...bad), null, "Unproven total must use the original live COUNT");
   const source = readFileSync("src/features/fore/search.server.ts", "utf8");
   assert.match(source, /sharedFacetCount \? d1Facets|sharedFacetCount\s*\?\s*d1Facets/);
   assert.match(source, /exact === null \? await runCount\(\) : \{ count: exact \}/);
