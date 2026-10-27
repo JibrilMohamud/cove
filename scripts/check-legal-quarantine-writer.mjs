@@ -56,13 +56,23 @@ try {
   paidEnt.createPaidEntitlementSchema(sql);
   const secret="e".repeat(64),auth="f".repeat(64),operations=[];
   let failPrimary=false,failPrimaryBatch=false,failPrimaryWrite=false,failOwner=false;
+  let failRetailOffer=false;
+  const publicationCalls=[];
   const owner={async fetch(request){
     operations.push("authority");
     if(failOwner)return new Response(null,{status:503});
     if(request.headers.get("authorization")!=="Bearer "+secret)
       return new Response(null,{status:401});
     const cmd=await request.json();
-    if(new URL(request.url).pathname==="/commercial/order/deny-next"){
+    const pathname=new URL(request.url).pathname;
+    if(pathname==="/commercial/publish-verified"||
+       pathname==="/storefront/publish-commercial"){
+      publicationCalls.push({pathname,body:cmd});
+      if(pathname==="/storefront/publish-commercial"&&failRetailOffer)
+        return new Response(null,{status:503});
+      return Response.json({applied:true,epoch:1});
+    }
+    if(pathname==="/commercial/order/deny-next"){
       db.exec("BEGIN");
       try{
         const result=paidEnt.denyPaidOrder(sql,cmd);
@@ -400,6 +410,33 @@ try {
   assert.equal(db.prepare("SELECT COUNT(*) n FROM cove_paid_refunded_orders WHERE order_id=?").get(refundOrderId).n,
     1,"Post-denial D1 failure MUST NOT restore buyer rights at the owner");
   failPrimaryWrite=false;
+  // No caller-provided price, edition, grant or contract is trusted.
+  const publish={productId:"prd_commercial_a17",territory:"US",currency:"USD",
+    operationId:"qa:retail:a17:publish"};
+  operations.length=0;publicationCalls.length=0;
+  assert.equal((await post(publish,{},"/commercial/retail/publish-verified")).status,200);
+  assert.deepEqual(operations,["authority","authority"],
+    "Private owner legal proof must precede its exact retail offer publication");
+  assert.deepEqual(publicationCalls,[
+    {pathname:"/commercial/publish-verified",body:{
+      productId:publish.productId,territory:"US",currency:"USD"}},
+    {pathname:"/storefront/publish-commercial",body:{
+      productId:publish.productId,territory:"US",currency:"USD"}}
+  ],"Publisher cannot inject a cached price or contract");
+  failRetailOffer=true;publicationCalls.length=0;
+  assert.equal((await post({...publish,operationId:"qa:retail:a17:failed"},
+    {},"/commercial/retail/publish-verified")).status,503);
+  assert.equal(publicationCalls.length,2,"No positive offer receipt on second-stage failure");
+  failRetailOffer=false;
+  assert.equal((await post({...publish,productId:"prd_gutenberg_2701"},
+    {},"/commercial/retail/publish-verified")).status,400);
+  assert.equal((await post({...publish,currency:"XX"},
+    {},"/commercial/retail/publish-verified")).status,400);
+  operations.length=0;failOwner=true;
+  assert.equal((await post({...publish,operationId:"qa:retail:a17:owner-down"},
+    {},"/commercial/retail/publish-verified")).status,503);
+  assert.deepEqual(operations,["authority"],"Owner outage cannot permit publication");
+  failOwner=false;
   db.close();
-  console.log("PASS: QA source quarantine, independent-country evidence withdrawal and atomic source retraction batch, fail closed, replay safe");
+  console.log("PASS: staged paid retail publisher, source quarantine and regional withdrawal fail closed");
 }finally{rmSync(directory,{force:true,recursive:true});}
