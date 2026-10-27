@@ -104,6 +104,7 @@ export async function presentationTaxonomyCounts(
   nowMs = () => Date.now(),
   defer?: DeferredWork,
   state?: { pending: boolean },
+  noForegroundAggregation = false,
 ): Promise<TaxonomyCountRow[]> {
   // Include both rights territory and content language, but never
   // account/session/private user data. Lowercase normalization mirrors the
@@ -148,15 +149,24 @@ export async function presentationTaxonomyCounts(
       return [];
     }
 
-    // Legacy/local adapters without waitUntil retain exact synchronous
-    // semantics and fail-closed legal book checks.
+    // A public HTTP API without an execution-context waitUntil (notably the
+    // Vercel relay) must never perform a seconds-long aggregate foreground
+    // just to display category count labels. A verified cached label may be
+    // stale; actual catalog listings and commerce still recheck rights.
+    if (noForegroundAggregation) {
+      if (counts && expiresAt + MAX_STALE_MS > now) return counts;
+      if (state) state.pending = true;
+      return [];
+    }
+    // Local and explicitly synchronous maintenance callers retain their
+    // previous exact aggregation behavior and can populate the cache.
     if (counts && expiresAt > now) return counts;
   } catch {
     // A failed cache read must NOT trigger an expensive foreground
     // aggregation on a congested primary. Return a display-only pending
     // response; retry the cache lookup on the next request. Legal rights are
     // never inferred from taxonomy count labels.
-    if (defer) {
+    if (defer || noForegroundAggregation) {
       if (state) state.pending = true;
       return [];
     }
