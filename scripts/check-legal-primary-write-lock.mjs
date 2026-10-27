@@ -81,6 +81,13 @@ try {
     "DELETE FROM [main].[entitlements] WHERE id=?",
     "CREATE TRIGGER regrant AFTER INSERT ON cove_arch_load BEGIN UPDATE rights_grants SET status='active'; END",
     "PRAGMA writable_schema=ON",
+    "UPDATE/* owner audit */entitlements SET status='active'",
+    "INSERT/* forensic note */INTO rights_grants(id) VALUES(?)",
+    "WITH v AS(SELECT 1) UPDATE/* grant */rights_contracts SET status='active'",
+    "SELECT '--not a comment' AS comment_text; UPDATE/*hidden*/offers SET active=1",
+    "SELECT 1; -- ordinary note\nUPDATE entitlements SET status='active'",
+    "CREATE/*audit*/TRIGGER regrant AFTER INSERT ON x BEGIN INSERT INTO entitlements(id) VALUES(?); END",
+    "PRAGMA/*audit*/writable_schema=ON",
   ];
   for(const sql of deny){
     assert.ok(classifyProtectedLegalSql(sql).length>0,"Fails to recognize: "+sql);
@@ -95,6 +102,15 @@ try {
   ];
   for(const sql of allow)assert.deepEqual(classifyProtectedLegalSql(sql),[],
     "Non-legal statement must not be classified as authoritatively mutating");
+  assert.throws(()=>classifyProtectedLegalSql(
+    "SELECT 1; /* unclosed owner audit"),/invalid_legal_sql/,
+    "Malformed block comments must not be allowed to suppress protected writes");
+  assert.throws(()=>classifyProtectedLegalSql(
+    "SELECT 'unfinished quoted audit"),/invalid_legal_sql/,
+    "Malformed SQL literals must fail closed");
+  assert.deepEqual(classifyProtectedLegalSql(
+    "SELECT '--' AS harmless_literal; -- legal comment\nUPDATE cove_arch_load SET revision=1"),[],
+    "Quoted comment delimiters and real line comments must preserve safe SQL");
   let nativeBatches=0, nativePrepareCalls=0;
   const native={
     prepare(sql){
