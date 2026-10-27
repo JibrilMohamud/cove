@@ -6,6 +6,7 @@ on:
       - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
       - "src/storefront-strangler/paid-settlement-publication.server.ts"
       - "src/storefront-strangler/paid-settlement-stage-qa.worker.ts"
+      - "src/features/fore/commerce.server.ts"
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
       - "src/storefront-strangler/commercial-legal-core.ts"
       - "src/storefront-strangler/commercial-entitlement-core.ts"
@@ -43,5 +44,13 @@ jobs:
       - run: node scripts/check-legal-consumer-fence.mjs
       - run: node scripts/check-legal-quarantine-writer.mjs
       - run: node scripts/build-storefront-strangler.mjs
-      - name: Certify private full-schema canonical paid grant and buyer refund
+      - name: Install official Stripe test-event forwarder
+        run: |
+          npm install --global @stripe/cli
+          stripe version
+      - name: Certify real signed TEST webhook to private full-schema buyer and refund
+        env:
+          # Scope sandbox key only to the executed proof. It is never
+          # deployed in a Worker, passed to npm, or given to a fork PR.
+          COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SECRET_KEY }}
         run: node scripts/staging/prove-private-paid-owner.mjs
