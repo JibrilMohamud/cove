@@ -190,6 +190,28 @@ export function publishFreshCommercialProof(
   const state=current(sql,p.productId);
   if((state?.epoch??0)!==expectedEpoch)
     return {applied:false,epoch:state?.epoch??null};
+  // A legal withdrawal is durable before its primary-D1 reconciliation.
+  // If D1 is unavailable, the prior grant/version can still appear active.
+  // Never treat another lookup of that SAME evidence as reinstatement.
+  // Price-only (retail:) product holds are different: they do not withdraw
+  // distribution rights, and legitimately permit repricing on the same grant.
+  if(state?.verdict==="deny"){
+    const withdrawal=sql.exec<{operation_id:string}>(
+      "SELECT operation_id FROM cove_commercial_withdrawal_ops WHERE product_id=? AND epoch=?",
+      p.productId,state.epoch
+    ).toArray()[0];
+    if(!withdrawal)throw Error("commercial_denial_provenance_missing");
+    if(!withdrawal.operation_id.startsWith("retail:")){
+      const reused=sql.exec(
+        `SELECT 1 stale FROM cove_commercial_scope_proofs
+          WHERE product_id=? AND grant_id=?
+            AND contract_id=? AND contract_version_id=? LIMIT 1`,
+        p.productId,p.grantId,p.contractId,p.contractVersionId
+      ).toArray();
+      if(reused.length)
+        throw Error("commercial_reinstatement_requires_new_legal_evidence");
+    }
+  }
   const old=sql.exec<{
     epoch:number;edition_id:string;grant_id:string;
     contract_id:string|null;contract_version_id:string|null
