@@ -40,8 +40,16 @@ export function securityTxt(request: Request, env: SecurityHeaderEnv) {
   });
 }
 
-export function applySecurityHeaders(request: Request, response: Response, env: SecurityHeaderEnv) {
-  const headers = new Headers(response.headers),
+/** Header-only variant for fully materialized Worker responses.
+ * Avoids wrapping the same ReadableStream several times on the hot TTFB path.
+ * The legacy Response API below reuses this exact policy without changes.
+ */
+export function buildSecurityHeaders(
+  request: Request,
+  headersInput: HeadersInit,
+  env: SecurityHeaderEnv,
+): Headers {
+  const headers = new Headers(headersInput),
     report = env.FORE_CSP_REPORT_URI?.trim();
   const csp = [
     "default-src 'self'",
@@ -73,9 +81,13 @@ export function applySecurityHeaders(request: Request, response: Response, env: 
   headers.set("Origin-Agent-Cluster", "?1");
   if (isHttps(request, env) && (env.FORE_ENVIRONMENT || "production") !== "development")
     headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
+  return headers;
+}
+
+export function applySecurityHeaders(request: Request, response: Response, env: SecurityHeaderEnv) {
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
-    headers,
+    headers: buildSecurityHeaders(request, response.headers, env),
   });
 }

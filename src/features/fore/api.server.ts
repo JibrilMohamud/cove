@@ -1,3 +1,5 @@
+import { scopeStageLegalWriterEnv } from "../../storefront-strangler/legal-primary-write-lock";
+import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
 import { saveTasteControls, loadTasteControls } from "./discovery-intelligence.server";
 import { validateStoredEpub } from "./stored-epub.server";
 import { createAuth, resolvedIdentity } from "./auth.server";
@@ -489,6 +491,17 @@ export type CoveEnv = {
     limit(input: { key: string }): Promise<{ success: boolean }>;
   };
   COVE_SSR_STAGING?: string;
+  // QA-only: reject every unfenced canonical grant/offer/evidence mutation.
+  COVE_CANONICAL_LEGAL_WRITE_LOCK?: string;
+  COVE_LEGAL_QUARANTINE_WRITER_STAGE?: string;
+  COVE_LEGAL_WRITER_PRIMARY_ID?: string;
+  COVE_LEGAL_CONSUMER_STAGE_ENABLED?: string;
+  COVE_RIGHTS_OWNER_SECRET?: string;
+  LEGAL_AUTHORITY?: {
+    getByName(name: string): { fetch(request: Request): Promise<Response> };
+  };
+  COVE_LEGAL_QUARANTINE_SECRET?: string;
+  LEGAL_QUARANTINE_WRITER?: { fetch(request: Request): Promise<Response> };
   // Stage-only candidate: independent low-cardinality anonymous metrics.
   COVE_OPS_TELEMETRY_MODE?: string;
   OPS_ANALYTICS?: {
@@ -912,6 +925,13 @@ async function getBook(env: CoveEnv, id: string, userId?: string): Promise<Catal
   if (id.startsWith("upload_")) throw new ApiError(404, "This book is not in your library.");
   if (id.startsWith("fore_") || id.startsWith("prd_"))
     throw new ApiError(404, "This edition is unavailable.");
+
+  // Production customer GETs must never bootstrap source ingestion, rebuild
+  // the contributor/taxonomy/FTS graph, write legal grants or fetch arbitrary
+  // source files. Canonical publishing is a separate fenced processing lane.
+  // Unpublished editions remain invisible until verified publication.
+  if (env.FORE_ENVIRONMENT === "production")
+    throw new ApiError(404, "This edition has not been published.");
 
   const stored = await db
     .prepare("SELECT copyright,source_url FROM gutenberg_source_cache WHERE id=?")
@@ -1367,7 +1387,101 @@ async function insertRegionalEvidence(
   return { territories, evidenceId: firstEvidenceId };
 }
 
+/**
+ * Stage-only source retractions: a bounded legal-owner transaction is
+ * acknowledged BEFORE any cached source is marked stale in QA primary D1.
+ * This path is deliberately unavailable to production and does not claim
+ * to replace product/offer/entitlement writer closure.
+ */
+async function retractStaleRegionalSourcesStage(
+  env: CoveEnv,
+  sourceId: string,
+  cycleStartedAt: string,
+  expectedCount: number,
+) {
+  if (
+    env.COVE_SSR_STAGING !== "1" ||
+    env.COVE_CANONICAL_LEGAL_WRITE_LOCK !== "1" ||
+    env.COVE_LEGAL_WRITER_PRIMARY_ID !== "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87" ||
+    !env.LEGAL_QUARANTINE_WRITER?.fetch ||
+    !/^[a-f0-9]{64}$/.test(env.COVE_LEGAL_QUARANTINE_SECRET || "")
+  )
+    throw new ApiError(503, "Stale-source legal owner is not certified for staging.");
+  // Refuse partial publication work. The next stage executor can split a
+  // large feed across multiple fully fenced transactions, but may never
+  // silently fall back to the old bulk D1 writer under a locked owner.
+  if (expectedCount < 1 || expectedCount > 25)
+    throw new ApiError(503, "Stale-source withdrawal exceeds the certified batch bound.");
+  const rows = await database(env)
+    .prepare(
+      "SELECT id FROM gutenberg_source_cache WHERE source_id=? AND last_seen_at<? AND ingest_status NOT IN ('stale','quarantined') ORDER BY id LIMIT 26",
+    )
+    .bind(sourceId, cycleStartedAt)
+    .all<{ id: string }>();
+  if (rows.results.length !== expectedCount)
+    throw new ApiError(503, "Stale-source snapshot changed before legal denial.");
+  const operations = await Promise.all(
+    rows.results.map(async (row) => ({
+      sourceId: row.id,
+      operationId:
+        "stale:" +
+        (await sha256Hex(JSON.stringify([sourceId, row.id, cycleStartedAt]))).slice(0, 32),
+    })),
+  );
+  const response = await env.LEGAL_QUARANTINE_WRITER.fetch(
+    new Request("https://legal-quarantine.internal/source/retract-batch", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer " + env.COVE_LEGAL_QUARANTINE_SECRET,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ operations }),
+    }),
+  );
+  if (response.status !== 200)
+    throw new ApiError(503, "Source retraction was not acknowledged by the legal owner.");
+  const receipt = (await response.json()) as { retracted?: number };
+  if (receipt.retracted !== operations.length)
+    throw new ApiError(503, "Incomplete legal source-retraction receipt.");
+}
+
 async function quarantineRegionalItem(env: CoveEnv, id: string, message: string) {
+  if (env.COVE_LEGAL_QUARANTINE_WRITER_STAGE === "1") {
+    // Only an independently audited, locked QA caller may reach the
+    // physically separate writer service. It owns the raw canonical D1
+    // binding, while this API's D1 is denied all direct legal mutations.
+    if (
+      env.COVE_SSR_STAGING !== "1" ||
+      env.COVE_CANONICAL_LEGAL_WRITE_LOCK !== "1" ||
+      env.COVE_LEGAL_WRITER_PRIMARY_ID !== "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87" ||
+      !env.LEGAL_QUARANTINE_WRITER?.fetch ||
+      !/^[a-f0-9]{64}$/.test(env.COVE_LEGAL_QUARANTINE_SECRET || "")
+    )
+      throw new ApiError(503, "Legal quarantine writer is not certified for staging.");
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(id + "\u0000" + message),
+    );
+    const hex = Array.from(new Uint8Array(digest).slice(0, 8))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    const response = await env.LEGAL_QUARANTINE_WRITER.fetch(
+      new Request("https://legal-quarantine.internal/quarantine", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer " + env.COVE_LEGAL_QUARANTINE_SECRET,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          sourceId: id,
+          operationId: "regional:" + id + ":" + hex,
+          message: message.slice(0, 500),
+        }),
+      }),
+    );
+    if (response.status !== 200) throw new ApiError(503, "Legal quarantine could not be fenced.");
+    return;
+  }
   await database(env)
     .prepare(
       `UPDATE gutenberg_source_cache SET rights_status='quarantined',commercial_use_status='quarantined',ingest_status='quarantined',
@@ -1655,6 +1769,7 @@ function regionalBook(item: RegionalCatalogItem) {
 
 /** Asset maintenance cannot roll back or mislabel committed catalog metadata. */
 export async function runCatalogAssetMaintenance(env: CoveEnv, limit = 1, deadlineMs = Infinity) {
+  env = scopeStageLegalWriterEnv(env);
   let attempted = 0;
   try {
     return await cachePendingEpubs(env, limit, deadlineMs, () => {
@@ -1677,6 +1792,7 @@ export async function runRegionalCatalogIngestion(
   epubLimit = 1,
   deadlineMs = Infinity,
 ) {
+  env = scopeStageLegalWriterEnv(env);
   const db = database(env);
   const current = now();
   const due = await db
@@ -1871,44 +1987,48 @@ export async function runRegionalCatalogIngestion(
         .first<any>();
       staleCount = Number(stale?.count || 0);
       if (staleCount) {
-        // Source retractions/corrections fail closed. Keep the canonical object for audit, but
-        // remove storefront eligibility until the item is observed and re-verified again.
-        await db
-          .prepare(
-            `UPDATE gutenberg_source_cache SET ingest_status='stale',rights_status='quarantined',commercial_use_status='quarantined',
-          epub_status='pending',epub_next_attempt_at='',last_error='Source item was absent from the latest complete catalog snapshot.',updated_at=?
-          WHERE source_id=? AND last_seen_at<? AND ingest_status NOT IN ('stale','quarantined')`,
-          )
-          .bind(completed, sourceId, cycleStartedAt)
-          .run();
-        await db
-          .prepare(
-            `UPDATE products SET storefront_status='inactive',updated_at=? WHERE source_name='gutenberg' AND source_external_id IN
-          (SELECT id FROM gutenberg_source_cache WHERE source_id=? AND ingest_status='stale')`,
-          )
-          .bind(completed, sourceId)
-          .run();
-        await db
-          .prepare(
-            `UPDATE offers SET active=0,updated_at=? WHERE product_id IN
-          (SELECT p.id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
-          )
-          .bind(completed, sourceId)
-          .run();
-        await db
-          .prepare(
-            `UPDATE editions SET release_status='unavailable',updated_at=? WHERE id IN
-          (SELECT p.edition_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
-          )
-          .bind(completed, sourceId)
-          .run();
-        await db
-          .prepare(
-            `UPDATE rights_grants SET status='suspended',updated_at=? WHERE source=? AND edition_id IN
-          (SELECT p.edition_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
-          )
-          .bind(completed, `gutenberg-${sourceId}-public-domain`, sourceId)
-          .run();
+        if (env.COVE_LEGAL_QUARANTINE_WRITER_STAGE === "1") {
+          await retractStaleRegionalSourcesStage(env, sourceId, cycleStartedAt, staleCount);
+        } else {
+          // Source retractions/corrections fail closed. Keep the canonical object for audit, but
+          // remove storefront eligibility until the item is observed and re-verified again.
+          await db
+            .prepare(
+              `UPDATE gutenberg_source_cache SET ingest_status='stale',rights_status='quarantined',commercial_use_status='quarantined',
+            epub_status='pending',epub_next_attempt_at='',last_error='Source item was absent from the latest complete catalog snapshot.',updated_at=?
+            WHERE source_id=? AND last_seen_at<? AND ingest_status NOT IN ('stale','quarantined')`,
+            )
+            .bind(completed, sourceId, cycleStartedAt)
+            .run();
+          await db
+            .prepare(
+              `UPDATE products SET storefront_status='inactive',updated_at=? WHERE source_name='gutenberg' AND source_external_id IN
+            (SELECT id FROM gutenberg_source_cache WHERE source_id=? AND ingest_status='stale')`,
+            )
+            .bind(completed, sourceId)
+            .run();
+          await db
+            .prepare(
+              `UPDATE offers SET active=0,updated_at=? WHERE product_id IN
+            (SELECT p.id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
+            )
+            .bind(completed, sourceId)
+            .run();
+          await db
+            .prepare(
+              `UPDATE editions SET release_status='unavailable',updated_at=? WHERE id IN
+            (SELECT p.edition_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
+            )
+            .bind(completed, sourceId)
+            .run();
+          await db
+            .prepare(
+              `UPDATE rights_grants SET status='suspended',updated_at=? WHERE source=? AND edition_id IN
+            (SELECT p.edition_id FROM products p JOIN gutenberg_source_cache c ON c.id=p.source_external_id WHERE p.source_name='gutenberg' AND c.source_id=? AND c.ingest_status='stale')`,
+            )
+            .bind(completed, `gutenberg-${sourceId}-public-domain`, sourceId)
+            .run();
+        }
       }
     }
 
@@ -2015,6 +2135,7 @@ export async function runCatalogIngestion(
   epubLimit = 1,
   options: { deadlineMs?: number; includeRegional?: boolean; deferSearchSync?: boolean } = {},
 ) {
+  env = scopeStageLegalWriterEnv(env);
   const deadlineMs = options.deadlineMs ?? Infinity;
   if (Date.now() >= deadlineMs) return { skipped: "deadline" };
   epubLimit = Math.max(0, Math.min(16, Math.floor(Number(epubLimit) || 0)));
@@ -2394,7 +2515,36 @@ async function requireFullBookAccess(
   territory: string,
 ) {
   if (product.source_name === "upload") return;
+  await requireStageLegalConsumerProof(
+    env,
+    [
+      {
+        id: String(product.id),
+        source_name: String(product.source_name),
+        source_external_id: String(product.source_external_id || ""),
+      },
+    ],
+    territory.toUpperCase(),
+    "USD",
+  );
   const db = database(env);
+  // A verified source takedown is different from an ordinary territorial
+  // license expiry. Previously issued entitlements do NOT bypass a Gutenberg
+  // copyright/evidence quarantine when Cove controls this file delivery.
+  // This indexed read is on authoritative primary D1, never the async index.
+  if (product.source_name === "gutenberg") {
+    // Global legal-evidence withdrawal is a takedown, not a routine contract
+    // expiry. Previously purchased entitlements must not override it.
+    // A single live primary lookup checks the source state AND existence of
+    // approved source-scoped evidence. Travel entitlement policy is separate.
+    const legalSource = await db
+      .prepare(
+        "SELECT 1 ok FROM gutenberg_source_cache c WHERE c.id=? AND c.copyright=0 AND c.ingest_status='active' AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND EXISTS(SELECT 1 FROM gutenberg_rights_evidence ge WHERE ge.cache_id=c.id AND ge.source_id=c.source_id AND ge.status='approved' AND ge.determination='public-domain') LIMIT 1",
+      )
+      .bind(String(product.source_external_id || ""))
+      .first<{ ok: number }>();
+    if (!legalSource) throw new ApiError(404, "This source edition has been withdrawn.");
+  }
   // A completed purchase/loan/subscription remains the user's entitlement even if they travel or
   // a distribution grant later expires. Rights govern acquisition; entitlements govern access.
   if (await activeEntitlement(db, userId, product.id)) return;
@@ -2660,6 +2810,18 @@ async function getPreviewEpub(env: CoveEnv, id: string, userId?: string, territo
     product = await resolveProduct(db, id, userId);
   if (product.source_name === "upload")
     throw new ApiError(404, "Personal imports do not expose public samples.");
+  await requireStageLegalConsumerProof(
+    env,
+    [
+      {
+        id: String(product.id),
+        source_name: String(product.source_name),
+        source_external_id: String(product.source_external_id || ""),
+      },
+    ],
+    territory.toUpperCase(),
+    "USD",
+  );
   const rights = await resolveProductRights(db, String(product.id), territory.toUpperCase(), {
     salesChannel: "retail",
     persist: true,
@@ -2792,6 +2954,7 @@ async function rateLimitFirstPaint(request: Request, env: CoveEnv, userId: strin
 }
 
 export async function runRecommendationMaintenance(env: CoveEnv) {
+  env = scopeStageLegalWriterEnv(env);
   const db = database(env);
   const [recommendations, wishlistAlerts] = await Promise.all([
     maintainRecommendations(db),
@@ -2801,6 +2964,7 @@ export async function runRecommendationMaintenance(env: CoveEnv) {
 }
 
 export async function runPublishingReleaseMaintenance(env: CoveEnv) {
+  env = scopeStageLegalWriterEnv(env);
   return advancePublishingReleaseSchedules(database(env));
 }
 
@@ -2879,6 +3043,7 @@ export async function handleCoveApi(
   env: CoveEnv,
   execution?: ApiExecutionContext,
 ): Promise<Response | null> {
+  env = scopeStageLegalWriterEnv(env);
   if (!new URL(request.url).pathname.startsWith("/api/fore/")) return null;
   // Aggregate-only interaction telemetry has no user, commerce or territorial
   // rights dependency. Handle it before auth/context/HTTP D1 logging.
@@ -4273,6 +4438,9 @@ async function handleCoveRequest(
           language,
           storefront.locale,
           execution?.waitUntil ? (work) => execution.waitUntil?.(work) : undefined,
+          // Vercel lacks Cloudflare waitUntil. Never hold the public document
+          // behind a potentially multi-second display-count recomputation.
+          true,
         ),
       );
     }
@@ -4747,9 +4915,25 @@ async function handleCoveRequest(
     }
     if (request.method === "GET" && path.startsWith("/products/") && path.endsWith("/detail")) {
       const ref = decodeURIComponent(path.slice("/products/".length, -"/detail".length));
-      return json(
-        await productDetail(database(env), ref, identity(request)?.id || null, storefrontTerritory),
+      const detail = await productDetail(
+        database(env),
+        ref,
+        identity(request)?.id || null,
+        storefrontTerritory,
       );
+      await requireStageLegalConsumerProof(
+        env,
+        [
+          {
+            id: String(detail.book.productId),
+            source_name: String(detail.commerce.source),
+            source_external_id: String(detail.book.sourceExternalId || ""),
+          },
+        ],
+        storefrontTerritory,
+        String(detail.commerce.offer?.currency || "USD"),
+      );
+      return json(detail);
     }
     if (request.method === "GET" && path.startsWith("/books/")) {
       const bits = path.split("/");
@@ -4760,17 +4944,41 @@ async function handleCoveRequest(
         return await getDownloadEpub(env, id, identity(request)?.id, storefrontTerritory, request);
       if (bits[3] === "preview" && bits[4] === "epub")
         return await getPreviewEpub(env, id, identity(request)?.id, storefrontTerritory);
-      if (bits[3] === "detail")
-        return json(
-          await productDetail(
-            database(env),
-            id,
-            identity(request)?.id || null,
-            storefrontTerritory,
-          ),
+      if (bits[3] === "detail") {
+        const detail = await productDetail(
+          database(env),
+          id,
+          identity(request)?.id || null,
+          storefrontTerritory,
         );
+        await requireStageLegalConsumerProof(
+          env,
+          [
+            {
+              id: String(detail.book.productId),
+              source_name: String(detail.commerce.source),
+              source_external_id: String(detail.book.sourceExternalId || ""),
+            },
+          ],
+          storefrontTerritory,
+          String(detail.commerce.offer?.currency || "USD"),
+        );
+        return json(detail);
+      }
       const viewerId = identity(request)?.id;
       const product = await resolveProduct(database(env), id, viewerId);
+      await requireStageLegalConsumerProof(
+        env,
+        [
+          {
+            id: String(product.id),
+            source_name: String(product.source_name),
+            source_external_id: String(product.source_external_id || ""),
+          },
+        ],
+        storefrontTerritory,
+        "USD",
+      );
       if (
         product.source_name !== "upload" &&
         !(await activeEntitlement(database(env), viewerId, product.id))

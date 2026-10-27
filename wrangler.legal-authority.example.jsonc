@@ -1,0 +1,27 @@
+{
+  "name": "cove-legal-authority-private-qa-example",
+  "main": ".output/strangler/legal-authority.mjs",
+  "compatibility_date": "2026-10-25",
+  "workers_dev": false,
+  "routes": [],
+  "preview_urls": false,
+  "durable_objects": {
+    "bindings": [
+      { "name": "LEGAL_AUTHORITY", "class_name": "CoveLegalAuthority" }
+    ]
+  },
+  "migrations": [
+    { "tag": "legal-authority-qa-v1", "new_sqlite_classes": ["CoveLegalAuthority"] }
+  ],
+  "d1_databases": [
+    {
+      "binding": "PRIMARY_DB",
+      "database_name": "cove-canonical-publication-qa-20261025",
+      "database_id": "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87"
+    }
+  ],
+  "vars": {
+    "COVE_RIGHTS_OWNER_ENABLED": "0",
+    "COVE_RIGHTS_OWNER_PRIMARY_ID": "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87"
+  }
+}

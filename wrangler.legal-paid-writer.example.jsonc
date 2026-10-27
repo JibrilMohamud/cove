@@ -1,0 +1,26 @@
+{
+  "name": "cove-paid-legal-writer-disabled",
+  "main": ".output/strangler/legal-quarantine-qa-writer.mjs",
+  "compatibility_date": "2026-10-25",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "services": [
+    {
+      "binding": "LEGAL_PRIVATE",
+      "service": "cove-paid-legal-authority-qa"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "PRIMARY_DB",
+      "database_name": "cove-paid-commerce-legal-qa-20261027",
+      "database_id": "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"
+    }
+  ],
+  "vars": {
+    "COVE_LEGAL_WRITER_ENABLED": "0",
+    "COVE_LEGAL_WRITER_EXPIRES_AT": "0",
+    "COVE_LEGAL_WRITER_PRIMARY_ID": "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"
+  }
+}

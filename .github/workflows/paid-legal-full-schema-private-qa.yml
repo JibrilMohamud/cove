@@ -1,0 +1,56 @@
+name: paid-legal-full-schema-private-qa
+on:
+  pull_request:
+    paths:
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
+      - "src/storefront-strangler/paid-settlement-publication.server.ts"
+      - "src/storefront-strangler/paid-settlement-stage-qa.worker.ts"
+      - "src/features/fore/commerce.server.ts"
+      - "src/storefront-strangler/legal-consumer-fence.server.ts"
+      - "src/storefront-strangler/commercial-legal-core.ts"
+      - "src/storefront-strangler/commercial-entitlement-core.ts"
+      - "scripts/staging/prove-private-paid-owner.mjs"
+      - "wrangler.legal-paid-authority.example.jsonc"
+      - "wrangler.legal-paid-caller.example.jsonc"
+      - "wrangler.legal-paid-writer.example.jsonc"
+      - "wrangler.legal-paid-settlement-stage-qa.example.jsonc"
+      - "scripts/build-storefront-strangler.mjs"
+      - ".github/workflows/paid-legal-full-schema-private-qa.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cove-paid-full-schema-private-qa
+  cancel-in-progress: false
+jobs:
+  private-positive-owner:
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-catalog-normalization-20261025') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-catalog-normalization-20261025')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - run: node scripts/check-paid-entitlement-authority.mjs
+      - run: node scripts/check-commercial-legal-authority.mjs
+      - run: node scripts/check-staged-paid-settlement.mjs
+      - run: node scripts/check-legal-consumer-fence.mjs
+      - run: node scripts/check-legal-quarantine-writer.mjs
+      - run: node scripts/build-storefront-strangler.mjs
+      - name: Install official Stripe test-event forwarder
+        run: |
+          npm install --global @stripe/cli
+          stripe version
+      - name: Certify real signed TEST webhook to private full-schema buyer and refund
+        env:
+          # Scope sandbox key only to the executed proof. It is never
+          # deployed in a Worker, passed to npm, or given to a fork PR.
+          COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SECRET_KEY }}
+        run: node scripts/staging/prove-private-paid-owner.mjs

@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Isolated sandbox fixtures preserve explicit security assertions and synthetic input construction. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -67,10 +68,37 @@ try {
   await api.handleCoveApi(new Request("https://cove.test/api/fore/catalog"), env);
   const db = env.DB,
     at = new Date().toISOString();
-  const product = await db
+  let product = await db
     .prepare("SELECT * FROM products WHERE source_external_id='1342'")
     .first();
   assert.ok(product, "seeded synthetic fixture edition");
+  // Check out a genuinely commercial, non-Gutenberg-namespaced product.
+  // Re-labeling a Gutenberg product alone would be rejected by the strong
+  // legal owner even if its displayed rights looked like a licensed book.
+  // Both rows and the checkout exist only inside this disposable test DB.
+  const commercialId="prd_cove_sandbox_original_"+randomUUID().replaceAll("-","");
+  const productFields=(await db.prepare("PRAGMA table_info(products)").all()).results;
+  const quoteName=(name)=>'"'+String(name).replaceAll('"','""')+'"';
+  const selectParts=[],replace=[];
+  for(const column of productFields){
+    const field=column.name;
+    if(field==="id"){replace.push(commercialId);selectParts.push("?");}
+    else if(field==="sku"){replace.push("sku-"+commercialId);selectParts.push("?");}
+    else if(field==="source_external_id"){replace.push("cove-original-"+commercialId);selectParts.push("?");}
+    else if(field==="public_id"||field==="slug"){replace.push(commercialId);selectParts.push("?");}
+    else if(field==="source_name"){replace.push("publisher");selectParts.push("?");}
+    else selectParts.push(quoteName(field));
+  }
+  await db.prepare(
+    "INSERT INTO products("+productFields.map(c=>quoteName(c.name)).join(",")+") SELECT "+
+      selectParts.join(",")+" FROM products WHERE id=?",
+  ).bind(...replace,product.id).run();
+  // Keep one canonical retail offer per QA product; never create a second
+  // synthetic purchase offer for the public-domain source.
+  await db.prepare("UPDATE offers SET product_id=? WHERE product_id=?")
+    .bind(commercialId,product.id).run();
+  product=await db.prepare("SELECT * FROM products WHERE id=?").bind(commercialId).first();
+  assert.equal(product.id,commercialId);
   await db
     .prepare(
       "INSERT INTO finance_parties(id,party_type,display_name,tax_country,created_at,updated_at) VALUES('qa-payee','author','Synthetic QA payee','US',?,?)",
@@ -329,11 +357,97 @@ try {
     }),
     /entitlement|acquisition|purchase|access/i,
   );
-  const refund = await commerce.refundOrder(env, {
-    orderId: order.id,
-    idempotencyKey: `sandbox-refund-${randomUUID()}`,
-  });
+  // Stripe settlement is external to D1 and the legal owner. Deliberately
+  // fail the independent owner AFTER Stripe accepts a real TEST refund, then
+  // retry the same canonical refund and provider idempotency key. The
+  // pending owner receipt must not be misreported as a failed payment, nor
+  // can replay cause a second refund or return a stale "succeeded" record.
+  const oversizedRefundKey = `sandbox-oversized-${randomUUID()}`;
+  await assert.rejects(
+    commerce.refundOrder(env, {
+      orderId: order.id, amountMinor: 101, idempotencyKey: oversizedRefundKey,
+    }),
+    (e) => e.status === 409,
+    "An amount above the remaining balance must not be silently clamped",
+  );
+  assert.equal((await db.prepare(
+    "SELECT COUNT(*) n FROM commerce_refunds WHERE idempotency_key=?",
+  ).bind(oversizedRefundKey).first()).n, 0,
+  "Rejected oversize refunds must not create provider-facing receipts");
+  const refundKey = `sandbox-refund-${randomUUID()}`;
+  let ownerAvailable = false;
+  let denialAttempts = 0;
+  const stagedRefund = {
+    ...env,
+    COVE_LEGAL_CONSUMER_STAGE_ENABLED: "1",
+    COVE_SSR_STAGING: "1",
+    COVE_CANONICAL_LEGAL_WRITE_LOCK: "1",
+    COVE_LEGAL_WRITER_PRIMARY_ID: "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+    COVE_LEGAL_QUARANTINE_WRITER_STAGE: "1",
+    COVE_LEGAL_QUARANTINE_SECRET: "a".repeat(64),
+    LEGAL_QUARANTINE_WRITER: {
+      async fetch(request) {
+        denialAttempts++;
+        assert.equal(request.headers.get("authorization"), "Bearer " + "a".repeat(64));
+        assert.equal(new URL(request.url).pathname, "/commercial/entitlement/revoke-order");
+        const command = await request.json();
+        assert.equal(command.orderId, order.id);
+        assert.match(command.operationId, /^ref_[a-z0-9-]+$/);
+        if (!ownerAvailable) return new Response(null, { status: 503 });
+        // This disposable DB models the separately certified canonical
+        // owner writer; it is NOT a substitute for the deployed DO QA.
+        await db.prepare(
+          "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?)",
+        ).bind(new Date().toISOString(), user.id, order.id).run();
+        return Response.json({ orderDenied: true });
+      },
+    },
+  };
+  const refundRequest = { orderId: order.id, idempotencyKey: refundKey };
+  await assert.rejects(
+    commerce.refundOrder(stagedRefund, refundRequest),
+    (e) => e.status === 503,
+    "Stripe-successful refund must fail closed when owner denial is unavailable",
+  );
+  // A client must not reuse the same refund key to view or reconcile
+  // another buyer's order, a different amount or a different reason.
+  // Fail before the owner/provider gets another request.
+  const deniedBefore = denialAttempts;
+  for (const changed of [
+    { orderId: "ord_unrelated_synthetic_20261027" },
+    { amountMinor: 50 },
+    { reason: "duplicate" },
+  ]) {
+    await assert.rejects(
+      commerce.refundOrder(stagedRefund, { ...refundRequest, ...changed }),
+      (e) => e.status === 409,
+      "Reusing a Stripe refund idempotency key with changed scope must fail",
+    );
+  }
+  assert.equal(denialAttempts, deniedBefore,
+    "Changed idempotency requests must never reach the legal-owner writer");
+  const awaitingOwner = await db.prepare(
+    "SELECT id,status,provider_refund_id,succeeded_at FROM commerce_refunds WHERE idempotency_key=?",
+  ).bind(refundKey).first();
+  assert.equal(awaitingOwner.status, "pending",
+    "Unreconciled provider confirmation must not become a canonical success");
+  assert.match(awaitingOwner.provider_refund_id, /^re_[a-zA-Z0-9]+$/);
+  assert.equal(awaitingOwner.succeeded_at, null,
+    "Financial/entitlement settlement must not be acknowledged before owner denial");
+  await assert.rejects(
+    commerce.refundOrder(stagedRefund, refundRequest),
+    (e) => e.status === 503,
+    "Same idempotency key must retry the owner, not return stale success",
+  );
+  ownerAvailable = true;
+  const refund = await commerce.refundOrder(stagedRefund, refundRequest);
   assert.equal(refund.status, "succeeded");
+  assert.equal(refund.providerRefundId, awaitingOwner.provider_refund_id);
+  assert.ok(denialAttempts >= 3, "Refund requires actual owner retry before acknowledgement");
+  const settledReceipt = await db.prepare(
+    "SELECT succeeded_at FROM commerce_refunds WHERE id=?",
+  ).bind(awaitingOwner.id).first();
+  assert.ok(settledReceipt.succeeded_at, "Owner-confirmed refund must persist receipt");
   await assert.rejects(
     delivery.issueCommercialEpubGrant(env, user.id, { productId: product.id, purpose: "read" }),
     /entitlement|acquisition|purchase|access|revoked/i,
@@ -361,6 +475,7 @@ try {
       "duplicate event replay",
       "cross-account denial",
       "real refund and revoked new/existing delivery",
+      "owner outage after real refund, durable pending reconciliation and same-key recovery",
       "royalty accrual under an active synthetic payee contract",
     ],
     tax: "disabled only in isolated sandbox; no tax collection claim",

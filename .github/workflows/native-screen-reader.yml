@@ -33,6 +33,9 @@ jobs:
           @'
           [general]
           showWelcomeDialogAtStartup = False
+          [update]
+          autoCheck = False
+          startupNotification = False
           [development]
           enableScratchpadDir = True
           '@ | Set-Content "$profile/nvda.ini" -Encoding utf8

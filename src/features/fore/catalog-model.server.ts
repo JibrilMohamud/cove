@@ -58,7 +58,7 @@ export function commercialCatalogStatements(db: DB, externalId: string, at: stri
       .prepare(
         `INSERT INTO editions(id,work_id,publisher_id,title,description,language,drm_status,downloadable,release_status,edition_type,differentiation_status,differentiation_summary,canonical_public_domain,created_at,updated_at)
       SELECT ?,?,gs.publisher_id,c.title,c.summary,COALESCE(json_extract(c.languages_json,'$[0]'),'en'),'none',1,
-        CASE WHEN c.rights_status='public-domain' AND c.commercial_use_status='approved' THEN 'available' ELSE 'unavailable' END,
+        CASE WHEN c.copyright=0 AND c.ingest_status='active' AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active' AND c.copyright=0 THEN 'available' ELSE 'unavailable' END,
         'canonical_public_domain','not_required','Canonical free Project Gutenberg edition',1,c.first_ingested_at,c.updated_at
       FROM gutenberg_source_cache c JOIN gutenberg_sources gs ON gs.id=c.source_id WHERE c.id=?
       ON CONFLICT(id) DO UPDATE SET title=excluded.title,description=excluded.description,language=excluded.language,publisher_id=excluded.publisher_id,release_status=excluded.release_status,edition_type='canonical_public_domain',differentiation_status='not_required',differentiation_summary='Canonical free Project Gutenberg edition',canonical_public_domain=1,updated_at=excluded.updated_at`,
@@ -68,7 +68,7 @@ export function commercialCatalogStatements(db: DB, externalId: string, at: stri
       .prepare(
         `INSERT INTO products(id,edition_id,sku,format,storefront_status,source_name,source_external_id,created_at,updated_at)
       SELECT ?,?,'GUTENBERG-'||upper(replace(c.source_id,'pg_',''))||'-'||c.source_item_id,'ebook',
-        CASE WHEN c.rights_status='public-domain' AND c.commercial_use_status='approved' THEN 'active' ELSE 'inactive' END,
+        CASE WHEN c.copyright=0 AND c.ingest_status='active' AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active' AND c.copyright=0 THEN 'active' ELSE 'inactive' END,
         'gutenberg',c.id,c.first_ingested_at,c.updated_at FROM gutenberg_source_cache c WHERE c.id=?
       ON CONFLICT(id) DO UPDATE SET edition_id=excluded.edition_id,storefront_status=excluded.storefront_status,updated_at=excluded.updated_at`,
       )
@@ -104,7 +104,7 @@ export function commercialCatalogStatements(db: DB, externalId: string, at: stri
     db
       .prepare(
         `INSERT INTO offers(id,product_id,offer_type,currency,amount_minor,active,created_at,updated_at)
-      SELECT ?,?,'public-domain','USD',0,CASE WHEN rights_status='public-domain' AND commercial_use_status='approved' THEN 1 ELSE 0 END,?,?
+      SELECT ?,?,'public-domain','USD',0,CASE WHEN copyright=0 AND ingest_status='active' AND rights_status='public-domain' AND commercial_use_status='approved' AND ingest_status='active' AND copyright=0 THEN 1 ELSE 0 END,?,?
       FROM gutenberg_source_cache WHERE id=?
       ON CONFLICT(id) DO UPDATE SET active=excluded.active,updated_at=excluded.updated_at`,
       )
@@ -121,7 +121,7 @@ export function commercialCatalogStatements(db: DB, externalId: string, at: stri
         0,0,'allow','active','{}',ge.evidence_url,'gutenberg-'||c.source_id||'-public-domain',
         'Jurisdiction-scoped public-domain determination from '||c.source_project,?,?,'nonexclusive',upper(ge.territory_code)||' only',ge.id
       FROM gutenberg_source_cache c JOIN gutenberg_rights_evidence ge ON ge.cache_id=c.id AND ge.status='approved' AND ge.determination='public-domain'
-      WHERE c.id=? AND c.rights_status='public-domain' AND c.commercial_use_status='approved'
+      WHERE c.id=? AND c.copyright=0 AND c.ingest_status='active' AND c.rights_status='public-domain' AND c.commercial_use_status='approved' AND c.ingest_status='active' AND c.copyright=0
         AND EXISTS(SELECT 1 FROM json_each(c.rights_territories_json) jt WHERE upper(jt.value)=upper(ge.territory_code))
       ON CONFLICT(id) DO NOTHING`,
       )
@@ -822,7 +822,31 @@ export async function authorizeStorefrontPresentationIds(
         AND d.suppressed=0 AND d.availability='available'
         AND d.currency=? AND ?=(SELECT currency FROM market)
         AND EXISTS (SELECT 1 FROM retail_product_availability_rows rpa
-          WHERE rpa.product_id=p.id AND rpa.territory_code=?)
+          WHERE rpa.product_id=p.id AND rpa.territory_code=?
+            AND (p.source_name<>'gutenberg' OR EXISTS (
+              -- Bind the approved proof to the EXACT grant that made the
+              -- product retail-eligible. An unrelated approved evidence row
+              -- cannot rehabilitate a revoked historical grant.
+              SELECT 1 FROM rights_grants rg
+              JOIN gutenberg_rights_evidence ge ON ge.id=rg.source_evidence_id
+              WHERE rg.id=rpa.rights_grant_id
+                AND rg.source LIKE 'gutenberg-%-public-domain'
+                AND ge.cache_id=p.source_external_id
+                AND ge.source_id=substr(rg.source,11,length(rg.source)-24)
+                AND upper(ge.territory_code)=?
+                AND ge.status='approved' AND ge.determination='public-domain'
+            )))
+        -- Current country scope and source state remain PRIMARY authority,
+        -- independent of asynchronous index, session cache, or old grants.
+        AND (p.source_name<>'gutenberg' OR EXISTS (
+          SELECT 1 FROM gutenberg_source_cache gc
+          WHERE gc.id=p.source_external_id AND gc.copyright=0
+            AND gc.ingest_status='active'
+            AND gc.rights_status='public-domain'
+            AND gc.commercial_use_status='approved'
+            AND EXISTS (SELECT 1 FROM json_each(gc.rights_territories_json) jt
+              WHERE upper(jt.value)=?)
+        ))
       ORDER BY c.position LIMIT 25
     ) SELECT a.product_id,a.product_public_id,a.edition_id,a.edition_public_id,
       (SELECT json_object('type',o.offer_type,'currency',o.currency,'amountMinor',o.amount_minor)
@@ -833,7 +857,7 @@ export async function authorizeStorefrontPresentationIds(
         ORDER BY o.created_at DESC LIMIT 1) offer_json
       FROM authorized a ORDER BY a.position`,
     )
-    .bind(territory, JSON.stringify(ids), currency, currency, territory)
+    .bind(territory, JSON.stringify(ids), currency, currency, territory, territory, territory)
     .all<PrimaryStorefrontAuthorityRow>();
   if (diagnostics) recordFirstPaintD1Metrics(result, diagnostics);
   return result.results;

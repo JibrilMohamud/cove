@@ -4,8 +4,17 @@ import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";
 import { drmSatisfiesRequirement, resolveProductRights } from "./rights.server";
 import { recordSyncProjection } from "./sync.server";
+import { requireStagePaidEntitlementAccess } from "../../storefront-strangler/legal-consumer-fence.server";
 
 type DB = CoveEnv["DB"];
+// A paid owner's proof is scoped to the entitlement's actual acquisition
+// channel. Never submit a subscription or library loan under retail authority.
+function entitlementSalesChannel(type: unknown): "retail" | "subscription" | "library" {
+  const name = String(type || "");
+  if (name === "subscription") return "subscription";
+  if (name.includes("library") || name.includes("loan")) return "library";
+  return "retail";
+}
 const uid = (p: string) => `${p}_${crypto.randomUUID()}`;
 function parseJson(v: any, f: any) {
   try {
@@ -551,6 +560,13 @@ export async function issueCommercialEpubGrant(
       400,
       "Secure commercial grants are only used for commercial catalog assets.",
     );
+  await requireStagePaidEntitlementAccess(env, {
+    entitlementId: String(ent.id),
+    userId,
+    productId: String(product.id),
+    territory: (requestMeta(request).country || env.FORE_DEFAULT_TERRITORY || "US").toUpperCase(),
+    channel: entitlementSalesChannel(ent.entitlement_type),
+  });
   const permanent = ["purchase", "gift", "publisher"].includes(String(ent.entitlement_type)),
     pvId = await resolvedPublicationVersion(db, ent, ownership, lifecycle);
   await assertDistributionAllowed(db, pvId, permanent);
@@ -794,6 +810,13 @@ export async function serveCommercialEpubGrant(env: CoveEnv, rawToken: string, r
       "The entitlement backing this delivery is no longer active.",
       "entitlement_inactive",
     );
+  await requireStagePaidEntitlementAccess(env, {
+    entitlementId: String(ent.id),
+    userId: String(grant.user_id),
+    productId: String(grant.product_id),
+    territory: (requestMeta(request).country || env.FORE_DEFAULT_TERRITORY || "US").toUpperCase(),
+    channel: entitlementSalesChannel(ent.entitlement_type),
+  });
   const ownership = await db
       .prepare("SELECT * FROM entitlement_ownership_records WHERE entitlement_id=?")
       .bind(ent.id)

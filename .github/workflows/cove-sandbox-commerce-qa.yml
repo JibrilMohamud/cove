@@ -14,7 +14,7 @@ permissions:
 jobs:
   sandbox-fulfillment:
     # Absolutely no fork-sourced code gets access to the sandbox credentials.
-    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022')
+    if: github.event_name == 'workflow_dispatch' || (github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["arch/isolated-data-plane-20261022","arch/isolated-catalog-normalization-20261025"]'),github.event.pull_request.head.ref))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:

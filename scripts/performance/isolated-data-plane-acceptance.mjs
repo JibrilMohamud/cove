@@ -1,6 +1,8 @@
 // Protected synthetic-only ABBA campaign. All failures and arrivals are retained.
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { spawnSync } from "node:child_process";
@@ -12,8 +14,15 @@ import {
   stageTransport,
   stageTransportSpan,
   stageTransportCounters,
+  stageTransportSessionSnapshot,
 } from "../staging/strangler-http-transport.mjs";
+import { takeAnonymizedTcpSnapshot, compareTcpSnapshots } from "./anonymized-tcp-evidence.mjs";
 import { projectedRequestFailure, strictProjectionPhasePass } from "./capacity-release-gate.mjs";
+import { measureCompleteStageResponse } from "./complete-response-timing.mjs";
+import {
+  syntheticOperatorFixturePlan,
+  REQUIRED_BOOK_CARDS,
+} from "./synthetic-operator-fixture.mjs";
 
 const account = "d26430caa63ec55f6612e32f36aca5e9";
 const primary = "e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
@@ -56,12 +65,31 @@ const evidence = {
 const save = () => fs.writeFileSync(directory + "/results.json", JSON.stringify(evidence, null, 2));
 const names = [];
 const kvKeys = [];
+let syntheticFixture = null;
+let fixtureActivated = false;
 let origin, gate;
+let backgroundOrigin, backgroundGate;
 evidence.workers = names;
 let shutdown;
 function cleanup() {
   return (shutdown ||= (async () => {
     closeStageTransport();
+    /* eslint-disable prettier/prettier -- Stage-only rollback and rights proof. */
+    if (syntheticFixture) {
+      // Atomic QA rollback: never leave a storefront offer with the wrong
+      // catalog source after a failed/cancelled measurement.
+      try {
+        const q = syntheticFixture;
+        const result = await api("POST", `/accounts/${account}/d1/database/${primary}/query`, {
+          batch: [q.dropOffers, q.restore],
+        });
+        if (fixtureActivated && result[1]?.meta?.changes !== REQUIRED_BOOK_CARDS)
+          evidence.cleanupFailed = true;
+      } catch {
+        evidence.cleanupFailed = true;
+      }
+    }
+    /* eslint-enable prettier/prettier */
     for (const key of kvKeys) {
       try {
         await api(
@@ -118,10 +146,10 @@ function cli(args, input) {
 // Some freshly provisioned Workers are briefly absent from Cloudflare's
 // versions API (10007). Retry only this pre-traffic provisioning race. No
 // benchmark request or app error is replayed or ignored.
-async function deployStage(config) {
+async function deployStage(config, secretsFile) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      cli(["deploy", "--config", config]);
+      cli(["deploy", "--config", config, "--secrets-file", secretsFile]);
       return;
     } catch (error) {
       if (attempt === 3 || !/Worker does not exist|code:\s*10007/i.test(String(error))) throw error;
@@ -132,16 +160,34 @@ async function deployStage(config) {
 }
 
 async function api(method, path, body) {
-  const r = await fetch("https://api.cloudflare.com/client/v4" + path, {
-    method,
-    headers: { authorization: "Bearer " + token, "content-type": "application/json" },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-    signal: AbortSignal.timeout(30000),
-  });
-  const j = await r.json();
-  if (!r.ok || !j.success)
-    throw Error("Cloudflare " + method + " " + r.status + " " + JSON.stringify(j.errors));
-  return j.result;
+  // Cloudflare's deployment-metadata GET can transiently return 10500
+  // internal-authentication errors during the stage secret rollout. Retry
+  // ONLY these read-only, pre-traffic control-plane requests. Never retry
+  // D1, user traffic, load measurements, SQL, or response-bearing streams.
+  const stageRead =
+    method === "GET" &&
+    path.startsWith(`/accounts/${account}/workers/scripts/`) &&
+    /\/(?:deployments|subdomain)$/.test(path);
+  for (let attempt = 0; attempt < (stageRead ? 4 : 1); attempt++) {
+    const r = await fetch("https://api.cloudflare.com/client/v4" + path, {
+      method,
+      headers: { authorization: "Bearer " + token, "content-type": "application/json" },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: AbortSignal.timeout(30000),
+    });
+    const j = await r.json();
+    if (r.ok && j.success) return j.result;
+    const transient =
+      stageRead &&
+      r.status >= 500 &&
+      Array.isArray(j.errors) &&
+      j.errors.some((e) => e.code === 10500);
+    if (!transient || attempt === 3)
+      throw Error("Cloudflare " + method + " " + r.status + " " + JSON.stringify(j.errors));
+    console.warn("Stage deployment control-plane transient 10500; retry " + (attempt + 1));
+    await new Promise((resolve) => setTimeout(resolve, 750 * (attempt + 1)));
+  }
+  throw Error("Stage deployment metadata unavailable");
 }
 async function putPrivateStageKv(key, body) {
   assert.ok(key.startsWith(`campaign/${runId}/synthetic/private/presentation/v2/`));
@@ -210,17 +256,30 @@ async function sample(model = "projection", path = "/") {
     const r = await stageFetch(origin + path, {
       headers: {
         authorization: "Bearer " + gate,
+        // Real browsers negotiate response compression over HTTP/2.
+        // The isolated load client already decodes br/gzip; without this
+        // header it artificially sends uncompressed HTML at 100 RPS.
+        // Do not change sample counting, response integrity or the 800ms gate.
+        "accept-encoding": "br, gzip",
         "x-cove-perf-client": String(Math.floor(started) % 2048),
         ...(model === "canonical" ? { "x-cove-perf-serving-model": "canonical" } : {}),
       },
       signal: AbortSignal.timeout(10000),
     });
-    const ms = performance.now() - started;
+    // Capture first-header and end-of-body clocks independently.
     const transportSpan = stageTransportSpan(r);
     const serverTiming = r.headers.get("server-timing") || "";
     const handlerMs = /(?:^|, )cove_handler;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
     const catalogMs = /(?:^|, )cove_catalog;dur=(\d+(?:\.\d+)?)/.exec(serverTiming);
-    const body = await r.text();
+    const firstIsolate = /(?:^|, )cove_isolate_first;desc="([01])"/.exec(serverTiming);
+    const isolateSeen = /(?:^|, )cove_isolate_seen;desc="(\d{1,3})"/.exec(serverTiming);
+    const { body, ms, firstHeadersMs, completedAtUnixMs } = await measureCompleteStageResponse(
+      r,
+      started,
+    );
+    const wireBytes = transportSpan?.wireBytes ?? null;
+    const decodedBytes = transportSpan?.decodedBytes ?? null;
+    const contentEncoding = r.headers.get("content-encoding") || "identity";
     const ok =
       r.status === 200 &&
       (path.endsWith("transport")
@@ -229,11 +288,19 @@ async function sample(model = "projection", path = "/") {
           ? JSON.parse(body).country === "US"
           : body.includes('data-rights-country="US"') &&
             body.includes('id="thin-discovery-form"') &&
+            // Previously a 200 HTML shell with ZERO authorized books could
+            // pass the capacity gate after Gutenberg proof was hardened.
+            // Assert real live-primary-authorized cards, not merely HTTP 200.
+            [...body.matchAll(/data-product="(perf-synth-[0-9]{6})"/g)].length ===
+              REQUIRED_BOOK_CARDS &&
+            body.includes('data-product="perf-synth-000001"') &&
             !body.includes('data-product="perf-synth-000107"') &&
             !body.includes('data-product="perf-synth-000097"'));
     return {
       ok,
       ms,
+      firstHeadersMs,
+      completedAtUnixMs,
       status: r.status,
       transportSpan: transportSpan
         ? {
@@ -242,6 +309,18 @@ async function sample(model = "projection", path = "/") {
               transportSpan.sent && transportSpan.received
                 ? transportSpan.received - transportSpan.sent
                 : null,
+            fullResponseMs:
+              transportSpan.sent && transportSpan.ended
+                ? transportSpan.ended - transportSpan.sent
+                : null,
+            bodyDeliveryMs:
+              transportSpan.received && transportSpan.ended
+                ? transportSpan.ended - transportSpan.received
+                : null,
+            wireBytes,
+            decodedBytes,
+            contentEncoding,
+            sessionId: transportSpan.sessionId,
           }
         : null,
       colo: r.headers.get("cf-ray")?.split("-").at(-1),
@@ -251,8 +330,12 @@ async function sample(model = "projection", path = "/") {
       handlerMs: handlerMs ? Number(handlerMs[1]) : null,
       catalogServiceMs: catalogMs ? Number(catalogMs[1]) : null,
       outsideHandlerMs: handlerMs ? Math.max(0, ms - Number(handlerMs[1])) : null,
+      isolateFirst: firstIsolate ? firstIsolate[1] === "1" : null,
+      isolateOrdinal: isolateSeen ? Number(isolateSeen[1]) : null,
       timing: serverTiming,
       failure: r.headers.get("x-cove-stage-failure"),
+      failureSubphase: r.headers.get("x-cove-stage-failure-subphase"),
+      failureKind: r.headers.get("x-cove-stage-failure-kind"),
       placement: r.headers.get("x-cove-stage-placement"),
     };
   } catch (e) {
@@ -296,21 +379,41 @@ async function deploy(round) {
   assert.ok(!JSON.stringify(c).includes(production));
   const config = "wrangler.arch-campaign.jsonc";
   fs.writeFileSync(config, JSON.stringify(c));
-  await deployStage(config);
-  const before = (await api("GET", `/accounts/${account}/workers/scripts/${name}/deployments`))
-    .deployments[0].id;
-  cli(["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", config], gate);
+  // Code, gateway secret and route must be one globally deployed version.
+  // Previously the initial public deploy preceded "secret put", which created
+  // a second rollout. An old isolate intermittently answered HTTP 503 with
+  // "Staging credentials unavailable" during the burst (Cloudflare Ray
+  // a50c06e6cf3c29bc, 2ms wall). Never expose a version lacking its gate.
+  const privateDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "cove-stage-secrets-"));
+  const secretFile = path.join(privateDirectory, "secrets.json");
+  const deployBeganAt = Date.now();
+  try {
+    fs.writeFileSync(secretFile, JSON.stringify({ COVE_SSR_STAGING_GATE_KEY: gate }), {
+      mode: 0o600,
+      flag: "wx",
+    });
+    await deployStage(config, secretFile);
+  } finally {
+    fs.rmSync(privateDirectory, { recursive: true, force: true });
+  }
   let publishedAt = null;
   for (let attempt = 0; attempt < 20; attempt++) {
     const latest = (await api("GET", `/accounts/${account}/workers/scripts/${name}/deployments`))
       .deployments[0];
-    if (latest.id !== before && latest.versions.some((v) => v.percentage === 100)) {
+    if (
+      Date.parse(latest.created_on) >= deployBeganAt - 30000 &&
+      latest.versions.length === 1 &&
+      latest.versions[0].percentage === 100
+    ) {
       publishedAt = Date.parse(latest.created_on);
       break;
     }
     await new Promise((r) => setTimeout(r, 1500));
   }
-  assert.ok(Number.isFinite(publishedAt), "Stage secret rollout timestamp unavailable");
+  assert.ok(
+    Number.isFinite(publishedAt),
+    "Single-version code-and-secret rollout timestamp unavailable",
+  );
   const subdomain = await api("GET", `/accounts/${account}/workers/scripts/${name}/subdomain`);
   assert.equal(subdomain.enabled, true, "Staging route is not enabled");
   // Brand-new workers.dev routes can still return edge-generated 404 after
@@ -325,6 +428,117 @@ async function deploy(round) {
   console.log("ARCH_ROUTE_PROPAGATION_GRACE", JSON.stringify({ round, waitMs }));
   await new Promise((r) => setTimeout(r, waitMs));
 }
+// A measured campaign's background reads/writes are issued through a
+// dedicated synthetic Worker using D1 bindings, not through the GitHub
+// runner's Cloudflare management API. That API's independent network failure
+// previously invalidated a 100-RPS phase despite all storefront requests
+// passing. Fail every actual data-plane background error; retry nothing in
+// the measured phases.
+async function deployBackgroundLane() {
+  const name = `cove-arch-bg-${runId}`;
+  names.push(name);
+  backgroundOrigin = `https://${name}.cove-jibrilmohamud.workers.dev`;
+  backgroundGate = randomBytes(32).toString("hex");
+  const config = "wrangler.arch-background.jsonc";
+  const lease = Date.now() + 25 * 60_000;
+  const definition = {
+    name,
+    main: ".output/strangler/capacity-background.mjs",
+    compatibility_date: "2026-10-25",
+    workers_dev: true,
+    preview_urls: false,
+    routes: [],
+    d1_databases: [
+      {
+        binding: "CONTENT_DB",
+        database_name: "cove-literary-budget-stage-20261020",
+        database_id: content,
+      },
+      {
+        binding: "DISCOVERY_DB",
+        database_name: "cove-perf-isolated-control-20261019",
+        database_id: discovery,
+      },
+    ],
+    vars: {
+      COVE_BG_ENABLED: "1",
+      COVE_BG_RUN_ID: runId,
+      COVE_BG_EXPIRES_AT: String(lease),
+    },
+  };
+  assert.ok(!JSON.stringify(definition).includes(production));
+  fs.writeFileSync(config, JSON.stringify(definition));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cove-stage-background-"));
+  const secret = path.join(dir, "secrets.json");
+  try {
+    fs.writeFileSync(secret, JSON.stringify({ COVE_BG_KEY: backgroundGate }), {
+      mode: 0o600,
+      flag: "wx",
+    });
+    await deployStage(config, secret);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  // First DATA-plane readiness is outside the cold and 100-RPS windows.
+  // Require verified owner bindings, not a control-plane deployment ACK.
+  const statuses = new Map();
+  for (let n = 0; n < 40; n++) {
+    await new Promise((r) => setTimeout(r, 1500));
+    try {
+      const response = await fetch(backgroundOrigin + "/health", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer " + backgroundGate,
+          "content-type": "application/json",
+        },
+        body: "{}",
+        signal: AbortSignal.timeout(10000),
+      });
+      if (response.status === 200 && (await response.json()).ok === true) {
+        evidence.backgroundReady = {
+          checks: n + 1,
+          initialFailures: Object.fromEntries(statuses),
+        };
+        save();
+        return;
+      }
+      const key = "HTTP_" + response.status;
+      statuses.set(key, (statuses.get(key) || 0) + 1);
+    } catch (error) {
+      const key = "NETWORK_" + (error?.name || "unknown");
+      statuses.set(key, (statuses.get(key) || 0) + 1);
+    }
+  }
+  throw Error("capacity_background_lane_not_ready:" + JSON.stringify(Object.fromEntries(statuses)));
+}
+async function tickBackground(sequence) {
+  const started = performance.now();
+  const response = await fetch(backgroundOrigin + "/tick", {
+    method: "POST",
+    headers: {
+      authorization: "Bearer " + backgroundGate,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ sequence }),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (response.status !== 200) throw Error("background_data_plane_http_" + response.status);
+  const value = await response.json();
+  if (
+    value.ok !== true ||
+    value.sequence !== sequence ||
+    !Array.isArray(value.meta) ||
+    value.meta.length !== 2 ||
+    !Number.isInteger(value.discoveryRows) ||
+    value.discoveryRows < 1
+  )
+    throw Error("background_data_plane_invalid_receipt");
+  return {
+    ms: performance.now() - started,
+    serviceMs: value.durationMs,
+    meta: value.meta,
+  };
+}
 async function phase(model) {
   const rows = [],
     background = [],
@@ -338,6 +552,9 @@ async function phase(model) {
     cancelledUnsent = 0,
     irreversibleFailure = null;
   const pendingTimers = new Map();
+  // Capture baseline kernel TCP counters BEFORE the measured 100-RPS window.
+  // Never hide any slow request; this is diagnostic-only.
+  const tcpBefore = await takeAnonymizedTcpSnapshot(stageTransportSessionSnapshot());
   const loopDelay = monitorEventLoopDelay({ resolution: 10 });
   loopDelay.enable();
   const stopOnViolation = (code, row) => {
@@ -365,24 +582,24 @@ async function phase(model) {
       try {
         // Physically independent claims/receipts and discovery ranking work. No
         // production writes, customer identity or artificial rights bypass.
-        const results = await Promise.all([
-          sql(
-            content,
-            "INSERT INTO cove_arch_load(run_id,sequence,payload) VALUES(?,?,?) ON CONFLICT(run_id) DO UPDATE SET sequence=excluded.sequence,payload=excluded.payload",
-            [runId, String(n), "derived-preparation-" + n],
-          ),
-          sql(
-            discovery,
-            "SELECT product_id FROM catalog_search_documents INDEXED BY idx_search_popular_stable WHERE currency='USD' AND availability='available' AND suppressed=0 ORDER BY fore_bestseller_score DESC,external_book_id ASC,product_id ASC LIMIT 128",
-          ),
-        ]);
+        const receipt = await tickBackground(n);
         background.push({
           ok: true,
           ms: performance.now() - began,
-          meta: results.map((r) => r.meta),
+          serviceMs: receipt.serviceMs,
+          meta: receipt.meta,
         });
       } catch (e) {
-        background.push({ ok: false, error: e.message });
+        const reason = e instanceof Error ? e.message : "unknown";
+        background.push({ ok: false, error: reason });
+        console.error(
+          "ARCH_BACKGROUND_FAILURE",
+          JSON.stringify({
+            sample: n,
+            cause: reason.slice(0, 120),
+            elapsedMs: performance.now() - began,
+          }),
+        );
         stopOnViolation("background-failed");
       }
       n++;
@@ -438,7 +655,23 @@ async function phase(model) {
   stopped = true;
   await Promise.all([bg, controlLoop]);
   loopDelay.disable();
+  // The HTTP/2 sessions are still alive when samples settle. Read per-socket
+  // Linux recovery counters AFTER measuring all completed requests, not during
+  // the timed request scheduler. No edge IP or bearer is persisted.
+  const tcpAfter = irreversibleFailure
+    ? await takeAnonymizedTcpSnapshot(stageTransportSessionSnapshot())
+    : null;
+  const slowestSessions = [...rows]
+    .sort((a, b) => b.ms - a.ms)
+    .slice(0, 8)
+    .map((r) => r.transportSpan?.sessionId)
+    .filter(Number.isInteger);
+  const tcpEvidence = irreversibleFailure
+    ? compareTcpSnapshots(tcpBefore, tcpAfter, slowestSessions)
+    : null;
+  if (tcpEvidence) console.log("ARCH_TCP_RECOVERY", JSON.stringify(tcpEvidence));
   const result = {
+    tcpEvidence,
     clientEventLoopMaxMs: loopDelay.max / 1e6,
     clientEventLoopP99Ms: loopDelay.percentile(99) / 1e6,
     model,
@@ -489,7 +722,11 @@ async function phase(model) {
           handlerMs: row.handlerMs,
           catalogServiceMs: row.catalogServiceMs,
           outsideHandlerMs: row.outsideHandlerMs,
+          isolateFirst: row.isolateFirst,
+          isolateOrdinal: row.isolateOrdinal,
           failure: row.failure,
+          failureSubphase: row.failureSubphase,
+          failureKind: row.failureKind,
           placement: row.placement,
           transportCode: row.transportCode,
         })),
@@ -521,6 +758,7 @@ try {
     content,
     "CREATE TABLE IF NOT EXISTS cove_arch_load(run_id TEXT PRIMARY KEY,sequence INTEGER,payload TEXT)",
   );
+  await deployBackgroundLane();
   await produceHomepagePresentation(readOnlyDB(discovery), "US", {
     async get() {
       throw Error("producer must not read R2");
@@ -542,6 +780,51 @@ try {
       await putPrivateStageKv(`campaign/${runId}/synthetic/` + key, body);
     },
   });
+  /* eslint-disable prettier/prettier -- Bounded synthetic market fixture must be auditable. */
+  // Recover a previous GitHub Actions cancellation before touching any
+  // new fixture. This QA D1 contains only perf-synth-* products; permanent
+  // content and production rights are physically separate. GitHub workflow
+  // concurrency serializes hosted-capacity jobs on this database.
+  const recovery = await api(
+    "POST",
+    `/accounts/${account}/d1/database/${primary}/query`,
+    { batch: [
+      { sql: `UPDATE products SET source_name='gutenberg'
+          WHERE source_name='operator'
+            AND id GLOB 'perf-synth-[0-9][0-9][0-9][0-9][0-9][0-9]'` },
+      { sql: `DELETE FROM offers WHERE id LIKE 'cove-arch-qa-%'
+          AND product_id GLOB 'perf-synth-[0-9][0-9][0-9][0-9][0-9][0-9]'` },
+    ]},
+  );
+  evidence.recoveredSyntheticQA = {
+    sourceLabels: recovery[0]?.meta?.changes ?? null,
+    offers: recovery[1]?.meta?.changes ?? null,
+  };
+  const snapshot=JSON.parse(fs.readFileSync(directory + "/presentation.json","utf8"));
+  // Existing 50k-row capacity fixture contains *operator-issued* retail grants
+  // but mislabels all products Gutenberg and has no Gutenberg evidence or
+  // offers. Those rows were categorically ineligible, so previous 200-shell
+  // benchmarks measured an EMPTY bookstore. Make ONLY 24 synthetic QA cards
+  // coherent with the grants they already own, then restore in cleanup.
+  syntheticFixture=syntheticOperatorFixturePlan(snapshot.candidates?.productIds,runId);
+  const preflight=await sql(primary,syntheticFixture.preflight.sql,syntheticFixture.preflight.params);
+  assert.equal(preflight.results?.[0]?.n,REQUIRED_BOOK_CARDS,
+    "Synthetic QA operator-grant fixture is missing authoritative US allow grants");
+  const changed=await sql(primary,syntheticFixture.operatorize.sql,syntheticFixture.operatorize.params);
+  assert.equal(changed.meta?.changes,REQUIRED_BOOK_CARDS,
+    "Refused to mutate non-synthetic or already reassigned product provenance");
+  fixtureActivated = true;
+  const offerWrite=syntheticFixture.issueOffers;
+  const added=await sql(primary,offerWrite.sql,offerWrite.params);
+  assert.equal(added.meta?.changes,REQUIRED_BOOK_CARDS,
+    "Synthetic QA storefront retail offers could not be activated");
+  const proof=await sql(primary,syntheticFixture.verify.sql,syntheticFixture.verify.params);
+  assert.equal(proof.results?.[0]?.n,REQUIRED_BOOK_CARDS,
+    "No 24-book authoritative-and-purchasable synthetic storefront fixture");
+  evidence.authenticatedFixture={operatorBooks:REQUIRED_BOOK_CARDS,
+    legalAuthority:"live-primary-retail-grant",offerSource:"primary-only"};
+  save();
+  /* eslint-enable prettier/prettier */
   for (let round = 1; round <= 3; round++) {
     await deploy(round);
     const cold = await sample();
@@ -565,6 +848,35 @@ try {
     const rows = await Promise.all(Array.from({ length: concurrency }, () => sample()));
     evidence.bursts.push({ concurrency, ...summary(rows), rows });
     save();
+    // Keep the absolute release gate unchanged, but make the first failing
+    // burst diagnosable without downloading a private artifact. Retain the
+    // complete unfiltered request samples in results.json for Ray analysis.
+    console.log(
+      "ARCH_BURST_TAIL",
+      JSON.stringify({
+        concurrency,
+        ...summary(rows),
+        slowest: [...rows]
+          .sort((a, b) => b.ms - a.ms)
+          .slice(0, 8)
+          .map((row) => ({
+            ok: row.ok,
+            status: row.status,
+            ms: row.ms,
+            ray: row.ray,
+            colo: row.colo,
+            timing: row.timing,
+            transportSpan: row.transportSpan,
+            handlerMs: row.handlerMs,
+            catalogServiceMs: row.catalogServiceMs,
+            outsideHandlerMs: row.outsideHandlerMs,
+            isolateFirst: row.isolateFirst,
+            failure: row.failure,
+            transportCode: row.transportCode,
+            error: row.error,
+          })),
+      }),
+    );
     const invalid = rows.find((row) => projectedRequestFailure(row));
     if (failFast && invalid) {
       evidence.failFast = {

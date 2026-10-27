@@ -111,6 +111,24 @@ try {
   const identity = async () => [{ node_id: "fallback", product_count: 99 }];
   const first = await presentationTaxonomyCounts(db, "US", "", identity, clock);
   assert.ok(first.length > 0, "Corrupted presentation cache must never break rendering");
+  // Public HTTP paths without a request-scoped waitUntil must not stall
+  // first paint for purely decorative taxonomy counts. Maintenance callers
+  // without that flag still perform exact synchronous recounts above.
+  const nonBlockingState = { pending: false };
+  const beforeNonBlocking = calls.length;
+  const nonBlocking = await presentationTaxonomyCounts(
+    db,
+    "NZ",
+    "qa",
+    query("NZ", "qa", 999),
+    clock,
+    undefined,
+    nonBlockingState,
+    true,
+  );
+  assert.deepEqual(nonBlocking, [], "Cache miss returns pending labels without a live aggregate");
+  assert.equal(nonBlockingState.pending, true);
+  assert.equal(calls.length, beforeNonBlocking, "No rights-count aggregate in public foreground");
   const fakeDb = {
     prepare() {
       throw Error("cache unavailable");

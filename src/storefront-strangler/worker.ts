@@ -1,11 +1,8 @@
 import type { CoveEnv } from "../features/fore/api.server";
 import { isolateWorkerCountry } from "../lib/cloudflare-country.server";
 import { verifyFastCountryClaim } from "../lib/fast-storefront-relay.server";
-import {
-  rejectUnauthenticatedStagingRequest,
-  stageNoStore,
-} from "../lib/cloudflare-ssr-stage-gate.server";
-import { applySecurityHeaders } from "../lib/security-headers";
+import { rejectUnauthenticatedStagingRequest } from "../lib/cloudflare-ssr-stage-gate.server";
+import { buildSecurityHeaders } from "../lib/security-headers";
 import {
   canUseLeanAnonymousBootstrap,
   readTrustedLeanBootstrapJson,
@@ -20,6 +17,11 @@ import {
   namespacedPresentationStore,
   type PrivatePresentationStore,
 } from "./prepared-catalog.server";
+
+// Stage-only isolate request ordinal. Workerd clocks cannot be reliably
+// sampled during module evaluation; avoid reporting a fictitious isolate age.
+// Customer responses never expose this measurement.
+let isolateRequestOrdinal = 0;
 
 /** Build-isolated serving boundary. No auth, orders, reader or background code.
  * Existing domain logic is reused through type-only references. This pilot is
@@ -109,6 +111,7 @@ export default {
   async fetch(request: Request, env: StorefrontStranglerEnv): Promise<Response> {
     // Never classify client/edge ingress time as database time.
     const enteredAt = performance.now();
+    const isolateOrdinal = ++isolateRequestOrdinal;
     // Fail closed even under an accidental deployment or config substitution.
     // The reviewed config must also contain only the dedicated synthetic D1.
     const syntheticEvaluation =
@@ -193,32 +196,37 @@ export default {
         headers: { "cache-control": "no-store" },
       });
     const finish = (response: Response) => {
-      // Stage-only total handler clock: excludes pre-isolate edge queueing.
-      // This never exposes private SQL, identities, or grant decisions.
+      // Materialized bootstrap HTML is already legal-authorized. Build all
+      // security/stage headers first and wrap its body exactly ONCE.
+      // The prior path constructed three additional Responses around the
+      // same stream after authorization. Those extra workerd streaming
+      // boundaries can defer first-header delivery without improving safety.
+      const headers = buildSecurityHeaders(request, response.headers, env);
       if (!customerGateway) {
-        const headers = new Headers(response.headers);
         headers.set(
           "server-timing",
           [
             headers.get("server-timing"),
             `cove_handler;dur=${(performance.now() - enteredAt).toFixed(1)}`,
+            `cove_isolate_first;desc="${isolateOrdinal === 1 ? 1 : 0}"`,
+            `cove_isolate_seen;desc="${Math.min(isolateOrdinal, 999)}"`,
           ]
             .filter(Boolean)
             .join(", "),
         );
-        response = new Response(response.body, { status: response.status, headers });
-      }
-      const secured = applySecurityHeaders(request, response, env);
-      if (!customerGateway) {
-        const headers = new Headers(secured.headers);
         const placement = request.headers.get("cf-placement") || "";
         if (/^(?:remote|local)-[A-Z]{3}$/.test(placement))
           headers.set("x-cove-stage-placement", placement);
-        return stageNoStore(new Response(secured.body, { status: secured.status, headers }), true);
+        headers.set("cache-control", "no-store, max-age=0");
+        headers.set("x-robots-tag", "noindex, nofollow, noarchive");
+      } else {
+        headers.set("cache-control", "private, no-store");
       }
-      const headers = new Headers(secured.headers);
-      headers.set("cache-control", "private, no-store");
-      return new Response(secured.body, { status: secured.status, headers });
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
     };
     // Stage bearer authorizes this gateway, not a customer session at CORE.
     const delegate = () => {

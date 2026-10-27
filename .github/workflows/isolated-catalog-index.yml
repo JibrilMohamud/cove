@@ -1,0 +1,93 @@
+name: isolated-catalog-index
+on:
+  pull_request:
+    paths:
+      - "drizzle/0085_isolated_catalog_changefeed.sql"
+      - "drizzle/0086_catalog_legal_withdrawal_guard.sql"
+      - "infra/catalog-index/**"
+      - "drizzle/0087_fenced_canonical_metadata_receipts.sql"
+      - "drizzle/0088_catalog_evidence_revocation_and_asset_feed.sql"
+      - "drizzle/0089_catalog_evidence_changefeed.sql"
+      - "scripts/check-catalog-evidence-revocation.mjs"
+      - "src/storefront-strangler/catalog-normalization-*.ts"
+      - "scripts/check-catalog-normalization-publication.mjs"
+      - "wrangler.catalog-publisher.example.jsonc"
+      - "src/storefront-strangler/catalog-index-*.ts"
+      - "wrangler.catalog-query.example.jsonc"
+      - "scripts/check-isolated-catalog-index.mjs"
+      - "src/storefront-strangler/catalog-index-feed-core.ts"
+      - "scripts/check-isolated-catalog-feed.mjs"
+      - "scripts/check-catalog-withdrawal-guard.mjs"
+      - "scripts/check-isolated-catalog-query.mjs"
+      - "scripts/check-isolated-catalog-authority.mjs"
+      - "scripts/check-legal-authority-owner.mjs"
+      - "scripts/check-legal-authority-coordinator.mjs"
+      - "scripts/check-legal-authority-read.mjs"
+      - "scripts/check-legal-primary-write-lock.mjs"
+      - "scripts/check-legal-quarantine-writer.mjs"
+      - "scripts/check-legal-consumer-fence.mjs"
+      - "src/storefront-strangler/commercial-legal-core.ts"
+      - "scripts/check-commercial-legal-authority.mjs"
+      - "src/storefront-strangler/commercial-entitlement-core.ts"
+      - "src/storefront-strangler/commercial-storefront-authority.ts"
+      - "scripts/check-commercial-storefront-owner.mjs"
+      - "src/storefront-strangler/paid-settlement-publication.server.ts"
+      - "scripts/check-staged-paid-settlement.mjs"
+      - "scripts/check-stage-payment-delivery-journey.mjs"
+      - "scripts/check-paid-entitlement-authority.mjs"
+      - "scripts/check-paid-access-consumer.mjs"
+      - "scripts/check-refund-legal-writer-wiring.mjs"
+      - "scripts/check-immutable-paid-fulfillment.mjs"
+      - "src/storefront-strangler/legal-consumer-fence.server.ts"
+      - "src/features/fore/retail.server.ts"
+      - "src/features/fore/commerce.server.ts"
+      - "src/features/fore/delivery.server.ts"
+      - "src/features/fore/commercial-audio.server.ts"
+      - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
+      - "wrangler.legal-quarantine-qa.example.jsonc"
+      - "src/storefront-strangler/legal-primary-write-lock.ts"
+      - "src/features/fore/api.server.ts"
+      - "src/storefront-strangler/legal-authority-*.ts"
+      - "wrangler.legal-authority.example.jsonc"
+      - "wrangler.catalog-verify.example.jsonc"
+      - "scripts/build-storefront-strangler.mjs"
+      - ".github/workflows/isolated-catalog-index.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-catalog-index:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v6
+        with: { node-version: "22", cache: npm }
+      - run: npm ci
+      - run: node scripts/check-isolated-catalog-index.mjs
+      - run: node scripts/check-isolated-catalog-feed.mjs
+      - run: node scripts/check-isolated-catalog-graph.mjs
+      - run: node scripts/check-catalog-withdrawal-guard.mjs
+      - run: node scripts/check-catalog-evidence-revocation.mjs
+      - run: node scripts/check-isolated-catalog-query.mjs
+      - run: node scripts/check-catalog-normalization-publication.mjs
+      - run: node scripts/check-isolated-catalog-authority.mjs
+      - run: node scripts/check-legal-authority-owner.mjs
+      - run: node scripts/check-legal-authority-coordinator.mjs
+      - run: node scripts/check-legal-authority-read.mjs
+      - run: node scripts/check-legal-primary-write-lock.mjs
+      - run: node scripts/check-legal-quarantine-writer.mjs
+      - run: node scripts/check-legal-consumer-fence.mjs
+      - run: node scripts/check-commercial-legal-authority.mjs
+      - run: node scripts/check-paid-entitlement-authority.mjs
+      - run: node scripts/check-commercial-storefront-owner.mjs
+      - run: node scripts/check-paid-access-consumer.mjs
+      - run: node scripts/check-staged-paid-settlement.mjs
+      - run: node scripts/check-stage-payment-delivery-journey.mjs
+      - run: node scripts/check-refund-legal-writer-wiring.mjs
+      - run: node scripts/check-immutable-paid-fulfillment.mjs
+      - run: node scripts/build-storefront-strangler.mjs
+      - run: npm run typecheck
+      - run: npm run test:rights
+      - run: node scripts/check-publication-feed.mjs

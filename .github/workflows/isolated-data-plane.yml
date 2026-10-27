@@ -15,16 +15,36 @@ on:
         options:
           - primary-pinned
           - ingress-local
+      http2_clients:
+        description: "Independent browser-like HTTP/2/TLS sessions; 16 reproduces old transport stress"
+        type: choice
+        required: true
+        default: "96"
+        options:
+          - "96"
+          - "16"
   pull_request:
     paths:
       - "src/storefront-strangler/**"
+      - "src/lib/security-headers.ts"
+      - "scripts/check-storefront-single-response.mjs"
       - "src/lib/literary-*.ts"
       - "src/content-processing.worker.ts"
       - "scripts/check-isolated-data-plane.mjs"
+      - "scripts/check-presentation-storage-hedge.mjs"
+      - "src/storefront-strangler/presentation-hedge.server.ts"
+      - "src/storefront-strangler/bootstrap-optimized.server.ts"
       - "scripts/check-publication-feed.mjs"
       - "scripts/staging/check-publication-feed-live.mjs"
       - "infra/discovery/**"
       - "scripts/performance/isolated-data-plane-acceptance.mjs"
+      - "scripts/performance/complete-response-timing.mjs"
+      - "scripts/check-capacity-body-timing.mjs"
+      - "scripts/check-capacity-background-lane.mjs"
+      - "scripts/performance/cloudflare-delivery-attribution.mjs"
+      - "scripts/performance/anonymized-tcp-evidence.mjs"
+      - "scripts/performance/synthetic-operator-fixture.mjs"
+      - "scripts/check-stage-capacity-fixture.mjs"
       - "scripts/performance/capacity-release-gate.mjs"
       - "scripts/check-capacity-release-gate.mjs"
       - "scripts/staging/strangler-http-transport.mjs"
@@ -46,14 +66,22 @@ jobs:
         with: { node-version: "22", cache: npm }
       - run: npm ci
       - run: npm run test:isolated-data-plane
+      - run: node scripts/check-presentation-storage-hedge.mjs
       - run: node scripts/check-unbiased-random.mjs
       - run: node scripts/check-capacity-release-gate.mjs
+      - run: node scripts/check-capacity-body-timing.mjs
+      - run: node scripts/check-capacity-background-lane.mjs
+      - run: node scripts/check-stage-capacity-fixture.mjs
+      - run: node scripts/check-taxonomy-presentation-count-cache.mjs
+      - run: node scripts/check-storefront-single-response.mjs
       - run: node scripts/check-publication-feed.mjs
       - run: npm run test:literary-prepare-outbox
       - run: npm run test:literary-preparation-domain
       - run: npm run test:literary-prepared-projection
       - run: node scripts/check-storefront-prepared-catalog.mjs
       - run: node scripts/check-isolated-http-metric.mjs
+      - run: node scripts/performance/cloudflare-delivery-attribution.mjs --self-test
+      - run: node scripts/performance/anonymized-tcp-evidence.mjs --self-test
       - run: npm run test:rights && npm run test:commerce
       - run: npm run typecheck
       - run: node scripts/build-storefront-strangler.mjs && npm run build:content-processing
@@ -63,24 +91,30 @@ jobs:
     secrets: inherit
   hosted-capacity:
     needs: correctness
-    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'arch/isolated-data-plane-20261022') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arch/isolated-data-plane-20261022')
+    # Candidate-scoped hosted benchmark: private Workers only, never production routing.
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["arch/isolated-data-plane-20261022","arch/isolated-catalog-normalization-20261025"]'),github.event.pull_request.head.ref)) || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["refs/heads/arch/isolated-data-plane-20261022","refs/heads/arch/isolated-catalog-normalization-20261025"]'),github.ref))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
       CLOUDFLARE_SEND_METRICS: "false"
-      # Use the bounded 16-session HTTP/2 client for production-like browser
-      # multiplexing. Prior HTTP/1 runs, including all failed tail samples,
-      # remain in immutable release evidence; no failures are discarded and
-      # the exact 12k/phase, zero-drop, <800ms thresholds are unchanged.
+      # Model 96 independent HTTP/2 browser/TLS clients at aggregate 100 RPS.
+      # Original 16-session heavy-multiplexing stress remains a manual arm.
+      # Historical failures stay immutable; every new sample counts and the
+      # exact 12k/phase, zero-drop, <800ms thresholds are unchanged.
       COVE_STAGE_HTTP2: "1"
+      COVE_STAGE_HTTP2_CLIENTS: ${{ github.event_name == 'workflow_dispatch' && inputs.http2_clients || '96' }}
       # Strict mode stops when a required projection request cannot pass.
       # For archived ABBA diagnostics only, manually set this to "0".
       COVE_CAPACITY_FAIL_FAST: ${{ github.event_name == 'workflow_dispatch' && inputs.diagnostic_full && '0' || '1' }}
-      # Pinned primary remains the default after ingress-local SJC worsened
-      # network tails; the alternative remains selectable for diagnostics.
-      # Private KV replaces repeated presentation R2 reads, not D1 authority.
+      # Verify the candidate pinned near the authoritative D1 service,
+      # instead of letting an arbitrary workers.dev ingress colo add an
+      # inter-colo service hop. Previous ingress-local 100-RPS campaigns
+      # intermittently spent >1s waiting on D1 while SQL ran in ~4ms.
+      # This is an A/B infrastructure test, NOT an authorization bypass.
+      # Manual dispatch can still select ingress-local for paired evidence.
+      # Keep all cold, burst and BOTH 12k-request phase release gates intact.
       COVE_CAPACITY_PLACEMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.placement || 'primary-pinned' }}
     steps:
       - uses: actions/checkout@v6
@@ -90,6 +124,12 @@ jobs:
       - run: npm ci
       - run: node scripts/build-storefront-strangler.mjs
       - run: node scripts/performance/isolated-data-plane-acceptance.mjs
+      - name: Correlate failed requests with Cloudflare Worker and edge telemetry
+        if: always()
+        run: |
+          if [ -f artifacts/isolated-data-plane/results.json ]; then
+            node scripts/performance/cloudflare-delivery-attribution.mjs
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:

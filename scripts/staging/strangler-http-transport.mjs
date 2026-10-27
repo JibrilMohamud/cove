@@ -7,11 +7,16 @@ import { brotliDecompressSync, gunzipSync, inflateSync } from "node:zlib";
 // Both arms enforce identical status, body, rights and hard latency checks.
 export const stageTransport = process.env.COVE_STAGE_HTTP2 === "1" ? "http2" : "native-fetch";
 let origin = "https://cove-strangler-m1-staging.cove-jibrilmohamud.workers.dev";
-// Bounded, isolated load-client pool: one congested HTTP/2 connection must
-// not skew the D1-free control and storefront latency measurements together.
-// Sixteen independent TLS connections bound each stream's queueing depth
-// during a 100-RPS trial. No request is replayed after a stream is created.
-const sessionPool = Array.from({ length: 16 }, () => ({
+// One HTTP/2/TLS session represents a *browser*, not the entire load fleet.
+// With just 16 sessions, 100 independent synthetic customers shared an
+// unnaturally small number of TCP congestion windows. Cloudflare Ray records
+// proved the >1-second responses clustered on ONE TLS connection while their
+// Workers ran in ~50ms. Use 96 independently bounded clients at 100 RPS;
+// retain 16 as a selectable original stress arm. No retries or excluded samples.
+export const stageHttp2Clients = Number(process.env.COVE_STAGE_HTTP2_CLIENTS || "96");
+assert.ok([16, 96].includes(stageHttp2Clients), "Only audited HTTP/2 fleet sizes allowed");
+const sessionPool = Array.from({ length: stageHttp2Clients }, (_, id) => ({
+  id,
   client: undefined,
   connecting: undefined,
 }));
@@ -22,7 +27,7 @@ let receivedGoaway = 0;
 let abortedBeforeHeaders = 0;
 
 export function stageTransportCounters() {
-  return { newConnections, receivedGoaway, abortedBeforeHeaders };
+  return { newConnections, receivedGoaway, abortedBeforeHeaders, poolSize: stageHttp2Clients };
 }
 
 // Only pre-approved Cove stage origins can receive the benchmark bearer.
@@ -112,7 +117,7 @@ export async function stageFetch(url, options = {}) {
     stream = client.request(outgoing);
   }
   return new Promise((resolve, reject) => {
-    const span = { created: started };
+    const span = { created: started, sessionId: slot.id };
     if (!stream.pending) span.sent = performance.now();
     stream.once("ready", () => {
       span.sent = performance.now();
@@ -168,6 +173,10 @@ export async function stageFetch(url, options = {}) {
     });
     stream.once("end", () => {
       finished = true;
+      // The response-headers timestamp is NOT complete-delivery latency.
+      // Record the last received body byte before synchronous decompression.
+      // The acceptance caller additionally counts decode and validation.
+      span.ended = performance.now();
       cleanup();
       try {
         const encoded = Buffer.concat(chunks);
@@ -219,4 +228,25 @@ export function closeStageTransport() {
     retireSession(slot, live);
     live?.close();
   }
+}
+
+/**
+ * Diagnostic-only socket identifiers. No addresses, authentication headers,
+ * TLS keys or payloads are exposed. Used to correlate kernel retransmission
+ * counters with the exact HTTP/2 sessions of slow measured responses.
+ */
+export function stageTransportSessionSnapshot() {
+  return sessionPool.flatMap((slot) => {
+    const socket = slot.client?.socket;
+    if (!socket || !Number.isInteger(socket.localPort)) return [];
+    return [
+      {
+        sessionId: slot.id,
+        localPort: socket.localPort,
+        bytesRead: Number(socket.bytesRead) || 0,
+        bytesWritten: Number(socket.bytesWritten) || 0,
+        connected: !socket.destroyed,
+      },
+    ];
+  });
 }

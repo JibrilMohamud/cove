@@ -11,6 +11,9 @@ const result = await build({
   entryPoints: ["src/storefront-strangler/worker.ts"],
   outfile,
   bundle: true,
+  // Keep Workers isolate parse/initialization cost as small as possible.
+  // This changes bytecode size, never the latency or legal acceptance gates.
+  minify: true,
   platform: "node",
   format: "esm",
   target: "es2022",
@@ -91,6 +94,117 @@ for (const lane of ["capture", "export", "export-stage", "publish", "driver"]) {
 await build({
   entryPoints: ["src/storefront-strangler/sounds-publication.worker.ts"],
   outfile: ".output/strangler/sounds-publication.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
+
+await build({
+  entryPoints: ["src/storefront-strangler/catalog-index-capture.worker.ts"],
+  outfile: ".output/strangler/catalog-index-capture.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
+
+await build({
+  entryPoints: ["src/storefront-strangler/catalog-index-query.worker.ts"],
+  outfile: ".output/strangler/catalog-index-query.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
+
+await build({
+  entryPoints: ["src/storefront-strangler/catalog-index-verify.worker.ts"],
+  outfile: ".output/strangler/catalog-index-verify.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
+
+await build({
+  entryPoints: ["src/storefront-strangler/catalog-normalization-publish.worker.ts"],
+  outfile: ".output/strangler/catalog-normalization-publish.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
+
+// Separate 1-RPS synthetic D1 background lane for live hosted-capacity.
+// Do not use GitHub -> Cloudflare management D1 API in measured phases.
+await build({
+  entryPoints: ["src/storefront-strangler/capacity-background.worker.ts"],
+  outfile: ".output/strangler/capacity-background.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
+
+// Ephemeral full-schema paid-owner QA; never exposed as a customer route.
+await build({
+  entryPoints: ["src/storefront-strangler/paid-settlement-stage-qa.worker.ts"],
+  outfile: ".output/strangler/paid-settlement-stage-qa.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
+
+await build({
+  entryPoints: ["src/storefront-strangler/legal-authority.worker.ts"],
+  outfile: ".output/strangler/legal-authority.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
+
+await build({
+  entryPoints: ["src/storefront-strangler/legal-authority-qa-caller.worker.ts"],
+  outfile: ".output/strangler/legal-authority-qa-caller.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
+
+await build({
+  entryPoints: ["src/storefront-strangler/legal-quarantine-qa.writer.ts"],
+  outfile: ".output/strangler/legal-quarantine-qa-writer.mjs",
   bundle: true,
   platform: "node",
   format: "esm",

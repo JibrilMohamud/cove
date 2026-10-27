@@ -1,0 +1,18 @@
+{
+  "name": "cove-legal-qa-caller-disabled",
+  "main": ".output/strangler/legal-authority-qa-caller.mjs",
+  "compatibility_date": "2026-10-25",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "services": [
+    {
+      "binding": "LEGAL_PRIVATE",
+      "service": "cove-legal-authority-private-qa-example"
+    }
+  ],
+  "vars": {
+    "COVE_LEGAL_QA_CALLER_ENABLED": "0",
+    "COVE_LEGAL_QA_EXPIRES_AT": "0"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  // Private, unrouted, disabled until independent D1/index backfill certified.
+  "name": "cove-catalog-query-staged",
+  "main": ".output/strangler/catalog-index-query.mjs",
+  "compatibility_date": "2026-10-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": { "enabled": true },
+  "d1_databases": [
+    { "binding": "CATALOG_INDEX_DB",
+      "database_name": "REPLACE_INDEPENDENT_CATALOG_INDEX",
+      "database_id": "REPLACE_ISOLATED_D1_ID" }
+  ],
+  "vars": { "COVE_CATALOG_SEARCH_ENABLED": "0" }
+}
