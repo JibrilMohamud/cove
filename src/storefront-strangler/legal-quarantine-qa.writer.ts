@@ -48,8 +48,9 @@ export default {
     const isEntitlement=pathname==="/commercial/entitlement/revoke";
     const isRefundBatch=pathname==="/commercial/entitlement/revoke-order";
     const isRetailPublication=pathname==="/commercial/retail/publish-verified";
+    const isRetailWithdrawal=pathname==="/commercial/retail/withdraw";
     if(request.method!=="POST" ||
-       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && !isRetailPublication) ||
+       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && !isRetailPublication && !isRetailWithdrawal) ||
        request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json" ||
        request.headers.has("cookie"))
       return new Response(null,{status:405,headers});
@@ -68,6 +69,11 @@ export default {
       !/^[a-zA-Z0-9_-]{8,160}$/.test(cmd.orderId) ||
       typeof cmd.operationId!=="string" ||
       !opIdRegex.test(cmd.operationId)
+    ) || isRetailWithdrawal && (
+      typeof cmd.productId!=="string" ||
+      !/^prd_[a-zA-Z0-9_-]{3,120}$/.test(cmd.productId) ||
+      cmd.productId.startsWith("prd_gutenberg_") ||
+      typeof cmd.operationId!=="string" || !opIdRegex.test(cmd.operationId)
     ) || isRetailPublication && (
       typeof cmd.productId!=="string" ||
       !/^prd_[a-zA-Z0-9_-]{3,120}$/.test(cmd.productId) ||
@@ -85,7 +91,7 @@ export default {
       !/^[a-zA-Z0-9_-]{3,160}$/.test(cmd.targetId) ||
       typeof cmd.operationId!=="string" ||
       !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,80}$/.test(cmd.operationId)
-    ) || !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && !isRetailPublication && (
+    ) || !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && !isRetailPublication && !isRetailWithdrawal && (
        !sourceIdRegex.test(String(cmd.sourceId||"")) ||
        !opIdRegex.test(String(cmd.operationId||"")) ||
        (isEvidence
@@ -96,6 +102,36 @@ export default {
          : typeof cmd.message!=="string"||cmd.message.length>500)))
       return new Response(null,{status:400,headers});
     try{
+      if(isRetailWithdrawal){
+        const productId=cmd.productId as string;
+        // Withdraw ALL territorial/currency variants first, not only the
+        // offer the user edited. This is deliberately conservative: no active
+        // buyer presentation can use an old commercial product epoch.
+        // The D1 write is a reconciliation sink, NEVER the source of veto.
+        const response=await env.LEGAL_PRIVATE.fetch(new Request(
+          "https://legal-authority.internal/commercial/deny-next",{
+            method:"POST",headers:{
+              "authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,
+              "content-type":"application/json"
+            },body:JSON.stringify({
+              productId,operationId:"retail:"+cmd.operationId
+            })
+          }
+        ));
+        if(response.status!==200)throw Error("retail_owner_denial_unavailable");
+        const receipt=await response.json() as {applied?:boolean;epoch?:number};
+        if(receipt.applied!==true||
+           !Number.isSafeInteger(receipt.epoch)||receipt.epoch!<=0)
+          throw Error("retail_owner_denial_receipt_invalid");
+        // A replay after a fresh positive publication returns applied=false.
+        // It must NOT deactivate a newer offer or overwrite its newer epoch.
+        const now=new Date().toISOString();
+        await env.PRIMARY_DB.prepare(
+          "UPDATE offers SET active=0,updated_at=? WHERE product_id=? AND active=1"
+        ).bind(now,productId).run();
+        return Response.json({withdrawn:true,ownerEpoch:receipt.epoch},
+          {status:200,headers});
+      }
       if(isRetailPublication){
         // Owner verifies current canonical contract and retail offer itself,
         // then transactionally binds both to the exact paid legal epoch.
