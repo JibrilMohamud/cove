@@ -15,6 +15,14 @@ assert.ok(audio.includes("async function requireCommercialAudioOwner("));
 assert.ok(audio.includes('if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") return;'));
 assert.ok(audio.includes("await requireStagePaidEntitlementAccess(env, {"));
 assert.ok(audio.includes('channel: "retail"'));
+assert.match(audio,/Math\.min\(Date\.now\(\) \+ 7 \* 86400000, ent\.ends_at \? Date\.parse\(ent\.ends_at\) : Infinity\)/,
+  "Signed offline audio leases must expire within seven days AND never outlive the purchase");
+const issuance=audio.slice(audio.indexOf('match[2] === "offline-license" && !match[3]'),
+  audio.indexOf("return null;\n}",audio.indexOf('match[2] === "offline-license" && !match[3]')));
+assert.ok(issuance.indexOf("await requireCommercialAudioOwner(")>=0 &&
+  issuance.indexOf("await signOfflineAudioLicense(")>issuance.indexOf("await requireCommercialAudioOwner(") &&
+  issuance.indexOf("INSERT INTO audio_offline_licenses")>issuance.indexOf("await signOfflineAudioLicense("),
+  "Offline audio must obtain fresh paid-owner approval before signing and publishing any 7-day license");
 for(const endpoint of [
   'match[2] === "tracks"',
   'match[2] === "playback"',
