@@ -14,6 +14,7 @@ try{
      platform:"node",target:"node22",logLevel:"silent"});
    return import(pathToFileURL(dest).href);
  };
+ const free=await moduleFrom("src/storefront-strangler/legal-authority-core.ts","free");
  const rights=await moduleFrom("src/storefront-strangler/commercial-legal-core.ts","rights");
  const owner=await moduleFrom("src/storefront-strangler/commercial-storefront-authority.ts","paid");
  const client=await moduleFrom("src/storefront-strangler/legal-authority-read.server.ts","client");
@@ -23,6 +24,8 @@ try{
    const rows=/^\s*SELECT\b/i.test(statement)?q.all(...args):(q.run(...args),[]);
    return {toArray:()=>rows};
  }};
+ free.createAuthoritySchema(sql);
+ free.createAuthorityProofSchema(sql);
  rights.createCommercialAuthoritySchema(sql);
  owner.createCommercialStorefrontSchema(sql);
  const now=Date.now();
@@ -63,6 +66,34 @@ try{
    return Response.json({schema:"cove.storefront-owner.v1",
      rows:owner.readCommercialStorefront(sql,ids,territory,currency)});
  }};
+ const publicFreeId="prd_gutenberg_2701";
+ const freeCommand={sourceId:"2701",territory:"US",revision:1,action:"allow"};
+ free.applyAuthorityCommand(sql,freeCommand);
+ free.storeAuthorizedPresentationProof(sql,freeCommand,"USD",{
+   productId:publicFreeId,editionId:"ed_gutenberg_2701",
+   productPublicId:"book_2701",editionPublicId:"edition_2701",
+   offerJson:JSON.stringify({type:"public-domain",currency:"USD",amountMinor:0})
+ });
+ const mixed={...projection,
+   candidates:{...projection.candidates,productIds:[publicFreeId,productId]},
+   displayBooks:[{productId:publicFreeId,editionId:"ed_gutenberg_2701",
+     title:"Free Book",authors:[],subjects:[],bookshelves:[],languages:["en"],
+     sourceExternalId:"2701",formats:{},download_count:12},
+     ...projection.displayBooks]
+ };
+ const mixedStub={async fetch(req){
+   const {ids,territory,currency}=await req.json();
+   return Response.json({schema:"cove.storefront-owner.v1",rows:[
+     ...free.readAuthorizedPresentations(sql,ids.filter(id=>id.startsWith("prd_gutenberg_")),
+       territory,currency),
+     ...owner.readCommercialStorefront(sql,ids.filter(id=>!id.startsWith("prd_gutenberg_")),
+       territory,currency)
+   ]});
+ }};
+ const mixedPage=await client.authorizeHomepageWithUnifiedOwner(
+   mixedStub,secret,mixed);
+ assert.equal(mixedPage.count,2,"Single strong owner must serve paid and free shelves");
+ assert.deepEqual(mixedPage.results.map(book=>book.productId),[publicFreeId,productId]);
  const page=await client.authorizeHomepageWithUnifiedOwner(stub,secret,projection);
  assert.equal(page.count,1);
  assert.deepEqual(page.results[0].offer,
@@ -73,6 +104,8 @@ try{
  }),{applied:true,subjectKind:"contract",subjectId:commercial.contractId});
  assert.deepEqual(owner.readCommercialStorefront(sql,[productId],"US","USD"),[]);
  assert.equal((await client.authorizeHomepageWithUnifiedOwner(stub,secret,projection)).count,0);
+ assert.equal((await client.authorizeHomepageWithUnifiedOwner(mixedStub,secret,mixed)).count,1,
+   "Paid contract withdrawal does not revoke a distinct Gutenberg grant");
  assert.throws(()=>owner.publishCommercialStorefront(sql,proof),
    /commercial_storefront_owner_proof_changed/,
    "Stale D1-verified offer after withdrawal must not regrant");
