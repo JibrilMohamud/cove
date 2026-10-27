@@ -70,8 +70,8 @@ try{
   assert.equal(check(lines[1]),false);
   assert.throws(()=>transaction([lines[0],lines[0]]),
     /invalid_paid_order_atomic_line/);
-  assert.throws(()=>transaction([{...lines[0],userId:"unauthorized_user"}]),
-    /invalid_paid_order_atomic_scope|invalid_paid_order_atomic_line/);
+  assert.throws(()=>transaction([lines[0],{...lines[1],userId:"unauthorized_user"}]),
+    /invalid_paid_order_atomic_line/);
   const publication=transaction(lines);
   assert.equal(publication.applied,true);
   assert.equal(publication.orderId,orderId);
