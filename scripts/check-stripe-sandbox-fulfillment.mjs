@@ -67,10 +67,37 @@ try {
   await api.handleCoveApi(new Request("https://cove.test/api/fore/catalog"), env);
   const db = env.DB,
     at = new Date().toISOString();
-  const product = await db
+  let product = await db
     .prepare("SELECT * FROM products WHERE source_external_id='1342'")
     .first();
   assert.ok(product, "seeded synthetic fixture edition");
+  // Check out a genuinely commercial, non-Gutenberg-namespaced product.
+  // Re-labeling a Gutenberg product alone would be rejected by the strong
+  // legal owner even if its displayed rights looked like a licensed book.
+  // Both rows and the checkout exist only inside this disposable test DB.
+  const commercialId="prd_cove_sandbox_original_"+randomUUID().replaceAll("-","");
+  const productFields=(await db.prepare("PRAGMA table_info(products)").all()).results;
+  const quoteName=(name)=>'"'+String(name).replaceAll('"','""')+'"';
+  const selectParts=[],replace=[];
+  for(const column of productFields){
+    const field=column.name;
+    if(field==="id"){replace.push(commercialId);selectParts.push("?");}
+    else if(field==="sku"){replace.push("sku-"+commercialId);selectParts.push("?");}
+    else if(field==="source_external_id"){replace.push("cove-original-"+commercialId);selectParts.push("?");}
+    else if(field==="public_id"||field==="slug"){replace.push(commercialId);selectParts.push("?");}
+    else if(field==="source_name"){replace.push("publisher");selectParts.push("?");}
+    else selectParts.push(quoteName(field));
+  }
+  await db.prepare(
+    "INSERT INTO products("+productFields.map(c=>quoteName(c.name)).join(",")+") SELECT "+
+      selectParts.join(",")+" FROM products WHERE id=?",
+  ).bind(...replace,product.id).run();
+  // Keep one canonical retail offer per QA product; never create a second
+  // synthetic purchase offer for the public-domain source.
+  await db.prepare("UPDATE offers SET product_id=? WHERE product_id=?")
+    .bind(commercialId,product.id).run();
+  product=await db.prepare("SELECT * FROM products WHERE id=?").bind(commercialId).first();
+  assert.equal(product.id,commercialId);
   await db
     .prepare(
       "INSERT INTO finance_parties(id,party_type,display_name,tax_country,created_at,updated_at) VALUES('qa-payee','author','Synthetic QA payee','US',?,?)",
