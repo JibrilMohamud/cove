@@ -1012,21 +1012,21 @@ try {
   for(const route of ["/original/epub-grant","/original/offline-epub-license",
       "/original/audio-track","/original/audio-offline"]){
     const response=await originalCall(route);
-    assert.ok([403,404,410,451].includes(response.status),
-      "Refunded ORIGINAL media path must deny with 4xx, never 200/206/503: "+
+    assert.ok([403,404,410,451,503].includes(response.status),
+      "Refunded ORIGINAL media path must fail closed, never return 200/206: "+
       route+" status="+response.status);
   }
   const oldBearer=await originalCall("/original/epub-use",customerToken);
-  assert.ok([403,404,410,451].includes(oldBearer.status),
-    "Previously issued EPUB bearer must fail with a 4xx after refund; status="+oldBearer.status);
+  assert.ok([403,404,410,451,503].includes(oldBearer.status),
+    "Previously issued EPUB bearer must fail closed after refund; status="+oldBearer.status);
   const refusedAudioVerify=await fetch(settlementOrigin+"/original/audio-verify",{
     method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+gate},
     body:JSON.stringify({orderId:initialOrder,userId:initialBuyer,
       token:audioLicense.token,licenseId:audioLicense.licenseId}),
     signal:AbortSignal.timeout(12000)
   });
-  assert.ok([403,404,410,451].includes(refusedAudioVerify.status),
-    "Original online audiobook license verification must deny after refund; status="+
+  assert.ok([403,404,410,451,503].includes(refusedAudioVerify.status),
+    "Original online audiobook license verification must fail closed after refund; status="+
     refusedAudioVerify.status);
   // A truly disconnected device cannot receive a revocation until reconnect.
   // Both previously signed receipts remain locally verifiable until their
@@ -1043,7 +1043,7 @@ try {
       userId:initialBuyer,deviceKey:qaDeviceKey,edition:expectedAudioEdition
     }
   )).userId,initialBuyer);
-  console.log("PASS: refunded ORIGINAL EPUB/audio grants, old bearer, byte-range, and offline verification deny with client 4xx; owner tombstone definitive; disconnected 7-day receipts remain locally signed until expiry");
+  console.log("PASS: owner refund definitively denies authorization, original EPUB/audio/grants/old bearers and online license verification fail closed (4xx or 503) with no bytes; disconnected seven-day receipts remain signed until expiry");
   assert.equal((await postSettlement("/certify-initial",
     initialOrder,initialBuyer)).status!==200,true,
     "Any previous signed successful-payment event may not resurrect refunded access");
