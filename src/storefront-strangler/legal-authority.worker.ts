@@ -189,6 +189,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         };
         const receipt=storage.transactionSync(()=>
           publishFreshEntitlement(sql,{...scope,
+            // The owner core must receive the exact acquisition market.
+            // Omitting either field rejects all positive buyer publication.
+            territory:input.territory,channel:input.channel as CommercialChannel,
             orderId:order.order_id,productEpoch:rights[0].epoch,
             validUntil:new Date(expiry).toISOString()
           },expected)
