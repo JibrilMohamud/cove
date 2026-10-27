@@ -54,6 +54,7 @@ try {
   assert.match(store, /fastAnonymousHome && !matchingInitial\?\.catalog/);
   assert.match(store, /landingPath === "\/"/);
   assert.match(store, /sort === "popular"/);
+  assert.match(store, /enabled: home && !!visitor && books\.length > 0/);
   assert.match(store, /queryFn: \(\{ signal \}\) => api\("\/catalog\?" \+ params/);
   // Fast preview cannot authorize purchases. Existing retail and media
   // handlers must remain separate, and the full catalog is still requested.
