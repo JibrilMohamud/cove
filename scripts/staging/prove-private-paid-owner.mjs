@@ -1012,11 +1012,35 @@ try {
   for(const route of ["/original/epub-grant","/original/offline-epub-license",
       "/original/audio-track","/original/audio-offline"]){
     const response=await originalCall(route);
-    assert.notEqual(response.status,200,
-      "Refund must block the ORIGINAL customer-facing media entrypoint: "+route);
-    assert.notEqual(response.status,206,
-      "Refund must block byte-range delivery: "+route);
+    assert.equal(response.status,451,
+      "Independent refunded-order owner must specifically block ORIGINAL media path: "+route);
   }
+  assert.equal((await originalCall("/original/epub-use",customerToken)).status,451,
+    "Previously issued, still-valid EPUB bearer must not bypass immediate owner refund");
+  const refusedAudioVerify=await fetch(settlementOrigin+"/original/audio-verify",{
+    method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+gate},
+    body:JSON.stringify({orderId:initialOrder,userId:initialBuyer,
+      token:audioLicense.token,licenseId:audioLicense.licenseId}),
+    signal:AbortSignal.timeout(12000)
+  });
+  assert.equal(refusedAudioVerify.status,451,
+    "Original online audio offline-license verification must deny a refunded purchase");
+  // A truly disconnected device cannot receive a revocation until reconnect.
+  // Both previously signed receipts remain locally verifiable until their
+  // original seven-day expiration; online content/renewal is denied above.
+  assert.equal((await verifyOfflineEpubReceipt(
+    originalOffline.receipt,offline.verificationKey,{
+      userId:initialBuyer,productId:test.productId,
+      assetVersionId:originalOffline.assetVersionId,
+      deviceKey:qaDeviceKey,expiresAt:originalOffline.expiresAt
+    }
+  )).userId,initialBuyer);
+  assert.equal((await verifyOfflineAudioLicense(
+    audioLicense,audioLicense.verificationKey,{
+      userId:initialBuyer,deviceKey:qaDeviceKey,edition:expectedAudioEdition
+    }
+  )).userId,initialBuyer);
+  console.log("PASS: owner-refunded original EPUB/audio token, byte-range, grant and offline verify endpoints all 451; existing disconnected seven-day receipts stay signed until expiry");
   assert.equal((await postSettlement("/certify-initial",
     initialOrder,initialBuyer)).status!==200,true,
     "Any previous signed successful-payment event may not resurrect refunded access");
