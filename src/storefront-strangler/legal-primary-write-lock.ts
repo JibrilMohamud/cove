@@ -63,6 +63,10 @@ const LEGAL_TABLES = [
   "commerce_promo_redemptions", "finance_parties",
   "finance_royalty_contract_versions", "finance_royalty_contract_splits",
   "finance_royalty_events", "publishing_outbox"
+  // Closed under the static canonical writer registry. Keep these denial
+  // predicates aligned with the CI registry, including settlement and asset
+  // metadata tables that can influence subsequent customer authorization.
+  "rights_grant_scope_snapshots", "rights_configuration_audit", "territory_sets", "territory_set_rules", "territory_set_members", "gutenberg_source_states", "commerce_ledger_entries", "commerce_payment_attempts", "commercial_download_audit", "publication_version_distribution_controls", "publication_version_distribution_events", "audio_offline_license_events", "publishing_owner_version_events", "publishing_entitlement_version_pins", "publishing_asset_versions", "publishing_assets", "publisher_catalog_mappings", "publishing_accounts", "publishing_titles", "publishing_validation_jobs", "publishing_lifecycle_events", "preorders", "commercial_audio_playback",
 ] as const;
 
 // Detect mutating SQL anywhere in the statement, not merely at position 0:
