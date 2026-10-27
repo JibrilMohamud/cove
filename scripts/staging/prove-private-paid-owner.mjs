@@ -142,7 +142,13 @@ async function seedInitialPendingOrder(){
     stripe_payment_intent_id:null,stripe_charge_id:null,
     receipt_url:null,paid_at:null
   });
-  await clone("commerce_order_items","item_paid_qa_20261027","id",{
+  const sourceLines=(await qaSql(
+    "SELECT id FROM commerce_order_items WHERE order_id=? ORDER BY id LIMIT 2",
+    [test.orderId]
+  )).results;
+  assert.equal(sourceLines.length,1,
+    "Synthetic QA source must have exactly one immutable purchase line");
+  await clone("commerce_order_items",sourceLines[0].id,"id",{
     id:initialItem,order_id:initialOrder,
     entitlement_status:"pending",fulfillment_status:"pending"
   });
