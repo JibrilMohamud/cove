@@ -2,22 +2,22 @@
 **2026-10-27 · Review-required draft · NOT READY FOR PRODUCTION CUTOVER**
 
 ## Outcome of source audit
-GitHub Actions [canonical-writer-closure-audit #40580301238](https://github.com/JibrilMohamud/cove/actions/runs/40580301238) **passed**. It scanned **442 source files** and flagged **376 static candidate canonical SQL writes** across **28 files**. All 376 are **unverified ownership**; the scan does not prove that each mutation is exploitable or that it executes on production. By category:
+GitHub Actions [canonical-writer-closure-audit #40583820036](https://github.com/JibrilMohamud/cove/actions/runs/40583820036) **passed**. It scanned **440 source files** and flagged **466 static candidate canonical SQL writes** across **28 files**. All 466 are **unverified ownership**; the scan does not prove that each mutation is exploitable or that it executes on production. By category:
 
 | Domain | Static direct mutation candidates |
 |---|---:|
-| Publication, grants, contracts, offers, markets | 170 |
-| Commerce and financial settlement | 89 |
-| Catalog/source | 55 |
-| Protected EPUB/audio/assets/delivery | 48 |
+| Publication, grants, contracts, offers, markets | 206 |
+| Commerce and financial settlement | 101 |
+| Catalog/source | 91 |
+| Protected EPUB/audio/assets/delivery | 54 |
 | Customer permissions/entitlements | 14 |
 
-Highest-concentration files: `src/features/fore/publishing.server.ts` (80); `commerce.server.ts` (67); `api.server.ts` (33); `traditional-publishing.server.ts` (27); `commercial-audio.server.ts` (24); `catalog-model.server.ts` (21); `publishing-trust.server.ts` (18); `rights.server.ts` (18); `preorder.server.ts` (15); `delivery.server.ts` (13). Download the `canonical-writer-inventory` artifact on that CI run for every source file, line, table and operation. The pipeline is deterministic and tests that a production-owner-only `--release-gate` invocation fails even when supplied with local confidence flags.
+Highest-concentration files: `src/features/fore/publishing.server.ts` (88); `commerce.server.ts` (67); `publishing-trust.server.ts` (58); `traditional-publishing.server.ts` (58); `api.server.ts` (33); `commercial-audio.server.ts` (24); `catalog-model.server.ts` (21); `rights.server.ts` (18); `preorder.server.ts` (15); `delivery.server.ts` (14). Download the `canonical-writer-inventory` artifact on that CI run for every source file, line, table and operation. The pipeline is deterministic and tests that a production-owner-only `--release-gate` invocation fails even when supplied with local confidence flags.
 
 The scan is a **lower bound**: dynamically constructed SQL, foreign repositories, operator consoles, Cloudflare API D1 writes, direct SQL executed from management scripts, provider callbacks and external cron are not statically certified. Treat zero unverified static candidates as **necessary but not sufficient**, never as proof of a deployment cutover.
 
 ## Closed staging SQL-denial coverage (2026-10-27 follow-up)
-The runtime staged primary-D1 canonical write lock previously omitted **23** protected tables present in the scanner, including the financial ledger, payment attempts, audio offline events, publication and grant provenance, and publishing lifecycle metadata. Those tables are now included; `finance_parties` was also added to the static inventory. Both registries contain the **same 92 protected tables**, enforced by a deterministic CI registry check and by an executable SQL-denial suite against the bundled TypeScript runtime guard. The scanner now reports **376 static candidates** across 28 files, including two newly identified finance-party mutations.
+The runtime staged primary-D1 canonical write lock previously omitted **23** protected tables present in the scanner, including the financial ledger, payment attempts, audio offline events, publication and grant provenance, and publishing lifecycle metadata. Those tables are now included; `finance_parties` was also added to the static inventory. A second function-level audit added **28 further authorization-critical tables**, including contract-version territory/format/channel rules, legal disputes, copyright withdrawal records, commercial delivery policy, finance usage and publisher intake. Both registries contain the **same 120 protected tables**, enforced by a deterministic CI registry check and an executable SQL-denial suite against the bundled TypeScript runtime guard. The broadened scanner reports **466 static candidates** across 28 files; these are expanded coverage, not newly introduced application writes.
 
 This is an **expanded DENY-ALL staging barrier**, NOT migration: no positive canonical writer has been certified by this change. The guard rejects unported writes rather than routing them, covers only Workers that actually use its wrapped D1 binding, and cannot by itself block direct Cloudflare D1 operator access or independently deployed unwrapped jobs. It must not be enabled as production owner-only authorization.
 
