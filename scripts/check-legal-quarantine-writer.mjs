@@ -26,6 +26,9 @@ try {
   db.exec("ALTER TABLE rights_grants ADD COLUMN id TEXT");
   db.exec("ALTER TABLE rights_grants ADD COLUMN contract_id TEXT");
   db.exec("CREATE TABLE rights_contracts(id TEXT PRIMARY KEY,status TEXT)");
+  db.exec("CREATE TABLE offers(id TEXT PRIMARY KEY,product_id TEXT,currency TEXT,active INTEGER,updated_at TEXT)");
+  db.prepare("INSERT INTO offers VALUES('offer_a17','prd_commercial_a17','USD',1,'2026-10-26T00:00:00Z')").run();
+  db.prepare("INSERT INTO offers VALUES('offer_a17_eur','prd_commercial_a17','EUR',1,'2026-10-26T00:00:00Z')").run();
   db.exec("CREATE TABLE products(id TEXT PRIMARY KEY,edition_id TEXT,source_name TEXT)");
   db.exec("CREATE TABLE entitlements(id TEXT PRIMARY KEY,user_id TEXT,product_id TEXT,status TEXT,entitlement_type TEXT,order_item_id TEXT)");
   db.exec("CREATE TABLE commerce_orders(id TEXT PRIMARY KEY,user_id TEXT)");
@@ -71,6 +74,14 @@ try {
       if(pathname==="/storefront/publish-commercial"&&failRetailOffer)
         return new Response(null,{status:503});
       return Response.json({applied:true,epoch:1});
+    }
+    if(pathname==="/commercial/deny-next"){
+      db.exec("BEGIN");
+      try{
+        const receipt=commercial.denyCommercialProduct(sql,cmd);
+        db.exec("COMMIT");
+        return Response.json(receipt,{status:200});
+      }catch{db.exec("ROLLBACK");return new Response(null,{status:409});}
     }
     if(pathname==="/commercial/order/deny-next"){
       db.exec("BEGIN");
@@ -437,6 +448,46 @@ try {
     {},"/commercial/retail/publish-verified")).status,503);
   assert.deepEqual(operations,["authority"],"Owner outage cannot permit publication");
   failOwner=false;
+  // Off-sale authorization must precede ALL primary catalog offer writes.
+  const withdraw={productId:"prd_commercial_a17",
+    operationId:"qa:retail:a17:all-offers-off"};
+  operations.length=0;
+  assert.equal((await post(withdraw,{},"/commercial/retail/withdraw")).status,200);
+  assert.deepEqual(operations,["authority","canonical-write"],
+    "All market/currency offers must be denied in owner BEFORE D1 deactivation");
+  assert.equal(db.prepare("SELECT SUM(active) n FROM offers WHERE product_id=?")
+    .get(withdraw.productId).n,0,
+    "US and EU active offer currencies must both be deactivated");
+  assert.equal(commercial.captureCommercialEpoch(sql,{productId:withdraw.productId}),1);
+  assert.equal((await post(withdraw,{},"/commercial/retail/withdraw")).status,200,
+    "Exact operation retry can reconcile D1 while the same denial is current");
+  assert.equal(commercial.captureCommercialEpoch(sql,{productId:withdraw.productId}),1,
+    "Retry must not advance immutable withdrawal epoch");
+  assert.equal((await post({...withdraw,productId:"prd_gutenberg_2701"},
+    {},"/commercial/retail/withdraw")).status,400);
+  db.prepare("UPDATE offers SET active=1 WHERE product_id=?").run(withdraw.productId);
+  operations.length=0;failOwner=true;
+  assert.equal((await post({...withdraw,operationId:"qa:retail:a17:offline"},
+    {},"/commercial/retail/withdraw")).status,503);
+  assert.deepEqual(operations,["authority"],"Unavailable strong owner cannot mutate an offer");
+  assert.equal(db.prepare("SELECT SUM(active) n FROM offers WHERE product_id=?")
+    .get(withdraw.productId).n,2);
+  failOwner=false;failPrimaryWrite=true;operations.length=0;
+  assert.equal((await post({...withdraw,operationId:"qa:retail:a17:canonical-down"},
+    {},"/commercial/retail/withdraw")).status,503);
+  assert.deepEqual(operations,["authority","canonical-write"],
+    "D1 failure after owner denial must be recorded, never bypass authorization");
+  const deniedEpoch=commercial.captureCommercialEpoch(sql,{productId:withdraw.productId});
+  assert.equal(db.prepare("SELECT SUM(active) n FROM offers WHERE product_id=?")
+    .get(withdraw.productId).n,2,
+    "Canonical reconciliation failure must not pretend the offer rows were updated");
+  failPrimaryWrite=false;operations.length=0;
+  assert.equal((await post({...withdraw,operationId:"qa:retail:a17:canonical-down"},
+    {},"/commercial/retail/withdraw")).status,200,
+    "An interrupted canonical reconciliation must be retryable");
+  assert.equal(commercial.captureCommercialEpoch(sql,{productId:withdraw.productId}),deniedEpoch);
+  assert.equal(db.prepare("SELECT SUM(active) n FROM offers WHERE product_id=?")
+    .get(withdraw.productId).n,0);
   db.close();
-  console.log("PASS: staged paid retail publisher, source quarantine and regional withdrawal fail closed");
+  console.log("PASS: paid retail deny-first all-currency withdrawal, primary outage and replay; legal writer fail-closed");
 }finally{rmSync(directory,{force:true,recursive:true});}
