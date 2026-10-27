@@ -911,7 +911,9 @@ try {
 
   const audioRange=await originalCall("/original/audio-track");
   assert.equal(audioRange.status,206,
-    "Original commercial-audio handler must send a real R2 byte range");
+    "Original commercial-audio handler must send a real R2 byte range; status="+
+    audioRange.status+" category="+
+    String((await audioRange.clone().json().catch(()=>null))?.qaErrorCategory||"missing"));
   assert.equal(audioRange.headers.get("content-range"),
     "bytes 0-127/"+audioBytes.length);
   assert.equal((await audioRange.arrayBuffer()).byteLength,128);
