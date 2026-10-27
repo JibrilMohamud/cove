@@ -7,6 +7,7 @@ on:
       - "src/storefront-strangler/paid-settlement-publication.server.ts"
       - "src/storefront-strangler/paid-order-atomic-publication.ts"
       - "scripts/check-paid-order-atomic-publication.mjs"
+      - "scripts/check-stripe-terminal-order-states.mjs"
       - "src/storefront-strangler/paid-settlement-stage-qa.worker.ts"
       - "src/features/fore/commerce.server.ts"
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
@@ -42,6 +43,7 @@ jobs:
       - run: npm ci
       - run: node scripts/check-paid-entitlement-authority.mjs
       - run: node scripts/check-paid-order-atomic-publication.mjs
+      - run: node scripts/check-stripe-terminal-order-states.mjs
       - run: node scripts/check-commercial-legal-authority.mjs
       - run: node scripts/check-staged-paid-settlement.mjs
       - run: node scripts/check-legal-consumer-fence.mjs
