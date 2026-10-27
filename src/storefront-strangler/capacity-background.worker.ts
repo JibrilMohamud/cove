@@ -5,13 +5,13 @@
  * measure customer serving under genuine concurrent background D1 service
  * work, not GitHub runner connectivity to the control plane.
  */
-type D1Binding = { prepare(sql:string): {
-  bind(...params:(string|number)[]): {
-    run():Promise<{success?:boolean;meta?:unknown}>;
-    all<T=unknown>():Promise<{success?:boolean;results:T[];meta?:unknown}>;
-    first<T=unknown>():Promise<T|null>;
-  };
-}};
+type D1Statement = {
+  bind(...params:(string|number)[]):D1Statement;
+  run():Promise<{success?:boolean;meta?:unknown}>;
+  all<T=unknown>():Promise<{success?:boolean;results:T[];meta?:unknown}>;
+  first<T=unknown>():Promise<T|null>;
+};
+type D1Binding = {prepare(sql:string):D1Statement};
 type Env={
   CONTENT_DB:D1Binding;
   DISCOVERY_DB:D1Binding;
@@ -42,8 +42,8 @@ export default {
       if(url.pathname==="/health"){
         // No state change, only both exact physical bindings' readiness.
         const [a,b]=await Promise.all([
-          env.CONTENT_DB.prepare("SELECT 1 ok").bind().first<{ok:number}>(),
-          env.DISCOVERY_DB.prepare("SELECT 1 ok").bind().first<{ok:number}>()
+          env.CONTENT_DB.prepare("SELECT 1 ok").first<{ok:number}>(),
+          env.DISCOVERY_DB.prepare("SELECT 1 ok").first<{ok:number}>()
         ]);
         if(a?.ok!==1||b?.ok!==1)throw Error("background_bindings_unready");
         return Response.json({ok:true},{headers});
@@ -62,7 +62,7 @@ export default {
         env.CONTENT_DB.prepare(
           "INSERT INTO cove_arch_load(run_id,sequence,payload) VALUES(?,?,?) ON CONFLICT(run_id) DO UPDATE SET sequence=excluded.sequence,payload=excluded.payload"
         ).bind(env.COVE_BG_RUN_ID!,String(n),"derived-preparation-"+n).run(),
-        env.DISCOVERY_DB.prepare(catalogRead).bind().all<{product_id:string}>()
+        env.DISCOVERY_DB.prepare(catalogRead).all<{product_id:string}>()
       ]);
       if(written.success===false||discovered.success===false||
         !Array.isArray(discovered.results))
