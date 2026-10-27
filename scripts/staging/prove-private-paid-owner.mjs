@@ -439,7 +439,20 @@ try {
     ...input,userId:"user_other_qa_20261027"
   });
   assert.equal(stolen.body?.allowed,false,"Cross-buyer access leaked");
-  const refund={orderId:test.orderId,operationId:"qa:"+runId+":refund-paid-order"};
+  // Verify actual test-mode provider refund before the private canonical
+  // writer receives its immutable operation ID. This is still a synthetic
+  // already-paid order: it certifies the provider refund -> durable owner
+  // denial boundary, not the full production refund-ledger webhook handler.
+  const providerRefund=await stripeRequest("refunds",{
+    payment_intent:paymentIntentId,reason:"requested_by_customer"
+  });
+  assert.match(providerRefund.id,/^re_[a-zA-Z0-9]+$/);
+  assert.equal(providerRefund.payment_intent,paymentIntentId);
+  assert.equal(providerRefund.amount,399);
+  assert.equal(providerRefund.currency,"usd");
+  assert.equal(providerRefund.status,"succeeded",
+    "Stripe TEST refund must succeed before owner-first canonical revocation");
+  const refund={orderId:test.orderId,operationId:"stripe-test-refund:"+providerRefund.id};
   const denied=await post("/commercial/entitlement/revoke-order",refund);
   assert.equal(denied.status,200,
     "Private canonical refund writer must durably deny owner before D1 reconciliation");
@@ -462,7 +475,7 @@ try {
   assert.deepEqual(replay.body,denied.body,"Refund replay must be idempotent");
   const forbidden=await post("/commercial/entitlement/publish-verified",input);
   assert.notEqual(forbidden.status,200,"Old paid order must never resurrect entitlement");
-  console.log("PASS: deployed canonical full-schema QA, actual Stripe TEST charge and Stripe CLI-signed Cove webhook dedupe, owner-first publication, protected buyer check, private refund/replay; synthetic already-paid order; no production/capacity D1 writes");
+  console.log("PASS: deployed canonical full-schema QA, actual Stripe TEST payment/refund and CLI-signed Cove webhook dedupe, owner-first publication, protected buyer check, private refund/replay; synthetic already-paid order; no production/capacity D1 writes");
  } finally {
   if(listener?.pid){
     try{process.kill(-listener.pid,"SIGTERM");}catch{
