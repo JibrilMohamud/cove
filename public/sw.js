@@ -57,6 +57,32 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith("/api/")
   )
     return;
+  if (request.mode === "navigate" && url.pathname === "/" &&
+      url.searchParams.get("_cove_reconnect") === "1") {
+    // The offline shell's explicit reconnect link must NOT silently return
+    // another copy of the same shell. Force a fresh network document. If
+    // Vercel/the backend is unreachable, show a distinct failure with a
+    // safe path back to saved books. No private HTML enters Cache Storage.
+    event.respondWith(
+      fetch(request, { cache: "no-store" }).catch(() => new Response(
+        '<!doctype html><html lang="en"><meta charset="utf-8">' +
+          '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+          '<title>Cove — Connection unavailable</title>' +
+          '<main><h1>Online Cove is unavailable</h1>' +
+          '<p>Cove could not reach its server. Your saved books remain on this device.</p>' +
+          '<p><a href="/downloads">Return to saved books</a></p></main></html>',
+        {
+          status: 503,
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "no-store",
+            "content-security-policy": "default-src 'none'; style-src 'none'; base-uri 'none'",
+          },
+        },
+      )),
+    );
+    return;
+  }
   if (request.mode === "navigate") {
     // Network documents may contain account data, entitlements or OAuth state.
     // They are never persisted, including signed-out/personalized catalog HTML.
