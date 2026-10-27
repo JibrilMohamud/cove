@@ -201,9 +201,6 @@ export function publishFreshCommercialProof(
   sql:AuthoritySql,p:CommercialProof,expectedEpoch:number,now=Date.now()
 ){
   validateCommercialProof(p,now);
-  if(sql.exec("SELECT 1 retired FROM cove_commercial_retired_evidence WHERE product_id=? AND grant_id=? AND contract_id=? AND contract_version_id=? LIMIT 1",
-    p.productId,p.grantId,p.contractId,p.contractVersionId).toArray().length)
-    throw Error("commercial_reinstatement_requires_new_legal_evidence");
   if(sql.exec("SELECT 1 ok FROM cove_commercial_subject_denials WHERE (subject_kind='grant' AND subject_id=?) OR (subject_kind='contract' AND subject_id=?) LIMIT 1",
     p.grantId,p.contractId).toArray().length)
     throw Error("commercial_subject_withdrawal_terminal");
@@ -212,6 +209,11 @@ export function publishFreshCommercialProof(
   const state=current(sql,p.productId);
   if((state?.epoch??0)!==expectedEpoch)
     return {applied:false,epoch:state?.epoch??null};
+  // Preserve CAS/replay semantics for stale verification requests; only a
+  // contemporaneous positive attempt needs legal-evidence inspection.
+  if(sql.exec("SELECT 1 retired FROM cove_commercial_retired_evidence WHERE product_id=? AND grant_id=? AND contract_id=? AND contract_version_id=? LIMIT 1",
+    p.productId,p.grantId,p.contractId,p.contractVersionId).toArray().length)
+    throw Error("commercial_reinstatement_requires_new_legal_evidence");
   // A legal withdrawal is durable before its primary-D1 reconciliation.
   // If D1 is unavailable, the prior grant/version can still appear active.
   // Never treat another lookup of that SAME evidence as reinstatement.
