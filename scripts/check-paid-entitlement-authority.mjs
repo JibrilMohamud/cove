@@ -18,6 +18,13 @@ for(const invariant of [
   "acquired.contractId!==rights[0].contract_id",
   "acquired.contractVersionId!==rights[0].contract_version_id"
 ])assert.ok(writer.includes(invariant),"Missing immutable paid purchase scope: "+invariant);
+// The outer Worker and the inner strongly-consistent core must agree on
+// the market identity. The core rejects a missing territory/channel; the
+// old handler accidentally omitted both and every positive paid publish
+// returned an error despite green core-only authorization tests.
+assert.match(writer,
+  /publishFreshEntitlement\(sql,\{\.\.\.scope,\s*(?:\/\/[^\n]*\n\s*)*territory:input\.territory,channel:input\.channel as CommercialChannel,\s*orderId:order\.order_id/,
+  "Verified paid entitlement handler must carry the acquired market into owner transaction");
 const root=fs.mkdtempSync(path.join(os.tmpdir(),"cove-paid-owner-"));
 try{
   const load=async(source,name)=>{
