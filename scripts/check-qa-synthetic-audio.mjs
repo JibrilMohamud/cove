@@ -178,7 +178,7 @@ try {
         if (plain.includes("FROM publishing_publications pp")) {
           return {
             bind(id) {
-              assert.equal(id, product.id);
+              assert.equal(id, publishedRow.product_id);
               return {
                 first: async () => ({
                   manifest_json: JSON.stringify({ sourceSnapshot: { commercialAudio: frozen } }),
