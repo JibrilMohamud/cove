@@ -1,4 +1,7 @@
-import { executeStageCanonicalAdminCommand, executeStageRightsEditorSuspension } from "../../storefront-strangler/legal-admin-owner-commands.server";
+import {
+  executeStageCanonicalAdminCommand,
+  executeStageRightsEditorSuspension,
+} from "../../storefront-strangler/legal-admin-owner-commands.server";
 import { scopeStageLegalWriterEnv } from "../../storefront-strangler/legal-primary-write-lock";
 import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
 import { saveTasteControls, loadTasteControls } from "./discovery-intelligence.server";
