@@ -17,14 +17,18 @@ type QaWriterEnv={
   COVE_LEGAL_WRITER_SECRET?:string;
   COVE_RIGHTS_OWNER_SECRET?:string;
 };
-const QA_PRIMARY="5e3a6b69-6f3d-4b19-b837-01f7aa56ce87";
+// Exact private QA databases only; never customer primary or load-test fixture.
+const QA_PRIMARIES=new Set([
+  "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
+  "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"
+]);
 const sourceIdRegex=/^(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/;
 const opIdRegex=/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/;
 
 function qaWriterConfigured(env:QaWriterEnv){
   const exp=Number(env.COVE_LEGAL_WRITER_EXPIRES_AT),at=Date.now();
   return env.COVE_LEGAL_WRITER_ENABLED==="1" &&
-    env.COVE_LEGAL_WRITER_PRIMARY_ID===QA_PRIMARY &&
+    QA_PRIMARIES.has(env.COVE_LEGAL_WRITER_PRIMARY_ID||"") &&
     Number.isSafeInteger(exp)&&exp>at&&exp<=at+15*60*1000 &&
     !!env.COVE_LEGAL_WRITER_SECRET &&
     /^[a-f0-9]{64}$/.test(env.COVE_LEGAL_WRITER_SECRET) &&
