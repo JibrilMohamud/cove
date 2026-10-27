@@ -882,6 +882,36 @@ try {
     "Original EPUB offline issuer must fail closed on owner outage");
   console.log("PASS: ORIGINAL Cove EPUB grant and token -> private R2 bytes; registered-device offline EPUB issuer -> original P-256 verifier; owner outage denies both");
 
+  const audioRange=await originalCall("/original/audio-track");
+  assert.equal(audioRange.status,206,
+    "Original commercial-audio handler must send a real R2 byte range");
+  assert.equal(audioRange.headers.get("content-range"),
+    "bytes 0-127/"+audioBytes.length);
+  assert.equal((await audioRange.arrayBuffer()).byteLength,128);
+  const audioOfflineResponse=await originalCall("/original/audio-offline");
+  assert.equal(audioOfflineResponse.status,200,
+    "Original audiobook offline issuer must verify a paid, registered device");
+  const audioLicense=await audioOfflineResponse.json();
+  assert.ok(audioLicense.receipt?.signature && audioLicense.licenseId &&
+    audioLicense.token && audioLicense.expiresAt);
+  const audioVerify=await fetch(settlementOrigin+"/original/audio-verify",{
+    method:"POST",headers:{"content-type":"application/json",
+      authorization:"Bearer "+gate},
+    body:JSON.stringify({orderId:initialOrder,userId:initialBuyer,
+      token:audioLicense.token,licenseId:audioLicense.licenseId}),
+    signal:AbortSignal.timeout(12000)
+  });
+  assert.equal(audioVerify.status,200,
+    "Original commercial audio verify handler must accept genuine saved buyer license");
+  assert.equal((await audioVerify.json()).valid,true);
+  assert.equal((await originalCall("/original/audio-track",null,
+    {"x-cove-qa-simulate-owner-outage":"1"})).status,503,
+    "Original audiobook track must fail closed when independent owner is unavailable");
+  assert.equal((await originalCall("/original/audio-offline",null,
+    {"x-cove-qa-simulate-owner-outage":"1"})).status,503,
+    "Original audio offline issuer must fail closed when independent owner is unavailable");
+  console.log("PASS: ORIGINAL commercial audiobook range stream, synthetic frozen narrator publisher proof, offline license issue/verify and owner-outage veto");
+
   const initialRefund=await stripeRequest("refunds",{
     payment_intent:initialPaymentIntentId,
     reason:"requested_by_customer"
