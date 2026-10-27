@@ -4438,6 +4438,9 @@ async function handleCoveRequest(
           language,
           storefront.locale,
           execution?.waitUntil ? (work) => execution.waitUntil?.(work) : undefined,
+          // Vercel lacks Cloudflare waitUntil. Never hold the public document
+          // behind a potentially multi-second display-count recomputation.
+          true,
         ),
       );
     }
