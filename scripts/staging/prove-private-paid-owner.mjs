@@ -14,6 +14,7 @@ assert.match(account||"",/^[a-f0-9]{32}$/);
 assert.ok(token,"Cloudflare QA authorization required");
 const ownerName="cove-paid-legal-owner-"+runId;
 const callerName="cove-paid-legal-caller-"+runId;
+const writerName="cove-paid-legal-writer-"+runId;
 const settlementName="cove-paid-settlement-qa-"+runId;
 const settlementOrigin="https://"+settlementName+".cove-jibrilmohamud.workers.dev";
 const origin="https://"+callerName+".cove-jibrilmohamud.workers.dev";
@@ -21,10 +22,12 @@ const primary="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
 const primaryName="cove-paid-commerce-legal-qa-20261027";
 const gate=randomBytes(32).toString("hex");
 const secret=randomBytes(32).toString("hex");
+const writerSecret=randomBytes(32).toString("hex");
 const expires=Date.now()+12*60_000;
 const temp=fs.mkdtempSync(path.join(process.cwd(),".cove-paid-proof-"));
 const ownerCfg=path.join(process.cwd(),".cove-paid-owner-proof-"+runId+".jsonc");
 const callerCfg=path.join(process.cwd(),".cove-paid-caller-proof-"+runId+".jsonc");
+const writerCfg=path.join(process.cwd(),".cove-paid-writer-proof-"+runId+".jsonc");
 const settlementCfg=path.join(process.cwd(),".cove-paid-settlement-proof-"+runId+".jsonc");
 const test={
   productId:"prd_paid_qa_20261027",
@@ -122,7 +125,7 @@ const assertNoRoute=(config)=>{
   assert.equal(config.d1_databases?.[0]?.database_name,primaryName);
   assert.equal(config.vars?.COVE_RIGHTS_OWNER_ENABLED,"0");
 };
-let ownerCreated=false,callerCreated=false,settlementCreated=false;
+let ownerCreated=false,callerCreated=false,writerCreated=false,settlementCreated=false;
 let cleanupError=null;
 try {
   const original=JSON.parse(fs.readFileSync("wrangler.legal-paid-authority.example.jsonc","utf8"));
@@ -134,6 +137,23 @@ try {
   ownerCreated=true;
   deploy(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret});
   await verifySecrets(ownerName,["COVE_RIGHTS_OWNER_SECRET"]);
+  const writer=JSON.parse(fs.readFileSync(
+    "wrangler.legal-paid-writer.example.jsonc","utf8"));
+  assert.equal(writer.workers_dev,false);
+  assert.deepEqual(writer.routes,[]);
+  assert.equal(writer.d1_databases?.[0]?.database_id,primary);
+  assert.equal(writer.vars?.COVE_LEGAL_WRITER_ENABLED,"0");
+  assert.equal(writer.services?.[0]?.service,"cove-paid-legal-authority-qa");
+  writer.name=writerName;
+  writer.services[0].service=ownerName;
+  writer.vars.COVE_LEGAL_WRITER_ENABLED="1";
+  writer.vars.COVE_LEGAL_WRITER_EXPIRES_AT=String(expires);
+  fs.writeFileSync(writerCfg,JSON.stringify(writer));
+  writerCreated=true;
+  deploy(writerCfg,{
+    COVE_LEGAL_WRITER_SECRET:writerSecret,COVE_RIGHTS_OWNER_SECRET:secret
+  });
+  await verifySecrets(writerName,["COVE_LEGAL_WRITER_SECRET","COVE_RIGHTS_OWNER_SECRET"]);
   const caller=JSON.parse(fs.readFileSync("wrangler.legal-paid-caller.example.jsonc","utf8"));
   assert.equal(caller.workers_dev,false);
   assert.deepEqual(caller.routes,[]);
@@ -141,20 +161,28 @@ try {
   caller.name=callerName;
   caller.workers_dev=true;
   caller.services[0].service=ownerName;
+  caller.services.push({binding:"LEGAL_WRITER",service:writerName});
   caller.vars.COVE_LEGAL_QA_CALLER_ENABLED="1";
   caller.vars.COVE_LEGAL_QA_EXPIRES_AT=String(expires);
   fs.writeFileSync(callerCfg,JSON.stringify(caller));
   callerCreated=true;
-  deploy(callerCfg,{COVE_LEGAL_QA_GATE:gate,COVE_RIGHTS_OWNER_SECRET:secret});
-  await verifySecrets(callerName,["COVE_LEGAL_QA_GATE","COVE_RIGHTS_OWNER_SECRET"]);
+  deploy(callerCfg,{COVE_LEGAL_QA_GATE:gate,COVE_RIGHTS_OWNER_SECRET:secret,
+    COVE_LEGAL_WRITER_SECRET:writerSecret});
+  await verifySecrets(callerName,["COVE_LEGAL_QA_GATE","COVE_RIGHTS_OWNER_SECRET",
+    "COVE_LEGAL_WRITER_SECRET"]);
   await readyOwner();
   // Real canonical D1 rights evaluation. No fabricated grant/contract IDs
   // accepted from the caller; strong owner verifies them itself before ACK.
-  const publish=await post("/commercial/publish-verified",{
-    productId:test.productId,territory:"US",channel:"retail"
+  // Explicit private writer owns both positive rights and matching retail
+  // offer publication. Direct public caller-to-owner positive grant would
+  // bypass the canonical publisher integration this QA is meant to certify.
+  const publish=await post("/commercial/retail/publish-verified",{
+    productId:test.productId,territory:"US",currency:"USD",
+    operationId:"qa:"+runId+":positive-retail-publication"
   });
-  assert.equal(publish.status,200,"Positive canonical paid rights were not verified");
-  assert.equal(publish.body?.applied,true);
+  assert.equal(publish.status,200,"Private positive canonical retail writer unavailable");
+  assert.equal(publish.body?.published,true);
+  assert.ok(Number.isSafeInteger(publish.body?.ownerEpoch)&&publish.body.ownerEpoch>0);
   const rights=await read("/commercial/authorize-batch",{
     ids:[test.productId],territory:"US",channel:"retail"
   });
@@ -163,10 +191,8 @@ try {
   assert.equal(rights.body.rows[0].contract_version_id,"rcv_paid_qa_20261027");
   // Positive price publication is a distinct canonical D1 check. A rights
   // grant cannot fabricate a paid retail offer or change its currency.
-  const retail=await post("/storefront/publish-commercial",{
-    productId:test.productId,territory:"US",currency:"USD"
-  });
-  assert.equal(retail.status,200,"Canonical retail offer was not verified");
+  // The previously verified private writer must already have published the
+  // exact price. Read through owner without a second positive publication.
   const shelf=await read("/storefront/authorize-batch",{
     ids:[test.productId],territory:"US",currency:"USD"
   });
@@ -270,17 +296,18 @@ try {
   assert.deepEqual(replay.body,denied.body,"Refund replay must be idempotent");
   const forbidden=await post("/commercial/entitlement/publish-verified",input);
   assert.notEqual(forbidden.status,200,"Old paid order must never resurrect entitlement");
-  console.log("PASS: deployed full-schema paid owner, canonical grant and price, deployed settlement and protected consumer, exact buyer, territory, refund and replay; no capacity D1 writes");
+  console.log("PASS: deployed full-schema paid owner, canonical grant and price via private writer, deployed settlement and protected consumer, exact buyer, territory, refund and replay; no capacity D1 writes");
 } finally {
   // Physically distinct QA scripts and expiring credentials prevent production
   // exposure. DELETE is limited to names built from this exact CI run ID.
-  for(const [name,created] of [[settlementName,settlementCreated],[callerName,callerCreated],[ownerName,ownerCreated]]){
+  for(const [name,created] of [[settlementName,settlementCreated],[callerName,callerCreated],[writerName,writerCreated],[ownerName,ownerCreated]]){
     if(!created)continue;
     try{await api("DELETE","/workers/scripts/"+name);}
     catch(e){cleanupError=e;console.error("QA script cleanup failed: "+name);}
   }
   fs.rmSync(ownerCfg,{force:true});
   fs.rmSync(callerCfg,{force:true});
+  fs.rmSync(writerCfg,{force:true});
   fs.rmSync(settlementCfg,{force:true});
   fs.rmSync(temp,{force:true,recursive:true});
   if(cleanupError)throw cleanupError;
