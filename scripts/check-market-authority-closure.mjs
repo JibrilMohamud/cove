@@ -72,7 +72,12 @@ try{
       assert.equal(new URL(request.url).pathname,"/market/deny-next");
       // Simulate the Durable Object's atomic SQL transaction.
       const command=await request.json();
-      const receipt=db.transaction(()=>core.denyMarket(sql,command))();
+      db.exec("BEGIN");
+      let receipt;
+      try{
+        receipt=core.denyMarket(sql,command);
+        db.exec("COMMIT");
+      }catch(error){db.exec("ROLLBACK");throw error;}
       return Response.json(receipt);
     }}
   };
