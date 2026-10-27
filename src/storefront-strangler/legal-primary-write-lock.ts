@@ -41,7 +41,21 @@ const LEGAL_TABLES = [
   // Until owner-first command writers exist, stage must DENY them too.
   "publishing_publications", "publishing_publication_activations",
   "publishing_submission_snapshots", "publishing_edition_drafts",
-  "publisher_contract_assignments", "finance_royalty_contracts"
+  "publisher_contract_assignments", "finance_royalty_contracts",
+  // Closing only entitlement rows is insufficient: legacy subscription,
+  // device, refund-webhook and financial event writers can still create
+  // positive access or acknowledge a withdrawal without the legal owner.
+  // Stage intentionally denies these until scoped owner-first executors
+  // migrate ALL affected mutation paths (including cron/support).
+  "subscriptions", "subscription_catalog", "licenses", "devices",
+  "commercial_entitlement_devices", "commerce_webhook_events",
+  "commerce_disputes", "commerce_checkout_quotes",
+  "commerce_customers", "commerce_balance_reservations",
+  "commerce_gift_cards", "commerce_gift_card_ledger",
+  "commerce_store_credit_ledger", "commerce_promo_codes",
+  "commerce_promo_redemptions", "finance_parties",
+  "finance_royalty_contract_versions", "finance_royalty_contract_splits",
+  "finance_royalty_events", "publishing_outbox"
 ] as const;
 
 // Detect mutating SQL anywhere in the statement, not merely at position 0:
