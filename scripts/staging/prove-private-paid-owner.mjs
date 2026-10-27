@@ -647,6 +647,11 @@ try {
     initialOrder,initialBuyer);
   assert.equal(noPrematureAccess.status,451,
     "No new buyer may fetch content before initial ledger settlement");
+  for(const route of ["/qa/epub-bytes","/qa/audio-bytes","/qa/offline-epub-license"]){
+    const check=await postSettlement(route,initialOrder,initialBuyer);
+    assert.equal(check.status,451,
+      "No EPUB/audio bytes or offline license may issue before Stripe settlement");
+  }
   const initialPI=await stripeRequest("payment_intents",{
     amount:"399",currency:"usd",
     "metadata[fore_order_id]":initialOrder,
@@ -756,6 +761,14 @@ try {
     assert.equal(outage.status,503,
       "Owner outage must block protected bytes without cached authorization");
   }
+  const wrongBuyer=await fetch(settlementOrigin+"/qa/epub-bytes",{
+    method:"POST",headers:{"content-type":"application/json",
+      authorization:"Bearer "+gate},
+    body:JSON.stringify({orderId:initialOrder,userId:"other_qa_buyer_20261027"}),
+    signal:AbortSignal.timeout(12000)
+  });
+  assert.equal(wrongBuyer.status,400,
+    "QA identity scope must forbid even attempting cross-buyer R2 delivery");
   const offlineResponse=await mediaCall("/qa/offline-epub-license");
   assert.equal(offlineResponse.status,200,
     "A settled purchase must qualify for private signed EPUB offline receipt");
@@ -814,6 +827,7 @@ try {
     initialOrder,initialBuyer)).status!==200,true,
     "Any previous signed successful-payment event may not resurrect refunded access");
   console.log("PASS: genuine initial pending_payment to original Stripe webhook, full canonical ledger and outbox, injected postpaid owner outage, replay and concurrency dedupe, buyer lease, provider refund and immediate owner revocation");
+  console.log("PASS: private R2 EPUB/WAV exact SHA256 bytes from isolated paid order, wrong-buyer and outage denial, original EPUB offline signature verifier, prepayment and refund byte/license veto; QA adapter only");
 
  } finally {
   if(listener?.pid){
