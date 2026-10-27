@@ -46,6 +46,7 @@ export default {
       return new Response(null,{status:401,headers});
     const pathname=new URL(request.url).pathname;
     const isEvidence=pathname==="/evidence/revoke";
+    const isMarketWithdrawal=pathname==="/market/withdraw";
     const isRetractionBatch=pathname==="/source/retract-batch";
     const isCommercial=pathname==="/commercial/suspend-grant" ||
       pathname==="/commercial/suspend-contract";
@@ -54,7 +55,7 @@ export default {
     const isRetailPublication=pathname==="/commercial/retail/publish-verified";
     const isRetailWithdrawal=pathname==="/commercial/retail/withdraw";
     if(request.method!=="POST" ||
-       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && !isRetailPublication && !isRetailWithdrawal) ||
+       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && !isRetailPublication && !isRetailWithdrawal && !isMarketWithdrawal) ||
        request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json" ||
        request.headers.has("cookie"))
       return new Response(null,{status:405,headers});
@@ -68,7 +69,10 @@ export default {
         return new Response(null,{status:413,headers});
       cmd=JSON.parse(text);
     }catch{return new Response(null,{status:400,headers});}
-    if(!cmd || isRefundBatch && (
+    if(!cmd || isMarketWithdrawal && (
+      typeof cmd.territory!=="string" || !/^[A-Z]{2}$/.test(cmd.territory) ||
+      typeof cmd.operationId!=="string" || !opIdRegex.test(cmd.operationId)
+    ) || isRefundBatch && (
       typeof cmd.orderId!=="string" ||
       !/^[a-zA-Z0-9_-]{8,160}$/.test(cmd.orderId) ||
       typeof cmd.operationId!=="string" ||
@@ -95,7 +99,7 @@ export default {
       !/^[a-zA-Z0-9_-]{3,160}$/.test(cmd.targetId) ||
       typeof cmd.operationId!=="string" ||
       !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,80}$/.test(cmd.operationId)
-    ) || !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && !isRetailPublication && !isRetailWithdrawal && (
+    ) || !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && !isRetailPublication && !isRetailWithdrawal && !isMarketWithdrawal && (
        !sourceIdRegex.test(String(cmd.sourceId||"")) ||
        !opIdRegex.test(String(cmd.operationId||"")) ||
        (isEvidence
@@ -106,6 +110,34 @@ export default {
          : typeof cmd.message!=="string"||cmd.message.length>500)))
       return new Response(null,{status:400,headers});
     try{
+      if(isMarketWithdrawal){
+        const territory=cmd.territory as string;
+        // A global market pause cannot be made safe by paging all grants.
+        // Durable single-owner territory tombstone comes FIRST. If D1
+        // deactivation fails, every owner-backed storefront/paid read still
+        // rejects this territory. Replay reconciles the canonical row.
+        const owner=await env.LEGAL_PRIVATE.fetch(new Request(
+          "https://legal-authority.internal/market/deny-next",{
+            method:"POST",headers:{
+              "authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,
+              "content-type":"application/json"
+            },
+            body:JSON.stringify({territory,operationId:"market:"+cmd.operationId})
+          }
+        ));
+        if(owner.status!==200)throw Error("market_owner_denial_unavailable");
+        const receipt=await owner.json() as {
+          applied?:boolean;territory?:string;withdrawn?:boolean
+        };
+        if(receipt.applied!==true||receipt.territory!==territory||
+           receipt.withdrawn!==true)
+          throw Error("market_owner_denial_receipt_invalid");
+        await env.PRIMARY_DB.prepare(
+          "UPDATE storefront_markets SET market_status='paused',checkout_enabled=0,updated_at=datetime('now') WHERE country_code=? AND market_status='active'"
+        ).bind(territory).run();
+        return Response.json({marketWithdrawn:true,territory},
+          {status:200,headers});
+      }
       if(isRetailWithdrawal){
         const productId=cmd.productId as string;
         // Withdraw ALL territorial/currency variants first, not only the
