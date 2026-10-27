@@ -213,7 +213,12 @@ export default {
         const status=typeof e==="object"&&e!==null&&"status" in e?
           Number((e as {status:unknown}).status):503;
         // Never leak customer-specific media or SQL diagnostics.
-        return Response.json({ok:false},
+        const category=e instanceof Error?
+          (/no such table: ([a-z_]+)/i.exec(e.message)?.[0] ||
+           /no such column: ([a-z_]+)/i.exec(e.message)?.[0] ||
+           /constraint failed/i.test(e.message)?"constraint_failed":
+           "other_error"):"non_error";
+        return Response.json({ok:false,qaErrorCategory:category},
           {status:[400,401,403,404,409,410,428,451,503].includes(status)?
             status:503,headers});
       }
