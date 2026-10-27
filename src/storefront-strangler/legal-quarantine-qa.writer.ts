@@ -137,8 +137,11 @@ export default {
         // then transactionally binds both to the exact paid legal epoch.
         // An interruption after rights publication leaves price unpublished
         // until the same request can be safely retried.
+        // The paid legal owner requires a channel; never ask it to infer
+        // retail from a caller-controlled currency or a default scope.
         const publication={productId:cmd.productId as string,
-          territory:cmd.territory as string,currency:cmd.currency as string};
+          territory:cmd.territory as string,currency:cmd.currency as string,
+          channel:"retail" as const};
         const verify=async(route:string)=>{
           const reply=await env.LEGAL_PRIVATE.fetch(new Request(
             "https://legal-authority.internal"+route,{
