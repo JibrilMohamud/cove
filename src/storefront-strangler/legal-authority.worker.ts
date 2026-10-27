@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
 import { DurableObject } from "cloudflare:workers";
+import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
 import { resolveProductRights } from "../features/fore/rights.server";
@@ -87,6 +88,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/order/deny-next","/commercial/order/verify",
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
       "/commercial/entitlement/publish-verified",
+      "/commercial/entitlement/publish-order-verified",
       "/commercial/entitlement/authorize"].includes(route))
       return new Response(null,{status:404,headers:noStore});
     if (request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
@@ -149,6 +151,100 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const row=readPaidAccess(sql,raw);
         return Response.json({schema:"cove.paid-access.v1",allowed:!!row,proof:row},
           {headers:noStore});
+      }
+      if(route==="/commercial/entitlement/publish-order-verified"){
+        // No caller-supplied entitlement list is trusted. The strong owner
+        // discovers ALL canonical lines for this exact paid order and
+        // verifies their immutable purchase scopes against its own legal
+        // grants. One DO transaction then publishes the entire cart or none.
+        const q=raw as {orderId?:unknown;userId?:unknown;
+          territory?:unknown;channel?:unknown}|null;
+        if(!q||typeof q.orderId!=="string"||
+           !/^[a-zA-Z0-9_-]{8,160}$/.test(q.orderId)||
+           typeof q.userId!=="string"||
+           !/^[a-zA-Z0-9_-]{8,160}$/.test(q.userId)||
+           typeof q.territory!=="string"||!/^[A-Z]{2}$/.test(q.territory)||
+           q.channel!=="retail")
+          return new Response(null,{status:400,headers:noStore});
+        const order=await env.PRIMARY_DB.prepare(
+          "SELECT id,user_id,territory_code,status FROM commerce_orders WHERE id=? AND user_id=?"
+        ).bind(q.orderId,q.userId).first<{
+          id:string;user_id:string;territory_code:string;status:string
+        }>();
+        if(!order||order.status!=="paid"||order.territory_code!==q.territory)
+          return new Response(null,{status:409,headers:noStore});
+        const items=(await env.PRIMARY_DB.prepare(
+          `SELECT oi.id,oi.product_id,oi.sales_channel,oi.preorder_id,
+                  oi.entitlement_status,oi.rights_grant_id,oi.rights_snapshot_json,
+                  e.id entitlement_id,e.status entitlement_state,e.source entitlement_source
+             FROM commerce_order_items oi LEFT JOIN entitlements e
+               ON e.order_item_id=oi.id AND e.user_id=? AND
+                  e.product_id=oi.product_id AND e.entitlement_type='purchase'
+            WHERE oi.order_id=? ORDER BY oi.id LIMIT 26`
+        ).bind(q.userId,q.orderId).all<{
+          id:string;product_id:string;sales_channel:string;
+          preorder_id:string|null;entitlement_status:string;
+          rights_grant_id:string|null;rights_snapshot_json:string|null;
+          entitlement_id:string|null;entitlement_state:string|null;
+          entitlement_source:string|null;
+        }>()).results;
+        if(!items.length||items.length>25||
+           new Set(items.map(x=>x.product_id)).size!==items.length)
+          return new Response(null,{status:409,headers:noStore});
+        // Preorders never mint a downloadable entitlement in this path.
+        const delivered=items.filter(x=>!x.preorder_id);
+        if(!delivered.length)
+          return new Response(null,{status:409,headers:noStore});
+        if(delivered.some(x=>x.entitlement_status!=="granted"||
+           x.entitlement_state!=="active"||x.entitlement_source!=="commerce"||
+           x.sales_channel!=="retail"||!x.entitlement_id))
+          return new Response(null,{status:409,headers:noStore});
+        // Read-only canonical buyer risk gate. Each denied/held line
+        // invalidates the full cart, not just an individual ebook.
+        const hold=await env.PRIMARY_DB.prepare(
+          "SELECT 1 ok FROM risk_holds WHERE domain='buyer' AND subject_type='order' AND subject_id=? AND status='active' AND hold_scope IN ('checkout','entitlement') LIMIT 1"
+        ).bind(q.orderId).first<{ok:number}>();
+        if(hold)return new Response(null,{status:409,headers:noStore});
+        const lines:VerifiedPaidOrderLine[]=[];
+        const now=Date.now();
+        for(const item of delivered){
+          const rows=readCommercialProofs(sql,[item.product_id],
+            q.territory,"retail");
+          if(rows.length!==1)return new Response(null,{status:409,headers:noStore});
+          const rights=rows[0]!;
+          let purchased:unknown;
+          try{purchased=JSON.parse(item.rights_snapshot_json||"null");}
+          catch{return new Response(null,{status:409,headers:noStore});}
+          const acquired=purchased as {
+            grantId?:unknown;editionId?:unknown;territory?:unknown;
+            salesChannel?:unknown;contractId?:unknown;contractVersionId?:unknown
+          }|null;
+          if(!acquired||acquired.grantId!==item.rights_grant_id||
+             acquired.grantId!==rights.grant_id||
+             acquired.editionId!==rights.edition_id||
+             acquired.contractId!==rights.contract_id||
+             acquired.contractVersionId!==rights.contract_version_id||
+             acquired.territory!==q.territory||acquired.salesChannel!=="retail")
+            return new Response(null,{status:409,headers:noStore});
+          const expiry=Math.min(now+5*60_000,Date.parse(rights.valid_until));
+          if(!Number.isFinite(expiry)||expiry<=now)
+            return new Response(null,{status:409,headers:noStore});
+          const scope={
+            entitlementId:item.entitlement_id!,userId:q.userId,
+            productId:item.product_id
+          };
+          lines.push({...scope,territory:q.territory,channel:"retail",
+            orderId:q.orderId,productEpoch:rights.epoch,
+            validUntil:new Date(expiry).toISOString(),
+            expectedEpoch:captureEntitlementEpoch(sql,scope)});
+        }
+        const storage=this.ctx.storage as typeof this.ctx.storage&{
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const receipt=storage.transactionSync(()=>
+          publishVerifiedPaidOrderAtomic(sql,lines,Date.now())
+        );
+        return Response.json(receipt,{status:200,headers:noStore});
       }
       if(route==="/commercial/entitlement/publish-verified"){
         const scope=validatePaidEntitlementScope(raw);
