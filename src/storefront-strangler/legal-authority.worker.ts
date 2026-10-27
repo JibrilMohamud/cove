@@ -35,7 +35,13 @@ type LegalAuthorityEnv = {
 };
 // Never accept an unspecified primary binding. This is a newly provisioned,
 // completely separate canonical QA D1. Real production is NOT enrolled.
-const STAGE_PRIMARY = "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87";
+// Only these two physically separate, synthetic QA databases can issue a
+// short-lived owner lease. The second has canonical paid-commerce schema;
+// neither is the capacity fixture or a customer production database.
+const QA_PRIMARIES = new Set([
+  "5e3a6b69-6f3d-4b19-b837-01f7aa56ce87",
+  "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+]);
 function qaOwnerLeaseLive(env:LegalAuthorityEnv) {
   const expires=Number(env.COVE_RIGHTS_OWNER_TEST_EXPIRES_AT);
   const now=Date.now();
@@ -43,7 +49,7 @@ function qaOwnerLeaseLive(env:LegalAuthorityEnv) {
   // operable. A fresh, strictly bounded lease is required by BOTH the Worker
   // entrypoint and its Durable Object; no stale toggle can bypass this fence.
   return env.COVE_RIGHTS_OWNER_ENABLED==="1" &&
-    env.COVE_RIGHTS_OWNER_PRIMARY_ID===STAGE_PRIMARY &&
+    QA_PRIMARIES.has(env.COVE_RIGHTS_OWNER_PRIMARY_ID||"") &&
     Number.isSafeInteger(expires) && expires>now &&
     expires<=now+15*60*1000 &&
     !!env.COVE_RIGHTS_OWNER_SECRET &&
