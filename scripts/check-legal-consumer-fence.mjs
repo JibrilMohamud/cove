@@ -149,5 +149,14 @@ try{
   await requireStageLegalConsumerProof(active,[
     {id:"upload_8abced12",source_name:"upload"}],"US","USD");
   assert.equal(calls,2,"Personal imports never issue additional public catalog rights requests");
+  // The isolated canonical-schema paid-commerce D1 may run positive staged
+  // checkout and delivery proofs. Never admit production or capacity fixture.
+  await requireStageLegalConsumerProof(
+    {...active,COVE_LEGAL_WRITER_PRIMARY_ID:"7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",LEGAL_AUTHORITY:paidOwner},
+    [{id:"prd_commercial_a17",source_name:"commercial"}],"US","USD");
+  await assert.rejects(requireStageLegalConsumerProof(
+    {...active,COVE_LEGAL_WRITER_PRIMARY_ID:"e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3",LEGAL_AUTHORITY:paidOwner},
+    [{id:"prd_commercial_a17",source_name:"commercial"}],"US","USD"),
+    e=>e.status===503,"Hosted-capacity D1 can never act as buyer legal owner");
   console.log("PASS: staging book/detail, checkout and protected license consumer fence uses exact owner proof, denies paid, withdrawn, forged, wrong-market and unavailable owner");
 }finally{rmSync(dir,{recursive:true,force:true});}
