@@ -467,6 +467,14 @@ try {
     "--file",epubFile,"--remote"]);
   cli(["r2","object","put",mediaBucketName+"/qa/chapter.wav",
     "--file",audioFile,"--remote"]);
+  const rightsBytes=Buffer.from(
+    "This recording is generated synthetic silence for the isolated Cove QA campaign "+runId+
+    ". No outside recording, narrator or publication rights are claimed.\n","utf8"
+  );
+  const rightsFile=path.join(temp,"qa-rights.txt");
+  fs.writeFileSync(rightsFile,rightsBytes,{mode:0o600});
+  cli(["r2","object","put",mediaBucketName+"/qa/rights.txt",
+    "--file",rightsFile,"--remote"]);
   const digest=bytes=>createHash("sha256").update(bytes).digest("hex");
   const epubSha=digest(epubBytes),audioSha=digest(audioBytes);
   // The ORIGINAL delivery service resolves the buyer's real canonical
@@ -529,7 +537,8 @@ try {
   console.log("QA original EPUB/registered device private assets provisioned");
   await provisionPublishedQaAudio(qaSql,{
     runId,productId:test.productId,buyerId:initialBuyer,
-    objectKey:"qa/chapter.wav",sha:audioSha,sizeBytes:audioBytes.length
+    objectKey:"qa/chapter.wav",sha:audioSha,sizeBytes:audioBytes.length,
+    evidenceSha:digest(rightsBytes),evidenceSize:rightsBytes.length
   });
   const {privateKey}=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
   const offlineSigningJwk=JSON.stringify(privateKey.export({format:"jwk"}));
@@ -995,7 +1004,7 @@ try {
   }
   if(webhookServer)await new Promise(resolve=>webhookServer.close(resolve));
   if(mediaBucketCreated){
-    for(const key of ["qa/book.epub","qa/chapter.wav"]){
+    for(const key of ["qa/book.epub","qa/chapter.wav","qa/rights.txt"]){
       try{cli(["r2","object","delete",mediaBucketName+"/"+key,"--remote"]);}
       catch(e){cleanupError=e;console.error("Ephemeral private media object cleanup failed");}
     }
