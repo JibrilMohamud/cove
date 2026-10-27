@@ -1853,6 +1853,23 @@ export async function captureAuthorizedOrder(env: CoveEnv, orderId: string) {
   return { orderId, status: pi.status };
 }
 
+// Keep financial recovery grouped to make its partial-failure ordering
+// auditable, rather than dispersing the owner and provider failure branches.
+/* eslint-disable prettier/prettier -- Reconciled external refunds require explicit sequential fail-closed branches. */
+type PersistedRefundRow = {
+  id: string;
+  order_id: string;
+  amount_minor: number;
+  stripe_amount_minor: number;
+  gift_card_amount_minor: number;
+  store_credit_amount_minor: number;
+  provider_refund_id: string | null;
+  idempotency_key: string;
+  reason: string;
+  currency: string;
+  status: string;
+  succeeded_at: string | null;
+};
 export async function refundOrder(env: CoveEnv, raw: unknown) {
   const input = z
       .object({
@@ -1866,7 +1883,7 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
   const existing = await db
     .prepare("SELECT * FROM commerce_refunds WHERE idempotency_key=?")
     .bind(input.idempotencyKey)
-    .first<any>();
+    .first<PersistedRefundRow>();
   if (existing) {
     // An external Stripe refund can succeed before owner-first entitlement
     // withdrawal/ledger settlement. "succeeded" without succeeded_at is NOT
@@ -2004,12 +2021,15 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
  * Refuse mismatched provider receipts; the owner must acknowledge any full
  * refund before succeeded_at can be set.
  */
-async function resumePersistedRefund(env: CoveEnv, r: any) {
+async function resumePersistedRefund(env: CoveEnv, r: PersistedRefundRow): Promise<PersistedRefundRow> {
   const db = env.DB;
   const original = await db.prepare("SELECT * FROM commerce_orders WHERE id=?")
-    .bind(r.order_id).first<any>();
+    .bind(r.order_id).first<{id:string;stripe_payment_intent_id:string|null}>();
   if (!original) throw new ApiError(409, "Refund order no longer exists.");
-  let provider: any;
+  let provider: {
+    id: string; status: string; payment_intent?: string | {id:string};
+    amount?: number; currency?: string;
+  };
   if (Number(r.stripe_amount_minor || 0) > 0) {
     if (!original.stripe_payment_intent_id)
       throw new ApiError(503, "Original Stripe refund payment identity is unavailable.");
@@ -2049,10 +2069,11 @@ async function resumePersistedRefund(env: CoveEnv, r: any) {
   }
   if (provider.status === "succeeded") await applyRefundSuccess(env, String(r.id), provider);
   const latest = await db.prepare("SELECT * FROM commerce_refunds WHERE id=?")
-    .bind(r.id).first<any>();
+    .bind(r.id).first<PersistedRefundRow>();
   if (!latest) throw new ApiError(503, "Refund reconciliation receipt was lost.");
   return latest;
 }
+/* eslint-enable prettier/prettier */
 
 /**
  * QA-only webhook ownership handoff: batch-deny every paid purchaser's
