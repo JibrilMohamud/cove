@@ -2691,7 +2691,9 @@ async function processStripeEvent(env: CoveEnv, event: any) {
         await applyRefundSuccess(env, r.id, obj);
       } else if (!r.succeeded_at) {
         await db
-          .prepare("UPDATE commerce_refunds SET status=?,updated_at=? WHERE id=? AND succeeded_at IS NULL")
+          .prepare(
+            "UPDATE commerce_refunds SET status=?,updated_at=? WHERE id=? AND succeeded_at IS NULL",
+          )
           .bind(obj.status || r.status, now(), r.id)
           .run();
       }
