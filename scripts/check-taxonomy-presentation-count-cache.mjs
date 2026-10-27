@@ -114,14 +114,21 @@ try {
   // Public HTTP paths without a request-scoped waitUntil must not stall
   // first paint for purely decorative taxonomy counts. Maintenance callers
   // without that flag still perform exact synchronous recounts above.
-  const nonBlockingState={pending:false};
-  const beforeNonBlocking=calls.length;
-  const nonBlocking=await presentationTaxonomyCounts(
-    db,"NZ","qa",query("NZ","qa",999),clock,undefined,nonBlockingState,true
+  const nonBlockingState = { pending: false };
+  const beforeNonBlocking = calls.length;
+  const nonBlocking = await presentationTaxonomyCounts(
+    db,
+    "NZ",
+    "qa",
+    query("NZ", "qa", 999),
+    clock,
+    undefined,
+    nonBlockingState,
+    true,
   );
-  assert.deepEqual(nonBlocking,[],"Cache miss returns pending labels without a live aggregate");
-  assert.equal(nonBlockingState.pending,true);
-  assert.equal(calls.length,beforeNonBlocking,"No rights-count aggregate in public foreground");
+  assert.deepEqual(nonBlocking, [], "Cache miss returns pending labels without a live aggregate");
+  assert.equal(nonBlockingState.pending, true);
+  assert.equal(calls.length, beforeNonBlocking, "No rights-count aggregate in public foreground");
   const fakeDb = {
     prepare() {
       throw Error("cache unavailable");
