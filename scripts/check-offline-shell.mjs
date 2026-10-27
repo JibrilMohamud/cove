@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+assert.match(
+  fs.readFileSync("src/offline-entry.tsx", "utf8"),
+  /href="\\/\\?_cove_reconnect=1"/,
+  "Offline reconnect link must opt out of cached offline fallback",
+);
 const handlers = {},
   storage = new Map();
 function cache(name) {
