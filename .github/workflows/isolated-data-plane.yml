@@ -70,6 +70,7 @@ jobs:
       - run: node scripts/check-capacity-release-gate.mjs
       - run: node scripts/check-capacity-body-timing.mjs
       - run: node scripts/check-stage-capacity-fixture.mjs
+      - run: node scripts/check-taxonomy-presentation-count-cache.mjs
       - run: node scripts/check-storefront-single-response.mjs
       - run: node scripts/check-publication-feed.mjs
       - run: npm run test:literary-prepare-outbox
