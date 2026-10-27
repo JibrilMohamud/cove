@@ -45,7 +45,8 @@ export function validatePaidOffer(p:PaidOfferPublication,now=Date.now()){
   try{offer=JSON.parse(p.offer_json);}catch{throw Error("invalid_paid_retail_offer");}
   const o=offer as Record<string,unknown>|null;
   if(!o||Array.isArray(o)||o.currency!==p.currency||
-     !["purchase","retail","fixed"].includes(String(o.type))||
+     typeof o.type!=="string"||!/^[a-z][a-z0-9_-]{2,39}$/.test(o.type)||
+     o.type==="public-domain"||
      !Number.isSafeInteger(o.amountMinor)||(o.amountMinor as number)<0||
      Object.keys(o).sort().join(",")!=="amountMinor,currency,type")
     throw Error("invalid_paid_retail_offer");
