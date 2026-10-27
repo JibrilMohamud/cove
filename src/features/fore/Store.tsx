@@ -1173,7 +1173,7 @@ export function StorePage({
         page: "1",
         currency: storefront.currency,
       }).toString();
-  const fastShelf = useQuery<StorefrontBootstrap>({
+  const fastShelf = useQuery<CatalogResponse>({
     queryKey: [
       "bookstore-first-paint",
       "v1",
@@ -1188,13 +1188,12 @@ export function StorePage({
         undefined,
         { signal, retryReads: false },
       );
-      verifiedFirstPageShelf(live, {
+      return verifiedFirstPageShelf(live, {
         country: storefront.rightsCountry,
         currency: storefront.currency,
         locale: storefront.locale,
         query: params.toString(),
       });
-      return live;
     },
     enabled: typeof window !== "undefined" && fastAnonymousHome && !matchingInitial?.catalog,
     staleTime: 30_000,
@@ -1202,16 +1201,7 @@ export function StorePage({
     refetchOnWindowFocus: false,
     retry: false,
   });
-  const fastPreview = fastAnonymousHome
-    ? fastShelf.data
-      ? verifiedFirstPageShelf(fastShelf.data, {
-          country: storefront.rightsCountry,
-          currency: storefront.currency,
-          locale: storefront.locale,
-          query: params.toString(),
-        })
-      : undefined
-    : undefined;
+  const fastPreview = fastAnonymousHome ? fastShelf.data : undefined;
 
   // SSR already includes 24 *fresh, canonical rights-checked* book cards.
   // Avoid an immediate, heavyweight full-catalog read during critical paint:
