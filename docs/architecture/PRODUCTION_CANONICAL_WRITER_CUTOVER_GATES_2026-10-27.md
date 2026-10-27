@@ -2,19 +2,24 @@
 **2026-10-27 · Review-required draft · NOT READY FOR PRODUCTION CUTOVER**
 
 ## Outcome of source audit
-GitHub Actions [canonical-writer-closure-audit #40580301238](https://github.com/JibrilMohamud/cove/actions/runs/40580301238) **passed**. It scanned **442 source files** and flagged **374 static candidate canonical SQL writes** across **28 files**. All 374 are **unverified ownership**; the scan does not prove that each mutation is exploitable or that it executes on production. By category:
+GitHub Actions [canonical-writer-closure-audit #40580301238](https://github.com/JibrilMohamud/cove/actions/runs/40580301238) **passed**. It scanned **442 source files** and flagged **376 static candidate canonical SQL writes** across **28 files**. All 376 are **unverified ownership**; the scan does not prove that each mutation is exploitable or that it executes on production. By category:
 
 | Domain | Static direct mutation candidates |
 |---|---:|
 | Publication, grants, contracts, offers, markets | 170 |
-| Commerce and financial settlement | 87 |
+| Commerce and financial settlement | 89 |
 | Catalog/source | 55 |
 | Protected EPUB/audio/assets/delivery | 48 |
 | Customer permissions/entitlements | 14 |
 
-Highest-concentration files: `src/features/fore/publishing.server.ts` (79); `commerce.server.ts` (67); `api.server.ts` (33); `traditional-publishing.server.ts` (27); `commercial-audio.server.ts` (24); `catalog-model.server.ts` (21); `publishing-trust.server.ts` (18); `rights.server.ts` (18); `preorder.server.ts` (15); `delivery.server.ts` (13). Download the `canonical-writer-inventory` artifact on that CI run for every source file, line, table and operation. The pipeline is deterministic and tests that a production-owner-only `--release-gate` invocation fails even when supplied with local confidence flags.
+Highest-concentration files: `src/features/fore/publishing.server.ts` (80); `commerce.server.ts` (67); `api.server.ts` (33); `traditional-publishing.server.ts` (27); `commercial-audio.server.ts` (24); `catalog-model.server.ts` (21); `publishing-trust.server.ts` (18); `rights.server.ts` (18); `preorder.server.ts` (15); `delivery.server.ts` (13). Download the `canonical-writer-inventory` artifact on that CI run for every source file, line, table and operation. The pipeline is deterministic and tests that a production-owner-only `--release-gate` invocation fails even when supplied with local confidence flags.
 
 The scan is a **lower bound**: dynamically constructed SQL, foreign repositories, operator consoles, Cloudflare API D1 writes, direct SQL executed from management scripts, provider callbacks and external cron are not statically certified. Treat zero unverified static candidates as **necessary but not sufficient**, never as proof of a deployment cutover.
+
+## Closed staging SQL-denial coverage (2026-10-27 follow-up)
+The runtime staged primary-D1 canonical write lock previously omitted **23** protected tables present in the scanner, including the financial ledger, payment attempts, audio offline events, publication and grant provenance, and publishing lifecycle metadata. Those tables are now included; `finance_parties` was also added to the static inventory. Both registries contain the **same 92 protected tables**, enforced by a deterministic CI registry check and by an executable SQL-denial suite against the bundled TypeScript runtime guard. The scanner now reports **376 static candidates** across 28 files, including two newly identified finance-party mutations.
+
+This is an **expanded DENY-ALL staging barrier**, NOT migration: no positive canonical writer has been certified by this change. The guard rejects unported writes rather than routing them, covers only Workers that actually use its wrapped D1 binding, and cannot by itself block direct Cloudflare D1 operator access or independently deployed unwrapped jobs. It must not be enabled as production owner-only authorization.
 
 ## The owner-authorization bottleneck is real
 `src/storefront-strangler/bootstrap-optimized.server.ts` still uses `authorizeHomepagePresentation(rawDb,p,d1Metrics)` for anonymous catalog authorization. The `authorizeHomepageWithUnifiedOwner` branch only works in an explicitly constrained, synthetic staging environment; it requires `COVE_SSR_STAGING=1`, a pinned staging DB, `COVE_CANONICAL_LEGAL_WRITE_LOCK=1`, independent private owner binding and owner authentication. Removing primary-D1 authorization while any positive contract, grant, publication, offer, market, settlement, entitlement or delivery writer bypasses the owner can cause stale rights publication. Setting `COVE_LEGAL_OWNER_WRITER_CLOSURE_AUDITED=1` alone does **not** close those paths.
