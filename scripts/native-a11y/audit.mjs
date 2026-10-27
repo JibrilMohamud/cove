@@ -95,9 +95,26 @@ try {
   let offset = read().length;
   nativeKeys([0x2d, 0x54]); // NVDA+T: read the native active-window title.
   await spokenSince(offset, /Cove|Bookstore/i, "Native active-window title");
+  // Hosted Windows may return focus to the runner console after NVDA+T.
+  // Bring Chromium back to the foreground and verify the real focused
+  // DOM button before asking NVDA to announce it.
+  await page.bringToFront();
+  const login = page.getByRole("button", { name: "Log in", exact: true });
   offset = read().length;
-  await page.getByRole("button", { name: "Log in", exact: true }).focus();
-  nativeKeys([0x2d, 0x09]); // NVDA+Tab: announce the actual focused object.
+  await login.focus();
+  await wait(
+    () => page.evaluate(() => document.hasFocus()),
+    "Browser holds native foreground focus before the sign-in audit",
+    5_000,
+  );
+  assert.equal(
+    await login.evaluate((button) => document.activeElement === button),
+    true,
+    "The real visible sign-in button must have focus",
+  );
+  // The initial focus event is itself valid NVDA evidence. Native NVDA+Tab
+  // then independently re-announces the actual foreground object.
+  nativeKeys([0x2d, 0x09]);
   await spokenSince(offset, /Log in.*button|button.*Log in/i, "Sign-in button name and role");
   offset = read().length;
   nativeKeys([0x0d]);
@@ -185,6 +202,31 @@ try {
     fs.writeFileSync(path.join(out, "failure.html"), await page.content().catch(() => ""));
   }
   fs.writeFileSync(path.join(out, "partial-results.json"), JSON.stringify(results, null, 2));
+  // Only isolated QA browser state is collected. Never log production
+  // accounts or real email, cookies, tokens or page HTML.
+  const focus = page
+    ? await page
+        .evaluate(() => ({
+          hasFocus: document.hasFocus(),
+          activeTag: document.activeElement?.tagName || "",
+          activeRole: document.activeElement?.getAttribute("role") || "",
+          activeLabel: document.activeElement?.getAttribute("aria-label") || "",
+        }))
+        .catch(() => null)
+    : null;
+  console.error(
+    "NVDA_QA_FAILURE",
+    JSON.stringify({
+      message: String(error),
+      focus,
+      lastSpeech: read()
+        .slice(-15)
+        .map((x) => ({
+          ready: Boolean(x.ready),
+          text: String(x.text || "").slice(0, 240),
+        })),
+    }),
+  );
   throw error;
 } finally {
   await browser?.close();

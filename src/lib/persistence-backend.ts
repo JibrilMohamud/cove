@@ -246,6 +246,12 @@ export async function proxyPersistenceApi(
     }
     return rewritten;
   } catch (error) {
+    // The SSR bootstrap races two independently authorized backend paths.
+    // Its losing request is deliberately cancelled after a winner is
+    // verified. Caller cancellation is NOT evidence of upstream failure:
+    // counting it as one pollutes outage/error telemetry and can hide real
+    // Cloudflare transport failures. Preserve fail-closed behavior.
+    if (request.signal.aborted) return unavailablePersistenceResponse();
     if (safePublicFallback(request)) {
       if (productionFallbackDenied(env)) {
         console.warn("Persistent backend request failed; production catalog fails closed");
