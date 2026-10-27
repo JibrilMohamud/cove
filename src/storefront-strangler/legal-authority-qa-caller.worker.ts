@@ -35,6 +35,7 @@ export default {
         "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next",
         "/commercial/authorize-batch","/commercial/publish-verified",
         "/commercial/suspend-grant","/commercial/suspend-contract",
+        "/commercial/retail/publish-verified",
         "/commercial/entitlement/deny-next","/commercial/entitlement/publish-verified",
         "/commercial/entitlement/authorize","/commercial/entitlement/revoke",
         "/commercial/entitlement/deny-batch","/commercial/entitlement/revoke-order",
@@ -45,6 +46,7 @@ export default {
       uri.pathname==="/source/retract-batch" ||
       uri.pathname==="/commercial/suspend-grant" ||
       uri.pathname==="/commercial/suspend-contract" ||
+      uri.pathname==="/commercial/retail/publish-verified" ||
       uri.pathname==="/commercial/entitlement/revoke" ||
       uri.pathname==="/commercial/entitlement/revoke-order";
     if(isWriter && (!env.LEGAL_WRITER?.fetch ||
