@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {randomBytes} from "node:crypto";
+import {randomBytes,createHash,generateKeyPairSync} from "node:crypto";
+import {pathToFileURL} from "node:url";
+import JSZip from "jszip";
+import {build} from "esbuild";
 import {spawnSync,spawn} from "node:child_process";
 import {createServer} from "node:http";
 
@@ -17,6 +20,7 @@ const ownerName="cove-paid-legal-owner-"+runId;
 const callerName="cove-paid-legal-caller-"+runId;
 const writerName="cove-paid-legal-writer-"+runId;
 const settlementName="cove-paid-settlement-qa-"+runId;
+const mediaBucketName="cove-paid-private-media-qa-"+runId;
 const settlementOrigin="https://"+settlementName+".cove-jibrilmohamud.workers.dev";
 const origin="https://"+callerName+".cove-jibrilmohamud.workers.dev";
 const primary="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
@@ -24,7 +28,7 @@ const primaryName="cove-paid-commerce-legal-qa-20261027";
 const gate=randomBytes(32).toString("hex");
 const secret=randomBytes(32).toString("hex");
 const writerSecret=randomBytes(32).toString("hex");
-const expires=Date.now()+12*60_000;
+let expires=Date.now()+12*60_000;
 const temp=fs.mkdtempSync(path.join(process.cwd(),".cove-paid-proof-"));
 const ownerCfg=path.join(process.cwd(),".cove-paid-owner-proof-"+runId+".jsonc");
 const callerCfg=path.join(process.cwd(),".cove-paid-caller-proof-"+runId+".jsonc");
@@ -51,7 +55,7 @@ const api=async(method,resource,body)=>{
     signal:AbortSignal.timeout(18000)
   });
   const j=await r.json().catch(()=>null);
-  if(!r.ok||!j?.success)throw Error("Cloudflare control plane "+method+" "+r.status);
+  if(!r.ok||!j?.success)throw Error("Cloudflare control plane "+method+" "+r.status+" "+JSON.stringify((j?.errors||[]).map(e=>({code:e.code,message:String(e.message).slice(0,220)}))).slice(0,400));
   return j.result;
 };
 const deploy=async(file,secrets)=>{
@@ -78,6 +82,93 @@ const qaSql=async(sql,params=[])=>{
   assert.equal(results?.[0]?.success,true,"Only the dedicated synthetic legal QA D1 may be used");
   return results[0];
 };
+/**
+ * QA ONLY: copy schema, never rows, from the separate synthetic catalog
+ * acceptance D1 into the isolated paid legal QA primary. The paid fixture
+ * formerly had only 45 tables, which prevented a first Stripe settlement:
+ * no ledger, royalties, outbox, retail events or reader state schema.
+ * This is a strict source/destination allowlist; never use a production D1.
+ */
+const schemaSource="e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
+async function prepareInitialCommerceQaSchema(){
+  const records=await api("POST","/d1/database/"+schemaSource+"/query",{
+    sql:"SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name"
+  });
+  assert.equal(records?.[0]?.success,true);
+  const present=(await qaSql("SELECT type,name FROM sqlite_master WHERE type IN ('table','index')")).results;
+  const existing=new Set(present.map(x=>x.type+":"+x.name));
+  const allowed=(name)=>/^(commerce_|finance_|publishing_|retail_|pricing_|promotion|risk_|entitlement|reading_|preview_|wishlist_|shopping_cart|notification|digital_assets$|asset_versions$|delivery_grants$|offline_epub_licenses$|audio_offline_licenses$|user_books$|user_library$|source_|publisher_|device_|preorders$|preorder_|completion_events$|sync_)/.test(name);
+  const targetTables=new Set(records[0].results
+    .filter(x=>x.type==="table"&&allowed(x.name)&&!x.name.startsWith("sqlite_"))
+    .map(x=>x.name));
+  assert.ok(targetTables.has("commerce_ledger_entries") &&
+    targetTables.has("publishing_outbox") &&
+    targetTables.has("reading_states"),"Synthetic schema source missing real payment dependencies");
+  let installed=0;
+  for(const row of records[0].results){
+    if(row.type==="table"&&!targetTables.has(row.name))continue;
+    if(row.type==="index"&&!targetTables.has(row.tbl_name))continue;
+    if(existing.has(row.type+":"+row.name))continue;
+    // Schema source is a pinned synthetic Cloudflare fixture, not user SQL.
+    // Never import source rows or execute arbitrary statements.
+    assert.match(row.sql,/^CREATE (?:UNIQUE )?(?:TABLE|INDEX)\s/i);
+    assert.ok(row.sql.length<20000);
+    await qaSql(row.sql);
+    installed++;
+  }
+  console.log("QA schema-only dependencies ready: "+installed+" missing tables/indexes added");
+}
+const initialOrder="order_initial_qa_"+runId;
+const initialBuyer="user_initial_qa_"+runId;
+const initialItem="item_initial_qa_"+runId;
+async function seedInitialPendingOrder(){
+  const quote=name=>'"'+name.replaceAll('"','""')+'"';
+  async function clone(table,sourceId,sourceKey,overrides){
+    const columns=(await qaSql("PRAGMA table_info("+table+")")).results.map(x=>x.name);
+    assert.ok(columns.length>5&&columns.includes(sourceKey));
+    const replacements=Object.keys(overrides);
+    for(const key of replacements)assert.ok(columns.includes(key),table+" missing "+key);
+    const expressions=columns.map(name=>
+      Object.hasOwn(overrides,name)?"?":quote(name));
+    const params=columns.filter(name=>Object.hasOwn(overrides,name))
+      .map(name=>overrides[name]);
+    const result=await qaSql(
+      "INSERT INTO "+table+"("+columns.map(quote).join(",")+") SELECT "+
+      expressions.join(",")+" FROM "+table+" WHERE "+quote(sourceKey)+"=?",
+      [...params,sourceId]
+    );
+    assert.equal(result.meta?.changes,1,table+" initial transaction clone failed");
+  }
+  await clone("commerce_orders",test.orderId,"id",{
+    id:initialOrder,user_id:initialBuyer,
+    invoice_number:"QA-"+runId,idempotency_key:"qa:initial:"+runId,
+    status:"pending_payment",
+    stripe_payment_intent_id:null,stripe_charge_id:null,
+    receipt_url:null,paid_at:null
+  });
+  const sourceLines=(await qaSql(
+    "SELECT id FROM commerce_order_items WHERE order_id=? ORDER BY id LIMIT 2",
+    [test.orderId]
+  )).results;
+  assert.equal(sourceLines.length,1,
+    "Synthetic QA source must have exactly one immutable purchase line");
+  await clone("commerce_order_items",sourceLines[0].id,"id",{
+    id:initialItem,order_id:initialOrder,
+    entitlement_status:"pending",fulfillment_status:"pending"
+  });
+  const state=await qaSql(
+    "SELECT status,stripe_due_minor,currency FROM commerce_orders WHERE id=?",
+    [initialOrder]);
+  assert.deepEqual(state.results?.[0],
+    {status:"pending_payment",stripe_due_minor:399,currency:"USD"});
+  const line=await qaSql(
+    "SELECT id,product_id,rights_snapshot_json FROM commerce_order_items WHERE id=?",
+    [initialItem]);
+  assert.equal(line.results?.[0]?.product_id,test.productId);
+  assert.ok(line.results?.[0]?.rights_snapshot_json,
+    "Pending order must preserve the original exact purchased legal scope");
+}
+
 const pause=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
 const post=async(route,body)=>{
   const response=await fetch(origin+route,{
@@ -149,8 +240,8 @@ const assertNoRoute=(config)=>{
 };
 let ownerCreated=false,callerCreated=false,writerCreated=false,settlementCreated=false;
 let cleanupError=null,listener=null,webhookServer=null,webhookSigningSecret="";
-let paymentIntentId=null;
-let matchedPackets=[];
+let paymentIntentId=null,initialPaymentIntentId=null,mediaBucketCreated=false;
+let matchedPackets=[],initialOutageInjected=false;
 const until=async(check,label,ms=45000)=>{
   const end=Date.now()+ms;
   while(Date.now()<end){
@@ -179,6 +270,11 @@ const stripeRequest=async(route,body)=>{
   return result;
 };
 try {
+  await prepareInitialCommerceQaSchema();
+  await seedInitialPendingOrder();
+  // Schema-only bootstrap can take minutes; the *authorization* lifetime
+  // begins only after staging data is ready, not during isolated DDL.
+  expires=Date.now()+12*60_000;
   const original=JSON.parse(fs.readFileSync("wrangler.legal-paid-authority.example.jsonc","utf8"));
   assertNoRoute(original);
   original.name=ownerName;
@@ -290,13 +386,18 @@ try {
       }
       const event=JSON.parse(raw);
       if(event?.type!=="payment_intent.succeeded" ||
-         event?.data?.object?.metadata?.fore_order_id!==test.orderId){
+         ![test.orderId,initialOrder].includes(
+           event?.data?.object?.metadata?.fore_order_id)){
         res.writeHead(200);res.end("ignored");return;
       }
+      const isInitial=event.data.object.metadata.fore_order_id===initialOrder;
+      const fault=isInitial&&!initialOutageInjected;
+      if(fault)initialOutageInjected=true;
       const response=await fetch(settlementOrigin+"/signed-stripe-settlement",{
         method:"POST",headers:{"content-type":"application/json",
           "stripe-signature":String(req.headers["stripe-signature"]||""),
-          authorization:"Bearer "+gate},
+          authorization:"Bearer "+gate,
+          ...(fault?{"x-cove-qa-interrupt-postpaid":"1"}:{})},
         body:raw,signal:AbortSignal.timeout(15000)
       });
       const content=await response.json().catch(()=>null);
@@ -334,6 +435,41 @@ try {
     received_at TEXT NOT NULL,processing_token TEXT,
     processing_lease_until TEXT,processed_at TEXT,error TEXT
   )`);
+  // A separate, ephemeral R2 bucket proves actual stored binary bytes.
+  // Its two ORIGINAL, generated fixture files are not customer content,
+  // never uploaded to production storage or CDN.
+  const zip=new JSZip();
+  zip.file("mimetype","application/epub+zip",{compression:"STORE"});
+  zip.file("META-INF/container.xml",
+    '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+  zip.file("OEBPS/content.opf",
+    '<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">cove-qa-original</dc:identifier><dc:title>Private Rights Fixture</dc:title><dc:language>en</dc:language><meta property="dcterms:modified">2026-10-27T00:00:00Z</meta></metadata><manifest><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="chapter"/></spine></package>');
+  zip.file("OEBPS/chapter.xhtml",
+    '<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>QA</title></head><body><p>Owner-controlled original QA chapter.</p></body></html>');
+  const epubBytes=await zip.generateAsync({
+    type:"nodebuffer",compression:"DEFLATE",mimeType:"application/epub+zip"
+  });
+  const audioBytes=Buffer.alloc(44+8000*2);
+  audioBytes.write("RIFF",0);audioBytes.writeUInt32LE(audioBytes.length-8,4);
+  audioBytes.write("WAVEfmt ",8);audioBytes.writeUInt32LE(16,16);
+  audioBytes.writeUInt16LE(1,20);audioBytes.writeUInt16LE(1,22);
+  audioBytes.writeUInt32LE(8000,24);audioBytes.writeUInt32LE(16000,28);
+  audioBytes.writeUInt16LE(2,32);audioBytes.writeUInt16LE(16,34);
+  audioBytes.write("data",36);audioBytes.writeUInt32LE(audioBytes.length-44,40);
+  const epubFile=path.join(temp,"qa-book.epub"),
+    audioFile=path.join(temp,"qa-chapter.wav");
+  fs.writeFileSync(epubFile,epubBytes,{mode:0o600});
+  fs.writeFileSync(audioFile,audioBytes,{mode:0o600});
+  cli(["r2","bucket","create",mediaBucketName]);
+  mediaBucketCreated=true;
+  cli(["r2","object","put",mediaBucketName+"/qa/book.epub",
+    "--file",epubFile,"--remote"]);
+  cli(["r2","object","put",mediaBucketName+"/qa/chapter.wav",
+    "--file",audioFile,"--remote"]);
+  const digest=bytes=>createHash("sha256").update(bytes).digest("hex");
+  const epubSha=digest(epubBytes),audioSha=digest(audioBytes);
+  const {privateKey}=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
+  const offlineSigningJwk=JSON.stringify(privateKey.export({format:"jwk"}));
   const settlement=JSON.parse(fs.readFileSync(
     "wrangler.legal-paid-settlement-stage-qa.example.jsonc","utf8"));
   assert.equal(settlement.workers_dev,false);
@@ -344,23 +480,28 @@ try {
   assert.equal(settlement.services?.[0]?.service,"cove-paid-legal-authority-qa");
   settlement.name=settlementName;
   settlement.workers_dev=true;
+  settlement.r2_buckets=[{binding:"QA_MEDIA",bucket_name:mediaBucketName}];
   settlement.services[0].service=ownerName;
   settlement.vars.COVE_PAID_STAGE_QA_ENABLED="1";
   settlement.vars.STRIPE_LIVEMODE="false";
   settlement.vars.COVE_PAID_STAGE_QA_EXPIRES_AT=String(expires);
+  settlement.vars.COVE_PAID_INITIAL_ORDER=initialOrder;
+  settlement.vars.COVE_PAID_INITIAL_BUYER=initialBuyer;
   fs.writeFileSync(settlementCfg,JSON.stringify(settlement));
   settlementCreated=true;
   await deploy(settlementCfg,{
     COVE_PAID_STAGE_QA_GATE:gate,COVE_RIGHTS_OWNER_SECRET:secret,
-    STRIPE_WEBHOOK_SECRET:webhookSigningSecret
+    STRIPE_WEBHOOK_SECRET:webhookSigningSecret,
+    FORE_OFFLINE_AUDIO_SIGNING_JWK:offlineSigningJwk
   });
   await verifySecrets(settlementName,
-    ["COVE_PAID_STAGE_QA_GATE","COVE_RIGHTS_OWNER_SECRET","STRIPE_WEBHOOK_SECRET"]);
-  const postSettlement=async(route)=>{
+    ["COVE_PAID_STAGE_QA_GATE","COVE_RIGHTS_OWNER_SECRET",
+      "STRIPE_WEBHOOK_SECRET","FORE_OFFLINE_AUDIO_SIGNING_JWK"]);
+  const postSettlement=async(route,orderId=test.orderId,userId=test.userId)=>{
     const response=await fetch(settlementOrigin+route,{
       method:"POST",headers:{"content-type":"application/json",
         "authorization":"Bearer "+gate},
-      body:JSON.stringify({orderId:test.orderId,userId:test.userId}),
+      body:JSON.stringify({orderId,userId}),
       signal:AbortSignal.timeout(12000)
     });
     return {status:response.status,body:response.status===200?await response.json():null,
@@ -497,6 +638,197 @@ try {
   const forbidden=await post("/commercial/entitlement/publish-verified",input);
   assert.notEqual(forbidden.status,200,"Old paid order must never resurrect entitlement");
   console.log("PASS: deployed canonical full-schema QA, actual Stripe TEST payment/refund and CLI-signed Cove webhook dedupe, owner-first publication, protected buyer check, private refund/replay; synthetic already-paid order; no production/capacity D1 writes");
+
+  // Second scenario: a genuinely UNPAID canonical order with the same
+  // immutable purchased grant but a distinct buyer and order-item identity.
+  // This exercises Cove's original first-payment finalizer, not the already
+  // paid recovery path tested above.
+  const noPrematureAccess=await postSettlement("/authorize-initial",
+    initialOrder,initialBuyer);
+  assert.equal(noPrematureAccess.status,451,
+    "No new buyer may fetch content before initial ledger settlement");
+  for(const route of ["/qa/epub-bytes","/qa/audio-bytes","/qa/offline-epub-license"]){
+    const check=await postSettlement(route,initialOrder,initialBuyer);
+    assert.equal(check.status,451,
+      "No EPUB/audio bytes or offline license may issue before Stripe settlement");
+  }
+  const initialPI=await stripeRequest("payment_intents",{
+    amount:"399",currency:"usd",
+    "metadata[fore_order_id]":initialOrder,
+    "description":"Cove isolated first-payment settlement QA (test only)"
+  });
+  initialPaymentIntentId=initialPI.id;
+  const initialLink=await qaSql(
+    "UPDATE commerce_orders SET stripe_payment_intent_id=? WHERE id=? AND status='pending_payment' AND stripe_due_minor=399 AND currency='USD'",
+    [initialPaymentIntentId,initialOrder]);
+  assert.equal(initialLink.meta?.changes,1,
+    "Only the exact fresh pending order may link to a Stripe TEST payment");
+  const initialConfirmation=await stripeRequest(
+    "payment_intents/"+encodeURIComponent(initialPaymentIntentId)+"/confirm",{
+    payment_method:"pm_card_visa",
+    return_url:"https://example.invalid/cove-initial-qa"
+  });
+  assert.equal(initialConfirmation.status,"succeeded");
+  const interrupted=await until(()=>matchedPackets.find(x=>
+    x.raw?.includes(initialPaymentIntentId)&&x.status===503),
+    "initial_signed_webhook_interruption",60000);
+  assert.equal(initialOutageInjected,true);
+  const initialPaid=await qaSql(
+    "SELECT status,paid_at FROM commerce_orders WHERE id=?",[initialOrder]);
+  assert.equal(initialPaid.results?.[0]?.status,"paid",
+    "A simulated outage AFTER canonical settlement must leave the order paid");
+  assert.ok(initialPaid.results?.[0]?.paid_at,
+    "Real canonical pending order must have received its first paid timestamp");
+  const deniedOnInterrupt=await postSettlement("/authorize-initial",
+    initialOrder,initialBuyer);
+  assert.equal(deniedOnInterrupt.status,451,
+    "An owner publication outage after payment MUST fail closed to the buyer");
+  const ledgerBefore=await qaSql(
+    "SELECT entry_type,account_code,amount_minor FROM commerce_ledger_entries WHERE order_id=? ORDER BY entry_type,account_code",
+    [initialOrder]);
+  assert.ok(ledgerBefore.results.length>=2,
+    "The actual Cove pending-order finalizer must post financial ledger entries");
+  assert.equal(ledgerBefore.results.reduce((sum,r)=>sum+Number(r.amount_minor),0),0,
+    "Canonical financial ledger MUST balance");
+  const outbox=await qaSql(
+    "SELECT event_type,status FROM publishing_outbox WHERE aggregate_id=?",
+    [initialOrder]);
+  assert.ok(outbox.results.some(r=>
+    r.event_type==="finance.royalty_fee_reconciliation_required" &&
+    r.status==="pending"),
+    "Unhydrated Stripe fee requires a durable settlement-reconciliation outbox");
+  const replayHeaders={
+    "content-type":"application/json",authorization:"Bearer "+gate,
+    "stripe-signature":interrupted.signature
+  };
+  const recover=await fetch(settlementOrigin+"/signed-stripe-settlement",{
+    method:"POST",headers:replayHeaders,body:interrupted.raw,
+    signal:AbortSignal.timeout(15000)
+  });
+  assert.equal(recover.status,200,
+    "Replayed signed event must recover owner delivery after postpaid interruption");
+  assert.equal((await recover.json()).duplicate,false,
+    "The failed event must actually resume settlement, not be mislabeled duplicate");
+  const copies=await Promise.all([0,1,2].map(()=>fetch(
+    settlementOrigin+"/signed-stripe-settlement",{
+      method:"POST",headers:replayHeaders,body:interrupted.raw,
+      signal:AbortSignal.timeout(15000)
+    })
+  ));
+  for(const copy of copies){
+    assert.equal(copy.status,200,
+      "Repeated signed webhook after committed settlement must succeed as duplicate");
+    assert.equal((await copy.json()).duplicate,true);
+  }
+  const ledgerAfter=await qaSql(
+    "SELECT entry_type,account_code,amount_minor FROM commerce_ledger_entries WHERE order_id=? ORDER BY entry_type,account_code",
+    [initialOrder]);
+  assert.deepEqual(ledgerAfter.results,ledgerBefore.results,
+    "Signed payment replay must never duplicate the financial ledger");
+  const initialEntitlement=await qaSql(
+    `SELECT e.id,e.status FROM entitlements e
+        JOIN commerce_order_items oi ON oi.id=e.order_item_id
+       WHERE oi.order_id=? AND e.user_id=? AND e.source='commerce'
+       AND e.entitlement_type='purchase'`,
+    [initialOrder,initialBuyer]);
+  assert.equal(initialEntitlement.results?.length,1);
+  assert.equal(initialEntitlement.results[0].status,"active");
+  const initialAccess=await postSettlement("/authorize-initial",
+    initialOrder,initialBuyer);
+  assert.equal(initialAccess.status,200,
+    "Real settled purchase must be readable only after independent owner receipt");
+
+  // End-to-end Byte/receipt checks use the actual, deployed private Cloudflare
+  // R2 binding and the same private buyer owner used for settlement. The
+  // handlers are QA-only adapters, not production EPUB/audio route replicas.
+  const mediaCall=(route,extra={})=>fetch(settlementOrigin+route,{
+    method:"POST",headers:{"content-type":"application/json",
+      authorization:"Bearer "+gate,...extra},
+    body:JSON.stringify({orderId:initialOrder,userId:initialBuyer}),
+    signal:AbortSignal.timeout(12000)
+  });
+  for(const [route,hash,type] of [
+    ["/qa/epub-bytes",epubSha,"application/epub+zip"],
+    ["/qa/audio-bytes",audioSha,"audio/wav"]
+  ]){
+    const response=await mediaCall(route);
+    assert.equal(response.status,200,"Owner-authorized private R2 byte delivery refused");
+    assert.equal(response.headers.get("content-type"),type);
+    const delivered=Buffer.from(await response.arrayBuffer());
+    assert.equal(digest(delivered),hash,"Private R2 delivered wrong bytes");
+    const outage=await mediaCall(route,
+      {"x-cove-qa-simulate-owner-outage":"1"});
+    assert.equal(outage.status,503,
+      "Owner outage must block protected bytes without cached authorization");
+  }
+  const wrongBuyer=await fetch(settlementOrigin+"/qa/epub-bytes",{
+    method:"POST",headers:{"content-type":"application/json",
+      authorization:"Bearer "+gate},
+    body:JSON.stringify({orderId:initialOrder,userId:"other_qa_buyer_20261027"}),
+    signal:AbortSignal.timeout(12000)
+  });
+  assert.equal(wrongBuyer.status,400,
+    "QA identity scope must forbid even attempting cross-buyer R2 delivery");
+  const offlineResponse=await mediaCall("/qa/offline-epub-license");
+  assert.equal(offlineResponse.status,200,
+    "A settled purchase must qualify for private signed EPUB offline receipt");
+  const offline=await offlineResponse.json();
+  const compiled=path.join(temp,"offline-epub-verifier-qa.mjs");
+  await build({
+    entryPoints:["src/features/fore/offline-epub-crypto.ts"],outfile:compiled,
+    platform:"node",format:"esm",bundle:true,target:"node22",logLevel:"silent"
+  });
+  const {verifyOfflineEpubReceipt}=await import(pathToFileURL(compiled).href);
+  const claims=await verifyOfflineEpubReceipt(
+    offline.receipt,offline.verificationKey,{
+      userId:initialBuyer,productId:test.productId,
+      assetVersionId:offline.assetVersionId,deviceKey:offline.deviceKey,
+      expiresAt:offline.expiresAt
+    }
+  );
+  assert.equal(claims.licenseId,"qa_epub_license_"+runId);
+  assert.ok(Date.parse(claims.expiresAt)-Date.parse(claims.issuedAt)<=7*86400000,
+    "Offline signed lease cannot exceed seven days");
+  await assert.rejects(verifyOfflineEpubReceipt(
+    offline.receipt,offline.verificationKey,{
+      userId:"user_other_qa_20261027",productId:test.productId,
+      assetVersionId:offline.assetVersionId,deviceKey:offline.deviceKey,
+      expiresAt:offline.expiresAt
+    }
+  ),/invalid or expired/i,"Signed offline receipt must be bound to exact buyer");
+  assert.equal((await mediaCall("/qa/offline-epub-license",
+    {"x-cove-qa-simulate-owner-outage":"1"})).status,503,
+    "Owner outage must block new offline license issuance");
+
+  const initialRefund=await stripeRequest("refunds",{
+    payment_intent:initialPaymentIntentId,
+    reason:"requested_by_customer"
+  });
+  assert.equal(initialRefund.status,"succeeded");
+  const initialDenial=await post("/commercial/entitlement/revoke-order",{
+    orderId:initialOrder,operationId:"stripe-initial-qa-refund:"+initialRefund.id
+  });
+  assert.equal(initialDenial.status,200,
+    "Refund denial must be durable before any lagging D1 buyer reconciliation");
+  assert.equal((await postSettlement("/authorize-initial",
+    initialOrder,initialBuyer)).status,451,
+    "Actual first-payment purchase must be denied immediately after owner refund");
+  for(const route of ["/qa/epub-bytes","/qa/audio-bytes","/qa/offline-epub-license"]){
+    const response=await fetch(settlementOrigin+route,{
+      method:"POST",headers:{"content-type":"application/json",
+        authorization:"Bearer "+gate},
+      body:JSON.stringify({orderId:initialOrder,userId:initialBuyer}),
+      signal:AbortSignal.timeout(12000)
+    });
+    assert.equal(response.status,451,
+      "Refund must deny all subsequent private stored bytes and offline issuance: "+route);
+  }
+  assert.equal((await postSettlement("/certify-initial",
+    initialOrder,initialBuyer)).status!==200,true,
+    "Any previous signed successful-payment event may not resurrect refunded access");
+  console.log("PASS: genuine initial pending_payment to original Stripe webhook, full canonical ledger and outbox, injected postpaid owner outage, replay and concurrency dedupe, buyer lease, provider refund and immediate owner revocation");
+  console.log("PASS: private R2 EPUB/WAV exact SHA256 bytes from isolated paid order, wrong-buyer and outage denial, original EPUB offline signature verifier, prepayment and refund byte/license veto; QA adapter only");
+
  } finally {
   if(listener?.pid){
     try{process.kill(-listener.pid,"SIGTERM");}catch{
@@ -504,6 +836,14 @@ try {
     }
   }
   if(webhookServer)await new Promise(resolve=>webhookServer.close(resolve));
+  if(mediaBucketCreated){
+    for(const key of ["qa/book.epub","qa/chapter.wav"]){
+      try{cli(["r2","object","delete",mediaBucketName+"/"+key,"--remote"]);}
+      catch(e){cleanupError=e;console.error("Ephemeral private media object cleanup failed");}
+    }
+    try{cli(["r2","bucket","delete",mediaBucketName]);}
+    catch(e){cleanupError=e;console.error("Ephemeral private R2 bucket cleanup failed");}
+  }
   // Physically distinct QA scripts and expiring credentials prevent production
   // exposure. DELETE is limited to names built from this exact CI run ID.
   for(const [name,created] of [[settlementName,settlementCreated],[callerName,callerCreated],[writerName,writerCreated],[ownerName,ownerCreated]]){
