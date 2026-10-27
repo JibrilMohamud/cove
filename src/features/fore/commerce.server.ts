@@ -2034,7 +2034,7 @@ async function resumePersistedRefund(env: CoveEnv, r: PersistedRefundRow): Promi
     .bind(r.order_id).first<{id:string;stripe_payment_intent_id:string|null}>();
   if (!original) throw new ApiError(409, "Refund order no longer exists.");
   let provider: {
-    id: string; status: string; payment_intent?: string | {id:string};
+    id?: string; status?: string; payment_intent?: string | {id:string};
     amount?: number; currency?: string;
   };
   if (Number(r.stripe_amount_minor || 0) > 0) {
