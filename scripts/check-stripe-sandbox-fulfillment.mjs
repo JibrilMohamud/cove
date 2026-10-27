@@ -400,8 +400,8 @@ try {
   const awaitingOwner = await db.prepare(
     "SELECT id,status,provider_refund_id,succeeded_at FROM commerce_refunds WHERE idempotency_key=?",
   ).bind(refundKey).first();
-  assert.equal(awaitingOwner.status, "succeeded",
-    "Real Stripe refund cannot be falsely relabeled failed after owner outage");
+  assert.equal(awaitingOwner.status, "pending",
+    "Unreconciled provider confirmation must not become a canonical success");
   assert.match(awaitingOwner.provider_refund_id, /^re_[a-zA-Z0-9]+$/);
   assert.equal(awaitingOwner.succeeded_at, null,
     "Financial/entitlement settlement must not be acknowledged before owner denial");
