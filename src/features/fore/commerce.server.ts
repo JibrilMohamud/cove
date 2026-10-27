@@ -1376,8 +1376,10 @@ export async function finalizePaidOrder(
   // disputed or otherwise terminal canonical order. This applies even
   // when the staged legal owner is disabled; the owner check below is
   // an additional requirement and never replaces terminal state.
-  if(!["pending_payment","processing","authorized","payment_failed"].includes(order.status))
-    throw new ApiError(409,"Terminal or invalid order cannot be settled.");
+  if (
+    !["pending_payment", "processing", "authorized", "payment_failed"].includes(order.status)
+  )
+    throw new ApiError(409, "Terminal or invalid order cannot be settled.");
   // Negative order authority precedes every tender/ledger mutation. A
   // previously refunded Stripe intent cannot be reprocessed into a sale.
   await assertStagePaidOrderNotWithdrawn(env, String(order.id));
