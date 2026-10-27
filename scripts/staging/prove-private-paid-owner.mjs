@@ -229,8 +229,8 @@ const assertNoRoute=(config)=>{
 };
 let ownerCreated=false,callerCreated=false,writerCreated=false,settlementCreated=false;
 let cleanupError=null,listener=null,webhookServer=null,webhookSigningSecret="";
-let paymentIntentId=null;
-let matchedPackets=[];
+let paymentIntentId=null,initialPaymentIntentId=null;
+let matchedPackets=[],initialOutageInjected=false;
 const until=async(check,label,ms=45000)=>{
   const end=Date.now()+ms;
   while(Date.now()<end){
@@ -372,13 +372,18 @@ try {
       }
       const event=JSON.parse(raw);
       if(event?.type!=="payment_intent.succeeded" ||
-         event?.data?.object?.metadata?.fore_order_id!==test.orderId){
+         ![test.orderId,initialOrder].includes(
+           event?.data?.object?.metadata?.fore_order_id)){
         res.writeHead(200);res.end("ignored");return;
       }
+      const isInitial=event.data.object.metadata.fore_order_id===initialOrder;
+      const fault=isInitial&&!initialOutageInjected;
+      if(fault)initialOutageInjected=true;
       const response=await fetch(settlementOrigin+"/signed-stripe-settlement",{
         method:"POST",headers:{"content-type":"application/json",
           "stripe-signature":String(req.headers["stripe-signature"]||""),
-          authorization:"Bearer "+gate},
+          authorization:"Bearer "+gate,
+          ...(fault?{"x-cove-qa-interrupt-postpaid":"1"}:{})},
         body:raw,signal:AbortSignal.timeout(15000)
       });
       const content=await response.json().catch(()=>null);
@@ -430,6 +435,8 @@ try {
   settlement.vars.COVE_PAID_STAGE_QA_ENABLED="1";
   settlement.vars.STRIPE_LIVEMODE="false";
   settlement.vars.COVE_PAID_STAGE_QA_EXPIRES_AT=String(expires);
+  settlement.vars.COVE_PAID_INITIAL_ORDER=initialOrder;
+  settlement.vars.COVE_PAID_INITIAL_BUYER=initialBuyer;
   fs.writeFileSync(settlementCfg,JSON.stringify(settlement));
   settlementCreated=true;
   await deploy(settlementCfg,{
@@ -438,11 +445,11 @@ try {
   });
   await verifySecrets(settlementName,
     ["COVE_PAID_STAGE_QA_GATE","COVE_RIGHTS_OWNER_SECRET","STRIPE_WEBHOOK_SECRET"]);
-  const postSettlement=async(route)=>{
+  const postSettlement=async(route,orderId=test.orderId,userId=test.userId)=>{
     const response=await fetch(settlementOrigin+route,{
       method:"POST",headers:{"content-type":"application/json",
         "authorization":"Bearer "+gate},
-      body:JSON.stringify({orderId:test.orderId,userId:test.userId}),
+      body:JSON.stringify({orderId,userId}),
       signal:AbortSignal.timeout(12000)
     });
     return {status:response.status,body:response.status===200?await response.json():null,
@@ -579,6 +586,118 @@ try {
   const forbidden=await post("/commercial/entitlement/publish-verified",input);
   assert.notEqual(forbidden.status,200,"Old paid order must never resurrect entitlement");
   console.log("PASS: deployed canonical full-schema QA, actual Stripe TEST payment/refund and CLI-signed Cove webhook dedupe, owner-first publication, protected buyer check, private refund/replay; synthetic already-paid order; no production/capacity D1 writes");
+
+  // Second scenario: a genuinely UNPAID canonical order with the same
+  // immutable purchased grant but a distinct buyer and order-item identity.
+  // This exercises Cove's original first-payment finalizer, not the already
+  // paid recovery path tested above.
+  const noPrematureAccess=await postSettlement("/authorize-initial",
+    initialOrder,initialBuyer);
+  assert.equal(noPrematureAccess.status,451,
+    "No new buyer may fetch content before initial ledger settlement");
+  const initialPI=await stripeRequest("payment_intents",{
+    amount:"399",currency:"usd",
+    "metadata[fore_order_id]":initialOrder,
+    "description":"Cove isolated first-payment settlement QA (test only)"
+  });
+  initialPaymentIntentId=initialPI.id;
+  const initialLink=await qaSql(
+    "UPDATE commerce_orders SET stripe_payment_intent_id=? WHERE id=? AND status='pending_payment' AND stripe_due_minor=399 AND currency='USD'",
+    [initialPaymentIntentId,initialOrder]);
+  assert.equal(initialLink.meta?.changes,1,
+    "Only the exact fresh pending order may link to a Stripe TEST payment");
+  const initialConfirmation=await stripeRequest(
+    "payment_intents/"+encodeURIComponent(initialPaymentIntentId)+"/confirm",{
+    payment_method:"pm_card_visa",
+    return_url:"https://example.invalid/cove-initial-qa"
+  });
+  assert.equal(initialConfirmation.status,"succeeded");
+  const interrupted=await until(()=>matchedPackets.find(x=>
+    x.raw?.includes(initialPaymentIntentId)&&x.status===503),
+    "initial_signed_webhook_interruption",60000);
+  assert.equal(initialOutageInjected,true);
+  const initialPaid=await qaSql(
+    "SELECT status,paid_at FROM commerce_orders WHERE id=?",[initialOrder]);
+  assert.equal(initialPaid.results?.[0]?.status,"paid",
+    "A simulated outage AFTER canonical settlement must leave the order paid");
+  assert.ok(initialPaid.results?.[0]?.paid_at,
+    "Real canonical pending order must have received its first paid timestamp");
+  const deniedOnInterrupt=await postSettlement("/authorize-initial",
+    initialOrder,initialBuyer);
+  assert.equal(deniedOnInterrupt.status,451,
+    "An owner publication outage after payment MUST fail closed to the buyer");
+  const ledgerBefore=await qaSql(
+    "SELECT entry_type,account_code,amount_minor FROM commerce_ledger_entries WHERE order_id=? ORDER BY entry_type,account_code",
+    [initialOrder]);
+  assert.ok(ledgerBefore.results.length>=2,
+    "The actual Cove pending-order finalizer must post financial ledger entries");
+  assert.equal(ledgerBefore.results.reduce((sum,r)=>sum+Number(r.amount_minor),0),0,
+    "Canonical financial ledger MUST balance");
+  const outbox=await qaSql(
+    "SELECT event_type,status FROM publishing_outbox WHERE aggregate_id=?",
+    [initialOrder]);
+  assert.ok(outbox.results.some(r=>
+    r.event_type==="finance.royalty_fee_reconciliation_required" &&
+    r.status==="pending"),
+    "Unhydrated Stripe fee requires a durable settlement-reconciliation outbox");
+  const replayHeaders={
+    "content-type":"application/json",authorization:"Bearer "+gate,
+    "stripe-signature":interrupted.signature
+  };
+  const recover=await fetch(settlementOrigin+"/signed-stripe-settlement",{
+    method:"POST",headers:replayHeaders,body:interrupted.raw,
+    signal:AbortSignal.timeout(15000)
+  });
+  assert.equal(recover.status,200,
+    "Replayed signed event must recover owner delivery after postpaid interruption");
+  assert.equal((await recover.json()).duplicate,false,
+    "The failed event must actually resume settlement, not be mislabeled duplicate");
+  const copies=await Promise.all([0,1,2].map(()=>fetch(
+    settlementOrigin+"/signed-stripe-settlement",{
+      method:"POST",headers:replayHeaders,body:interrupted.raw,
+      signal:AbortSignal.timeout(15000)
+    })
+  ));
+  for(const copy of copies){
+    assert.equal(copy.status,200,
+      "Repeated signed webhook after committed settlement must succeed as duplicate");
+    assert.equal((await copy.json()).duplicate,true);
+  }
+  const ledgerAfter=await qaSql(
+    "SELECT entry_type,account_code,amount_minor FROM commerce_ledger_entries WHERE order_id=? ORDER BY entry_type,account_code",
+    [initialOrder]);
+  assert.deepEqual(ledgerAfter.results,ledgerBefore.results,
+    "Signed payment replay must never duplicate the financial ledger");
+  const initialEntitlement=await qaSql(
+    `SELECT e.id,e.status FROM entitlements e
+        JOIN commerce_order_items oi ON oi.id=e.order_item_id
+       WHERE oi.order_id=? AND e.user_id=? AND e.source='commerce'
+       AND e.entitlement_type='purchase'`,
+    [initialOrder,initialBuyer]);
+  assert.equal(initialEntitlement.results?.length,1);
+  assert.equal(initialEntitlement.results[0].status,"active");
+  const initialAccess=await postSettlement("/authorize-initial",
+    initialOrder,initialBuyer);
+  assert.equal(initialAccess.status,200,
+    "Real settled purchase must be readable only after independent owner receipt");
+  const initialRefund=await stripeRequest("refunds",{
+    payment_intent:initialPaymentIntentId,
+    reason:"requested_by_customer"
+  });
+  assert.equal(initialRefund.status,"succeeded");
+  const initialDenial=await post("/commercial/entitlement/revoke-order",{
+    orderId:initialOrder,operationId:"stripe-initial-qa-refund:"+initialRefund.id
+  });
+  assert.equal(initialDenial.status,200,
+    "Refund denial must be durable before any lagging D1 buyer reconciliation");
+  assert.equal((await postSettlement("/authorize-initial",
+    initialOrder,initialBuyer)).status,451,
+    "Actual first-payment purchase must be denied immediately after owner refund");
+  assert.equal((await postSettlement("/certify-initial",
+    initialOrder,initialBuyer)).status!==200,true,
+    "Any previous signed successful-payment event may not resurrect refunded access");
+  console.log("PASS: genuine initial pending_payment to original Stripe webhook, full canonical ledger and outbox, injected postpaid owner outage, replay and concurrency dedupe, buyer lease, provider refund and immediate owner revocation");
+
  } finally {
   if(listener?.pid){
     try{process.kill(-listener.pid,"SIGTERM");}catch{
