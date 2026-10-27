@@ -1883,7 +1883,10 @@ export async function handleCommercialAudio(
       licenseId = id("audiolic"),
       issued = now(),
       expires = new Date(
-        Math.min(Date.now() + 30 * 86400000, ent.ends_at ? Date.parse(ent.ends_at) : Infinity),
+        // Commercial offline licenses are short leases, never longer than
+        // the purchaser's remaining entitlement. Renewal requires a fresh
+        // strongly consistent paid-owner authorization.
+        Math.min(Date.now() + 7 * 86400000, ent.ends_at ? Date.parse(ent.ends_at) : Infinity),
       ).toISOString();
     const signed = await signOfflineAudioLicense(env, {
       licenseId,
