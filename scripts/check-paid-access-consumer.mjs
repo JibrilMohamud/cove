@@ -164,15 +164,15 @@ try{
   await assert.rejects(check(owner,{...input,userId:"user_other_18"}),
     e=>e.status===451,"Cannot borrow another buyer's purchase proof");
   product.denyCommercialProduct(sql,{
-    productId:input.productId,operationId:"contract:17:suspended"
+    productId:input.productId,operationId:"retail:qa-temporary-product-hold-17"
   });
   await assert.rejects(check(),e=>e.status===451,
-    "Contract withdrawal invalidates a previously issued protected grant");
+    "Owner-first retail hold temporarily invalidates a previously issued paid grant");
   assert.deepEqual(product.publishFreshCommercialProof(sql,{
     ...doc,validUntil:new Date(Date.now()+800000).toISOString()
   },2),{applied:true,epoch:3});
   await assert.rejects(check(),e=>e.status===451,
-    "Restoring a license cannot revive a stale buyer entitlement epoch");
+    "Retail reopening cannot revive a stale buyer entitlement epoch");
   assert.deepEqual(entitlement.publishFreshEntitlement(sql,{
     ...input,productEpoch:3,
     validUntil:new Date(Date.now()+90000).toISOString()
