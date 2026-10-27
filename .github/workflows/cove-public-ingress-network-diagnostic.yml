@@ -12,17 +12,25 @@ jobs:
     timeout-minutes: 7
     steps:
       - uses: actions/checkout@v4
-      - name: Probe public Vercel and Cloudflare Worker connection (GET only)
+      - name: Probe Vercel aliases and Cloudflare Worker independently
         shell: bash
         run: |
           set +e
-          for target in             "https://cove-puce-theta.vercel.app/"             "https://cove-puce-theta.vercel.app/offline.html"             "https://cove-puce-theta.vercel.app/api/fore/health/ready"             "https://cove-persistence-backend.cove-jibrilmohamud.workers.dev/__cove/health"; do
-            echo "::group::Target $(printf '%s' "$target" | cut -d/ -f3) - $(printf '%s' "$target" | cut -d/ -f4-)"
+          for target in https://cove-puce-theta.vercel.app/ https://cove-jibrilmohamuds-projects.vercel.app/ https://cove-git-main-jibrilmohamuds-projects.vercel.app/ https://cove-puce-theta.vercel.app/offline.html https://cove-puce-theta.vercel.app/api/fore/health/ready https://cove-persistence-backend.cove-jibrilmohamud.workers.dev/__cove/health; do
+            echo "Probe $target"
             for attempt in 1 2; do
-              echo "attempt $attempt"
-              curl --silent --show-error --output /dev/null --connect-timeout 7 --max-time 16                 --write-out "HTTP %{http_code}, remote_ip %{remote_ip}, DNS %{time_namelookup}s, connect %{time_connect}s, TLS %{time_appconnect}s, first_byte %{time_starttransfer}s, total %{time_total}s\n" "$target"
+              curl --silent --show-error --output /dev/null --connect-timeout 7 --max-time 16 --write-out 'status=%{http_code} ip=%{remote_ip} DNS=%{time_namelookup}s TLS=%{time_appconnect}s ttfb=%{time_starttransfer}s total=%{time_total}s\n' "$target"
+              echo "curl_exit=$? attempt=$attempt"
+            done
+          done
+      - name: Compare HTTP 1.1 and HTTP 2 over IPv4
+        shell: bash
+        run: |
+          set +e
+          for mode in --http1.1 --http2; do
+            for attempt in 1 2 3; do
+              echo "mode=$mode attempt=$attempt"
+              curl -4 "$mode" --silent --show-error --output /dev/null --connect-timeout 7 --max-time 16 --write-out 'status=%{http_code} ip=%{remote_ip} proto=%{http_version} TLS=%{time_appconnect}s ttfb=%{time_starttransfer}s total=%{time_total}s\n' https://cove-puce-theta.vercel.app/
               echo "curl_exit=$?"
             done
-            echo "::endgroup::"
           done
-          echo "Read-only network diagnostic complete"
