@@ -1867,16 +1867,24 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
     .prepare("SELECT * FROM commerce_refunds WHERE idempotency_key=?")
     .bind(input.idempotencyKey)
     .first<any>();
-  if (existing)
+  if (existing) {
+    // An external Stripe refund can succeed before owner-first entitlement
+    // withdrawal/ledger settlement. "succeeded" without succeeded_at is NOT
+    // a completed refund. Reconcile the persisted provider operation before
+    // returning an idempotent response; never silently report stale success.
+    const recovered = existing.succeeded_at
+      ? existing
+      : await resumePersistedRefund(env, existing);
     return {
-      id: existing.id,
-      providerRefundId: existing.provider_refund_id || null,
-      status: existing.status,
-      amountMinor: Number(existing.amount_minor),
-      stripeAmountMinor: Number(existing.stripe_amount_minor || 0),
-      giftCardAmountMinor: Number(existing.gift_card_amount_minor || 0),
-      storeCreditAmountMinor: Number(existing.store_credit_amount_minor || 0),
+      id: recovered.id,
+      providerRefundId: recovered.provider_refund_id || null,
+      status: recovered.succeeded_at ? "succeeded" : recovered.status,
+      amountMinor: Number(recovered.amount_minor),
+      stripeAmountMinor: Number(recovered.stripe_amount_minor || 0),
+      giftCardAmountMinor: Number(recovered.gift_card_amount_minor || 0),
+      storeCreditAmountMinor: Number(recovered.store_credit_amount_minor || 0),
     };
+  }
   const o = await db
     .prepare("SELECT * FROM commerce_orders WHERE id=?")
     .bind(input.orderId)
@@ -1942,6 +1950,7 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
       storeCreditAmountMinor: storeAmount,
     };
   }
+  let providerAccepted = false;
   try {
     const refund = await stripeRequest(env, "refunds", {
       idempotencyKey: input.idempotencyKey,
@@ -1954,6 +1963,11 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
         metadata: { fore_order_id: o.id, fore_refund_id: id, fore_total_refund_minor: amount },
       },
     });
+    // Once Stripe has acknowledged the operation, a D1 outage or a failed
+    // strong-owner publication must NEVER relabel the actual refund "failed".
+    // The immutable idempotency key lets a subsequent request recover even
+    // when D1 rejected the provider receipt write below.
+    providerAccepted = true;
     await db
       .prepare("UPDATE commerce_refunds SET provider_refund_id=?,status=?,updated_at=? WHERE id=?")
       .bind(refund.id, refund.status || "pending", now(), id)
@@ -1969,12 +1983,75 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
       storeCreditAmountMinor: storeAmount,
     };
   } catch (e) {
-    await db
-      .prepare("UPDATE commerce_refunds SET status='failed',updated_at=? WHERE id=?")
-      .bind(now(), id)
-      .run();
+    // Transport errors are ambiguous after a request to Stripe. Retain the
+    // pending receipt and exact provider idempotency key for deterministic
+    // recovery. Only a definitive provider-side 400 can be marked failed.
+    if (!providerAccepted && e instanceof ApiError && e.status === 400) {
+      await db
+        .prepare("UPDATE commerce_refunds SET status='failed',updated_at=? WHERE id=? AND provider_refund_id IS NULL")
+        .bind(now(), id)
+        .run();
+    }
     throw e;
   }
+}
+
+/**
+ * Recover a persisted refund, without creating a second payment reversal.
+ * If the provider ID is known, GET the exact refund. If the first network
+ * response was lost, repeat ONLY the same POST with the original Stripe
+ * idempotency key, amount, payment intent, metadata and canonical refund ID.
+ * Refuse mismatched provider receipts; the owner must acknowledge any full
+ * refund before succeeded_at can be set.
+ */
+async function resumePersistedRefund(env: CoveEnv, r: any) {
+  const db = env.DB;
+  const original = await db.prepare("SELECT * FROM commerce_orders WHERE id=?")
+    .bind(r.order_id).first<any>();
+  if (!original) throw new ApiError(409, "Refund order no longer exists.");
+  let provider: any;
+  if (Number(r.stripe_amount_minor || 0) > 0) {
+    if (!original.stripe_payment_intent_id)
+      throw new ApiError(503, "Original Stripe refund payment identity is unavailable.");
+    provider = r.provider_refund_id
+      ? await stripeRequest(env, `refunds/${encodeURIComponent(String(r.provider_refund_id))}`, {
+          method: "GET",
+        })
+      : await stripeRequest(env, "refunds", {
+          idempotencyKey: String(r.idempotency_key),
+          params: {
+            payment_intent: original.stripe_payment_intent_id,
+            amount: Number(r.stripe_amount_minor),
+            reason: ["duplicate", "fraudulent", "requested_by_customer"].includes(String(r.reason))
+              ? r.reason : "requested_by_customer",
+            metadata: {
+              fore_order_id: original.id,
+              fore_refund_id: r.id,
+              fore_total_refund_minor: Number(r.amount_minor),
+            },
+          },
+        });
+    const providerPaymentIntent = typeof provider.payment_intent === "string"
+      ? provider.payment_intent : provider.payment_intent?.id;
+    if (
+      typeof provider.id !== "string" || !/^re_[a-zA-Z0-9]+$/.test(provider.id) ||
+      (r.provider_refund_id && provider.id !== r.provider_refund_id) ||
+      providerPaymentIntent !== original.stripe_payment_intent_id ||
+      Number(provider.amount) !== Number(r.stripe_amount_minor) ||
+      String(provider.currency || "").toUpperCase() !== String(r.currency).toUpperCase()
+    )
+      throw new ApiError(409, "Stripe refund receipt does not match the canonical order.");
+    await db.prepare(
+      "UPDATE commerce_refunds SET provider_refund_id=?,status=?,updated_at=? WHERE id=? AND succeeded_at IS NULL",
+    ).bind(provider.id, provider.status || "pending", now(), r.id).run();
+  } else {
+    provider = { id: `internal_${r.id}`, status: "succeeded" };
+  }
+  if (provider.status === "succeeded") await applyRefundSuccess(env, String(r.id), provider);
+  const latest = await db.prepare("SELECT * FROM commerce_refunds WHERE id=?")
+    .bind(r.id).first<any>();
+  if (!latest) throw new ApiError(503, "Refund reconciliation receipt was lost.");
+  return latest;
 }
 
 /**
