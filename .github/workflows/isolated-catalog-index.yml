@@ -48,6 +48,8 @@ on:
       - "src/storefront-strangler/legal-primary-write-lock.ts"
       - "src/features/fore/api.server.ts"
       - "src/storefront-strangler/legal-authority-*.ts"
+      - "src/storefront-strangler/market-authority-core.ts"
+      - "scripts/check-market-authority-closure.mjs"
       - "wrangler.legal-authority.example.jsonc"
       - "wrangler.catalog-verify.example.jsonc"
       - "scripts/build-storefront-strangler.mjs"
@@ -78,6 +80,7 @@ jobs:
       - run: node scripts/check-legal-authority-read.mjs
       - run: node scripts/check-legal-primary-write-lock.mjs
       - run: node scripts/check-legal-quarantine-writer.mjs
+      - run: node scripts/check-market-authority-closure.mjs
       - run: node scripts/check-legal-consumer-fence.mjs
       - run: node scripts/check-commercial-legal-authority.mjs
       - run: node scripts/check-paid-entitlement-authority.mjs
