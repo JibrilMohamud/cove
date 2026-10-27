@@ -205,22 +205,26 @@ try {
   // Only isolated QA browser state is collected. Never log production
   // accounts or real email, cookies, tokens or page HTML.
   const focus = page
-    ? await page.evaluate(() => ({
-        hasFocus: document.hasFocus(),
-        activeTag: document.activeElement?.tagName || "",
-        activeRole: document.activeElement?.getAttribute("role") || "",
-        activeLabel: document.activeElement?.getAttribute("aria-label") || "",
-      })).catch(() => null)
+    ? await page
+        .evaluate(() => ({
+          hasFocus: document.hasFocus(),
+          activeTag: document.activeElement?.tagName || "",
+          activeRole: document.activeElement?.getAttribute("role") || "",
+          activeLabel: document.activeElement?.getAttribute("aria-label") || "",
+        }))
+        .catch(() => null)
     : null;
   console.error(
     "NVDA_QA_FAILURE",
     JSON.stringify({
       message: String(error),
       focus,
-      lastSpeech: read().slice(-15).map((x) => ({
-        ready: Boolean(x.ready),
-        text: String(x.text || "").slice(0, 240),
-      })),
+      lastSpeech: read()
+        .slice(-15)
+        .map((x) => ({
+          ready: Boolean(x.ready),
+          text: String(x.text || "").slice(0, 240),
+        })),
     }),
   );
   throw error;
