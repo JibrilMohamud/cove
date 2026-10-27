@@ -1045,13 +1045,15 @@ async function searchD1(env: SearchEnv, input: SearchInput) {
   // On a cache miss, avoid scanning the expensive legal view twice.
   // If the facet contract changes, fall back to the original COUNT.
   const sharedFacetCount = !input.query && !part.hasFts && input.availability === "available";
-  let [rows, count, sharedFacets] = await Promise.all([
+  const [initialRows, initialCount, sharedFacets] = await Promise.all([
     runIds(),
     sharedFacetCount ? Promise.resolve<{ count: number } | null>(null) : runCount(),
     sharedFacetCount
       ? d1Facets(env.DB, input, expression)
       : Promise.resolve<SearchFacets | null>(null),
   ]);
+  let rows = initialRows;
+  let count = initialCount;
   if (sharedFacets) {
     const exact = countAvailableCandidatesFromFacet(input, part.hasFts, sharedFacets);
     count = exact === null ? await runCount() : { count: exact };
