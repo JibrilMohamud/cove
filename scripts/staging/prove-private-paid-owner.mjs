@@ -4,7 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {randomBytes} from "node:crypto";
-import {spawnSync} from "node:child_process";
+import {spawnSync,spawn} from "node:child_process";
+import {createServer} from "node:http";
 
 const runId=process.env.GITHUB_RUN_ID;
 const token=process.env.CLOUDFLARE_API_TOKEN;
@@ -147,7 +148,32 @@ const assertNoRoute=(config)=>{
   assert.equal(config.vars?.COVE_RIGHTS_OWNER_ENABLED,"0");
 };
 let ownerCreated=false,callerCreated=false,writerCreated=false,settlementCreated=false;
-let cleanupError=null;
+let cleanupError=null,listener=null,webhookServer=null,webhookSigningSecret="";
+let paymentIntentId=null;
+let matchedPackets=[];
+const until=async(check,label,ms=45000)=>{
+  const end=Date.now()+ms;
+  while(Date.now()<end){
+    const result=await check();
+    if(result)return result;
+    await pause(250);
+  }
+  throw Error("qa_signed_stripe_"+label+"_timeout");
+};
+const stripeRequest=async(route,body)=>{
+  const key=process.env.COVE_SANDBOX_SECRET_KEY||"";
+  assert.match(key,/^(?:sk|rk|rkcs)_test_[A-Za-z0-9]+$/,"Only Stripe sandbox credentials may be used");
+  const response=await fetch("https://api.stripe.com/v1/"+route,{
+    method:"POST",headers:{authorization:"Bearer "+key,
+      "content-type":"application/x-www-form-urlencoded"},
+    body:new URLSearchParams(body),signal:AbortSignal.timeout(20000)
+  });
+  const result=await response.json();
+  assert.equal(response.status,200,
+    "Stripe TEST API rejected isolated purchase: "+String(result?.error?.code||response.status));
+  assert.equal(result.livemode,false,"Never exercise live Stripe payments in QA");
+  return result;
+};
 try {
   const original=JSON.parse(fs.readFileSync("wrangler.legal-paid-authority.example.jsonc","utf8"));
   assertNoRoute(original);
@@ -243,6 +269,67 @@ try {
   // settlement function, not only a direct test POST to the DO. This Worker
   // can operate on ONLY the fixed synthetic buyer and order in the separate
   // canonical paid QA D1. It has an expiring gate and no customer routing.
+  // The test charge originates in a genuine Stripe TEST account. The
+  // official CLI signs its webhook, which this local relay forwards with the
+  // original bytes to the *deployed* staged Cove stripeWebhook implementation.
+  // This QA fixture is already canonically paid: the signed event proves the
+  // paid-webhook-to-owner recovery branch, not initial ledger settlement.
+  const stripeSecret=process.env.COVE_SANDBOX_SECRET_KEY||"";
+  assert.match(stripeSecret,/^(?:sk|rk|rkcs)_test_[A-Za-z0-9]+$/,
+    "Full-schema paid owner requires real TEST Stripe credential for signed event");
+  webhookServer=createServer(async(req,res)=>{
+    try{
+      let raw="";
+      for await(const chunk of req){
+        raw+=chunk.toString();
+        if(raw.length>20000)throw Error("oversized_qa_stripe_event");
+      }
+      const event=JSON.parse(raw);
+      if(event?.type!=="payment_intent.succeeded" ||
+         event?.data?.object?.metadata?.fore_order_id!==test.orderId){
+        res.writeHead(200);res.end("ignored");return;
+      }
+      const response=await fetch(settlementOrigin+"/signed-stripe-settlement",{
+        method:"POST",headers:{"content-type":"application/json",
+          "stripe-signature":String(req.headers["stripe-signature"]||""),
+          authorization:"Bearer "+gate},
+        body:raw,signal:AbortSignal.timeout(15000)
+      });
+      const content=await response.json().catch(()=>null);
+      matchedPackets.push({eventId:event.id,status:response.status,body:content,raw,
+        signature:String(req.headers["stripe-signature"]||"")});
+      res.writeHead(response.status,{"content-type":"application/json"});
+      res.end(JSON.stringify(content||{ok:false}));
+    }catch{
+      res.writeHead(503);res.end("{}");
+    }
+  });
+  await new Promise(resolve=>webhookServer.listen(0,"127.0.0.1",resolve));
+  const localWebhook="http://127.0.0.1:"+webhookServer.address().port+"/stripe";
+  listener=spawn("stripe",["listen","--events","payment_intent.succeeded",
+    "--forward-to",localWebhook],{
+    env:{...process.env,STRIPE_API_KEY:stripeSecret},
+    detached:process.platform!=="win32",stdio:["ignore","pipe","pipe"]
+  });
+  let output="";
+  for(const stream of [listener.stdout,listener.stderr])
+    stream.on("data",chunk=>{
+      output+=chunk.toString().slice(0,2000);
+      const match=/whsec_[A-Za-z0-9]+/.exec(output);
+      if(match)webhookSigningSecret=match[0];
+      if(output.length>6000)output=output.slice(-3000);
+    });
+  listener.on("error",()=>{});
+  await until(()=>webhookSigningSecret,"listener_ready");
+  // Only isolated QA canonical D1 receives this durable dedupe table.
+  // Real production event storage and canonical settlement are not touched.
+  await qaSql(`CREATE TABLE IF NOT EXISTS commerce_webhook_events (
+    provider_event_id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,livemode INTEGER NOT NULL,
+    payload_sha256 TEXT NOT NULL,status TEXT NOT NULL,
+    received_at TEXT NOT NULL,processing_token TEXT,
+    processing_lease_until TEXT,processed_at TEXT,error TEXT
+  )`);
   const settlement=JSON.parse(fs.readFileSync(
     "wrangler.legal-paid-settlement-stage-qa.example.jsonc","utf8"));
   assert.equal(settlement.workers_dev,false);
@@ -259,10 +346,11 @@ try {
   fs.writeFileSync(settlementCfg,JSON.stringify(settlement));
   settlementCreated=true;
   await deploy(settlementCfg,{
-    COVE_PAID_STAGE_QA_GATE:gate,COVE_RIGHTS_OWNER_SECRET:secret
+    COVE_PAID_STAGE_QA_GATE:gate,COVE_RIGHTS_OWNER_SECRET:secret,
+    STRIPE_WEBHOOK_SECRET:webhookSigningSecret
   });
   await verifySecrets(settlementName,
-    ["COVE_PAID_STAGE_QA_GATE","COVE_RIGHTS_OWNER_SECRET"]);
+    ["COVE_PAID_STAGE_QA_GATE","COVE_RIGHTS_OWNER_SECRET","STRIPE_WEBHOOK_SECRET"]);
   const postSettlement=async(route)=>{
     const response=await fetch(settlementOrigin+route,{
       method:"POST",headers:{"content-type":"application/json",
@@ -292,6 +380,47 @@ try {
   });
   assert.equal(ent.status,200,"Canonical paid order did not publish real buyer receipt");
   assert.equal(ent.body?.applied,true);
+  // Confirm one real $3.99 TEST payment, then process its Stripe CLI-signed
+  // payment_intent.succeeded through *Cove's original webhook handler* on the
+  // deployed paid-stage Worker, into the same private owner as EPUB QA.
+  const payment=await stripeRequest("payment_intents",{
+    amount:"399",currency:"usd",
+    "metadata[fore_order_id]":test.orderId,
+    "description":"Cove isolated full-schema legal-owner QA (test only)"
+  });
+  paymentIntentId=payment.id;
+  assert.match(paymentIntentId,/^pi_[a-zA-Z0-9]+$/);
+  const linked=await qaSql(
+    "UPDATE commerce_orders SET stripe_payment_intent_id=? WHERE id=? AND status='paid' AND stripe_due_minor=399 AND currency='USD'",
+    [paymentIntentId,test.orderId]
+  );
+  assert.equal(linked.meta?.changes,1,
+    "Only the exact already-paid synthetic order may be linked to Stripe TEST");
+  const confirmed=await stripeRequest("payment_intents/"+
+    encodeURIComponent(paymentIntentId)+"/confirm",{
+      payment_method:"pm_card_visa",return_url:"https://example.invalid/cove-paid-qa"
+    });
+  assert.equal(confirmed.status,"succeeded");
+  assert.equal(confirmed.amount_received,399);
+  const received=await until(()=>matchedPackets.find(x=>x.eventId&&x.status===200),
+    "deployed_signed_webhook",60000);
+  assert.equal(received.body?.ok,true,
+    "Actual signed Cove webhook must publish strong owner entitlement");
+  assert.equal(received.body?.duplicate,false);
+  const signedReplay=await fetch(settlementOrigin+"/signed-stripe-settlement",{
+    method:"POST",headers:{"content-type":"application/json",
+      authorization:"Bearer "+gate,"stripe-signature":received.signature},
+    body:received.raw,signal:AbortSignal.timeout(12000)
+  });
+  assert.equal(signedReplay.status,200,"Signed Stripe delivery replay failed");
+  assert.equal((await signedReplay.json()).duplicate,true,
+    "Idempotent signed payment event must not duplicate owner settlement");
+  const proof=await qaSql(
+    "SELECT status FROM commerce_webhook_events WHERE provider_event_id=?",
+    [received.eventId]
+  );
+  assert.equal(proof.results?.[0]?.status,"processed",
+    "Real signed payment event must have a durable canonical D1 dedupe receipt");
   const stagePublished=await postSettlement("/certify-paid");
   assert.equal(stagePublished.status,200,
     "Real deployed Cove paid-settlement function must reverify full-schema canonical buyer");
@@ -332,14 +461,27 @@ try {
   assert.deepEqual(replay.body,denied.body,"Refund replay must be idempotent");
   const forbidden=await post("/commercial/entitlement/publish-verified",input);
   assert.notEqual(forbidden.status,200,"Old paid order must never resurrect entitlement");
-  console.log("PASS: deployed full-schema paid owner, canonical grant and price via private writer, deployed settlement and protected consumer, exact buyer, territory, owner-first canonical refund and replay; no capacity D1 writes");
-} finally {
+  console.log("PASS: deployed canonical full-schema QA, actual Stripe TEST charge and Stripe CLI-signed Cove webhook dedupe, owner-first publication, protected buyer check, private refund/replay; synthetic already-paid order; no production/capacity D1 writes");
+ } finally {
+  if(listener?.pid){
+    try{process.kill(-listener.pid,"SIGTERM");}catch{
+      try{listener.kill("SIGTERM");}catch{}
+    }
+  }
+  if(webhookServer)await new Promise(resolve=>webhookServer.close(resolve));
   // Physically distinct QA scripts and expiring credentials prevent production
   // exposure. DELETE is limited to names built from this exact CI run ID.
   for(const [name,created] of [[settlementName,settlementCreated],[callerName,callerCreated],[writerName,writerCreated],[ownerName,ownerCreated]]){
     if(!created)continue;
     try{await api("DELETE","/workers/scripts/"+name);}
     catch(e){cleanupError=e;console.error("QA script cleanup failed: "+name);}
+  }
+  // Revert the exact synthetic order link, even if the signed event fails.
+  if(paymentIntentId){
+    try{
+      await qaSql("UPDATE commerce_orders SET stripe_payment_intent_id=NULL WHERE id=? AND stripe_payment_intent_id=?",
+        [test.orderId,paymentIntentId]);
+    }catch(e){cleanupError=e;console.error("Synthetic QA Stripe intent unlink failed");}
   }
   // This database contains only our fixed synthetic QA fixture, never live
   // paid customers. Reinstate its test row after all ephemeral owner/writer
