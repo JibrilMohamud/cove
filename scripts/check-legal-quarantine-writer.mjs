@@ -71,6 +71,8 @@ try {
     if(pathname==="/commercial/publish-verified"||
        pathname==="/storefront/publish-commercial"){
       publicationCalls.push({pathname,body:cmd});
+      assert.equal(cmd.channel,"retail",
+        "Canonical commercial positive publisher requires explicit retail channel");
       if(pathname==="/storefront/publish-commercial"&&failRetailOffer)
         return new Response(null,{status:503});
       return Response.json({applied:true,epoch:1});
@@ -430,9 +432,9 @@ try {
     "Private owner legal proof must precede its exact retail offer publication");
   assert.deepEqual(publicationCalls,[
     {pathname:"/commercial/publish-verified",body:{
-      productId:publish.productId,territory:"US",currency:"USD"}},
+      productId:publish.productId,territory:"US",currency:"USD",channel:"retail"}},
     {pathname:"/storefront/publish-commercial",body:{
-      productId:publish.productId,territory:"US",currency:"USD"}}
+      productId:publish.productId,territory:"US",currency:"USD",channel:"retail"}}
   ],"Publisher cannot inject a cached price or contract");
   failRetailOffer=true;publicationCalls.length=0;
   assert.equal((await post({...publish,operationId:"qa:retail:a17:failed"},
