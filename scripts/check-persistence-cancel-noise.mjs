@@ -70,4 +70,6 @@ try {
   console.error = originalError;
   rmSync(directory, { recursive: true, force: true });
 }
-console.log("PASS: hedge cancellation is quiet, genuine backend errors are logged and all failures deny access");
+console.log(
+  "PASS: hedge cancellation is quiet, genuine backend errors are logged and all failures deny access",
+);
