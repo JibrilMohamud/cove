@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
 import { DurableObject } from "cloudflare:workers";
+import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
 import { resolveProductRights } from "../features/fore/rights.server";
 import {
@@ -64,6 +65,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     createCommercialAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
     createCommercialStorefrontSchema(ctx.storage.sql as unknown as AuthoritySql);
     createPaidEntitlementSchema(ctx.storage.sql as unknown as AuthoritySql);
+    createMarketAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -81,6 +83,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/deny-next","/commercial/deny-batch","/commercial/subject/deny-next","/commercial/publish-verified",
       "/commercial/authorize-batch",
       "/storefront/authorize-batch","/storefront/publish-commercial",
+      "/market/deny-next",
       "/commercial/order/deny-next","/commercial/order/verify",
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
       "/commercial/entitlement/publish-verified",
@@ -96,6 +99,26 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
     try {
+      if(route==="/market/deny-next"){
+        const storage=this.ctx.storage as typeof this.ctx.storage&{
+          transactionSync<T>(fn:()=>T):T;
+        };
+        const receipt=storage.transactionSync(()=>denyMarket(sql,raw));
+        return Response.json(receipt,{status:200,headers:noStore});
+      }
+      // All territory-sensitive owner decisions, including historical paid
+      // entitlements, are blocked by one durable market tombstone. This is
+      // deliberately NOT an asynchronous fanout across product grants.
+      const marketScopedRoutes=new Set([
+        "/verify","/authorize-batch","/publish-allow",
+        "/commercial/authorize-batch","/commercial/publish-verified",
+        "/storefront/authorize-batch","/storefront/publish-commercial",
+        "/commercial/entitlement/authorize",
+        "/commercial/entitlement/publish-verified"
+      ]);
+      if(marketScopedRoutes.has(route) &&
+         marketIsWithdrawn(sql,(raw as {territory?:unknown})?.territory))
+        return new Response(null,{status:409,headers:noStore});
       if(route==="/commercial/order/verify"){
         return Response.json(readPaidOrderPermission(sql,raw),{headers:noStore});
       }
@@ -193,15 +216,17 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const storage=this.ctx.storage as typeof this.ctx.storage & {
           transactionSync<T>(fn:()=>T):T;
         };
-        const receipt=storage.transactionSync(()=>
-          publishFreshEntitlement(sql,{...scope,
+        const receipt=storage.transactionSync(()=>{
+          if(marketIsWithdrawn(sql,input.territory))
+            throw Error("market_withdrawn_during_paid_entitlement_verification");
+          return publishFreshEntitlement(sql,{...scope,
             // The owner core must receive the exact acquisition market.
             // Omitting either field rejects all positive buyer publication.
             territory:input.territory,channel:input.channel as CommercialChannel,
             orderId:order.order_id,productEpoch:rights[0].epoch,
             validUntil:new Date(expiry).toISOString()
-          },expected)
-        );
+          },expected);
+        });
         return Response.json(receipt,{status:receipt.applied?200:409,headers:noStore});
       }
       if(route==="/commercial/subject/deny-next"){
@@ -277,8 +302,10 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const storage=this.ctx.storage as typeof this.ctx.storage&{
           transactionSync<T>(fn:()=>T):T;
         };
-        const receipt=storage.transactionSync(()=>
-          publishCommercialStorefront(sql,{
+        const receipt=storage.transactionSync(()=>{
+          if(marketIsWithdrawn(sql,input.territory))
+            throw Error("market_withdrawn_during_offer_verification");
+          return publishCommercialStorefront(sql,{
             product_id:row.product_id,edition_id:row.edition_id,
             product_public_id:row.product_public_id,
             edition_public_id:row.edition_public_id,
@@ -288,8 +315,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             contract_version_id:rights[0].contract_version_id!,
             offer_json:row.offer_json!,
             valid_until:new Date(expires).toISOString()
-          })
-        );
+          });
+        });
         return Response.json(receipt,{headers:noStore});
       }
       if(route==="/commercial/authorize-batch"){
@@ -344,15 +371,17 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         const storage=this.ctx.storage as typeof this.ctx.storage & {
           transactionSync<T>(fn:()=>T):T;
         };
-        const verdict=storage.transactionSync(()=>
-          publishFreshCommercialProof(sql,{
+        const verdict=storage.transactionSync(()=>{
+          if(marketIsWithdrawn(sql,input.territory))
+            throw Error("market_withdrawn_during_commercial_verification");
+          return publishFreshCommercialProof(sql,{
             productId:product.id,editionId:product.edition_id,
             territory:input.territory as string,channel:input.channel as CommercialChannel,
             grantId:decision.grantId!,contractId:decision.contractId,
             contractVersionId:decision.contractVersionId,
             validUntil:new Date(expiresAt).toISOString(),
-          },startEpoch)
-        );
+          },startEpoch);
+        });
         return Response.json(verdict,{status:verdict.applied?200:409,headers:noStore});
       }
       if(route==="/verify") {
@@ -412,15 +441,21 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           authorized[0].product_id!=="prd_gutenberg_"+command.sourceId ||
           !authorized[0].offer_json)
         return new Response(null,{status:409,headers:noStore});
-      const verdict=commitFreshPositiveVerification(
-        sql,command,proofStartRevision,input.currency,{
+      const storage=this.ctx.storage as typeof this.ctx.storage&{
+        transactionSync<T>(fn:()=>T):T;
+      };
+      const verdict=storage.transactionSync(()=>{
+        if(marketIsWithdrawn(sql,command.territory))
+          throw Error("market_withdrawn_during_source_verification");
+        return commitFreshPositiveVerification(
+        sql,command,proofStartRevision,input.currency as string,{
           productId:authorized[0].product_id,
           editionId:authorized[0].edition_id,
           productPublicId:authorized[0].product_public_id || null,
           editionPublicId:authorized[0].edition_public_id || null,
-          offerJson:authorized[0].offer_json,
-        }
-      );
+          offerJson:authorized[0].offer_json!,
+        });
+      });
       if(!verdict.applied)
         return Response.json(verdict,{status:409,headers:noStore});
       return Response.json(verdict,{status:200,headers:noStore});
