@@ -91,7 +91,7 @@ const postStableDenial=async(path,body)=>{
   assert.ok(["/deny-next","/deny-next-batch","/source/retract-batch",
     "/commercial/deny-next","/commercial/deny-batch",
     "/commercial/subject/deny-next","/commercial/order/deny-next",
-    "/commercial/retail/withdraw"].includes(path));
+    "/commercial/retail/withdraw","/market/withdraw"].includes(path));
   const ops=Array.isArray(body?.operations)?body.operations:[body];
   assert.ok(ops.length>0&&ops.every(x=>
     typeof x?.operationId==="string"&&x.operationId.startsWith("qa:"+runId+":") ||
@@ -192,6 +192,25 @@ try{
   }
   assert.ok(ready,"QA owner service-binding never became usable: "+
     JSON.stringify(Object.fromEntries(readinessFailures)));
+  // Exercise the REAL deployed DO, private writer and expiring caller. QZ is
+  // an intentionally unlaunched synthetic market; never tombstone live US.
+  const marketDeny=await postStableDenial("/market/withdraw",{
+    territory:"QZ",operationId:"qa:"+runId+":market:withdraw"
+  });
+  assert.equal(marketDeny.status,200,
+    "The private market writer must ACK only after strong owner denial");
+  assert.equal(marketDeny.payload?.marketWithdrawn,true);
+  const marketHidden=await readOwner("/authorize-batch",{
+    ids:[],territory:"QZ",currency:"USD"
+  },gate,409);
+  assert.equal(marketHidden.status,409,
+    "A market tombstone vetoes owner retail reads without primary D1 or index fanout");
+  const marketReplay=await postStableDenial("/market/withdraw",{
+    territory:"QZ",operationId:"qa:"+runId+":market:withdraw"
+  });
+  assert.equal(marketReplay.status,200,
+    "Replaying the exact market operation must reconcile without regrant");
+
   // This database is the minimal, isolated canonical-publication QA fixture,
   // not production. Seed one private synthetic row to prove the real writer
   // can modify canonical D1 ONLY after the same DO has fenced all countries.
