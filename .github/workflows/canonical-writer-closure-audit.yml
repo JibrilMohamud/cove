@@ -1,0 +1,50 @@
+name: canonical-writer-closure-audit
+
+on:
+  push:
+    branches: ["arch/production-legal-writer-closure-20261027"]
+    paths:
+      - "src/**"
+      - "scripts/check-canonical-writer-closure.mjs"
+      - "scripts/test-canonical-writer-closure.mjs"
+      - "scripts/test-legal-primary-write-lock.mjs"
+      - "scripts/test-legal-admin-owner-commands.mjs"
+      - ".github/workflows/canonical-writer-closure-audit.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "scripts/check-canonical-writer-closure.mjs"
+      - "scripts/test-canonical-writer-closure.mjs"
+      - ".github/workflows/canonical-writer-closure-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inventory-and-cutover-denial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Install runtime guard test dependencies
+        run: npm ci --ignore-scripts
+      - name: Prove actual staged D1 guard denies all protected-table mutations
+        run: node scripts/test-legal-primary-write-lock.mjs
+      - name: Verify authenticated admin owner-first command isolation
+        run: node scripts/test-legal-admin-owner-commands.mjs
+      - name: Inventory all direct writers and verify fail-closed gate
+        run: node scripts/test-canonical-writer-closure.mjs
+      - name: Produce reviewable per-file mutation evidence
+        env:
+          COVE_WRITER_AUDIT_OUTPUT: ${{ runner.temp }}/cove-canonical-writer-inventory.json
+        run: node scripts/check-canonical-writer-closure.mjs --audit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: canonical-writer-inventory
+          path: ${{ runner.temp }}/cove-canonical-writer-inventory.json
+          retention-days: 30
+          if-no-files-found: error

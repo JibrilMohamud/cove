@@ -62,7 +62,14 @@ const LEGAL_TABLES = [
   "commerce_store_credit_ledger", "commerce_promo_codes",
   "commerce_promo_redemptions", "finance_parties",
   "finance_royalty_contract_versions", "finance_royalty_contract_splits",
-  "finance_royalty_events", "publishing_outbox"
+  "finance_royalty_events", "publishing_outbox",
+  // Closed under the static canonical writer registry. Keep these denial
+  // predicates aligned with the CI registry, including settlement and asset
+  // metadata tables that can influence subsequent customer authorization.
+  "rights_grant_scope_snapshots", "rights_configuration_audit", "territory_sets", "territory_set_rules", "territory_set_members", "gutenberg_source_states", "commerce_ledger_entries", "commerce_payment_attempts", "commercial_download_audit", "publication_version_distribution_controls", "publication_version_distribution_events", "audio_offline_license_events", "publishing_owner_version_events", "publishing_entitlement_version_pins", "publishing_asset_versions", "publishing_assets", "publisher_catalog_mappings", "publishing_accounts", "publishing_titles", "publishing_validation_jobs", "publishing_lifecycle_events", "preorders", "commercial_audio_playback",
+  // Legal version rules, evidence disputes, trust gates and financial receipts
+  // also influence authorization. Never omit their direct writers.
+  "rights_contract_version_territories", "rights_contract_version_formats", "rights_contract_version_channels", "rights_contract_audit", "rights_disputes", "rights_dispute_events", "rights_notification_jobs", "copyright_notices", "copyright_counter_notices", "copyright_court_actions", "commercial_delivery_policies", "commercial_audio_policy_versions", "commercial_audio_submission_snapshots", "finance_royalty_allocations", "finance_usage_events", "finance_usage_pools", "royalty_holds", "publishing_validation_results", "publishing_accessibility_declarations", "publishing_rights_evidence_scan_jobs", "publisher_partner_credentials", "publisher_feed_submissions", "publisher_feed_items", "publisher_feed_assets", "publisher_validation_responses", "publishing_identity_verifications", "publishing_content_policy_assessments", "publishing_account_members",
 ] as const;
 
 // Detect mutating SQL anywhere in the statement, not merely at position 0:

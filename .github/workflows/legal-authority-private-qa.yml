@@ -7,6 +7,9 @@ on:
       - "src/storefront-strangler/market-authority-core.ts"
       - "scripts/check-market-authority-closure.mjs"
       - "src/storefront-strangler/legal-primary-write-lock.ts"
+      - "src/storefront-strangler/legal-admin-owner-commands.server.ts"
+      - "scripts/test-legal-admin-owner-commands.mjs"
+      - "src/features/fore/api.server.ts"
       - "src/storefront-strangler/legal-authority-qa-caller.worker.ts"
       - "scripts/staging/prove-private-legal-owner.mjs"
       - "wrangler.legal-qa-caller.example.jsonc"
@@ -26,7 +29,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   provision-disabled-private-authority:
-    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["arch/isolated-catalog-normalization-20261025","arch/territory-owner-fence-20261027"]'), github.event.pull_request.head.ref)) || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["refs/heads/arch/isolated-catalog-normalization-20261025","refs/heads/arch/territory-owner-fence-20261027"]'), github.ref))
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["arch/isolated-catalog-normalization-20261025","arch/territory-owner-fence-20261027","arch/production-legal-writer-closure-20261027"]'), github.event.pull_request.head.ref)) || (github.event_name == 'workflow_dispatch' && contains(fromJSON('["refs/heads/arch/isolated-catalog-normalization-20261025","refs/heads/arch/territory-owner-fence-20261027","refs/heads/arch/production-legal-writer-closure-20261027"]'), github.ref))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -45,6 +48,7 @@ jobs:
           node scripts/check-legal-authority-coordinator.mjs
           node scripts/check-legal-authority-read.mjs
           node scripts/check-legal-primary-write-lock.mjs
+          node scripts/test-legal-admin-owner-commands.mjs
           node scripts/check-legal-quarantine-writer.mjs
           node scripts/check-market-authority-closure.mjs
           node scripts/staging/sweep-expired-legal-qa-callers.mjs --self-test
