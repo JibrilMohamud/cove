@@ -24,7 +24,7 @@ const primaryName="cove-paid-commerce-legal-qa-20261027";
 const gate=randomBytes(32).toString("hex");
 const secret=randomBytes(32).toString("hex");
 const writerSecret=randomBytes(32).toString("hex");
-const expires=Date.now()+12*60_000;
+let expires=Date.now()+12*60_000;
 const temp=fs.mkdtempSync(path.join(process.cwd(),".cove-paid-proof-"));
 const ownerCfg=path.join(process.cwd(),".cove-paid-owner-proof-"+runId+".jsonc");
 const callerCfg=path.join(process.cwd(),".cove-paid-caller-proof-"+runId+".jsonc");
@@ -261,6 +261,9 @@ const stripeRequest=async(route,body)=>{
 try {
   await prepareInitialCommerceQaSchema();
   await seedInitialPendingOrder();
+  // Schema-only bootstrap can take minutes; the *authorization* lifetime
+  // begins only after staging data is ready, not during isolated DDL.
+  expires=Date.now()+12*60_000;
   const original=JSON.parse(fs.readFileSync("wrangler.legal-paid-authority.example.jsonc","utf8"));
   assertNoRoute(original);
   original.name=ownerName;
