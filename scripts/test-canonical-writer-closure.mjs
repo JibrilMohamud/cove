@@ -16,6 +16,24 @@ try{
   const result=JSON.parse(readFileSync(file,"utf8"));
   assert.equal(result.schema,"cove.canonical-writer-inventory.v1");
   assert.equal(result.staticScanOnly,true);
+  // The runtime D1 denial fence and the audit must protect the SAME tables.
+  // Omitting one can permit direct SQL through a route despite a green audit.
+  const scanner=readFileSync("scripts/check-canonical-writer-closure.mjs","utf8");
+  const runtimeLock=readFileSync("src/storefront-strangler/legal-primary-write-lock.ts","utf8");
+  function registry(source,begin,end){
+    const start=source.indexOf(begin);
+    assert.ok(start>=0,"missing canonical table registry: "+begin);
+    const finish=source.indexOf(end,start);
+    assert.ok(finish>start,"incomplete canonical table registry: "+begin);
+    const names=[...source.slice(start,finish).matchAll(/"([a-z_]+)"/g)].map(x=>x[1]);
+    assert.equal(names.length,new Set(names).size,"duplicate canonical protected table");
+    return names.sort();
+  }
+  assert.deepEqual(
+    registry(runtimeLock,"const LEGAL_TABLES = [","] as const;"),
+    registry(scanner,"const protectedTables=[","];"),
+    "Audit and runtime D1 mutation denial must cover identical protected tables"
+  );
   assert.ok(result.scannedFiles>50);
   assert.ok(result.unresolvedDirectWrites>80,
     "Unexpectedly empty writer audit: do not certify production from a broken scanner");
