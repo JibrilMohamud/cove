@@ -223,8 +223,104 @@ try {
     .bind(new Date().toISOString(), publishedUser)
     .run();
   await assert.rejects(callTrack(publishedUser), /entitlement|purchase|subscription/i);
+  // A commercial, rather than Gutenberg-namespaced, copy of the fixture
+  // exercises the REAL audio HTTP handler's mandatory staged paid-owner
+  // authorization immediately before serving protected R2 bytes. This is a
+  // disposable local proof of the consumer integration; the separate deployed
+  // legal-owner test certifies its real Durable Object implementation.
+  const commercialId = "prd_commercial_audioqa_" + randomUUID().replaceAll("-", "");
+  const fields = (await env.DB.prepare("PRAGMA table_info(products)").all()).results;
+  assert.ok(fields.some((field) => field.name === "id"));
+  const quote = (value) => '"' + String(value).replaceAll('"', '""') + '"';
+  const columns = fields.map((field) => field.name);
+  const replaced = [];
+  const projection = columns.map((column) => {
+    if (column === "id") { replaced.push(commercialId); return "?"; }
+    if (column === "source_name") { replaced.push("publisher"); return "?"; }
+    if (column === "source_external_id") { replaced.push("qa-audio-" + commercialId); return "?"; }
+    if (column === "public_id" || column === "slug") { replaced.push(commercialId); return "?"; }
+    return quote(column);
+  });
+  await env.DB.prepare(
+    "INSERT INTO products (" + columns.map(quote).join(",") + ") SELECT " +
+      projection.join(",") + " FROM products WHERE id=?",
+  ).bind(...replaced, product.id).run();
+  const ownerBuyer = "qa_owned_media_" + randomUUID();
+  const ownedEntitlement = "ent_qa_owned_" + randomUUID().replaceAll("-", "");
+  const issued = new Date().toISOString();
+  await env.DB.prepare(
+    "INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,granted_at,updated_at) VALUES(?,?,?,'purchase','active','commerce',?,?)",
+  ).bind(ownedEntitlement, ownerBuyer, commercialId, issued, issued).run();
+  publishedRow.product_id = commercialId;
+  let ownerEnabled = false, ownerOutage = false, ownerReads = 0;
+  const staged = {
+    ...fixtureEnv,
+    COVE_SSR_STAGING: "1",
+    COVE_CANONICAL_LEGAL_WRITE_LOCK: "1",
+    COVE_LEGAL_CONSUMER_STAGE_ENABLED: "1",
+    COVE_LEGAL_WRITER_PRIMARY_ID: "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+    COVE_RIGHTS_OWNER_SECRET: "a".repeat(64),
+    LEGAL_AUTHORITY: {
+      getByName(name) {
+        assert.equal(name, "cove-staged-legal-global-v1");
+        return { async fetch(request) {
+          ownerReads++;
+          if (ownerOutage) throw Error("synthetic_legal_owner_offline");
+          assert.equal(request.headers.get("authorization"), "Bearer " + "a".repeat(64));
+          assert.equal(new URL(request.url).pathname, "/commercial/entitlement/authorize");
+          const input = await request.json();
+          assert.deepEqual(input, {
+            entitlementId: ownedEntitlement,
+            userId: ownerBuyer,
+            productId: commercialId,
+            territory: "US",
+            channel: "retail",
+          });
+          return Response.json(ownerEnabled ? {
+            schema: "cove.paid-access.v1",
+            allowed: true,
+            proof: {
+              entitlement_id: ownedEntitlement,
+              user_id: ownerBuyer,
+              product_id: commercialId,
+              territory: "US",
+              channel: "retail",
+              order_id: "order_synthetic_audio_20261027",
+              edition_id: "ed_synthetic_audio_20261027",
+              grant_id: "grant_synthetic_audio_20261027",
+              contract_id: "contract_synthetic_audio_20261027",
+              contract_version_id: "rcv_synthetic_audio_20261027",
+              product_epoch: 1,
+              entitlement_epoch: 1,
+              valid_until: new Date(Date.now() + 60000).toISOString(),
+            },
+          } : { schema: "cove.paid-access.v1", allowed: false });
+        }};
+      },
+    },
+  };
+  const ownedTrack = (range) =>
+    audio.handleCommercialAudio(trackRequest(range), staged, trackPath, ownerBuyer, "US");
+  await assert.rejects(ownedTrack(), (e) => e.status === 451,
+    "An active canonical entitlement cannot bypass a missing strong owner grant");
+  ownerEnabled = true;
+  const owned200 = await ownedTrack();
+  assert.equal(owned200.status, 200);
+  assert.deepEqual(Buffer.from(await owned200.arrayBuffer()), bytes,
+    "The actual commercial-audio HTTP route serves only owner-authorized bytes");
+  const owned206 = await ownedTrack("bytes=0-63");
+  assert.equal(owned206.status, 206);
+  assert.deepEqual(Buffer.from(await owned206.arrayBuffer()), bytes.subarray(0, 64));
+  ownerOutage = true;
+  await assert.rejects(ownedTrack(), (e) => e.status === 503,
+    "A legal-owner outage must halt previously authorized audiobook delivery");
+  ownerOutage = false;
+  ownerEnabled = false;
+  await assert.rejects(ownedTrack(), (e) => e.status === 451,
+    "Withdrawal must deny the actual audio route even while D1 entitlement is active");
+  assert.ok(ownerReads >= 5, "Every protected audio request must recheck authority");
   console.log(
-    "PASS: synthetic private R2 200/206, range denial, live handler rights/entitlement checks, cross-user denial, published-manifest fixture and revocation (disposable environment, not deployed browser).",
+    "PASS: synthetic private R2 200/206, live commercial audio HTTP handler, strong-owner buyer proof/denial, outage fail-closed, cross-user isolation and immediate withdrawal (disposable QA).",
   );
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
