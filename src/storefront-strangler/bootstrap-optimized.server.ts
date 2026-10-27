@@ -31,6 +31,9 @@ type OptimizedEnv = CoveEnv & {
   // intentionally excluded from the hosted primary-D1 release benchmark.
   COVE_LEGAL_OWNER_STAGE_READ_ENABLED?: string;
   COVE_LEGAL_OWNER_WRITER_CLOSURE_AUDITED?: string;
+  // Owner-only reads are unsafe if ANY legacy positive legal writer can
+  // bypass the same canonical write lock in the enrolled staging gateway.
+  COVE_CANONICAL_LEGAL_WRITE_LOCK?: string;
   COVE_RIGHTS_OWNER_SECRET?: string;
   COVE_STRANGLER_DATABASE_ID?: string;
   LEGAL_AUTHORITY?: {
@@ -239,6 +242,10 @@ export async function serveLeanAnonymousBootstrap(
       env.COVE_STRANGLER_MODE === "production-acceptance" &&
       env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989" &&
       env.COVE_LEGAL_OWNER_WRITER_CLOSURE_AUDITED === "1" &&
+      // A self-declared audit flag alone does not close raw canonical D1
+      // mutation paths. Refuse the fast read unless the staged writer lock
+      // is explicitly installed on the same deployment.
+      env.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1" &&
       typeof env.LEGAL_AUTHORITY?.getByName === "function" &&
       /^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET || "") &&
       model === "2"
