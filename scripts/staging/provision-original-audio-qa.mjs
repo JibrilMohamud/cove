@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Explicit frozen synthetic audio fixture SQL follows private QA schema. */
 /* Synthetic dual-format publisher fixture for deployed ISOLATED paid QA only.
  * Never call on live catalog, real customers or a production D1.
  * The same QA purchased SKU covers the original EPUB + generated audio.
