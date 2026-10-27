@@ -47,7 +47,7 @@ export async function provisionPublishedQaAudio(qaSql,{runId,productId,
       audioPublisher:"Cove QA",copyrightNotice:"QA only"},
     narrators:[{id:narrator,display_name:"Generated QA Silence",
       narration_type:"synthetic"}],
-    agreements:[{id:agreement,status:"active",permittedUses:[
+    agreements:[{id:agreement,narrator_id:narrator,status:"active",permittedUses:[
       "retail","preview","offline"],territories:["US"]}],
     chapters:[{id:chapter,title:"Generated silence",object_key:objectKey,
       sha256:sha,mime_type:"audio/wav",size_bytes:sizeBytes,duration_ms:1000}]
