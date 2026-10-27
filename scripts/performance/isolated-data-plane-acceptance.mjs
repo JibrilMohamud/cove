@@ -445,8 +445,8 @@ async function deployBackgroundLane(){
     name,main:".output/strangler/capacity-background.mjs",
     compatibility_date:"2026-10-25",workers_dev:true,preview_urls:false,routes:[],
     d1_databases:[
-      {binding:"CONTENT_DB",database_name:"cove-content-private-qa",database_id:content},
-      {binding:"DISCOVERY_DB",database_name:"cove-discovery-private-qa",database_id:discovery}
+      {binding:"CONTENT_DB",database_name:"cove-literary-budget-stage-20261020",database_id:content},
+      {binding:"DISCOVERY_DB",database_name:"cove-perf-isolated-control-20261019",database_id:discovery}
     ],
     vars:{COVE_BG_ENABLED:"1",COVE_BG_RUN_ID:runId,COVE_BG_EXPIRES_AT:String(lease)}
   };
