@@ -10,7 +10,7 @@ try{
   const out=path.join(dir,"legal-admin.mjs");
   await build({entryPoints:["src/storefront-strangler/legal-admin-owner-commands.server.ts"],
     outfile:out,bundle:true,platform:"node",format:"esm",logLevel:"silent"});
-  const {executeStageCanonicalAdminCommand:run}=await import(pathToFileURL(out).href);
+  const {executeStageCanonicalAdminCommand:run,executeStageRightsEditorSuspension:editor}=await import(pathToFileURL(out).href);
   const secret="a".repeat(64),messages=[];
   let status=200,override=null,unavailable=false;
   const responses={
@@ -19,6 +19,7 @@ try{
     "/commercial/retail/withdraw":{withdrawn:true,ownerEpoch:4},
     "/commercial/retail/publish-verified":{published:true,ownerEpoch:5},
     "/market/withdraw":{marketWithdrawn:true,territory:"US"},
+    "/commercial/entitlement/revoke":{revoked:true,epoch:6},
   };
   const env={
     COVE_SSR_STAGING:"1",COVE_CANONICAL_LEGAL_WRITE_LOCK:"1",
@@ -46,6 +47,7 @@ try{
     {action:"withdraw-retail",productId:"prd_commercial_123",operationId:"retail:1"},
     {action:"publish-retail",productId:"prd_commercial_123",territory:"US",currency:"USD",operationId:"retail:2"},
     {action:"pause-market",territory:"US",operationId:"market:1"},
+    {action:"revoke-entitlement",entitlementId:"entitle_123",operationId:"entitlement:1"},
   ];
   for(const x of operations){
     const result=await run(env,x);
@@ -54,6 +56,14 @@ try{
     assert.deepEqual(messages.at(-1).payload,x,"No user fields may be injected by the API adapter");
   }
   assert.equal(messages.length,operations.length);
+  const rightsGrant=await editor(env,"grant",{ownerAction:"suspend",id:"right_123",status:"suspended",operationId:"editor:grant:1"});
+  assert.equal(rightsGrant.ownerFirst,true);
+  assert.equal(messages.at(-1).route,"/commercial/suspend-grant");
+  const rightsContract=await editor(env,"contract",{ownerAction:"suspend",id:"rcontract_123",status:"suspended",operationId:"editor:contract:1"});
+  assert.equal(rightsContract.ownerFirst,true);
+  assert.equal(messages.at(-1).route,"/commercial/suspend-contract");
+  await assert.rejects(()=>editor(env,"grant",{ownerAction:"suspend",id:"right_123",status:"active",operationId:"edit:invalid"}));
+  await assert.rejects(()=>editor(env,"contract",{ownerAction:"suspend",id:"rcontract_123",status:"suspended",name:"unverified",operationId:"edit:invalid"}));
   const called=messages.length;
   for(const e of [
     {...env,COVE_SSR_STAGING:"0"},
@@ -85,5 +95,5 @@ try{
   override={withdrawn:true,ownerEpoch:-1};
   await assert.rejects(()=>run(env,operations[2]),/does not match the request/);
   override=null;
-  console.log("PASS: admin owner-first grant/contract, retail and market routes; explicit scope, exact receipts, production disabled, no raw-D1 fallback");
+  console.log("PASS: admin owner-first rights-editor suspension, retail, market and paid-entitlement revocation; exact receipts, production disabled, no raw-D1 fallback");
 }finally{fs.rmSync(dir,{recursive:true,force:true});}
