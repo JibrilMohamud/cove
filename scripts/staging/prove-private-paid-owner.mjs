@@ -878,7 +878,8 @@ try {
   });
   const grantResponse=await originalCall("/original/epub-grant");
   assert.equal(grantResponse.status,200,
-    "Original commercial EPUB grant must authorize paid registered buyer; status="+grantResponse.status);
+    "Original commercial EPUB grant must authorize paid registered buyer; status="+grantResponse.status+
+    " category="+String((await grantResponse.clone().json().catch(()=>null))?.qaErrorCategory||"missing"));
   const customerGrant=await grantResponse.json();
   assert.ok(customerGrant.url.startsWith("/api/fore/delivery/epub/"));
   assert.match(customerGrant.url.split("/").at(-1),/^[A-Za-z0-9_-]{32,200}$/);
