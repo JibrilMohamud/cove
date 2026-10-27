@@ -183,6 +183,15 @@ try {
   );
   const cmd={sourceId:"2701",operationId:"regional:2701:hash-1",message:"source-rights-quarantined"};
   assert.equal((await post(cmd,{COVE_LEGAL_WRITER_ENABLED:"0"})).status,503);
+  assert.equal((await post(cmd,{
+    COVE_LEGAL_WRITER_PRIMARY_ID:"4bd657ac-8789-403e-a28c-93aba8d0a989"
+  })).status,503,"Private legal writer must reject customer production D1");
+  assert.equal((await post(cmd,{
+    COVE_LEGAL_WRITER_PRIMARY_ID:"e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3"
+  })).status,503,"Private legal writer must never target hosted-capacity D1");
+  assert.equal((await post({...cmd,sourceId:"../../test"},{
+    COVE_LEGAL_WRITER_PRIMARY_ID:"7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"
+  })).status,400,"Full-schema QA writer accepts the correct database pin but rejects invalid commands");
   assert.equal((await post(cmd,{COVE_LEGAL_WRITER_EXPIRES_AT:"0"})).status,503);
   assert.equal((await post({...cmd,sourceId:"../../test"})).status,400);
   assert.equal((await writer.fetch(new Request("https://legal-quarantine.internal/quarantine",{
