@@ -78,6 +78,86 @@ const qaSql=async(sql,params=[])=>{
   assert.equal(results?.[0]?.success,true,"Only the dedicated synthetic legal QA D1 may be used");
   return results[0];
 };
+/**
+ * QA ONLY: copy schema, never rows, from the separate synthetic catalog
+ * acceptance D1 into the isolated paid legal QA primary. The paid fixture
+ * formerly had only 45 tables, which prevented a first Stripe settlement:
+ * no ledger, royalties, outbox, retail events or reader state schema.
+ * This is a strict source/destination allowlist; never use a production D1.
+ */
+const schemaSource="e4cbb0ef-6288-4fa1-9dbb-fb42fe01d4f3";
+async function prepareInitialCommerceQaSchema(){
+  const records=await api("POST","/d1/database/"+schemaSource+"/query",{
+    sql:"SELECT type,name,tbl_name,sql FROM sqlite_master WHERE sql IS NOT NULL AND type IN ('table','index') ORDER BY CASE type WHEN 'table' THEN 0 ELSE 1 END,name"
+  });
+  assert.equal(records?.[0]?.success,true);
+  const present=(await qaSql("SELECT type,name FROM sqlite_master WHERE type IN ('table','index')")).results;
+  const existing=new Set(present.map(x=>x.type+":"+x.name));
+  const allowed=(name)=>/^(commerce_|finance_|publishing_|retail_|pricing_|promotion|risk_|entitlement|reading_|preview_|wishlist_|shopping_cart|notification|digital_assets$|asset_versions$|delivery_grants$|offline_epub_licenses$|audio_offline_licenses$|user_books$|user_library$|source_|publisher_|device_)/.test(name);
+  const targetTables=new Set(records[0].results
+    .filter(x=>x.type==="table"&&allowed(x.name)&&!x.name.startsWith("sqlite_"))
+    .map(x=>x.name));
+  assert.ok(targetTables.has("commerce_ledger_entries") &&
+    targetTables.has("publishing_outbox") &&
+    targetTables.has("reading_states"),"Synthetic schema source missing real payment dependencies");
+  let installed=0;
+  for(const row of records[0].results){
+    if(row.type==="table"&&!targetTables.has(row.name))continue;
+    if(row.type==="index"&&!targetTables.has(row.tbl_name))continue;
+    if(existing.has(row.type+":"+row.name))continue;
+    // Schema source is a pinned synthetic Cloudflare fixture, not user SQL.
+    // Never import source rows or execute arbitrary statements.
+    assert.match(row.sql,/^CREATE (?:UNIQUE )?(?:TABLE|INDEX)\s/i);
+    assert.ok(row.sql.length<20000);
+    await qaSql(row.sql);
+    installed++;
+  }
+  console.log("QA schema-only dependencies ready: "+installed+" missing tables/indexes added");
+}
+const initialOrder="order_initial_qa_"+runId;
+const initialBuyer="user_initial_qa_"+runId;
+const initialItem="item_initial_qa_"+runId;
+async function seedInitialPendingOrder(){
+  const quote=name=>'"'+name.replaceAll('"','""')+'"';
+  async function clone(table,sourceId,sourceKey,overrides){
+    const columns=(await qaSql("PRAGMA table_info("+table+")")).results.map(x=>x.name);
+    assert.ok(columns.length>5&&columns.includes(sourceKey));
+    const replacements=Object.keys(overrides);
+    for(const key of replacements)assert.ok(columns.includes(key),table+" missing "+key);
+    const expressions=columns.map(name=>
+      Object.hasOwn(overrides,name)?"?":quote(name));
+    const params=columns.filter(name=>Object.hasOwn(overrides,name))
+      .map(name=>overrides[name]);
+    const result=await qaSql(
+      "INSERT INTO "+table+"("+columns.map(quote).join(",")+") SELECT "+
+      expressions.join(",")+" FROM "+table+" WHERE "+quote(sourceKey)+"=?",
+      [...params,sourceId]
+    );
+    assert.equal(result.meta?.changes,1,table+" initial transaction clone failed");
+  }
+  await clone("commerce_orders",test.orderId,"id",{
+    id:initialOrder,user_id:initialBuyer,
+    invoice_number:"QA-"+runId,status:"pending_payment",
+    stripe_payment_intent_id:null,stripe_charge_id:null,
+    receipt_url:null,paid_at:null
+  });
+  await clone("commerce_order_items","item_paid_qa_20261027","id",{
+    id:initialItem,order_id:initialOrder,
+    entitlement_status:"pending",fulfillment_status:"pending"
+  });
+  const state=await qaSql(
+    "SELECT status,stripe_due_minor,currency FROM commerce_orders WHERE id=?",
+    [initialOrder]);
+  assert.deepEqual(state.results?.[0],
+    {status:"pending_payment",stripe_due_minor:399,currency:"USD"});
+  const line=await qaSql(
+    "SELECT id,product_id,rights_snapshot_json FROM commerce_order_items WHERE id=?",
+    [initialItem]);
+  assert.equal(line.results?.[0]?.product_id,test.productId);
+  assert.ok(line.results?.[0]?.rights_snapshot_json,
+    "Pending order must preserve the original exact purchased legal scope");
+}
+
 const pause=(ms)=>new Promise(resolve=>setTimeout(resolve,ms));
 const post=async(route,body)=>{
   const response=await fetch(origin+route,{
@@ -179,6 +259,8 @@ const stripeRequest=async(route,body)=>{
   return result;
 };
 try {
+  await prepareInitialCommerceQaSchema();
+  await seedInitialPendingOrder();
   const original=JSON.parse(fs.readFileSync("wrangler.legal-paid-authority.example.jsonc","utf8"));
   assertNoRoute(original);
   original.name=ownerName;
