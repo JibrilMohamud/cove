@@ -1921,6 +1921,13 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
       409,
       "This order has already been fully refunded or has a refund in progress.",
     );
+  // The staging owner currently supports whole-order revocation, not a
+  // monetary partial refund mapped to a specific edition. A partial refund
+  // must not leave the fully refunded edition's license still authorized.
+  // Block stage partial refunds until an item-scoped owner command exists;
+  // legacy production policy remains unchanged.
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" && amount < remainingTotal)
+    throw new ApiError(409, "Partial refunds require an item-scoped legal owner.");
   let left = amount;
   const stripeAvailable = Math.max(0, Number(o.stripe_due_minor) - Number(committed?.stripe || 0)),
     stripeAmount = Math.min(left, stripeAvailable);
@@ -2128,7 +2135,12 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
   // Stripe has already settled its refund event, but we must not advertise
   // an acknowledged canonical customer refund while owner-side access
   // revocation is unavailable. Retry uses the same refundId idempotency key.
-  if (full) await stageRevokeRefundEntitlements(env, String(o.id), refundId);
+  // An externally originated partial Stripe refund has no item-scoped
+  // legal proof today. Until that writer exists, conservatively deny the
+  // entire order in the staged owner BEFORE acknowledging even a partial
+  // financial reversal. The public refund API above rejects stage partials.
+  if (full || env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
+    await stageRevokeRefundEntitlements(env, String(o.id), refundId);
   const giftAmount = Number(r.gift_card_amount_minor || 0),
     storeAmount = Number(r.store_credit_amount_minor || 0),
     stripeAmount = Number(r.stripe_amount_minor || 0);
