@@ -35,6 +35,8 @@ try{
     "Audit and runtime D1 mutation denial must cover identical protected tables"
   );
   assert.ok(result.scannedFiles>50);
+  assert.ok(!result.findings.some(row=>row.file.startsWith("scripts/test-")),
+    "Unit-test SQL must never masquerade as production canonical writer evidence");
   assert.ok(result.unresolvedDirectWrites>80,
     "Unexpectedly empty writer audit: do not certify production from a broken scanner");
   for(const path of [
