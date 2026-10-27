@@ -241,6 +241,10 @@ try {
   assert.equal(stagePublished.status,200,
     "Real deployed Cove paid-settlement function must reverify full-schema canonical buyer");
   assert.equal(stagePublished.body?.ok,true);
+  const deliveryAllowed=await postSettlement("/authorize-delivery");
+  assert.equal(deliveryAllowed.status,200,
+    "Protected paid delivery must require and accept the actual buyer-specific owner proof");
+  assert.equal(deliveryAllowed.body?.ok,true);
   const input={entitlementId:test.entitlementId,userId:test.userId,
     productId:test.productId,territory:"US",channel:"retail"};
   const allowed=await read("/commercial/entitlement/authorize",input);
@@ -256,6 +260,9 @@ try {
   assert.equal(denied.body?.applied,true);
   const after=await read("/commercial/entitlement/authorize",input);
   assert.equal(after.body?.allowed,false,"Refund MUST immediately revoke protected paid entitlement");
+  const revokedDelivery=await postSettlement("/authorize-delivery");
+  assert.equal(revokedDelivery.status,451,
+    "Protected paid delivery must deny the exact buyer after durable owner refund");
   const stageReplayed=await postSettlement("/certify-paid");
   assert.notEqual(stageReplayed.status,200,
     "After refund, actual staged paid settlement must never resurrect protected access");
@@ -263,7 +270,7 @@ try {
   assert.deepEqual(replay.body,denied.body,"Refund replay must be idempotent");
   const forbidden=await post("/commercial/entitlement/publish-verified",input);
   assert.notEqual(forbidden.status,200,"Old paid order must never resurrect entitlement");
-  console.log("PASS: deployed full-schema paid owner, canonical grant and price, deployed settlement function, exact buyer, territory, refund and replay; no capacity D1 writes");
+  console.log("PASS: deployed full-schema paid owner, canonical grant and price, deployed settlement and protected consumer, exact buyer, territory, refund and replay; no capacity D1 writes");
 } finally {
   // Physically distinct QA scripts and expiring credentials prevent production
   // exposure. DELETE is limited to names built from this exact CI run ID.
