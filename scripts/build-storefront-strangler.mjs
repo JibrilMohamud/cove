@@ -165,6 +165,19 @@ await build({
   logLevel: "silent",
 });
 
+// Ephemeral full-schema paid-owner QA; never exposed as a customer route.
+await build({
+  entryPoints: ["src/storefront-strangler/paid-settlement-stage-qa.worker.ts"],
+  outfile: ".output/strangler/paid-settlement-stage-qa.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
+
 await build({
   entryPoints: ["src/storefront-strangler/legal-authority.worker.ts"],
   outfile: ".output/strangler/legal-authority.mjs",
