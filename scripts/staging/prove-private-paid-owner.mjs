@@ -171,7 +171,11 @@ const stripeRequest=async(route,body)=>{
   const result=await response.json();
   assert.equal(response.status,200,
     "Stripe TEST API rejected isolated purchase: "+String(result?.error?.code||response.status));
-  assert.equal(result.livemode,false,"Never exercise live Stripe payments in QA");
+  if(route.startsWith("payment_intents"))
+    assert.equal(result.livemode,false,"Never exercise live Stripe payments in QA");
+  else
+    assert.ok(result.livemode===undefined||result.livemode===false,
+      "Provider refund must never be in live mode");
   return result;
 };
 try {
