@@ -20,7 +20,7 @@ try{
   const db=new DatabaseSync(":memory:");
   const sql={exec(statement,...bindings){
     const query=db.prepare(statement);
-    const rows=/^\\s*SELECT\\b/i.test(statement)
+    const rows=/^\s*SELECT\b/i.test(statement)
       ?query.all(...bindings):(query.run(...bindings),[]);
     return {toArray:()=>rows};
   }};
