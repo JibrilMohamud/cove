@@ -849,7 +849,8 @@ try {
   assert.equal(grantResponse.status,200,
     "Original commercial EPUB grant must authorize paid registered buyer");
   const customerGrant=await grantResponse.json();
-  assert.match(customerGrant.url,/^\/api\/fore\/delivery\/epub\\/[A-Za-z0-9_-]{32,200}$/);
+  assert.ok(customerGrant.url.startsWith("/api/fore/delivery/epub/"));
+  assert.match(customerGrant.url.split("/").at(-1),/^[A-Za-z0-9_-]{32,200}$/);
   const customerToken=customerGrant.url.split("/").at(-1);
   const customerEpub=await originalCall("/original/epub-use",customerToken);
   assert.equal(customerEpub.status,200,
