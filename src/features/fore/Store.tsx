@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { StorefrontBootstrap } from "./storefront-bootstrap";
+import { verifiedFirstPageShelf } from "./bookstore-first-paint";
 
 export function BookArt({
   book,
@@ -1154,6 +1155,64 @@ export function StorePage({
   if (publishedAfter) params.set("publishedAfter", publishedAfter);
   if (publishedBefore) params.set("publishedBefore", publishedBefore);
 
+  // Cold HTML can have no SSR bootstrap after the strict rights-fetch deadline.
+  // In that case, get the same freshly authorized 24-book first-paint shelf
+  // rather than blocking visible cards on the full catalog COUNT and facets.
+  // The ordinary /catalog request still runs after these cards appear, keeping
+  // accurate filters, pagination totals and account-specific rules.
+  const fastAnonymousHome =
+    !data.user &&
+    landingPath === "/" &&
+    page === 1 &&
+    sort === "popular" &&
+    !q &&
+    params.toString() ===
+      new URLSearchParams({
+        search: "",
+        sort: "popular",
+        page: "1",
+        currency: storefront.currency,
+      }).toString();
+  const fastShelf = useQuery<StorefrontBootstrap>({
+    queryKey: [
+      "bookstore-first-paint",
+      "v1",
+      storefront.rightsCountry,
+      storefront.currency,
+      storefront.locale,
+    ],
+    queryFn: async ({ signal }) => {
+      const live = await api<StorefrontBootstrap>(
+        "/storefront/bootstrap",
+        "GET",
+        undefined,
+        { signal, retryReads: false },
+      );
+      verifiedFirstPageShelf(live, {
+        country: storefront.rightsCountry,
+        currency: storefront.currency,
+        locale: storefront.locale,
+        query: params.toString(),
+      });
+      return live;
+    },
+    enabled: typeof window !== "undefined" && fastAnonymousHome && !matchingInitial?.catalog,
+    staleTime: 30_000,
+    gcTime: 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+  const fastPreview = fastAnonymousHome
+    ? fastShelf.data
+      ? verifiedFirstPageShelf(fastShelf.data, {
+          country: storefront.rightsCountry,
+          currency: storefront.currency,
+          locale: storefront.locale,
+          query: params.toString(),
+        })
+      : undefined
+    : undefined;
+
   // SSR already includes 24 *fresh, canonical rights-checked* book cards.
   // Avoid an immediate, heavyweight full-catalog read during critical paint:
   // the live API still re-authorizes every product detail, checkout and EPUB.
@@ -1171,6 +1230,10 @@ export function StorePage({
       data.user?.id || "guest",
     ],
     queryFn: ({ signal }) => api("/catalog?" + params, "GET", undefined, { signal }),
+    // Wait for the small live-rights shelf (or its explicit failure) before
+    // starting the 20s cold COUNT/facet request on an unbootstrapped homepage.
+    enabled: !fastAnonymousHome || !!matchingInitial?.catalog || !!fastPreview || fastShelf.isError,
+    placeholderData: fastAnonymousHome ? fastPreview : undefined,
     // A brief first-paint grace period prevents 24-card preview hydration
     // from competing with the very next server request for D1 capacity.
     // A bounded background refresh follows once the visual path has settled.
