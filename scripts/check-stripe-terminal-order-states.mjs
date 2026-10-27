@@ -11,9 +11,13 @@ assert.ok(code.indexOf('if(!["pending_payment","processing","authorized","paymen
   "Terminal-state settlement guard MUST precede tender consumption");
 
 const query=(status)=>{
-  const m=code.match(new RegExp("\"(UPDATE commerce_orders SET status='"+status+"'[^\"]+)\""));
-  assert.ok(m,"Missing verified SQL for "+status);
-  return m[1];
+  const matches=[...code.matchAll(new RegExp(
+    "\"(UPDATE commerce_orders SET status='"+status+"'[^\"]+)\"","g"
+  ))].map(x=>x[1]);
+  const guarded=matches.find(x=>x.includes(" AND status IN (") ||
+    (status==="processing"&&x.includes(" AND status='pending_payment'")));
+  assert.ok(guarded,"Missing monotonic guarded Stripe SQL for "+status);
+  return guarded;
 };
 const processing=query("processing"),authorized=query("authorized");
 const failed=query("payment_failed"),canceled=query("canceled");
