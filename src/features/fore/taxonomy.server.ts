@@ -200,6 +200,7 @@ export async function taxonomyTree(
   language = "",
   locale = "en-US",
   defer?: (work: Promise<unknown>) => void,
+  noForegroundCounts = false,
 ) {
   // Fetch the hierarchy and product counts separately. This avoids one correlated rights/catalog
   // subquery per taxonomy node, which becomes prohibitively expensive once the catalog is large.
@@ -244,6 +245,7 @@ export async function taxonomyTree(
       undefined,
       defer,
       countState,
+      noForegroundCounts,
     ),
     db
       .prepare(
@@ -296,7 +298,9 @@ export async function taxonomyTree(
     language: language || null,
     locale,
     countsPending: countState.pending,
-    featured: flattenTaxonomy(roots).filter((n) => n.featured && n.count > 0),
+    // Pending metadata must not erase navigation while the authoritatively
+    // rights-checked listing awaits an asynchronous count refresh.
+    featured: flattenTaxonomy(roots).filter((n) => n.featured && (countState.pending || n.count > 0)),
     nodes: roots,
   };
 }
