@@ -1,4 +1,4 @@
-import { executeStageCanonicalAdminCommand } from "../../storefront-strangler/legal-admin-owner-commands.server";
+import { executeStageCanonicalAdminCommand, executeStageRightsEditorSuspension } from "../../storefront-strangler/legal-admin-owner-commands.server";
 import { scopeStageLegalWriterEnv } from "../../storefront-strangler/legal-primary-write-lock";
 import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
 import { saveTasteControls, loadTasteControls } from "./discovery-intelligence.server";
@@ -4714,10 +4714,21 @@ async function handleCoveRequest(
         return json(await upsertTerritorySet(database(env), await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/territory-expand")
         return json(await territoryExpansionPreview(database(env), await body(request)));
-      if (request.method === "POST" && path === "/admin/commerce/rights-contract")
-        return json(await upsertRightsContract(database(env), await body(request)));
-      if (request.method === "POST" && path === "/admin/commerce/rights-grant")
-        return json(await upsertRightsGrant(database(env), await body(request)));
+      if (request.method === "POST" && path === "/admin/commerce/rights-contract") {
+        const input = await body(request);
+        // A minimal explicit negative transition can use the durable owner
+        // before any canonical D1 write; mixed edits cannot be silently
+        // treated as a suspension or fall back to legacy SQL in staging.
+        if (input && typeof input === "object" && "ownerAction" in input)
+          return json(await executeStageRightsEditorSuspension(env, "contract", input));
+        return json(await upsertRightsContract(database(env), input));
+      }
+      if (request.method === "POST" && path === "/admin/commerce/rights-grant") {
+        const input = await body(request);
+        if (input && typeof input === "object" && "ownerAction" in input)
+          return json(await executeStageRightsEditorSuspension(env, "grant", input));
+        return json(await upsertRightsGrant(database(env), input));
+      }
       if (request.method === "POST" && path === "/admin/commerce/rights-check")
         return json(await rightsAvailabilityCheck(database(env), await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/finance-party")
