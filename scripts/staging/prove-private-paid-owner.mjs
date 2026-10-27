@@ -482,18 +482,32 @@ try {
     "SELECT id FROM digital_assets WHERE edition_id=? AND kind='epub' LIMIT 1",
     [product.edition_id]
   )).results;
-  assert.equal(existingEpub?.length,0,
-    "Original-route QA cannot replace an existing synthetic edition asset");
-  const runAsset="qa_epub_asset_"+runId;
+  // An earlier successful synthetic campaign may have left its QA-only asset
+  // referenced by a historic test grant. Preserve that foreign-key chain
+  // and append a new immutable asset version, never replace real catalog.
+  const priorAsset=existingEpub?.[0]?.id;
+  if(priorAsset)assert.match(priorAsset,/^qa_epub_asset_[0-9]{8,15}$/,
+    "Original route cannot mutate a non-synthetic edition asset");
+  const runAsset=priorAsset||"qa_epub_asset_"+runId;
   const runVersion="qa_epub_version_"+runId;
   const nowSql=new Date().toISOString();
+  if(!priorAsset){
+    await qaSql(
+      "INSERT INTO digital_assets(id,edition_id,kind,current_version_id,drm_status,downloadable,created_at,updated_at) VALUES(?,?,'epub',?,'none',1,?,?)",
+      [runAsset,product.edition_id,runVersion,nowSql,nowSql]
+    );
+  }
+  const latest=priorAsset?(await qaSql(
+    "SELECT COALESCE(MAX(version_number),0) n FROM asset_versions WHERE asset_id=?",
+    [runAsset]
+  )).results[0]?.n:0;
   await qaSql(
-    "INSERT INTO digital_assets(id,edition_id,kind,current_version_id,drm_status,downloadable,created_at,updated_at) VALUES(?,?,'epub',?,'none',1,?,?)",
-    [runAsset,product.edition_id,runVersion,nowSql,nowSql]
+    "INSERT INTO asset_versions(id,asset_id,version_number,object_key,mime_type,size_bytes,sha256,created_at) VALUES(?,?,?,?,'application/epub+zip',?,?,?)",
+    [runVersion,runAsset,Number(latest)+1,"qa/book.epub",epubBytes.length,epubSha,nowSql]
   );
-  await qaSql(
-    "INSERT INTO asset_versions(id,asset_id,version_number,object_key,mime_type,size_bytes,sha256,created_at) VALUES(?,?,1,?,'application/epub+zip',?,?,?)",
-    [runVersion,runAsset,"qa/book.epub",epubBytes.length,epubSha,nowSql]
+  if(priorAsset)await qaSql(
+    "UPDATE digital_assets SET current_version_id=?,updated_at=? WHERE id=?",
+    [runVersion,nowSql,runAsset]
   );
   const qaDeviceId="device_paid_qa_"+runId;
   const qaDeviceKey="device-qa-"+runId+"-registered";
@@ -501,7 +515,14 @@ try {
     "INSERT INTO devices(id,user_id,device_key,name,platform,last_seen_at,created_at) VALUES(?,?,?,'Isolated QA EPUB reader','qa',?,?)",
     [qaDeviceId,initialBuyer,qaDeviceKey,nowSql,nowSql]
   );
-  await qaSql(
+  const oldPolicy=(await qaSql(
+    "SELECT require_device_registration,allow_file_download FROM commercial_delivery_policies WHERE product_id=?",
+    [test.productId]
+  )).results;
+  if(oldPolicy?.length){
+    assert.equal(oldPolicy[0].require_device_registration,1);
+    assert.equal(oldPolicy[0].allow_file_download,1);
+  }else await qaSql(
     "INSERT INTO commercial_delivery_policies(product_id,require_device_registration,allow_file_download,allow_browser_read,created_at,updated_at) VALUES(?,1,1,1,?,?)",
     [test.productId,nowSql,nowSql]
   );
