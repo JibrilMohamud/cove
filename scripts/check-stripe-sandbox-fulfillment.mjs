@@ -357,11 +357,68 @@ try {
     }),
     /entitlement|acquisition|purchase|access/i,
   );
-  const refund = await commerce.refundOrder(env, {
-    orderId: order.id,
-    idempotencyKey: `sandbox-refund-${randomUUID()}`,
-  });
+  // Stripe settlement is external to D1 and the legal owner. Deliberately
+  // fail the independent owner AFTER Stripe accepts a real TEST refund, then
+  // retry the same canonical refund and provider idempotency key. The
+  // pending owner receipt must not be misreported as a failed payment, nor
+  // can replay cause a second refund or return a stale "succeeded" record.
+  const refundKey = `sandbox-refund-${randomUUID()}`;
+  let ownerAvailable = false;
+  let denialAttempts = 0;
+  const stagedRefund = {
+    ...env,
+    COVE_LEGAL_CONSUMER_STAGE_ENABLED: "1",
+    COVE_SSR_STAGING: "1",
+    COVE_CANONICAL_LEGAL_WRITE_LOCK: "1",
+    COVE_LEGAL_WRITER_PRIMARY_ID: "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
+    COVE_LEGAL_QUARANTINE_WRITER_STAGE: "1",
+    COVE_LEGAL_QUARANTINE_SECRET: "a".repeat(64),
+    LEGAL_QUARANTINE_WRITER: {
+      async fetch(request) {
+        denialAttempts++;
+        assert.equal(request.headers.get("authorization"), "Bearer " + "a".repeat(64));
+        assert.equal(new URL(request.url).pathname, "/commercial/entitlement/revoke-order");
+        const command = await request.json();
+        assert.equal(command.orderId, order.id);
+        assert.match(command.operationId, /^ref_[a-z0-9-]+$/);
+        if (!ownerAvailable) return new Response(null, { status: 503 });
+        // This disposable DB models the separately certified canonical
+        // owner writer; it is NOT a substitute for the deployed DO QA.
+        await db.prepare(
+          "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?)",
+        ).bind(new Date().toISOString(), user.id, order.id).run();
+        return Response.json({ orderDenied: true });
+      },
+    },
+  };
+  const refundRequest = { orderId: order.id, idempotencyKey: refundKey };
+  await assert.rejects(
+    commerce.refundOrder(stagedRefund, refundRequest),
+    (e) => e.status === 503,
+    "Stripe-successful refund must fail closed when owner denial is unavailable",
+  );
+  const awaitingOwner = await db.prepare(
+    "SELECT id,status,provider_refund_id,succeeded_at FROM commerce_refunds WHERE idempotency_key=?",
+  ).bind(refundKey).first();
+  assert.equal(awaitingOwner.status, "succeeded",
+    "Real Stripe refund cannot be falsely relabeled failed after owner outage");
+  assert.match(awaitingOwner.provider_refund_id, /^re_[a-zA-Z0-9]+$/);
+  assert.equal(awaitingOwner.succeeded_at, null,
+    "Financial/entitlement settlement must not be acknowledged before owner denial");
+  await assert.rejects(
+    commerce.refundOrder(stagedRefund, refundRequest),
+    (e) => e.status === 503,
+    "Same idempotency key must retry the owner, not return stale success",
+  );
+  ownerAvailable = true;
+  const refund = await commerce.refundOrder(stagedRefund, refundRequest);
   assert.equal(refund.status, "succeeded");
+  assert.equal(refund.providerRefundId, awaitingOwner.provider_refund_id);
+  assert.ok(denialAttempts >= 3, "Refund requires actual owner retry before acknowledgement");
+  const settledReceipt = await db.prepare(
+    "SELECT succeeded_at FROM commerce_refunds WHERE id=?",
+  ).bind(awaitingOwner.id).first();
+  assert.ok(settledReceipt.succeeded_at, "Owner-confirmed refund must persist receipt");
   await assert.rejects(
     delivery.issueCommercialEpubGrant(env, user.id, { productId: product.id, purpose: "read" }),
     /entitlement|acquisition|purchase|access|revoked/i,
@@ -389,6 +446,7 @@ try {
       "duplicate event replay",
       "cross-account denial",
       "real refund and revoked new/existing delivery",
+      "owner outage after real refund, durable pending reconciliation and same-key recovery",
       "royalty accrual under an active synthetic payee contract",
     ],
     tax: "disabled only in isolated sandbox; no tax collection claim",
