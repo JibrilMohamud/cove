@@ -7,7 +7,7 @@ import {
   readHomepagePresentation,
   authorizeHomepagePresentation,
 } from "./homepage-presentation.server";
-import { authorizeHomepageWithLegalOwner } from "./legal-authority-read.server";
+import { authorizeHomepageWithUnifiedOwner } from "./legal-authority-read.server";
 import { hedgedPrivatePresentation } from "./presentation-hedge.server";
 import type { FirstPaintD1QueryMetrics } from "../features/fore/catalog-model.server";
 import { networkCountry, resolveAnonymousHomepageContext } from "./localization-optimized.server";
@@ -280,7 +280,7 @@ export async function serveLeanAnonymousBootstrap(
           timed(
             "catalog",
             stagedLegalOwnerRead
-              ? authorizeHomepageWithLegalOwner(
+              ? authorizeHomepageWithUnifiedOwner(
                   env.LEGAL_AUTHORITY!.getByName("cove-staged-legal-global-v1"),
                   env.COVE_RIGHTS_OWNER_SECRET!,
                   p,
