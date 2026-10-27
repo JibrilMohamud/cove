@@ -1,3 +1,4 @@
+import { executeStageCanonicalAdminCommand } from "../../storefront-strangler/legal-admin-owner-commands.server";
 import { scopeStageLegalWriterEnv } from "../../storefront-strangler/legal-primary-write-lock";
 import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
 import { saveTasteControls, loadTasteControls } from "./discovery-intelligence.server";
@@ -4702,6 +4703,11 @@ async function handleCoveRequest(
       }
       if (request.method === "GET" && path === "/admin/commerce/rights")
         return json(await rightsAdminSnapshot(database(env)));
+      // Owner-first migration seam: the existing admin permission check runs
+      // before this command, while the protected staging gateway's DB remains
+      // deny-all. Only a dedicated private writer may mutate canonical rights.
+      if (request.method === "POST" && path === "/admin/commerce/legal-owner-command")
+        return json(await executeStageCanonicalAdminCommand(env, await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/rights-party")
         return json(await upsertRightsParty(database(env), await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/territory-set")
