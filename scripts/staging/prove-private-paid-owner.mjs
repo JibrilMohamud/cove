@@ -935,6 +935,14 @@ try {
     assert.equal(response.status,451,
       "Refund must deny all subsequent private stored bytes and offline issuance: "+route);
   }
+  for(const route of ["/original/epub-grant","/original/offline-epub-license",
+      "/original/audio-track","/original/audio-offline"]){
+    const response=await originalCall(route);
+    assert.notEqual(response.status,200,
+      "Refund must block the ORIGINAL customer-facing media entrypoint: "+route);
+    assert.notEqual(response.status,206,
+      "Refund must block byte-range delivery: "+route);
+  }
   assert.equal((await postSettlement("/certify-initial",
     initialOrder,initialBuyer)).status!==200,true,
     "Any previous signed successful-payment event may not resurrect refunded access");
