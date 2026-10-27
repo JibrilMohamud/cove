@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {randomBytes} from "node:crypto";
+import {randomBytes,createHash,generateKeyPairSync} from "node:crypto";
+import {pathToFileURL} from "node:url";
+import JSZip from "jszip";
+import {build} from "esbuild";
 import {spawnSync,spawn} from "node:child_process";
 import {createServer} from "node:http";
 
@@ -17,6 +20,7 @@ const ownerName="cove-paid-legal-owner-"+runId;
 const callerName="cove-paid-legal-caller-"+runId;
 const writerName="cove-paid-legal-writer-"+runId;
 const settlementName="cove-paid-settlement-qa-"+runId;
+const mediaBucketName="cove-paid-private-media-qa-"+runId;
 const settlementOrigin="https://"+settlementName+".cove-jibrilmohamud.workers.dev";
 const origin="https://"+callerName+".cove-jibrilmohamud.workers.dev";
 const primary="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
@@ -236,7 +240,7 @@ const assertNoRoute=(config)=>{
 };
 let ownerCreated=false,callerCreated=false,writerCreated=false,settlementCreated=false;
 let cleanupError=null,listener=null,webhookServer=null,webhookSigningSecret="";
-let paymentIntentId=null,initialPaymentIntentId=null;
+let paymentIntentId=null,initialPaymentIntentId=null,mediaBucketCreated=false;
 let matchedPackets=[],initialOutageInjected=false;
 const until=async(check,label,ms=45000)=>{
   const end=Date.now()+ms;
@@ -431,6 +435,41 @@ try {
     received_at TEXT NOT NULL,processing_token TEXT,
     processing_lease_until TEXT,processed_at TEXT,error TEXT
   )`);
+  // A separate, ephemeral R2 bucket proves actual stored binary bytes.
+  // Its two ORIGINAL, generated fixture files are not customer content,
+  // never uploaded to production storage or CDN.
+  const zip=new JSZip();
+  zip.file("mimetype","application/epub+zip",{compression:"STORE"});
+  zip.file("META-INF/container.xml",
+    '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+  zip.file("OEBPS/content.opf",
+    '<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">cove-qa-original</dc:identifier><dc:title>Private Rights Fixture</dc:title><dc:language>en</dc:language><meta property="dcterms:modified">2026-10-27T00:00:00Z</meta></metadata><manifest><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="chapter"/></spine></package>');
+  zip.file("OEBPS/chapter.xhtml",
+    '<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>QA</title></head><body><p>Owner-controlled original QA chapter.</p></body></html>');
+  const epubBytes=await zip.generateAsync({
+    type:"nodebuffer",compression:"DEFLATE",mimeType:"application/epub+zip"
+  });
+  const audioBytes=Buffer.alloc(44+8000*2);
+  audioBytes.write("RIFF",0);audioBytes.writeUInt32LE(audioBytes.length-8,4);
+  audioBytes.write("WAVEfmt ",8);audioBytes.writeUInt32LE(16,16);
+  audioBytes.writeUInt16LE(1,20);audioBytes.writeUInt16LE(1,22);
+  audioBytes.writeUInt32LE(8000,24);audioBytes.writeUInt32LE(16000,28);
+  audioBytes.writeUInt16LE(2,32);audioBytes.writeUInt16LE(16,34);
+  audioBytes.write("data",36);audioBytes.writeUInt32LE(audioBytes.length-44,40);
+  const epubFile=path.join(temp,"qa-book.epub"),
+    audioFile=path.join(temp,"qa-chapter.wav");
+  fs.writeFileSync(epubFile,epubBytes,{mode:0o600});
+  fs.writeFileSync(audioFile,audioBytes,{mode:0o600});
+  cli(["r2","bucket","create",mediaBucketName]);
+  mediaBucketCreated=true;
+  cli(["r2","object","put",mediaBucketName+"/qa/book.epub",
+    "--file",epubFile,"--remote"]);
+  cli(["r2","object","put",mediaBucketName+"/qa/chapter.wav",
+    "--file",audioFile,"--remote"]);
+  const digest=bytes=>createHash("sha256").update(bytes).digest("hex");
+  const epubSha=digest(epubBytes),audioSha=digest(audioBytes);
+  const {privateKey}=generateKeyPairSync("ec",{namedCurve:"prime256v1"});
+  const offlineSigningJwk=JSON.stringify(privateKey.export({format:"jwk"}));
   const settlement=JSON.parse(fs.readFileSync(
     "wrangler.legal-paid-settlement-stage-qa.example.jsonc","utf8"));
   assert.equal(settlement.workers_dev,false);
@@ -441,6 +480,7 @@ try {
   assert.equal(settlement.services?.[0]?.service,"cove-paid-legal-authority-qa");
   settlement.name=settlementName;
   settlement.workers_dev=true;
+  settlement.r2_buckets=[{binding:"QA_MEDIA",bucket_name:mediaBucketName}];
   settlement.services[0].service=ownerName;
   settlement.vars.COVE_PAID_STAGE_QA_ENABLED="1";
   settlement.vars.STRIPE_LIVEMODE="false";
@@ -451,10 +491,12 @@ try {
   settlementCreated=true;
   await deploy(settlementCfg,{
     COVE_PAID_STAGE_QA_GATE:gate,COVE_RIGHTS_OWNER_SECRET:secret,
-    STRIPE_WEBHOOK_SECRET:webhookSigningSecret
+    STRIPE_WEBHOOK_SECRET:webhookSigningSecret,
+    FORE_OFFLINE_AUDIO_SIGNING_JWK:offlineSigningJwk
   });
   await verifySecrets(settlementName,
-    ["COVE_PAID_STAGE_QA_GATE","COVE_RIGHTS_OWNER_SECRET","STRIPE_WEBHOOK_SECRET"]);
+    ["COVE_PAID_STAGE_QA_GATE","COVE_RIGHTS_OWNER_SECRET",
+      "STRIPE_WEBHOOK_SECRET","FORE_OFFLINE_AUDIO_SIGNING_JWK"]);
   const postSettlement=async(route,orderId=test.orderId,userId=test.userId)=>{
     const response=await fetch(settlementOrigin+route,{
       method:"POST",headers:{"content-type":"application/json",
@@ -690,6 +732,61 @@ try {
     initialOrder,initialBuyer);
   assert.equal(initialAccess.status,200,
     "Real settled purchase must be readable only after independent owner receipt");
+
+  // End-to-end Byte/receipt checks use the actual, deployed private Cloudflare
+  // R2 binding and the same private buyer owner used for settlement. The
+  // handlers are QA-only adapters, not production EPUB/audio route replicas.
+  const mediaCall=(route,extra={})=>fetch(settlementOrigin+route,{
+    method:"POST",headers:{"content-type":"application/json",
+      authorization:"Bearer "+gate,...extra},
+    body:JSON.stringify({orderId:initialOrder,userId:initialBuyer}),
+    signal:AbortSignal.timeout(12000)
+  });
+  for(const [route,hash,type] of [
+    ["/qa/epub-bytes",epubSha,"application/epub+zip"],
+    ["/qa/audio-bytes",audioSha,"audio/wav"]
+  ]){
+    const response=await mediaCall(route);
+    assert.equal(response.status,200,"Owner-authorized private R2 byte delivery refused");
+    assert.equal(response.headers.get("content-type"),type);
+    const delivered=Buffer.from(await response.arrayBuffer());
+    assert.equal(digest(delivered),hash,"Private R2 delivered wrong bytes");
+    const outage=await mediaCall(route,
+      {"x-cove-qa-simulate-owner-outage":"1"});
+    assert.equal(outage.status,503,
+      "Owner outage must block protected bytes without cached authorization");
+  }
+  const offlineResponse=await mediaCall("/qa/offline-epub-license");
+  assert.equal(offlineResponse.status,200,
+    "A settled purchase must qualify for private signed EPUB offline receipt");
+  const offline=await offlineResponse.json();
+  const compiled=path.join(temp,"offline-epub-verifier-qa.mjs");
+  await build({
+    entryPoints:["src/features/fore/offline-epub-crypto.ts"],outfile:compiled,
+    platform:"node",format:"esm",bundle:true,target:"node22",logLevel:"silent"
+  });
+  const {verifyOfflineEpubReceipt}=await import(pathToFileURL(compiled).href);
+  const claims=await verifyOfflineEpubReceipt(
+    offline.receipt,offline.verificationKey,{
+      userId:initialBuyer,productId:test.productId,
+      assetVersionId:offline.assetVersionId,deviceKey:offline.deviceKey,
+      expiresAt:offline.expiresAt
+    }
+  );
+  assert.equal(claims.licenseId,"qa_epub_license_"+runId);
+  assert.ok(Date.parse(claims.expiresAt)-Date.parse(claims.issuedAt)<=7*86400000,
+    "Offline signed lease cannot exceed seven days");
+  await assert.rejects(verifyOfflineEpubReceipt(
+    offline.receipt,offline.verificationKey,{
+      userId:"user_other_qa_20261027",productId:test.productId,
+      assetVersionId:offline.assetVersionId,deviceKey:offline.deviceKey,
+      expiresAt:offline.expiresAt
+    }
+  ),/invalid or expired/i,"Signed offline receipt must be bound to exact buyer");
+  assert.equal((await mediaCall("/qa/offline-epub-license",
+    {"x-cove-qa-simulate-owner-outage":"1"})).status,503,
+    "Owner outage must block new offline license issuance");
+
   const initialRefund=await stripeRequest("refunds",{
     payment_intent:initialPaymentIntentId,
     reason:"requested_by_customer"
@@ -703,6 +800,16 @@ try {
   assert.equal((await postSettlement("/authorize-initial",
     initialOrder,initialBuyer)).status,451,
     "Actual first-payment purchase must be denied immediately after owner refund");
+  for(const route of ["/qa/epub-bytes","/qa/audio-bytes","/qa/offline-epub-license"]){
+    const response=await fetch(settlementOrigin+route,{
+      method:"POST",headers:{"content-type":"application/json",
+        authorization:"Bearer "+gate},
+      body:JSON.stringify({orderId:initialOrder,userId:initialBuyer}),
+      signal:AbortSignal.timeout(12000)
+    });
+    assert.equal(response.status,451,
+      "Refund must deny all subsequent private stored bytes and offline issuance: "+route);
+  }
   assert.equal((await postSettlement("/certify-initial",
     initialOrder,initialBuyer)).status!==200,true,
     "Any previous signed successful-payment event may not resurrect refunded access");
@@ -715,6 +822,14 @@ try {
     }
   }
   if(webhookServer)await new Promise(resolve=>webhookServer.close(resolve));
+  if(mediaBucketCreated){
+    for(const key of ["qa/book.epub","qa/chapter.wav"]){
+      try{cli(["r2","object","delete",mediaBucketName+"/"+key,"--remote"]);}
+      catch(e){cleanupError=e;console.error("Ephemeral private media object cleanup failed");}
+    }
+    try{cli(["r2","bucket","delete",mediaBucketName]);}
+    catch(e){cleanupError=e;console.error("Ephemeral private R2 bucket cleanup failed");}
+  }
   // Physically distinct QA scripts and expiring credentials prevent production
   // exposure. DELETE is limited to names built from this exact CI run ID.
   for(const [name,created] of [[settlementName,settlementCreated],[callerName,callerCreated],[writerName,writerCreated],[ownerName,ownerCreated]]){
