@@ -70,7 +70,10 @@ export default {
       const raw=await request.text();
       if(raw.length>16384||!request.headers.get("stripe-signature"))
         return new Response(null,{status:400,headers});
-      let evt:any;
+      let evt:{type?:string;livemode?:boolean;data?:{object?:{
+        id?:string;status?:string;amount_received?:number;currency?:string;
+        metadata?:{fore_order_id?:string};
+      }}};
       try{evt=JSON.parse(raw);}catch{return new Response(null,{status:400,headers});}
       const intent=evt?.data?.object;
       if(evt?.type!=="payment_intent.succeeded" || evt?.livemode!==false ||
