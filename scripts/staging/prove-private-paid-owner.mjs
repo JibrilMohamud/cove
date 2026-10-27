@@ -68,6 +68,49 @@ const read=async(route,body)=>{
   }
   return result;
 };
+// During initial deployment, Workers metadata can be visible before the
+// per-colo route/service-binding/DO activation has propagated. This bounded
+// readiness probe is NOT a paid owner mutation and NOT a latency benchmark.
+// Count every HTTP 500, 404 and 503; require an exact positive 200/read result
+// before issuing ANY irreversible legal publication request.
+const verifySecrets=async(name,keys)=>{
+  let present=[];
+  for(let i=0;i<8;i++){
+    const config=await api("GET","/workers/scripts/"+name+"/settings");
+    present=(config?.bindings||[]).filter(x=>x.type==="secret_text").map(x=>x.name);
+    if(keys.every(x=>present.includes(x)))return;
+    await pause(700);
+  }
+  throw Error("private_paid_qa_secret_binding_not_ready:"+
+    keys.filter(x=>!present.includes(x)).join(","));
+};
+const readyOwner=async()=>{
+  const statusCounts=new Map();
+  const input={ids:[test.productId],territory:"US",channel:"retail"};
+  // Budget 48s for propagation, independently of the 12-minute expiry.
+  for(let i=0;i<24;i++){
+    await pause(2000);
+    try{
+      const result=await post("/commercial/authorize-batch",input);
+      if(result.status===200){
+        assert.deepEqual(result.body,{schema:"cove.commercial-legal.v1",rows:[]},
+          "New DO must start without a fabricated paid grant");
+        if(statusCounts.size)console.log("QA provisioning preflight recovered: "+
+          JSON.stringify(Object.fromEntries(statusCounts)));
+        return;
+      }
+      const key="HTTP_"+result.status;
+      statusCounts.set(key,(statusCounts.get(key)||0)+1);
+      // A non-transient 4xx signals a broken contract/authorization, not
+      // Workers route propagation. Never turn it into a green QA run.
+      if(![404,500,502,503,504].includes(result.status))break;
+    }catch(e){
+      const key="NETWORK_"+(e instanceof Error?e.name:"unknown");
+      statusCounts.set(key,(statusCounts.get(key)||0)+1);
+    }
+  }
+  throw Error("paid_owner_readiness_failed:"+JSON.stringify(Object.fromEntries(statusCounts)));
+};
 const assertNoRoute=(config)=>{
   assert.equal(config.workers_dev,false);
   assert.equal(config.preview_urls,false);
@@ -87,6 +130,7 @@ try {
   fs.writeFileSync(ownerCfg,JSON.stringify(original));
   ownerCreated=true;
   deploy(ownerCfg,{COVE_RIGHTS_OWNER_SECRET:secret});
+  await verifySecrets(ownerName,["COVE_RIGHTS_OWNER_SECRET"]);
   const caller=JSON.parse(fs.readFileSync("wrangler.legal-paid-caller.example.jsonc","utf8"));
   assert.equal(caller.workers_dev,false);
   assert.deepEqual(caller.routes,[]);
@@ -99,13 +143,8 @@ try {
   fs.writeFileSync(callerCfg,JSON.stringify(caller));
   callerCreated=true;
   deploy(callerCfg,{COVE_LEGAL_QA_GATE:gate,COVE_RIGHTS_OWNER_SECRET:secret});
-  // Only a read is retried while the edge learns a newly deployed QA hostname.
-  const absent=await read("/commercial/authorize-batch",{
-    ids:[test.productId],territory:"US",channel:"retail"
-  });
-  assert.equal(absent.status,200,"Deployed owner read must be accessible with private binding");
-  assert.deepEqual(absent.body,{schema:"cove.commercial-legal.v1",rows:[]},
-    "New DO must start without a fabricated paid grant");
+  await verifySecrets(callerName,["COVE_LEGAL_QA_GATE","COVE_RIGHTS_OWNER_SECRET"]);
+  await readyOwner();
   // Real canonical D1 rights evaluation. No fabricated grant/contract IDs
   // accepted from the caller; strong owner verifies them itself before ACK.
   const publish=await post("/commercial/publish-verified",{
