@@ -98,13 +98,13 @@ try{
     ...scope,userId:"user_paid_18"
   }),/paid_entitlement_scope_changed/);
   assert.deepEqual(commercial.denyCommercialProduct(sql(),{
-    productId,operationId:"contract:17:withdraw"
+    productId,operationId:"retail:qa-price-hold-17"
   }),{applied:true,epoch:2});
-  assert.equal(verify(),null,"Immediate contract/product withdrawal revokes read access");
+  assert.equal(verify(),null,"An owner-first retail hold temporarily revokes paid read access");
   assert.throws(()=>lease(1),/paid_entitlement_product_epoch_stale/,
     "A stale canonical D1 read cannot acknowledge a positive buyer grant after owner withdrawal");
   assert.deepEqual(newProduct(),{applied:true,epoch:3});
-  assert.equal(verify(),null,"Regranting a product cannot resurrect stale purchased entitlement");
+  assert.equal(verify(),null,"Retail reactivation cannot resurrect stale buyer entitlement epochs");
   assert.deepEqual(lease(3),{applied:true,epoch:2});
   assert.deepEqual(lease(3),{applied:true,epoch:2},
     "Renewal after fresh rights epoch must preserve new buyer epoch");
