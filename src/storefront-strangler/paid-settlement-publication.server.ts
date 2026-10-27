@@ -166,6 +166,47 @@ export async function certifyStagePaidSettlement(
      new Set(lines.map(line=>line.id)).size!==lines.length)
     throw new ApiError(503,"Paid settlement line inventory is not certifiable.");
   const owner=env.LEGAL_AUTHORITY.getByName("cove-staged-legal-global-v1");
+  const delivered=lines.filter(line=>!line.preorder_id);
+  // Multiple line grants must become readable as ONE strongly consistent
+  // owner state transition. A per-item loop can expose a partly fulfilled
+  // paid cart if the owner fails or a contract is withdrawn between items.
+  // A single-line order keeps the existing verified handler for compatibility.
+  if(delivered.length>1){
+    if(delivered.some(line=>line.entitlement_status!=="granted"||
+       line.sales_channel!=="retail"||
+       !identity.test(line.product_id)||
+       !identity.test(line.entitlement_id||"")))
+      throw new ApiError(409,"Paid entitlement inventory is incomplete.");
+    let result:unknown;
+    try {
+      const response=await owner.fetch(new Request(
+        "https://legal-authority.internal/commercial/entitlement/publish-order-verified",{
+          method:"POST",headers:{"content-type":"application/json",
+            "authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET},
+          body:JSON.stringify({
+            orderId,userId,territory:order.territory_code,channel:"retail"
+          })
+        }
+      ));
+      if(response.status!==200)throw Error("atomic_paid_owner_refused");
+      result=await response.json();
+    }catch{
+      throw new ApiError(503,"Atomic paid owner settlement unavailable.");
+    }
+    const receipt=result as {
+      applied?:unknown;orderId?:unknown;
+      receipts?:Array<{entitlementId?:unknown;epoch?:unknown}>
+    }|null;
+    if(!receipt||receipt.applied!==true||receipt.orderId!==orderId||
+       !Array.isArray(receipt.receipts)||
+       receipt.receipts.length!==delivered.length||
+       new Set(receipt.receipts.map(x=>x.entitlementId)).size!==delivered.length||
+       receipt.receipts.some(x=>
+         !delivered.some(y=>y.entitlement_id===x.entitlementId)||
+         !Number.isSafeInteger(x.epoch)||Number(x.epoch)<=0))
+      throw new ApiError(503,"Atomic paid settlement proof is invalid.");
+    return;
+  }
   for(const line of lines){
     // Preorders are only a financial reservation; there is no downloadable
     // purchase until the separate delivery/rights conversion is certified.
