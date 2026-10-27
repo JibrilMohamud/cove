@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier -- Isolated synthetic paid-settlement QA is a narrow trust boundary. */
 import {certifyStagePaidSettlement,assertStagePaidOrderNotWithdrawn} from "./paid-settlement-publication.server";
 import type {CoveEnv} from "../features/fore/api.server";
+import {requireStagePaidEntitlementAccess} from "./legal-consumer-fence.server";
 
 type D1={prepare:(sql:string)=>unknown};
 type Env={
@@ -18,6 +19,8 @@ type Env={
 const FULL_SCHEMA_QA="7c7ab994-f6b3-419d-a72d-71eb9ea22e7e";
 const ORDER="order_paid_qa_20261027";
 const BUYER="user_paid_qa_20261027";
+const ENTITLEMENT="ent_paid_qa_20261027";
+const PRODUCT="prd_paid_qa_20261027";
 function available(env:Env):boolean{
   const exp=Number(env.COVE_PAID_STAGE_QA_EXPIRES_AT);
   return env.COVE_PAID_STAGE_QA_ENABLED==="1" &&
@@ -42,7 +45,7 @@ export default {
       request.headers.get("content-type")?.split(";")[0].trim()!=="application/json" ||
       request.headers.has("cookie"))
       return new Response(null,{status:405,headers});
-    if(!["/certify-paid","/preflight-paid"].includes(url.pathname))
+    if(!["/certify-paid","/preflight-paid","/authorize-delivery"].includes(url.pathname))
       return new Response(null,{status:404,headers});
     let body:unknown;
     try{
@@ -66,8 +69,13 @@ export default {
     try{
       if(url.pathname==="/certify-paid")
         await certifyStagePaidSettlement(facade,ORDER,BUYER);
-      else
+      else if(url.pathname==="/preflight-paid")
         await assertStagePaidOrderNotWithdrawn(facade,ORDER);
+      else
+        await requireStagePaidEntitlementAccess(facade,{
+          entitlementId:ENTITLEMENT,userId:BUYER,productId:PRODUCT,
+          territory:"US",channel:"retail"
+        });
       return Response.json({ok:true},{headers});
     }catch(e){
       // Status-only contract. Never expose paid buyer identity or canonical
