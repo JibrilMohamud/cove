@@ -8,7 +8,21 @@ const core=readFileSync("src/storefront-strangler/commercial-entitlement-core.ts
 const refund=commerce.slice(commerce.indexOf("async function applyRefundSuccess("),
   commerce.indexOf("export async function stripeWebhook("));
 assert.ok(refund.length>3000,"Could not inspect refund webhook");
-const revoke=refund.indexOf("if (full) await stageRevokeRefundEntitlements(");
+const revoke=refund.indexOf('if (full || env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")');
+assert.ok(refund.includes("await stageRevokeRefundEntitlements(env, String(o.id), refundId)"),
+  "Staged external partial refunds must conservatively deny the whole buyer order");
+const refundRequest=commerce.slice(commerce.indexOf("export async function refundOrder("),
+  commerce.indexOf("async function stageRevokeRefundEntitlements("));
+assert.ok(refundRequest.includes("Partial refunds require an item-scoped legal owner."),
+  "Customer partial refunds cannot bypass an unfinished item-scoped strong legal writer");
+assert.ok(refundRequest.includes("await resumePersistedRefund(env, existing)"),
+  "Repeat refund requests must reprocess owner-pending provider acknowledgments");
+assert.ok(refundRequest.includes("providerAccepted = true;")&&
+  refundRequest.includes("!providerAccepted && e instanceof ApiError && e.status === 400"),
+  "Confirmed Stripe refunds must never be mislabeled failed after legal-owner outage");
+assert.ok(refundRequest.includes("original Stripe")||
+  commerce.includes("repeat ONLY the same POST"),
+  "External provider refund recovery must preserve the immutable idempotency key");
 const succeeded=refund.indexOf("UPDATE commerce_refunds SET status='succeeded'");
 const canonical=refund.indexOf("UPDATE entitlements SET status='revoked'");
 assert.ok(revoke>=0&&succeeded>revoke&&canonical>succeeded,
