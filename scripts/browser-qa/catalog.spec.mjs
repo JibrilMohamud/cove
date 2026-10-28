@@ -206,3 +206,20 @@ test("anonymous homepage does not wait for a stalled first-page bootstrap", asyn
     timeout: 5_000,
   });
 });
+
+test("tracking links retain verified SSR books while real catalog filters do not", async ({
+  request,
+}) => {
+  expect((await request.post("/__qa/seed?progress=1")).ok()).toBe(true);
+  const tracked = await request.get("/?utm_source=reading_club&gclid=tracking_test");
+  expect(tracked.ok()).toBe(true);
+  expect(await tracked.text()).toContain('class="book-card"');
+
+  const shared = await request.get("/?__vercel_share=example-only");
+  expect(shared.ok()).toBe(true);
+  expect(await shared.text()).toContain('class="book-card"');
+
+  const filtered = await request.get("/?search=nonexistent");
+  expect(filtered.ok()).toBe(true);
+  expect(await filtered.text()).not.toContain('class="book-card"');
+});

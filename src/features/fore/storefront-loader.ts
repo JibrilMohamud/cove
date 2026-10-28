@@ -7,10 +7,30 @@ import {
 } from "@/lib/cove-request-env.server";
 import { hedgedStorefrontBootstrap } from "./storefront-hedged-fetch";
 
+// Tracking and deployment-protection query keys never change the contents of
+// the Bookstore's default shelf. Retain live first-page SSR for those URLs.
+// Every search, sort, page, facet and unrecognized parameter still bypasses
+// this optimization, so filtered listings cannot render unrelated books.
+function hasCatalogChangingQuery(search: string): boolean {
+  const harmless = new Set([
+    "gclid",
+    "fbclid",
+    "msclkid",
+    "__vercel_share",
+    "__vercel_protection_bypass",
+  ]);
+  for (const rawKey of new URLSearchParams(search).keys()) {
+    const key = rawKey.toLowerCase();
+    if (key.startsWith("utm_") || harmless.has(key)) continue;
+    return true;
+  }
+  return false;
+}
+
 export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
   .inputValidator((value: string) => z.string().max(2000).parse(value))
   .handler(async ({ data }): Promise<string | null> => {
-    if (new URLSearchParams(data).size) return null;
+    if (hasCatalogChangingQuery(data)) return null;
     const request = getRequest();
     const source = new Request(new URL("/api/fore/storefront/bootstrap", request.url), {
       headers: request.headers,
