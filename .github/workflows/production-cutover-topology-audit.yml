@@ -11,6 +11,8 @@ on:
     branches: [main]
     paths:
       - "scripts/check-live-production-cutover*.mjs"
+      - "scripts/check-production-owner-binding.mjs"
+      - "scripts/test-production-owner-binding.mjs"
       - "wrangler.frontend.production.toml"
       - ".github/workflows/production-cutover-topology-audit.yml"
   workflow_dispatch:
