@@ -179,7 +179,6 @@ test("cold first Bookstore page shows verified books before slow facet search, e
   await expect(page.getByText("Books available to read")).toBeVisible();
 });
 
-
 test("anonymous homepage does not wait for a stalled first-page bootstrap", async ({
   page,
   request,
