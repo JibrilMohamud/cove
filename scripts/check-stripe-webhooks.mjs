@@ -229,9 +229,7 @@ try {
     ["refunded", "refunded"],
     ["disputed", "disputed"],
   ]) {
-    await original("UPDATE commerce_orders SET status=? WHERE id='ord-proof'")
-      .bind(existing)
-      .run();
+    await original("UPDATE commerce_orders SET status=? WHERE id='ord-proof'").bind(existing).run();
     await stripeWebhook(
       env,
       request({
@@ -284,7 +282,9 @@ try {
   // revocation as a pending refund again.
   await original(
     "INSERT INTO commerce_refunds(id,order_id,provider_refund_id,amount_minor,currency,reason,status,idempotency_key,created_at,updated_at,succeeded_at) VALUES('rfd_terminal','ord-proof','re_terminal',500,'JPY','qa','succeeded','refund-terminal-qa',?,?,?)",
-  ).bind(timestamp, timestamp, timestamp).run();
+  )
+    .bind(timestamp, timestamp, timestamp)
+    .run();
   await stripeWebhook(
     env,
     request({
