@@ -3275,8 +3275,11 @@ async function activatePublicationCommercialTerms(
         .bind(at, currentManifest.royaltyContractId),
     );
   if (currentManifest.offerId) {
-    // Any other grant for the same edition is NOT an acceptable substitute
-    // for this publication's frozen legal manifest.
+    // Every scheduled attempt recomputes retail visibility atomically. An
+    // already-active offer must be DEACTIVATED if a grant was subsequently
+    // revoked; simply issuing a conditional active=1 UPDATE would leave the
+    // stale active=1 row untouched and mistakenly succeed on the follow-up read.
+    // Any other grant is never a substitute for this frozen legal manifest.
     if (!activatingIds.length)
       throw new ApiError(409, "A retail offer requires a frozen approved rights-grant manifest.");
     const grantPlaceholders = activatingIds.map(() => "?").join(",");
@@ -3285,8 +3288,7 @@ async function activatePublicationCommercialTerms(
     statements.push(
       db
         .prepare(
-          `UPDATE offers SET active=1,updated_at=? WHERE id=?
-           AND EXISTS (
+          `UPDATE offers SET active=CASE WHEN EXISTS (
              SELECT 1 FROM products p
              JOIN rights_grants g ON g.edition_id=p.edition_id
              LEFT JOIN rights_contracts rc ON rc.id=g.contract_id
@@ -3305,11 +3307,9 @@ async function activatePublicationCommercialTerms(
                    AND rcv.effective_from<=?
                    AND (rcv.effective_to IS NULL OR rcv.effective_to>?)
                ))
-           )`,
+           ) THEN 1 ELSE 0 END,updated_at=? WHERE id=?`,
         )
         .bind(
-          at,
-          currentManifest.offerId,
           ...activatingIds,
           contractId,
           contractId,
@@ -3317,6 +3317,8 @@ async function activatePublicationCommercialTerms(
           contractVersionId,
           at,
           at,
+          at,
+          currentManifest.offerId,
         ),
     );
     statements.push(
