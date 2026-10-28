@@ -1,0 +1,38 @@
+name: staging-owner-admin-command
+on:
+  pull_request:
+    paths:
+      - "src/features/fore/api.server.ts"
+      - "src/storefront-strangler/legal-admin-owner-commands.server.ts"
+      - "scripts/test-legal-admin-owner-commands.mjs"
+      - "scripts/test-staged-admin-owner-route.mjs"
+      - ".github/workflows/staging-owner-admin-command.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/features/fore/api.server.ts"
+      - "src/storefront-strangler/legal-admin-owner-commands.server.ts"
+      - "scripts/test-legal-admin-owner-commands.mjs"
+      - "scripts/test-staged-admin-owner-route.mjs"
+      - ".github/workflows/staging-owner-admin-command.yml"
+permissions:
+  contents: read
+jobs:
+  ensure-canonical-owner-first:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify exact receipts, retries, missing owner, legal writer identity
+        run: |
+          node scripts/test-legal-admin-owner-commands.mjs
+          node scripts/test-staged-admin-owner-route.mjs
+      - name: Typecheck staff administration and legal writer adapter
+        run: npm run typecheck
