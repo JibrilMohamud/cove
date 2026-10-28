@@ -263,7 +263,9 @@ try {
       ["refunded", "refunded"],
       ["disputed", "disputed"],
     ]) {
-      await original("UPDATE commerce_orders SET status=? WHERE id='ord-proof'").bind(existing).run();
+      await original("UPDATE commerce_orders SET status=? WHERE id='ord-proof'")
+        .bind(existing)
+        .run();
       await stripeWebhook(
         env,
         request({
