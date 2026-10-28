@@ -3251,7 +3251,9 @@ async function activatePublicationCommercialTerms(
   if (currentManifest.rightsContractManagedByPublication && currentManifest.rightsContractId)
     statements.push(
       db
-        .prepare("UPDATE rights_contracts SET status='active',updated_at=? WHERE id=? AND status IN ('draft','active')")
+        .prepare(
+          "UPDATE rights_contracts SET status='active',updated_at=? WHERE id=? AND status IN ('draft','active')",
+        )
         .bind(at, currentManifest.rightsContractId),
     );
   if (activatingIds.length) {
@@ -3267,7 +3269,9 @@ async function activatePublicationCommercialTerms(
   if (currentManifest.royaltyContractId)
     statements.push(
       db
-        .prepare("UPDATE finance_royalty_contracts SET status='active',updated_at=? WHERE id=? AND status IN ('draft','active')")
+        .prepare(
+          "UPDATE finance_royalty_contracts SET status='active',updated_at=? WHERE id=? AND status IN ('draft','active')",
+        )
         .bind(at, currentManifest.royaltyContractId),
     );
   if (currentManifest.offerId) {
@@ -3296,8 +3300,13 @@ async function activatePublicationCommercialTerms(
            )`,
         )
         .bind(
-          at, currentManifest.offerId, ...activatingIds,
-          contractId, contractId, contractVersionId, contractVersionId,
+          at,
+          currentManifest.offerId,
+          ...activatingIds,
+          contractId,
+          contractId,
+          contractVersionId,
+          contractVersionId,
         ),
     );
     statements.push(
@@ -3313,12 +3322,15 @@ async function activatePublicationCommercialTerms(
     // A revoked/suspended legal scope may have changed between preflight and
     // this D1 transaction. Do not report publication activation or expose a
     // product when the conditional offer activation was denied.
-    const offer = await db.prepare(
-      "SELECT active FROM offers WHERE id=? AND product_id=?"
-    ).bind(currentManifest.offerId, currentManifest.productId).first<{active:number}>();
-    if (Number(offer?.active || 0)!==1)
-      throw new ApiError(409,
-        "Commercial offer activation is blocked until current rights are independently reverified.");
+    const offer = await db
+      .prepare("SELECT active FROM offers WHERE id=? AND product_id=?")
+      .bind(currentManifest.offerId, currentManifest.productId)
+      .first<{ active: number }>();
+    if (Number(offer?.active || 0) !== 1)
+      throw new ApiError(
+        409,
+        "Commercial offer activation is blocked until current rights are independently reverified.",
+      );
   }
   await syncCatalogAccessibility(db, currentManifest, at);
 }
