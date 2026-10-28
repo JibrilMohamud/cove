@@ -35,4 +35,6 @@ assert.equal(hasSigner(after), false, "QA offline signing secret must not persis
 const details = await request("GET", "workers/" + worker);
 assert.equal(details.subdomain?.enabled, false, "QA Worker must be private after test");
 assert.equal(details.subdomain?.previews_enabled, false, "QA Worker previews must be disabled");
-console.log("PASS: isolated QA offline signer destroyed and QA workers.dev/preview exposure disabled");
+console.log(
+  "PASS: isolated QA offline signer destroyed and QA workers.dev/preview exposure disabled",
+);
