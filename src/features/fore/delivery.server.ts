@@ -808,6 +808,13 @@ export async function serveCommercialEpubGrant(env: CoveEnv, rawToken: string, r
       "The entitlement backing this delivery is no longer active.",
       "entitlement_inactive",
     );
+  await requireStagePaidEntitlementAccess(env, {
+    entitlementId: String(ent.id),
+    userId: String(grant.user_id),
+    productId: String(grant.product_id),
+    territory: (requestMeta(request).country || env.FORE_DEFAULT_TERRITORY || "US").toUpperCase(),
+    channel: entitlementSalesChannel(ent.entitlement_type),
+  });
   const ownership = await db
       .prepare("SELECT * FROM entitlement_ownership_records WHERE entitlement_id=?")
       .bind(ent.id)
