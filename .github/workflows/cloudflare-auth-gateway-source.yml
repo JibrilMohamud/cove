@@ -26,7 +26,7 @@ jobs:
           node-version: "22"
       - name: Gateway module syntax
         run: node --check src/cloudflare/staging-auth-gateway.mjs
-      - name: Test only: gateway has no asset/D1/R2 binding or production route
+      - name: "Test only: gateway has no asset/D1/R2 binding or production route"
         shell: bash
         run: |
           set -euo pipefail
