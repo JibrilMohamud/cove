@@ -11,6 +11,8 @@ import {
   reverseRoyaltiesForRefund,
 } from "./finance.server";
 import { promotionPermitted } from "./rights.server";
+import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
+import { assertStagePaidOrderNotWithdrawn, certifyStagePaidSettlement } from "../../storefront-strangler/paid-settlement-publication.server";
 import {
   assertPreorderPurchaseAllowed,
   completePreorderRefundJob,
@@ -202,7 +204,8 @@ async function cartPricing(db: CatalogDB, userId: string, territory: string) {
     await assertPreorderPurchaseAllowed(db, userId, String(x.book.productId));
     const d = await resolvePricingDecision(db, String(x.book.productId), territory, {
       userId,
-      persist: true,
+      // The staged primary-D1 lock denies legacy rights-decision writes.
+      persist: env?.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1",
     });
     if (!d) throw new ApiError(409, "A cart item is no longer purchasable in your storefront.");
     items.push({
@@ -250,6 +253,22 @@ async function cartPricing(db: CatalogDB, userId: string, territory: string) {
   if (finalCurrencies.size !== 1)
     throw new ApiError(409, "All items in an order must resolve to the same currency.");
   const resolvedCurrency = [...finalCurrencies][0];
+  if (env) {
+    await requireStageLegalConsumerProof(
+      env,
+      items.map((item) => ({
+        id: item.productId,
+        source_name:
+          item.productId === "prd_gutenberg_" + item.externalId ? "gutenberg" : "commercial",
+        source_external_id: item.externalId,
+        expectedEditionId: item.rightsSnapshot.editionId,
+        expectedGrantId: item.rightsGrantId,
+        expectedContractVersionId: item.rightsSnapshot.contractVersionId,
+      })),
+      territory.toUpperCase(),
+      resolvedCurrency,
+    );
+  }
   const fingerprint = await sha256(
     JSON.stringify(
       items.map((x) => [
@@ -975,6 +994,8 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
       .run();
   }
   try {
+    // Reject previously withdrawn buyer authority before tender reservation.
+    await assertStagePaidOrderNotWithdrawn(env, orderId);
     await reserveTender(db, { ...order, gift_card_hash: quote.gift_card_hash });
     await reservePromo(db, { ...order, promo_code_hash: quote.promo_code_hash });
   } catch (e) {
@@ -1339,12 +1360,18 @@ export async function finalizePaidOrder(
   const db = env.DB,
     order = await db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(orderId).first<any>();
   if (!order) throw new ApiError(404, "Order not found.");
-  if (["paid", "partially_refunded", "refunded"].includes(order.status)) return order;
+  if (["paid", "partially_refunded", "refunded"].includes(order.status)) {
+    if (order.status === "paid")
+      await certifyStagePaidSettlement(env, String(order.id), String(order.user_id));
+    return order;
+  }
   // A valid, signed and correctly linked success event can arrive after
   // cancellation, dispute or other terminal revocation. Never issue paid
   // entitlements, consume tender or accrue royalties for those orders.
   if (!["pending_payment", "processing", "authorized", "payment_failed"].includes(order.status))
     throw new ApiError(409, "Terminal or invalid order cannot be settled.");
+  // No late Stripe success can resurrect a buyer refunded in the owner.
+  await assertStagePaidOrderNotWithdrawn(env, String(order.id));
   const at = now();
   await consumeTender(db, order);
   await db
@@ -1609,6 +1636,9 @@ export async function finalizePaidOrder(
   } catch (e) {
     console.error("Purchase receipt notification enqueue failed", e);
   }
+  // The paid D1 row is NOT a delivery license. A replay of the same signed
+  // Stripe event can finish owner publication after a temporary owner outage.
+  await certifyStagePaidSettlement(env, String(order.id), String(order.user_id));
   return db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(orderId).first<any>();
 }
 
@@ -1847,6 +1877,8 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
       409,
       "This order has already been fully refunded or has a refund in progress.",
     );
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" && amount < remainingTotal)
+    throw new ApiError(409, "Partial refunds require an item-scoped legal owner.");
   let left = amount;
   const stripeAvailable = Math.max(0, Number(o.stripe_due_minor) - Number(committed?.stripe || 0)),
     stripeAmount = Math.min(left, stripeAvailable);
@@ -1928,6 +1960,36 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
   }
 }
 
+async function stageRevokeRefundEntitlements(env: CoveEnv, orderId: string, refundId: string) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") return;
+  if (
+    env.COVE_SSR_STAGING !== "1" ||
+    env.COVE_CANONICAL_LEGAL_WRITE_LOCK !== "1" ||
+    !["5e3a6b69-6f3d-4b19-b837-01f7aa56ce87", "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"].includes(
+      env.COVE_LEGAL_WRITER_PRIMARY_ID || "",
+    ) ||
+    env.COVE_LEGAL_QUARANTINE_WRITER_STAGE !== "1" ||
+    !env.LEGAL_QUARANTINE_WRITER?.fetch ||
+    !/^[a-f0-9]{64}$/.test(env.COVE_LEGAL_QUARANTINE_SECRET || "")
+  )
+    throw new ApiError(503, "Refund entitlement owner is not certified.");
+  const response = await env.LEGAL_QUARANTINE_WRITER.fetch(
+    new Request("https://legal-quarantine.internal/commercial/entitlement/revoke-order", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer " + env.COVE_LEGAL_QUARANTINE_SECRET,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ orderId, operationId: refundId }),
+    }),
+  );
+  if (response.status !== 200)
+    throw new ApiError(503, "Refund owner did not acknowledge entitlement withdrawal.");
+  const receipt = (await response.json()) as { orderDenied?: unknown };
+  if (receipt.orderDenied !== true)
+    throw new ApiError(503, "Refund ownership receipt was invalid.");
+}
+
 async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload: any) {
   const db = env.DB,
     r = await db.prepare("SELECT * FROM commerce_refunds WHERE id=?").bind(refundId).first<any>();
@@ -1942,6 +2004,12 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
     refundAmount = Number(r.amount_minor),
     newRefunded = Math.min(Number(o.total_minor), previousRefunded + refundAmount),
     full = newRefunded >= Number(o.total_minor);
+  // Stripe's refund is not acknowledged as canonical until the private
+  // owner has tombstoned every affected paid entitlement. Partial external
+  // refunds deny the entire order in this staged proof until item-scoped
+  // owner revocation is implemented.
+  if (full || env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
+    await stageRevokeRefundEntitlements(env, String(o.id), refundId);
   const giftAmount = Number(r.gift_card_amount_minor || 0),
     storeAmount = Number(r.store_credit_amount_minor || 0),
     stripeAmount = Number(r.stripe_amount_minor || 0);
@@ -2072,12 +2140,15 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
       { refundId: r.id },
     );
   if (full) {
-    await db
-      .prepare(
-        "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase'",
-      )
-      .bind(at, o.user_id, o.id)
-      .run();
+    // When staged, the owner-first private executor has already revoked
+    // entitlement authority. Never bypass the canonical D1 write lock.
+    if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+      await db
+        .prepare(
+          "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase'",
+        )
+        .bind(at, o.user_id, o.id)
+        .run();
     await db
       .prepare("UPDATE commerce_order_items SET entitlement_status='revoked' WHERE order_id=?")
       .bind(o.id)
@@ -2560,6 +2631,25 @@ async function syncDispute(db: CatalogDB, d: any, eventType: string) {
           .first<any>()
       : null,
     at = now();
+  // For the fenced stage owner, freeze the purchase at the FIRST Stripe
+  // dispute rather than waiting until the bank confirms a loss. A later
+  // dispute-win event must not silently resurrect a withdrawn grant; fresh
+  // canonical verification and a new purchase identity are required.
+  // Legacy/non-cutover checkout retains its existing dispute policy.
+  const stageDisputeOpened =
+    env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" && eventType === "charge.dispute.created";
+  const confirmedLoss = eventType === "charge.dispute.closed" && d.status === "lost";
+  if (order && (stageDisputeOpened || confirmedLoss)) {
+    if (typeof d.id !== "string" || !/^[a-zA-Z0-9_-]{8,120}$/.test(d.id))
+      throw new ApiError(409, "Chargeback identity is invalid.");
+    // The strong owner records a terminal whole-order denial BEFORE any
+    // canonical dispute/order mutation. Replay is keyed by Stripe dispute.
+    await stageRevokeRefundEntitlements(
+      env,
+      String(order.id),
+      (stageDisputeOpened ? "dispute-open:" : "dispute-loss:") + d.id,
+    );
+  }
   await db
     .prepare(
       `INSERT INTO commerce_disputes(provider_dispute_id,order_id,charge_id,amount_minor,currency,reason,status,evidence_due_at,created_at,updated_at,closed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(provider_dispute_id) DO UPDATE SET status=excluded.status,reason=excluded.reason,evidence_due_at=excluded.evidence_due_at,updated_at=excluded.updated_at,closed_at=excluded.closed_at`,
@@ -2617,6 +2707,7 @@ async function syncDispute(db: CatalogDB, d: any, eventType: string) {
         .prepare("UPDATE commerce_orders SET status='chargeback_lost',updated_at=? WHERE id=?")
         .bind(at, order.id)
         .run();
+      if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
       await db
         .prepare(
           "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase'",
