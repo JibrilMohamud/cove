@@ -1,6 +1,6 @@
 {
   "schema": "cove.canonical-writer-review.v1",
-  "reviewedSourceCommit": "e463c0e7903ff0b784901962d778b2dda2243b36",
+  "reviewedSourceCommit": "4188207b4bb8cb03d7fabc95fcaad4b5d15d9d01",
   "releaseApproval": false,
   "scope": "Conservative classification of all 458 existing candidates, not deployed ownership or dynamic/external-writer certification.",
   "sites": [
@@ -134,9 +134,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "89441d4b30d95e71a07097f37158f15598f2100e3142968579fbda5027a25de9",
+      "siteId": "880b587c2cbee64ca369769d2f7167d5a5dd3ae302f0e4ca160829eea8d08524",
       "file": "src/features/fore/api.server.ts",
-      "line": 818,
+      "line": 821,
       "functionName": "catalogInsert",
       "table": "gutenberg_source_cache",
       "operation": "INSERT INTO",
@@ -147,9 +147,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "6af5c256377886a8ea70d4242c30cf6c849c4ef5d1fdd709cc6a234baa2dca8d",
+      "siteId": "5534bcd5fb4c3952e63dd9d7a9da3fd1500de9d28fddac7b24c8709e6ace7f00",
       "file": "src/features/fore/api.server.ts",
-      "line": 1328,
+      "line": 1331,
       "functionName": "insertRegionalEvidence",
       "table": "gutenberg_rights_evidence",
       "operation": "INSERT OR IGNORE INTO",
@@ -160,9 +160,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "95bc101d2da471e58e78560435c89033271b5068365a31afaa988db3b3afbc22",
+      "siteId": "2aec240685940b924c419d1ace6ad37cba15a3354f7bd609ba3cc7a124130185",
       "file": "src/features/fore/api.server.ts",
-      "line": 1349,
+      "line": 1352,
       "functionName": "insertRegionalEvidence",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -173,9 +173,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "55ae66a3dfda0b28775a188bca002bdb130d0c49a55e8219d64220c0e8e6ab3f",
+      "siteId": "5cab8bcab1e091f01fe697fd72df1dc8129193bc7e8c18d5129fce5e4351fba6",
       "file": "src/features/fore/api.server.ts",
-      "line": 1361,
+      "line": 1364,
       "functionName": "insertRegionalEvidence",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -186,9 +186,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "d034d9288751c230372572af98f6485e10e7da23d0856992cecce89f42a580b3",
+      "siteId": "c4689ff05234a6edc4c742f50f269392fe42379b243e0006ef920d5456d35d38",
       "file": "src/features/fore/api.server.ts",
-      "line": 1368,
+      "line": 1371,
       "functionName": "insertRegionalEvidence",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -199,9 +199,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "a57c84337a51216015c81bb8bda3655be768bb814ddc6ec328d5dbbd40940a5f",
+      "siteId": "d15b0be2dfaaf74eb8e76f60d5cdf892e0e39a7cabbc00ffbf047ffc14540825",
       "file": "src/features/fore/api.server.ts",
-      "line": 1390,
+      "line": 1393,
       "functionName": "quarantineRegionalItem",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -212,9 +212,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "f97610d050c8e9b0398c09e2631406f873aa9625f6f859b17a0f8ddf1e72b21b",
+      "siteId": "f4707ab793595ea54ac86f243a96a536e131df7cfa94456ecd64d61b24d72d5a",
       "file": "src/features/fore/api.server.ts",
-      "line": 1410,
+      "line": 1413,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -225,9 +225,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "9de59552d9c0918f34ee2131db34584b8d06adb81c5de89c373b3d42092d97de",
+      "siteId": "f7af21bb6f004d0714f18a6d91d278d58020116a5ad873240592bfde1c44e6dc",
       "file": "src/features/fore/api.server.ts",
-      "line": 1484,
+      "line": 1487,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -238,9 +238,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "d6b2b86c67e3a0d56c972bb2760bd34f92e7db112c6c41c1083151187d7d93ff",
+      "siteId": "76895cf001dfe837f125f74917ba01a9415fb23407291a1275d83476b986f884",
       "file": "src/features/fore/api.server.ts",
-      "line": 1492,
+      "line": 1495,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -251,9 +251,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "3eee9492c8334904da0c2730142e8896909dbc0b362c33973b1076754214fb2b",
+      "siteId": "b374b6f960d764bf651bff24df93cdea347cc4dfd8f2d03a6b7f362fea46ef0e",
       "file": "src/features/fore/api.server.ts",
-      "line": 1500,
+      "line": 1503,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -264,9 +264,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "0407e17de5df5f3035d4edf796ad415e7bba63f928501bebd13c44edf096f82e",
+      "siteId": "f7495b224d7859f60d18fb1266274a7e4fc5d81e65262af68f60c01298950963",
       "file": "src/features/fore/api.server.ts",
-      "line": 1533,
+      "line": 1536,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -277,9 +277,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "2d05d278369c3ee085b3626a77133a723acaf660ddcf032aaf0d77b35e273319",
+      "siteId": "e1a5684d3fb883e6021ad631ca5f28d2eb786ab13d6d1661160474ef73c511e7",
       "file": "src/features/fore/api.server.ts",
-      "line": 1599,
+      "line": 1602,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -290,9 +290,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "6c46c32d8f8ff4a765d8e351620b0299f5bbcb1d76c578d63c749804f3154bf2",
+      "siteId": "02793d7a928eca2dad80b0719b008e05c916ead29d68b5ec54f27a242c21e2ec",
       "file": "src/features/fore/api.server.ts",
-      "line": 1610,
+      "line": 1613,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -303,9 +303,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "af24e022a13e08b24e868211b0eb9fb035761b212ca205cd7adfbed73de8192c",
+      "siteId": "a5e4c97c03478acd04fe5c03c6ae6fb0ed0d80b8edeadece6cb1887aa055dd10",
       "file": "src/features/fore/api.server.ts",
-      "line": 1633,
+      "line": 1636,
       "functionName": "cachePendingEpubs",
       "table": "asset_versions",
       "operation": "UPDATE",
@@ -316,9 +316,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b60215272fe0bff5593d6bf40e451f578f466c644df4f89a584e21d8baad5b43",
+      "siteId": "b2078801470ca3c33a2395545c04abb5e45ee99dbcce8d32d39f79f4bca730d3",
       "file": "src/features/fore/api.server.ts",
-      "line": 1648,
+      "line": 1651,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -329,9 +329,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "be1a3d2401cf1fd17ba60d8579f0c0631fa38e0d8753a4d8c7828fe2335a7090",
+      "siteId": "ca47f03bdc1a3e854d993d26e550a32b7772e31c40e8bc0cfe36fb352c75f478",
       "file": "src/features/fore/api.server.ts",
-      "line": 1719,
+      "line": 1722,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -342,9 +342,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b6c926dd2984fa6f28610ea6f0f9b9f92abd1437356c57e0ae6879a143a69cab",
+      "siteId": "9d953deaa47fb86f3fbe50280ab72c15379c091993a94347fb360d6bec442e35",
       "file": "src/features/fore/api.server.ts",
-      "line": 1741,
+      "line": 1744,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -355,9 +355,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "112c49516232289118ca7013fac549094890cddedaef038355025b1ee11ec533",
+      "siteId": "8e50af2d2e78857e1c7d7bdeaa9fc6f7713ed37410056452f9a26872216e3295",
       "file": "src/features/fore/api.server.ts",
-      "line": 1762,
+      "line": 1765,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -368,9 +368,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "ba827a5366afa35809e22175cc69c824ff066d857d4df833e4b7ebea7bad8a0e",
+      "siteId": "7f696b2424bde7e0322e4bdc72ae77558f07809097e32e4cd463fe87e2660c80",
       "file": "src/features/fore/api.server.ts",
-      "line": 1792,
+      "line": 1795,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -381,9 +381,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "f8d0be81f6fe421434cbdca2f75587474ef99f30632d34ed9891dde6f7128e6a",
+      "siteId": "48906a0073e87c6b8695951f76424cfef16889646d6db282587614b4d2ed032d",
       "file": "src/features/fore/api.server.ts",
-      "line": 1895,
+      "line": 1898,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -394,9 +394,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "f848927d1750a2b6d7849599cbcd3b31b2027f785c128327fc1b92c7a7d09bfe",
+      "siteId": "08406c6ffa6455bd0ec0c73105920e708d8d334a67bdc1feab49ed656cd62299",
       "file": "src/features/fore/api.server.ts",
-      "line": 1903,
+      "line": 1906,
       "functionName": "runRegionalCatalogIngestion",
       "table": "products",
       "operation": "UPDATE",
@@ -407,9 +407,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "804c6de6f9b77c23af10f6edb05dcf37b7eb661728a7b20b2f9e04ecbb4b99ea",
+      "siteId": "e6a839ffdfb919ae26091929dffdacacd9fa167cc57c7b776a7bb3aeb6fd07c8",
       "file": "src/features/fore/api.server.ts",
-      "line": 1910,
+      "line": 1913,
       "functionName": "runRegionalCatalogIngestion",
       "table": "offers",
       "operation": "UPDATE",
@@ -420,9 +420,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "78deffa81e4688c0c0dbdab561b276c78b36dc5551ec32d48380dbd0eaed79e6",
+      "siteId": "e3978fe19bc4ba964cf8072d281546592ab037fc74c92622f3823f8b04de4e13",
       "file": "src/features/fore/api.server.ts",
-      "line": 1917,
+      "line": 1920,
       "functionName": "runRegionalCatalogIngestion",
       "table": "editions",
       "operation": "UPDATE",
@@ -433,9 +433,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "d86fc5893feaeb73f23acf71abd09b838de411445f5225fdf4a21580e9cd7901",
+      "siteId": "50039522a467ab5a2e51b6e5eb1deaeec7cdccbad499f0e05c9587b2ee624845",
       "file": "src/features/fore/api.server.ts",
-      "line": 1924,
+      "line": 1927,
       "functionName": "runRegionalCatalogIngestion",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -446,9 +446,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "2f5438a08ed562f2d61634ac7cabea1b4946806207d27f59368e600bc2c475dc",
+      "siteId": "e00d970a1ee2136ea3209cdfd26bb745d2cb3b5ce83441ef5afb343559a24bb7",
       "file": "src/features/fore/api.server.ts",
-      "line": 1934,
+      "line": 1937,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -459,9 +459,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "8eee2b85cdf3c35404a153e9ef067f4bd1351fafe97f8871108149a81f59897f",
+      "siteId": "d5f0cb59d1687ddf8822b3909fd6c086ab385dbb274a1edd7902598f5aed44ed",
       "file": "src/features/fore/api.server.ts",
-      "line": 2004,
+      "line": 2007,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -472,9 +472,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "3d437df639b92a066eda997786c2f3d15f29cac2380bc7e6182751af716dd8f0",
+      "siteId": "4056f88273e3af28e48cbc2c066d37346f78cc018d23a176cf7f81f6daec81e3",
       "file": "src/features/fore/api.server.ts",
-      "line": 2160,
+      "line": 2163,
       "functionName": "runCatalogIngestion",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -485,9 +485,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "2931ee84b6828ef50084e46bf9abc09614563b4c5dcbb5e5eca917cd953b626d",
+      "siteId": "2dc6a382a66735a046eab47f305a436f775277182bb1dd55f797bd2cbdd6bcae",
       "file": "src/features/fore/api.server.ts",
-      "line": 2175,
+      "line": 2178,
       "functionName": "runCatalogIngestion",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -498,9 +498,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "be9eaca5be888a60f93dca7441ed0c69c6e95adbda51519a5c95833f3713b110",
+      "siteId": "e0ce4763c87ca5171ee1db5c93278f17fbe7e4f32d70ef6066f7737d6bb6b1a8",
       "file": "src/features/fore/api.server.ts",
-      "line": 2182,
+      "line": 2185,
       "functionName": "runCatalogIngestion",
       "table": "catalog_search_documents",
       "operation": "UPDATE",
@@ -511,9 +511,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "d980176d115ea11e59aea7cf44dc86cb069af51ee43b52ff5c5a8c1e87862e8c",
+      "siteId": "421a537cf2610bc3c3abd11bfde908b57b464557be00c019254a9ae14f3fb4de",
       "file": "src/features/fore/api.server.ts",
-      "line": 2348,
+      "line": 2351,
       "functionName": "sourceEpubBytes",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -524,9 +524,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "2bafff0ff16ae879e32528e66c60e6021a3f411884ff199f48a4821c256d9ad4",
+      "siteId": "ee487aba4e42a4cb1578e067b3d11c4260a206823d4ab35fde2ce4aeb771febf",
       "file": "src/features/fore/api.server.ts",
-      "line": 2383,
+      "line": 2386,
       "functionName": "sourceEpubBytes",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -537,9 +537,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "2389d8d4aab060e7be7352949029f1cfbb0437a6e6cf1435621239185820a7c2",
+      "siteId": "0e73947fa8b903510ee1e606041a3686ae22076bb5e5fd6168bb5d408a87b5eb",
       "file": "src/features/fore/api.server.ts",
-      "line": 2387,
+      "line": 2390,
       "functionName": "sourceEpubBytes",
       "table": "asset_versions",
       "operation": "UPDATE",
@@ -550,9 +550,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "2293947fed5d495be004ec5fb3e823322bf8501377b22d6bade828cf89845c82",
+      "siteId": "203db34dbae0b7a5b8acb76eeb15fcc8ea009defc7f588be49e9281f9f68dd2a",
       "file": "src/features/fore/api.server.ts",
-      "line": 5670,
+      "line": 5673,
       "functionName": "handleCoveRequest",
       "table": "entitlements",
       "operation": "INSERT INTO",
@@ -3352,9 +3352,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "d9ca584149bca5fb1249d1ceb51c6607a223e2e84466310da3d497d60c155a35",
+      "siteId": "f779fca3edb63347c56c3be42de9a272f25c9e0f1228035e50a3c522c48cd58d",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 64,
+      "line": 68,
       "functionName": "recordPublicationActivation",
       "table": "publishing_publication_activations",
       "operation": "INSERT INTO",
@@ -3365,9 +3365,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "3bf6f2f53669c667aee50ca6d6009fc489583a9f651aa87aa59c53045c8e7108",
+      "siteId": "074ac5d827ee4db5e8b2302786dc0a0c7738c710628a92fe7631a16c30a2db2c",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 198,
+      "line": 202,
       "functionName": "ensurePublishingLifecycle",
       "table": "publishing_release_lifecycles",
       "operation": "INSERT INTO",
@@ -3378,9 +3378,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "eb4e777a5012e2acc058458db35c6f14171a1fce286b649d8e381b443ad383b2",
+      "siteId": "896f408b802015b0a18ccfd7869ceb07a38a92613ca0144627fd8d0c464db525",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 211,
+      "line": 215,
       "functionName": "ensurePublishingLifecycle",
       "table": "publishing_lifecycle_events",
       "operation": "INSERT INTO",
@@ -3391,9 +3391,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "b61574238f75edd61a92faff851ee32b80081c0b87bb58f848faf87690d4856d",
+      "siteId": "1329e50b2b11f49a1e1d7239a926ccf8e3ef104200f13aba6fca22851f862047",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 316,
+      "line": 320,
       "functionName": "transitionPublishingLifecycle",
       "table": "publishing_release_lifecycles",
       "operation": "UPDATE",
@@ -3404,9 +3404,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "10909d6faf31088621bebbfea88daa5bf531c9a72cd7f0034cf96f3332e7cfcc",
+      "siteId": "c315871f33f44b428dd828c34802c284b11a2b695ada0270994da9144e656c0b",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 327,
+      "line": 331,
       "functionName": "transitionPublishingLifecycle",
       "table": "publishing_lifecycle_events",
       "operation": "INSERT INTO",
@@ -3417,9 +3417,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "d3d3f8cbae6dc824e4429c243dcf63e273364022521396604037aee3f2b51ed5",
+      "siteId": "8ab4cdb1cfed7e70d387ab2017099ce0d1230f3f052628aa90ffa9b416afe64e",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 369,
+      "line": 373,
       "functionName": "upsertPublishingAccount",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -3430,9 +3430,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "aa481ad9b89d3e138dd8cf1c665de1f4ca7646de65c032902d7d39d211644439",
+      "siteId": "f7ee3ba8e77f405b8439ea3cfd05e4db11fff0250a7b63561c62f859b9f3b8f5",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 406,
+      "line": 410,
       "functionName": "upsertPublishingAccount",
       "table": "publishing_accounts",
       "operation": "INSERT INTO",
@@ -3443,9 +3443,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "26d8ef9d8a63ef4b31727bbd344e3c7f78e2cd6f495db4996fecb533df320705",
+      "siteId": "492c982f99491fef4f6c30a2cd26593425e5a2948eb8ee89120d22f1b2483c77",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 423,
+      "line": 427,
       "functionName": "upsertPublishingAccount",
       "table": "publishing_account_members",
       "operation": "INSERT INTO",
@@ -3456,9 +3456,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "d4979f5ed3a3efbd57f31344e8b07c65b69b9be1a7ba8100cff6be53673d9741",
+      "siteId": "3a017b0010efac19e772154ea863424eff6e78adfcf8497181f85c57a1b7d0f1",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 536,
+      "line": 540,
       "functionName": "invitePublishingMember",
       "table": "publishing_account_members",
       "operation": "INSERT INTO",
@@ -3469,9 +3469,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "c992df7c70551cb918733e7e7d6b325877585a024ff1b1f033b959191a4f4da1",
+      "siteId": "89d10f2819aba60dee43da8bcf62e10dc379c0972f69db135d572e3ced784c28",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 567,
+      "line": 571,
       "functionName": "startIdentityVerification",
       "table": "publishing_identity_verifications",
       "operation": "INSERT INTO",
@@ -3482,9 +3482,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "fe40a66d7be168d3ed075dc188616e377eec8b1fcea2dda6e85dee4b7d220127",
+      "siteId": "809a22ba4c97141dd440fdc69c6483b4b899c65553870f13b3d106a474f11bcd",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 580,
+      "line": 584,
       "functionName": "startIdentityVerification",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -3495,9 +3495,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "a513261559fa900f3c78c310d3de601f84af0ad47a7099cc53f1e58d832b720c",
+      "siteId": "7db58143ceccb83f0f06f40bed195d475ed3c08c50a51731766b6c650de3a09b",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 650,
+      "line": 654,
       "functionName": "submitTaxProfile",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -3508,9 +3508,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "03621524823a2d746219b9c48a60d96dd139553649fdd629034654ca0714d64b",
+      "siteId": "a0225dd3024e73b068f31e08b669ec60bfd7474aee366bafecc75345f7d5d68b",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 709,
+      "line": 713,
       "functionName": "submitPayoutAccount",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -3521,9 +3521,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "f09f050176fc8f2bf1437db6a465335977358af53eabe51d01439eaff9bb5425",
+      "siteId": "5f43272a54b353f0ed293aae9c3cf3ea6fb3893b42a1f392c242163c04606093",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 756,
+      "line": 760,
       "functionName": "savePublishingTitle",
       "table": "publishing_titles",
       "operation": "INSERT INTO",
@@ -3534,9 +3534,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "291198de0f9e028c9389874e42b31837fe585274bf7de62a2d92b50270852b5a",
+      "siteId": "11210a4b47a1a475adcd0f6aa269b25ac82479c7c1584b797865e8bd8eda9ad6",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 927,
+      "line": 931,
       "functionName": "savePublishingEdition",
       "table": "publishing_edition_drafts",
       "operation": "INSERT INTO",
@@ -3547,9 +3547,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "7f25574cce18d03522e23f21f006cd763aeb277b2915982ce5d6d5b9ff00271e",
+      "siteId": "a258546adcb4295aaf2acbb103d90f98b94b8eccce7582102f412b277ad9bd4f",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1575,
+      "line": 1579,
       "functionName": "recordInlineResult",
       "table": "publishing_validation_jobs",
       "operation": "UPDATE",
@@ -3560,9 +3560,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "c2dbcef6eb0a87da3a44fff65685843c1c1ec53dc2f2d87463f59f861427b61a",
+      "siteId": "1b468e2b11a5b9596b161a7ec4104ee750857b9a83d372e7f46e364033875b89",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1587,
+      "line": 1591,
       "functionName": "recordInlineResult",
       "table": "publishing_validation_results",
       "operation": "INSERT INTO",
@@ -3573,9 +3573,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "43cc5a21ef1a24e8f1aa91760eaa7cbc2573d01403cab606d975090472b3cac6",
+      "siteId": "6ba810ddcc95d78c4bf4c8485f26b708870ccd57f1c3db18a1c437e43f1ca086",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1625,
+      "line": 1629,
       "functionName": "refreshAssetValidationSummary",
       "table": "publishing_asset_versions",
       "operation": "UPDATE",
@@ -3586,9 +3586,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "a5fa2b42434ce5da18d1d78dd7eb9ca0677716c08376f948e92bf44f1646f48c",
+      "siteId": "9d66e880f88747917469b385af951b5c2d7cd243b064a738792ff42bb7e83876",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1721,
+      "line": 1725,
       "functionName": "uploadPublishingAsset",
       "table": "publishing_assets",
       "operation": "INSERT INTO",
@@ -3599,9 +3599,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "f54817203edab57594d1c630b50847f8d949837ef015e0000056ce5cc4790725",
+      "siteId": "a083f747d3ce4966b3c294154980bdffdf6efd2c9aede520fc73691403cbf0b9",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1733,
+      "line": 1737,
       "functionName": "uploadPublishingAsset",
       "table": "publishing_asset_versions",
       "operation": "INSERT INTO",
@@ -3612,9 +3612,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "568498bbf7c250679be5fb33a1ae596639ab2f18f4fa7ffc2e45f6884a37769e",
+      "siteId": "ef4c7490ca924986a562e7811abb3971c87d2194bcbe8866ea0755317f499c12",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1750,
+      "line": 1754,
       "functionName": "uploadPublishingAsset",
       "table": "publishing_assets",
       "operation": "UPDATE",
@@ -3625,9 +3625,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "c6203de1dbd8fb60b848239894bac4f6209a5b3304e02f8abaa78f241d888ddc",
+      "siteId": "eb0eec3120426a846c2277c8016984f75306cbaf2d534d12562bb0c41de43a5b",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1756,
+      "line": 1760,
       "functionName": "uploadPublishingAsset",
       "table": "publishing_validation_jobs",
       "operation": "INSERT INTO",
@@ -3638,9 +3638,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "28c8d13e8577657fbbbde84be485e07c8e07316ae9682cac8a3992e9c2d3009e",
+      "siteId": "3ee9df842d73ebd5292d35558bb732f0c5678d959c0701f2e2ea9a36a88dbf2a",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1997,
+      "line": 2001,
       "functionName": "signPublishingAccessibilityDeclaration",
       "table": "publishing_accessibility_declarations",
       "operation": "INSERT INTO",
@@ -3651,9 +3651,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "f8dd4451ec75e99d35fe589b40c7fd28244d3c957d1f42b9d7e5b89901aef44b",
+      "siteId": "f9904e4dbe40e9a022fb074323e8eed3de1ac9fe7919682e94f3a3b8aa919202",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2038,
+      "line": 2042,
       "functionName": "leasePublishingValidationJobs",
       "table": "publishing_validation_jobs",
       "operation": "UPDATE",
@@ -3664,9 +3664,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "02c70650ae29a880ec6b1fcb740692e5c9a53d90f9229a32611e05023f1a4ecb",
+      "siteId": "51fb7fa3e13562dc7bd9172bae4ba9c58667a215c8a8af13ac8ee4d2da1ad72d",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2043,
+      "line": 2047,
       "functionName": "leasePublishingValidationJobs",
       "table": "publishing_validation_jobs",
       "operation": "UPDATE",
@@ -3677,9 +3677,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "2338dd9e0032fb479a83d2ca4177e5f50b22eedcca3a9fa76aa26a9fd8a18c30",
+      "siteId": "6f84703e9188de4705518f568e1f9660a37db38dea60a0d0ccc2f2774f10c750",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2058,
+      "line": 2062,
       "functionName": "leasePublishingValidationJobs",
       "table": "publishing_validation_jobs",
       "operation": "UPDATE",
@@ -3690,9 +3690,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "ae40e2883a17bb6fc8ea65d7be2ed4f84bb0dcdb69d23cbac9af9da59cb47829",
+      "siteId": "b40baf2b0cebbda98f617b5ab16057188fd2dfb301c3116be363f2b0d2071bd3",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2115,
+      "line": 2119,
       "functionName": "completePublishingValidationJob",
       "table": "publishing_validation_jobs",
       "operation": "UPDATE",
@@ -3703,9 +3703,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "0182601f78d05cc3b71ee3ec4504d74926dfb53a24fd469be22f7c04fc64944b",
+      "siteId": "d7758dd4b0465f8847cbae7a62045caaf1d9424a9ddf29b64015ceb523006a6a",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2127,
+      "line": 2131,
       "functionName": "completePublishingValidationJob",
       "table": "publishing_validation_results",
       "operation": "INSERT INTO",
@@ -3716,9 +3716,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "6cc15a092bac1da159744e03a976ef30efd9afc984ca394d0e4fc0a2491e37e3",
+      "siteId": "289ec6de8a825a387fa2e1a4760bfe095f1da1be9f92e9955963499a3ff407ca",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2557,
+      "line": 2561,
       "functionName": "submitPublishingEdition",
       "table": "publishing_submission_snapshots",
       "operation": "INSERT INTO",
@@ -3729,9 +3729,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "63c9addce6fa6d4b3749bb6d25ee28c46c5aa03e2ef5e88d8bb091946bed3116",
+      "siteId": "bc9e09b175777ea875556781a66b2f6c4e1ed7144b8f5fe75aa208183ffa113c",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2561,
+      "line": 2565,
       "functionName": "submitPublishingEdition",
       "table": "publishing_edition_drafts",
       "operation": "UPDATE",
@@ -3742,9 +3742,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "64445278c07e66f2ad079c25b4c16841a39e4c7291095256d571b9ca54a0bc03",
+      "siteId": "ccc8a7a5d34297fd594b8b212f1c749e0c6c91f02016df7a3fa3d6e22dbce4b8",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2564,
+      "line": 2568,
       "functionName": "submitPublishingEdition",
       "table": "publishing_titles",
       "operation": "UPDATE",
@@ -3755,9 +3755,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "aae315b8fd89918f6e48f766216de95c7a24113514c95ab5a53505cbf0ebf1b9",
+      "siteId": "5bda4028a8cb90d9d91efa60ffa8c4f68bf1e6bb9dd6be6dd6104abe153efd55",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2568,
+      "line": 2572,
       "functionName": "submitPublishingEdition",
       "table": "publishing_outbox",
       "operation": "INSERT INTO",
@@ -3768,9 +3768,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "5625e8b704bf1cbbaf5095338ba1a0f0d04ec9dda811e6ceffc76f471b0df64a",
+      "siteId": "2d292a7e7a0d95827a5893c9131cab30ab8b7a497edd4646048ec163ca83f95a",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2587,
+      "line": 2591,
       "functionName": "submitPublishingEdition",
       "table": "commercial_audio_submission_snapshots",
       "operation": "INSERT INTO",
@@ -3781,9 +3781,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "837c5568781b7040c0bbd6f43ceafb9cd70e73ef99836122cde63d3ce821d3eb",
+      "siteId": "12c2af7fb2145e59be4e125aac032f0dd3ab95d9661484c25bfbe65b2a2f3d51",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2633,
+      "line": 2637,
       "functionName": "submitPublishingEdition",
       "table": "publishing_submission_snapshots",
       "operation": "UPDATE",
@@ -3794,9 +3794,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "19fde79d22ecc3cabac9812a508a2187e98fa146587fe48c442cb47e12ca3e45",
+      "siteId": "ec27ae67fba1f650f89264e15449b48faf3a1623d35807442452a5b26e510a86",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2637,
+      "line": 2641,
       "functionName": "submitPublishingEdition",
       "table": "publishing_edition_drafts",
       "operation": "UPDATE",
@@ -3807,9 +3807,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "15bdb6314d0385e6c729363266bdcd966146f407e43b23f6ba00a18142d29e61",
+      "siteId": "8a80d2bb767daeba06439dc866704757fef4d3f22e9786c5e1c3b7d2dce1de0c",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2715,
+      "line": 2719,
       "functionName": "submitPublishingEdition",
       "table": "publishing_submission_snapshots",
       "operation": "UPDATE",
@@ -3820,9 +3820,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "b8ff7a6638039bce600a559d5320248d0472e0059680e12294dadbcdd65e2c78",
+      "siteId": "d6bcfd2a934deb48a8b330c2a324535eae2948d404aabe00cc7c1a46bcb69bf4",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2779,
+      "line": 2783,
       "functionName": "openPublishingRevision",
       "table": "publishing_submission_snapshots",
       "operation": "UPDATE",
@@ -3833,9 +3833,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "66291f854b70017096388e789c6de3ec0653473bdee4eae7e2535307626911db",
+      "siteId": "14c692f0275609383758bf7771abbd5dfc21b17a2e5534cebfc10ab48e8b92a1",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2784,
+      "line": 2788,
       "functionName": "openPublishingRevision",
       "table": "publishing_edition_drafts",
       "operation": "UPDATE",
@@ -3846,9 +3846,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "00fabd6107895484ca21bf38ca16a65c03bf343a50d0d57f7e6e7e375a02604c",
+      "siteId": "41e5595023f737a2b41b14e5c64b523617ab491d387b37ae9aaf12f9fe73b75b",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2821,
+      "line": 2825,
       "functionName": "setPublishingUpdatePolicy",
       "table": "publishing_release_lifecycles",
       "operation": "UPDATE",
@@ -3859,9 +3859,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "d47d170eca7103c18ebd540ae69c2b87bbcd1cfbb7d2a358bd244c592e905105",
+      "siteId": "97777ffbf8668c49b7d8c6d091f034b572b58dfa4e8fd91631d76461ccf74cf4",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2852,
+      "line": 2856,
       "functionName": "setPublishingUpdatePolicy",
       "table": "publishing_entitlement_version_pins",
       "operation": "INSERT INTO",
@@ -3872,9 +3872,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "0b9e40c737232155d5cebefe27daa0e19e9f874eda2b1bf880e6be651489ab02",
+      "siteId": "07b947d2422eb4bcc01b0fa882e54ec4a464abedb5d95239014801890755d1e6",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2858,
+      "line": 2862,
       "functionName": "setPublishingUpdatePolicy",
       "table": "publishing_owner_version_events",
       "operation": "INSERT INTO",
@@ -3885,9 +3885,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "f29782bf32acd66825bf68a87e6f0efec6cb1f645fac96bf804414a3332f0076",
+      "siteId": "0c214af49b2dec6a35a6e1141196193203262debd0cba37b753c99dba414bc73",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2916,
+      "line": 2920,
       "functionName": "optInOwnedPublicationUpdate",
       "table": "publishing_entitlement_version_pins",
       "operation": "INSERT INTO",
@@ -3898,9 +3898,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "c45b1ecfde317b306d874a6b2e33dcbe973e86dda4ff3e9266abfbaafb941e4e",
+      "siteId": "d4ddf1c8ab967e0de26675175d3d989f80b07ec24522279395cd0b371d23b02e",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2922,
+      "line": 2926,
       "functionName": "optInOwnedPublicationUpdate",
       "table": "publishing_owner_version_events",
       "operation": "INSERT INTO",
@@ -3911,9 +3911,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "d2e1e1be00abc472e1460a24cfe3a7949b287550f7c44d72a2ede741ea262b45",
+      "siteId": "bd26d4e6804fd06b60450f6c7f3ed76326fde60f13f6547aba6d6e89bce35c72",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2992,
+      "line": 2996,
       "functionName": "ensureCatalogParties",
       "table": "finance_parties",
       "operation": "INSERT INTO",
@@ -3924,9 +3924,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "3849351e8512681eead6fcd5b06f46b1eabbd2ec43d4fc68ead78c8a11f93b8e",
+      "siteId": "737eb8f68d73e8c8be012ccfbe82bee7adcdbc5535ae794028a0815e8426ae58",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3008,
+      "line": 3012,
       "functionName": "ensureCatalogParties",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -3937,9 +3937,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "e41d4911acec3b21392ccc8fa6ed68c87db011ff933e10c2dcd64108b94264ff",
+      "siteId": "697134973ff3025c06d18ee3992af127564bed8ff58046b1fb220c2eecbfe188",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3115,
+      "line": 3119,
       "functionName": "syncCatalogAccessibility",
       "table": "editions",
       "operation": "UPDATE",
@@ -3950,9 +3950,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "24014193e03f544c18a7bc4267c3d38a5032eb787a0ed48225abae7df0370e96",
+      "siteId": "50a30aa3917f0166b10568ffaaea4e02dbc5223a6f0d62d0a2a3953a58cf7c15",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3217,
+      "line": 3221,
       "functionName": "activatePublicationCommercialTerms",
       "table": "offers",
       "operation": "UPDATE",
@@ -3963,9 +3963,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "d53f594a3b4ea83832b65b2fb8ae41c95ef00815001fb31b0dbf11963d1c00fd",
+      "siteId": "d7e436b2193b263598055475adc3a22c3c7c0d54b0a104c42f01f7ceb211e574",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3222,
+      "line": 3226,
       "functionName": "activatePublicationCommercialTerms",
       "table": "finance_royalty_contracts",
       "operation": "UPDATE",
@@ -3976,9 +3976,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "459f57e4db28df928d37c25988a1fa1a07a0591c5ea0324c8cc9bd163e38742d",
+      "siteId": "ca52655447e313b74ae4bc534c4f65d1a9ce7123bf4d3cbe3bc56d654ddd0b20",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3230,
+      "line": 3234,
       "functionName": "activatePublicationCommercialTerms",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -3989,9 +3989,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "e14de610efb8c2f355bf043cdf352be6b11fba45a6f6f2fef88f3531385af200",
+      "siteId": "b798e6387941e0edd63bde7b5cd5897a313436014e44a3a03936eeb7c10fb463",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3242,
+      "line": 3246,
       "functionName": "activatePublicationCommercialTerms",
       "table": "rights_contracts",
       "operation": "UPDATE",
@@ -4002,9 +4002,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "576f7637ed707ebfbd5dcf592cda9613071eadb19d19e0ad7d7b00f40853222a",
+      "siteId": "88f271676a9fd3d426d735319ccb187aa33cb9b585dd1873b3bf91948b6c356c",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3255,
+      "line": 3259,
       "functionName": "activatePublicationCommercialTerms",
       "table": "rights_contracts",
       "operation": "UPDATE",
@@ -4015,9 +4015,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "6c344f85d5510c6bb01245ea37009b904ed0b9c84e5d041f667cd7c3aca1f6da",
+      "siteId": "aea962f87b0e837d413ca9eff1ba5a2d34a19186319740841e23efe218ccada9",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3264,
+      "line": 3268,
       "functionName": "activatePublicationCommercialTerms",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -4028,9 +4028,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "77fbac6a2b9788f177a5b23a8198e1579e2cf3c11d55a48d4d2459a1ea298a40",
+      "siteId": "5c2103fcf9d4bf21738e923cb5e9745d45e6d49bfd5ffa23cb64c7b80f8afec1",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3273,
+      "line": 3277,
       "functionName": "activatePublicationCommercialTerms",
       "table": "finance_royalty_contracts",
       "operation": "UPDATE",
@@ -4041,9 +4041,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "76c0487003da68ddbe35bec3687c6ffa7356b2c0e8bb9381d4326302dfe5c133",
+      "siteId": "7c16de06b43f728e72d0c430ccb60f793e886a4cd1ae47679250f75e4cfa7bf5",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3291,
+      "line": 3295,
       "functionName": "activatePublicationCommercialTerms",
       "table": "offers",
       "operation": "UPDATE",
@@ -4054,9 +4054,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "afdc1011de2353c9b41e132d639be8d8b47008550541b6bbc49717f5ae634e7b",
+      "siteId": "6c16694221cb98116d96e8d180e4868cc26bec669ba553df16a5cfc6c16f9e21",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3557,
+      "line": 3561,
       "functionName": "materializePublishingSubmission",
       "table": "editions",
       "operation": "INSERT INTO",
@@ -4067,9 +4067,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "127740ee0426708d4ba2315d51f96dfd3486aca54fb15f95bb4e2e9212f3ceac",
+      "siteId": "9617ef5d54821710e50c6916e3d978c2ab60d8ac75ef001e19269536ae25f3f2",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3745,
+      "line": 3749,
       "functionName": "materializePublishingSubmission",
       "table": "products",
       "operation": "INSERT INTO",
@@ -4080,9 +4080,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "a7f0e321e4bdee781ddcecafb254d42ea87fbfbb7416e6a7bc0c52be95db3daf",
+      "siteId": "82b8ab22e969d89a0c03dbbb3782031e58d2569aacc9aa2866c78b942d5b4b87",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3795,
+      "line": 3799,
       "functionName": "materializePublishingSubmission",
       "table": "digital_assets",
       "operation": "INSERT INTO",
@@ -4093,9 +4093,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "007f9ae75418b6d03d46a03d70109d5b0c4aed1b75166e1b090455c7a4a61a7d",
+      "siteId": "2a066c0f1991abb7a64b619c4672013cd4c7aa3ee62f58887cf386144b6cfe94",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3811,
+      "line": 3815,
       "functionName": "materializePublishingSubmission",
       "table": "digital_assets",
       "operation": "UPDATE",
@@ -4106,9 +4106,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "10199e2b52faaa4e536a4cf3f1242cb68a1751d00955808623a8fc8e1b7da6cc",
+      "siteId": "3a9dc384c63eeb9199cd8053f3bfcc57dc780bc17e8ac25c873985c932818c7c",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3840,
+      "line": 3844,
       "functionName": "materializePublishingSubmission",
       "table": "asset_versions",
       "operation": "INSERT INTO",
@@ -4119,9 +4119,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "a69e1a708d844f9a5418beff119a7d857510376eb50ca60a831d867003590bf5",
+      "siteId": "9e18285da5a962d67acb12007b802d54f8d2ee2b9bb0238dc339f72467acb0e6",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3867,
+      "line": 3871,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_asset_versions",
       "operation": "UPDATE",
@@ -4132,9 +4132,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "9cd15a984e53bb36aa78af1bc96ebf193badacefc6f5b2375ddbda141b6181cd",
+      "siteId": "51cfbd4c01c3c1b8cc95736b8343b705837fc3bfcd01da70f2d5ecf752cdfb10",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4013,
+      "line": 4017,
       "functionName": "materializePublishingSubmission",
       "table": "editions",
       "operation": "UPDATE",
@@ -4145,9 +4145,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "e04e360f2dfd1c086cd076e841f1cb62c2f1470a75d4fd25e248fc105ba06729",
+      "siteId": "0aeb4d8ce88ee1fdce9c3335058c9aaf4c2d1c973e5b3082f0bed9824c4af344",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4034,
+      "line": 4038,
       "functionName": "materializePublishingSubmission",
       "table": "offers",
       "operation": "INSERT INTO",
@@ -4158,9 +4158,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "25da4a7f8b9dccce966202832ad4fdf028a908ab5fd9267373009eba76f084eb",
+      "siteId": "0e1707821fda2ac585f5f0567fd08264c599abf1814ad22d76ee1c7a789bb106",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4070,
+      "line": 4074,
       "functionName": "materializePublishingSubmission",
       "table": "finance_royalty_contracts",
       "operation": "INSERT INTO",
@@ -4171,9 +4171,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "00137912e6ef5052374a1d60131b4b3c21118846d6c786100b44b049b30dea4d",
+      "siteId": "306f1355301a78df65e926da65b5353543c549830812ed643d65dd7cc8be0604",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4118,
+      "line": 4122,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_publications",
       "operation": "INSERT INTO",
@@ -4184,9 +4184,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "0b4f630fa798420094cd3a21f3f2c3837dd844469c2fa640a811278ca939b943",
+      "siteId": "dd44a911a59fa075cd136113c689730b3edf39916a8af66d917a66a21e476e93",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4137,
+      "line": 4141,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_submission_snapshots",
       "operation": "UPDATE",
@@ -4197,9 +4197,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "568593a84e5931eda6b24b2020a3d8f60b46fcae02e7a4fe8f86b05133b7a500",
+      "siteId": "7623a68d7dabe8f66897c01c6aaf02ad878630bd6d1237e5cf0921e1e9710cbc",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4142,
+      "line": 4146,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_edition_drafts",
       "operation": "UPDATE",
@@ -4210,9 +4210,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "1ffb71845022e721ff0ee111b494afe5000c908bd88ac12b70670775717921e7",
+      "siteId": "4da6b5961a9c58cbfbc3742287aaba94e1b23cc2ec26f03b7ae64588bd2d2db6",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4147,
+      "line": 4151,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_titles",
       "operation": "UPDATE",
@@ -4223,9 +4223,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "e5412c971d9ee29536beda8c67966e9c528bf01bfd0172a2365f405f886e42d0",
+      "siteId": "188297c1b7e9cc83a9df46d7c43f349b09b87c545a84714ce4ce7bc699ea02c8",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4152,
+      "line": 4156,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_outbox",
       "operation": "INSERT INTO",
@@ -4236,9 +4236,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "d546201f64cbda206b0a2c0f811f214961afdd9dd2389e4751be4ba1c6ed95e7",
+      "siteId": "9b4d212793e386eb7b72bf0773a23e2e580de4e4fba38c289520fc62654ad2c4",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4171,
+      "line": 4175,
       "functionName": "materializePublishingSubmission",
       "table": "publisher_catalog_mappings",
       "operation": "UPDATE",
@@ -4249,9 +4249,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "63c45cc20a094e0c400637bd205ed40eff0ea7d3f032296b9ac4f88f66175168",
+      "siteId": "f659e3dd9bf629b705ee6a86ecc61cdfd71ddfa6b367fe355cfd81869da60947",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4255,
+      "line": 4259,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_publication_versions",
       "operation": "INSERT INTO",
@@ -4262,9 +4262,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "2245bb3154f38df82bb4c8f845d9afb93834cbf29324e35eeeaeb60c1541282a",
+      "siteId": "69a41535766a078fae40e04de50194686554597ebd6cf12bf4a660dcd4ac0e1d",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4306,
+      "line": 4310,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_release_lifecycles",
       "operation": "UPDATE",
@@ -4275,9 +4275,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "69c55318edd47b672b02f47435ed5bd2ba298fd3920e688c26f3bc39bf871b23",
+      "siteId": "f405a5013d63af81595eb3c13a58e877533a65c8d5c937b9ade4319f0757b9a9",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4313,
+      "line": 4317,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_release_lifecycles",
       "operation": "UPDATE",
@@ -4288,9 +4288,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "56a827b775f21ea6ee3977df25c569257837b74749e996d151198f11cb713106",
+      "siteId": "69bc6e61fac8e141f131baffd7571a64db09521c13801f2e5e0a05724514d7b3",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4330,
+      "line": 4334,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_lifecycle_events",
       "operation": "INSERT INTO",
@@ -4301,74 +4301,79 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "89ec4cc228fafb342fb890aefe195d2d45e87baaea1abdeceafc6b077e108f8b",
+      "siteId": "ab8c2a45222c2ef4a13c0bbcc715f822902e2175a86005e908337cfa7d5a6abb",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4410,
-      "functionName": "activatePublicationVersion",
+      "line": 4429,
+      "functionName": "activatePublicationVersionOwned",
       "table": "editions",
       "operation": "UPDATE",
       "sqlSha256": "9aa03a6624078606950299071e123e78983f9ae3f4bc09b26965145881cd2941",
       "disposition": "owner-command-required",
       "productionOwnerGuarded": false,
-      "commandFamily": "publishing.activatePublicationVersion",
-      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
+      "commandFamily": "publication.activate-version",
+      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command.",
+      "implementation": "Typed private owner executor with durable product hold; enrolled scheduler and rollback route through it. Production enablement and other publication writers remain incomplete."
     },
     {
-      "siteId": "428738e39219c343b1b4048b5857b0c1f1ab335b1c4b7f34b88fe5d489fe820d",
+      "siteId": "cb4141773aac85a45e36fd4027b0b59bee77d78fc1179ba681f857f53b7ff323",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4492,
-      "functionName": "activatePublicationVersion",
+      "line": 4511,
+      "functionName": "activatePublicationVersionOwned",
       "table": "digital_assets",
       "operation": "UPDATE",
       "sqlSha256": "f825855df332e31dc72ed51279353cd75f185e301fd7d2c5101d5fe7bf3834e6",
       "disposition": "owner-command-required",
       "productionOwnerGuarded": false,
-      "commandFamily": "publishing.activatePublicationVersion",
-      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
+      "commandFamily": "publication.activate-version",
+      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command.",
+      "implementation": "Typed private owner executor with durable product hold; enrolled scheduler and rollback route through it. Production enablement and other publication writers remain incomplete."
     },
     {
-      "siteId": "d4bf2588ad3db985f4055abec3336d2e8cd14a922ee4f94b5aed5f0d7a9870c3",
+      "siteId": "6a842bb9dbaa6a2b2bd9c8314863376fb5b850355dc7c0e7061974149c97adc5",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4504,
-      "functionName": "activatePublicationVersion",
+      "line": 4523,
+      "functionName": "activatePublicationVersionOwned",
       "table": "products",
       "operation": "UPDATE",
       "sqlSha256": "fbd8433da4954b51b2be594d30fe5786004801f8fb37a173b850a41d9c7c9464",
       "disposition": "owner-command-required",
       "productionOwnerGuarded": false,
-      "commandFamily": "publishing.activatePublicationVersion",
-      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
+      "commandFamily": "publication.activate-version",
+      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command.",
+      "implementation": "Typed private owner executor with durable product hold; enrolled scheduler and rollback route through it. Production enablement and other publication writers remain incomplete."
     },
     {
-      "siteId": "628ecb406f78ca99a79e71d1402ac950b618a74dbb065ca66325f246f476c448",
+      "siteId": "cdb5d02e24d4fa105ce3f1e1e25199abae528b8893e78d3735b76c685f4ad1df",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4511,
-      "functionName": "activatePublicationVersion",
+      "line": 4530,
+      "functionName": "activatePublicationVersionOwned",
       "table": "publishing_release_lifecycles",
       "operation": "UPDATE",
       "sqlSha256": "a3ebdb2eae08262fe498773141178e93b4c8791c814b5b81bdec496827722984",
       "disposition": "owner-command-required",
       "productionOwnerGuarded": false,
-      "commandFamily": "publishing.activatePublicationVersion",
-      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
+      "commandFamily": "publication.activate-version",
+      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command.",
+      "implementation": "Typed private owner executor with durable product hold; enrolled scheduler and rollback route through it. Production enablement and other publication writers remain incomplete."
     },
     {
-      "siteId": "244549501a029e04d5b85ee28620ef9c221f19683108b488742c4e219139958a",
+      "siteId": "5668d966f36e9fdea4dca15c38f65b60f84e6a7d8128cd3b04e084eeb54ac9b7",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4524,
-      "functionName": "activatePublicationVersion",
+      "line": 4543,
+      "functionName": "activatePublicationVersionOwned",
       "table": "publishing_lifecycle_events",
       "operation": "INSERT INTO",
       "sqlSha256": "18c3366b2817e58d6d1165c3ede851af7f239923e9cd860bc1ae1433072bcac3",
       "disposition": "owner-command-required",
       "productionOwnerGuarded": false,
-      "commandFamily": "publishing.activatePublicationVersion",
-      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
+      "commandFamily": "publication.activate-version",
+      "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command.",
+      "implementation": "Typed private owner executor with durable product hold; enrolled scheduler and rollback route through it. Production enablement and other publication writers remain incomplete."
     },
     {
-      "siteId": "f46c3768e668353d3663ea8f1f923ea743257c595378dc44442f2b923671cbce",
+      "siteId": "f333344ea4c86fef3cf4734f21b27b5ab6417ebb6120684eac8c0742c39bad8b",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4586,
+      "line": 4605,
       "functionName": "advancePublishingReleaseSchedules",
       "table": "publishing_release_lifecycles",
       "operation": "UPDATE",
@@ -4379,9 +4384,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "d438edc762038f5f4f48d3a4d60df5d516ae6663f84b9746d494c7c1332c2b26",
+      "siteId": "07b63676aad8c77193e75e344e5520b27e35968729bf4e0a0f5c9c8189055153",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4592,
+      "line": 4611,
       "functionName": "advancePublishingReleaseSchedules",
       "table": "products",
       "operation": "UPDATE",
@@ -4392,9 +4397,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "110cd5dad64a55ae5f68eb32665da1d20d4a81a883d22279a3c015c190b690d6",
+      "siteId": "ee9c0267ce19a8266529914cee4c010e6356964de705c32e9f98491d9b2dc358",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4597,
+      "line": 4616,
       "functionName": "advancePublishingReleaseSchedules",
       "table": "editions",
       "operation": "UPDATE",
@@ -4405,9 +4410,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "290c427f01b81926eb9876e3274af41a7dd8cb7d10d8f89334c0f3a2daeb0e89",
+      "siteId": "1c9d41fbb4c7db95fa297ab4a76afffeae810dfa5b20238e865ab9edd0bf3fa9",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4608,
+      "line": 4627,
       "functionName": "advancePublishingReleaseSchedules",
       "table": "publishing_lifecycle_events",
       "operation": "INSERT INTO",
@@ -4418,9 +4423,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "293326d198796b0ef15c72f4994b99023a6ba3de49b5ee91ed6249aad356adbc",
+      "siteId": "66280b842a5ab5f0a53c779f7c47a603387de40f0c57534aa3931e5ac92c3997",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4730,
+      "line": 4749,
       "functionName": "reviewPublishingSubmission",
       "table": "publishing_submission_snapshots",
       "operation": "UPDATE",
@@ -4431,9 +4436,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "2a09dc5a2bc37ca5c192091bdf3dba971d14026192d3f80cb9687af3d65e4369",
+      "siteId": "23c4b452ca551109dc56567286e8d6fb95f51d39c54bdc2a47eb10b1d727b3a3",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4733,
+      "line": 4752,
       "functionName": "reviewPublishingSubmission",
       "table": "publishing_edition_drafts",
       "operation": "UPDATE",
@@ -4444,9 +4449,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "674e358539ebaf8a6cc0f9e68192077b1b1b4214a4009057f1cd5faa86da0f54",
+      "siteId": "70c6e4cc33b22ab746bac89515861035bbf262b383ad49bbfa6a47a8a9a7973c",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4862,
+      "line": 4881,
       "functionName": "reviewPublishingOnboarding",
       "table": "publishing_identity_verifications",
       "operation": "UPDATE",
@@ -4457,9 +4462,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "453ff3b2d7ab9911c64765652d8b67c968f1ad48598bd59b29cb9e22b74eb4b6",
+      "siteId": "4d0bf0aab385a71a5a113364b2aae07275cef661b09f074d59ca067c86c6af30",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4866,
+      "line": 4885,
       "functionName": "reviewPublishingOnboarding",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -4470,9 +4475,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "7296512ec9fb0c7983d74e603956eb9eba162ed9ad8d71f97ef98df9956e5e12",
+      "siteId": "f9d759ce3c62542320b4dbaa0dc44f1437223e87149f79c06ceb27cb5069080f",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4887,
+      "line": 4906,
       "functionName": "reviewPublishingOnboarding",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -4483,9 +4488,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "3f2ba1e488627ee809822b8beed90131c39c61f0fe3abc5c29eb573fcb0866e5",
+      "siteId": "724381983727bfcb87a0400507adb4429cc64956537e1782c816655b4d652434",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4907,
+      "line": 4926,
       "functionName": "reviewPublishingOnboarding",
       "table": "publishing_accounts",
       "operation": "UPDATE",

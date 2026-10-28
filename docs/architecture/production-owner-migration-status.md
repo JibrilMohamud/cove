@@ -59,6 +59,44 @@ expired/future/malformed dates, lease bounding, exact buyer, replay, refund
 against stale canonical rows, withdrawal during primary reads, and outage.
 This is executable handler coverage, not a hosted production certificate.
 
+## Publication activation command increment
+
+The typed `/publication/activate-version` command runs the original canonical
+multi-table activation implementation inside the private owner. A durable
+product denial and pending-command journal precede every primary write.
+Independent positive publication is blocked while that hold is pending.
+Completion releases the hold only after checking the canonical activation
+marker; legal and offer publication then independently re-read current
+evidence and verify the owner epoch. A withdrawal during execution defeats
+completion and cannot be undone by replaying the old command or changing
+only its transport ID.
+
+An interrupted partial primary activation remains denied and requires repair;
+the owner never blindly repeats partial writes. Automatic recovery is limited
+to the same immutable command whose canonical activation marker is complete.
+The owner independently checks publisher compliance, staff permission for
+staff/rollback commands, manifest identity and scheduled release time.
+
+Enrolled scheduler activation and rollback callers dispatch this typed
+command. Enrollment remains isolated-QA-only. Initial materialization,
+preorder transitions, submission/moderation, trust, contract and other
+commercial writers remain open migration work. This increment closes no
+production SQL site in the 458-candidate inventory.
+
+The production persistence deployment config now includes the separate
+production `LEGAL_AUTHORITY` namespace. Authenticated pre-deploy checks
+require production D1 `4bd657ac-8789-403e-a28c-93aba8d0a989`, namespace
+`83d7eadf3957436389a7b072120a9829`, and owner enablement `0`. Post-deploy
+checks require the persistence binding to resolve to that same namespace.
+Binding the disabled owner does not enable production authorization.
+
+`check-publication-owner-command.mjs` exercises the actual activation and
+owner handlers against the fully migrated schema. It covers denial before
+every write, competing publication, replay, restart recovery, primary and
+owner outages, concurrent withdrawal, wrong staff, expired compliance and
+premature scheduling. `test-production-owner-binding.mjs` rejects wrong and
+QA resources as well as premature owner enablement.
+
 ## Required implementation and certification still open
 
 1. Implement the recorded command families and fenced executors for all
@@ -68,7 +106,8 @@ This is executable handler coverage, not a hosted production certificate.
 2. Give the separate production owner a production identity, authentication
    and operational fencing protocol; certify positive publishing and
    deny-first withdrawals. The currently deployed owner remains disabled.
-   Bind persistence only after the exact production owner/D1 are validated.
+   Persistence binding is now configured with exact live pre/post checks;
+   owner enablement and production certification remain separate blockers.
 3. Run the signed Stripe TEST customer journey against the production
    implementation with isolated production-equivalent state, including
    original EPUB/audio/offline paths, multi-item settlement, refund,

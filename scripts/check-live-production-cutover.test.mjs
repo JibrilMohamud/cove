@@ -54,3 +54,22 @@ test("route matching only covers public homepage",()=>{
   assert.equal(coversPublicWww("*covereads.com/*"),true);
 });
 
+test("exact production namespace is bound even when Cloudflare omits script_name",()=>{
+  const binding={name:"LEGAL_AUTHORITY",type:"durable_object_namespace",
+    namespace_id:"83d7eadf3957436389a7b072120a9829",class_name:"CoveLegalAuthority"};
+  const data={...caseData,backend:{bindings:[...healthyBackend.bindings,binding]},
+    owner:{bindings:[{name:"COVE_RIGHTS_OWNER_ENABLED",type:"plain_text",text:"0"}]}};
+  const r=assessProductionCutover(data);
+  assert.equal(r.safeToMaintainCurrentRoute,true);
+  assert.equal(r.evidence.productionOwnerBound,true);
+  assert.equal(r.evidence.productionOwnerEnabled,false);
+  assert.match(r.blocks.join(" "),/owner remains disabled/);
+  assert.equal(r.certifiedForOwnerOnlyCutover,false);
+  for(const change of [{namespace_id:"qa"},{class_name:"Other"},{script_name:"qa"}]) {
+    assert.equal(assessProductionCutover({...data,backend:{bindings:[...healthyBackend.bindings,
+      {...binding,...change}]}}).safeToMaintainCurrentRoute,false);
+  }
+  assert.equal(assessProductionCutover({...data,owner:{bindings:[
+    {name:"COVE_RIGHTS_OWNER_ENABLED",type:"plain_text",text:"1"}]}}).safeToMaintainCurrentRoute,false);
+});
+

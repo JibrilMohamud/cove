@@ -26,6 +26,10 @@ import {
 import { emitNotification } from "./notifications.server";
 import { mirrorPublishingMalwareResult } from "./security.server";
 import { assessPublisherRisk } from "./risk-tax.server";
+import {
+  hasPublicationOwner,
+  dispatchPublicationActivation,
+} from "../../storefront-strangler/publication-owner-routing.server";
 
 export type PublishingDB = {
   prepare(sql: string): {
@@ -4374,6 +4378,21 @@ async function activatePublicationVersion(
   actorUserId: string | null,
   triggerType: "schedule" | "rollback" | "staff",
 ) {
+  if (hasPublicationOwner(db))
+    return dispatchPublicationActivation(db, { publicationVersionId, actorUserId, triggerType });
+  return activatePublicationVersionOwned(db, publicationVersionId, actorUserId, triggerType);
+}
+
+/** The private legal owner executes this implementation against its own
+ * PRIMARY_DB after durably acquiring the product's publication hold. */
+export async function activatePublicationVersionOwned(
+  db: PublishingDB,
+  publicationVersionId: string,
+  actorUserId: string | null,
+  triggerType: "schedule" | "rollback" | "staff",
+) {
+  if (hasPublicationOwner(db))
+    throw new ApiError(503, "Canonical publication writes must execute inside the legal owner.");
   const v = await db
     .prepare(
       `SELECT pv.*,l.publishing_edition_id,l.state,l.current_publication_version_id,l.owner_update_policy FROM publishing_publication_versions pv JOIN publishing_release_lifecycles l ON l.id=pv.lifecycle_id WHERE pv.id=?`,
