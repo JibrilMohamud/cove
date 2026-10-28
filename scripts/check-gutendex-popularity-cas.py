@@ -7,7 +7,7 @@ from pathlib import Path
 api=Path("src/features/fore/api.server.ts").read_text()
 def extract(table):
     tick=chr(96)
-    pattern=r"db\.prepare\("+re.escape(tick)+r"(UPDATE "+table+r"[\s\S]*?)"+re.escape(tick)+r"\)"
+    pattern=r"db\s*\.\s*prepare\(\s*"+re.escape(tick)+r"(UPDATE "+table+r"\s+SET\s+download_count=\?[^`]*?)"+re.escape(tick)+r"\s*,?\s*\)"
     match=re.search(pattern,api)
     assert match is not None, "Missing source SQL: "+table
     sql=match.group(1)

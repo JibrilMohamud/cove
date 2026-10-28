@@ -45,7 +45,10 @@ enablement stayed `0`; the namespace is
   Retained grants survive a version change. A typed preorder command validates
   immutable snapshot bytes, publisher compliance and the due window before a
   durable hold and canonical writes. Positive publication requires fresh legal
-  and storefront verification. Enrollment is still restricted to private QA.
+  and storefront verification. A completed owner publication can retain its
+  exact valid price and legal grant; an uncommitted hold, ordinary retail
+  withdrawal or terminal legal withdrawal cannot use that exception.
+  Enrollment is still restricted to private QA.
 - Anonymous production bootstrap uses fresh primary metadata and starts the
   rights query concurrently with metadata after rate-limit admission. Rejected
   requests cannot use speculation to issue the expensive query. Currency,

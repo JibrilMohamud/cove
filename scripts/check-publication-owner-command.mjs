@@ -23,6 +23,7 @@ try {
   };
   const {CoveLegalAuthority}=await load("src/storefront-strangler/legal-authority.worker.ts","owner",true);
   const legal=await load("src/storefront-strangler/commercial-legal-core.ts","legal");
+  const storefront=await load("src/storefront-strangler/commercial-storefront-authority.ts","storefront");
   const commandCore=await load("src/storefront-strangler/publication-command-core.ts","command");
   const bindingsFile=join(directory,"bindings.mjs");
   await build({stdin:{contents:
@@ -252,8 +253,17 @@ try {
     grantId:"rgrant_owner_publication",contractId:"rcontract_owner_publication",contractVersionId:"rcv_owner_publication",
     validUntil:new Date(Date.now()+60000).toISOString()
   },0).applied,true);
+  storefront.publishCommercialStorefront(retained.sql,{
+    product_id:productId,edition_id:"ed_owner_publication",territory:"US",currency:"USD",rights_epoch:1,
+    grant_id:"rgrant_owner_publication",contract_id:"rcontract_owner_publication",contract_version_id:"rcv_owner_publication",
+    product_public_id:null,edition_public_id:null,
+    offer_json:JSON.stringify({type:"purchase",currency:"USD",amountMinor:399}),
+    valid_until:legal.readCommercialProofs(retained.sql,[productId],"US","retail")[0].valid_until,
+  });
   assert.equal((await retained.activate()).status,200,
     "A metadata/version update retaining the exact approved grant cannot revoke that same grant during activation");
+  assert.equal(storefront.readCommercialStorefront(retained.sql,[productId],"US","USD").length,1,
+    "A completed publication update retaining its prior valid offer must remain visible");
   assert.equal(retained.primary.prepare("SELECT status FROM rights_grants WHERE id='rgrant_owner_publication'").get().status,"active");
   assert.equal(retained.owned.prepare("SELECT COUNT(*) n FROM cove_commercial_subject_denials WHERE subject_id='rgrant_owner_publication'").get().n,0);
 
