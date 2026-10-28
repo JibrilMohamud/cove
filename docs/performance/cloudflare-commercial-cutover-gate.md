@@ -188,3 +188,30 @@ The expected 401 remains an **unwaived** gate; see
 There is currently **no** native storefront or canary custom-domain Worker
 attached to the live `www.covereads.com` site. Investigate the actual
 asset-routing behavior before any new binding or release.
+
+### Owned-zone fail-closed canary certification — October 28, 2026 UTC
+
+The isolation proof now includes the **real Cloudflare-owned ingress** at
+`https://ssr-canary.covereads.com`, assigned **only to an asset-less,
+authenticating Worker**, whose private SSR/asset Worker has `workers_dev=false`
+and no routes. See [owned canary test #40619516926](https://github.com/JibrilMohamud/cove/actions/runs/40619516926):
+
+- Unauthenticated and forged-token homepage, manifest (including query strings),
+  JavaScript, covers, favicon and account API requests were **all HTTP 401**.
+- The exact valid 256-bit bearer fetched the original internal manifest
+  successfully; an authenticated POST was denied **405**.
+- The inner asset Worker had no direct public `workers.dev` access. Both
+  temporary scripts and the custom-domain canary attachment were deleted.
+  Live Cloudflare inspection afterward showed only `api.covereads.com`
+  remained bound to the persistence backend, and `www.covereads.com` and
+  apex CNAME records still targeted the existing Vercel deployment.
+- The earlier isolated `workers.dev` **assets-bound SSR** bypass was real;
+  switching only to `run_worker_first=["/*"]` did not fix it. The separate
+  asset-less gateway and private service binding form the tested trust boundary.
+
+**Not equivalent to full release:** This test proves bearer-first staging ingress,
+not signed-in commercial SSR, OAuth/cookies, Stripe webhook settlement, EPUB/audio
+entitlement, offline device migration, global cold/concurrency performance or
+writer closure. The existing production `cove` frontend Worker remains unroutable
+and the public bookstore stays on Vercel. No owner-only D1 read cutover is
+allowed before positive and negative canonical writer closure.
