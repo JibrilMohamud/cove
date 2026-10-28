@@ -219,6 +219,10 @@ test("tracking links retain verified SSR books while real catalog filters do not
   expect(shared.ok()).toBe(true);
   expect(await shared.text()).toContain('class="book-card"');
 
+  const protectedLink = await request.get("/?x-vercel-protection-bypass=example-only");
+  expect(protectedLink.ok()).toBe(true);
+  expect(await protectedLink.text()).toContain('class="book-card"');
+
   const filtered = await request.get("/?search=nonexistent");
   expect(filtered.ok()).toBe(true);
   expect(await filtered.text()).not.toContain('class="book-card"');
