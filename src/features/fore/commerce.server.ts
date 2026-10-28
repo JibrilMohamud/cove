@@ -2343,6 +2343,11 @@ async function processStripeEvent(env: CoveEnv, event: any) {
     type = String(event.type || "");
   if (type === "payment_intent.succeeded") {
     const o = await orderFromPI(db, obj);
+    // Never acknowledge a Cove-tagged captured payment as processed when its
+    // canonical order has not become readable. Stripe can retry this event;
+    // a 2xx would permanently lose the buyer's fulfillment trigger.
+    if (!o && obj?.metadata?.fore_order_id)
+      throw new ApiError(409, "Cove payment order not yet available. Retry delivery.");
     if (o) {
       if (
         obj.id !== o.stripe_payment_intent_id ||
