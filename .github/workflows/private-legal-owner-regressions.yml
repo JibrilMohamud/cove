@@ -4,6 +4,8 @@ on:
     paths:
       - "src/storefront-strangler/legal-authority-*.ts"
       - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
+      - "src/storefront-strangler/legal-admin-owner-commands.server.ts"
+      - "scripts/test-legal-admin-owner-commands.mjs"
       - "src/storefront-strangler/legal-authority-core.ts"
       - "src/storefront-strangler/legal-authority-coordinator.ts"
       - "src/storefront-strangler/commercial-legal-core.ts"
@@ -24,6 +26,8 @@ on:
     paths:
       - "src/storefront-strangler/legal-authority-*.ts"
       - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
+      - "src/storefront-strangler/legal-admin-owner-commands.server.ts"
+      - "scripts/test-legal-admin-owner-commands.mjs"
       - "src/storefront-strangler/commercial-legal-core.ts"
       - "src/storefront-strangler/commercial-entitlement-core.ts"
       - "src/storefront-strangler/commercial-storefront-authority.ts"
@@ -64,6 +68,7 @@ jobs:
           node scripts/check-paid-order-atomic-publication.mjs
           node scripts/check-market-authority-closure.mjs
           node scripts/check-legal-quarantine-writer.mjs
+          node scripts/test-legal-admin-owner-commands.mjs
       - name: Compile dormant Durable Object and fenced private writer
         run: node scripts/build-storefront-strangler.mjs
       - name: Never expose QA authority as a public service or implicitly activate it
