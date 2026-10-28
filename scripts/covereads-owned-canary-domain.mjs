@@ -49,7 +49,7 @@ if (mode === "attach") {
   } else {
     assert.equal(existing.service, service, "Refusing to detach a different Worker from canary domain");
     assert.equal(existing.zone_id, zone, "Refusing to detach a different DNS zone");
-    assert.match(existing.id || "", /^[a-f0-9]{32}$/);
+    assert.match(existing.id || "", /^[a-f0-9]{40}$/, "Unexpected Worker Domain identifier");
     await call(endpoint + "/" + existing.id, { method: "DELETE" });
     const after = (await call(endpoint)).find((d) => d.hostname === hostname);
     assert.equal(after, undefined, "Canary domain detach was not complete");
