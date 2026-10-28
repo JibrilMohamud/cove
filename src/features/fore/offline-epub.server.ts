@@ -94,7 +94,13 @@ export async function issueOfflineEpubLicense(
     "SELECT e.id,e.entitlement_type,e.status,e.starts_at,e.ends_at FROM commercial_delivery_grants g JOIN entitlements e ON e.id=g.entitlement_id AND e.user_id=g.user_id AND e.product_id=g.product_id WHERE g.id=? AND g.user_id=? AND g.product_id=? AND g.status='active'",
   )
     .bind(grant.grantId, userId, productId)
-    .first<{ id: string; entitlement_type: string; status: string; starts_at: string | null; ends_at: string | null }>();
+    .first<{
+      id: string;
+      entitlement_type: string;
+      status: string;
+      starts_at: string | null;
+      ends_at: string | null;
+    }>();
   const startsAt = entitlement?.starts_at == null ? null : Date.parse(entitlement.starts_at);
   const endsAt = entitlement?.ends_at == null ? null : Date.parse(entitlement.ends_at);
   if (
@@ -124,11 +130,19 @@ export async function issueOfflineEpubLicense(
   // authority at the final online signing boundary. A canonical D1 active
   // entitlement alone must never mint a new offline receipt after refund.
   const entitlementType = String(entitlement.entitlement_type || "");
-  const channel = entitlementType === "subscription" ? "subscription" :
-    entitlementType.includes("library") || entitlementType.includes("loan") ? "library" : "retail";
+  const channel =
+    entitlementType === "subscription"
+      ? "subscription"
+      : entitlementType.includes("library") || entitlementType.includes("loan")
+        ? "library"
+        : "retail";
   await requireStagePaidEntitlementAccess(env, {
-    entitlementId: String(entitlement.id), userId, productId,
-    territory: (request.headers.get("cf-ipcountry") || env.FORE_DEFAULT_TERRITORY || "US").slice(0, 2).toUpperCase(),
+    entitlementId: String(entitlement.id),
+    userId,
+    productId,
+    territory: (request.headers.get("cf-ipcountry") || env.FORE_DEFAULT_TERRITORY || "US")
+      .slice(0, 2)
+      .toUpperCase(),
     channel,
   });
   const privateKey = await crypto.subtle.importKey(
