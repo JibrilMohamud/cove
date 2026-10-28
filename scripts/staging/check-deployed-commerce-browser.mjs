@@ -388,13 +388,28 @@ try {
   assert.equal(offlineClaims.expiresAt, offline.data.expiresAt);
   assert.equal(new URL(offline.data.url, origin).origin, origin.origin);
   report.signedOfflineEpub = true;
+  // The original offline issuer correctly returns 428 when a device was
+  // never registered. Prove the stronger condition too: even a separately
+  // registered outsider cannot obtain this purchaser's signed offline book.
+  const outsiderDeviceKey = "qa-" + randomUUID();
+  const outsiderDevice = await request(outsider, "POST", "/account/device/register", {
+    deviceKey: outsiderDeviceKey,
+    name: "Isolated unentitled outsider device",
+    platform: "playwright-test",
+  });
+  assert.equal(outsiderDevice.status, 200);
+  assert.ok(outsiderDevice.data?.id);
   expectDenied(
     await request(outsider, "POST", "/offline-epub/license", {
       productId: q.COVE_QA_EPUB_PRODUCT_ID,
-      deviceKey,
+      deviceKey: outsiderDeviceKey,
     }),
-    "Unowned outsider offline EPUB license",
+    "Registered but unentitled outsider offline EPUB license",
   );
+  const outsiderDeviceRevoked = await request(outsider, "POST", "/account/device/revoke", {
+    deviceId: outsiderDevice.data.id,
+  });
+  assert.equal(outsiderDeviceRevoked.status, 200);
   report.offlineBuyerDeviceBound = true;
   expectDenied(
     await request(outsider, "POST", "/delivery/epub/grant", {
