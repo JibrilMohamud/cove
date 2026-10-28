@@ -180,7 +180,10 @@ test("cold first Bookstore page shows verified books before slow facet search, e
 });
 
 
-test("anonymous /store does not wait for a stalled first-page bootstrap", async ({ page, request }) => {
+test("anonymous /store does not wait for a stalled first-page bootstrap", async ({
+  page,
+  request,
+}) => {
   test.setTimeout(30_000);
   expect((await request.post("/__qa/seed?progress=1")).ok()).toBe(true);
   let bootstrapRequests = 0;
