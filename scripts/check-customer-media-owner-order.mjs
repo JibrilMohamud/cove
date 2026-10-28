@@ -38,8 +38,12 @@ before(offlineAudioIssue,"await requireCommercialAudioOwner(",
 const offlineAudioVerify=block(audio,
   'if (match[2] === "offline-license" && match[3] === "verify"',
   'if (match[2] === "complete"');
-before(offlineAudioVerify,"await requireCommercialAudioOwner(",
-  "await verifyStoredAudioLicense(");
+// Verification's owner guard lives inside verifyStoredAudioLicense itself.
+// Assert the real call graph, not a redundant second owner round-trip in the
+// route that would add avoidable latency and duplicate the authorization.
+assert.ok(offlineAudioVerify.includes("await verifyStoredAudioLicense("));
+before(offlineAudio,"await requireStagePaidEntitlementAccess(env,",
+  "return { valid: true, expiresAt: current.expires_at }");
 before(offlineEpub,"await issueCommercialEpubGrant(",
   "await crypto.subtle.sign(");
 assert.ok(offlineEpub.includes('purpose: "offline_package"'),
