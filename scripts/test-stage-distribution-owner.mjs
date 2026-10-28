@@ -1,6 +1,6 @@
 /* eslint-disable prettier/prettier -- Exact negative-owner ordering and adversarial QA-only command tests. */
 import assert from "node:assert/strict";
-import {mkdtempSync,rmSync} from "node:fs";
+import {mkdtempSync,rmSync,readFileSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {pathToFileURL} from "node:url";
@@ -154,5 +154,26 @@ try {
   await call(command("dist:one","blocked"));
   assert.equal(state.control,"recalled","stale blocked event never downgrades a recall");
   assert.equal(state.events.size,2);
+  // The real publishing route must derive audit attribution from the staff
+  // permission result, not accept actorUserId from the JSON body. Commerce
+  // staff must not bypass the stronger publishing.rollback permission.
+  const api=readFileSync("src/features/fore/api.server.ts","utf8");
+  const publishingStart=api.indexOf('path === "/admin/publishing/distribution-control"');
+  const publishingEnd=api.indexOf('path === "/admin/publishing/delivery-policy"',publishingStart);
+  assert.ok(publishingStart>=0&&publishingEnd>publishingStart);
+  const publishing=api.slice(publishingStart,publishingEnd);
+  assert.match(publishing,/requireStaffPermission\(db, who, "publishing.rollback"\)/);
+  assert.match(publishing,/if \(env.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"\)/);
+  assert.match(publishing,/actorUserId: staff.userId/);
+  assert.match(publishing,/action: "withdraw-distribution"/);
+  assert.match(publishing,/executeStageCanonicalAdminCommand\(env/);
+  assert.match(publishing,/return json\(await setDistributionControl\(db, staff.userId, incoming\)\)/);
+  assert.match(publishing,/env.COVE_SSR_STAGING !== "1"/);
+  assert.doesNotMatch(publishing,/actorUserId: (?:incoming|command)\./);
+  const commerceStart=api.indexOf('path === "/admin/commerce/legal-owner-command"');
+  const commerceEnd=api.indexOf('path === "/admin/commerce/rights-party"',commerceStart);
+  assert.ok(commerceStart>=0&&commerceEnd>commerceStart);
+  assert.match(api.slice(commerceStart,commerceEnd),
+    /command.action === "withdraw-distribution"/);
   console.log("PASS: synthetic distribution withdrawal validates exact scope, keeps production off, denies owner outages/invalid receipts, tombstones before atomic D1 mutation, preserves recall monotonicity and event idempotence");
 }finally {rmSync(dir,{recursive:true,force:true});}
