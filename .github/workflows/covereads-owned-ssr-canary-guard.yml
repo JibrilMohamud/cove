@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - "scripts/check-covereads-canary-deny.mjs"
+      - "src/cloudflare/staging-auth-gateway.mjs"
+      - "wrangler.staging-auth-gateway.test.toml"
       - "wrangler.frontend.production.toml"
       - "wrangler.frontend.staging.toml"
       - "scripts/check-cloudflare-production-candidate.mjs"
@@ -41,7 +43,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_SEND_METRICS: "false"
-      COVE_SSR_PROTECTED_TEST_ORIGIN: "https://cove-asset-auth-stage.cove-jibrilmohamud.workers.dev"
+      COVE_SSR_PROTECTED_TEST_ORIGIN: "https://cove-asset-auth-gateway.cove-jibrilmohamud.workers.dev"
     steps:
       - uses: actions/checkout@v6
         with:
@@ -56,7 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN"
-          test "$COVE_SSR_PROTECTED_TEST_ORIGIN" = "https://cove-asset-auth-stage.cove-jibrilmohamud.workers.dev"
+          test "$COVE_SSR_PROTECTED_TEST_ORIGIN" = "https://cove-asset-auth-gateway.cove-jibrilmohamud.workers.dev"
       - name: Build protected Cloudflare-native SSR
         run: npm run build
       - name: Deploy ONLY ephemeral asset auth Worker (never real stage or public hostnames)
@@ -66,10 +68,21 @@ jobs:
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy \
             --config wrangler.frontend.staging.toml \
             --name cove-asset-auth-stage
-          printf '%s' "$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')" | \
+          # The assets-bound staging Worker is NOT a safe public ingress.
+          # Deploy a separate asset-less Worker with a service binding to stage.
+          # This gateway validates the *same* fresh bearer before ANY route.
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy \
+            --config wrangler.staging-auth-gateway.test.toml
+          COVE_GATE_TEST_BEARER="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          echo "::add-mask::$COVE_GATE_TEST_BEARER"
+          echo "COVE_GATE_TEST_BEARER=$COVE_GATE_TEST_BEARER" >> "$GITHUB_ENV"
+          printf '%s' "$COVE_GATE_TEST_BEARER" | \
             npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put \
             COVE_SSR_STAGING_GATE_KEY --config wrangler.frontend.staging.toml \
             --name cove-asset-auth-stage
+          printf '%s' "$COVE_GATE_TEST_BEARER" | \
+            npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put \
+            COVE_SSR_STAGING_GATE_KEY --config wrangler.staging-auth-gateway.test.toml
           # Control-plane propagation delay, NO HTTP warming.
           sleep 25
       - name: Prove SSR auth gate precedes real assets and account/mutation routes
@@ -79,11 +92,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          response="$(curl -sS --max-time 25 -w '\n%{http_code}' -X DELETE \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/cove-asset-auth-stage?force=true")"
-          code="${response##*$'\n'}"
-          if [ "$code" != "200" ] && [ "$code" != "404" ]; then
-            echo "::error::Ephemeral asset-auth Worker cleanup failed"
-            exit 1
-          fi
+          failures=0
+          for name in cove-asset-auth-gateway cove-asset-auth-stage; do
+            response="$(curl -sS --max-time 25 -w '\n%{http_code}' -X DELETE \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$name?force=true")"
+            code="${response##*
+\n'}"
+            if [ "$code" != "200" ] && [ "$code" != "404" ]; then
+              echo "::error::Ephemeral Worker cleanup failed for $name"
+              failures=1
+            fi
+          done
+          exit "$failures"
