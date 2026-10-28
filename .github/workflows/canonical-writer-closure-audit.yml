@@ -10,6 +10,7 @@ on:
       - "scripts/test-canonical-writer-closure.mjs"
       - "scripts/reconcile-canonical-writers.mjs"
       - "scripts/test-canonical-writer-review.mjs"
+      - "scripts/test-stage-distribution-owner.mjs"
       - "docs/architecture/canonical-writer-review.json"
       - ".github/workflows/canonical-writer-closure-audit.yml"
   push:
@@ -45,6 +46,10 @@ jobs:
         run: node scripts/check-canonical-writer-closure.mjs --no-new-writers
       - name: Install parser for exact SQL-site reconciliation
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prove negative-only owner-first distribution withdrawal
+        run: |
+          node scripts/test-stage-distribution-owner.mjs
+          node scripts/test-legal-admin-owner-commands.mjs
       - name: Reconcile every candidate without approving production ownership
         run: |
           node scripts/reconcile-canonical-writers.mjs

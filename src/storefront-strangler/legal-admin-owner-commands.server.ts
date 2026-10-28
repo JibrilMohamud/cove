@@ -48,6 +48,17 @@ const command=z.discriminatedUnion("action",[
   z.object({action:z.literal("publish-retail"),productId,territory,currency,operationId}).strict(),
   z.object({action:z.literal("pause-market"),territory,operationId}).strict(),
   z.object({action:z.literal("revoke-entitlement"),entitlementId:z.string().regex(/^[a-zA-Z0-9_-]{8,160}$/),operationId}).strict(),
+  // A terminal, negative-only distribution decision. Never accept an
+  // owner_only/distributable edit or allowExistingOwners=true on this path.
+  z.object({
+    action:z.literal("withdraw-distribution"),
+    publicationVersionId:subjectId,
+    status:z.enum(["blocked","recalled"]),
+    allowExistingOwners:z.literal(false),
+    reasonCode:z.string().min(1).max(120),
+    reasonDetail:z.string().max(2000),
+    actorUserId:subjectId,operationId
+  }).strict(),
 ]);
 type OwnerAck={ [key:string]:unknown };
 export async function executeStageCanonicalAdminCommand(
@@ -74,6 +85,7 @@ export async function executeStageCanonicalAdminCommand(
     "publish-retail":"/commercial/retail/publish-verified",
     "pause-market":"/market/withdraw",
     "revoke-entitlement":"/commercial/entitlement/revoke",
+    "withdraw-distribution":"/commercial/distribution/withdraw",
   } as const;
   let reply:Response,ack:OwnerAck;
   try{
@@ -119,6 +131,11 @@ export async function executeStageCanonicalAdminCommand(
           Number(ack.ownerEpoch)>0;
       case "pause-market":
         return ack.marketWithdrawn===true && ack.territory===x.territory;
+      case "withdraw-distribution":
+        return ack.withdrawn===true && ack.ownerDenied===true &&
+          ack.publicationVersionId===x.publicationVersionId &&
+          ack.status===x.status && Number.isSafeInteger(ack.ownerEpoch) &&
+          Number(ack.ownerEpoch)>0;
       case "revoke-entitlement":
         return ack.revoked===true && Number.isSafeInteger(ack.epoch) &&
           Number(ack.epoch)>0;
