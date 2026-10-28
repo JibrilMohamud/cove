@@ -12,3 +12,4 @@ service = "cove-asset-auth-stage"
 
 [vars]
 COVE_STAGING_INGRESS_HOST = "cove-asset-auth-gateway.cove-jibrilmohamud.workers.dev"
+COVE_STAGING_CANARY_HOST = "ssr-canary.covereads.com"
