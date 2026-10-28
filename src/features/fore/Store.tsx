@@ -1162,7 +1162,7 @@ export function StorePage({
   // accurate filters, pagination totals and account-specific rules.
   const fastAnonymousHome =
     !data.user &&
-    landingPath === "/" &&
+    (landingPath === "/" || landingPath === "/store") &&
     page === 1 &&
     sort === "popular" &&
     !q &&
@@ -1200,6 +1200,22 @@ export function StorePage({
     retry: false,
   });
   const fastPreview = fastAnonymousHome ? fastShelf.data : undefined;
+  // An unavailable or slow bootstrap must not hold the ordinary catalog request
+  // hostage indefinitely. Give the narrow rights-scoped shelf first chance to
+  // paint, then start the independently authorized full catalog on a bounded
+  // timer. Never substitute an unverified or cross-market cached book.
+  const [catalogFallbackReady, setCatalogFallbackReady] = useState(false);
+  useEffect(() => {
+    if (!fastAnonymousHome || matchingInitial?.catalog || fastPreview || fastShelf.isError) return;
+    const timeout = window.setTimeout(() => setCatalogFallbackReady(true), 800);
+    return () => window.clearTimeout(timeout);
+  }, [
+    fastAnonymousHome,
+    matchingInitial?.catalog,
+    fastPreview,
+    fastShelf.isError,
+    params.toString(),
+  ]);
 
   // SSR already includes 24 *fresh, canonical rights-checked* book cards.
   // Avoid an immediate, heavyweight full-catalog read during critical paint:
@@ -1220,7 +1236,12 @@ export function StorePage({
     queryFn: ({ signal }) => api("/catalog?" + params, "GET", undefined, { signal }),
     // Wait for the small live-rights shelf (or its explicit failure) before
     // starting the 20s cold COUNT/facet request on an unbootstrapped homepage.
-    enabled: !fastAnonymousHome || !!matchingInitial?.catalog || !!fastPreview || fastShelf.isError,
+    enabled:
+      !fastAnonymousHome ||
+      !!matchingInitial?.catalog ||
+      !!fastPreview ||
+      fastShelf.isError ||
+      catalogFallbackReady,
     placeholderData: fastAnonymousHome ? fastPreview : undefined,
     // A brief first-paint grace period prevents 24-card preview hydration
     // from competing with the very next server request for D1 capacity.
