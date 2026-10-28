@@ -3,6 +3,9 @@ on:
   pull_request:
     paths:
       - "wrangler.legal-authority.production-locked.jsonc"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/production-disabled-owner-attestation.ts"
+      - "scripts/check-production-disabled-owner-attestation.mjs"
       - "scripts/check-locked-production-legal-owner.mjs"
       - ".github/workflows/production-legal-owner-locked.yml"
   push:
@@ -39,6 +42,7 @@ jobs:
       - name: Confirm production authority is unrouteable, QA-ineligible, and disabled
         run: |
           node scripts/check-locked-production-legal-owner.mjs
+          node scripts/check-production-disabled-owner-attestation.mjs
           node scripts/check-canonical-writer-closure.mjs --no-new-writers
           node scripts/check-legal-authority-owner.mjs
           node scripts/check-legal-primary-write-lock.mjs
@@ -77,5 +81,5 @@ jobs:
           node scripts/check-live-production-cutover.mjs --audit
       - name: Summarize scope
         run: |
-          echo "Deployed production owner namespace is DISABLED; all owner operations return 503." >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployed production owner namespace is DISABLED; ONLY a secret-authenticated, nonauthorizing disabled-state challenge may return 200. Rights, payments and delivery operations return 503." >> "$GITHUB_STEP_SUMMARY"
           echo "A verified persistence binding may target this DISABLED owner; positive publishing, public routing and customer cutover remain blocked." >> "$GITHUB_STEP_SUMMARY"
