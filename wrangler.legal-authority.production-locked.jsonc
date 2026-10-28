@@ -1,0 +1,27 @@
+{
+  "name": "cove-legal-authority-production",
+  "main": ".output/strangler/legal-authority.mjs",
+  "compatibility_date": "2026-10-25",
+  "workers_dev": false,
+  "routes": [],
+  "preview_urls": false,
+  "durable_objects": {
+    "bindings": [
+      { "name": "LEGAL_AUTHORITY", "class_name": "CoveLegalAuthority" }
+    ]
+  },
+  "migrations": [
+    { "tag": "legal-authority-production-locked-v1", "new_sqlite_classes": ["CoveLegalAuthority"] }
+  ],
+  "d1_databases": [
+    {
+      "binding": "PRIMARY_DB",
+      "database_name": "cove-production",
+      "database_id": "4bd657ac-8789-403e-a28c-93aba8d0a989"
+    }
+  ],
+  "vars": {
+    "COVE_RIGHTS_OWNER_ENABLED": "0",
+    "COVE_RIGHTS_OWNER_PRIMARY_ID": "4bd657ac-8789-403e-a28c-93aba8d0a989"
+  }
+}
