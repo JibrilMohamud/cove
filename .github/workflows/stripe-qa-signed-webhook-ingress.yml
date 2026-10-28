@@ -1,0 +1,40 @@
+name: stripe-qa-signed-webhook-ingress
+on:
+  pull_request:
+    paths:
+      - "src/lib/cloudflare-ssr-stage-gate.server.ts"
+      - "src/features/fore/commerce.server.ts"
+      - "scripts/check-cloudflare-ssr-stage-gate.mjs"
+      - "scripts/check-stripe-webhooks.mjs"
+      - ".github/workflows/stripe-qa-signed-webhook-ingress.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/lib/cloudflare-ssr-stage-gate.server.ts"
+      - "src/features/fore/commerce.server.ts"
+      - "scripts/check-cloudflare-ssr-stage-gate.mjs"
+      - "scripts/check-stripe-webhooks.mjs"
+      - ".github/workflows/stripe-qa-signed-webhook-ingress.yml"
+permissions:
+  contents: read
+jobs:
+  strict-qa-signed-webhook-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify exact staging hostname, signed-only POST and no default bypass
+        run: |
+          node scripts/check-cloudflare-ssr-stage-gate.mjs
+          node scripts/check-cloudflare-production-candidate.mjs
+      - name: Verify HMAC, replay, payment identity, oversize denial and no financial mutations
+        run: node scripts/check-stripe-webhooks.mjs
+      - name: Typecheck signed ingestion
+        run: npm run typecheck

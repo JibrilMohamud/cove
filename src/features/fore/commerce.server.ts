@@ -2203,11 +2203,45 @@ async function verifyStripeSignature(raw: string, header: string, secret: string
     );
   return signatures.some((x) => constantEqual(sig, hexToBytes(x)));
 }
+async function boundedStripeWebhookText(request: Request): Promise<string> {
+  // Public Stripe webhook ingress cannot trust Content-Length, so cap actual
+  // streamed bytes BEFORE signature verification or JSON deserialization.
+  const limit = 1_048_576;
+  const declared = Number(request.headers.get("content-length") || 0);
+  if (!Number.isSafeInteger(declared) || declared < 0 || declared > limit)
+    throw new ApiError(413, "Stripe webhook payload exceeds the limit.");
+  const reader = request.body?.getReader();
+  if (!reader) throw new ApiError(400, "Stripe webhook payload is required.");
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > limit) {
+        await reader.cancel();
+        throw new ApiError(413, "Stripe webhook payload exceeds the limit.");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
 export async function stripeWebhook(env: CoveEnv, request: Request) {
   const secret = String(env.STRIPE_WEBHOOK_SECRET || "");
   if (!secret || PLACEHOLDER_RE.test(secret))
     throw new ApiError(503, "Stripe webhook signing secret is not configured.");
-  const raw = await request.text(),
+  const raw = await boundedStripeWebhookText(request),
     signature = request.headers.get("stripe-signature") || "";
   if (!(await verifyStripeSignature(raw, signature, secret)))
     throw new ApiError(400, "Invalid Stripe webhook signature.");

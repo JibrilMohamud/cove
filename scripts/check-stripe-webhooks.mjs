@@ -114,6 +114,25 @@ try {
     stripeWebhook(env, request({ ...event, id: "evt_old" }, { at: 1 })),
     /signature/,
   );
+  const oversized = {
+    ...event,
+    id: "evt_oversized_payload",
+    data: { object: { ...event.data.object, padding: "X".repeat(1_048_576) } },
+  };
+  await assert.rejects(
+    stripeWebhook(env, request(oversized)),
+    /payload exceeds the limit/,
+    "A signed but oversized webhook must be refused before database mutation",
+  );
+  assert.equal(
+    await original(
+      "SELECT provider_event_id FROM commerce_webhook_events WHERE provider_event_id=?",
+    )
+      .bind(oversized.id)
+      .first(),
+    null,
+    "Oversized Stripe events must never claim canonical webhook state",
+  );
   const processing = { ...event, id: "evt_busy" },
     raw = JSON.stringify(processing);
   await original(
