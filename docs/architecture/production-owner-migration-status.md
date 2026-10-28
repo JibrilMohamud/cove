@@ -84,6 +84,29 @@ production owner writer closure, all combinations of publisher licenses,
 offline disconnected revocation, or commercial routing. A production-equivalent
 customer journey and release decision remain required.
 
+## Negative-only distribution withdrawal command (isolated QA)
+
+An authenticated `withdraw-distribution` administrative command now routes to
+the separate leased canonical QA writer. It accepts **only** `blocked` or
+`recalled`, requires `allowExistingOwners:false`, and identifies the canonical
+product from the exact publication-version row; callers cannot inject a product
+ID or SQL. The writer commits an independent, global commercial-product
+denial in the legal Durable Object **before** one primary-D1 reconciliation
+batch sets distribution controls, records the immutable event and revokes active
+delivery grants for that publication version. A failed owner call leaves D1
+untouched; a primary-D1 outage after a successful owner denial leaves online
+access denied. Duplicate operation IDs do not duplicate audit events, and a
+late `blocked` reconciliation cannot downgrade a prior `recalled` status.
+Any positive reinstatement requires a separate, newly verified legal proof
+and is not implemented by this command.
+
+This is executable, QA-gated owner-first migration code and adversarial test
+coverage, **not** a completed production writer migration. The original
+`setDistributionControl` production route still contains its three legacy
+protected SQL sites. All 433 reviewed production writer candidates remain
+unclosed, and the owner-only release gate must remain blocked. The existing
+administrative QA command is not a public production traffic path.
+
 ## Publication activation command increment
 
 The typed `/publication/activate-version` command runs the original canonical
