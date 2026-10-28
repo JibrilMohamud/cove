@@ -93,7 +93,9 @@ function report(name, offered, rows, dropped = 0) {
   // Retain the *real* five worst samples, not a best-of-N selection or
   // redacted percentile. These provider Ray IDs distinguish slow Worker
   // execution from slow Cloudflare delivery at the exact release boundary.
-  const worstSamples = [...rows].sort((a, b) => b.ttfbMs - a.ttfbMs).slice(0, 5)
+  const worstSamples = [...rows]
+    .sort((a, b) => b.ttfbMs - a.ttfbMs)
+    .slice(0, 5)
     .map((row) => ({
       ttfbMs: row.ttfbMs,
       valid: row.valid,
@@ -101,9 +103,11 @@ function report(name, offered, rows, dropped = 0) {
       error: row.error ?? null,
       ray: row.edgeRay ?? null,
       workerMs: Number.isFinite(row.serverTiming?.cove_bootstrap)
-        ? row.serverTiming.cove_bootstrap : null,
+        ? row.serverTiming.cove_bootstrap
+        : null,
       residualMs: Number.isFinite(row.serverTiming?.cove_bootstrap)
-        ? Math.max(0, Math.round(row.ttfbMs - row.serverTiming.cove_bootstrap)) : null,
+        ? Math.max(0, Math.round(row.ttfbMs - row.serverTiming.cove_bootstrap))
+        : null,
     }));
   const output = {
     name,
