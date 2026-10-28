@@ -23,7 +23,7 @@ assert.match(offer,/g.id IN \(\?\)/,"Frozen grant ID must be bound in offer SQL"
 assert.match(offer,/g.contract_version_id=\?/);
 assert.match(source,/if \(!activatingIds.length\)/,"Missing grant manifest must deny activation");
 assert.match(offer,/g.contract_id IS NULL OR rc.status='active'/);
-assert.match(source,/if \(Number\(offer\?\.active \|\| 0\)!==1\)/,
+assert.match(source,/if \(Number\(offer\?\.active \|\| 0\)\s*!==\s*1\)/,
   "Publishing must fail closed if a guarded offer update did not activate");
 
 const db=new DatabaseSync(":memory:");
