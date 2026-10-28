@@ -9,6 +9,7 @@ import {
 } from "./offline-audio-license";
 import { hashText } from "./offline-audio-license";
 import { now } from "./service";
+import { requireStagePaidEntitlementAccess } from "../../storefront-strangler/legal-consumer-fence.server";
 
 export async function verifyStoredAudioLicense(
   env: CoveEnv,
@@ -17,18 +18,26 @@ export async function verifyStoredAudioLicense(
   licenseId: string,
   token: string,
   manifestHash: string,
+  territory: string,
 ) {
   if (!userId) throw new ApiError(401, "Sign in to verify offline audio access.");
   const current = await env.DB.prepare(
-    "SELECT l.id,l.expires_at,l.manifest_hash FROM audio_offline_licenses l JOIN devices d ON d.id=l.device_id AND d.user_id=l.user_id JOIN entitlements e ON e.id=l.entitlement_id AND e.user_id=l.user_id AND e.product_id=l.product_id WHERE l.id=? AND l.user_id=? AND l.product_id=? AND l.token_hash=? AND l.status='active' AND l.expires_at>? AND d.revoked_at IS NULL AND e.entitlement_type='purchase' AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)",
+    "SELECT l.id,l.expires_at,l.manifest_hash,l.entitlement_id FROM audio_offline_licenses l JOIN devices d ON d.id=l.device_id AND d.user_id=l.user_id JOIN entitlements e ON e.id=l.entitlement_id AND e.user_id=l.user_id AND e.product_id=l.product_id WHERE l.id=? AND l.user_id=? AND l.product_id=? AND l.token_hash=? AND l.status='active' AND l.expires_at>? AND d.revoked_at IS NULL AND e.entitlement_type='purchase' AND e.status='active' AND (e.starts_at IS NULL OR e.starts_at<=?) AND (e.ends_at IS NULL OR e.ends_at>?)",
   )
     .bind(licenseId, userId, productId, await hashText(token), now(), now(), now())
-    .first<{ id: string; expires_at: string; manifest_hash: string }>();
+    .first<{ id: string; expires_at: string; manifest_hash: string; entitlement_id: string }>();
   if (!current || current.manifest_hash !== manifestHash)
     throw new ApiError(
       403,
       "This offline license is no longer active. Save the recording again if access is available.",
     );
+  await requireStagePaidEntitlementAccess(env, {
+    entitlementId: current.entitlement_id,
+    userId,
+    productId,
+    territory,
+    channel: "retail",
+  });
   return { valid: true, expiresAt: current.expires_at };
 }
 
