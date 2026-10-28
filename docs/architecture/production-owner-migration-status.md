@@ -59,6 +59,31 @@ expired/future/malformed dates, lease bounding, exact buyer, replay, refund
 against stale canonical rows, withdrawal during primary reads, and outage.
 This is executable handler coverage, not a hosted production certificate.
 
+## Original customer-media isolated QA coverage
+
+The signed Stripe TEST full-schema campaign now additionally executes the
+actual Cove `issueCommercialEpubGrant`, `serveCommercialEpubGrant`,
+`issueOfflineEpubLicense`, and `handleCommercialAudio` handlers via
+strictly scoped, expiring private QA ingress. The synthetic buyer has a
+real original pending-payment -> signed webhook -> ledger -> private owner
+entitlement path. Synthetic registered-device, EPUB asset-version, narrated
+audio publication manifest, agreement/evidence and private R2 fixtures are
+provisioned **only on the distinct QA D1**; nothing is routed to a customer.
+
+The first deployed branch campaign (#40774928835) proved matching original
+EPUB R2 SHA-256 bytes and audiobook HTTP 206 ranges, offline receipt issuance
+and format-specific signature verification, owner outage fail-closed behavior,
+and refund blocking old online EPUB grants, fresh EPUB/audio bytes and online
+license issuance/verification. Offline receipts already on a disconnected
+device remain usable until their signed expiration; they are not retroactively
+revocable without reconnecting. The QA run also cleaned its ephemeral Workers.
+
+This closes the previous **QA adapters only** limitation for the tested
+original handlers. It does **not** certify the customer production deployment,
+production owner writer closure, all combinations of publisher licenses,
+offline disconnected revocation, or commercial routing. A production-equivalent
+customer journey and release decision remain required.
+
 ## Publication activation command increment
 
 The typed `/publication/activate-version` command runs the original canonical
