@@ -3242,10 +3242,16 @@ async function activatePublicationCommercialTerms(
         .prepare("UPDATE rights_contracts SET status='terminated',updated_at=? WHERE id=?")
         .bind(at, prior.rightsContractId),
     );
+  // A scheduled release or an old rollback manifest must NEVER turn a
+  // suspended/terminated contract, revoked grant, or retired royalty agreement
+  // back into a positive authority. Those states require fresh independent
+  // reapproval and new authority evidence, not a stale publication replay.
+  // Conditional SQL below is evaluated again in D1's batch transaction,
+  // not only during this function's earlier preflight reads.
   if (currentManifest.rightsContractManagedByPublication && currentManifest.rightsContractId)
     statements.push(
       db
-        .prepare("UPDATE rights_contracts SET status='active',updated_at=? WHERE id=?")
+        .prepare("UPDATE rights_contracts SET status='active',updated_at=? WHERE id=? AND status IN ('draft','active')")
         .bind(at, currentManifest.rightsContractId),
     );
   if (activatingIds.length) {
@@ -3253,7 +3259,7 @@ async function activatePublicationCommercialTerms(
     statements.push(
       db
         .prepare(
-          `UPDATE rights_grants SET status='active',updated_at=? WHERE id IN (${placeholders}) AND status IN ('draft','suspended','revoked')`,
+          `UPDATE rights_grants SET status='active',updated_at=? WHERE id IN (${placeholders}) AND status IN ('draft','active')`,
         )
         .bind(at, ...activatingIds),
     );
@@ -3261,7 +3267,7 @@ async function activatePublicationCommercialTerms(
   if (currentManifest.royaltyContractId)
     statements.push(
       db
-        .prepare("UPDATE finance_royalty_contracts SET status='active',updated_at=? WHERE id=?")
+        .prepare("UPDATE finance_royalty_contracts SET status='active',updated_at=? WHERE id=? AND status IN ('draft','active')")
         .bind(at, currentManifest.royaltyContractId),
     );
   if (currentManifest.offerId) {
