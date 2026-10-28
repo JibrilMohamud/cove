@@ -2002,6 +2002,12 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
     refundAmount = Number(r.amount_minor),
     newRefunded = Math.min(Number(o.total_minor), previousRefunded + refundAmount),
     full = newRefunded >= Number(o.total_minor);
+  // Stripe's refund is not acknowledged as canonical until the private
+  // owner has tombstoned every affected paid entitlement. Partial external
+  // refunds deny the entire order in this staged proof until item-scoped
+  // owner revocation is implemented.
+  if (full || env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
+    await stageRevokeRefundEntitlements(env, String(o.id), refundId);
   const giftAmount = Number(r.gift_card_amount_minor || 0),
     storeAmount = Number(r.store_credit_amount_minor || 0),
     stripeAmount = Number(r.stripe_amount_minor || 0);
