@@ -24,10 +24,25 @@ const productId=z.string().regex(/^prd_[a-zA-Z0-9_-]{3,120}$/).refine(
   id=>!id.startsWith("prd_gutenberg_"),"Commercial product only"
 );
 const subjectId=z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/);
+// Matches the private legal writer exactly. Numeric Gutenberg IDs and the
+// three trusted regional import namespaces only; no arbitrary SQL subjects.
+const sourceId=z.string().regex(/^(?:[0-9]{1,10}|(?:pgca|pgau|pgeu)_[a-z0-9_]{1,90})$/);
+const evidenceId=z.string().regex(/^gre_[a-z0-9_:-]{1,120}$/);
 const territory=z.string().regex(/^[A-Z]{2}$/);
 const currency=z.string().regex(/^[A-Z]{3}$/);
 const command=z.discriminatedUnion("action",[
   z.object({action:z.literal("suspend-grant"),targetId:subjectId,operationId}).strict(),
+  // Deny-first source operations cannot be expressed as legacy admin writes.
+  z.object({action:z.literal("quarantine-source"),sourceId,operationId,
+    message:z.string().max(500)}).strict(),
+  z.object({action:z.literal("revoke-source-evidence"),sourceId,evidenceId,
+    territory,operationId}).strict(),
+  z.object({action:z.literal("retract-sources"),operations:z.array(z.object({
+    sourceId,operationId
+  }).strict()).min(1).max(25).refine(rows=>
+    new Set(rows.map(r=>r.sourceId)).size===rows.length,
+    "Source IDs must be unique"
+  )}).strict(),
   z.object({action:z.literal("suspend-contract"),targetId:subjectId,operationId}).strict(),
   z.object({action:z.literal("withdraw-retail"),productId,operationId}).strict(),
   z.object({action:z.literal("publish-retail"),productId,territory,currency,operationId}).strict(),
@@ -51,6 +66,9 @@ export async function executeStageCanonicalAdminCommand(
   const x=command.parse(input);
   const routes={
     "suspend-grant":"/commercial/suspend-grant",
+    "quarantine-source":"/quarantine",
+    "revoke-source-evidence":"/evidence/revoke",
+    "retract-sources":"/source/retract-batch",
     "suspend-contract":"/commercial/suspend-contract",
     "withdraw-retail":"/commercial/retail/withdraw",
     "publish-retail":"/commercial/retail/publish-verified",
@@ -78,6 +96,16 @@ export async function executeStageCanonicalAdminCommand(
     throw new ApiError(503,"Canonical legal owner write receipt malformed.");
   const valid=(()=>{
     switch(x.action){
+      case "quarantine-source":
+        return ack.quarantined===true && ack.sourceId===x.sourceId;
+      case "revoke-source-evidence":
+        return ack.evidenceRevoked===true && ack.sourceId===x.sourceId &&
+          ack.evidenceId===x.evidenceId && ack.territory===x.territory;
+      case "retract-sources":
+        return ack.retracted===x.operations.length &&
+          Array.isArray(ack.sourceIds) &&
+          ack.sourceIds.length===x.operations.length &&
+          ack.sourceIds.every((id:unknown,i:number)=>id===x.operations[i].sourceId);
       case "suspend-grant":
       case "suspend-contract":
         return ack.suspended===true && ack.ownerDenied===true &&

@@ -358,7 +358,7 @@ export default {
           "UPDATE gutenberg_source_cache SET rights_status='quarantined',commercial_use_status='quarantined',ingest_status='stale' WHERE id=?"
         ).bind(op.sourceId));
         await env.PRIMARY_DB.batch(statements);
-        return Response.json({retracted:operations.length},
+        return Response.json({retracted:operations.length,sourceIds:operations.map(op=>op.sourceId)},
           {status:200,headers});
       }
       if(isEvidence) {
@@ -388,7 +388,7 @@ export default {
             return env.PRIMARY_DB.batch([evidence,grant]);
           }
         );
-        return Response.json({evidenceRevoked:true,territory:cmd.territory},
+        return Response.json({evidenceRevoked:true,sourceId:cmd.sourceId,evidenceId:cmd.evidenceId,territory:cmd.territory},
           {status:200,headers});
       }
       // The only legal mutation allowed by this service. The DO commits the
@@ -403,7 +403,7 @@ export default {
             "UPDATE gutenberg_source_cache SET rights_status='quarantined',commercial_use_status='quarantined',ingest_status='quarantined' WHERE id=?"
           ).bind(cmd.sourceId).run()
       );
-      return Response.json({quarantined:true},{status:200,headers});
+      return Response.json({quarantined:true,sourceId:cmd.sourceId},{status:200,headers});
     }catch{
       // Unknown owner / unavailable D1 / stale denied op always fail closed.
       return new Response(null,{status:503,headers});
