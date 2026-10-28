@@ -1,3 +1,7 @@
+import {
+  executeStageCanonicalAdminCommand,
+  executeStageRightsEditorSuspension,
+} from "../../storefront-strangler/legal-admin-owner-commands.server";
 import { saveTasteControls, loadTasteControls } from "./discovery-intelligence.server";
 import { validateStoredEpub } from "./stored-epub.server";
 import { createAuth, resolvedIdentity } from "./auth.server";
@@ -4534,16 +4538,32 @@ async function handleCoveRequest(
       }
       if (request.method === "GET" && path === "/admin/commerce/rights")
         return json(await rightsAdminSnapshot(database(env)));
+      // This command is reachable only AFTER requireCommerceAdmin has verified
+      // staff authorization. The private writer must independently prove
+      // exact isolated D1 identity, lease and durable owner acknowledgement.
+      if (request.method === "POST" && path === "/admin/commerce/legal-owner-command")
+        return json(await executeStageCanonicalAdminCommand(env, await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/rights-party")
         return json(await upsertRightsParty(database(env), await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/territory-set")
         return json(await upsertTerritorySet(database(env), await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/territory-expand")
         return json(await territoryExpansionPreview(database(env), await body(request)));
-      if (request.method === "POST" && path === "/admin/commerce/rights-contract")
-        return json(await upsertRightsContract(database(env), await body(request)));
-      if (request.method === "POST" && path === "/admin/commerce/rights-grant")
-        return json(await upsertRightsGrant(database(env), await body(request)));
+      if (request.method === "POST" && path === "/admin/commerce/rights-contract") {
+        const input = await body(request);
+        // Only an explicit immutable negative suspension may cross the
+        // owner-first boundary. Mixed changes/positive reinstatements cannot
+        // masquerade as a suspension; the staged write lock denies raw D1.
+        if (input && typeof input === "object" && "ownerAction" in input)
+          return json(await executeStageRightsEditorSuspension(env, "contract", input));
+        return json(await upsertRightsContract(database(env), input));
+      }
+      if (request.method === "POST" && path === "/admin/commerce/rights-grant") {
+        const input = await body(request);
+        if (input && typeof input === "object" && "ownerAction" in input)
+          return json(await executeStageRightsEditorSuspension(env, "grant", input));
+        return json(await upsertRightsGrant(database(env), input));
+      }
       if (request.method === "POST" && path === "/admin/commerce/rights-check")
         return json(await rightsAvailabilityCheck(database(env), await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/finance-party")
