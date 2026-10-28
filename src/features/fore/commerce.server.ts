@@ -2631,6 +2631,25 @@ async function syncDispute(db: CatalogDB, d: any, eventType: string) {
           .first<any>()
       : null,
     at = now();
+  // For the fenced stage owner, freeze the purchase at the FIRST Stripe
+  // dispute rather than waiting until the bank confirms a loss. A later
+  // dispute-win event must not silently resurrect a withdrawn grant; fresh
+  // canonical verification and a new purchase identity are required.
+  // Legacy/non-cutover checkout retains its existing dispute policy.
+  const stageDisputeOpened =
+    env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" && eventType === "charge.dispute.created";
+  const confirmedLoss = eventType === "charge.dispute.closed" && d.status === "lost";
+  if (order && (stageDisputeOpened || confirmedLoss)) {
+    if (typeof d.id !== "string" || !/^[a-zA-Z0-9_-]{8,120}$/.test(d.id))
+      throw new ApiError(409, "Chargeback identity is invalid.");
+    // The strong owner records a terminal whole-order denial BEFORE any
+    // canonical dispute/order mutation. Replay is keyed by Stripe dispute.
+    await stageRevokeRefundEntitlements(
+      env,
+      String(order.id),
+      (stageDisputeOpened ? "dispute-open:" : "dispute-loss:") + d.id,
+    );
+  }
   await db
     .prepare(
       `INSERT INTO commerce_disputes(provider_dispute_id,order_id,charge_id,amount_minor,currency,reason,status,evidence_due_at,created_at,updated_at,closed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(provider_dispute_id) DO UPDATE SET status=excluded.status,reason=excluded.reason,evidence_due_at=excluded.evidence_due_at,updated_at=excluded.updated_at,closed_at=excluded.closed_at`,
