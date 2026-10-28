@@ -326,7 +326,7 @@ try {
   // Confirm the *writer* route has propagated independently of the owner read
   // route. An empty JSON object is rejected by the writer's validation before
   // any owner call or D1 mutation; only HTTP 400 proves this path is live.
-  // Never retry the subsequent genuine positive legal publication.
+  // A later positive publication uses one immutable operation ID. Retry only\n  // HTTP 404 (route not yet installed in a different colo), never ambiguous\n  // 500/503, network errors or a rejected canonical/owner receipt.
   let writerReady=false;
   const writerReadinessStatuses=new Map();
   for(let attempt=0;attempt<24;attempt++){
@@ -356,10 +356,22 @@ try {
   // Explicit private writer owns both positive rights and matching retail
   // offer publication. Direct public caller-to-owner positive grant would
   // bypass the canonical publisher integration this QA is meant to certify.
-  const publish=await post("/commercial/retail/publish-verified",{
+  const publication={
     productId:test.productId,territory:"US",currency:"USD",
     operationId:"qa:"+runId+":positive-retail-publication"
-  });
+  };
+  let publish=await post("/commercial/retail/publish-verified",publication);
+  const publication404=[];
+  for(let attempt=1;publish.status===404&&attempt<5;attempt++){
+    publication404.push(publish.ray||"no-ray");
+    await pause(1500);
+    // A 404 cannot come from an accepted retail publication command: the
+    // exact writer route returns 200, 400, 405 or 503. Reuse immutable ID.
+    publish=await post("/commercial/retail/publish-verified",publication);
+  }
+  if(publication404.length)
+    console.warn("QA retail writer route propagation: "+publication404.length+
+      " non-mutating HTTP 404 responses before final status "+publish.status);
   assert.equal(publish.status,200,"Private positive canonical retail writer unavailable "+
     JSON.stringify({status:publish.status,ray:publish.ray,layer:publish.unavailableLayer}));
   assert.equal(publish.body?.published,true);
