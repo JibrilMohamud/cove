@@ -1,0 +1,32 @@
+name: stripe-webhook-order-identity
+on:
+  pull_request:
+    paths:
+      - "src/features/fore/commerce.server.ts"
+      - "scripts/check-stripe-webhooks.mjs"
+      - ".github/workflows/stripe-webhook-order-identity.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/features/fore/commerce.server.ts"
+      - "scripts/check-stripe-webhooks.mjs"
+      - ".github/workflows/stripe-webhook-order-identity.yml"
+permissions:
+  contents: read
+jobs:
+  prove-payment-intent-order-binding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify HMAC replay protection, cross-order cancellation denial and idempotent delivery
+        run: node scripts/check-stripe-webhooks.mjs
+      - name: Typecheck payment handler
+        run: npm run typecheck
