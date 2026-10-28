@@ -44,6 +44,29 @@ try{
   assert.equal(duplicate.status,0);
   const result2=JSON.parse(readFileSync(file,"utf8"));
   assert.deepEqual(result, result2,"The canonical-writer report cannot vary by clock or runner");
+  const freeze=run(["--no-new-writers"]);
+  assert.equal(freeze.status,0,freeze.stderr);
+  assert.match(freeze.stdout,/Existing 458 source candidates STILL BLOCK/);
+  const {canonicalWriterDrift,canonicalWriterBaseline}=await import("./canonical-writer-baseline.mjs");
+  const baseline=canonicalWriterBaseline();
+  assert.equal([...baseline.values()].reduce((a,b)=>a+b,0),458);
+  assert.deepEqual(canonicalWriterDrift(result.findings,baseline),[],
+    "Frozen exact file/table/operation inventory must match trusted main");
+  const first=result.findings[0];
+  assert.ok(first);
+  const added=[...result.findings,{...first,line:first.line+1}];
+  const increase=canonicalWriterDrift(added,baseline);
+  assert.equal(increase.length,1,"New SQL in a known table/file may never be hidden");
+  assert.equal(increase[0].new,1);
+  const disguised=[...result.findings.slice(1),{
+    ...first,file:"src/features/fore/new-hidden-writer.server.ts"
+  }];
+  assert.equal(disguised.length,result.findings.length,
+    "The adversary can hide a new writer behind a deletion and unchanged total");
+  assert.equal(canonicalWriterDrift(disguised,baseline).length,1,
+    "Net-zero writer swaps must still fail by source/table/operation");
+  assert.deepEqual(canonicalWriterDrift(result.findings.slice(1),baseline),[],
+    "Removing an unported direct SQL mutation must be allowed");
   const blocked=run(["--release-gate"]);
   const forged=spawnSync(process.execPath,["scripts/check-canonical-writer-closure.mjs","--release-gate"],{
     encoding:"utf8",
@@ -57,5 +80,5 @@ try{
   assert.notEqual(blocked.status,0,
     "A source-only audit or self-declared flag must NEVER enable production owner-only authorization");
   assert.match(blocked.stderr,/BLOCKED: production owner-only anonymous read is unsafe/);
-  console.log("PASS: real rights/publishing/commerce/delivery/audio writer inventory; deterministic results; production owner-only release denied until externally certified closure");
+  console.log("PASS: exact writer drift detection, net-zero evasion denial, and real rights/publishing/commerce/delivery/audio writer inventory; deterministic results; production owner-only release denied until externally certified closure");
 }finally{rmSync(folder,{recursive:true,force:true});}
