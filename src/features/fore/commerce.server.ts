@@ -2514,13 +2514,18 @@ async function processStripeEvent(env: CoveEnv, event: any) {
   } else if (type === "payment_intent.canceled") {
     const o = await orderFromPI(db, obj);
     if (o && PAYMENT_CANCEL_MUTABLE_STATES.has(String(o.status))) {
-      await releaseOrderReservations(db, o.id);
-      await db
+      // The signed event may race with settlement. Only the winner of the
+      // canonical conditional state transition can release held tender.
+      // A stale cancellation must not release reservations of a paid order.
+      const at = now();
+      const transition: any = await db
         .prepare(
           "UPDATE commerce_orders SET status='canceled',canceled_at=?,updated_at=? WHERE id=? AND status IN ('pending_payment','processing','authorized','payment_failed')",
         )
-        .bind(now(), now(), o.id)
+        .bind(at, at, o.id)
         .run();
+      if (Number(transition?.meta?.changes ?? transition?.changes ?? 0) === 1)
+        await releaseOrderReservations(db, o.id);
     }
   } else if (type === "charge.succeeded") {
     const o = obj.payment_intent
