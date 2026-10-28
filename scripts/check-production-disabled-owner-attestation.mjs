@@ -24,6 +24,15 @@ try {
   const {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,
     PRODUCTION_LEGAL_PRIMARY,attestDisabledOwnerFromBackend,
     verifyDisabledOwnerReceipt}=await import(pathToFileURL(modulePath).href);
+  const rpcPath=join(temp,"backend-rpc.mjs");
+  await build({entryPoints:["src/storefront-strangler/backend-owner-attestation-entrypoint.ts"],
+    outfile:rpcPath,bundle:true,platform:"node",format:"esm",target:"node22",logLevel:"silent",
+    plugins:[{name:"backend-rpc-host",setup(b){
+      b.onResolve({filter:/^cloudflare:workers$/},()=>({path:"host",namespace:"rpc-host"}));
+      b.onLoad({filter:/.*/,namespace:"rpc-host"},()=>({contents:
+        "export class WorkerEntrypoint { constructor(ctx,env) { this.ctx=ctx; this.env=env; } }"}));
+    }}]});
+  const {BackendOwnerAttestation}=await import(pathToFileURL(rpcPath).href);
   const primary={prepare(){throw Error("Disabled owner must not read primary D1");}};
   const sqlDB=new DatabaseSync(":memory:");
   try {
@@ -62,6 +71,17 @@ try {
     assert.deepEqual(await attestDisabledOwnerFromBackend(env),
       {attested:true,ownerEnabled:false,authorizing:false},
       "Persistence gateway verifies a freshly generated nonce through the real DO");
+    const rpc=new BackendOwnerAttestation({},env);
+    assert.deepEqual(await rpc.attestDisabledOwner(),
+      {attested:true,ownerEnabled:false,authorizing:false});
+    assert.equal((await rpc.fetch()).status,404,
+      "The named entrypoint has no HTTP-accessible attestation method");
+    await assert.rejects(new BackendOwnerAttestation({},
+      {...env,COVE_RIGHTS_OWNER_SECRET:"f".repeat(64)}).attestDisabledOwner(),
+      /disabled_owner_not_acknowledged/,
+      "Live proof must fail when backend and owner secret values differ");
+    await assert.rejects(new BackendOwnerAttestation({},
+      {...env,LEGAL_AUTHORITY:undefined}).attestDisabledOwner(),/disabled_owner_binding_unavailable/);
     assert.equal((await owner.fetch(request(DISABLED_OWNER_ATTEST_ROUTE,"wrong"))).status,401);
     assert.equal((await worker.fetch(request(DISABLED_OWNER_ATTEST_ROUTE,"wrong"),env)).status,401);
     assert.equal((await owner.fetch(request(DISABLED_OWNER_ATTEST_ROUTE,secret,"GET"))).status,405);
