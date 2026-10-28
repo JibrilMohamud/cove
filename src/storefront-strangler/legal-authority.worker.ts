@@ -4,6 +4,8 @@ import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
 import { resolveProductRights } from "../features/fore/rights.server";
+import {activatePublicationVersionOwned} from "../features/fore/publishing.server";
+import {beginPublicationCommand,commitPublicationCommand,readPublicationCommand,markPublicationPublished} from "./publication-command-core";
 import {
   captureEntitlementEpoch,createPaidEntitlementSchema,
   denyPaidOrder,denyPaidEntitlement,denyPaidEntitlementsBatch,
@@ -59,6 +61,7 @@ function qaOwnerLeaseLive(env:LegalAuthorityEnv) {
 }
 
 export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
+  private publicationExecutions=new Set<string>();
   constructor(ctx: { storage: { sql: unknown } }, env: LegalAuthorityEnv) {
     super(ctx, env);
     createAuthoritySchema(ctx.storage.sql as unknown as AuthoritySql);
@@ -89,6 +92,7 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/publish-order-verified",
+      "/publication/activate-version",
       "/commercial/entitlement/authorize"].includes(route))
       return new Response(null,{status:404,headers:noStore});
     if (request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
@@ -101,6 +105,177 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
     try {
+      if(route==="/publication/activate-version") {
+        const input=raw as {operationId?:unknown;publicationVersionId?:unknown;
+          actorUserId?:unknown;triggerType?:unknown;territory?:unknown;currency?:unknown}|null;
+        if(!input||typeof input.operationId!=="string"||
+          !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,95}$/.test(input.operationId)||
+          typeof input.publicationVersionId!=="string"||
+          !/^[a-zA-Z0-9_-]{3,180}$/.test(input.publicationVersionId)||
+          !(input.actorUserId===null||typeof input.actorUserId==="string"&&
+            /^[a-zA-Z0-9_-]{3,180}$/.test(input.actorUserId))||
+          !["staff","schedule","rollback"].includes(String(input.triggerType))||
+          typeof input.territory!=="string"||!/^[A-Z]{2}$/.test(input.territory)||
+          typeof input.currency!=="string"||!/^[A-Z]{3}$/.test(input.currency))
+          return new Response(null,{status:400,headers:noStore});
+        if(input.triggerType!=="schedule") {
+          if(input.actorUserId===null)return new Response(null,{status:403,headers:noStore});
+          const permitted=await env.PRIMARY_DB.prepare(
+            "SELECT 1 ok FROM staff_principals p JOIN staff_principal_roles r ON r.user_id=p.user_id JOIN staff_role_permissions permission ON permission.role_id=r.role_id WHERE p.user_id=? AND p.status='active' AND permission.permission IN (?, 'publishing.lifecycle.manage','staff.manage') LIMIT 1"
+          ).bind(input.actorUserId,input.triggerType==="rollback"?"publishing.rollback":"publishing.review")
+            .first<{ok:number}>();
+          if(!permitted)return new Response(null,{status:403,headers:noStore});
+        }
+        const version=await env.PRIMARY_DB.prepare(
+          "SELECT pv.manifest_json,pv.version_number,pv.lifecycle_id,l.state,l.current_publication_version_id,p.product_id,p.edition_id,p.work_id,s.status submission_status,a.status account_status,a.identity_status,a.tax_status,a.payout_status FROM publishing_publication_versions pv JOIN publishing_release_lifecycles l ON l.id=pv.lifecycle_id JOIN publishing_publications p ON p.id=pv.publication_id JOIN publishing_submission_snapshots s ON s.id=pv.submission_id AND s.id=p.submission_id AND s.edition_id=l.publishing_edition_id AND s.account_id=p.publishing_account_id JOIN publishing_accounts a ON a.id=s.account_id WHERE pv.id=?"
+        ).bind(input.publicationVersionId).first<{
+          manifest_json:string;version_number:number;lifecycle_id:string;
+          state:string;current_publication_version_id:string|null;product_id:string;edition_id:string;work_id:string;
+          submission_status:string;account_status:string;identity_status:string;tax_status:string;payout_status:string
+        }>();
+        if(!version||["suppressed","takedown","retired"].includes(version.state)||
+          version.submission_status!=="published"||version.account_status!=="active"||
+          [version.identity_status,version.tax_status,version.payout_status].some(s=>s!=="verified"))
+          return new Response(null,{status:409,headers:noStore});
+        let manifest:{productId?:unknown;catalogEditionId?:unknown;workId?:unknown;
+          metadata?:{releaseDate?:unknown}};
+        try{manifest=JSON.parse(version.manifest_json);}
+        catch{return new Response(null,{status:409,headers:noStore});}
+        if(!manifest||typeof manifest.productId!=="string"||
+          !commercialProductId.test(manifest.productId)||manifest.productId.startsWith("prd_gutenberg_")||
+          manifest.productId!==version.product_id||manifest.catalogEditionId!==version.edition_id||
+          manifest.workId!==version.work_id)
+          return new Response(null,{status:409,headers:noStore});
+        if(input.triggerType==="schedule") {
+          const releaseAt=typeof manifest.metadata?.releaseDate==="string"?
+            Date.parse(manifest.metadata.releaseDate):NaN;
+          if(!Number.isFinite(releaseAt)||releaseAt>Date.now())
+            return new Response(null,{status:409,headers:noStore});
+        }
+        const productId=manifest.productId;
+        // Hash the canonical immutable manifest as well as every command
+        // argument. Reusing an operation ID for changed evidence is invalid.
+        const bytes=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(JSON.stringify({
+          publicationVersionId:input.publicationVersionId,actorUserId:input.actorUserId,
+          triggerType:input.triggerType,territory:input.territory,currency:input.currency,
+          manifest:version.manifest_json
+        })));
+        const identity={operationId:input.operationId,productId,
+          commandSha256:[...new Uint8Array(bytes)].map(b=>b.toString(16).padStart(2,"0")).join("")};
+        const storage=this.ctx.storage as typeof this.ctx.storage&{
+          transactionSync<T>(fn:()=>T):T;
+        };
+        if(this.publicationExecutions.has(productId))
+          return new Response(null,{status:409,headers:noStore});
+        this.publicationExecutions.add(productId);
+        try {
+        const pending=sql.exec<{operation_id:string;command_sha256:string}>(
+          "SELECT operation_id,command_sha256 FROM cove_publication_commands WHERE product_id=? AND state='pending' LIMIT 1",
+          productId).toArray()[0];
+        // A caller that lost the response may have generated a new transport
+        // ID. Reconcile only the SAME immutable command against its complete
+        // canonical activation marker; never start a second primary executor.
+        if(pending&&pending.command_sha256===identity.commandSha256&&
+          version.current_publication_version_id===input.publicationVersionId)
+          identity.operationId=pending.operation_id;
+        const resuming=readPublicationCommand(sql,identity.operationId)!==null;
+        if(!resuming&&version.current_publication_version_id===input.publicationVersionId) {
+          const state=sql.exec<{epoch:number;verdict:string}>(
+            "SELECT epoch,verdict FROM cove_commercial_authority WHERE product_id=?",productId).toArray()[0];
+          const lastDenial=state?sql.exec<{operation_id:string}>(
+            "SELECT operation_id FROM cove_commercial_withdrawal_ops WHERE product_id=? AND epoch=?",
+            productId,state.epoch).toArray()[0]:null;
+          if(state?.verdict==="deny"&&
+            !lastDenial?.operation_id.startsWith("retail:publication:"))
+            return new Response(null,{status:409,headers:noStore});
+        }
+        // Canonical activation retires the prior manifest's grants and may
+        // terminate its publication-managed contract. Those identities can
+        // cover OTHER products: withdraw their owner proofs before any write,
+        // rather than relying only on this product's edit hold.
+        const retiring:{subjectKind:"grant"|"contract";subjectId:string}[]=[];
+        if(!resuming&&version.current_publication_version_id&&
+          version.current_publication_version_id!==input.publicationVersionId) {
+          const previous=await env.PRIMARY_DB.prepare(
+            "SELECT manifest_json FROM publishing_publication_versions WHERE id=? AND lifecycle_id=?"
+          ).bind(version.current_publication_version_id,version.lifecycle_id)
+            .first<{manifest_json:string}>();
+          if(!previous)return new Response(null,{status:409,headers:noStore});
+          const prior=JSON.parse(previous.manifest_json) as {
+            rightsGrantIds?:unknown;rightsContractManagedByPublication?:unknown;rightsContractId?:unknown
+          };
+          if(!prior||typeof prior!=="object")return new Response(null,{status:409,headers:noStore});
+          let grants=Array.isArray(prior.rightsGrantIds)?prior.rightsGrantIds.map(String).filter(Boolean):[];
+          if(!grants.length&&prior.rightsContractManagedByPublication&&prior.rightsContractId)
+            grants=(await env.PRIMARY_DB.prepare("SELECT id FROM rights_grants WHERE contract_id=?")
+              .bind(prior.rightsContractId).all<{id:string}>()).results.map(row=>row.id);
+          for(const subjectId of new Set(grants))retiring.push({subjectKind:"grant",subjectId});
+          const next=manifest as typeof manifest&{rightsContractId?:unknown};
+          if(prior.rightsContractManagedByPublication&&typeof prior.rightsContractId==="string"&&
+            prior.rightsContractId!==next.rightsContractId)
+            retiring.push({subjectKind:"contract",subjectId:prior.rightsContractId});
+        }
+        const command=storage.transactionSync(()=>{
+          const pending=beginPublicationCommand(sql,identity);
+          retiring.forEach((subject,index)=>denyCommercialSubject(sql,{
+            ...subject,operationId:"publication:"+identity.operationId+":retire:"+index
+          }));
+          return pending;
+        });
+        let result:{publicationVersionId:string;state:string;versionNumber:number};
+        if(version.current_publication_version_id===input.publicationVersionId) {
+          const marker=await env.PRIMARY_DB.prepare(
+            "SELECT id FROM publishing_publication_activations WHERE publication_version_id=? AND lifecycle_id=? LIMIT 1"
+          ).bind(input.publicationVersionId,version.lifecycle_id).first<{id:string}>();
+          if(!marker||!["live","updated"].includes(version.state))
+            return new Response(null,{status:503,headers:noStore});
+          result={publicationVersionId:input.publicationVersionId,state:version.state,
+            versionNumber:Number(version.version_number)};
+        } else {
+          // A committed old operation cannot rerun an old version after a
+          // newer publication became current. A new rollback command is
+          // required and must independently reverify current legal evidence.
+          if(command.state==="committed")
+            return new Response(null,{status:409,headers:noStore});
+          // A restarted owner cannot infer how much of an interrupted
+          // multi-table primary command committed. Only a complete canonical
+          // activation marker can reconcile it. Never blindly replay writes.
+          if(resuming)return new Response(null,{status:503,headers:noStore});
+          result=await activatePublicationVersionOwned(env.PRIMARY_DB,
+            input.publicationVersionId,input.actorUserId as string|null,
+            input.triggerType as "staff"|"schedule"|"rollback");
+        }
+        const completion=await env.PRIMARY_DB.prepare(
+          "SELECT p.storefront_status,l.state,l.current_publication_version_id FROM products p JOIN publishing_release_lifecycles l ON l.id=? WHERE p.id=? AND EXISTS (SELECT 1 FROM publishing_publication_activations a WHERE a.lifecycle_id=l.id AND a.publication_version_id=?)"
+        ).bind(version.lifecycle_id,productId,input.publicationVersionId).first<{
+          storefront_status:string;state:string;current_publication_version_id:string|null
+        }>();
+        if(!completion||completion.storefront_status!=="active"||
+          completion.current_publication_version_id!==input.publicationVersionId||
+          !["live","updated"].includes(completion.state))
+          return new Response(null,{status:503,headers:noStore});
+        storage.transactionSync(()=>commitPublicationCommand(sql,identity,result));
+        // Ending the write hold grants NOTHING. Both legal and offer
+        // publication perform their own fresh canonical reads and epoch CAS.
+        let publishedEpoch:number|null=null;
+        for(const path of ["/commercial/publish-verified","/storefront/publish-commercial"]) {
+          const verify=await this.fetch(new Request("https://legal-authority.internal"+path,{
+            method:"POST",headers:{authorization:"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,
+              "content-type":"application/json"},body:JSON.stringify({productId,
+              territory:input.territory,currency:input.currency,channel:"retail"})
+          }));
+          if(verify.status!==200)return new Response(null,{status:503,headers:noStore});
+          const proof=await verify.json() as {applied?:unknown;epoch?:unknown};
+          if(proof.applied!==true||!Number.isSafeInteger(proof.epoch)||Number(proof.epoch)<=0||
+            publishedEpoch!==null&&proof.epoch!==publishedEpoch)
+            return new Response(null,{status:503,headers:noStore});
+          publishedEpoch=Number(proof.epoch);
+        }
+        storage.transactionSync(()=>markPublicationPublished(sql,identity,publishedEpoch!));
+        return Response.json({schema:"cove.publication-activation.v1",ownerFirst:true,
+          operationId:input.operationId,...result},{headers:noStore});
+        } finally {this.publicationExecutions.delete(productId);}
+      }
       if(route==="/market/deny-next"){
         const storage=this.ctx.storage as typeof this.ctx.storage&{
           transactionSync<T>(fn:()=>T):T;
@@ -462,6 +637,9 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
            !/^[A-Z]{2}$/.test(input.territory)||
            !["retail","subscription","library"].includes(String(input.channel)))
           return new Response(null,{status:400,headers:noStore});
+        if(sql.exec("SELECT 1 pending FROM cove_publication_commands WHERE product_id=? AND state='pending' LIMIT 1",
+          input.productId).toArray().length)
+          return new Response(null,{status:409,headers:noStore});
         const startEpoch=captureCommercialEpoch(sql,input);
         const product=await env.PRIMARY_DB.prepare(
           "SELECT id,source_name,edition_id FROM products WHERE id=?"

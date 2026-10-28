@@ -13,6 +13,11 @@ on:
       - "src/storefront-strangler/commercial-storefront-authority.ts"
       - "src/storefront-strangler/market-authority-core.ts"
       - "src/storefront-strangler/paid-order-atomic-publication.ts"
+      - "src/storefront-strangler/publication-command-core.ts"
+      - "src/storefront-strangler/publication-owner-routing.server.ts"
+      - "scripts/check-publication-owner-command.mjs"
+      - "scripts/check-production-owner-binding.mjs"
+      - "scripts/test-production-owner-binding.mjs"
       - "scripts/check-legal-authority-*.mjs"
       - "scripts/check-legal-quarantine-writer.mjs"
       - "scripts/check-paid-*.mjs"
@@ -33,6 +38,11 @@ on:
       - "src/storefront-strangler/commercial-storefront-authority.ts"
       - "src/storefront-strangler/market-authority-core.ts"
       - "src/storefront-strangler/paid-order-atomic-publication.ts"
+      - "src/storefront-strangler/publication-command-core.ts"
+      - "src/storefront-strangler/publication-owner-routing.server.ts"
+      - "scripts/check-publication-owner-command.mjs"
+      - "scripts/check-production-owner-binding.mjs"
+      - "scripts/test-production-owner-binding.mjs"
       - "scripts/check-legal-authority-*.mjs"
       - "scripts/check-legal-quarantine-writer.mjs"
       - "scripts/check-paid-*.mjs"
@@ -67,6 +77,9 @@ jobs:
           node scripts/check-paid-entitlement-authority.mjs
           node scripts/check-paid-order-atomic-publication.mjs
           node scripts/check-paid-owner-worker-handlers.mjs
+          node scripts/check-publication-owner-command.mjs
+          node scripts/check-production-owner-binding.mjs
+          node scripts/test-production-owner-binding.mjs
           node scripts/check-market-authority-closure.mjs
           node scripts/check-legal-quarantine-writer.mjs
           node scripts/test-legal-admin-owner-commands.mjs

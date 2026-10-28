@@ -502,6 +502,9 @@ export type CoveEnv = {
   LEGAL_QUARANTINE_WRITER?: { fetch(request: Request): Promise<Response> };
   // Protected private QA only; never inherited by production frontend.
   COVE_LEGAL_CONSUMER_STAGE_ENABLED?: string;
+  COVE_PUBLICATION_COMMANDS_ENABLED?: string;
+  COVE_PUBLICATION_COMMAND_TERRITORY?: string;
+  COVE_PUBLICATION_COMMAND_CURRENCY?: string;
   COVE_RIGHTS_OWNER_SECRET?: string;
   LEGAL_AUTHORITY?: {
     getByName(name: string): { fetch(request: Request): Promise<Response> };

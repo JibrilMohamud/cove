@@ -1,4 +1,5 @@
 import { seedMusicProfiles } from "./features/fore/music-profiles.server";
+import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
 import { verifyAudioStorage } from "./features/fore/audio-coverage.server";
 import { runLiteraryProfileTick } from "./features/fore/literary-profiles.server";
 import { runStoredAssetTick } from "./features/fore/catalog-assets.server";
@@ -867,6 +868,7 @@ async function hostedBiosyncTranscript(
 
 export default {
   async scheduled(controller: { cron: string }, env: BackendEnv, ctx: ExecutionContextLike) {
+    env = scopePublicationOwnerEnv(env);
     if (
       controller.cron === "*/10 * * * *" ||
       controller.cron === "23 * * * *" ||
@@ -896,6 +898,7 @@ export default {
     if (!(await authorized(request, env))) {
       return json({ error: "Persistence gateway authorization required." }, 401);
     }
+    env = scopePublicationOwnerEnv(env);
 
     const path = new URL(request.url).pathname;
     if (isPublicSeoDocumentPath(path)) {

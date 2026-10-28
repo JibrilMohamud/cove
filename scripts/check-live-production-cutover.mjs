@@ -20,6 +20,7 @@ export const QA_D1=new Set([
   "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e",
 ]);
 const OWNER_SCRIPT="cove-legal-authority-production";
+const OWNER_NAMESPACE="83d7eadf3957436389a7b072120a9829";
 const PRIMARY="cove-persistence-backend";
 
 function bindingSummary(settings) {
@@ -27,7 +28,8 @@ function bindingSummary(settings) {
     name:b.name,type:b.type,
     ...(b.type==="d1"?{id:b.id}:{}),
     ...(b.type==="service"?{service:b.service}:{}),
-    ...(b.type==="durable_object_namespace"?{script_name:b.script_name}:{}),
+    ...(b.type==="durable_object_namespace"?{
+      script_name:b.script_name,namespace_id:b.namespace_id,class_name:b.class_name}:{}),
   }));
 }
 
@@ -59,12 +61,18 @@ export function assessProductionCutover({
   const ownerBinding=primary.find(b=>b.name==="LEGAL_AUTHORITY");
   const correctOwner=!!ownerBinding&&(
     ownerBinding.type==="service"&&ownerBinding.service===OWNER_SCRIPT ||
-    ownerBinding.type==="durable_object_namespace"&&ownerBinding.script_name===OWNER_SCRIPT
+    ownerBinding.type==="durable_object_namespace"&&
+      ownerBinding.namespace_id===OWNER_NAMESPACE&&ownerBinding.class_name==="CoveLegalAuthority"&&
+      (ownerBinding.script_name===undefined||ownerBinding.script_name===OWNER_SCRIPT)
   );
   if(ownerBinding&&!correctOwner)
     failures.push("LEGAL_AUTHORITY must point to the independently reviewed production owner");
   if(!correctOwner)blocks.push("production persistence LEGAL_AUTHORITY binding is absent or unverified");
   if(!owner)blocks.push("separate production legal-owner Worker is not deployed");
+  const ownerEnabled=owner?.bindings?.find(b=>b.name==="COVE_RIGHTS_OWNER_ENABLED")?.text==="1";
+  if(!ownerEnabled)blocks.push("production legal owner remains disabled or operational enablement is unverified");
+  if(ownerEnabled&&canonicalCandidates>0)
+    failures.push("production legal owner enabled before canonical writer migration is certified");
   if(canonicalCandidates!==0)
     blocks.push(canonicalCandidates+" unverified canonical SQL mutation sites");
   const liveWwwRoutes=routes.filter(r=>coversPublicWww(r.pattern));
@@ -90,6 +98,7 @@ export function assessProductionCutover({
       persistenceD1:db?.type==="d1"?db.id:null,
       productionOwnerBound:correctOwner,
       productionOwnerDeployed:!!owner,
+      productionOwnerEnabled:ownerEnabled,
       publicWorkerAttached,
       publicRoutePatterns:liveWwwRoutes.map(r=>r.pattern),
       publicDomainServices:liveWwwDomains.map(d=>d.service),

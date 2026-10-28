@@ -15,6 +15,13 @@ database_name = "cove-production"
 database_id = "4bd657ac-8789-403e-a28c-93aba8d0a989"
 migrations_dir = "drizzle"
 
+# Correct production namespace only. Binding does not enable the owner or
+# replace primary authorization; the separate owner remains locked.
+[[durable_objects.bindings]]
+name = "LEGAL_AUTHORITY"
+class_name = "CoveLegalAuthority"
+script_name = "cove-legal-authority-production"
+
 # Provisioned private R2 media bucket; public r2.dev access remains disabled.
 [[r2_buckets]]
 binding = "BUCKET"

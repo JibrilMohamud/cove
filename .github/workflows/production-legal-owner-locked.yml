@@ -78,4 +78,4 @@ jobs:
       - name: Summarize scope
         run: |
           echo "Deployed production owner namespace is DISABLED; all owner operations return 503." >> "$GITHUB_STEP_SUMMARY"
-          echo "No persistence LEGAL_AUTHORITY binding, positive publishing, route, or customer production cutover." >> "$GITHUB_STEP_SUMMARY"
+          echo "A verified persistence binding may target this DISABLED owner; positive publishing, public routing and customer cutover remain blocked." >> "$GITHUB_STEP_SUMMARY"

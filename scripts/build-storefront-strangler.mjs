@@ -108,6 +108,7 @@ for (const lane of [
 ]) {
   await build({
     entryPoints: [`src/storefront-strangler/${lane[0]}`],
+    alias: { jszip: "jszip/dist/jszip.min.js" },
     outfile: `.output/strangler/${lane[1]}`,
     bundle: true,
     platform: "node",

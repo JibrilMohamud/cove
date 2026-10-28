@@ -76,6 +76,14 @@ export function createCommercialAuthoritySchema(sql:AuthoritySql){
     subject_kind TEXT NOT NULL,
     subject_id TEXT NOT NULL
   ) WITHOUT ROWID`);
+  sql.exec(`CREATE TABLE IF NOT EXISTS cove_publication_commands(
+    operation_id TEXT PRIMARY KEY,product_id TEXT NOT NULL,
+    command_sha256 TEXT NOT NULL,epoch INTEGER NOT NULL CHECK(epoch>0),
+    state TEXT NOT NULL CHECK(state IN ('pending','committed')),
+    result_json TEXT,published_epoch INTEGER
+  ) WITHOUT ROWID`);
+  sql.exec(`CREATE UNIQUE INDEX IF NOT EXISTS cove_publication_one_pending_product
+    ON cove_publication_commands(product_id) WHERE state='pending'`);
 }
 type EpochRow={epoch:number;verdict:"deny"|"allow"};
 const current=(sql:AuthoritySql,id:string)=>
@@ -201,6 +209,13 @@ export function publishFreshCommercialProof(
   sql:AuthoritySql,p:CommercialProof,expectedEpoch:number,now=Date.now()
 ){
   validateCommercialProof(p,now);
+  // Primary publication updates span multiple canonical tables. The owner
+  // keeps the product denied for the WHOLE command, including external I/O
+  // and retry recovery, so an independent positive verifier cannot observe
+  // and publish an intermediate primary state.
+  if(sql.exec("SELECT 1 pending FROM cove_publication_commands WHERE product_id=? AND state='pending' LIMIT 1",
+    p.productId).toArray().length)
+    throw Error("commercial_publication_command_pending");
   if(sql.exec("SELECT 1 ok FROM cove_commercial_subject_denials WHERE (subject_kind='grant' AND subject_id=?) OR (subject_kind='contract' AND subject_id=?) LIMIT 1",
     p.grantId,p.contractId).toArray().length)
     throw Error("commercial_subject_withdrawal_terminal");

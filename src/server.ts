@@ -14,6 +14,7 @@ import {
 } from "./lib/cloudflare-ssr-stage-gate.server";
 import { renderErrorPage } from "./lib/error-page";
 import { scopeStageLegalWriterEnv } from "./storefront-strangler/legal-primary-write-lock";
+import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
 import { cachePublicDocument } from "./lib/public-document-cache";
 import { applySecurityHeaders, securityTxt } from "./lib/security-headers";
 import { handleVercelIngestionControl, proxyPersistenceApi } from "./lib/persistence-backend";
@@ -70,10 +71,11 @@ export default {
       // A production attempt to turn this on without verified owner-first
       // writers fails closed rather than silently changing legal authority.
       // When disabled this branch has no effect on the production D1 binding.
-      const runtimeEnv =
-        nativeEnv.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"
+      const runtimeEnv = scopePublicationOwnerEnv(
+        (nativeEnv.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"
           ? scopeStageLegalWriterEnv(nativeEnv as any)
-          : nativeEnv;
+          : nativeEnv) as Parameters<typeof scopePublicationOwnerEnv>[0],
+      );
       const foreEnv = runtimeEnv as {
         DB?: any;
         BUCKET?: any;
