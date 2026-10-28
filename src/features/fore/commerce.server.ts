@@ -204,7 +204,8 @@ async function cartPricing(db: CatalogDB, userId: string, territory: string) {
     await assertPreorderPurchaseAllowed(db, userId, String(x.book.productId));
     const d = await resolvePricingDecision(db, String(x.book.productId), territory, {
       userId,
-      persist: true,
+      // The staged primary-D1 lock denies legacy rights-decision writes.
+      persist: env?.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1",
     });
     if (!d) throw new ApiError(409, "A cart item is no longer purchasable in your storefront.");
     items.push({
