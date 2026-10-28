@@ -245,6 +245,49 @@ try {
       "A late signed authorization cannot resurrect an order in state " + existing,
     );
   }
+  // A properly signed but late failure/cancellation must never move a
+  // disputed, refunded or already canceled order back into a live checkout
+  // state. Only mutable pre-settlement orders can transition.
+  for (const [type, changed] of [
+    ["payment_intent.payment_failed", "payment_failed"],
+    ["payment_intent.canceled", "canceled"],
+  ]) {
+    for (const [existing, expected] of [
+      ["pending_payment", changed],
+      ["processing", changed],
+      ["authorized", changed],
+      ["payment_failed", changed],
+      ["canceled", "canceled"],
+      ["paid", "paid"],
+      ["partially_refunded", "partially_refunded"],
+      ["refunded", "refunded"],
+      ["disputed", "disputed"],
+    ]) {
+      await original("UPDATE commerce_orders SET status=? WHERE id='ord-proof'")
+        .bind(existing)
+        .run();
+      await stripeWebhook(
+        env,
+        request({
+          id: `evt_terminal_${type}_${existing}`,
+          type,
+          livemode: false,
+          data: {
+            object: {
+              id: "pi_expected",
+              metadata: { fore_order_id: "ord-proof" },
+              last_payment_error: { code: "card_declined" },
+            },
+          },
+        }),
+      );
+      assert.equal(
+        (await original("SELECT status FROM commerce_orders WHERE id='ord-proof'").first()).status,
+        expected,
+        "Stale signed event " + type + " may not regress order state " + existing,
+      );
+    }
+  }
   await original("UPDATE commerce_orders SET status='pending_payment' WHERE id='ord-proof'").run();
   await ingestStripeRiskSignal(
     env.DB,
