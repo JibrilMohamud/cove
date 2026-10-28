@@ -52,6 +52,11 @@ assert.equal(manifest.status, 200);
 assert.equal(await manifest.text(), "manifest");
 assert.match(manifest.headers.get("cache-control") || "", /no-store/);
 assert.equal(manifest.headers.get("x-robots-tag"), "noindex, nofollow, noarchive");
+assert.match(
+  manifest.headers.get("server-timing") || "",
+  /cove_gateway;dur=\d+(?:\.\d+)?/,
+  "The protected gateway must expose numeric owner-side timing for cold attribution",
+);
 assert.equal(lastRequest.headers.get("authorization"), "Bearer " + key);
 
 const mutation = await query("/api/fore/cart/item", {
