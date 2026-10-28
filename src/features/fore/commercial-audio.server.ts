@@ -1848,7 +1848,13 @@ export async function handleCommercialAudio(
       .bind(userId, row.product_id, now(), now())
       .first<any>();
     if (!ent) throw new ApiError(403, "A purchase entitlement is required for offline audio.");
-    await requireCommercialAudioOwner(env, userId, String(row.product_id), territory, String(ent.id));
+    await requireCommercialAudioOwner(
+      env,
+      userId,
+      String(row.product_id),
+      territory,
+      String(ent.id),
+    );
     const licensePolicy = await db
         .prepare("SELECT max_devices FROM licenses WHERE entitlement_id=?")
         .bind(ent.id)
