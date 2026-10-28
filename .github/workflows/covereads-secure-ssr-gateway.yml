@@ -1,0 +1,210 @@
+name: covereads-secure-ssr-gateway
+on:
+  pull_request:
+    paths:
+      - "scripts/performance/check-owned-ssr-capacity.mjs"
+      - "scripts/performance/check-owned-ssr-capacity.test.mjs"
+      - "scripts/performance/prepare-owned-cold-trial.mjs"
+      - "scripts/check-covereads-canary-deny.mjs"
+      - "scripts/check-staging-auth-gateway.mjs"
+      - "scripts/check-covereads-owned-canary-live.mjs"
+      - "scripts/covereads-owned-canary-domain.mjs"
+      - "src/cloudflare/staging-auth-gateway.mjs"
+      - "wrangler.staging-auth-gateway.test.toml"
+      - "wrangler.frontend.production.toml"
+      - "wrangler.frontend.staging.toml"
+      - "scripts/check-cloudflare-production-candidate.mjs"
+      - "scripts/check-cloudflare-ssr-stage-gate.mjs"
+      - ".github/workflows/covereads-secure-ssr-gateway.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/covereads-secure-ssr-gateway.yml"
+      - "scripts/performance/check-owned-ssr-capacity.mjs"
+      - "scripts/performance/check-owned-ssr-capacity.test.mjs"
+      - "scripts/performance/prepare-owned-cold-trial.mjs"
+      - "scripts/check-covereads-owned-canary-live.mjs"
+      - "src/cloudflare/staging-auth-gateway.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cove-exclusive-real-primary-cold-acceptance
+  cancel-in-progress: false
+
+jobs:
+  source-fail-closed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify gate source and production remains disabled
+        run: |
+          node scripts/check-cloudflare-production-candidate.mjs
+          node scripts/check-cloudflare-ssr-stage-gate.mjs
+          node scripts/check-staging-auth-gateway.mjs
+          node --test scripts/performance/check-owned-ssr-capacity.test.mjs
+
+  isolated-asset-auth:
+    needs: source-fail-closed
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERCEL: "0"
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_SEND_METRICS: "false"
+      COVE_SSR_PROTECTED_TEST_ORIGIN: "https://cove-asset-auth-gateway.cove-jibrilmohamud.workers.dev"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Require isolated deployment credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test "$COVE_SSR_PROTECTED_TEST_ORIGIN" = "https://cove-asset-auth-gateway.cove-jibrilmohamud.workers.dev"
+      - name: Build Cloudflare-native SSR
+        run: npm run build
+      - name: Deploy private assets Worker and public auth-only gateway
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The assets-bound backend must have NO public workers.dev ingress.
+          cp wrangler.frontend.staging.toml wrangler.frontend.private.test.toml
+          sed -i 's/^name = "cove-storefront-ssr-staging"$/name = "cove-asset-auth-stage"/' wrangler.frontend.private.test.toml
+          sed -i 's/^workers_dev = true$/workers_dev = false/' wrangler.frontend.private.test.toml
+          # Separate ephemeral namespace permits the explicitly authorized
+          # capacity campaign; production's 180/minute policy is untouched.
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const p='wrangler.frontend.private.test.toml';
+          const namespace=String(800000+Number(process.env.GITHUB_RUN_ID)%100000);
+          let text=fs.readFileSync(p,'utf8');
+          if(!text.includes('namespace_id = "731903"')||!text.includes('limit = 180'))
+            throw Error('Unexpected staging rate-limit configuration');
+          text=text.replace('namespace_id = "731903"',`namespace_id = "${namespace}"`)
+            .replace('limit = 180','limit = 10000');
+          fs.writeFileSync(p,text);
+          NODE
+          grep -q '^name = "cove-asset-auth-stage"$' wrangler.frontend.private.test.toml
+          grep -q '^workers_dev = false$' wrangler.frontend.private.test.toml
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.frontend.private.test.toml
+          # The public gateway has NO static assets and only a service binding.
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.staging-auth-gateway.test.toml
+          COVE_GATE_TEST_BEARER="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          echo "::add-mask::$COVE_GATE_TEST_BEARER"
+          echo "COVE_GATE_TEST_BEARER=$COVE_GATE_TEST_BEARER" >> "$GITHUB_ENV"
+          printf '%s' "$COVE_GATE_TEST_BEARER" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.frontend.private.test.toml
+          printf '%s' "$COVE_GATE_TEST_BEARER" | npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put COVE_SSR_STAGING_GATE_KEY --config wrangler.staging-auth-gateway.test.toml
+          # No HTTP prewarm. The first HTTP will be a counted auth check.
+          sleep 30
+      - name: Verify missing/forged credential, authorized manifest, denial of mutation and no direct backend
+        run: node scripts/check-covereads-canary-deny.mjs
+      - name: Attach ONLY protected gateway to owned canary domain
+        run: node scripts/covereads-owned-canary-domain.mjs attach
+      - name: Verify owned TLS canary cannot expose any anonymous static assets
+        id: owned-security
+        run: node scripts/check-covereads-owned-canary-live.mjs
+      - name: Strict licensed SSR cold-path check through owned Cloudflare ingress
+        shell: bash
+        env:
+          COVE_SSR_STAGING_ORIGIN: "https://ssr-canary.covereads.com"
+        run: |
+          set -euo pipefail
+          export COVE_SSR_STAGING_GATE_KEY="$COVE_GATE_TEST_BEARER"
+          node scripts/check-cloudflare-ssr-staging.mjs
+      - name: Independently cold-deploy exact 1/4/8/16/32 concurrency bursts
+        if: ${{ !cancelled() && steps.owned-security.outcome == 'success' }}
+        shell: bash
+        env:
+          COVE_SSR_STAGING_ORIGIN: "https://ssr-canary.covereads.com"
+        run: |
+          set -euo pipefail
+          failures=0
+          for concurrency in 1 4 8 16 32; do
+            # Rotation/settling is control-plane-only. The first serving HTTP
+            # request(s) form the entire counted cold burst, with no retries.
+            if node scripts/performance/prepare-owned-cold-trial.mjs; then
+              # GitHub applies GITHUB_ENV only between steps; import only our
+              # two exact private variable values without shell evaluation.
+              export COVE_SSR_STAGING_GATE_KEY="$(node --input-type=module -e 'import fs from "node:fs";const rows=fs.readFileSync(process.env.GITHUB_ENV,"utf8").trim().split("\n");process.stdout.write(rows.filter(x=>x.startsWith("COVE_SSR_STAGING_GATE_KEY=")).at(-1).split("=")[1])')"
+              if ! COVE_OWNED_CAPACITY_MODE=cold-burst COVE_OWNED_COLD_CONCURRENCY="$concurrency" node scripts/performance/check-owned-ssr-capacity.mjs; then
+                failures=$((failures + 1))
+              fi
+            else
+              failures=$((failures + 1))
+            fi
+          done
+          test "$failures" -eq 0
+      - name: Strict 1/4/8/16/32 and two complete 100-RPS phases on owned ingress
+        if: ${{ !cancelled() && steps.owned-security.outcome == 'success' }}
+        shell: bash
+        env:
+          COVE_SSR_STAGING_ORIGIN: "https://ssr-canary.covereads.com"
+        run: |
+          set -euo pipefail
+          export COVE_SSR_STAGING_GATE_KEY="$COVE_GATE_TEST_BEARER"
+          node scripts/performance/check-owned-ssr-capacity.mjs
+      - name: Install Chromium for owned-domain LCP and hydration gate
+        if: ${{ !cancelled() && steps.owned-security.outcome == 'success' }}
+        run: npx playwright install --with-deps chromium
+      - name: Check browser hydration and mobile-4G LCP through owned ingress
+        if: ${{ !cancelled() && steps.owned-security.outcome == 'success' }}
+        shell: bash
+        env:
+          COVE_SSR_STAGING_ORIGIN: "https://ssr-canary.covereads.com"
+        run: |
+          set -euo pipefail
+          export COVE_SSR_STAGING_GATE_KEY="$COVE_GATE_TEST_BEARER"
+          node scripts/performance/cloudflare-browser.mjs
+      - name: Upload owned canary performance evidence even after a failed hard gate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: covereads-owned-ssr-performance
+          path: |
+            artifacts/cloudflare-ssr-staging-performance.json
+            artifacts/owned-ssr-capacity-performance*.json
+            artifacts/cloudflare-browser-performance.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Detach owned canary and delete ONLY the two ephemeral test Workers
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          failures=0
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::No token to verify temporary Worker cleanup"
+            exit 1
+          fi
+          # Even if canary security fails, detach custom domain first.
+          node scripts/covereads-owned-canary-domain.mjs detach || failures=1
+          for name in cove-asset-auth-gateway cove-asset-auth-stage; do
+            response="$(curl --retry 3 --retry-delay 2 -sS --max-time 25 -w '\n%{http_code}' -X DELETE \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$name?force=true")"
+            code="$(printf '%s' "$response" | tail -n 1)"
+            if [ "$code" != "200" ] && [ "$code" != "404" ]; then
+              echo "::error::Ephemeral Worker cleanup failed for $name (HTTP $code)"
+              failures=1
+            fi
+          done
+          exit "$failures"

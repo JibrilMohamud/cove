@@ -242,13 +242,13 @@ jobs:
           {
             echo "## Cove persistence backend deployed"
             echo
-            echo "- Worker: `$WORKER_NAME`"
+            echo "- Worker: $WORKER_NAME"
             if [ -n "${DEPLOYMENT_URL:-}" ]; then
-              echo "- Deployment URL: `$DEPLOYMENT_URL`"
-              echo "- Set Vercel `FORE_BACKEND_URL` to this Worker origin."
+              echo "- Deployment URL: $DEPLOYMENT_URL"
+              echo '- Set Vercel `FORE_BACKEND_URL` to this Worker origin.'
             else
-              echo "- Read the Wrangler deploy output above for the Worker URL and set it as Vercel `FORE_BACKEND_URL`."
+              echo '- Read the Wrangler deploy output above for the Worker URL and set it as Vercel `FORE_BACKEND_URL`.'
             fi
-            echo "- Vercel keeps `FORE_BACKEND_TOKEN`; Cloudflare validates its SHA-256 fingerprint from D1."
-            echo "- Cloudflare keeps the private `FORE_INGESTION_SIGNING_KEY`; Vercel keeps the matching public `FORE_INGESTION_VERIFY_JWK`."
+            echo '- Vercel keeps `FORE_BACKEND_TOKEN`; Cloudflare validates its SHA-256 fingerprint from D1.'
+            echo '- Cloudflare keeps the private `FORE_INGESTION_SIGNING_KEY`; Vercel keeps the matching public `FORE_INGESTION_VERIFY_JWK`.'
           } >> "$GITHUB_STEP_SUMMARY"

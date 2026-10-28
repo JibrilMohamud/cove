@@ -6,6 +6,7 @@ import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
 import { resolveProductRights } from "../features/fore/rights.server";
 import {activatePublicationVersionOwned} from "../features/fore/publishing.server";
+import {executePublicationPreorder} from "./publication-preorder-command";
 import {beginPublicationCommand,commitPublicationCommand,readPublicationCommand,markPublicationPublished} from "./publication-command-core";
 import {
   captureEntitlementEpoch,createPaidEntitlementSchema,
@@ -111,11 +112,12 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
       "/commercial/authorize-batch",
       "/storefront/authorize-batch","/storefront/publish-commercial",
       "/market/deny-next",
-      "/commercial/order/deny-next","/commercial/order/verify",
+      "/commercial/order/deny-next","/commercial/order/verify","/commercial/order/revoke",
       "/commercial/entitlement/deny-next","/commercial/entitlement/deny-batch",
       "/commercial/entitlement/publish-verified",
       "/commercial/entitlement/publish-order-verified",
       "/publication/activate-version",
+      "/publication/open-preorder",
       "/commercial/entitlement/authorize"].includes(route))
       return new Response(null,{status:404,headers:noStore});
     if (request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
@@ -128,6 +130,15 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
     }catch {return new Response(null,{status:400,headers:noStore});}
     const sql=this.ctx.storage.sql as unknown as AuthoritySql;
     try {
+      if(route==="/publication/open-preorder") {
+        const storage=this.ctx.storage as typeof this.ctx.storage & {transactionSync<T>(fn:()=>T):T};
+        return await executePublicationPreorder({primary:env.PRIMARY_DB,sql,
+          executing:this.publicationExecutions,transactionSync:fn=>storage.transactionSync(fn),
+          publish:(path,input)=>this.fetch(new Request("https://legal-authority.internal"+path,{
+            method:"POST",headers:{authorization:"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,
+              "content-type":"application/json"},body:JSON.stringify(input)
+          }))},raw);
+      }
       if(route==="/publication/activate-version") {
         const input=raw as {operationId?:unknown;publicationVersionId?:unknown;
           actorUserId?:unknown;triggerType?:unknown;territory?:unknown;currency?:unknown}|null;
@@ -150,24 +161,32 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           if(!permitted)return new Response(null,{status:403,headers:noStore});
         }
         const version=await env.PRIMARY_DB.prepare(
-          "SELECT pv.manifest_json,pv.version_number,pv.lifecycle_id,l.state,l.current_publication_version_id,p.product_id,p.edition_id,p.work_id,s.status submission_status,a.status account_status,a.identity_status,a.tax_status,a.payout_status FROM publishing_publication_versions pv JOIN publishing_release_lifecycles l ON l.id=pv.lifecycle_id JOIN publishing_publications p ON p.id=pv.publication_id JOIN publishing_submission_snapshots s ON s.id=pv.submission_id AND s.id=p.submission_id AND s.edition_id=l.publishing_edition_id AND s.account_id=p.publishing_account_id JOIN publishing_accounts a ON a.id=s.account_id WHERE pv.id=?"
+          "SELECT pv.manifest_json,pv.snapshot_sha256,pv.submission_id,pv.version_number,pv.lifecycle_id,l.state,l.current_publication_version_id,l.pending_publication_version_id,p.product_id,p.edition_id,p.work_id,s.snapshot_json,s.snapshot_sha256 submission_sha256,s.status submission_status,a.status account_status,a.identity_status,a.tax_status,a.payout_status FROM publishing_publication_versions pv JOIN publishing_release_lifecycles l ON l.id=pv.lifecycle_id JOIN publishing_publications p ON p.id=pv.publication_id JOIN publishing_submission_snapshots s ON s.id=pv.submission_id AND s.id=p.submission_id AND s.edition_id=l.publishing_edition_id AND s.account_id=p.publishing_account_id JOIN publishing_accounts a ON a.id=s.account_id WHERE pv.id=?"
         ).bind(input.publicationVersionId).first<{
-          manifest_json:string;version_number:number;lifecycle_id:string;
-          state:string;current_publication_version_id:string|null;product_id:string;edition_id:string;work_id:string;
+          manifest_json:string;snapshot_sha256:string;submission_id:string;snapshot_json:string;
+          submission_sha256:string;version_number:number;lifecycle_id:string;
+          state:string;current_publication_version_id:string|null;pending_publication_version_id:string|null;product_id:string;edition_id:string;work_id:string;
           submission_status:string;account_status:string;identity_status:string;tax_status:string;payout_status:string
         }>();
         if(!version||["suppressed","takedown","retired"].includes(version.state)||
           version.submission_status!=="published"||version.account_status!=="active"||
           [version.identity_status,version.tax_status,version.payout_status].some(s=>s!=="verified"))
           return new Response(null,{status:409,headers:noStore});
-        let manifest:{productId?:unknown;catalogEditionId?:unknown;workId?:unknown;
+        let manifest:{schemaVersion?:unknown;snapshotSha256?:unknown;submissionId?:unknown;
+          productId?:unknown;catalogEditionId?:unknown;workId?:unknown;
           metadata?:{releaseDate?:unknown}};
         try{manifest=JSON.parse(version.manifest_json);}
         catch{return new Response(null,{status:409,headers:noStore});}
-        if(!manifest||typeof manifest.productId!=="string"||
+        if(!manifest||manifest.schemaVersion!==4||manifest.submissionId!==version.submission_id||
+          manifest.snapshotSha256!==version.snapshot_sha256||
+          !/^[a-f0-9]{64}$/.test(version.snapshot_sha256)||
+          version.snapshot_sha256!==version.submission_sha256||typeof manifest.productId!=="string"||
           !commercialProductId.test(manifest.productId)||manifest.productId.startsWith("prd_gutenberg_")||
           manifest.productId!==version.product_id||manifest.catalogEditionId!==version.edition_id||
           manifest.workId!==version.work_id)
+          return new Response(null,{status:409,headers:noStore});
+        const snapshotDigest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(version.snapshot_json));
+        if([...new Uint8Array(snapshotDigest)].map(b=>b.toString(16).padStart(2,"0")).join("")!==version.snapshot_sha256)
           return new Response(null,{status:409,headers:noStore});
         if(input.triggerType==="schedule") {
           const releaseAt=typeof manifest.metadata?.releaseDate==="string"?
@@ -202,6 +221,13 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           version.current_publication_version_id===input.publicationVersionId)
           identity.operationId=pending.operation_id;
         const resuming=readPublicationCommand(sql,identity.operationId)!==null;
+        // A delayed scheduler command cannot activate an old version after
+        // a different release became current. Exact recorded-command replay
+        // remains available for a completed initial/scheduled activation.
+        if(input.triggerType==="schedule"&&!resuming&&
+          (!["scheduled","preorder"].includes(version.state)||
+            (version.pending_publication_version_id||version.current_publication_version_id)!==input.publicationVersionId))
+          return new Response(null,{status:409,headers:noStore});
         if(!resuming&&version.current_publication_version_id===input.publicationVersionId) {
           const state=sql.exec<{epoch:number;verdict:string}>(
             "SELECT epoch,verdict FROM cove_commercial_authority WHERE product_id=?",productId).toArray()[0];
@@ -232,8 +258,15 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           if(!grants.length&&prior.rightsContractManagedByPublication&&prior.rightsContractId)
             grants=(await env.PRIMARY_DB.prepare("SELECT id FROM rights_grants WHERE contract_id=?")
               .bind(prior.rightsContractId).all<{id:string}>()).results.map(row=>row.id);
-          for(const subjectId of new Set(grants))retiring.push({subjectKind:"grant",subjectId});
-          const next=manifest as typeof manifest&{rightsContractId?:unknown};
+          const next=manifest as typeof manifest&{rightsGrantIds?:unknown;rightsContractId?:unknown;
+            rightsContractManagedByPublication?:unknown};
+          let nextGrants=Array.isArray(next.rightsGrantIds)?next.rightsGrantIds.map(String).filter(Boolean):[];
+          if(!nextGrants.length&&next.rightsContractManagedByPublication&&next.rightsContractId)
+            nextGrants=(await env.PRIMARY_DB.prepare("SELECT id FROM rights_grants WHERE contract_id=?")
+              .bind(next.rightsContractId).all<{id:string}>()).results.map(row=>row.id);
+          const retained=new Set(nextGrants);
+          for(const subjectId of new Set(grants))
+            if(!retained.has(subjectId))retiring.push({subjectKind:"grant",subjectId});
           if(prior.rightsContractManagedByPublication&&typeof prior.rightsContractId==="string"&&
             prior.rightsContractId!==next.rightsContractId)
             retiring.push({subjectKind:"contract",subjectId:prior.rightsContractId});
@@ -246,7 +279,8 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
           return pending;
         });
         let result:{publicationVersionId:string;state:string;versionNumber:number};
-        if(version.current_publication_version_id===input.publicationVersionId) {
+        if(version.current_publication_version_id===input.publicationVersionId&&
+          ["live","updated"].includes(version.state)) {
           const marker=await env.PRIMARY_DB.prepare(
             "SELECT id FROM publishing_publication_activations WHERE publication_version_id=? AND lifecycle_id=? LIMIT 1"
           ).bind(input.publicationVersionId,version.lifecycle_id).first<{id:string}>();
@@ -328,6 +362,40 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
         };
         const receipt=storage.transactionSync(()=>denyPaidOrder(sql,raw));
         return Response.json(receipt,{status:200,headers:noStore});
+      }
+      if(route==="/commercial/order/revoke"){
+        // This command owns the canonical reconciliation, rather than
+        // delegating raw SQL to an independently privileged QA writer.
+        // Neither a buyer ID, entitlement list nor arbitrary SQL is accepted.
+        const input=raw as {orderId?:unknown;operationId?:unknown}|null;
+        if(!input||Array.isArray(input)||
+           Object.keys(input).sort().join(",")!=="operationId,orderId"||
+           typeof input.orderId!=="string"||
+           !/^[a-zA-Z0-9_-]{8,160}$/.test(input.orderId)||
+           typeof input.operationId!=="string"||
+           !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,127}$/.test(input.operationId))
+          return new Response(null,{status:400,headers:noStore});
+        const order=await env.PRIMARY_DB.prepare(
+          "SELECT id,user_id FROM commerce_orders WHERE id=?"
+        ).bind(input.orderId).first<{id:string;user_id:string}>();
+        if(!order||order.id!==input.orderId||
+           !/^[a-zA-Z0-9_-]{8,160}$/.test(order.user_id))
+          return new Response(null,{status:409,headers:noStore});
+        const storage=this.ctx.storage as typeof this.ctx.storage & {
+          transactionSync<T>(fn:()=>T):T;
+        };
+        // ONE durable terminal order tombstone denies every old buyer proof
+        // before the first canonical write, including a concurrent grant
+        // whose D1 verification was already in flight. D1 failure leaves
+        // this denial committed; the exact command can safely reconcile on
+        // retry. An operation ID cannot be replayed for a different order.
+        storage.transactionSync(()=>denyPaidOrder(sql,input));
+        await env.PRIMARY_DB.prepare(
+          "UPDATE entitlements SET status='revoked' WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase' AND status='active'"
+        ).bind(order.user_id,input.orderId).run();
+        return Response.json({schema:"cove.paid-order-revocation.v1",
+          orderDenied:true,reconciled:true,orderId:input.orderId,
+          operationId:input.operationId},{status:200,headers:noStore});
       }
       if(route==="/commercial/entitlement/deny-batch"){
         const storage=this.ctx.storage as typeof this.ctx.storage & {

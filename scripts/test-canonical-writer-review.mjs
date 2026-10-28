@@ -8,14 +8,14 @@ const review=JSON.parse(readFileSync(REVIEW_PATH,"utf8"));
 const current=currentWriterSites();
 const result=reconcileWriterSites(current,review);
 assert.deepEqual(result.unknown,[]);assert.deepEqual(result.stale,[]);
-assert.equal(current.length,458);
-assert.equal(new Set(current.map(x=>x.file)).size,25);
-assert.equal(current.filter(x=>x.literal).length,458,
+assert.equal(current.length,460);
+assert.equal(new Set(current.map(x=>x.file)).size,26);
+assert.equal(current.filter(x=>x.literal).length,460,
   "All existing scan candidates are executable SQL literals; only the isolated fixture is outside deployed production");
 const counts={};for(const x of review.sites)counts[x.disposition]=(counts[x.disposition]||0)+1;
-assert.deepEqual(counts,{"isolated-test-fixture":1,"owner-command-required":433,"non-authorizing-write":24});
+assert.deepEqual(counts,{"isolated-test-fixture":1,"owner-command-required":435,"non-authorizing-write":24});
 const priority=["publishing.server.ts","commerce.server.ts","publishing-trust.server.ts","traditional-publishing.server.ts"];
-assert.equal(current.filter(x=>priority.some(name=>x.file.endsWith("/"+name))).length,270);
+assert.equal(current.filter(x=>priority.some(name=>x.file.endsWith("/"+name))).length,260);
 assert.ok(review.sites.every(x=>x.productionOwnerGuarded===false));
 const fixture=review.sites.filter(x=>x.disposition==="isolated-test-fixture");
 assert.equal(fixture[0].file,"scripts/browser-qa-server.mjs");
@@ -48,4 +48,4 @@ assert.throws(()=>reconcileWriterSites(current,{...review,sites:[{...review.site
   /cannot assert deployed production ownership/);
 const release=spawnSync(process.execPath,["scripts/check-canonical-writer-closure.mjs","--release-gate"],{encoding:"utf8"});
 assert.equal(release.status,1,"Reviewed classification must not open the owner-only release gate");
-console.log("PASS: all 458 sites reconciled; 270 priority-file candidates; semantic SQL edits invalidate review; production release still denied");
+console.log("PASS: all 460 sites reconciled; 260 priority-file candidates; semantic SQL edits invalidate review; production release still denied");

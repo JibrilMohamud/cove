@@ -37,31 +37,48 @@ try {
     logLevel: "silent",
   });
   const { upsertTaxonomyNode, taxonomyTree, projectedAnonymousHomePage } = await import(
-    path.join(root, "taxonomy.mjs"),
+    path.join(root, "taxonomy.mjs")
   );
   const emptyHome = projectedAnonymousHomePage([], "US", "en");
   assert.equal(emptyHome.pageType, "home");
   assert.equal(emptyHome.canonical, "/");
   const homeRows = [
     {
-      path: "/", page_type: "home", title: "US Bookstore",
-      heading: "US Heading", eyebrow: "READ",
-      description: "US description", seo_title: "US Books",
-      seo_description: "US meta", noindex: 0, query_json: "{}",
-      territory_code: "US", language_code: "en",
+      path: "/",
+      page_type: "home",
+      title: "US Bookstore",
+      heading: "US Heading",
+      eyebrow: "READ",
+      description: "US description",
+      seo_title: "US Books",
+      seo_description: "US meta",
+      noindex: 0,
+      query_json: "{}",
+      territory_code: "US",
+      language_code: "en",
     },
     {
-      path: "/", page_type: "home", title: "GB Bookstore",
-      heading: "GB Heading", eyebrow: "READ",
-      description: "GB description", seo_title: "GB Books",
-      seo_description: "GB meta", noindex: 0, query_json: "{}",
-      territory_code: "GB", language_code: "en",
+      path: "/",
+      page_type: "home",
+      title: "GB Bookstore",
+      heading: "GB Heading",
+      eyebrow: "READ",
+      description: "GB description",
+      seo_title: "GB Books",
+      seo_description: "GB meta",
+      noindex: 0,
+      query_json: "{}",
+      territory_code: "GB",
+      language_code: "en",
     },
   ];
   assert.equal(projectedAnonymousHomePage(homeRows, "US", "en").heading, "US Heading");
   assert.equal(projectedAnonymousHomePage(homeRows, "GB", "en").heading, "GB Heading");
   assert.equal(projectedAnonymousHomePage(homeRows, "FR", "fr").heading, emptyHome.heading);
-  assert.throws(() => projectedAnonymousHomePage(Array(65).fill(homeRows[0]), "US", "en"), /Unbounded/);
+  assert.throws(
+    () => projectedAnonymousHomePage(Array(65).fill(homeRows[0]), "US", "en"),
+    /Unbounded/,
+  );
   const env = localBindings(root);
   // Guard the cold SSR path itself, not merely its JSON shape: a future
   // refactor must not silently bring large live taxonomy scans back into
@@ -321,8 +338,11 @@ try {
     );
     assert.equal(value.catalogQuery, expected.catalogQuery);
     assert.equal(authoritativeRights, 1, "Exactly one primary rights query");
-    assert.equal(primaryPresentationReads, 1,
-      "First paint must resolve fresh country/locale/page on primary without a replica session");
+    assert.equal(
+      primaryPresentationReads,
+      1,
+      "First paint must resolve fresh country/locale/page on primary without a replica session",
+    );
     assert.equal(limitCalls, 1, "Exactly one enforced Cloudflare edge limit");
     assert.deepEqual(
       sessionModes,
@@ -335,9 +355,9 @@ try {
     localePaymentBatches >= 4,
     "Every regional canonical context must batch payment metadata and translations",
   );
-  // Simulate native D1's Sessions API. Configuration may use a
-  // geographically close session, but licensed eligibility MUST continue
-  // through the non-session, authoritative DB binding.
+  // The generic API serves the current Vercel frontend as well as native
+  // SSR. Neither path may regress to the replica bootstrap that exhibited
+  // multi-second service stalls. All anonymous reads remain on primary.
   const nativeSessions = [];
   let primaryRightsSelections = 0;
   const sessionProbeDb = new Proxy(env.DB, {
@@ -363,7 +383,7 @@ try {
         };
       if (property === "prepare")
         return (sql) => {
-          if (/WITH eligible AS MATERIALIZED/i.test(sql)) {
+          if (/\beligible AS MATERIALIZED/i.test(sql)) {
             assert.match(sql, /retail_product_availability_rows/i);
             primaryRightsSelections++;
           }
@@ -385,10 +405,123 @@ try {
   assert.ok(anchored.catalog.results.length > 0);
   assert.deepEqual(
     nativeSessions,
-    ["first-unconstrained", "first-unconstrained"],
-    "Anonymous presentation-only requests may read replicas in separate sessions",
+    [],
+    "Generic anonymous bootstrap must not open stalled/lagged replica sessions",
   );
   assert.equal(primaryRightsSelections, 1, "Firstpaint legal rights must query primary once");
+
+  // Hold the first live market/config read until the primary legal shelf has
+  // started. The former sequential implementation deadlocks this probe;
+  // a wall-clock timeout is a test failure, never an excluded timing sample.
+  let legalStarted = false;
+  let releaseMetadata;
+  const metadataReady = new Promise((resolve) => {
+    releaseMetadata = resolve;
+  });
+  let marketReads = 0;
+  let standaloneMarketReads = 0;
+  let standalonePageReads = 0;
+  const parallelDb = new Proxy(env.DB, {
+    get(target, property) {
+      if (property === "withSession")
+        return () => {
+          throw new Error("Anonymous bootstrap cannot depend on a replica session");
+        };
+      if (property === "prepare")
+        return (sql) => {
+          const statement = target.prepare(sql);
+          const isMarket =
+            /FROM storefront_markets m\s+LEFT JOIN storefront_market_locales ml/i.test(sql);
+          const isRights = /WITH first_paint_currency\(currency\) AS MATERIALIZED/i.test(sql);
+          if (/SELECT m\.\*,\(SELECT GROUP_CONCAT/i.test(sql)) standaloneMarketReads++;
+          if (/FROM storefront_pages WHERE path=/i.test(sql)) standalonePageReads++;
+          if (!isMarket && !isRights) return statement;
+          const wrap = (bound) =>
+            new Proxy(bound, {
+              get(prepared, key) {
+                if (key === "bind") return (...values) => wrap(prepared.bind(...values));
+                if (key === "all")
+                  return async () => {
+                    if (isRights) {
+                      legalStarted = true;
+                      releaseMetadata();
+                    } else {
+                      marketReads++;
+                      await metadataReady;
+                      assert.equal(
+                        legalStarted,
+                        true,
+                        "Legal shelf starts before slow metadata settles",
+                      );
+                    }
+                    return prepared.all();
+                  };
+                const value = Reflect.get(prepared, key);
+                return typeof value === "function" ? value.bind(prepared) : value;
+              },
+            });
+          return wrap(statement);
+        };
+      const value = Reflect.get(target, property);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  const parallelResponse = await Promise.race([
+    handleCoveApi(
+      new Request("https://cove.test/api/fore/storefront/bootstrap", {
+        headers: { "cf-ipcountry": "US", "accept-language": "en-US" },
+      }),
+      { ...env, FORE_ENVIRONMENT: "production", DB: parallelDb },
+    ),
+    new Promise((_, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("Legal shelf remained blocked on metadata")),
+        2_000,
+      );
+      timer.unref();
+    }),
+  ]);
+  assert.equal(parallelResponse.status, 200);
+  const parallelBootstrap = await parallelResponse.json();
+  assert.deepEqual(
+    parallelBootstrap.catalog.results.map((book) => book.productId),
+    anchored.catalog.results.map((book) => book.productId),
+    "Parallel primary reads preserve exact authorized books",
+  );
+  assert.equal(marketReads, 1, "Generic bootstrap batches fresh markets/locales/page once");
+  assert.equal(standaloneMarketReads, 0, "No second market-list round trip");
+  assert.equal(standalonePageReads, 0, "Bounded homepage projection avoids a page round trip");
+
+  let rejectedRightsQueries = 0;
+  const limitedDb = new Proxy(env.DB, {
+    get(target, key) {
+      if (key === "prepare")
+        return (sql) => {
+          if (/WITH first_paint_currency\(currency\) AS MATERIALIZED/i.test(sql))
+            rejectedRightsQueries++;
+          return target.prepare(sql);
+        };
+      const value = Reflect.get(target, key);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+  const rejected = await handleCoveApi(
+    new Request("https://cove.test/api/fore/storefront/bootstrap", {
+      headers: { "cf-ipcountry": "US", "cf-connecting-ip": "203.0.113.124", "accept-language": "en-US" },
+    }),
+    {
+      ...env,
+      FORE_ENVIRONMENT: "production",
+      DB: limitedDb,
+      COVE_STOREFRONT_READ_LIMITER: { limit: async () => ({ success: false }) },
+    },
+  );
+  assert.equal(rejected.status, 429);
+  assert.equal(
+    rejectedRightsQueries,
+    0,
+    "Rate-limited requests cannot launch speculative primary rights queries",
+  );
 
   assert.ok(
     atomicRightsShelfQueries >= 4,

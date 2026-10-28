@@ -1,8 +1,8 @@
 {
   "schema": "cove.canonical-writer-review.v1",
-  "reviewedSourceCommit": "4188207b4bb8cb03d7fabc95fcaad4b5d15d9d01",
+  "reviewedSourceCommit": "c706eae6dc9fbc1951451f086b64739bb4720790",
   "releaseApproval": false,
-  "scope": "Conservative classification of all 458 existing candidates, not deployed ownership or dynamic/external-writer certification.",
+  "scope": "Exact review of all 460 current SQL candidates after refund transaction extraction (formerly 458). All 435 authorizing candidates remain unclosed; 24 non-authorizing and one isolated fixture classifications confer no production release approval.",
   "sites": [
     {
       "siteId": "602503338f5ef8edf2e3aa0029c23659e1b5fdf9d1297ed55ba5e0d782b94457",
@@ -134,9 +134,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "8c2434bf4b815261d2cde780e17d396b6eba947852a203f2d73a1d2c4de781ab",
+      "siteId": "ed88645789613605caf9d7aea3d1f62b045ccd95b414da676c1ca23a7b77f10e",
       "file": "src/features/fore/api.server.ts",
-      "line": 821,
+      "line": 823,
       "functionName": "catalogInsert",
       "table": "gutenberg_source_cache",
       "operation": "INSERT INTO",
@@ -147,9 +147,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "4841f1062949b3e68311ff9b9b1ee83996c4c15cba2eb90b5425609dc6f02be1",
+      "siteId": "36e798d4ecb15a6597537fb78f45aa6518d71b67d4a443d87d35688eaa8fe4ed",
       "file": "src/features/fore/api.server.ts",
-      "line": 1331,
+      "line": 1333,
       "functionName": "insertRegionalEvidence",
       "table": "gutenberg_rights_evidence",
       "operation": "INSERT OR IGNORE INTO",
@@ -160,9 +160,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "64b34c222d41d93b0fa8cf2bf07c0db8c6d7b1fad3b41c45e193e9fc304e0ddb",
+      "siteId": "187f55ae58c2c4aca76d48b5f14dbfc6ae7a27a6deab2b7e868656437a0cc9fd",
       "file": "src/features/fore/api.server.ts",
-      "line": 1352,
+      "line": 1354,
       "functionName": "insertRegionalEvidence",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -173,9 +173,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "325804ee2c7ca498188cc8c4943b5bb183841581b1166225188a6f213a40f24d",
+      "siteId": "322a7dcb78c8dd970965df4a5d71212c4bf2b20127534441886ff6fde5433bd5",
       "file": "src/features/fore/api.server.ts",
-      "line": 1364,
+      "line": 1366,
       "functionName": "insertRegionalEvidence",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -186,9 +186,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "be8f4a4b193aca2df1f4e34c9419c96949f1164b10d84b26b3f8645da3e0adde",
+      "siteId": "bd95776a9c98fad1939ee5533f59be72efa693dd36446cf9999ecb40bb06e803",
       "file": "src/features/fore/api.server.ts",
-      "line": 1371,
+      "line": 1373,
       "functionName": "insertRegionalEvidence",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -199,9 +199,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "52fdb671ce6a46fc8b11837c3b0d2bf0df4fd770c80a8d51cdccbdf8cc82e19e",
+      "siteId": "c28b8f885ce0b1954295d674fb1a6d24526ef5c254b64597559007375b306944",
       "file": "src/features/fore/api.server.ts",
-      "line": 1393,
+      "line": 1395,
       "functionName": "quarantineRegionalItem",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -212,9 +212,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "e47b936c9ffe67b2bc3d7fd88c86dd653b2b336a106c339e44768c6854b0dfc5",
+      "siteId": "0bef29427f8b2d0804b194f0633b6c28f8ff5d2139d9d3305b6c23d77f1aef1b",
       "file": "src/features/fore/api.server.ts",
-      "line": 1413,
+      "line": 1415,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -225,9 +225,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "a4ecedf089560287094517770fdc6c41190da7fa7ac1f5c90ec557656be96dae",
+      "siteId": "2e8f322214621a77bd45925f9f8809c140c058911ffd2081636f660df8dbf6fa",
       "file": "src/features/fore/api.server.ts",
-      "line": 1487,
+      "line": 1489,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -238,9 +238,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "aaddd507a9f0a57ac83a5609aa59357ff9574e163dadccff40a9ef36b31eaa76",
+      "siteId": "f9730601b7a7853f3328113e0c35de6abdc1eb9cd5258348eee7b314d131085d",
       "file": "src/features/fore/api.server.ts",
-      "line": 1495,
+      "line": 1497,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -251,9 +251,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "8e0436a1e307f28224161b428892cc89a4c2318a273da2f60114be4a788ccb7a",
+      "siteId": "9d54b37b572aa610a39b91963947f0f57a0c5bbb34f20827679ede1d94f1127e",
       "file": "src/features/fore/api.server.ts",
-      "line": 1503,
+      "line": 1505,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -264,9 +264,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "cd3591ba8458083572441f8227f122352e841c98f15d5bad40a20c90b749bb4c",
+      "siteId": "9ca2be98541123e9811c3a0a78c22ec9b4d3fef1f57d02b6e3b1a59533f66f1b",
       "file": "src/features/fore/api.server.ts",
-      "line": 1536,
+      "line": 1538,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -277,9 +277,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "34a73819c1634162410e2ddc5edecbb220a2e4861c28d962552530e6d21362a9",
+      "siteId": "8d33138363d5a0b3c7d7dfe23f1f2b6176882111ab0f38da753edb088efdbc33",
       "file": "src/features/fore/api.server.ts",
-      "line": 1602,
+      "line": 1604,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -290,9 +290,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "d0730ed7c10e2e44ff9dd1633180bd30b42a8e9473219c8d0b699fb037cb8f12",
+      "siteId": "581d8f04d1f49644ee3ed136e5d762b3bcf76fbd832960bf5ab4d928653feed9",
       "file": "src/features/fore/api.server.ts",
-      "line": 1613,
+      "line": 1615,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -303,9 +303,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "629727584787dd6a689e2c5a9885d81d5563030d2861df1e71ced98b53a5b21b",
+      "siteId": "75c82ab5d801b8e35ea1c2bb9a6d3add7ab4acb7d2be074d4ac9ef9bef895e4e",
       "file": "src/features/fore/api.server.ts",
-      "line": 1636,
+      "line": 1638,
       "functionName": "cachePendingEpubs",
       "table": "asset_versions",
       "operation": "UPDATE",
@@ -316,9 +316,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "d551f924ecd51405761b3a92f9ba86f85cd2f51e8f1b1ff4038f4e72fc79d149",
+      "siteId": "a5214a0aa9f118376c47a81969e850279f1afb04edb61c9cbd34a5e26e273d30",
       "file": "src/features/fore/api.server.ts",
-      "line": 1651,
+      "line": 1653,
       "functionName": "cachePendingEpubs",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -329,9 +329,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "0712d96002f28d887ca1e80f45be5b589b29512e8ccd8a46ae719dbc570628b6",
+      "siteId": "1970cdb2aa17fd514d027500f6f153e935d49ebefa0a869acb0d2cac17dc5b24",
       "file": "src/features/fore/api.server.ts",
-      "line": 1722,
+      "line": 1724,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -342,9 +342,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "592af8103ffc6da9e9e244ea84d94efd2fdf71556cdac266a425666dd84dc0c1",
+      "siteId": "7d4337cb3ddad336a4ad7dd94281553a9a9fce52cfb6522a4509d246f53883dc",
       "file": "src/features/fore/api.server.ts",
-      "line": 1744,
+      "line": 1746,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -355,9 +355,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "d8b024accf442851730340e2afed5eae9e0d4ae0bb4f2c3db40d24f87263ec55",
+      "siteId": "a347e86b461c734d3a3f7dca7441cb629ab5a4c7524ead85235e055feb3a633f",
       "file": "src/features/fore/api.server.ts",
-      "line": 1765,
+      "line": 1767,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -368,9 +368,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "be460dc6a193da726763e7d354b5ed1004323711db4020b57994abf47383db6d",
+      "siteId": "4fa393028ecd57520abf45e1630b0ccb7289ee1f188cc78978c26a8da7e81e4b",
       "file": "src/features/fore/api.server.ts",
-      "line": 1795,
+      "line": 1797,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -381,9 +381,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "45ddbe58cad9d64d6b548289cfb91c38eebecbf585d7628889feabbdb2738172",
+      "siteId": "9d3d1b1782f2be007b5482be026665504cb2a12827745736985c828e1bdc9e23",
       "file": "src/features/fore/api.server.ts",
-      "line": 1898,
+      "line": 1900,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -394,9 +394,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "00078a3171ad12a52a34e1b7d72a9365702f8bbae9fbf7c9b75da03030778594",
+      "siteId": "86a06f3c1ac216c32be9bd2dbb3aef673da29540482b67105d0114e15e1520f9",
       "file": "src/features/fore/api.server.ts",
-      "line": 1906,
+      "line": 1908,
       "functionName": "runRegionalCatalogIngestion",
       "table": "products",
       "operation": "UPDATE",
@@ -407,9 +407,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "c7a93c58aba8d0b6e8006c93d259dccf868f2205294738b8da7c74587590954a",
+      "siteId": "3474a72a829e566286ada57224ba04782f662722c4ecca4d5da054dfdad859b8",
       "file": "src/features/fore/api.server.ts",
-      "line": 1913,
+      "line": 1915,
       "functionName": "runRegionalCatalogIngestion",
       "table": "offers",
       "operation": "UPDATE",
@@ -420,9 +420,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "306d52aa955fb7a703c68a0d45507eb595e2c40ef862f39b2b3bc784d9ab364a",
+      "siteId": "3df7a7c9fe3f109c1b1e9380b610e34f5ddec39706a41ecd7bdb438f4a17e1cc",
       "file": "src/features/fore/api.server.ts",
-      "line": 1920,
+      "line": 1922,
       "functionName": "runRegionalCatalogIngestion",
       "table": "editions",
       "operation": "UPDATE",
@@ -433,9 +433,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "8659844b5c2cb3f75c93de1ab64c4b5e2eb494c6022ac641abe9e2090cadd325",
+      "siteId": "25cd78ffa16935246f460ae18b6828bc18aaab012b3a87bce8047eca7baaa6a7",
       "file": "src/features/fore/api.server.ts",
-      "line": 1927,
+      "line": 1929,
       "functionName": "runRegionalCatalogIngestion",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -446,9 +446,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "cf9712b17a8765d101680b2c4b6154c86277e3f752bec50c80b174ce0cbd864d",
+      "siteId": "97a9205cf1fcfec756930af53add09aff9b80df5d9e57dd5caff07bc1755f6b9",
       "file": "src/features/fore/api.server.ts",
-      "line": 1937,
+      "line": 1939,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -459,9 +459,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b741548520d21eae8451d70227adff9e37f8b31a9d035a7cad3a2e404246333e",
+      "siteId": "550aeb3172aaddb0d8f8a06b8ae66e32ac377e9c861d9dc0cc5d953accd435e1",
       "file": "src/features/fore/api.server.ts",
-      "line": 2007,
+      "line": 2009,
       "functionName": "runRegionalCatalogIngestion",
       "table": "gutenberg_source_states",
       "operation": "UPDATE",
@@ -472,9 +472,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "bee56df06e86d144fc2e9e67ded69398bf63ab9b7522d5619d388a3451157994",
+      "siteId": "f7e3ea5d79d506ea709adbe5b41aaf1b088957ddf7a5764cfa17a91275a50c6d",
       "file": "src/features/fore/api.server.ts",
-      "line": 2163,
+      "line": 2170,
       "functionName": "runCatalogIngestion",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -485,9 +485,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "84887e05e1d69fe6e13e065e8f7ac588350285864bd62d8ee40ae5666e8ba2c3",
+      "siteId": "5058d1d9488e8a3dc2dfa9a72b4aab0321352212e9f0e96b2e95dd0229934e1b",
       "file": "src/features/fore/api.server.ts",
-      "line": 2178,
+      "line": 2189,
       "functionName": "runCatalogIngestion",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -498,9 +498,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "3513c0e0bbd03edc5f0e631960927ae5d626d8d7420d20c0165c8d96f75aaea3",
+      "siteId": "f9b955252f96aec4fcc11191958ec5c930124ff2d92d0e50099c8fcf3543513b",
       "file": "src/features/fore/api.server.ts",
-      "line": 2185,
+      "line": 2199,
       "functionName": "runCatalogIngestion",
       "table": "catalog_search_documents",
       "operation": "UPDATE",
@@ -511,9 +511,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "44a5dcda3aae4db2fdd003f7ffcfd323d50eda131a0158c84ff8d6e4bdf395ef",
+      "siteId": "bb6e4ff4d803cdbff69c2a6c85cf9202a7d61db7fb5252c7a2f3f8dc0604151f",
       "file": "src/features/fore/api.server.ts",
-      "line": 2351,
+      "line": 2366,
       "functionName": "sourceEpubBytes",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -524,9 +524,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "dd4235c21019105b203cac6d074845606b3b585819b5803e6819a34047e04004",
+      "siteId": "8d8931b24c71573a8df1c26c7a940a85df243bdd34d1e9ca7cdcbf78dcb5c03e",
       "file": "src/features/fore/api.server.ts",
-      "line": 2386,
+      "line": 2401,
       "functionName": "sourceEpubBytes",
       "table": "gutenberg_source_cache",
       "operation": "UPDATE",
@@ -537,9 +537,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "15059736d856eea378c728a93e378aa45641e3c7f67ff94d4d82e675e26cbb40",
+      "siteId": "ec42e666ab6b037f91f43a47a9b4b09864c13ff1d2d3636a8a85a991ca1f6094",
       "file": "src/features/fore/api.server.ts",
-      "line": 2390,
+      "line": 2405,
       "functionName": "sourceEpubBytes",
       "table": "asset_versions",
       "operation": "UPDATE",
@@ -550,9 +550,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "e3bf26dddc1b2a3f8bd21b0bff78ccd058483e354e88bda565acbe82b39b8830",
+      "siteId": "c08c48f2238fa29f9a70c4ede88d86c191b2c028611b435356c72970421073f8",
       "file": "src/features/fore/api.server.ts",
-      "line": 5673,
+      "line": 5772,
       "functionName": "handleCoveRequest",
       "table": "entitlements",
       "operation": "INSERT INTO",
@@ -836,9 +836,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "96914655004540f72422f91b39101442dd9fbb982be5eae3ef4a87bbc7c4d5e7",
+      "siteId": "ed70841a4fe32abb66ae8aa60ed2c6825b6bfefce86d4198fefe096d76020265",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 613,
+      "line": 615,
       "functionName": "checkoutQuote",
       "table": "commerce_checkout_quotes",
       "operation": "INSERT INTO",
@@ -849,9 +849,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "77a14add22d608e6370266b608c7980de0098cf186e6be90935f5b4336fde602",
+      "siteId": "25bcb6516981c456eb976796325cfe1641d9065031568a75d7eefc4f4a712e2a",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 695,
+      "line": 697,
       "functionName": "ensureStripeCustomer",
       "table": "commerce_customers",
       "operation": "INSERT INTO",
@@ -862,9 +862,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "236c4668b7440f6753271cf7ffc4672584bc5a6d79c347d84dcc0ac78a94587d",
+      "siteId": "4e1751dbe58532b4d79ddd3d0d0456326422caa7f707fc311fbabb5662534b6b",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 741,
+      "line": 743,
       "functionName": "reserveTender",
       "table": "commerce_balance_reservations",
       "operation": "INSERT INTO",
@@ -875,9 +875,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "db6c50c642c6ceb51430cd7775652ba9a2ce46ca6fd5b68b6046532e298fb478",
+      "siteId": "9368f2983ad81595bc7a9af00082d369f0aae69773d83ea0e22fdb31e3c9476c",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 764,
+      "line": 766,
       "functionName": "reserveTender",
       "table": "commerce_balance_reservations",
       "operation": "INSERT INTO",
@@ -888,9 +888,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "db60ba038505113bc794af11a70286b5e8e8e856eff013ac9ff4670995c19ab1",
+      "siteId": "01d2dfac97902771abc543ca4b26eddbe6f6375560759199b789c5e815b470af",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 794,
+      "line": 796,
       "functionName": "reservePromo",
       "table": "commerce_promo_redemptions",
       "operation": "INSERT INTO",
@@ -901,9 +901,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "0aa2bf265490490fd1c26d2ea6e5c794230b8215aa95f5398c5f9b333d786a61",
+      "siteId": "6b90ee91ad637a88e96f841f9c583009ccfdb6548605ad46cf5d3ae090e7b9a6",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 884,
+      "line": 886,
       "functionName": "createCheckoutPayment",
       "table": "commerce_orders",
       "operation": "INSERT INTO",
@@ -914,9 +914,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "60c444212cbbb3290c2d1aeba0d2740748a135f9fa3a6d143ea2915984b63def",
+      "siteId": "3202d8a9a088369cc3f2a8dc0b36be01d248647e44681105ce233d8bdc5c84d1",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 938,
+      "line": 940,
       "functionName": "createCheckoutPayment",
       "table": "commerce_order_items",
       "operation": "INSERT INTO",
@@ -927,9 +927,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "5874d5d17a798069c1d0419cfca998eb29fbf625096ed86b650871fc6b4e27f1",
+      "siteId": "fd4628dc9884c4ea43fe5ae879b8fbd55fda24113bc6d1f0a7369950d075b591",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 983,
+      "line": 985,
       "functionName": "createCheckoutPayment",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -940,9 +940,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "e181724209ffa237ee7b3bd3872ece3c5f53921e6606391a093279d6d8752192",
+      "siteId": "1c18695bd34044080e711a43bcf4773f2b0da1d3a7cbe6682b8471a3ffea9b2a",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 995,
+      "line": 997,
       "functionName": "createCheckoutPayment",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -953,9 +953,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "74bf07e54616d8bf8577abfbd31593f8152aee9b0a0d8e28e4c92b05733bd299",
+      "siteId": "7fb339673bc04294a6b7f6326a03843d8ce2e74edc4a330f4b82fd4c81700adf",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1006,
+      "line": 1008,
       "functionName": "createCheckoutPayment",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -966,9 +966,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "038c87a1df1a91d989fce34853ff083d5646fa9fdc18e417e7602536fc8583f5",
+      "siteId": "5e6633eecc187659055969d1bbf2a36f44fab8469c8b2eab47b494985ea46d84",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1012,
+      "line": 1014,
       "functionName": "createCheckoutPayment",
       "table": "commerce_checkout_quotes",
       "operation": "UPDATE",
@@ -979,9 +979,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "7651d22f71fc81f9cd8803ae556f4c079eef59b794e40fa79a754572139ff52e",
+      "siteId": "0131ee0a14d36f0c7281cfa53cdcd01e2e537b21b518ded08b1d93c251fb4819",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1055,
+      "line": 1057,
       "functionName": "createCheckoutPayment",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -992,9 +992,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "5816a415da308e4cb11b6ed30fdfc0bca17cb41c4e678fb5da42797f431938f6",
+      "siteId": "f1d300a8ccc9b79cbeb8ac34a3cf9f73c78628160a60fcca17253237be002d10",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1061,
+      "line": 1063,
       "functionName": "createCheckoutPayment",
       "table": "commerce_payment_attempts",
       "operation": "INSERT INTO",
@@ -1005,9 +1005,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "efb2759f9e68e064052473742749cef24e678d39bd19c4f07149df0f3ec5709d",
+      "siteId": "7a058b5b0b5eb1563ca63cc4b1011572a82a4156fb164883b2e801fe8bb24878",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1090,
+      "line": 1092,
       "functionName": "createCheckoutPayment",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -1018,9 +1018,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "91da8d28357da302214fc2ff07079dec5542105030c2eeed3a9846509e00e562",
+      "siteId": "38d03cbfd87425f60a0ceb450399ab0d74ca41da7b043617ca2f0f9843c2a09b",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1115,
+      "line": 1117,
       "functionName": "releaseOrderReservations",
       "table": "commerce_balance_reservations",
       "operation": "UPDATE",
@@ -1031,9 +1031,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "4f4588663e58ca095e15c66d0deed03ce7a8c95ed6cab330d0d15f16fee620ee",
+      "siteId": "d10ff1fd0e9f8be2ab45a78f4426392bfb15d468814a3bc0fe7062b7cb9eb983",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1121,
+      "line": 1123,
       "functionName": "releaseOrderReservations",
       "table": "commerce_promo_redemptions",
       "operation": "UPDATE",
@@ -1044,9 +1044,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "6e9ccef5589b28369cd1facea590c135215890b7a25d341f0f3b76e16dcd4036",
+      "siteId": "0ae64cbd365b0e51d0a0a3f3190cc84e02c2a14d9b17d35861158520f4c6deb3",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1148,
+      "line": 1150,
       "functionName": "ledger",
       "table": "commerce_ledger_entries",
       "operation": "INSERT INTO",
@@ -1057,9 +1057,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "c925fd17f63bb2650aa3035beab44adf887bf3024bd660ba8362e48b53d7ea59",
+      "siteId": "854155d059684ff9316adba788ee380cd92b94d3f9b7c7ed96f3e58769067d69",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1190,
+      "line": 1192,
       "functionName": "consumeTender",
       "table": "commerce_gift_cards",
       "operation": "UPDATE",
@@ -1070,9 +1070,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "ee92aedb0ad80e35d28c280535bdfa233de6bdff7a1949abc9ebf48526f2731c",
+      "siteId": "0cd1d1adaa0fa485ccc970c673745b8376ffbed39052e7adf75de07321383982",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1196,
+      "line": 1198,
       "functionName": "consumeTender",
       "table": "commerce_gift_card_ledger",
       "operation": "INSERT INTO",
@@ -1083,9 +1083,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "88276c1ac483bbe6cba95604df925689c457f08aa108cc208384daf70e01f066",
+      "siteId": "1c624fd6692145021e6e7071691e47e2555f2dbeb7c13f56e147f8755e39bd91",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1203,
+      "line": 1205,
       "functionName": "consumeTender",
       "table": "commerce_store_credit_ledger",
       "operation": "INSERT INTO",
@@ -1096,9 +1096,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "47746cc85a1fbe828e72b9e04cf42409c7288d2f430daee7e6a6295cc6d3585d",
+      "siteId": "e31e393c48177c50cfa7d1ae8471632cbf5bc260611c6ccaebfad7940113fca3",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1217,
+      "line": 1219,
       "functionName": "consumeTender",
       "table": "commerce_balance_reservations",
       "operation": "UPDATE",
@@ -1109,9 +1109,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "79e82e37d17debb6c62f3ff2a87aaa5f0e14ae39e57d47ea59ac998886840aed",
+      "siteId": "ca3296ff33aff6c5fb9b82284dc4d8ff49633c19b1138cba3b03f458aa476fa5",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1238,
+      "line": 1240,
       "functionName": "recordTaxTransaction",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -1122,9 +1122,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "453805663a6df4898c36fb42539c372872335f36d0880ed4964154344e9e24d7",
+      "siteId": "761bcc6421a169b686b56c408ec2d071a45ff87d5a70a360f690fd6988e32f1d",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1264,
+      "line": 1266,
       "functionName": "pinPurchasedPublishingVersion",
       "table": "publishing_entitlement_version_pins",
       "operation": "INSERT INTO",
@@ -1135,9 +1135,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "803e87357e25290d3398e5eb72241f40db60cbecbd60a0579e924e97da1a907a",
+      "siteId": "888c697197e963085ba7f8f2fce1b26151f78bbdbbfa2500d0edb3c71c1d2bae",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1277,
+      "line": 1279,
       "functionName": "pinPurchasedPublishingVersion",
       "table": "publishing_owner_version_events",
       "operation": "INSERT INTO",
@@ -1148,9 +1148,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "c03ffff149ff78372d81468fb6d233390f9efae9d24031d902aac057d9517184",
+      "siteId": "c26f87bc48ce140e3b3c2b538a439fbd45f36ffe4f59218ae5960deba4bb2c6e",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1318,
+      "line": 1320,
       "functionName": "hydrateProcessorFees",
       "table": "commerce_order_items",
       "operation": "UPDATE",
@@ -1161,9 +1161,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "d5a6023239a8093db717a862ef536df2d14ee20cf7d0411d11496f766ac837b3",
+      "siteId": "0455a4876b78636d4c0cdce5616a92bb2dd20dfb1fd1c06d2b6abee22318dc20",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1382,
+      "line": 1384,
       "functionName": "finalizePaidOrder",
       "table": "commerce_promo_redemptions",
       "operation": "UPDATE",
@@ -1174,9 +1174,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "7f14a17a9545a732b6de207f01128d92c200f77cab20ac69d7151fcc4e1a043d",
+      "siteId": "400874387d61be73c49ca3076f7d3d080c5e82a03dff1343f8201bdf9fedaf04",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1394,
+      "line": 1396,
       "functionName": "finalizePaidOrder",
       "table": "commerce_promo_codes",
       "operation": "UPDATE",
@@ -1187,9 +1187,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "722f05aa44a17bd03a19705011b058c1bd2c09b203a900a04010fcc7437881fb",
+      "siteId": "71b2f6bff4047507287a41ccf671675fd7fe501b9e93cf884bdfeb2b277fff8e",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1417,
+      "line": 1419,
       "functionName": "finalizePaidOrder",
       "table": "entitlements",
       "operation": "INSERT INTO",
@@ -1200,9 +1200,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "5a961dcdec7072eef49ef9c1362348fe1213cc5f9993281522529e5c18717cc1",
+      "siteId": "2cc843105e809e816e40fc67470606818d4e797d03201a304020ccee8a7c4085",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1443,
+      "line": 1445,
       "functionName": "finalizePaidOrder",
       "table": "commerce_order_items",
       "operation": "UPDATE",
@@ -1213,9 +1213,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "16310a462fd8cd5debf9348b45b3f7c40c1b454844c8bfcd302158d0e4c83a55",
+      "siteId": "ec0c2c12d0957dd5f97e314c2c35f1cf91a83e26894154cbfd3ef668a8847c8b",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1518,
+      "line": 1520,
       "functionName": "finalizePaidOrder",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -1226,9 +1226,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "bec700247bc5b341cdf2b3bbcf99c168e0efa8a0537bea271a5e69c13ad5c313",
+      "siteId": "e1212910002c77870c7c09fb12ca165af8eb43414740c8622a0ec6e814ed4e49",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1603,
+      "line": 1605,
       "functionName": "finalizePaidOrder",
       "table": "publishing_outbox",
       "operation": "INSERT INTO",
@@ -1239,9 +1239,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "f067679b4a2a585990a0b6b686dc23db60ee3066e2799b168bd363c7e564b2ae",
+      "siteId": "0e91c7a17bcd2f230453c304c2e82c07999477bc9edaa19c0ea36cff79855dce",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1706,
+      "line": 1708,
       "functionName": "cancelCheckoutOrder",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -1252,23 +1252,23 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "87afc21d1993eb170707c3626e4509678862e3a18f5c26d23669e0a77660c809",
+      "siteId": "f4929714286508acf1ad0e7e26f7366f02f582276627a16a0bc10b8a17ad3cd2",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1903,
+      "line": 1943,
       "functionName": "refundOrder",
       "table": "commerce_refunds",
       "operation": "INSERT INTO",
-      "sqlSha256": "0520c0017a3ef01695ebe25b4eb7f6f5df34eee777160f998e15525a9256149c",
+      "sqlSha256": "59cab062db40f97bebdacc9e5d85d1888e974800935285e3c683c9697435160c",
       "disposition": "owner-command-required",
       "productionOwnerGuarded": false,
       "commandFamily": "commerce.refundOrder",
-      "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
+      "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
     },
     {
-      "siteId": "fb3d234ff3dce28a4bf01a73609d73b2b7d9458c64d70fccecfc9a0b6b767a2e",
+      "siteId": "d8f12db2ade9f6b11ad798c2187069c9c09c8f725645bff4b4bb6b80f1ba10cd",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1947,
-      "functionName": "refundOrder",
+      "line": 2048,
+      "functionName": "completeRequestedRefund",
       "table": "commerce_refunds",
       "operation": "UPDATE",
       "sqlSha256": "2613c6cc8196652993dade8cca764559264308330d3885baa8e3576cd6c97547",
@@ -1278,152 +1278,22 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "9efcebbbef26a74414b4fc3023fa506fcb3df958aba01026ddd5d1651814b7f7",
+      "siteId": "0a9ec9e33e6d5f580f6fd88d827f68c53cbc6058d9e1ad392d6aa58238661966",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 1962,
-      "functionName": "refundOrder",
+      "line": 2067,
+      "functionName": "completeRequestedRefund",
       "table": "commerce_refunds",
       "operation": "UPDATE",
-      "sqlSha256": "1404eab647cc5b74f8996e51addf4d14a9c652655c5472b7bb1b2b4319bcd605",
+      "sqlSha256": "7cbe774e57332e1f4d55f3115ca0f8614df33f0f28bc8a72a715081acb69e9bf",
       "disposition": "owner-command-required",
       "productionOwnerGuarded": false,
-      "commandFamily": "commerce.refundOrder",
-      "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
+      "commandFamily": "commerce.completeRequestedRefund",
+      "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
     },
     {
-      "siteId": "75dc721b449390fcd898eea6af2ab750a240c61d0681e989eea63b13cf4c84d9",
+      "siteId": "dc78d79968d430e84db21153ebf97c3a291e718e08f182c34acfaac052c6e141",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2039,
-      "functionName": "applyRefundSuccess",
-      "table": "commerce_gift_cards",
-      "operation": "UPDATE",
-      "sqlSha256": "abb791d8f1a6d1e56c5ccf52a42fb09c3899e6f7907c18e2b4b805ca950808b7",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commerce.applyRefundSuccess",
-      "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
-    },
-    {
-      "siteId": "5e6a6c6375a446cd923f831eb17aaceb3f51e4f1c33885cce0660111b1008c22",
-      "file": "src/features/fore/commerce.server.ts",
-      "line": 2045,
-      "functionName": "applyRefundSuccess",
-      "table": "commerce_gift_card_ledger",
-      "operation": "INSERT INTO",
-      "sqlSha256": "91099a5defc427892bf8750fb7376dfa6715cacbc91754017a3267085d9ace15",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commerce.applyRefundSuccess",
-      "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
-    },
-    {
-      "siteId": "8094e30d782121b67c4777f064abe21f185b5c8b3033dcd070ddde60cc5fb4c2",
-      "file": "src/features/fore/commerce.server.ts",
-      "line": 2053,
-      "functionName": "applyRefundSuccess",
-      "table": "commerce_store_credit_ledger",
-      "operation": "INSERT INTO",
-      "sqlSha256": "73243392aa053bcdbe1f4dd85f45aea84dc4c128923fc330576471c8ea8759cc",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commerce.applyRefundSuccess",
-      "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
-    },
-    {
-      "siteId": "06c0943bb064ec3a0170add5d566a327281b2e7f88cfabde79da2eb16df93d07",
-      "file": "src/features/fore/commerce.server.ts",
-      "line": 2059,
-      "functionName": "applyRefundSuccess",
-      "table": "commerce_refunds",
-      "operation": "UPDATE",
-      "sqlSha256": "138450aecd9f22aa52c903a39697880635caebb50c8a339352a1b1ef87adba29",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commerce.applyRefundSuccess",
-      "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
-    },
-    {
-      "siteId": "66ecba5b5db6e5ee2e45fdaadfada687d4b162da8237bad49ebb321ca2d24932",
-      "file": "src/features/fore/commerce.server.ts",
-      "line": 2069,
-      "functionName": "applyRefundSuccess",
-      "table": "commerce_orders",
-      "operation": "UPDATE",
-      "sqlSha256": "b4c8efe82203f1027aa2133926a3f11ba6f89b29b64c76b459b97854c5473e16",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commerce.applyRefundSuccess",
-      "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
-    },
-    {
-      "siteId": "ae96e45bc0219608dc7e48e866c95010eedf6fb811e3d64804d609aedbed5f15",
-      "file": "src/features/fore/commerce.server.ts",
-      "line": 2154,
-      "functionName": "applyRefundSuccess",
-      "table": "entitlements",
-      "operation": "UPDATE",
-      "sqlSha256": "9c1679dcc734ddd9f488b77ccaef46cecacc877e8a0b259d08a00f055a7c9f8d",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commerce.applyRefundSuccess",
-      "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
-    },
-    {
-      "siteId": "a03765f00ca68185d96e58e81c45aa05f2fc12913374ea412f1dd64bac25242f",
-      "file": "src/features/fore/commerce.server.ts",
-      "line": 2159,
-      "functionName": "applyRefundSuccess",
-      "table": "commerce_order_items",
-      "operation": "UPDATE",
-      "sqlSha256": "e583a2f66e302b4af0e033a7c9c1f4327c59ddc3f2334ddb992a1fa32fef88e3",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commerce.applyRefundSuccess",
-      "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
-    },
-    {
-      "siteId": "cb144d61c7a55db8828dd3250da6ec452c7b069b940cea442abf92be50ac5587",
-      "file": "src/features/fore/commerce.server.ts",
-      "line": 2164,
-      "functionName": "applyRefundSuccess",
-      "table": "preorders",
-      "operation": "UPDATE",
-      "sqlSha256": "b20f52c18f7752c16969d2c06c5bdf4b8eab448b12744d66c498cf2c47bb0b7d",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commerce.applyRefundSuccess",
-      "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
-    },
-    {
-      "siteId": "1697f3c97b31645c4c147366fba1167f600435832cb2a41e6d632fd076bba2ee",
-      "file": "src/features/fore/commerce.server.ts",
-      "line": 2176,
-      "functionName": "applyRefundSuccess",
-      "table": "commerce_promo_redemptions",
-      "operation": "UPDATE",
-      "sqlSha256": "04db7acc1a8f2f4d74b304d047bd584deeaf293172d77bd8a26f52b39137f399",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commerce.applyRefundSuccess",
-      "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
-    },
-    {
-      "siteId": "55562acfa6bfb326ec18a270028353a9dad75f4b98c7cd86a49193619c37ab63",
-      "file": "src/features/fore/commerce.server.ts",
-      "line": 2181,
-      "functionName": "applyRefundSuccess",
-      "table": "commerce_promo_codes",
-      "operation": "UPDATE",
-      "sqlSha256": "7814ec43d6ac77f036b6cdb8599f3861bd7cf3ee7b40dffdb245578d8956fffc",
-      "disposition": "owner-command-required",
-      "productionOwnerGuarded": false,
-      "commandFamily": "commerce.applyRefundSuccess",
-      "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
-    },
-    {
-      "siteId": "ddce0a26c5226e3cdeff4ae92924b951549d1130bc73cee5e4f0021fbb741350",
-      "file": "src/features/fore/commerce.server.ts",
-      "line": 2245,
+      "line": 2190,
       "functionName": "applyRefundSuccess",
       "table": "commerce_refunds",
       "operation": "UPDATE",
@@ -1434,9 +1304,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "7aae5a40d8c01b6fdf239e66470a3a9ac240a7b310d81a908c9dfa3b844911d3",
+      "siteId": "e288f890f046493ee4a81543c2e8e7ef56b183b1b2234e116c26b3f8e3657237",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2346,
+      "line": 2291,
       "functionName": "stripeWebhook",
       "table": "commerce_webhook_events",
       "operation": "INSERT INTO",
@@ -1447,9 +1317,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "2f5a186341dd4a83edf130e90a707b75c9fa44f6c26c7b6b6cc39106b361deb8",
+      "siteId": "cd8cd96c69b774724c562ea955faf654f597ad4a5e1e694492c85c9a5e6ebeec",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2370,
+      "line": 2315,
       "functionName": "stripeWebhook",
       "table": "commerce_webhook_events",
       "operation": "UPDATE",
@@ -1460,9 +1330,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "69a011fd96f78b2336442bf453b2a9ac918d8099c656caa2e8c1abb5ca3f2ed7",
+      "siteId": "0926ed82978df5916cd1686fabb75f6f8d900cec1cc99c2ed5a526865bff9ae0",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2378,
+      "line": 2323,
       "functionName": "stripeWebhook",
       "table": "commerce_webhook_events",
       "operation": "UPDATE",
@@ -1473,9 +1343,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "a8e58af1b80924a3a8be6c2176c7633c0971a5046dcf55bd42ecdf2ef477145c",
+      "siteId": "4820b811b515e4866a2ffe279017163021a23f4869dc106d5bfb4b9d5bee378a",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2465,
+      "line": 2410,
       "functionName": "processStripeEvent",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -1486,9 +1356,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "6a22e7605d3bcf2c6d8ec9174b81efed2b903cf4df19506b43ae0cf511bc5b35",
+      "siteId": "25cc6e9a615e655553874a1c3360c60d80c5ef16a196ce9c005982bb7ffbadad",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2474,
+      "line": 2419,
       "functionName": "processStripeEvent",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -1499,9 +1369,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "a680719b3b247a869824cda85e06aa6c2d27d335355aadf8eba48352f56f8237",
+      "siteId": "3e3d1a82670d41176494dc4af3e766999e028dc25746b86bc2679ae6e2f26e19",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2483,
+      "line": 2428,
       "functionName": "processStripeEvent",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -1512,9 +1382,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "a55e8ed0c10ca993a56a2cc4e20ede544110108798dec1178f0619b557216d22",
+      "siteId": "4b2b263dff1ee6f3dd63bd11b33a5e759ae2a0ea4be53efc4da56abba62d131b",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2523,
+      "line": 2468,
       "functionName": "processStripeEvent",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -1525,9 +1395,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "5a0795311e7cb1888d64ea0f3a0f2dffa32daebc3557ddbdf95dd6eab7dfdd3b",
+      "siteId": "a12671dc52d8aad096a30672150570b8c1bc76ef3c68bf97acb564496632d66d",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2540,
+      "line": 2485,
       "functionName": "processStripeEvent",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -1538,9 +1408,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "daed3456c496e696b81d39aaf4bb5972171d0c4f05ba8051078d0db9d8b1d6b8",
+      "siteId": "1e75103f5860af7bbe16ef214eb43173ea48245d7f3a3571026b02571c166d12",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2626,
+      "line": 2571,
       "functionName": "processStripeEvent",
       "table": "commerce_refunds",
       "operation": "UPDATE",
@@ -1551,9 +1421,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "73eb00b6d8fc8ec4250e2c7169f79bce5ee7c6fb9456c218c0013afb1b210033",
+      "siteId": "74c5abfa3b031a9dbfab079f15e4eab661b73474dc61063e51020792be259aec",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2666,
+      "line": 2611,
       "functionName": "syncDispute",
       "table": "commerce_disputes",
       "operation": "INSERT INTO",
@@ -1564,9 +1434,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "dc6ab90cdedf1c1bde76714fb969f04dca6b8c6c5e1ca05cbfc2b1ddd1eaeeb9",
+      "siteId": "9741e2dddedacac690c03ce4c2b9da5fa1f8f1b8f7fad3bee9ea47a2df9cd3b9",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2690,
+      "line": 2635,
       "functionName": "syncDispute",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -1577,9 +1447,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "07b8e7d85d84065e1cb9631839d5bfe2eb8258dc4b044873e035ba71bee2e4bc",
+      "siteId": "8aeb4dcc2fee0f0b188476b590eda047ed63168233a5a4d56c1bb0221b059426",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2718,
+      "line": 2663,
       "functionName": "syncDispute",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -1590,22 +1460,22 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "560adcec16c53240a7f1d39b138ab2dbd3239bfd7ceabaf867ebe3054489629f",
+      "siteId": "2d55dfc305562dba9251913845f3b09e1e46f23a28fb920bd158823a5b815e7a",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2724,
+      "line": 2669,
       "functionName": "syncDispute",
       "table": "entitlements",
       "operation": "UPDATE",
       "sqlSha256": "9c1679dcc734ddd9f488b77ccaef46cecacc877e8a0b259d08a00f055a7c9f8d",
       "disposition": "owner-command-required",
       "productionOwnerGuarded": false,
-      "commandFamily": "commerce.syncDispute",
+      "commandFamily": "commerce.applyRefundSuccess",
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "8ac495cd9210edc4a488d0ddff1930e8c26ab49dda91f94de141daccedf36edf",
+      "siteId": "389cbfda0857ffffeb0586049cf82befd957d63e8af1acd91153d9eec42d4318",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2759,
+      "line": 2704,
       "functionName": "syncDispute",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -1616,9 +1486,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "e9a34c2a8d3e4b2498c14a39fe7061ea9ff7812bfc407e72098c27c9254257ef",
+      "siteId": "8d5f0c214e20020bbbf48b5a28140629cd64149f52ce70b9e8427709cceffc6f",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2815,
+      "line": 2760,
       "functionName": "createPromoCode",
       "table": "commerce_promo_codes",
       "operation": "INSERT INTO",
@@ -1629,9 +1499,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "2590695b1bb14d236b239156c3e5c1d319ea5cd1b1cc5de67b3a47bdc0de81ab",
+      "siteId": "fde27495e777cbf873f2b4a983e2604f7dfcc6ca9dcc04bcb903494abc9a5587",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2851,
+      "line": 2796,
       "functionName": "issueGiftCard",
       "table": "commerce_gift_cards",
       "operation": "INSERT INTO",
@@ -1642,9 +1512,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "1c9e4fccbe75d5533989e2220f970bfb71bc410351ee70e0805e42111afe2a8c",
+      "siteId": "ebdc1657f05cd190a670d4917b764d3da8ae44ffaebc1a3475a875e5c8dfb9bf",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2894,
+      "line": 2839,
       "functionName": "adjustStoreCredit",
       "table": "commerce_store_credit_ledger",
       "operation": "INSERT INTO",
@@ -1655,9 +1525,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "f8db496b1b205014128ad7b1828f534f989fc39caa12a1bcf2a0a066236831ce",
+      "siteId": "2b0357db9f6e77c7b438ddca5dd8f55a37e09da12592417e53b974d2f7aa1040",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 2997,
+      "line": 2942,
       "functionName": "reconcileStripe",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -1668,9 +1538,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "5df15fd55d4f0d56fe84d3fc6507e1404e26962286e414677b98fa0931bcff82",
+      "siteId": "66871ad1850bdc8463d9a94f6dedb8848948eb907d6e0ce2475daa59708f4abd",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 3048,
+      "line": 2993,
       "functionName": "reconcileStripe",
       "table": "commerce_order_items",
       "operation": "UPDATE",
@@ -1681,9 +1551,9 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "453d3aba99ba3f970256c618d11ce9f9bba3485bc40c79a8209c950124868a2b",
+      "siteId": "16b745a168b1798fab253c281485997ee2721c2dad288aeef1b1da0e0783892e",
       "file": "src/features/fore/commerce.server.ts",
-      "line": 3082,
+      "line": 3027,
       "functionName": "reconcileStripe",
       "table": "commerce_orders",
       "operation": "UPDATE",
@@ -1694,7 +1564,7 @@
       "reason": "Payment, tender, settlement, refund, webhook or buyer-lineage mutation must belong to a fenced financial command. QA-only owner calls do not establish production ownership of this SQL."
     },
     {
-      "siteId": "48aa8134d5c7a6cafe0c5e08ce98ea871bfbbc7022aaeddcd178903c8f267ab7",
+      "siteId": "5de6be4333303d73525940c09479032dfe68af1287b81cb6e44c0cdad898beab",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 228,
       "functionName": "saveCommercialAudioProfile",
@@ -1707,7 +1577,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "e45af89cef4f07a26a324174a325138b0c9a4bf9783daf1291049a2a8015ff36",
+      "siteId": "e40008f9d382745fa19c524505e88083ad203c6965d4f3776069b2b4b6ad957e",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 285,
       "functionName": "replaceCommercialAudioNarrators",
@@ -1720,7 +1590,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "53006757bad4e4cfcd244288b12563dbca99aa0a6671c2e6a7deb84343a16644",
+      "siteId": "eec988775af1e43140cb9c3bea5b66c21316bb1913deded2bbec443b0fd8a307",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 297,
       "functionName": "replaceCommercialAudioNarrators",
@@ -1733,7 +1603,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "c346544e04e81bcc9d45ceab2104cc1a84d2ec75b89f330de42eb6ce87330a48",
+      "siteId": "c90ee2ec43d0b42156862d9bb930eddd5ba326efe6ea34a99b2df64ddbe6f1c4",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 347,
       "functionName": "addNarrationAgreement",
@@ -1746,7 +1616,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "9865f8569720c8b74213d8f1c5d0788c1dea1fe10e5fb81c65b0727538d6335f",
+      "siteId": "65beb472056d85a0649267cc431b2394bb96730d50aa3dfdac9a71bde35f6d38",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 413,
       "functionName": "endNarrationAgreement",
@@ -1759,7 +1629,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "8a523d9227c506b5cde8062340d3e50c3da1c4811760e2446e3f112a40f081ba",
+      "siteId": "8a51ae5becdf9049be7910238c7e9fe63a4d94a7e827fded5c6e548a1666ab30",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 443,
       "functionName": "refreshAgreementStatus",
@@ -1772,7 +1642,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "7c18abfdf394ca556a991149900c4e7a1d5a782f77c0dcfc68f14f28a7a6c3e3",
+      "siteId": "7b1781f68d8ab9fe3459fbb1f21d7bcf3d4426b95f09619aade928ba7910e070",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 459,
       "functionName": "queueCommercialAudioQc",
@@ -1785,7 +1655,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "a0f81efccaaebf30a11b653d2d989f797a8d6c8496656ddc06e21c70153c0108",
+      "siteId": "b3dfaeb4f75e897789e35d34088eae0e2a18c8412b99f41831413e2b06abca23",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 486,
       "functionName": "leaseCommercialAudioQcJobs",
@@ -1798,7 +1668,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "57d45dc8677ade6d774797d52dd3236465b0089a2c26e0b27ae4949e85899e9d",
+      "siteId": "69b578945c4e5948ac2ae886b8dad5bb4d0f65f888ac91087b8b8730f646cb8e",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 607,
       "functionName": "uploadCommercialAudioFile",
@@ -1811,7 +1681,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "09a74b4ddfe95882d23c9c592e921340cf7435abc02ae021d023d28790ac0554",
+      "siteId": "3eefad03066d04749403d3db0877017e7dc322fc7342c1df26c6e95c5324f2d2",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 632,
       "functionName": "uploadCommercialAudioFile",
@@ -1824,7 +1694,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "92f9c7e46cf3906452ea048f7dfe4ae3615ae9b4db6d3b7dc8105c19bb93da13",
+      "siteId": "410e1a18b525b1a2dc38710056e6f30e1b3d1d465e6310e4c92964a279c43d38",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 647,
       "functionName": "uploadCommercialAudioFile",
@@ -1837,7 +1707,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "e78dbe19ce624ba6d8a9d6d0fe11088df6b806a99e6e243d7958fee320d4dc6c",
+      "siteId": "2eaf4ba76699a0c333b36c7e3d8ef0faf803e578508224a03c88c9a45dd3779e",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 667,
       "functionName": "uploadCommercialAudioFile",
@@ -1850,7 +1720,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "892cba6cfa58cc71b0a43eeb67e5e1bcc0970e031f3826e5fcace7bd8a2e3757",
+      "siteId": "7dfdbb830e3821d130482fdc991b69526540a0b2f6b013bd5580c1967e1ce492",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 689,
       "functionName": "uploadCommercialAudioFile",
@@ -1863,7 +1733,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "797f98acd0fe4792b270d46b8fe81b9498c99988e67d7d23712145911a93ae8d",
+      "siteId": "a28d68fb12b97b12e8af898d0b66498a8d39e64018d51c43ff0bd18811a3b571",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 779,
       "functionName": "completeCommercialAudioQc",
@@ -1876,7 +1746,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "d424548cd35191ed3db8103716c12b2781bbaf30d17d8bb57c1bc7249763c400",
+      "siteId": "868f81ee7be541d7a6bea6f5aef382b92d88b9d95bbc02c3e8bed6f4deda782e",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 796,
       "functionName": "completeCommercialAudioQc",
@@ -1889,7 +1759,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "0e10b67490c8e970a35f8ff5c6f08a667e57f63528198d3489ddfbf03dd908fd",
+      "siteId": "4c641e8b9eaf336e31bd043ce0be9fdfe954a411f7884dfdf3ab949c0826a198",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 854,
       "functionName": "completeCommercialAudioQc",
@@ -1902,7 +1772,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "4574e329742357388d8806f9e467c8d2efc51e973b7b447ac767ebae8a2aa9ac",
+      "siteId": "d8297821c00abb91055d4506fc535f78b8647066016b6a5703224acc493c3c83",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 877,
       "functionName": "completeCommercialAudioQc",
@@ -1915,7 +1785,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "ad88fd71fe7ce1de63276d8f23c4cafd7e9569eea6dcc8e0d21d5847707d7e79",
+      "siteId": "3cd1c74a569b3bba1401c15c9678f220bf795b7ff9cd48543fe33d2fa14d10ae",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 891,
       "functionName": "completeCommercialAudioQc",
@@ -1928,7 +1798,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "34439c0a08d2684a124684bb301c631b1d9688ec3054c236e0118fa2416d4ea8",
+      "siteId": "4eb57b1e856d46a1ea6381fc14cc6707f0684ad5ef50595a3f9609c9d7a7f790",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 897,
       "functionName": "completeCommercialAudioQc",
@@ -1941,7 +1811,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "46da7142005e2fece927807c41b67c4d655ce868199335727ad1b72890362de9",
+      "siteId": "564a9e87ee1753c766f2c1d8acef368c6f1a71505678ed02b863f9fa00c3f0a9",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1651,
       "functionName": "handleCommercialAudio",
@@ -1954,7 +1824,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "1beda0c48e24ac0843883c6c99430e154cea4b251120a27d23d3183507d19e3e",
+      "siteId": "9ba02bec57ae422af060c1edb4009e026a2bbc3f2e6c097087ed209779f9919c",
       "file": "src/features/fore/commercial-audio.server.ts",
       "line": 1658,
       "functionName": "handleCommercialAudio",
@@ -1967,9 +1837,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "73aa7b10cc5616550d628720f2221270c7a7436b60ba38ca19871bc940d8b85b",
+      "siteId": "11bff11d40e61b99409964a2b357cbd4d8c8d1152bc02132a43787ab1c877b55",
       "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 1896,
+      "line": 1903,
       "functionName": "handleCommercialAudio",
       "table": "audio_offline_licenses",
       "operation": "UPDATE",
@@ -1980,9 +1850,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "4549b431e8208109c4373dbbe6fd56cc63c71cdbf862c8999317332b94300f5b",
+      "siteId": "c68e8120f324ce5f884ff103b21dac0b195ccf6b6ef4d0ca464d2aee57791d91",
       "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 1901,
+      "line": 1908,
       "functionName": "handleCommercialAudio",
       "table": "audio_offline_licenses",
       "operation": "INSERT INTO",
@@ -1993,9 +1863,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "a2cbfcbe2635f72d3845acc2987a2605ceee015a71d48cb1ed0a28579a7d5d09",
+      "siteId": "9ea6af9c07010cf3eec9775b05c6cff937637c1f474332cea3d2b755eeb1aabb",
       "file": "src/features/fore/commercial-audio.server.ts",
-      "line": 2082,
+      "line": 2088,
       "functionName": "saveCommercialBiosyncLink",
       "table": "commercial_biosync_links",
       "operation": "INSERT INTO",
@@ -2187,7 +2057,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "3e450d9876350dd8905d11df0e7110bbfb6ffb895650194a7e46a71bc207a558",
+      "siteId": "d105a55c3897517e03b1396281a2871f67fa72d41103c5095a17b96f3c30d6c9",
       "file": "src/features/fore/finance.server.ts",
       "line": 32,
       "functionName": "postLedger",
@@ -2200,9 +2070,22 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "412092885df6a25005f3d50c879e95859bb24524c28a74e63d526bad99f0e206",
+      "siteId": "779d1e24dee6af9cab6fd02e04ba57f182a13983bfde4b36726d3c46803a987a",
       "file": "src/features/fore/finance.server.ts",
-      "line": 127,
+      "line": 91,
+      "functionName": "appendLedger",
+      "table": "commerce_ledger_entries",
+      "operation": "INSERT OR IGNORE INTO",
+      "sqlSha256": "53e748ae10748515451ab12a2cbf0d1e6a287e0708ecf4506164f0e353497608",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "finance.reversalFromCalculation",
+      "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
+    },
+    {
+      "siteId": "2bd8cb2738c0b42fd9e1b06f5ec3255ec549055105e1d3190dbf6e4770d9a04b",
+      "file": "src/features/fore/finance.server.ts",
+      "line": 162,
       "functionName": "reversalFromCalculation",
       "table": "finance_royalty_events",
       "operation": "INSERT OR IGNORE INTO",
@@ -2213,9 +2096,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "bfef564ec648c31e7be73f0f89841d6287d693a04cb6cabe874c6df7ba97be48",
+      "siteId": "af112fba42d4abaae991f1f30d95cfb89e7196f7ce43be26aead9acc879417ce",
       "file": "src/features/fore/finance.server.ts",
-      "line": 157,
+      "line": 193,
       "functionName": "reversalFromCalculation",
       "table": "finance_royalty_allocations",
       "operation": "INSERT INTO",
@@ -2226,9 +2109,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "094695ac681a3f9e058c48aa5eacac4e11cd1cf320a07948ef4117dda6f06048",
+      "siteId": "3fab78fd1f20906de3d204d45344b5a7267bb349c8d97c5c8f1a3fb79d0a5f71",
       "file": "src/features/fore/finance.server.ts",
-      "line": 278,
+      "line": 299,
       "functionName": "createRoyaltyContract",
       "table": "finance_royalty_contracts",
       "operation": "INSERT INTO",
@@ -2239,9 +2122,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "a99db8a2b959bda371a57b1837cf539bc8c1acfc37f3219b84cf374262aa2e9b",
+      "siteId": "49e1668c02437cf3b5d985edc40cb14732d7b45cda92a90c27e5a67ecb8b607c",
       "file": "src/features/fore/finance.server.ts",
-      "line": 332,
+      "line": 353,
       "functionName": "createFinanceParty",
       "table": "finance_parties",
       "operation": "INSERT INTO",
@@ -2252,9 +2135,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "61ab2fcf4f6f3d6dc55c169208b97f1db79fafb0edc727297d388349302b0eb3",
+      "siteId": "f41a2a6a527628fe4ca9f2ddf3b0a4be5d8e7e2e2ef8b1978d57f71728d17509",
       "file": "src/features/fore/finance.server.ts",
-      "line": 448,
+      "line": 469,
       "functionName": "approvePayoutBatch",
       "table": "finance_royalty_allocations",
       "operation": "UPDATE",
@@ -2265,9 +2148,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b97617c7d095cce564e005b16585e2fd313f967cefa50d5e34b28d296a7ecae6",
+      "siteId": "3b9c7936b7fcd55bc8f99c0e374d31560870493b956abdd24c5acfdbc32ffb20",
       "file": "src/features/fore/finance.server.ts",
-      "line": 454,
+      "line": 475,
       "functionName": "approvePayoutBatch",
       "table": "finance_royalty_events",
       "operation": "UPDATE",
@@ -2278,9 +2161,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "2eb3c1c528a98451379d3f674695ed160a22aa1d459a6faa227b2e5f0846faf5",
+      "siteId": "6e6d8deb354955fc8892f44d7cc2643bfe32d4c8ca1b6576773ced1727d35335",
       "file": "src/features/fore/finance.server.ts",
-      "line": 528,
+      "line": 549,
       "functionName": "settlePayoutBatch",
       "table": "finance_royalty_allocations",
       "operation": "UPDATE",
@@ -2291,9 +2174,9 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "9c343bb71e3d3a8333aa0dcffff9e77348882b2e4a23575b98e9910f345e8e76",
+      "siteId": "bc451293f0262615a648b2aa3f1c34a960be7d1b0eb6e9e9c761f59ec9b56eda",
       "file": "src/features/fore/finance.server.ts",
-      "line": 534,
+      "line": 555,
       "functionName": "settlePayoutBatch",
       "table": "finance_royalty_events",
       "operation": "UPDATE",
@@ -3352,9 +3235,9 @@
       "reason": "Rights evidence, policy assessment, dispute, hold or restore can change legal availability. Both staff and deadline/queue callers must enter the same owner command before mutation."
     },
     {
-      "siteId": "f779fca3edb63347c56c3be42de9a272f25c9e0f1228035e50a3c522c48cd58d",
+      "siteId": "177cfd0f6d80b5a55f02addb84eab56e3999e555b5a12d9adcc881da50227c4c",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 68,
+      "line": 69,
       "functionName": "recordPublicationActivation",
       "table": "publishing_publication_activations",
       "operation": "INSERT INTO",
@@ -3365,9 +3248,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "074ac5d827ee4db5e8b2302786dc0a0c7738c710628a92fe7631a16c30a2db2c",
+      "siteId": "5b5052d0d5dceeaacd2009c523ef3976d0303611d71d1b41f221fade7b16b85b",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 202,
+      "line": 203,
       "functionName": "ensurePublishingLifecycle",
       "table": "publishing_release_lifecycles",
       "operation": "INSERT INTO",
@@ -3378,9 +3261,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "896f408b802015b0a18ccfd7869ceb07a38a92613ca0144627fd8d0c464db525",
+      "siteId": "6e551b061e632b6bedad482deb4bca1ef5490194e2356dea4f77401b5c70eddc",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 215,
+      "line": 216,
       "functionName": "ensurePublishingLifecycle",
       "table": "publishing_lifecycle_events",
       "operation": "INSERT INTO",
@@ -3391,9 +3274,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "1329e50b2b11f49a1e1d7239a926ccf8e3ef104200f13aba6fca22851f862047",
+      "siteId": "61c122ed0447301ba197692c92148f4c3d8095f6e6f3d2da95409ebcc9807d41",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 320,
+      "line": 321,
       "functionName": "transitionPublishingLifecycle",
       "table": "publishing_release_lifecycles",
       "operation": "UPDATE",
@@ -3404,9 +3287,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "c315871f33f44b428dd828c34802c284b11a2b695ada0270994da9144e656c0b",
+      "siteId": "5f0c68b721d0f4da1043f56a6166671b32543d564c2e0d1cdbf8d7c8e5af87be",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 331,
+      "line": 332,
       "functionName": "transitionPublishingLifecycle",
       "table": "publishing_lifecycle_events",
       "operation": "INSERT INTO",
@@ -3417,9 +3300,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "8ab4cdb1cfed7e70d387ab2017099ce0d1230f3f052628aa90ffa9b416afe64e",
+      "siteId": "d2c2d961a9762e367d3c23f2475fefcef30d3873d7270d3de48f3d2cd8632e43",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 373,
+      "line": 374,
       "functionName": "upsertPublishingAccount",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -3430,9 +3313,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "f7ee3ba8e77f405b8439ea3cfd05e4db11fff0250a7b63561c62f859b9f3b8f5",
+      "siteId": "e80de7f811434b762f0e5e33fffeb12e8b93df2c76fb825e2947c30917644bf4",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 410,
+      "line": 411,
       "functionName": "upsertPublishingAccount",
       "table": "publishing_accounts",
       "operation": "INSERT INTO",
@@ -3443,9 +3326,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "492c982f99491fef4f6c30a2cd26593425e5a2948eb8ee89120d22f1b2483c77",
+      "siteId": "3d2fbf868e2a8e267ec3d2fe0feef0e88b687d813c189a85d6ed45ae99334dfa",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 427,
+      "line": 428,
       "functionName": "upsertPublishingAccount",
       "table": "publishing_account_members",
       "operation": "INSERT INTO",
@@ -3456,9 +3339,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "3a017b0010efac19e772154ea863424eff6e78adfcf8497181f85c57a1b7d0f1",
+      "siteId": "19ed89e6cc9bb28d793e7dd246a29ef794058bacccc89bec87a5bf5ecd1ed39b",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 540,
+      "line": 541,
       "functionName": "invitePublishingMember",
       "table": "publishing_account_members",
       "operation": "INSERT INTO",
@@ -3469,9 +3352,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "89d10f2819aba60dee43da8bcf62e10dc379c0972f69db135d572e3ced784c28",
+      "siteId": "e180bdb5c79abe0cce5c4a9be263cc84f03ebebdb84ddd35ff9dc07e7e8112c6",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 571,
+      "line": 572,
       "functionName": "startIdentityVerification",
       "table": "publishing_identity_verifications",
       "operation": "INSERT INTO",
@@ -3482,9 +3365,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "809a22ba4c97141dd440fdc69c6483b4b899c65553870f13b3d106a474f11bcd",
+      "siteId": "5d63ab8d81d1d8f5568c924b73fe0f6cb9adf4db4157f3089d2eb2bf86cb2622",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 584,
+      "line": 585,
       "functionName": "startIdentityVerification",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -3495,9 +3378,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "7db58143ceccb83f0f06f40bed195d475ed3c08c50a51731766b6c650de3a09b",
+      "siteId": "29cbebbd13318ad57a98db1ae20d031df9af6d71c566d77430d0dc6763f3489d",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 654,
+      "line": 655,
       "functionName": "submitTaxProfile",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -3508,9 +3391,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "a0225dd3024e73b068f31e08b669ec60bfd7474aee366bafecc75345f7d5d68b",
+      "siteId": "86f1ed96af302770211ef102eacec1ed8199ba839cebc37d5d094553de880b1b",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 713,
+      "line": 714,
       "functionName": "submitPayoutAccount",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -3521,9 +3404,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "5f43272a54b353f0ed293aae9c3cf3ea6fb3893b42a1f392c242163c04606093",
+      "siteId": "393f522685948176d64d3c5c5d2baa897bd96437fc2ccb15372fea586f8b320b",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 760,
+      "line": 761,
       "functionName": "savePublishingTitle",
       "table": "publishing_titles",
       "operation": "INSERT INTO",
@@ -3534,9 +3417,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "11210a4b47a1a475adcd0f6aa269b25ac82479c7c1584b797865e8bd8eda9ad6",
+      "siteId": "343bda15291a98f91b0d1b3d85852b1a4b0a1144040da9fbf937ecfa8498cc98",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 931,
+      "line": 932,
       "functionName": "savePublishingEdition",
       "table": "publishing_edition_drafts",
       "operation": "INSERT INTO",
@@ -3547,9 +3430,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "a258546adcb4295aaf2acbb103d90f98b94b8eccce7582102f412b277ad9bd4f",
+      "siteId": "9e054dea9b2a287c20691ec121c5f8dec49be15c171484474099cd08c1644209",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1579,
+      "line": 1580,
       "functionName": "recordInlineResult",
       "table": "publishing_validation_jobs",
       "operation": "UPDATE",
@@ -3560,9 +3443,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "1b468e2b11a5b9596b161a7ec4104ee750857b9a83d372e7f46e364033875b89",
+      "siteId": "bab83868b7ac5a8dbbec64b6197c92fbacebaf727ba43433cc399c84ece9bd31",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1591,
+      "line": 1592,
       "functionName": "recordInlineResult",
       "table": "publishing_validation_results",
       "operation": "INSERT INTO",
@@ -3573,9 +3456,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "6ba810ddcc95d78c4bf4c8485f26b708870ccd57f1c3db18a1c437e43f1ca086",
+      "siteId": "3ecd33bc9cb554957c90af095ec8d12ea1f6249314a34ff4e5e6eb8113ee7b40",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1629,
+      "line": 1630,
       "functionName": "refreshAssetValidationSummary",
       "table": "publishing_asset_versions",
       "operation": "UPDATE",
@@ -3586,9 +3469,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "9d66e880f88747917469b385af951b5c2d7cd243b064a738792ff42bb7e83876",
+      "siteId": "98b36b0bd1a9bbc05b21ec620d06785cffde693e7cbd653bd2a20d0539b4c636",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1725,
+      "line": 1726,
       "functionName": "uploadPublishingAsset",
       "table": "publishing_assets",
       "operation": "INSERT INTO",
@@ -3599,9 +3482,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "a083f747d3ce4966b3c294154980bdffdf6efd2c9aede520fc73691403cbf0b9",
+      "siteId": "4dcc2beaf68acf81d7dda6c9b4e970e37d0ae77640e2823e29a07dc363945bf4",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1737,
+      "line": 1738,
       "functionName": "uploadPublishingAsset",
       "table": "publishing_asset_versions",
       "operation": "INSERT INTO",
@@ -3612,9 +3495,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "ef4c7490ca924986a562e7811abb3971c87d2194bcbe8866ea0755317f499c12",
+      "siteId": "b1de39851b5cd442e35ec399c2178ad317d3feb1d3fecf6877329b0b91965e26",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1754,
+      "line": 1755,
       "functionName": "uploadPublishingAsset",
       "table": "publishing_assets",
       "operation": "UPDATE",
@@ -3625,9 +3508,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "eb0eec3120426a846c2277c8016984f75306cbaf2d534d12562bb0c41de43a5b",
+      "siteId": "479e6b5139f43d83c20606e0add43a075c640d1c01bcfd419efad784afed7fd2",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 1760,
+      "line": 1761,
       "functionName": "uploadPublishingAsset",
       "table": "publishing_validation_jobs",
       "operation": "INSERT INTO",
@@ -3638,9 +3521,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "3ee9df842d73ebd5292d35558bb732f0c5678d959c0701f2e2ea9a36a88dbf2a",
+      "siteId": "b7a881bcc8449b8941989de13d0f284b0432dff8208282d4748a595c12a438a3",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2001,
+      "line": 2002,
       "functionName": "signPublishingAccessibilityDeclaration",
       "table": "publishing_accessibility_declarations",
       "operation": "INSERT INTO",
@@ -3651,9 +3534,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "f9904e4dbe40e9a022fb074323e8eed3de1ac9fe7919682e94f3a3b8aa919202",
+      "siteId": "b99201d470ab1ee6ef394ebac4b87274a2d3a9f2f4ea12ad225f188b4b5ff19f",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2042,
+      "line": 2043,
       "functionName": "leasePublishingValidationJobs",
       "table": "publishing_validation_jobs",
       "operation": "UPDATE",
@@ -3664,9 +3547,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "51fb7fa3e13562dc7bd9172bae4ba9c58667a215c8a8af13ac8ee4d2da1ad72d",
+      "siteId": "b907f24b56b47bf4302ddc1beb93a773f33dbc6802275b83e3b6a179d187b5fb",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2047,
+      "line": 2048,
       "functionName": "leasePublishingValidationJobs",
       "table": "publishing_validation_jobs",
       "operation": "UPDATE",
@@ -3677,9 +3560,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "6f84703e9188de4705518f568e1f9660a37db38dea60a0d0ccc2f2774f10c750",
+      "siteId": "090511a6e993f2e4ad50a675b56df3cfb21b08f512429d4474e70c9da221e80d",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2062,
+      "line": 2063,
       "functionName": "leasePublishingValidationJobs",
       "table": "publishing_validation_jobs",
       "operation": "UPDATE",
@@ -3690,9 +3573,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "b40baf2b0cebbda98f617b5ab16057188fd2dfb301c3116be363f2b0d2071bd3",
+      "siteId": "481956edbd918aeb56d05c2afa82b464225c33a877cc58f90ca3be1c71fffbcb",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2119,
+      "line": 2120,
       "functionName": "completePublishingValidationJob",
       "table": "publishing_validation_jobs",
       "operation": "UPDATE",
@@ -3703,9 +3586,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "d7758dd4b0465f8847cbae7a62045caaf1d9424a9ddf29b64015ceb523006a6a",
+      "siteId": "0b300389e6c0e492ecc8311a0e18fc20b54897f2e2d3df62a9fa57db0fd58873",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2131,
+      "line": 2132,
       "functionName": "completePublishingValidationJob",
       "table": "publishing_validation_results",
       "operation": "INSERT INTO",
@@ -3716,9 +3599,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "289ec6de8a825a387fa2e1a4760bfe095f1da1be9f92e9955963499a3ff407ca",
+      "siteId": "44a0d69004fdf196ae4e8a65c0a811b325e4e628a2abaad7a608bac7e23d94d0",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2561,
+      "line": 2562,
       "functionName": "submitPublishingEdition",
       "table": "publishing_submission_snapshots",
       "operation": "INSERT INTO",
@@ -3729,9 +3612,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "bc9e09b175777ea875556781a66b2f6c4e1ed7144b8f5fe75aa208183ffa113c",
+      "siteId": "ad8d8d4d3a688cc34505bbfde05990f46fe6adf75aeeb0807e53ad241a9e901d",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2565,
+      "line": 2566,
       "functionName": "submitPublishingEdition",
       "table": "publishing_edition_drafts",
       "operation": "UPDATE",
@@ -3742,9 +3625,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "ccc8a7a5d34297fd594b8b212f1c749e0c6c91f02016df7a3fa3d6e22dbce4b8",
+      "siteId": "a021eb09cdd897fc4b59a0d4c6a5d9a271c03b64f84a8c315a1d53475014c183",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2568,
+      "line": 2569,
       "functionName": "submitPublishingEdition",
       "table": "publishing_titles",
       "operation": "UPDATE",
@@ -3755,9 +3638,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "5bda4028a8cb90d9d91efa60ffa8c4f68bf1e6bb9dd6be6dd6104abe153efd55",
+      "siteId": "b0ff1f761d77df195eee62205128b74c1e6fa3d3fb4a3f6b0163740a34a00ddd",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2572,
+      "line": 2573,
       "functionName": "submitPublishingEdition",
       "table": "publishing_outbox",
       "operation": "INSERT INTO",
@@ -3768,9 +3651,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "2d292a7e7a0d95827a5893c9131cab30ab8b7a497edd4646048ec163ca83f95a",
+      "siteId": "45a224fdf1a9af231920bc6112c579167134db75a63af72677a8695f91e0a0c8",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2591,
+      "line": 2592,
       "functionName": "submitPublishingEdition",
       "table": "commercial_audio_submission_snapshots",
       "operation": "INSERT INTO",
@@ -3781,9 +3664,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "12c2af7fb2145e59be4e125aac032f0dd3ab95d9661484c25bfbe65b2a2f3d51",
+      "siteId": "49a78020bfedd936da4e495f452463c3eb3535c4529932d35a752a4a27e9967e",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2637,
+      "line": 2638,
       "functionName": "submitPublishingEdition",
       "table": "publishing_submission_snapshots",
       "operation": "UPDATE",
@@ -3794,9 +3677,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "ec27ae67fba1f650f89264e15449b48faf3a1623d35807442452a5b26e510a86",
+      "siteId": "bf138c7cf81cf3479af359ddb99c3c0823e0a2bb2344036f85f93172a95eaca8",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2641,
+      "line": 2642,
       "functionName": "submitPublishingEdition",
       "table": "publishing_edition_drafts",
       "operation": "UPDATE",
@@ -3807,9 +3690,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "8a80d2bb767daeba06439dc866704757fef4d3f22e9786c5e1c3b7d2dce1de0c",
+      "siteId": "c022eb13ebd4d6ca601a00d344c807c21ed53b97168029b077208284d68d7bf1",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2719,
+      "line": 2720,
       "functionName": "submitPublishingEdition",
       "table": "publishing_submission_snapshots",
       "operation": "UPDATE",
@@ -3820,9 +3703,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "d6bcfd2a934deb48a8b330c2a324535eae2948d404aabe00cc7c1a46bcb69bf4",
+      "siteId": "27c0c5d3e9eb534b75234a8e21e5b3ab1af43d2f40104937e50bb1df8ead94e1",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2783,
+      "line": 2784,
       "functionName": "openPublishingRevision",
       "table": "publishing_submission_snapshots",
       "operation": "UPDATE",
@@ -3833,9 +3716,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "14c692f0275609383758bf7771abbd5dfc21b17a2e5534cebfc10ab48e8b92a1",
+      "siteId": "7ed9960098e791ad08bffc0453e828665402291dc586cac72cc90c355f675a5f",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2788,
+      "line": 2789,
       "functionName": "openPublishingRevision",
       "table": "publishing_edition_drafts",
       "operation": "UPDATE",
@@ -3846,9 +3729,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "41e5595023f737a2b41b14e5c64b523617ab491d387b37ae9aaf12f9fe73b75b",
+      "siteId": "7e42fc4627d7ff429b1497cf3adcb087484ef4e75be23c99c893a37a28882ea1",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2825,
+      "line": 2826,
       "functionName": "setPublishingUpdatePolicy",
       "table": "publishing_release_lifecycles",
       "operation": "UPDATE",
@@ -3859,9 +3742,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "97777ffbf8668c49b7d8c6d091f034b572b58dfa4e8fd91631d76461ccf74cf4",
+      "siteId": "3e8479a7ee80a8f1b3efe829c082b01c9452cada86a55103d52bce5c6a79c4f9",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2856,
+      "line": 2857,
       "functionName": "setPublishingUpdatePolicy",
       "table": "publishing_entitlement_version_pins",
       "operation": "INSERT INTO",
@@ -3872,9 +3755,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "07b947d2422eb4bcc01b0fa882e54ec4a464abedb5d95239014801890755d1e6",
+      "siteId": "dc1d756ff173cb536265a0367268a28b3a699e17beab42b575adb5e3655e0614",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2862,
+      "line": 2863,
       "functionName": "setPublishingUpdatePolicy",
       "table": "publishing_owner_version_events",
       "operation": "INSERT INTO",
@@ -3885,9 +3768,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "0c214af49b2dec6a35a6e1141196193203262debd0cba37b753c99dba414bc73",
+      "siteId": "2b111394b0c0b6da84f50667566eb52b3b61d1c5a84b56f306f9d0d2a684ebbc",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2920,
+      "line": 2921,
       "functionName": "optInOwnedPublicationUpdate",
       "table": "publishing_entitlement_version_pins",
       "operation": "INSERT INTO",
@@ -3898,9 +3781,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "d4ddf1c8ab967e0de26675175d3d989f80b07ec24522279395cd0b371d23b02e",
+      "siteId": "cd2b0f720b7c1917a80debc3f33ea9ac698b54bab529ff8667825fc3647d66c8",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2926,
+      "line": 2927,
       "functionName": "optInOwnedPublicationUpdate",
       "table": "publishing_owner_version_events",
       "operation": "INSERT INTO",
@@ -3911,9 +3794,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "bd26d4e6804fd06b60450f6c7f3ed76326fde60f13f6547aba6d6e89bce35c72",
+      "siteId": "6a48ecfe5a840535b6e21a1c6bca0cd62b582789d2aeca9aecfd0bded4b20c49",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 2996,
+      "line": 2997,
       "functionName": "ensureCatalogParties",
       "table": "finance_parties",
       "operation": "INSERT INTO",
@@ -3924,9 +3807,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "737eb8f68d73e8c8be012ccfbe82bee7adcdbc5535ae794028a0815e8426ae58",
+      "siteId": "7ac1eb8b92927bacf7f0b795b56f3ce456ecd0ced57bb2759056262c4c6637ea",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3012,
+      "line": 3013,
       "functionName": "ensureCatalogParties",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -3937,9 +3820,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "697134973ff3025c06d18ee3992af127564bed8ff58046b1fb220c2eecbfe188",
+      "siteId": "c65fb6d6970d4df0503e165fc76fda208fb236d6489def758f50e2a683da5123",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3119,
+      "line": 3120,
       "functionName": "syncCatalogAccessibility",
       "table": "editions",
       "operation": "UPDATE",
@@ -3950,9 +3833,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "50a30aa3917f0166b10568ffaaea4e02dbc5223a6f0d62d0a2a3953a58cf7c15",
+      "siteId": "da8f03a4cea06e7e2acc549a946653150a754caaafe215f21b69235374242355",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3221,
+      "line": 3222,
       "functionName": "activatePublicationCommercialTerms",
       "table": "offers",
       "operation": "UPDATE",
@@ -3963,9 +3846,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "d7e436b2193b263598055475adc3a22c3c7c0d54b0a104c42f01f7ceb211e574",
+      "siteId": "418f0b4345cc94f475344e0990c48d1e572c9f58fbf3ed9c4b3620f6bdf29191",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3226,
+      "line": 3227,
       "functionName": "activatePublicationCommercialTerms",
       "table": "finance_royalty_contracts",
       "operation": "UPDATE",
@@ -3976,9 +3859,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "ca52655447e313b74ae4bc534c4f65d1a9ce7123bf4d3cbe3bc56d654ddd0b20",
+      "siteId": "2e3c878af5756db96495d6dcef2093f5cc451b5f51dc64067ad17a022201077c",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3234,
+      "line": 3236,
       "functionName": "activatePublicationCommercialTerms",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -3989,9 +3872,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "b798e6387941e0edd63bde7b5cd5897a313436014e44a3a03936eeb7c10fb463",
+      "siteId": "05b8fede87f4e05601f5f98d64bbb7d15a15d8e9fd7f8a629aaa3a48f94d4f7c",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3246,
+      "line": 3248,
       "functionName": "activatePublicationCommercialTerms",
       "table": "rights_contracts",
       "operation": "UPDATE",
@@ -4002,9 +3885,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "88f271676a9fd3d426d735319ccb187aa33cb9b585dd1873b3bf91948b6c356c",
+      "siteId": "9049a881761072edec506e9c3022d8519674965723821a8ee24c14cee31ee132",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3259,
+      "line": 3261,
       "functionName": "activatePublicationCommercialTerms",
       "table": "rights_contracts",
       "operation": "UPDATE",
@@ -4015,9 +3898,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "aea962f87b0e837d413ca9eff1ba5a2d34a19186319740841e23efe218ccada9",
+      "siteId": "e8a41ba07fa289b463e7c812b3b53eb75f6083b4ae1fc614f4d31ca896f96b3e",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3268,
+      "line": 3270,
       "functionName": "activatePublicationCommercialTerms",
       "table": "rights_grants",
       "operation": "UPDATE",
@@ -4028,9 +3911,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "5c2103fcf9d4bf21738e923cb5e9745d45e6d49bfd5ffa23cb64c7b80f8afec1",
+      "siteId": "39548d2949bc28263476339dfef98b0bcb3c5c45ad53550bc18a6148d8f1c9df",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3277,
+      "line": 3279,
       "functionName": "activatePublicationCommercialTerms",
       "table": "finance_royalty_contracts",
       "operation": "UPDATE",
@@ -4041,9 +3924,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "7c16de06b43f728e72d0c430ccb60f793e886a4cd1ae47679250f75e4cfa7bf5",
+      "siteId": "3622efc6880c184ea26b69861c5654060425519e69dc2df2654c8c88e2b2e6aa",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3295,
+      "line": 3297,
       "functionName": "activatePublicationCommercialTerms",
       "table": "offers",
       "operation": "UPDATE",
@@ -4054,9 +3937,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "6c16694221cb98116d96e8d180e4868cc26bec669ba553df16a5cfc6c16f9e21",
+      "siteId": "b1a20b2658095fc0c66f297c2fcbab27aa181969943a1f90791d07c6857863c4",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3561,
+      "line": 3563,
       "functionName": "materializePublishingSubmission",
       "table": "editions",
       "operation": "INSERT INTO",
@@ -4067,9 +3950,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "9617ef5d54821710e50c6916e3d978c2ab60d8ac75ef001e19269536ae25f3f2",
+      "siteId": "a016e35b1112125a476d8698ffa9259972c669a6152a2beaf504e81d58d5e33e",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3749,
+      "line": 3751,
       "functionName": "materializePublishingSubmission",
       "table": "products",
       "operation": "INSERT INTO",
@@ -4080,9 +3963,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "82b8ab22e969d89a0c03dbbb3782031e58d2569aacc9aa2866c78b942d5b4b87",
+      "siteId": "0ea8fd8d81d639eb8963ba3564f7d57297f7f056f0bfbaa107d0336e0eb5cf90",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3799,
+      "line": 3801,
       "functionName": "materializePublishingSubmission",
       "table": "digital_assets",
       "operation": "INSERT INTO",
@@ -4093,9 +3976,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "2a066c0f1991abb7a64b619c4672013cd4c7aa3ee62f58887cf386144b6cfe94",
+      "siteId": "86911ffdea9fff0b881d542fd6d7357472057662fd07498a95a9e9892183234c",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3815,
+      "line": 3817,
       "functionName": "materializePublishingSubmission",
       "table": "digital_assets",
       "operation": "UPDATE",
@@ -4106,9 +3989,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "3a9dc384c63eeb9199cd8053f3bfcc57dc780bc17e8ac25c873985c932818c7c",
+      "siteId": "c238b5770cc927c09e7a7e67ca8f83807f44bb3274865b74df03d595d655f3fe",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3844,
+      "line": 3846,
       "functionName": "materializePublishingSubmission",
       "table": "asset_versions",
       "operation": "INSERT INTO",
@@ -4119,9 +4002,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "9e18285da5a962d67acb12007b802d54f8d2ee2b9bb0238dc339f72467acb0e6",
+      "siteId": "457b14472c96218b28fdf5e5d26fe9e4fa7e8296c1a9ede688b0be007598c9a9",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 3871,
+      "line": 3873,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_asset_versions",
       "operation": "UPDATE",
@@ -4132,9 +4015,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "51cfbd4c01c3c1b8cc95736b8343b705837fc3bfcd01da70f2d5ecf752cdfb10",
+      "siteId": "cb9917114d05e70e5a53a39af5844bafec323facae54d0a46edf8a5979538cdf",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4017,
+      "line": 4019,
       "functionName": "materializePublishingSubmission",
       "table": "editions",
       "operation": "UPDATE",
@@ -4145,9 +4028,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "0aeb4d8ce88ee1fdce9c3335058c9aaf4c2d1c973e5b3082f0bed9824c4af344",
+      "siteId": "fb7cc03332579b4e9ea39f9d969f27503d25fd1b8341bd3733170099fd56f61f",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4038,
+      "line": 4040,
       "functionName": "materializePublishingSubmission",
       "table": "offers",
       "operation": "INSERT INTO",
@@ -4158,9 +4041,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "0e1707821fda2ac585f5f0567fd08264c599abf1814ad22d76ee1c7a789bb106",
+      "siteId": "61ee693e2233f9de108cf79e015cf5002dac0255c6e711352d6bb631d973df61",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4074,
+      "line": 4076,
       "functionName": "materializePublishingSubmission",
       "table": "finance_royalty_contracts",
       "operation": "INSERT INTO",
@@ -4171,9 +4054,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "306f1355301a78df65e926da65b5353543c549830812ed643d65dd7cc8be0604",
+      "siteId": "6551c9dbc758345d5557f768e25337d54d58e3f87f2c4ba00f36d060b9eff468",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4122,
+      "line": 4124,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_publications",
       "operation": "INSERT INTO",
@@ -4184,9 +4067,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "dd44a911a59fa075cd136113c689730b3edf39916a8af66d917a66a21e476e93",
+      "siteId": "d8041bb058303c0677a8714a77f181c77cacb3f138bf77e4407b629f09b35a78",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4141,
+      "line": 4143,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_submission_snapshots",
       "operation": "UPDATE",
@@ -4197,9 +4080,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "7623a68d7dabe8f66897c01c6aaf02ad878630bd6d1237e5cf0921e1e9710cbc",
+      "siteId": "b981690556e9023f32b08f69bf049e9e466d2841d689dffc4a631cc40c3cab3c",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4146,
+      "line": 4148,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_edition_drafts",
       "operation": "UPDATE",
@@ -4210,9 +4093,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "4da6b5961a9c58cbfbc3742287aaba94e1b23cc2ec26f03b7ae64588bd2d2db6",
+      "siteId": "7d4fb62c2e9befed730b4f3134290166c98a03e46c412c9c1397712504d263dc",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4151,
+      "line": 4153,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_titles",
       "operation": "UPDATE",
@@ -4223,9 +4106,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "188297c1b7e9cc83a9df46d7c43f349b09b87c545a84714ce4ce7bc699ea02c8",
+      "siteId": "3bf3f809a124de14d160ecdf29574fe07f85cc434f748c3065ca422f8bbe4803",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4156,
+      "line": 4158,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_outbox",
       "operation": "INSERT INTO",
@@ -4236,9 +4119,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "9b4d212793e386eb7b72bf0773a23e2e580de4e4fba38c289520fc62654ad2c4",
+      "siteId": "660cab79145db5a5b7bb960fa68556bfb90e13c1e77a8033835f0b13c75e146b",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4175,
+      "line": 4177,
       "functionName": "materializePublishingSubmission",
       "table": "publisher_catalog_mappings",
       "operation": "UPDATE",
@@ -4249,9 +4132,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "f659e3dd9bf629b705ee6a86ecc61cdfd71ddfa6b367fe355cfd81869da60947",
+      "siteId": "4fc5c02d99d86c2fbed3079b7b6175f7a51ba07f7ea6533628b8e8dac28835c9",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4259,
+      "line": 4261,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_publication_versions",
       "operation": "INSERT INTO",
@@ -4262,9 +4145,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "69a41535766a078fae40e04de50194686554597ebd6cf12bf4a660dcd4ac0e1d",
+      "siteId": "12b162df88305f2e94805c3101dc31d5f8a89f4cb3c760985e48488cbcc0f257",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4310,
+      "line": 4312,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_release_lifecycles",
       "operation": "UPDATE",
@@ -4275,9 +4158,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "f405a5013d63af81595eb3c13a58e877533a65c8d5c937b9ade4319f0757b9a9",
+      "siteId": "97ff998cb903c22f0bd405783fcfac03b5765ca487ef76d72153e709eaee0435",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4317,
+      "line": 4319,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_release_lifecycles",
       "operation": "UPDATE",
@@ -4288,9 +4171,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "69bc6e61fac8e141f131baffd7571a64db09521c13801f2e5e0a05724514d7b3",
+      "siteId": "13747ba3b0f73565a38d98cfa40eaeab24557b63376abc0a3fc106771f9b08ae",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4334,
+      "line": 4336,
       "functionName": "materializePublishingSubmission",
       "table": "publishing_lifecycle_events",
       "operation": "INSERT INTO",
@@ -4301,9 +4184,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "ab8c2a45222c2ef4a13c0bbcc715f822902e2175a86005e908337cfa7d5a6abb",
+      "siteId": "aba84662ff70b3a451b61b0c9d14bd33b24a8803c14dbe6bad9a51db3a5cfda5",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4429,
+      "line": 4434,
       "functionName": "activatePublicationVersionOwned",
       "table": "editions",
       "operation": "UPDATE",
@@ -4315,9 +4198,9 @@
       "implementation": "Typed private owner executor with durable product hold; enrolled scheduler and rollback route through it. Production enablement and other publication writers remain incomplete."
     },
     {
-      "siteId": "cb4141773aac85a45e36fd4027b0b59bee77d78fc1179ba681f857f53b7ff323",
+      "siteId": "497db08d7a3d34a78e9464f42997cb37c88bad1638a1b80c7715796a5fba0999",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4511,
+      "line": 4516,
       "functionName": "activatePublicationVersionOwned",
       "table": "digital_assets",
       "operation": "UPDATE",
@@ -4329,9 +4212,9 @@
       "implementation": "Typed private owner executor with durable product hold; enrolled scheduler and rollback route through it. Production enablement and other publication writers remain incomplete."
     },
     {
-      "siteId": "6a842bb9dbaa6a2b2bd9c8314863376fb5b850355dc7c0e7061974149c97adc5",
+      "siteId": "6ef1e1c18d4e27f6622cb91338dcc6efd18e52ca76614bc628595ee675be7b1c",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4523,
+      "line": 4528,
       "functionName": "activatePublicationVersionOwned",
       "table": "products",
       "operation": "UPDATE",
@@ -4343,9 +4226,9 @@
       "implementation": "Typed private owner executor with durable product hold; enrolled scheduler and rollback route through it. Production enablement and other publication writers remain incomplete."
     },
     {
-      "siteId": "cdb5d02e24d4fa105ce3f1e1e25199abae528b8893e78d3735b76c685f4ad1df",
+      "siteId": "f9834319643df5ec18a650528566b51d37bd35ec0bc9799e2f664a0e4ede6982",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4530,
+      "line": 4535,
       "functionName": "activatePublicationVersionOwned",
       "table": "publishing_release_lifecycles",
       "operation": "UPDATE",
@@ -4357,9 +4240,9 @@
       "implementation": "Typed private owner executor with durable product hold; enrolled scheduler and rollback route through it. Production enablement and other publication writers remain incomplete."
     },
     {
-      "siteId": "5668d966f36e9fdea4dca15c38f65b60f84e6a7d8128cd3b04e084eeb54ac9b7",
+      "siteId": "ee1e036dbd28e687093eee9bfbe7f62e64ad5dc2baef80d86f4948863c639686",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4543,
+      "line": 4548,
       "functionName": "activatePublicationVersionOwned",
       "table": "publishing_lifecycle_events",
       "operation": "INSERT INTO",
@@ -4371,10 +4254,10 @@
       "implementation": "Typed private owner executor with durable product hold; enrolled scheduler and rollback route through it. Production enablement and other publication writers remain incomplete."
     },
     {
-      "siteId": "f333344ea4c86fef3cf4734f21b27b5ab6417ebb6120684eac8c0742c39bad8b",
+      "siteId": "7f61775f0ac95a0dce7552ee3ef51481bbd457f21beb3530013db03c625ec25d",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4605,
-      "functionName": "advancePublishingReleaseSchedules",
+      "line": 4620,
+      "functionName": "openPublicationPreorderOwned",
       "table": "publishing_release_lifecycles",
       "operation": "UPDATE",
       "sqlSha256": "c7cc429356c6d3484cd27e879e06fbefa6ff6b63bec692a8636c33f8c33c7901",
@@ -4384,10 +4267,10 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "07b63676aad8c77193e75e344e5520b27e35968729bf4e0a0f5c9c8189055153",
+      "siteId": "8b13ea1e10b9220d2bcb797423f931d2fb68c95f611d191e7b921fa8d7de0a18",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4611,
-      "functionName": "advancePublishingReleaseSchedules",
+      "line": 4626,
+      "functionName": "openPublicationPreorderOwned",
       "table": "products",
       "operation": "UPDATE",
       "sqlSha256": "fbd8433da4954b51b2be594d30fe5786004801f8fb37a173b850a41d9c7c9464",
@@ -4397,10 +4280,10 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "ee9c0267ce19a8266529914cee4c010e6356964de705c32e9f98491d9b2dc358",
+      "siteId": "cae496b6843ceb209377162b573d45c972d08190f4d9b0c0455e1582e56b3c34",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4616,
-      "functionName": "advancePublishingReleaseSchedules",
+      "line": 4631,
+      "functionName": "openPublicationPreorderOwned",
       "table": "editions",
       "operation": "UPDATE",
       "sqlSha256": "fa740527eeb5eee9a4b726c4e1aca5388e70b38bb14f2d5c41773b9808d340f6",
@@ -4410,10 +4293,10 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "1c9d41fbb4c7db95fa297ab4a76afffeae810dfa5b20238e865ab9edd0bf3fa9",
+      "siteId": "1b238130648f6fd02cd20965fe493e63c39d4f40018cfa381e755314af785447",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4627,
-      "functionName": "advancePublishingReleaseSchedules",
+      "line": 4642,
+      "functionName": "openPublicationPreorderOwned",
       "table": "publishing_lifecycle_events",
       "operation": "INSERT INTO",
       "sqlSha256": "a7c046db036993ac2d68f62c9388bd9a7a5b1c59b5e8c281b861b7ce991c941d",
@@ -4423,9 +4306,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "66280b842a5ab5f0a53c779f7c47a603387de40f0c57534aa3931e5ac92c3997",
+      "siteId": "e714495a6371b3a2360c4a0fa9e98bae2f6f146a2c8d45c051bb4baa21df39fe",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4749,
+      "line": 4797,
       "functionName": "reviewPublishingSubmission",
       "table": "publishing_submission_snapshots",
       "operation": "UPDATE",
@@ -4436,9 +4319,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "23c4b452ca551109dc56567286e8d6fb95f51d39c54bdc2a47eb10b1d727b3a3",
+      "siteId": "8c9f6eadf28150c97cbcdc300c57bf65397a845bc1d1f630121f42fd024c31eb",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4752,
+      "line": 4800,
       "functionName": "reviewPublishingSubmission",
       "table": "publishing_edition_drafts",
       "operation": "UPDATE",
@@ -4449,9 +4332,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "70c6e4cc33b22ab746bac89515861035bbf262b383ad49bbfa6a47a8a9a7973c",
+      "siteId": "251b7e3c6e455b1a391b78a373a19403386fa82275dcfb0d81a1ffab784f3ca8",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4881,
+      "line": 4929,
       "functionName": "reviewPublishingOnboarding",
       "table": "publishing_identity_verifications",
       "operation": "UPDATE",
@@ -4462,9 +4345,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "4d0bf0aab385a71a5a113364b2aae07275cef661b09f074d59ca067c86c6af30",
+      "siteId": "b60e25fc2f0ba50702592ce0af46b24d74df19c06c0a591665235e821d819401",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4885,
+      "line": 4933,
       "functionName": "reviewPublishingOnboarding",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -4475,9 +4358,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "f9d759ce3c62542320b4dbaa0dc44f1437223e87149f79c06ceb27cb5069080f",
+      "siteId": "61efb64bc680c7c533fd64754a1d3fb5db4402df2473fee02c6f8b6d716614f9",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4906,
+      "line": 4954,
       "functionName": "reviewPublishingOnboarding",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -4488,9 +4371,9 @@
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
     },
     {
-      "siteId": "724381983727bfcb87a0400507adb4429cc64956537e1782c816655b4d652434",
+      "siteId": "6c04c2547d6ca52da339d9c42a1f9155923b725430dec49a8ed5970064552f0a",
       "file": "src/features/fore/publishing.server.ts",
-      "line": 4926,
+      "line": 4974,
       "functionName": "reviewPublishingOnboarding",
       "table": "publishing_accounts",
       "operation": "UPDATE",
@@ -4499,6 +4382,149 @@
       "productionOwnerGuarded": false,
       "commandFamily": "publishing.reviewPublishingOnboarding",
       "reason": "Publisher enrollment, validation, release versions, activation or asset selection can affect publication eligibility. Existing D1 conditionals and terminal triggers do not provide an owner epoch or owner-first command."
+    },
+    {
+      "siteId": "f9d3e331e90061b5dbce1289dc1c2d08326c1b155da1ea90b6f1a5851117d401",
+      "file": "src/features/fore/refund-accounting.server.ts",
+      "line": 43,
+      "functionName": "postRefundAccounting",
+      "table": "commerce_gift_cards",
+      "operation": "UPDATE",
+      "sqlSha256": "5e793ec47a7c9407dd24f1baa784de68408e904f131c46de02c9855d1ea9b2ae",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "commerce.postRefundAccounting",
+      "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
+    },
+    {
+      "siteId": "56753978580812442def53867af0249b505b9358784b8f360cc49ae5e80666d0",
+      "file": "src/features/fore/refund-accounting.server.ts",
+      "line": 45,
+      "functionName": "postRefundAccounting",
+      "table": "commerce_gift_card_ledger",
+      "operation": "INSERT INTO",
+      "sqlSha256": "e96c16bc0a767dbde79c939605f43b386d6a56cef445d2643d4a8251381ba1b7",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "commerce.postRefundAccounting",
+      "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
+    },
+    {
+      "siteId": "01760be87bda922905e03acc05507cde775c08937da4c942437729a963c43197",
+      "file": "src/features/fore/refund-accounting.server.ts",
+      "line": 48,
+      "functionName": "postRefundAccounting",
+      "table": "commerce_store_credit_ledger",
+      "operation": "INSERT INTO",
+      "sqlSha256": "487bc5478c1b8cfef2d42b974f518c751c6932b71c50a1fcc2b297303abaffda",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "commerce.postRefundAccounting",
+      "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
+    },
+    {
+      "siteId": "df96b6d29d4b9f0f915d47967bd56f224b3589a1575a2fa2dc87eadb7bf6c93c",
+      "file": "src/features/fore/refund-accounting.server.ts",
+      "line": 60,
+      "functionName": "postRefundAccounting",
+      "table": "commerce_ledger_entries",
+      "operation": "INSERT INTO",
+      "sqlSha256": "bd53054271807cbe3a27f05b1b6c98676077930b634a93a42528d599892c7ff0",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "commerce.postRefundAccounting",
+      "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
+    },
+    {
+      "siteId": "d6ab184470b9378254f39ece591bac989ea76e2c8b39004e59f015b75af440c9",
+      "file": "src/features/fore/refund-accounting.server.ts",
+      "line": 62,
+      "functionName": "postRefundAccounting",
+      "table": "commerce_orders",
+      "operation": "UPDATE",
+      "sqlSha256": "8c32a1a900b98bb37a877a1ce852e789e0fbca3be9c7503c1c0e88b7e0bcfa9a",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "commerce.postRefundAccounting",
+      "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
+    },
+    {
+      "siteId": "ebdb6f7affc2c119a73e8e1c5d22e2f5842525289f46edf0fcf5d392024b82ee",
+      "file": "src/features/fore/refund-accounting.server.ts",
+      "line": 64,
+      "functionName": "postRefundAccounting",
+      "table": "entitlements",
+      "operation": "UPDATE",
+      "sqlSha256": "28d4d039c6671d72da5ec1735dabcd666e34bc5434656227c3f5cec42655186c",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "commerce.postRefundAccounting",
+      "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
+    },
+    {
+      "siteId": "116b247f916e912b3c087c096c313103ae35bec073798e013b71fbfeb4d6d159",
+      "file": "src/features/fore/refund-accounting.server.ts",
+      "line": 66,
+      "functionName": "postRefundAccounting",
+      "table": "commerce_order_items",
+      "operation": "UPDATE",
+      "sqlSha256": "4bd35899db2c9a58cb8249ecb72f3eda50eb663e685e0c6296138c3dd6b602b5",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "commerce.postRefundAccounting",
+      "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
+    },
+    {
+      "siteId": "4e28a4c676ea60a9fe1b215a264061a6ae60275eeaebb54edc23922b792e53b5",
+      "file": "src/features/fore/refund-accounting.server.ts",
+      "line": 68,
+      "functionName": "postRefundAccounting",
+      "table": "preorders",
+      "operation": "UPDATE",
+      "sqlSha256": "84bab7ea196bbf09fa3e2862272662f3bf68719bc86f5502da58ab2e9ca737da",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "commerce.postRefundAccounting",
+      "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
+    },
+    {
+      "siteId": "d1f1547d5829a01bf197caa822fcedcc37e01a38e67b0728409856e0576d694d",
+      "file": "src/features/fore/refund-accounting.server.ts",
+      "line": 70,
+      "functionName": "postRefundAccounting",
+      "table": "commerce_promo_codes",
+      "operation": "UPDATE",
+      "sqlSha256": "e5ce6640647401905e439c3a80230de4ad6c9d560161b96a1dc33f5ec8162997",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "commerce.postRefundAccounting",
+      "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
+    },
+    {
+      "siteId": "c564b53a77909c38f96970da662bda75e9aa4d28e56109cfeae56fd0823f604d",
+      "file": "src/features/fore/refund-accounting.server.ts",
+      "line": 72,
+      "functionName": "postRefundAccounting",
+      "table": "commerce_promo_redemptions",
+      "operation": "UPDATE",
+      "sqlSha256": "1f2a8004ca83e849f9df7d965bc47b3ead4ded417c2981a380d7bd41fe500e85",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "commerce.postRefundAccounting",
+      "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
+    },
+    {
+      "siteId": "41fc2f717dbdd25fcb89d9bdd14d0424adf89a01369cbbceee1bc35d5b34d6c9",
+      "file": "src/features/fore/refund-accounting.server.ts",
+      "line": 74,
+      "functionName": "postRefundAccounting",
+      "table": "commerce_refunds",
+      "operation": "UPDATE",
+      "sqlSha256": "0cc2161032c6a260582ffe32aaf9617c812fa6c368a79a0bb2857cf5b02def9e",
+      "disposition": "owner-command-required",
+      "productionOwnerGuarded": false,
+      "commandFamily": "commerce.postRefundAccounting",
+      "reason": "Reviewed refund transaction/refund reservation writer: exact tender and ledger mutations are replay-safe in an atomic D1 batch or conditional reservation, but production owner enrollment is unimplemented. Keep this protected SQL visible and required for owner migration; local crash-injection tests do not certify deployed ownership."
     },
     {
       "siteId": "58db73e9f2bbf8533c3eaf9005e0591c770387fb6117f4d5c70609f1998048a2",

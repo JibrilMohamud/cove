@@ -1,11 +1,11 @@
 # Production owner migration: reviewed work and remaining blockers
 
-Source baseline: `e463c0e7903ff0b784901962d778b2dda2243b36`, October 28, 2026.
+Source baseline: `c706eae6dc9fbc1951451f086b64739bb4720790`, October 28, 2026.
 This record does not certify or activate Cloudflare public routing.
 
 ## Mutation inventory reconciliation
 
-`canonical-writer-review.json` records every one of the existing 458 scanner
+`canonical-writer-review.json` records every one of the existing 460 scanner
 candidates with its file, line, named function, table, operation, exact SQL
 digest, disposition, rationale and proposed command family. The identity also
 binds the surrounding source file: changing the caller or its guards requires
@@ -14,20 +14,20 @@ fresh review even if its SQL and the total count are unchanged.
 | Priority file | Candidates | Owner-command migration required | Non-authorizing |
 | --- | ---: | ---: | ---: |
 | `publishing.server.ts` | 88 | 88 | 0 |
-| `commerce.server.ts` | 66 | 66 | 0 |
+| `commerce.server.ts` | 56 | 56 | 0 |
 | `publishing-trust.server.ts` | 58 | 53 | 5 |
 | `traditional-publishing.server.ts` | 58 | 47 | 11 |
-| Other 21 files | 188 | 179 | 8 |
-| Total | 458 | 433 | 24 |
+| Other 22 files | 200 | 191 | 8 |
+| Total | 460 | 435 | 24 |
 
 The remaining one candidate is the temporary browser-QA database seed.
-All 458 are SQL literals, so the fixture is an applicability false positive,
+All 460 are SQL literals, so the fixture is an applicability false positive,
 not a nonexistent SQL statement. The 24 ancillary writes are specific audit
 records, legal-notification/partner-response delivery status, credential
 `last_used_at`, and presentation-only ratings/rankings/taxonomy updates.
 Classification does not grant an exemption to arbitrary writes in these
 tables, and does not change the runtime write lock or release-denial scanner.
-The 433 rows are conservative migration requirements, not proven defects.
+The 435 rows are conservative migration requirements, not proven defects.
 
 **No production SQL site is claimed as owner-guarded.** Conditional D1
 updates, terminal-state triggers and opt-in QA owner calls are useful controls
@@ -111,7 +111,7 @@ legal-owner command endpoint rejects the new distribution action to prevent
 staff-identity substitution by a lower-privilege caller.
 
 Outside opt-in isolated QA, `setDistributionControl` still contains its three
-legacy protected SQL sites. All 433 reviewed production writer candidates remain
+legacy protected SQL sites. All 435 reviewed production writer candidates remain
 unclosed, and the owner-only release gate must remain blocked. The existing
 administrative QA command is not a public production traffic path.
 
@@ -141,7 +141,7 @@ Enrolled scheduler activation and rollback callers dispatch this typed
 command. Enrollment remains isolated-QA-only. Initial materialization,
 preorder transitions, submission/moderation, trust, contract and other
 commercial writers remain open migration work. This increment closes no
-production SQL site in the 458-candidate inventory.
+production SQL site in the 460-candidate inventory.
 
 The production persistence deployment config now includes the separate
 production `LEGAL_AUTHORITY` namespace. Authenticated pre-deploy checks
@@ -163,12 +163,23 @@ owner secret. The backend rejects wrong nonce, owner state, implementation or
 canonical primary identity. All protected legal, publication and payment
 operations still return 503 in this mode. Unit coverage bundles the real DO
 and proves replay, spoofing, wrong secret, QA-primary and protected-operation
-denial. A real authenticated invocation against the deployed persistence
-Worker is still necessary to certify the *live* handshake, independent
-of the binding metadata audit.
+denial. The live handshake is now certified through the private `BackendOwnerAttestation`
+RPC on the deployed persistence Worker. [Run 40788098744](https://github.com/JibrilMohamud/cove/actions/runs/40788098744)
+passed on merge `c706eae6`; backend version `107ba3cc-17c8-4b32-8086-7de69233c3e2`
+used its existing secret and exact production DO binding. The uncredentialed
+HTTP diagnostic returned 401. The expiring verifier was deleted and the
+control plane independently confirmed it absent. This closes credential
+equality/runtime reachability only, while owner enablement remains zero.
+
+The inventory increased from 458 to 460 because ten commerce refund sites
+were extracted into eleven atomic accounting sites and one explicit royalty
+ledger SQL site was added. All fourteen new/changed SQL literals were
+reviewed and remain `owner-command-required`; no production migration was
+closed merely by relocation or test results. The exact per-file/SQL review
+and mutation regression baseline retain all 460 findings.
 
 This proves neither production owner-write fencing nor positive publication.
-The 433 protected writer sites still require migration or verified closure
+The 435 protected writer sites still require migration or verified closure
 before any owner-only storefront or customer authorization is enabled.
 
 `check-publication-owner-command.mjs` exercises the actual activation and

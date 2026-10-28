@@ -134,6 +134,26 @@ try {
   const single=fixture(1);
   assert.equal((await single.post("/commercial/entitlement/publish-verified",scope())).status,200);
   assert.equal(await single.allowed(),true,"Single-book compatibility still works");
+  const repurchase=fixture(1);
+  assert.equal((await repurchase.post("/commercial/entitlement/publish-verified",scope())).status,200);
+  await repurchase.post("/commercial/order/deny-next",{orderId,operationId:"refund:original:purchase"});
+  assert.equal(await repurchase.allowed(),false);
+  repurchase.primary.prepare("UPDATE entitlements SET status='revoked' WHERE id=?").run(entitlements[0]);
+  repurchase.primary.prepare("UPDATE commerce_orders SET status='refunded' WHERE id=?").run(orderId);
+  const newOrder="order_repurchase_handler_01",newItem="item_repurchase_handler_01",
+    newEntitlement="ent_repurchase_handler_01";
+  repurchase.primary.prepare("INSERT INTO commerce_orders VALUES(?,?,?,'paid')").run(newOrder,userId,"US");
+  repurchase.primary.prepare(`INSERT INTO commerce_order_items
+    SELECT ?,?,product_id,sales_channel,preorder_id,entitlement_status,rights_grant_id,rights_snapshot_json
+    FROM commerce_order_items WHERE order_id=?`).run(newItem,newOrder,orderId);
+  repurchase.primary.prepare("INSERT INTO entitlements VALUES(?,?,?,'purchase','active','commerce',NULL,NULL,?)")
+    .run(newEntitlement,userId,products[0],newItem);
+  const newScope={...scope(),entitlementId:newEntitlement};
+  assert.equal((await repurchase.post("/commercial/entitlement/publish-verified",newScope)).status,200,
+    "A new independently paid order and fresh entitlement can repurchase the same legally available product");
+  assert.equal((await (await repurchase.post("/commercial/entitlement/authorize",newScope)).json()).allowed,true);
+  assert.equal(await repurchase.allowed(),false,"Repurchase cannot reactivate the refunded entitlement");
+  assert.equal((await (await repurchase.post("/commercial/order/verify",{orderId})).json()).allowed,false);
   const wrongBuyer=fixture();
   assert.equal((await wrongBuyer.post("/commercial/entitlement/publish-order-verified",{
     orderId,userId:"other_buyer_handler",territory:"US",channel:"retail"})).status,409);
