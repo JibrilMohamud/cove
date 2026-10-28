@@ -44,9 +44,7 @@ function hasCatalogChangingQuery(search: string): boolean {
     "locale",
     "lang",
   ]);
-  return [...new URLSearchParams(search).keys()].some((key) =>
-    catalogKeys.has(key.toLowerCase()),
-  );
+  return [...new URLSearchParams(search).keys()].some((key) => catalogKeys.has(key.toLowerCase()));
 }
 
 export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
