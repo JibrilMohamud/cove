@@ -7,32 +7,55 @@ import {
 } from "@/lib/cove-request-env.server";
 import { hedgedStorefrontBootstrap } from "./storefront-hedged-fetch";
 
-// Tracking and deployment-protection query keys never change the contents of
-// the Bookstore's default shelf. Retain live first-page SSR for those URLs.
-// Every search, sort, page, facet and unrecognized parameter still bypasses
-// this optimization, so filtered listings cannot render unrelated books.
+// Only parameters that change catalog selection, ordering, pagination or the
+// rights/locale context may suppress the verified first-page SSR shelf.
+// Unknown query keys are inert to StorePage, so blocking SSR for them makes
+// infrastructure and marketing links render needless placeholders.
 function hasCatalogChangingQuery(search: string): boolean {
-  const harmless = new Set([
-    "gclid",
-    "fbclid",
-    "msclkid",
-    "__vercel_share",
-    "__vercel_protection_bypass",
-    "x-vercel-protection-bypass",
-    "x-vercel-set-bypass-cookie",
+  const catalogKeys = new Set([
+    "q",
+    "search",
+    "sort",
+    "page",
+    "taxonomy",
+    "category",
+    "language",
+    "format",
+    "publisher",
+    "series",
+    "authorid",
+    "seriesid",
+    "publisherid",
+    "imprintid",
+    "deals",
+    "preorder",
+    "newrelease",
+    "subscription",
+    "library",
+    "minrating",
+    "minprice",
+    "maxprice",
+    "publishedafter",
+    "publishedbefore",
+    "currency",
+    "territory",
+    "country",
+    "market",
+    "locale",
+    "lang",
   ]);
-  for (const rawKey of new URLSearchParams(search).keys()) {
-    const key = rawKey.toLowerCase();
-    if (key.startsWith("utm_") || harmless.has(key)) continue;
-    return true;
-  }
-  return false;
+  return [...new URLSearchParams(search).keys()].some((key) =>
+    catalogKeys.has(key.toLowerCase()),
+  );
 }
 
 export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
   .inputValidator((value: string) => z.string().max(2000).parse(value))
   .handler(async ({ data }): Promise<string | null> => {
-    if (hasCatalogChangingQuery(data)) return null;
+    if (hasCatalogChangingQuery(data)) {
+      setResponseHeader("Server-Timing", "cove_ssr_query_filtered;dur=0");
+      return null;
+    }
     const request = getRequest();
     const source = new Request(new URL("/api/fore/storefront/bootstrap", request.url), {
       headers: request.headers,
