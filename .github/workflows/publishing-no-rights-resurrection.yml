@@ -1,0 +1,31 @@
+name: publishing-no-rights-resurrection
+on:
+  pull_request:
+    paths:
+      - "src/features/fore/publishing.server.ts"
+      - "scripts/check-publishing-no-resurrection.mjs"
+      - ".github/workflows/publishing-no-rights-resurrection.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/features/fore/publishing.server.ts"
+      - "scripts/check-publishing-no-resurrection.mjs"
+      - ".github/workflows/publishing-no-rights-resurrection.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prevent-reinstatement-by-stale-publication:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Execute real publishing SQL through revocation/replay scenarios
+        run: node scripts/check-publishing-no-resurrection.mjs
+      - name: Reject additional unaudited canonical writers
+        run: node scripts/check-canonical-writer-closure.mjs --no-new-writers
