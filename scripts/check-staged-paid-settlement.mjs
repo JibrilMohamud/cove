@@ -1,7 +1,7 @@
 /* eslint-disable prettier/prettier -- Security decision regression uses strict, explicit fake private owner ports. */
 import assert from "node:assert/strict";
 import {build} from "esbuild";
-import {mkdtempSync,rmSync} from "node:fs";
+import {mkdtempSync,rmSync,readFileSync} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {pathToFileURL} from "node:url";
@@ -186,5 +186,21 @@ try{
   items[2].entitlement_status="pending";
   await assert.rejects(certify(env,orderId,userId),e=>e.status===409,
     "A missing canonical paid item blocks the entire multi-book cart");
+  const commerce=readFileSync("src/features/fore/commerce.server.ts","utf8");
+  const payment=commerce.slice(commerce.indexOf("export async function finalizePaidOrder("),
+    commerce.indexOf("export async function recoverPayment("));
+  assert.ok(payment.indexOf("await assertStagePaidOrderNotWithdrawn")>
+    payment.indexOf("Terminal or invalid order cannot be settled."),
+    "A terminal signed payment must be rejected before owner settlement");
+  assert.ok(payment.indexOf("await certifyStagePaidSettlement")>=0,
+    "No paid order may silently omit independent owner publication");
+  const refund=commerce.slice(commerce.indexOf("const remainingTotal ="),
+    commerce.indexOf("async function stageRevokeRefundEntitlements("));
+  assert.ok(refund.indexOf("await stageRevokeRefundEntitlements")>=0 &&
+    refund.indexOf("await stageRevokeRefundEntitlements")<refund.indexOf('stripeRequest(env, "refunds"'),
+    "Stage must withdraw paid access before the Stripe provider begins refunding");
+  const delivery=readFileSync("src/features/fore/delivery.server.ts","utf8");
+  assert.equal((delivery.match(/await requireStagePaidEntitlementAccess\(env,/g)||[]).length,2,
+    "Original paid delivery must query owner at BOTH grant issuance and byte redemption");
   console.log("PASS: staged paid handoff requires one atomic full-order receipt; rejects incomplete, duplicate and unavailable owner proofs");
 }finally{rmSync(directory,{force:true,recursive:true});}
