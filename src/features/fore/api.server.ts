@@ -5669,7 +5669,7 @@ async function handleCoveRequest(
           .prepare(
             `INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,granted_at,updated_at)
             VALUES(?,?,?,'public-domain','active','gutenberg',?,?)
-            ON CONFLICT(user_id,product_id,entitlement_type) DO UPDATE SET status='active',updated_at=excluded.updated_at`,
+            ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active' DO UPDATE SET status='active',updated_at=excluded.updated_at`,
           )
           .bind(crypto.randomUUID(), user.id, product.id, at, at)
           .run();
