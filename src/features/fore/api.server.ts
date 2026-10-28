@@ -500,6 +500,12 @@ export type CoveEnv = {
   COVE_LEGAL_WRITER_PRIMARY_ID?: string;
   COVE_LEGAL_QUARANTINE_SECRET?: string;
   LEGAL_QUARANTINE_WRITER?: { fetch(request: Request): Promise<Response> };
+  // Protected private QA only; never inherited by production frontend.
+  COVE_LEGAL_CONSUMER_STAGE_ENABLED?: string;
+  COVE_RIGHTS_OWNER_SECRET?: string;
+  LEGAL_AUTHORITY?: {
+    getByName(name: string): { fetch(request: Request): Promise<Response> };
+  };
   // Stage-only candidate: independent low-cardinality anonymous metrics.
   COVE_OPS_TELEMETRY_MODE?: string;
   OPS_ANALYTICS?: {
