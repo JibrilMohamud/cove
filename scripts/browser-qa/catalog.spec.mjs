@@ -180,7 +180,7 @@ test("cold first Bookstore page shows verified books before slow facet search, e
 });
 
 
-test("anonymous /store does not wait for a stalled first-page bootstrap", async ({
+test("anonymous homepage does not wait for a stalled first-page bootstrap", async ({
   page,
   request,
 }) => {
@@ -197,9 +197,10 @@ test("anonymous /store does not wait for a stalled first-page bootstrap", async 
     catalogRequests++;
     return route.continue();
   });
-  // This route has no homepage SSR shelf. Its live, rights-scoped catalog
-  // must be allowed to start within 800ms of the optional bootstrap stalling.
-  await page.goto("/store?sort=popular");
+  // Explicit query parameters prevent the server from supplying an SSR shelf.
+  // The independently rights-checked catalog must not be held behind an
+  // indefinitely pending first-paint bootstrap.
+  await page.goto("/?sort=popular");
   await expect.poll(() => bootstrapRequests, { timeout: 4_000 }).toBeGreaterThanOrEqual(1);
   await expect.poll(() => catalogRequests, { timeout: 4_000 }).toBeGreaterThanOrEqual(1);
   await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible({
