@@ -266,7 +266,10 @@ try {
   const buyerAccount = await request(buyer, "GET", "/account");
   assert.equal(buyerAccount.status, 200);
   const buyerId = String(buyerAccount.data?.user?.id || "");
-  assert.ok(buyerId, "Authenticated buyer identity required to certify device-bound offline receipt");
+  assert.ok(
+    buyerId,
+    "Authenticated buyer identity required to certify device-bound offline receipt",
+  );
   const outsiderAccount = await request(outsider, "GET", "/account");
   assert.equal(outsiderAccount.status, 200);
   refundOperatorId = outsiderAccount.data?.user?.id || null;
@@ -351,7 +354,9 @@ try {
     deviceKey,
   });
   assert.equal(offline.status, 201, "Actual offline EPUB issuer must return signed receipt");
-  const offlineClaims = JSON.parse(Buffer.from(offline.data.receipt.payload, "base64url").toString("utf8"));
+  const offlineClaims = JSON.parse(
+    Buffer.from(offline.data.receipt.payload, "base64url").toString("utf8"),
+  );
   const signatureKey = await crypto.subtle.importKey(
     "jwk",
     verifiedKey.data.publicKey,
