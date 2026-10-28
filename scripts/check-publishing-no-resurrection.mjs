@@ -12,7 +12,7 @@ const sql=(pattern,label)=>{
 const contract=sql(/"(UPDATE rights_contracts SET status='active',updated_at=\? WHERE id=\?[^"]+)"/,"contract activation");
 const grants=sql(/`(UPDATE rights_grants SET status='active',updated_at=\? WHERE id IN \(\$\{placeholders\}\)[^`]+)`/,"grant activation").replace("${placeholders}","?");
 const royalty=sql(/"(UPDATE finance_royalty_contracts SET status='active',updated_at=\? WHERE id=\?[^"]+)"/,"royalty activation");
-const offer=sql(/`(UPDATE offers SET active=CASE WHEN EXISTS \([\s\S]*? THEN 1 ELSE 0 END,updated_at=\\? WHERE id=\\?)`/,"retail activation").replace("${grantPlaceholders}","?");
+const offer=sql(/`(UPDATE offers SET active=CASE WHEN EXISTS [(][\s\S]*? THEN 1 ELSE 0 END,updated_at=[?] WHERE id=[?])`/,"retail activation").replace("${grantPlaceholders}","?");
 for(const [name,query] of [["contract",contract],["grant",grants],["royalty",royalty]]){
   assert.match(query,/status IN \('draft','active'\)/,
     name+" must never revive revoked, suspended or retired agreements");
