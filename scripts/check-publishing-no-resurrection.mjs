@@ -12,7 +12,7 @@ const sql=(pattern,label)=>{
 const contract=sql(/"(UPDATE rights_contracts SET status='active',updated_at=\? WHERE id=\?[^"]+)"/,"contract activation");
 const grants=sql(/`(UPDATE rights_grants SET status='active',updated_at=\? WHERE id IN \(\$\{placeholders\}\)[^`]+)`/,"grant activation").replace("${placeholders}","?");
 const royalty=sql(/"(UPDATE finance_royalty_contracts SET status='active',updated_at=\? WHERE id=\?[^"]+)"/,"royalty activation");
-const offer=sql(/`(UPDATE offers SET active=1,updated_at=\? WHERE id=\?[\s\S]*?)`/,"retail activation").replace("${grantPlaceholders}","?");
+const offer=sql(/`(UPDATE offers SET active=CASE WHEN EXISTS \([\s\S]*? THEN 1 ELSE 0 END,updated_at=\\? WHERE id=\\?)`/,"retail activation").replace("${grantPlaceholders}","?");
 for(const [name,query] of [["contract",contract],["grant",grants],["royalty",royalty]]){
   assert.match(query,/status IN \('draft','active'\)/,
     name+" must never revive revoked, suspended or retired agreements");
@@ -65,13 +65,17 @@ try{
     assert.equal(db.prepare(query).run(at,id).changes,1);
     assert.equal(value(table),"active");
   }
-  const offerRun=(grant="grant_one",contract="contract_one",version="version_one")=>
-    db.prepare(offer).run(at,"offer_one",grant,contract,contract,version,version,at,at).changes;
+  const offerRun=(grant="grant_one",contract="contract_one",version="version_one")=>{
+    db.prepare(offer).run(grant,contract,contract,version,version,at,at,at,"offer_one");
+    return db.prepare("SELECT active FROM offers WHERE id='offer_one'").get().active;
+  };
   const resetOffer=()=>db.prepare("UPDATE offers SET active=0 WHERE id='offer_one'").run();
   assert.equal(offerRun(),1,"Fresh active retail grant may activate");
   resetOffer();
   set("rights_grants","revoked");
   assert.equal(offerRun(),0,"Revoked grant must prevent offer activation");
+  db.prepare("UPDATE offers SET active=1 WHERE id='offer_one'").run();
+  assert.equal(offerRun(),0,"A stale previously-active offer must be deactivated on revoked rights");
   set("rights_grants","active");
   set("rights_contracts","suspended");
   assert.equal(offerRun(),0,"Suspended contract must prevent offer activation");
