@@ -4,7 +4,9 @@ on:
     paths:
       - "scripts/check-covereads-canary-deny.mjs"
       - "wrangler.frontend.production.toml"
+      - "wrangler.frontend.staging.toml"
       - "scripts/check-cloudflare-production-candidate.mjs"
+      - "scripts/check-cloudflare-ssr-stage-gate.mjs"
       - ".github/workflows/cloudflare-native-ssr-staging.yml"
       - "scripts/performance/cloudflare-concurrency.mjs"
       - ".github/workflows/covereads-owned-ssr-canary-guard.yml"
@@ -12,7 +14,7 @@ on:
 permissions:
   contents: read
 jobs:
-  owned-domain-fail-closed:
+  source-fail-closed:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -24,9 +26,64 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Confirm disabled production candidate and live canonical owned origin
+      - name: Assert owned production candidate remains unroutable
         run: |
           node scripts/check-cloudflare-production-candidate.mjs
           node scripts/check-cloudflare-ssr-stage-gate.mjs
-      - name: Verify public requests never reach protected owned-domain staging SSR
+
+  isolated-asset-auth:
+    needs: source-fail-closed
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    env:
+      VERCEL: "0"
+      COVE_CLOUDFLARE_SSR_PILOT: "1"
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_SEND_METRICS: "false"
+      COVE_SSR_PROTECTED_TEST_ORIGIN: "https://cove-asset-auth-stage.cove-jibrilmohamud.workers.dev"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Require isolated deployment credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test "$COVE_SSR_PROTECTED_TEST_ORIGIN" = "https://cove-asset-auth-stage.cove-jibrilmohamud.workers.dev"
+      - name: Build protected Cloudflare-native SSR
+        run: npm run build
+      - name: Deploy ONLY ephemeral asset auth Worker (never real stage or public hostnames)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy \
+            --config wrangler.frontend.staging.toml \
+            --name cove-asset-auth-stage
+          printf '%s' "$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')" | \
+            npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put \
+            COVE_SSR_STAGING_GATE_KEY --config wrangler.frontend.staging.toml \
+            --name cove-asset-auth-stage
+          # Control-plane propagation delay, NO HTTP warming.
+          sleep 25
+      - name: Prove SSR auth gate precedes real assets and account/mutation routes
         run: node scripts/check-covereads-canary-deny.mjs
+      - name: Delete ONLY the ephemeral test Worker
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl -sS --max-time 25 -w '\n%{http_code}' -X DELETE \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/cove-asset-auth-stage?force=true")"
+          code="${response##*$'\n'}"
+          if [ "$code" != "200" ] && [ "$code" != "404" ]; then
+            echo "::error::Ephemeral asset-auth Worker cleanup failed"
+            exit 1
+          fi
