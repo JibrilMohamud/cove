@@ -5,10 +5,10 @@ const stage = fs.readFileSync("wrangler.frontend.staging.toml", "utf8");
 const production = fs.readFileSync("wrangler.frontend.production.toml", "utf8");
 const gate = fs.readFileSync("docs/performance/cloudflare-commercial-cutover-gate.md", "utf8");
 
-// Cloudflare assigns Worker scripts at
-// <script>.<account-subdomain>.workers.dev, never the account root.
+// The public origin must be the existing verified owned domain, not a
+// workers.dev preview hostname or an old Vercel deployment URL.
 assert.match(production, /^name = "cove"$/m);
-assert.match(production, /^FORE_PUBLIC_URL = "https:\/\/cove\.cove-jibrilmohamud\.workers\.dev"$/m);
+assert.match(production, /^FORE_PUBLIC_URL = "https:\/\/www\.covereads\.com"$/m);
 assert.doesNotMatch(
   production,
   /^FORE_PUBLIC_URL = "https?:\/\/cove-jibrilmohamud\.workers\.dev"$/m,
@@ -44,5 +44,5 @@ assert.match(gate, /Supabase/);
 assert.match(gate, /Stripe/);
 assert.match(gate, /offline/);
 console.log(
-  "PASS: production candidate is unroutable, canonical HTTPS Worker URL correct; D1/R2/assets configuration present, release gate still blocks public traffic.",
+  "PASS: production candidate is unroutable, owned canonical HTTPS origin correct; D1/R2/assets configured, release gate blocks traffic.",
 );
