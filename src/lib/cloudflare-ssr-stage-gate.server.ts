@@ -2,6 +2,7 @@ type StagingEnvironment = {
   COVE_SSR_STAGING?: string;
   COVE_SSR_STAGING_GATE_KEY?: string;
   COVE_SSR_STAGING_COMMERCE_QA?: string;
+  COVE_STRIPE_SIGNED_WEBHOOK_QA_ENABLED?: string;
 };
 
 /**
@@ -23,6 +24,21 @@ export async function rejectUnauthenticatedStagingRequest(
   const secret = env.COVE_SSR_STAGING_GATE_KEY;
   if (!secret || !/^[a-f0-9]{64}$/.test(secret))
     return new Response("Staging credentials unavailable", { status: 503, headers });
+  // Stripe does not send our ephemeral staging bearer. This deliberately
+  // narrow, opt-in QA webhook ingress is authenticated by the original
+  // stripeWebhook() HMAC verifier, which must reject any forged signature
+  // BEFORE touching the isolated canonical database. This is never active
+  // on production or the ordinary read-only staging Workers.
+  const uri = new URL(request.url);
+  const stripeQaWebhook =
+    env.COVE_SSR_STAGING_COMMERCE_QA === "1" &&
+    env.COVE_STRIPE_SIGNED_WEBHOOK_QA_ENABLED === "1" &&
+    uri.hostname === "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev" &&
+    uri.pathname === "/api/fore/stripe/webhook" &&
+    request.method === "POST" &&
+    request.headers.get("content-type")?.split(";")[0]?.trim() === "application/json" &&
+    Boolean(request.headers.get("stripe-signature"));
+  if (stripeQaWebhook) return null;
   const supplied = request.headers.get("authorization") || "";
   const match = /^Bearer ([a-f0-9]{64})$/.exec(supplied);
   if (!match) return new Response("Unauthorized", { status: 401, headers });
