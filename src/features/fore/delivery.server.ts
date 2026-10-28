@@ -4,6 +4,7 @@ import type { CoveEnv } from "./api.server";
 import { ApiError, now } from "./service";
 import { drmSatisfiesRequirement, resolveProductRights } from "./rights.server";
 import { recordSyncProjection } from "./sync.server";
+import { requireStagePaidEntitlementAccess } from "../../storefront-strangler/legal-consumer-fence.server";
 
 type DB = CoveEnv["DB"];
 const uid = (p: string) => `${p}_${crypto.randomUUID()}`;
