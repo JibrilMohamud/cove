@@ -407,28 +407,29 @@ try {
       "UPDATE entitlements SET ends_at='2000-01-01' WHERE id='offline-purchase-test'",
       "UPDATE entitlements SET ends_at=NULL WHERE id='offline-purchase-test'",
     ],
-    [
-      "UPDATE audio_offline_licenses SET status='revoked' WHERE id='lic-test'",
-      "UPDATE audio_offline_licenses SET status='active' WHERE id='lic-test'",
-    ],
-    // Actual customer revocation is terminal. Do NOT reactivate the same
-    // entitlement to reset a synthetic fixture: require a fresh purchase.
-    ["UPDATE entitlements SET status='revoked' WHERE id='offline-purchase-test'", null],
   ]) {
     await db.prepare(deny).run();
     await assert.rejects(checkStored(), /no longer active/);
-    if (restore) {
-      await db.prepare(restore).run();
-    } else {
-      await assert.rejects(
-        db
-          .prepare("UPDATE entitlements SET status='active' WHERE id='offline-purchase-test'")
-          .run(),
-        /fresh independently authorized purchase/,
-      );
-      await assert.rejects(checkStored(), /no longer active/);
-    }
+    await db.prepare(restore).run();
   }
+  // Revoked offline license IDs are terminal. The actual refresh route revokes
+  // the old ID and creates a new token instead of reactivating its old hash.
+  await db.prepare("UPDATE audio_offline_licenses SET status='revoked' WHERE id='lic-test'").run();
+  await assert.rejects(checkStored(), /no longer active/);
+  await assert.rejects(
+    db.prepare("UPDATE audio_offline_licenses SET status='active' WHERE id='lic-test'").run(),
+    /requires a newly issued token/,
+  );
+  // Purchase revocation is separately terminal. Neither state can be revived
+  // by a stale queue retry to restore a previously valid offline receipt.
+  await db
+    .prepare("UPDATE entitlements SET status='revoked' WHERE id='offline-purchase-test'")
+    .run();
+  await assert.rejects(checkStored(), /no longer active/);
+  await assert.rejects(
+    db.prepare("UPDATE entitlements SET status='active' WHERE id='offline-purchase-test'").run(),
+    /fresh independently authorized purchase/,
+  );
   const license = {
     licenseId: claims.licenseId,
     token,
