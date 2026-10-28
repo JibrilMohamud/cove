@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "scripts/check-covereads-canary-deny.mjs"
+      - "scripts/check-staging-auth-gateway.mjs"
       - "src/cloudflare/staging-auth-gateway.mjs"
       - "wrangler.staging-auth-gateway.test.toml"
       - "wrangler.frontend.production.toml"
@@ -32,6 +33,7 @@ jobs:
         run: |
           node scripts/check-cloudflare-production-candidate.mjs
           node scripts/check-cloudflare-ssr-stage-gate.mjs
+          node scripts/check-staging-auth-gateway.mjs
 
   isolated-asset-auth:
     needs: source-fail-closed
