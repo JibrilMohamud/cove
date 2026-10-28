@@ -1,0 +1,61 @@
+/* eslint-disable prettier/prettier -- Guardrail tests: release must fail closed, inventory must be reproducible. */
+import assert from "node:assert/strict";
+import {mkdtempSync,readFileSync,rmSync} from "node:fs";
+import {tmpdir} from "node:os";
+import {join} from "node:path";
+import {spawnSync} from "node:child_process";
+const folder=mkdtempSync(join(tmpdir(),"cove-canonical-writer-"));
+try{
+  const file=join(folder,"audit.json");
+  const env={...process.env,COVE_WRITER_AUDIT_OUTPUT:file};
+  const run=args=>spawnSync(process.execPath,[
+    "scripts/check-canonical-writer-closure.mjs",...args
+  ],{encoding:"utf8",env,timeout:30000});
+  const inventory=run(["--audit"]);
+  assert.equal(inventory.status,0,inventory.stderr);
+  const result=JSON.parse(readFileSync(file,"utf8"));
+  assert.equal(result.schema,"cove.canonical-writer-inventory.v1");
+  assert.equal(result.staticScanOnly,true);
+  // The canonical registry is an inventory on main, not evidence that the
+  // still-draft owner-first runtime denial fence has been deployed.
+  const scanner=readFileSync("scripts/check-canonical-writer-closure.mjs","utf8");
+  const begin=scanner.indexOf("const protectedTables=[");
+  const end=scanner.indexOf("];",begin);
+  assert.ok(begin>=0 && end>begin, "Missing canonical protected-table inventory");
+  const names=[...scanner.slice(begin,end).matchAll(/"([a-z_]+)"/g)].map(x=>x[1]);
+  assert.ok(names.length>=120, "Every protected rights, finance and media table must be inventoried");
+  assert.equal(names.length,new Set(names).size,"Duplicate canonical protected-table registry name");
+  assert.ok(result.scannedFiles>50);
+  assert.ok(!result.findings.some(row=>row.file.startsWith("scripts/test-")),
+    "Unit-test SQL must never masquerade as production canonical writer evidence");
+  assert.ok(result.unresolvedDirectWrites>80,
+    "Unexpectedly empty writer audit: do not certify production from a broken scanner");
+  for(const path of [
+    "src/features/fore/rights.server.ts",
+    "src/features/fore/publishing.server.ts",
+    "src/features/fore/commerce.server.ts",
+    "src/features/fore/delivery.server.ts",
+    "src/features/fore/commercial-audio.server.ts"
+  ])assert.ok(result.byFile[path]>0,"Missing high-risk canonical writer inventory: "+path);
+  for(const domain of ["publication_rights","financial","customer_permission",
+    "protected_media"])assert.ok(result.byDomain[domain]>0,
+    "Unreported canonical writer category: "+domain);
+  const duplicate=run(["--audit"]);
+  assert.equal(duplicate.status,0);
+  const result2=JSON.parse(readFileSync(file,"utf8"));
+  assert.deepEqual(result, result2,"The canonical-writer report cannot vary by clock or runner");
+  const blocked=run(["--release-gate"]);
+  const forged=spawnSync(process.execPath,["scripts/check-canonical-writer-closure.mjs","--release-gate"],{
+    encoding:"utf8",
+    timeout:30000,
+    env:{...env,COVE_LEGAL_OWNER_WRITER_CLOSURE_AUDITED:"1",
+      COVE_FAST_STOREFRONT_RELEASE_CERTIFIED:"1",
+      COVE_RIGHTS_OWNER_ENABLED:"1"},
+  });
+  assert.notEqual(forged.status,0,
+    "Self-reported owner closure or storefront readiness may never override the missing release certificate");
+  assert.notEqual(blocked.status,0,
+    "A source-only audit or self-declared flag must NEVER enable production owner-only authorization");
+  assert.match(blocked.stderr,/BLOCKED: production owner-only anonymous read is unsafe/);
+  console.log("PASS: real rights/publishing/commerce/delivery/audio writer inventory; deterministic results; production owner-only release denied until externally certified closure");
+}finally{rmSync(folder,{recursive:true,force:true});}
