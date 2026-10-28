@@ -99,3 +99,22 @@ await build({
   external: ["node:*", "cloudflare:*"],
   logLevel: "silent",
 });
+
+// Legal authority remains isolated QA-only. This compiles disabled private
+// Workers, not a route or a production rights-owner binding.
+for (const lane of [
+  ["legal-authority.worker.ts", "legal-authority.mjs"],
+  ["legal-quarantine-qa.writer.ts", "legal-quarantine-qa-writer.mjs"],
+]) {
+  await build({
+    entryPoints: [`src/storefront-strangler/${lane[0]}`],
+    outfile: `.output/strangler/${lane[1]}`,
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    target: "es2022",
+    conditions: ["workerd", "worker", "browser", "import", "default"],
+    external: ["node:*", "cloudflare:*"],
+    logLevel: "silent",
+  });
+}

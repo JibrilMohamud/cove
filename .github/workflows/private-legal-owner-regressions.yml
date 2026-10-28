@@ -1,0 +1,85 @@
+name: private-legal-owner-regressions
+on:
+  pull_request:
+    paths:
+      - "src/storefront-strangler/legal-authority-*.ts"
+      - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
+      - "src/storefront-strangler/legal-authority-core.ts"
+      - "src/storefront-strangler/legal-authority-coordinator.ts"
+      - "src/storefront-strangler/commercial-legal-core.ts"
+      - "src/storefront-strangler/commercial-entitlement-core.ts"
+      - "src/storefront-strangler/commercial-storefront-authority.ts"
+      - "src/storefront-strangler/market-authority-core.ts"
+      - "src/storefront-strangler/paid-order-atomic-publication.ts"
+      - "scripts/check-legal-authority-*.mjs"
+      - "scripts/check-legal-quarantine-writer.mjs"
+      - "scripts/check-paid-*.mjs"
+      - "scripts/check-commercial-*.mjs"
+      - "scripts/check-market-authority-closure.mjs"
+      - "scripts/build-storefront-strangler.mjs"
+      - "wrangler.legal-*.example.jsonc"
+      - ".github/workflows/private-legal-owner-regressions.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/storefront-strangler/legal-authority-*.ts"
+      - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
+      - "src/storefront-strangler/commercial-legal-core.ts"
+      - "src/storefront-strangler/commercial-entitlement-core.ts"
+      - "src/storefront-strangler/commercial-storefront-authority.ts"
+      - "src/storefront-strangler/market-authority-core.ts"
+      - "src/storefront-strangler/paid-order-atomic-publication.ts"
+      - "scripts/check-legal-authority-*.mjs"
+      - "scripts/check-legal-quarantine-writer.mjs"
+      - "scripts/check-paid-*.mjs"
+      - "scripts/check-commercial-*.mjs"
+      - "scripts/check-market-authority-closure.mjs"
+      - "scripts/build-storefront-strangler.mjs"
+      - "wrangler.legal-*.example.jsonc"
+      - ".github/workflows/private-legal-owner-regressions.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prove-private-owner-invariants:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Deny-first canonical owner, atomic paid entitlement, and reconciliation replay
+        run: |
+          node scripts/check-legal-authority-owner.mjs
+          node scripts/check-legal-authority-coordinator.mjs
+          node scripts/check-legal-authority-read.mjs
+          node scripts/check-commercial-legal-authority.mjs
+          node scripts/check-commercial-storefront-owner.mjs
+          node scripts/check-paid-entitlement-authority.mjs
+          node scripts/check-paid-order-atomic-publication.mjs
+          node scripts/check-market-authority-closure.mjs
+          node scripts/check-legal-quarantine-writer.mjs
+      - name: Compile dormant Durable Object and fenced private writer
+        run: node scripts/build-storefront-strangler.mjs
+      - name: Never expose QA authority as a public service or implicitly activate it
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          for(const name of ["wrangler.legal-authority.example.jsonc","wrangler.legal-quarantine-qa.example.jsonc"]){
+            const c=JSON.parse(fs.readFileSync(name,"utf8"));
+            assert.equal(c.workers_dev,false);
+            assert.equal(c.preview_urls,false);
+            assert.deepEqual(c.routes,[]);
+            assert.equal(c.vars.COVE_RIGHTS_OWNER_ENABLED??c.vars.COVE_LEGAL_WRITER_ENABLED,"0");
+            assert.ok(c.d1_databases.every(x=>x.database_id!=="4bd657ac-8789-403e-a28c-93aba8d0a989"));
+          }
+          console.log("PASS: private legal QA cannot route publicly or bind customer production D1");
+          '
+      - name: Fail on newly introduced direct primary-D1 legal writes
+        run: node scripts/check-canonical-writer-closure.mjs --no-new-writers
