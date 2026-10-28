@@ -186,7 +186,7 @@ function moneySplit(total: number, weights: number[]) {
   return out;
 }
 
-async function cartPricing(db: CatalogDB, userId: string, territory: string) {
+async function cartPricing(db: CatalogDB, userId: string, territory: string, env?: CoveEnv) {
   const snap = await cartSnapshot(db, userId, territory);
   if (!snap.items.length) throw new ApiError(409, "Your cart is empty.");
   const bad = snap.items.filter((x: any) => !x.available || !x.offer || !x.book?.productId);
@@ -440,7 +440,7 @@ export async function checkoutQuote(env: CoveEnv, user: User, raw: unknown) {
       "Checkout territory must match the billing country used for tax and payment.",
     );
   const db = env.DB,
-    cart = await cartPricing(db, user.id, territory);
+    cart = await cartPricing(db, user.id, territory, env);
   const promo = await promoFor(db, user.id, input.promoCode, cart.subtotalMinor, cart.currency);
   const eligibleSet = new Set<string>((promo?.eligibleProducts || []).map(String));
   const eligibleWeights = cart.items.map((x) =>
@@ -842,7 +842,7 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
     .bind(input.quoteId, user.id, now())
     .first<any>();
   if (!quote) throw new ApiError(409, "This checkout quote expired. Recalculate your total.");
-  const cart = await cartPricing(db, user.id, String(quote.territory_code)),
+  const cart = await cartPricing(db, user.id, String(quote.territory_code), env),
     currentFingerprint = cart.fingerprint;
   if (currentFingerprint !== quote.cart_fingerprint)
     throw new ApiError(409, "Your cart changed. Recalculate checkout before paying.");
@@ -2622,10 +2622,10 @@ async function processStripeEvent(env: CoveEnv, event: any) {
       if (obj.status === "succeeded") await applyRefundSuccess(env, r.id, obj);
     }
   } else if (type.startsWith("charge.dispute.")) {
-    await syncDispute(db, obj, type);
+    await syncDispute(db, obj, type, env);
   }
 }
-async function syncDispute(db: CatalogDB, d: any, eventType: string) {
+async function syncDispute(db: CatalogDB, d: any, eventType: string, env: CoveEnv) {
   const charge = String(typeof d.charge === "string" ? d.charge : d.charge?.id || ""),
     order = charge
       ? await db
@@ -2711,9 +2711,9 @@ async function syncDispute(db: CatalogDB, d: any, eventType: string) {
         .bind(at, order.id)
         .run();
       if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
-      await db
-        .prepare(
-          "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase'",
+        await db
+          .prepare(
+            "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase'",
         )
         .bind(at, order.user_id, order.id)
         .run();
