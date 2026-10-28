@@ -2,7 +2,7 @@
 // The origin, users, media fixtures and keys must be provisioned out of band.
 // The workflow must FAIL, not substitute local module-level identity mocks.
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import fs from "node:fs";
 import { chromium } from "playwright";
 import JSZip from "jszip";
@@ -82,6 +82,9 @@ const report = {
   buyerAuthenticated: false,
   outsiderAuthenticated: false,
   protectedEpub: false,
+  signedOfflineEpub: false,
+  offlineBuyerDeviceBound: false,
+  offlineRefundDenied: false,
   playableAudio: false,
   outsiderDenied: false,
   refundRevoked: false,
@@ -260,6 +263,10 @@ try {
   report.buyerAuthenticated = true;
   report.outsiderAuthenticated = true;
   await verifyConfig(buyer);
+  const buyerAccount = await request(buyer, "GET", "/account");
+  assert.equal(buyerAccount.status, 200);
+  const buyerId = String(buyerAccount.data?.user?.id || "");
+  assert.ok(buyerId, "Authenticated buyer identity required to certify device-bound offline receipt");
   const outsiderAccount = await request(outsider, "GET", "/account");
   assert.equal(outsiderAccount.status, 200);
   refundOperatorId = outsiderAccount.data?.user?.id || null;
@@ -325,6 +332,65 @@ try {
   assert.ok(chapter, "Deployed fixture must be a real synthetic EPUB");
   assert.match(await chapter.async("string"), /Original synthetic content/);
   report.protectedEpub = true;
+  // Original Cove offline EPUB API: device registration, seven-day P-256
+  // signed receipt, buyer/device/product binding and real issuer's EPUB URL.
+  const deviceKey = "qa-" + randomUUID();
+  const device = await request(buyer, "POST", "/account/device/register", {
+    deviceKey,
+    name: "Isolated offline EPUB QA",
+    platform: "playwright-test",
+  });
+  assert.equal(device.status, 200, "Original device registration must succeed");
+  assert.ok(device.data?.id, "Original device record must have an ID");
+  const verifiedKey = await request(buyer, "GET", "/offline-epub/verification-key");
+  assert.equal(verifiedKey.status, 200);
+  assert.ok(verifiedKey.data?.publicKey?.x && verifiedKey.data?.publicKey?.y);
+  assert.match(String(verifiedKey.data?.keyId || ""), /^[a-f0-9]{64}$/);
+  const offline = await request(buyer, "POST", "/offline-epub/license", {
+    productId: q.COVE_QA_EPUB_PRODUCT_ID,
+    deviceKey,
+  });
+  assert.equal(offline.status, 201, "Actual offline EPUB issuer must return signed receipt");
+  const offlineClaims = JSON.parse(Buffer.from(offline.data.receipt.payload, "base64url").toString("utf8"));
+  const signatureKey = await crypto.subtle.importKey(
+    "jwk",
+    verifiedKey.data.publicKey,
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["verify"],
+  );
+  const signatureOkay = await crypto.subtle.verify(
+    { name: "ECDSA", hash: "SHA-256" },
+    signatureKey,
+    Buffer.from(offline.data.receipt.signature, "base64url"),
+    new TextEncoder().encode("cove-offline-epub:v1\\n" + offline.data.receipt.payload),
+  );
+  assert.equal(signatureOkay, true, "Actual seven-day receipt signature must verify");
+  assert.equal(offline.data.receipt.keyId, verifiedKey.data.keyId);
+  assert.equal(offlineClaims.keyId, verifiedKey.data.keyId);
+  assert.equal(offlineClaims.audience, "cove-offline-epub");
+  assert.equal(offlineClaims.userId, buyerId);
+  assert.equal(offlineClaims.productId, q.COVE_QA_EPUB_PRODUCT_ID);
+  assert.equal(
+    offlineClaims.deviceKeyHash,
+    createHash("sha256").update(deviceKey).digest("hex"),
+    "Offline receipt must be bound to the registered buyer device",
+  );
+  assert.equal(offlineClaims.assetVersionId, offline.data.assetVersionId);
+  assert.ok(offlineClaims.licenseId);
+  const lifetime = Date.parse(offlineClaims.expiresAt) - Date.parse(offlineClaims.issuedAt);
+  assert.equal(lifetime, 7 * 24 * 60 * 60 * 1000);
+  assert.equal(offlineClaims.expiresAt, offline.data.expiresAt);
+  assert.equal(new URL(offline.data.url, origin).origin, origin.origin);
+  report.signedOfflineEpub = true;
+  expectDenied(
+    await request(outsider, "POST", "/offline-epub/license", {
+      productId: q.COVE_QA_EPUB_PRODUCT_ID,
+      deviceKey,
+    }),
+    "Unowned outsider offline EPUB license",
+  );
+  report.offlineBuyerDeviceBound = true;
   expectDenied(
     await request(outsider, "POST", "/delivery/epub/grant", {
       productId: q.COVE_QA_EPUB_PRODUCT_ID,
@@ -427,6 +493,18 @@ try {
     }),
     "Refunded EPUB new grant",
   );
+  expectDenied(
+    await request(buyer, "POST", "/offline-epub/license", {
+      productId: q.COVE_QA_EPUB_PRODUCT_ID,
+      deviceKey,
+    }),
+    "Refunded EPUB cannot issue a new offline license",
+  );
+  report.offlineRefundDenied = true;
+  const revokedDevice = await request(buyer, "POST", "/account/device/revoke", {
+    deviceId: device.data.id,
+  });
+  assert.equal(revokedDevice.status, 200, "QA device must be revoked after offline issuance");
   const oldGrant = await buyer.evaluate(
     async (path) => (await fetch(path, { credentials: "include" })).status,
     grantUrl.pathname + grantUrl.search,
