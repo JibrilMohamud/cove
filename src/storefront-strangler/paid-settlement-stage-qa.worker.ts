@@ -32,9 +32,9 @@ const ENTITLEMENT="ent_paid_qa_20261027";
 const PRODUCT="prd_paid_qa_20261027";
 const isInitial=(env:Env,orderId:unknown,userId:unknown)=>
   typeof env.COVE_PAID_INITIAL_ORDER==="string" &&
-  /^order_initial_qa_\d{8,15}$/.test(env.COVE_PAID_INITIAL_ORDER) &&
+  /^order_initial_qa_\d{8,15}-\d{1,5}$/.test(env.COVE_PAID_INITIAL_ORDER) &&
   typeof env.COVE_PAID_INITIAL_BUYER==="string" &&
-  /^user_initial_qa_\d{8,15}$/.test(env.COVE_PAID_INITIAL_BUYER) &&
+  /^user_initial_qa_\d{8,15}-\d{1,5}$/.test(env.COVE_PAID_INITIAL_BUYER) &&
   orderId===env.COVE_PAID_INITIAL_ORDER &&
   userId===env.COVE_PAID_INITIAL_BUYER;
 function available(env:Env):boolean{
@@ -185,7 +185,7 @@ export default {
           }});
         }
         if(url.pathname==="/qa/offline-epub-license"){
-          if(!/^[0-9]{8,15}$/.test(env.COVE_PAID_INITIAL_ORDER!.slice(17)) ||
+          if(!/^[0-9]{8,15}-[0-9]{1,5}$/.test(env.COVE_PAID_INITIAL_ORDER!.slice(17)) ||
              !env.FORE_OFFLINE_AUDIO_SIGNING_JWK)
             return new Response(null,{status:503,headers});
           const key=JSON.parse(env.FORE_OFFLINE_AUDIO_SIGNING_JWK) as JsonWebKey;
