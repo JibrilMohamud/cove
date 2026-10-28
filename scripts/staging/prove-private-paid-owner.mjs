@@ -321,6 +321,26 @@ try {
   await verifySecrets(callerName,["COVE_LEGAL_QA_GATE","COVE_RIGHTS_OWNER_SECRET",
     "COVE_LEGAL_WRITER_SECRET"]);
   await readyOwner();
+  // Confirm the *writer* route has propagated independently of the owner read
+  // route. An empty JSON object is rejected by the writer's validation before
+  // any owner call or D1 mutation; only HTTP 400 proves this path is live.
+  // Never retry the subsequent genuine positive legal publication.
+  let writerReady=false;
+  const writerReadinessStatuses=new Map();
+  for(let attempt=0;attempt<24;attempt++){
+    const probe=await post("/commercial/retail/publish-verified",{});
+    if(probe.status===400){writerReady=true;break;}
+    const key="HTTP_"+probe.status;
+    writerReadinessStatuses.set(key,(writerReadinessStatuses.get(key)||0)+1);
+    if(![404,503].includes(probe.status))
+      throw Error("paid_writer_readiness_unexpected_status:"+probe.status);
+    await pause(1500);
+  }
+  assert.equal(writerReady,true,"paid_writer_route_unavailable:"+
+    JSON.stringify(Object.fromEntries(writerReadinessStatuses)));
+  if(writerReadinessStatuses.size)
+    console.log("QA writer routing preflight recovered: "+
+      JSON.stringify(Object.fromEntries(writerReadinessStatuses)));
   // The private writer below intentionally reconciles the synthetic buyer
   // entitlement to 'revoked'. Recover only this exact test identity from a
   // prior interrupted run; never write the capacity or customer database.
