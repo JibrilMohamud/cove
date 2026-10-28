@@ -178,7 +178,9 @@ const post=async(route,body)=>{
     method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+gate},
     body:JSON.stringify(body),signal:AbortSignal.timeout(12000)
   });
-  return {status:response.status,body:response.status===200?await response.json():null};
+  return {status:response.status,body:response.status===200?await response.json():null,
+    ray:response.headers.get("cf-ray"),
+    unavailableLayer:response.headers.get("x-cove-qa-unavailable-layer")};
 };
 const read=async(route,body)=>{
   let result;
@@ -358,7 +360,8 @@ try {
     productId:test.productId,territory:"US",currency:"USD",
     operationId:"qa:"+runId+":positive-retail-publication"
   });
-  assert.equal(publish.status,200,"Private positive canonical retail writer unavailable");
+  assert.equal(publish.status,200,"Private positive canonical retail writer unavailable "+
+    JSON.stringify({status:publish.status,ray:publish.ray,layer:publish.unavailableLayer}));
   assert.equal(publish.body?.published,true);
   assert.ok(Number.isSafeInteger(publish.body?.ownerEpoch)&&publish.body.ownerEpoch>0);
   const rights=await read("/commercial/authorize-batch",{
