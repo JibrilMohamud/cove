@@ -7,10 +7,53 @@ import {
 } from "@/lib/cove-request-env.server";
 import { hedgedStorefrontBootstrap } from "./storefront-hedged-fetch";
 
+// Only parameters that change catalog selection, ordering, pagination or the
+// rights/locale context may suppress the verified first-page SSR shelf.
+// Unknown query keys are inert to StorePage, so blocking SSR for them makes
+// infrastructure and marketing links render needless placeholders.
+function hasCatalogChangingQuery(search: string): boolean {
+  const catalogKeys = new Set([
+    "q",
+    "search",
+    "sort",
+    "page",
+    "taxonomy",
+    "category",
+    "language",
+    "format",
+    "publisher",
+    "series",
+    "authorid",
+    "seriesid",
+    "publisherid",
+    "imprintid",
+    "deals",
+    "preorder",
+    "newrelease",
+    "subscription",
+    "library",
+    "minrating",
+    "minprice",
+    "maxprice",
+    "publishedafter",
+    "publishedbefore",
+    "currency",
+    "territory",
+    "country",
+    "market",
+    "locale",
+    "lang",
+  ]);
+  return [...new URLSearchParams(search).keys()].some((key) => catalogKeys.has(key.toLowerCase()));
+}
+
 export const loadStorefrontBootstrap = createServerFn({ method: "GET" })
   .inputValidator((value: string) => z.string().max(2000).parse(value))
   .handler(async ({ data }): Promise<string | null> => {
-    if (new URLSearchParams(data).size) return null;
+    if (hasCatalogChangingQuery(data)) {
+      setResponseHeader("Server-Timing", "cove_ssr_query_filtered;dur=0");
+      return null;
+    }
     const request = getRequest();
     const source = new Request(new URL("/api/fore/storefront/bootstrap", request.url), {
       headers: request.headers,
