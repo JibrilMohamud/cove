@@ -2366,7 +2366,7 @@ async function processStripeEvent(env: CoveEnv, event: any) {
     if (o)
       await db
         .prepare(
-          "UPDATE commerce_orders SET status='authorized',authorized_at=?,updated_at=? WHERE id=? AND status NOT IN ('paid','refunded')",
+          "UPDATE commerce_orders SET status='authorized',authorized_at=?,updated_at=? WHERE id=? AND status IN ('pending_payment','processing','authorized')",
         )
         .bind(now(), now(), o.id)
         .run();
@@ -2521,7 +2521,7 @@ async function processStripeEvent(env: CoveEnv, event: any) {
       .first<any>();
     if (r) {
       await db
-        .prepare("UPDATE commerce_refunds SET status=?,updated_at=? WHERE id=?")
+        .prepare("UPDATE commerce_refunds SET status=CASE WHEN succeeded_at IS NOT NULL OR status='succeeded' THEN 'succeeded' ELSE ? END,updated_at=? WHERE id=?")
         .bind(obj.status || r.status, now(), r.id)
         .run();
       if (obj.status === "succeeded") await applyRefundSuccess(env, r.id, obj);
