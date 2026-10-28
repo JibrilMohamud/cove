@@ -118,8 +118,9 @@ jobs:
         run: |
           node --input-type=module -e '
           import assert from "node:assert/strict";
-          const id=process.env.GITHUB_RUN_ID;
-          assert.match(id||"",/^\d{8,15}$/);
+          // Reruns share RUN_ID, not RUN_ATTEMPT: verify this exact invocation.
+          const id=process.env.GITHUB_RUN_ID+"-"+(process.env.GITHUB_RUN_ATTEMPT||"1");
+          assert.match(id||"",/^\d{8,15}-\d{1,5}$/);
           const account=process.env.CLOUDFLARE_ACCOUNT_ID;
           const token=process.env.CLOUDFLARE_API_TOKEN;
           assert.match(account||"",/^[a-f0-9]{32}$/);
