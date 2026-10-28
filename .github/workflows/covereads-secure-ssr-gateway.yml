@@ -111,6 +111,16 @@ jobs:
           set -euo pipefail
           export COVE_SSR_STAGING_GATE_KEY="$COVE_GATE_TEST_BEARER"
           node scripts/performance/cloudflare-concurrency.mjs
+      - name: Install Chromium for owned-domain LCP and hydration gate
+        run: npx playwright install --with-deps chromium
+      - name: Check browser hydration and mobile-4G LCP through owned ingress
+        shell: bash
+        env:
+          COVE_SSR_STAGING_ORIGIN: "https://ssr-canary.covereads.com"
+        run: |
+          set -euo pipefail
+          export COVE_SSR_STAGING_GATE_KEY="$COVE_GATE_TEST_BEARER"
+          node scripts/performance/cloudflare-browser.mjs
       - name: Upload owned canary performance evidence even after a failed hard gate
         if: always()
         uses: actions/upload-artifact@v4
@@ -119,6 +129,7 @@ jobs:
           path: |
             artifacts/cloudflare-ssr-staging-performance.json
             artifacts/cloudflare-concurrency-performance.json
+            artifacts/cloudflare-browser-performance.json
           if-no-files-found: ignore
           retention-days: 14
       - name: Detach owned canary and delete ONLY the two ephemeral test Workers
