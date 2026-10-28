@@ -54,22 +54,39 @@ export default {
     const isRefundBatch=pathname==="/commercial/entitlement/revoke-order";
     const isRetailPublication=pathname==="/commercial/retail/publish-verified";
     const isRetailWithdrawal=pathname==="/commercial/retail/withdraw";
+    const isDistributionWithdrawal=pathname==="/commercial/distribution/withdraw";
     if(request.method!=="POST" ||
-       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && !isRetailPublication && !isRetailWithdrawal && !isMarketWithdrawal) ||
+       (pathname!=="/quarantine" && !isEvidence && !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && !isRetailPublication && !isRetailWithdrawal && !isMarketWithdrawal && !isDistributionWithdrawal) ||
        request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json" ||
        request.headers.has("cookie"))
       return new Response(null,{status:405,headers});
     let cmd:{sourceId?:unknown;operationId?:unknown;message?:unknown;
       evidenceId?:unknown;territory?:unknown;operations?:unknown;
       targetId?:unknown;entitlementId?:unknown;orderId?:unknown;
-      productId?:unknown;currency?:unknown};
+      productId?:unknown;currency?:unknown;publicationVersionId?:unknown;
+      status?:unknown;allowExistingOwners?:unknown;reasonCode?:unknown;
+      reasonDetail?:unknown;actorUserId?:unknown;action?:unknown};
     try{
       const text=await request.text();
-      if(text.length>(isRetractionBatch?5000:900))
+      if(text.length>(isRetractionBatch?5000:isDistributionWithdrawal?3500:900))
         return new Response(null,{status:413,headers});
       cmd=JSON.parse(text);
     }catch{return new Response(null,{status:400,headers});}
-    if(!cmd || isMarketWithdrawal && (
+    if(!cmd || isDistributionWithdrawal && (
+      cmd.action!=="withdraw-distribution" ||
+      typeof cmd.publicationVersionId!=="string" ||
+      !/^[a-zA-Z0-9_-]{3,160}$/.test(cmd.publicationVersionId) ||
+      !["blocked","recalled"].includes(String(cmd.status)) ||
+      cmd.allowExistingOwners!==false ||
+      typeof cmd.reasonCode!=="string" || cmd.reasonCode.length<1 ||
+      cmd.reasonCode.length>120 ||
+      typeof cmd.reasonDetail!=="string" || cmd.reasonDetail.length>2000 ||
+      typeof cmd.actorUserId!=="string" ||
+      !/^[a-zA-Z0-9_-]{3,160}$/.test(cmd.actorUserId) ||
+      typeof cmd.operationId!=="string" || !opIdRegex.test(cmd.operationId) ||
+      Object.keys(cmd).sort().join(",")!==
+        "action,actorUserId,allowExistingOwners,operationId,publicationVersionId,reasonCode,reasonDetail,status"
+    ) || isMarketWithdrawal && (
       typeof cmd.territory!=="string" || !/^[A-Z]{2}$/.test(cmd.territory) ||
       typeof cmd.operationId!=="string" || !opIdRegex.test(cmd.operationId)
     ) || isRefundBatch && (
@@ -99,7 +116,7 @@ export default {
       !/^[a-zA-Z0-9_-]{3,160}$/.test(cmd.targetId) ||
       typeof cmd.operationId!=="string" ||
       !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,80}$/.test(cmd.operationId)
-    ) || !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && !isRetailPublication && !isRetailWithdrawal && !isMarketWithdrawal && (
+    ) || !isRetractionBatch && !isCommercial && !isEntitlement && !isRefundBatch && !isRetailPublication && !isRetailWithdrawal && !isMarketWithdrawal && !isDistributionWithdrawal && (
        !sourceIdRegex.test(String(cmd.sourceId||"")) ||
        !opIdRegex.test(String(cmd.operationId||"")) ||
        (isEvidence
@@ -136,6 +153,56 @@ export default {
           "UPDATE storefront_markets SET market_status='paused',checkout_enabled=0,updated_at=datetime('now') WHERE country_code=? AND market_status='active'"
         ).bind(territory).run();
         return Response.json({marketWithdrawn:true,territory},
+          {status:200,headers});
+      }
+      if(isDistributionWithdrawal){
+        // Resolve the identity from canonical, never a caller-supplied product.
+        // A read failure means the command cannot proceed; NO D1 mutation
+        // precedes the independently durable owner denial.
+        const publicationVersionId=cmd.publicationVersionId as string;
+        const published=await env.PRIMARY_DB.prepare(
+          "SELECT pv.id,p.product_id FROM publishing_publication_versions pv JOIN publishing_publications p ON p.id=pv.publication_id WHERE pv.id=?"
+        ).bind(publicationVersionId).first<{id:string;product_id:string}>();
+        if(!published||published.id!==publicationVersionId ||
+           !/^prd_[a-zA-Z0-9_-]{3,120}$/.test(published.product_id) ||
+           published.product_id.startsWith("prd_gutenberg_"))
+          throw Error("distribution_publication_not_found");
+        const productId=published.product_id;
+        // Existing signed media is not remotely revocable while disconnected.
+        // All new online owner-backed authorization is denied globally first.
+        const owner=await env.LEGAL_PRIVATE.fetch(new Request(
+          "https://legal-authority.internal/commercial/deny-next",{
+            method:"POST",headers:{"authorization":"Bearer "+env.COVE_RIGHTS_OWNER_SECRET,
+              "content-type":"application/json"},
+            body:JSON.stringify({productId,operationId:"distribution:"+cmd.operationId})
+          }
+        ));
+        if(owner.status!==200)throw Error("distribution_owner_denial_unavailable");
+        const receipt=await owner.json() as {applied?:boolean;epoch?:number};
+        if(receipt.applied!==true||!Number.isSafeInteger(receipt.epoch)||
+           Number(receipt.epoch)<=0)
+          throw Error("distribution_owner_denial_invalid");
+        const at=new Date().toISOString();
+        // One D1 batch is a RECONCILIATION SINK, never the authorization
+        // authority. A D1 outage leaves the product denied in the owner.
+        // Replays cannot downgrade recalled -> blocked or reenable owners.
+        const prior=await env.PRIMARY_DB.prepare(
+          "SELECT distribution_status FROM publication_version_distribution_controls WHERE publication_version_id=?"
+        ).bind(publicationVersionId).first<{distribution_status:string}>();
+        await env.PRIMARY_DB.batch([
+          env.PRIMARY_DB.prepare(
+            "INSERT INTO publication_version_distribution_controls(publication_version_id,distribution_status,allow_existing_owners,reason_code,reason_detail,effective_at,updated_by,updated_at) VALUES(?,?,0,?,?,?,?,?) ON CONFLICT(publication_version_id) DO UPDATE SET distribution_status=CASE WHEN publication_version_distribution_controls.distribution_status='recalled' THEN 'recalled' ELSE excluded.distribution_status END,allow_existing_owners=0,reason_code=excluded.reason_code,reason_detail=excluded.reason_detail,effective_at=excluded.effective_at,updated_by=excluded.updated_by,updated_at=excluded.updated_at"
+          ).bind(publicationVersionId,cmd.status,cmd.reasonCode,cmd.reasonDetail,at,cmd.actorUserId,at),
+          env.PRIMARY_DB.prepare(
+            "INSERT OR IGNORE INTO publication_version_distribution_events(id,publication_version_id,from_status,to_status,allow_existing_owners,reason_code,reason_detail,actor_user_id,created_at) VALUES(?,?,?,?,0,?,?,?,?)"
+          ).bind("dist_"+cmd.operationId,publicationVersionId,prior?.distribution_status||null,
+            cmd.status,cmd.reasonCode,cmd.reasonDetail,cmd.actorUserId,at),
+          env.PRIMARY_DB.prepare(
+            "UPDATE commercial_delivery_grants SET status='revoked',revoked_at=?,revocation_reason=? WHERE publication_version_id=? AND status='active'"
+          ).bind(at,"distribution_"+cmd.status,publicationVersionId)
+        ]);
+        return Response.json({withdrawn:true,ownerDenied:true,
+          publicationVersionId,status:cmd.status,ownerEpoch:receipt.epoch},
           {status:200,headers});
       }
       if(isRetailWithdrawal){
