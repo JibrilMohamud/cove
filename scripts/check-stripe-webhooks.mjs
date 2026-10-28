@@ -140,6 +140,44 @@ try {
   )
     .bind(timestamp, timestamp)
     .run();
+  // A genuine signed event for a different PI must never update the
+  // canonical order merely because Stripe metadata names that order.
+  // This includes non-success lifecycle events, not only settlement.
+  for (const [suffix, type] of [
+    ["processing", "payment_intent.processing"],
+    ["authorization", "payment_intent.amount_capturable_updated"],
+    ["failure", "payment_intent.payment_failed"],
+    ["cancel", "payment_intent.canceled"],
+  ]) {
+    const crossed = {
+      id: "evt_pi_cross_order_" + suffix,
+      type,
+      livemode: false,
+      data: {
+        object: {
+          id: "pi_another_order",
+          currency: "jpy",
+          metadata: { fore_order_id: "ord-proof" },
+        },
+      },
+    };
+    await assert.rejects(
+      stripeWebhook(env, request(crossed)),
+      /does not match the canonical order/,
+      "Mismatched PI may not mutate another order in " + type,
+    );
+    const eventState = await original(
+      "SELECT status FROM commerce_webhook_events WHERE provider_event_id=?",
+    )
+      .bind(crossed.id)
+      .first();
+    assert.equal(eventState.status, "failed", "Mismatched event must remain retryable");
+  }
+  assert.equal(
+    (await original("SELECT status FROM commerce_orders WHERE id='ord-proof'").first()).status,
+    "pending_payment",
+    "Mismatched signed non-success events must not cancel or alter the real order",
+  );
   for (const [suffix, overrides] of [
     ["amount", { amount_received: 999 }],
     ["currency", { currency: "usd" }],
