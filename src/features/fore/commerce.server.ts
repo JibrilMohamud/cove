@@ -2268,7 +2268,17 @@ export async function stripeWebhook(env: CoveEnv, request: Request) {
 }
 async function orderFromPI(db: CatalogDB, pi: any) {
   const id = pi?.metadata?.fore_order_id;
-  if (id) return db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(id).first<any>();
+  if (id) {
+    const order = await db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(id).first<any>();
+    // A signed Stripe event is not proof that its caller-controlled metadata
+    // references the matching canonical order. Apply this identity invariant
+    // to *every* PI event (processing, failed, canceled, captured, succeeded),
+    // not just the final paid settlement handler. A mismatch is retryable and
+    // never counted as a processed webhook or used to change another order.
+    if (order && String(order.stripe_payment_intent_id || "") !== String(pi?.id || ""))
+      throw new ApiError(409, "Stripe PaymentIntent does not match the canonical order.");
+    return order;
+  }
   if (pi?.id)
     return db
       .prepare("SELECT * FROM commerce_orders WHERE stripe_payment_intent_id=?")
