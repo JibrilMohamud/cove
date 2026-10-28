@@ -288,6 +288,40 @@ try {
       );
     }
   }
+  // Signed successful payments must not resurrect a canceled, disputed or
+  // revoked order. These events must be retryable rather than publishing
+  // entitlements, settling tender or rewriting canonical order status.
+  const baselineEntitlements = await original("SELECT count(*) AS n FROM entitlements").first();
+  const baselineLedger = await original("SELECT count(*) AS n FROM commerce_ledger_entries").first();
+  for (const terminal of ["canceled", "disputed", "revoked", "expired"]) {
+    await original("UPDATE commerce_orders SET status=? WHERE id='ord-proof'").bind(terminal).run();
+    const late = {
+      id: "evt_late_success_after_" + terminal,
+      type: "payment_intent.succeeded",
+      livemode: false,
+      data: {
+        object: {
+          id: "pi_expected",
+          currency: "jpy",
+          amount_received: 1000,
+          metadata: { fore_order_id: "ord-proof" },
+        },
+      },
+    };
+    await assert.rejects(
+      stripeWebhook(env, request(late)),
+      /Terminal or invalid order cannot be settled/,
+      "Signed late success must fail closed for " + terminal,
+    );
+    const orderAfter = await original("SELECT status FROM commerce_orders WHERE id='ord-proof'").first();
+    assert.equal(orderAfter.status, terminal);
+    const received = await original(
+      "SELECT status FROM commerce_webhook_events WHERE provider_event_id=?",
+    ).bind(late.id).first();
+    assert.equal(received.status, "failed", "Rejected late successes remain retryable");
+    assert.equal((await original("SELECT count(*) AS n FROM entitlements").first()).n, baselineEntitlements.n);
+    assert.equal((await original("SELECT count(*) AS n FROM commerce_ledger_entries").first()).n, baselineLedger.n);
+  }
   await original("UPDATE commerce_orders SET status='pending_payment' WHERE id='ord-proof'").run();
   await ingestStripeRiskSignal(
     env.DB,
