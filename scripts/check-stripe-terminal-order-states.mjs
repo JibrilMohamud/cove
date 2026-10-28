@@ -20,6 +20,14 @@ const query=(status)=>{
   assert.ok(guarded,"Missing monotonic guarded Stripe SQL for "+status);
   return guarded;
 };
+const cancelEvent=code.slice(code.indexOf('type === "payment_intent.canceled"'),
+  code.indexOf('type === "charge.succeeded"'));
+assert.ok(cancelEvent.startsWith('type === "payment_intent.canceled"'));
+assert.match(cancelEvent,/const transition: any = await db/);
+assert.match(cancelEvent,/transition\?\.meta\?\.changes/);
+assert.ok(cancelEvent.indexOf(".run();") >= 0 &&
+  cancelEvent.indexOf(".run();") < cancelEvent.indexOf("await releaseOrderReservations"),
+  "Reservation release MUST follow winning conditional canceled-state update");
 const processing=query("processing"),authorized=query("authorized");
 const failed=query("payment_failed"),canceled=query("canceled");
 const db=new DatabaseSync(":memory:");
