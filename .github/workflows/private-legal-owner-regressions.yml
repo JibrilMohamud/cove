@@ -57,6 +57,7 @@ jobs:
         run: |
           node scripts/check-legal-authority-owner.mjs
           node scripts/check-legal-authority-coordinator.mjs
+          node scripts/check-legal-authority-read.mjs
           node scripts/check-commercial-legal-authority.mjs
           node scripts/check-commercial-storefront-owner.mjs
           node scripts/check-paid-entitlement-authority.mjs
