@@ -97,8 +97,7 @@ jobs:
             response="$(curl -sS --max-time 25 -w '\n%{http_code}' -X DELETE \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
               "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$name?force=true")"
-            code="${response##*
-\n'}"
+            code="$(printf '%s' "$response" | tail -n 1)"
             if [ "$code" != "200" ] && [ "$code" != "404" ]; then
               echo "::error::Ephemeral Worker cleanup failed for $name"
               failures=1
