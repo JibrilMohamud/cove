@@ -265,6 +265,9 @@ function CreatorListeningShelves({ station }: { station: CoveSoundsStation }) {
     ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     enabled: browse && typeof window !== "undefined",
+    // A user-clicked request must run even when WebKit temporarily reports
+    // offline; otherwise React Query can pause it without issuing a request.
+    networkMode: "always",
     staleTime: 60_000,
     retry: false,
   });
