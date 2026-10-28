@@ -2413,7 +2413,7 @@ const PAYMENT_FAILURE_MUTABLE_STATES = new Set([
   "authorized",
   "payment_failed",
 ]);
-const PAYMENT_CANCEL_MUTABLE_STATES = new Set([...PAYMENT_FAILURE_MUTABLE_STATES, "canceled"]);
+const PAYMENT_CANCEL_MUTABLE_STATES = new Set(PAYMENT_FAILURE_MUTABLE_STATES);
 async function processStripeEvent(env: CoveEnv, event: any) {
   const db = env.DB,
     obj = event.data?.object || {},
@@ -2517,7 +2517,7 @@ async function processStripeEvent(env: CoveEnv, event: any) {
       await releaseOrderReservations(db, o.id);
       await db
         .prepare(
-          "UPDATE commerce_orders SET status='canceled',canceled_at=?,updated_at=? WHERE id=? AND status IN ('pending_payment','processing','authorized','payment_failed','canceled')",
+          "UPDATE commerce_orders SET status='canceled',canceled_at=?,updated_at=? WHERE id=? AND status IN ('pending_payment','processing','authorized','payment_failed')",
         )
         .bind(now(), now(), o.id)
         .run();
