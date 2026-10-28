@@ -13,11 +13,16 @@ assert.ok(
   "Only authenticated commerce administrators may reach the owner command",
 );
 const nextRoute = source.indexOf('path === "/admin/commerce/rights-party"', route);
-assert.ok(nextRoute > route && nextRoute - route < 1100,
-  "Commerce owner command must remain a small authenticated route, not a bypass");
+assert.ok(
+  nextRoute > route && nextRoute - route < 1100,
+  "Commerce owner command must remain a small authenticated route, not a bypass",
+);
 assert.match(source.slice(auth, nextRoute), /executeStageCanonicalAdminCommand/);
-assert.match(source.slice(route, nextRoute), /command.action === "withdraw-distribution"/,
-  "Commerce administrators must not spoof publishing distribution withdrawals");
+assert.match(
+  source.slice(route, nextRoute),
+  /command.action === "withdraw-distribution"/,
+  "Commerce administrators must not spoof publishing distribution withdrawals",
+);
 assert.match(source, /executeStageRightsEditorSuspension\(env, "grant", input\)/);
 assert.match(source, /executeStageRightsEditorSuspension\(env, "contract", input\)/);
 const lockedStagingPattern =
