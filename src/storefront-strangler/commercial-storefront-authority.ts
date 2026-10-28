@@ -86,8 +86,26 @@ export function publishCommercialStorefront(
      old.offer_json===p.offer_json&&
      old.grant_id===p.grant_id&&
      old.contract_id===p.contract_id&&
-     old.contract_version_id===p.contract_version_id)
-    throw Error("commercial_offer_reinstatement_requires_changed_evidence");
+     old.contract_version_id===p.contract_version_id){
+    // An ordinary publication transition (for example preorder -> live or
+    // an approved metadata revision) may retain its exact price and rights.
+    // Only a completed, independently verified owner command can distinguish
+    // that edit hold from an unreconciled retail withdrawal. A prefix alone,
+    // a pending command or a journal for another epoch grants nothing.
+    const publication=sql.exec(
+      `SELECT 1 verified FROM cove_publication_commands command
+       JOIN cove_commercial_withdrawal_ops withdrawal
+         ON withdrawal.product_id=command.product_id
+        AND withdrawal.epoch=command.epoch
+        AND withdrawal.operation_id=('retail:publication:'||command.operation_id)
+       WHERE command.product_id=? AND command.state='committed'
+         AND command.epoch=? AND command.published_epoch IS NULL
+         AND json_extract(command.result_json,'$.state') IN ('live','updated','preorder')
+         AND json_extract(command.result_json,'$.publicationVersionId') IS NOT NULL
+       LIMIT 1`,p.product_id,p.rights_epoch-1).toArray();
+    if(publication.length!==1)
+      throw Error("commercial_offer_reinstatement_requires_changed_evidence");
+  }
   if(old&&old.rights_epoch===p.rights_epoch&&(
     old.edition_id!==p.edition_id||old.grant_id!==p.grant_id||
     old.contract_id!==p.contract_id||old.contract_version_id!==p.contract_version_id||

@@ -67,48 +67,82 @@ async function reversalFromCalculation(
     .bind(sourceType, reversalSource, original.product_id)
     .first<any>();
   if (exists) return;
-  const calcId = uid("roycalc"),
+  const hash = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(JSON.stringify([sourceType, sourceId, original.id])),
+  );
+  const calcId =
+      "roycalc_" +
+      Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join(""),
     at = now(),
     scale = (n: any) =>
       -Math.min(Math.abs(Number(n || 0)), Math.round(Math.abs(Number(n || 0)) * ratio));
-  await db
-    .prepare(
-      `INSERT INTO finance_royalty_calculations(id,source_type,source_id,order_id,order_item_id,product_id,contract_id,contract_version_id,contract_version_hash,rule_id,territory_code,format,sales_channel,currency,quantity,list_price_minor,customer_price_minor,tax_minor,processor_fee_minor,promotion_discount_minor,fore_funded_discount_minor,publisher_funded_discount_minor,distributor_fee_minor,net_receipts_minor,basis_minor,fore_commission_minor,royalty_pool_minor,rule_trace_json,input_snapshot_json,calculated_at)
+  const statements: Parameters<CatalogDB["batch"]>[0] = [];
+  const appendLedger = (
+    type: string,
+    account: string,
+    amount: number,
+    reference: string,
+    metadata: Record<string, unknown>,
+  ) => {
+    statements.push(
+      db
+        .prepare(
+          "INSERT OR IGNORE INTO commerce_ledger_entries(id,order_id,user_id,entry_type,account_code,amount_minor,currency,external_reference,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+        )
+        .bind(
+          `led:${calcId}:${reference}:${account}`,
+          original.order_id,
+          order?.user_id || null,
+          type,
+          account,
+          amount,
+          original.currency,
+          reference,
+          JSON.stringify(metadata),
+          at,
+        ),
+    );
+  };
+  statements.push(
+    db
+      .prepare(
+        `INSERT INTO finance_royalty_calculations(id,source_type,source_id,order_id,order_item_id,product_id,contract_id,contract_version_id,contract_version_hash,rule_id,territory_code,format,sales_channel,currency,quantity,list_price_minor,customer_price_minor,tax_minor,processor_fee_minor,promotion_discount_minor,fore_funded_discount_minor,publisher_funded_discount_minor,distributor_fee_minor,net_receipts_minor,basis_minor,fore_commission_minor,royalty_pool_minor,rule_trace_json,input_snapshot_json,calculated_at)
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    )
-    .bind(
-      calcId,
-      sourceType,
-      reversalSource,
-      original.order_id,
-      original.order_item_id,
-      original.product_id,
-      original.contract_id,
-      original.contract_version_id,
-      original.contract_version_hash,
-      original.rule_id,
-      original.territory_code,
-      original.format,
-      original.sales_channel,
-      original.currency,
-      original.quantity,
-      scale(original.list_price_minor),
-      scale(original.customer_price_minor),
-      scale(original.tax_minor),
-      scale(original.processor_fee_minor),
-      scale(original.promotion_discount_minor),
-      scale(original.fore_funded_discount_minor),
-      scale(original.publisher_funded_discount_minor),
-      scale(original.distributor_fee_minor),
-      scale(original.net_receipts_minor),
-      scale(original.basis_minor),
-      scale(original.fore_commission_minor),
-      scale(original.royalty_pool_minor),
-      JSON.stringify([`reversal:${sourceType}`, `original:${original.id}`, `ratio:${ratio}`]),
-      JSON.stringify({ reversalOf: original.id, ratio, sourceId }),
-      at,
-    )
-    .run();
+      )
+      .bind(
+        calcId,
+        sourceType,
+        reversalSource,
+        original.order_id,
+        original.order_item_id,
+        original.product_id,
+        original.contract_id,
+        original.contract_version_id,
+        original.contract_version_hash,
+        original.rule_id,
+        original.territory_code,
+        original.format,
+        original.sales_channel,
+        original.currency,
+        original.quantity,
+        scale(original.list_price_minor),
+        scale(original.customer_price_minor),
+        scale(original.tax_minor),
+        scale(original.processor_fee_minor),
+        scale(original.promotion_discount_minor),
+        scale(original.fore_funded_discount_minor),
+        scale(original.publisher_funded_discount_minor),
+        scale(original.distributor_fee_minor),
+        scale(original.net_receipts_minor),
+        scale(original.basis_minor),
+        scale(original.fore_commission_minor),
+        scale(original.royalty_pool_minor),
+        JSON.stringify([`reversal:${sourceType}`, `original:${original.id}`, `ratio:${ratio}`]),
+        JSON.stringify({ reversalOf: original.id, ratio, sourceId }),
+        at,
+      ),
+  );
   const allocations = (
     await db
       .prepare("SELECT * FROM finance_royalty_allocations WHERE calculation_id=? ORDER BY party_id")
@@ -120,104 +154,91 @@ async function reversalFromCalculation(
       withholding = scale(a.withholding_minor),
       reserve = scale(a.reserve_minor),
       payable = scale(a.payable_minor),
-      legacyId = uid("roy");
+      legacyId = `roy:${calcId}:${a.party_id}`;
     if (original.order_id && original.order_item_id) {
-      await db
-        .prepare(
-          `INSERT OR IGNORE INTO finance_royalty_events(id,order_id,order_item_id,refund_id,contract_version_id,party_id,event_type,basis_minor,royalty_minor,withholding_minor,reserve_minor,payable_minor,currency,status,available_at,external_reference,created_at,royalty_calculation_id,sales_channel,territory_code,product_id)
+      statements.push(
+        db
+          .prepare(
+            `INSERT OR IGNORE INTO finance_royalty_events(id,order_id,order_item_id,refund_id,contract_version_id,party_id,event_type,basis_minor,royalty_minor,withholding_minor,reserve_minor,payable_minor,currency,status,available_at,external_reference,created_at,royalty_calculation_id,sales_channel,territory_code,product_id)
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          )
+          .bind(
+            legacyId,
+            original.order_id,
+            original.order_item_id,
+            refundId,
+            original.contract_version_id,
+            a.party_id,
+            sourceType,
+            scale(original.basis_minor),
+            royalty,
+            withholding,
+            reserve,
+            payable,
+            original.currency,
+            "accrued",
+            at,
+            reversalSource,
+            at,
+            calcId,
+            original.sales_channel,
+            original.territory_code,
+            original.product_id,
+          ),
+      );
+    }
+    statements.push(
+      db
+        .prepare(
+          "INSERT INTO finance_royalty_allocations(id,calculation_id,party_id,share_bps,royalty_minor,withholding_minor,reserve_minor,payable_minor,currency,status,available_at,legacy_royalty_event_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,'accrued',?,?,?)",
         )
         .bind(
-          legacyId,
-          original.order_id,
-          original.order_item_id,
-          refundId,
-          original.contract_version_id,
+          `royalloc:${calcId}:${a.party_id}`,
+          calcId,
           a.party_id,
-          sourceType,
-          scale(original.basis_minor),
+          a.share_bps,
           royalty,
           withholding,
           reserve,
           payable,
           original.currency,
-          "accrued",
           at,
-          reversalSource,
+          original.order_id ? legacyId : null,
           at,
-          calcId,
-          original.sales_channel,
-          original.territory_code,
-          original.product_id,
-        )
-        .run();
-    }
-    await db
-      .prepare(
-        "INSERT INTO finance_royalty_allocations(id,calculation_id,party_id,share_bps,royalty_minor,withholding_minor,reserve_minor,payable_minor,currency,status,available_at,legacy_royalty_event_id,created_at) VALUES(?,?,?,?,?,?,?,?,?,'accrued',?,?,?)",
-      )
-      .bind(
-        uid("royalloc"),
-        calcId,
-        a.party_id,
-        a.share_bps,
-        royalty,
-        withholding,
-        reserve,
-        payable,
-        original.currency,
-        at,
-        original.order_id ? legacyId : null,
-        at,
-      )
-      .run();
+        ),
+    );
     const ref = `${calcId}:${a.party_id}`;
-    await postLedger(
-      db,
-      original.order_id,
-      order?.user_id || null,
-      `royalty_${sourceType}`,
-      "royalty_expense",
-      royalty,
-      original.currency,
-      ref,
-      { reversalOf: original.id, sourceId },
-    );
-    await postLedger(
-      db,
-      original.order_id,
-      order?.user_id || null,
-      `royalty_${sourceType}`,
-      `royalty_payable:${a.party_id}`,
-      -payable,
-      original.currency,
-      ref,
-      { reversalOf: original.id, sourceId },
-    );
+    appendLedger(`royalty_${sourceType}`, "royalty_expense", royalty, ref, {
+      reversalOf: original.id,
+      sourceId,
+    });
+    appendLedger(`royalty_${sourceType}`, `royalty_payable:${a.party_id}`, -payable, ref, {
+      reversalOf: original.id,
+      sourceId,
+    });
     if (withholding)
-      await postLedger(
-        db,
-        original.order_id,
-        order?.user_id || null,
-        `royalty_${sourceType}`,
-        "withholding_payable",
-        -withholding,
-        original.currency,
-        ref,
-        { reversalOf: original.id },
-      );
+      appendLedger(`royalty_${sourceType}`, "withholding_payable", -withholding, ref, {
+        reversalOf: original.id,
+      });
     if (reserve)
-      await postLedger(
-        db,
-        original.order_id,
-        order?.user_id || null,
-        `royalty_${sourceType}`,
-        "royalty_reserve_liability",
-        -reserve,
-        original.currency,
-        ref,
-        { reversalOf: original.id },
-      );
+      appendLedger(`royalty_${sourceType}`, "royalty_reserve_liability", -reserve, ref, {
+        reversalOf: original.id,
+      });
+  }
+  // A calculation row cannot become the completion marker before its
+  // allocations and balanced ledger exist. D1 rolls back the ENTIRE batch
+  // on any failed posting. Competing exact retries either commit once or
+  // observe the already committed unique calculation after losing the race.
+  try {
+    await db.batch(statements);
+  } catch (error) {
+    const committed = await db
+      .prepare(
+        "SELECT id FROM finance_royalty_calculations WHERE source_type=? AND source_id=? AND product_id=?",
+      )
+      .bind(sourceType, reversalSource, original.product_id)
+      .first<{ id: string }>();
+    if (!committed || committed.id !== calcId) throw error;
   }
 }
 

@@ -942,6 +942,14 @@ try {
       deviceKey:qaDeviceKey,expiresAt:originalOffline.expiresAt
     }
   );
+  await assert.rejects(verifyOfflineEpubReceipt(
+    originalOffline.receipt,offline.verificationKey,{
+      userId:initialBuyer,productId:test.productId,
+      assetVersionId:originalOffline.assetVersionId,
+      deviceKey:qaDeviceKey,expiresAt:originalOffline.expiresAt,
+      nowMs:Date.parse(originalOffline.expiresAt)
+    }
+  ),/invalid or expired/i,"Original deployed EPUB receipt must expire at its exact signed boundary");
   const outageOriginal=await originalCall("/original/epub-grant",null,
     {"x-cove-qa-simulate-owner-outage":"1"});
   assert.equal(outageOriginal.status,503,
@@ -973,7 +981,7 @@ try {
   const audioOfflineResponse=await originalCall("/original/audio-offline");
   assert.equal(audioOfflineResponse.status,200,
     "Original audiobook offline issuer must verify a paid, registered device");
-  const audioLicense=await audioOfflineResponse.json();
+  let audioLicense=await audioOfflineResponse.json();
   assert.ok(audioLicense.receipt?.signature && audioLicense.licenseId &&
     audioLicense.token && audioLicense.expiresAt);
   const audioVerifierFile=path.join(temp,"offline-audio-verifier-qa.mjs");
@@ -996,6 +1004,12 @@ try {
   assert.ok(Date.parse(audioClaims.expiresAt)-Date.parse(audioClaims.issuedAt)<=30*86400000);
   await assert.rejects(verifyOfflineAudioLicense(
     audioLicense,audioLicense.verificationKey,{
+      userId:initialBuyer,deviceKey:qaDeviceKey,edition:expectedAudioEdition,
+      nowMs:Date.parse(audioLicense.expiresAt)
+    }
+  ),/renewed access/i,"Original deployed audio receipt must expire at its exact signed boundary");
+  await assert.rejects(verifyOfflineAudioLicense(
+    audioLicense,audioLicense.verificationKey,{
       userId:initialBuyer,deviceKey:"wrong-device-qa",
       edition:expectedAudioEdition
     }
@@ -1011,6 +1025,39 @@ try {
   assert.equal(audioVerify.status,200,
     "Original commercial audio verify handler must accept genuine saved buyer license");
   assert.equal((await audioVerify.json()).valid,true);
+  // Renewal must produce a new token and retire the old online identity.
+  // The already downloaded signature remains expiry-bounded while offline.
+  const previousAudio=audioLicense;
+  const renewedAudioResponse=await originalCall("/original/audio-offline");
+  assert.equal(renewedAudioResponse.status,200,
+    "A valid registered purchase must be able to renew its offline audio lease");
+  audioLicense=await renewedAudioResponse.json();
+  assert.notEqual(audioLicense.licenseId,previousAudio.licenseId);
+  assert.notEqual(audioLicense.token,previousAudio.token);
+  const verifyAudioOnline=license=>fetch(settlementOrigin+"/original/audio-verify",{
+    method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+gate},
+    body:JSON.stringify({orderId:initialOrder,userId:initialBuyer,
+      token:license.token,licenseId:license.licenseId}),
+    signal:AbortSignal.timeout(12000)
+  });
+  assert.equal((await verifyAudioOnline(previousAudio)).status,403,
+    "Renewal must reject the retired token at the original online verifier");
+  assert.equal((await verifyAudioOnline(audioLicense)).status,200,
+    "Renewal must preserve the new license's online access");
+  assert.equal((await verifyOfflineAudioLicense(
+    audioLicense,audioLicense.verificationKey,{
+      userId:initialBuyer,deviceKey:qaDeviceKey,edition:expectedAudioEdition
+    }
+  )).licenseId,audioLicense.licenseId);
+  const persistedRenewal=await qaSql(
+    "SELECT id,status,expires_at FROM audio_offline_licenses WHERE id IN (?,?) ORDER BY id",
+    [previousAudio.licenseId,audioLicense.licenseId]);
+  assert.equal(persistedRenewal.results.find(row=>row.id===previousAudio.licenseId)?.status,"revoked");
+  const persistedCurrent=persistedRenewal.results.find(row=>row.id===audioLicense.licenseId);
+  assert.equal(persistedCurrent?.status,"active");
+  assert.equal(persistedCurrent?.expires_at,audioLicense.expiresAt,
+    "Stored, returned and authenticated audio expiration must remain identical");
+  console.log("PASS: original deployed EPUB/audio signatures enforce exact expiry; audio renewal rotates token and online identity without extending disconnected old receipts");
   assert.equal((await originalCall("/original/audio-track",null,
     {"x-cove-qa-simulate-owner-outage":"1"})).status,503,
     "Original audiobook track must fail closed when independent owner is unavailable");
@@ -1063,7 +1110,7 @@ try {
     refusedAudioVerify.status);
   // A truly disconnected device cannot receive a revocation until reconnect.
   // Both previously signed receipts remain locally verifiable until their
-  // original seven-day expiration; online content/renewal is denied above.
+  // format-specific expiration (EPUB <=7d, audio <=30d); online access is denied.
   assert.equal((await verifyOfflineEpubReceipt(
     originalOffline.receipt,offline.verificationKey,{
       userId:initialBuyer,productId:test.productId,
@@ -1081,7 +1128,7 @@ try {
     initialOrder,initialBuyer)).status!==200,true,
     "Any previous signed successful-payment event may not resurrect refunded access");
   console.log("PASS: genuine initial pending_payment to original Stripe webhook, full canonical ledger and outbox, injected postpaid owner outage, replay and concurrency dedupe, buyer lease, provider refund and immediate owner revocation");
-  console.log("PASS: private R2 EPUB/WAV exact SHA256 bytes from isolated paid order, wrong-buyer and outage denial, original EPUB offline signature verifier, prepayment and refund byte/license veto; QA adapter only");
+  console.log("PASS: private R2 EPUB/WAV exact SHA256 bytes from isolated paid order, wrong-buyer and outage denial, original EPUB/audio receipt expiry and audio renewal, prepayment and refund byte/license veto; isolated QA adapters and original handlers, not production certification");
 
  } finally {
   if(listener?.pid){

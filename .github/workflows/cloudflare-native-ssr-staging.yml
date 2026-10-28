@@ -165,7 +165,7 @@ concurrency:
   # PRs only build/dry-run; separate them so an unrelated PR cannot replace
   # another pending verification. Keep the original deployment group name
   # across old/new workflows so secret-rotating cold trials never overlap.
-  group: cove-ssr-${{ github.event.pull_request.number || 'staging' }}
+  group: ${{ github.event_name == 'pull_request' && format('cove-ssr-pr-{0}', github.event.pull_request.number) || 'cove-exclusive-real-primary-cold-acceptance' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

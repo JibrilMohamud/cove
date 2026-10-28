@@ -17,6 +17,7 @@ try{
  const free=await moduleFrom("src/storefront-strangler/legal-authority-core.ts","free");
  const rights=await moduleFrom("src/storefront-strangler/commercial-legal-core.ts","rights");
  const owner=await moduleFrom("src/storefront-strangler/commercial-storefront-authority.ts","paid");
+ const commands=await moduleFrom("src/storefront-strangler/publication-command-core.ts","commands");
  const client=await moduleFrom("src/storefront-strangler/legal-authority-read.server.ts","client");
  // A declaration of writer closure is not sufficient: the same staged
  // gateway must have the mandatory canonical legal write lock installed
@@ -117,6 +118,38 @@ try{
  }),{applied:true,epoch:3},
    "A changed canonical offer can be republished with the same legal scope");
  assert.equal(owner.readCommercialStorefront(sql,[priceProduct],"US","USD").length,1);
+
+ // A completed, independently verified publication edit may retain the same
+ // legal grant AND price. It is not an unreconciled retail withdrawal.
+ const publicationProduct="prd_publication_same_price_003";
+ const publicationRights={...commercial,productId:publicationProduct,
+   editionId:"ed_publication_same_price_003",grantId:"grant_publication_same_price_003",
+   contractId:"contract_publication_same_price_003",contractVersionId:"contract_version_same_price_003"};
+ const publicationProof={...proof,product_id:publicationProduct,
+   edition_id:publicationRights.editionId,grant_id:publicationRights.grantId,
+   contract_id:publicationRights.contractId,contract_version_id:publicationRights.contractVersionId};
+ rights.publishFreshCommercialProof(sql,publicationRights,0);
+ owner.publishCommercialStorefront(sql,publicationProof);
+ const publicationCommand={operationId:"publication:same-price:003",productId:publicationProduct,
+   commandSha256:"d".repeat(64)};
+ commands.beginPublicationCommand(sql,publicationCommand);
+ assert.throws(()=>rights.publishFreshCommercialProof(sql,publicationRights,2),
+   /commercial_publication_command_pending/);
+ commands.commitPublicationCommand(sql,publicationCommand,
+   {publicationVersionId:"pubv_same_price_003",state:"updated",versionNumber:2});
+ rights.publishFreshCommercialProof(sql,publicationRights,2);
+ assert.deepEqual(owner.publishCommercialStorefront(sql,{...publicationProof,rights_epoch:3}),
+   {applied:true,epoch:3},"A completed owner publication can retain its verified offer");
+ commands.markPublicationPublished(sql,publicationCommand,3);
+ assert.equal(owner.readCommercialStorefront(sql,[publicationProduct],"US","USD").length,1);
+ rights.denyCommercialProduct(sql,{productId:publicationProduct,operationId:"rights:terminal:003"});
+ const stalePublication={...publicationCommand,operationId:"publication:after-terminal:003"};
+ commands.beginPublicationCommand(sql,stalePublication);
+ commands.commitPublicationCommand(sql,stalePublication,
+   {publicationVersionId:"pubv_stale_003",state:"updated",versionNumber:3});
+ assert.throws(()=>rights.publishFreshCommercialProof(sql,publicationRights,5),
+   /commercial_reinstatement_requires_new_legal_evidence/,
+   "A publication journal never bypasses terminal withdrawal of its legal evidence");
 
  const projection={candidates:{productIds:[productId],country:"US",currency:"USD"},
    displayBooks:[{productId,editionId,title:"Paid Book",authors:[],subjects:[],

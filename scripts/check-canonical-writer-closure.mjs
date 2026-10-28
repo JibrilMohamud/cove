@@ -124,12 +124,12 @@ console.log("Unverified by domain: "+JSON.stringify(summary.byDomain));
 console.log("Top direct writer files: "+JSON.stringify(
   Object.entries(summary.byFile).sort((a,b)=>b[1]-a[1]).slice(0,18)));
 if(process.argv.includes("--no-new-writers")) {
-  // Keeping the existing 458 known direct writes visible is NOT production
+  // Keeping the existing 460 known direct writes visible is NOT production
   // owner-first certification. Prevent additional unreviewed sources from
   // silently joining the inventory during the migration.
   const drift=canonicalWriterDrift(findings);
   if(drift.length) {
-    console.error("BLOCKED: new unverified canonical SQL writers since reviewed 458-site baseline.");
+    console.error("BLOCKED: new unverified canonical SQL writers since reviewed 460-site baseline.");
     console.error("Unreviewed new mutations: "+JSON.stringify(drift));
     process.exitCode=1;
   } else {

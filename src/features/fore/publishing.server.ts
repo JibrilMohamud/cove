@@ -29,6 +29,7 @@ import { assessPublisherRisk } from "./risk-tax.server";
 import {
   hasPublicationOwner,
   dispatchPublicationActivation,
+  dispatchPublicationPreorder,
 } from "../../storefront-strangler/publication-owner-routing.server";
 
 export type PublishingDB = {
@@ -3226,14 +3227,15 @@ async function activatePublicationCommercialTerms(
         .prepare("UPDATE finance_royalty_contracts SET status='retired',updated_at=? WHERE id=?")
         .bind(at, prior.royaltyContractId),
     );
-  if (previousIds.length) {
-    const placeholders = previousIds.map(() => "?").join(",");
+  const retiringIds = previousIds.filter((grantId) => !activatingIds.includes(grantId));
+  if (retiringIds.length) {
+    const placeholders = retiringIds.map(() => "?").join(",");
     statements.push(
       db
         .prepare(
           `UPDATE rights_grants SET status='revoked',updated_at=? WHERE id IN (${placeholders}) AND status IN ('draft','active','suspended')`,
         )
-        .bind(at, ...previousIds),
+        .bind(at, ...retiringIds),
     );
   }
   if (
@@ -4408,7 +4410,10 @@ export async function activatePublicationVersionOwned(
   const m = safeJson<any>(v.manifest_json, {}),
     meta = m.metadata || {},
     at = now(),
-    previousServing = await publicationVersionManifest(db, v.current_publication_version_id);
+    previousServing =
+      v.current_publication_version_id === publicationVersionId
+        ? null
+        : await publicationVersionManifest(db, v.current_publication_version_id);
   if (!m.workId || !m.catalogEditionId || !m.productId)
     throw new ApiError(409, "Publication version manifest is incomplete.");
   await db
@@ -4572,6 +4577,94 @@ export async function activatePublicationVersionOwned(
   return { publicationVersionId, state: nextState, versionNumber: Number(v.version_number) };
 }
 
+/** Only the owner invokes this implementation on enrolled databases; the
+ * scheduler always dispatches the typed command through its bound facade. */
+export async function openPublicationPreorderOwned(db: PublishingDB, publicationVersionId: string) {
+  if (hasPublicationOwner(db))
+    throw new ApiError(503, "Preorder publication writes must execute inside the legal owner.");
+  const row = await db
+    .prepare(
+      "SELECT l.*,pv.id version_id,pv.manifest_json,pv.version_number FROM publishing_release_lifecycles l JOIN publishing_publication_versions pv ON pv.lifecycle_id=l.id AND pv.id=l.current_publication_version_id WHERE pv.id=?",
+    )
+    .bind(publicationVersionId)
+    .first<{
+      id: string;
+      state: string;
+      pending_publication_version_id: string | null;
+      version_id: string;
+      manifest_json: string;
+      version_number: number;
+    }>();
+  if (!row || row.state !== "scheduled" || row.pending_publication_version_id)
+    throw new ApiError(
+      409,
+      "This publication is no longer scheduled for its initial preorder window.",
+    );
+  const m = safeJson<any>(row.manifest_json, {}),
+    meta = m.metadata || {},
+    releaseMs = Date.parse(String(meta.releaseDate || "")),
+    preorderMs = Date.parse(String(meta.preorderDate || ""));
+  if (
+    !m.productId ||
+    !m.catalogEditionId ||
+    !Number.isFinite(releaseMs) ||
+    releaseMs <= Date.now() ||
+    !Number.isFinite(preorderMs) ||
+    preorderMs > Date.now()
+  )
+    throw new ApiError(409, "The publication preorder window is not open.");
+  const at = now();
+  await activatePublicationCommercialTerms(db, m, null, at);
+  await db
+    .prepare(
+      "UPDATE publishing_release_lifecycles SET state='preorder',preorder_at=COALESCE(preorder_at,?),state_reason='preorder_window_open',updated_at=? WHERE id=?",
+    )
+    .bind(at, at, row.id)
+    .run();
+  if (m.productId)
+    await db
+      .prepare("UPDATE products SET storefront_status='active',updated_at=? WHERE id=?")
+      .bind(at, m.productId)
+      .run();
+  if (m.catalogEditionId)
+    await db
+      .prepare("UPDATE editions SET release_status='preorder',updated_at=? WHERE id=?")
+      .bind(at, m.catalogEditionId)
+      .run();
+  if (m.productId)
+    try {
+      await ensurePreorderReleasePlan(db as any, String(m.productId), null);
+    } catch (e) {
+      console.error("Unable to activate preorder operations plan", e);
+    }
+  await db
+    .prepare(
+      "INSERT INTO publishing_lifecycle_events(id,lifecycle_id,from_state,to_state,trigger_type,reason_code,metadata_json,created_at) VALUES(?,?,?,'preorder','schedule','preorder_opened',?,?)",
+    )
+    .bind(
+      id("lifeevt"),
+      row.id,
+      row.state,
+      JSON.stringify({ publicationVersionId: row.version_id }),
+      at,
+    )
+    .run();
+  await recordPublicationActivation(db, {
+    lifecycleId: row.id,
+    publicationVersionId: row.version_id,
+    fromPublicationVersionId: null,
+    activationType: "schedule",
+    reasonCode: "preorder_opened",
+    metadata: { versionNumber: Number(row.version_number), visibility: "preorder" },
+    at,
+  });
+  return {
+    publicationVersionId: row.version_id,
+    state: "preorder",
+    versionNumber: Number(row.version_number),
+  };
+}
+
 export async function advancePublishingReleaseSchedules(db: PublishingDB) {
   const atMs = Date.now(),
     rows = (
@@ -4598,56 +4691,11 @@ export async function advancePublishingReleaseSchedules(db: PublishingDB) {
       Number.isFinite(preorderMs) &&
       preorderMs <= atMs
     ) {
-      const at = now();
-      await activatePublicationCommercialTerms(db, m, null, at);
-      await db
-        .prepare(
-          "UPDATE publishing_release_lifecycles SET state='preorder',preorder_at=COALESCE(preorder_at,?),state_reason='preorder_window_open',updated_at=? WHERE id=?",
-        )
-        .bind(at, at, row.id)
-        .run();
-      if (m.productId)
-        await db
-          .prepare("UPDATE products SET storefront_status='active',updated_at=? WHERE id=?")
-          .bind(at, m.productId)
-          .run();
-      if (m.catalogEditionId)
-        await db
-          .prepare("UPDATE editions SET release_status='preorder',updated_at=? WHERE id=?")
-          .bind(at, m.catalogEditionId)
-          .run();
-      if (m.productId)
-        try {
-          await ensurePreorderReleasePlan(db as any, String(m.productId), null);
-        } catch (e) {
-          console.error("Unable to activate preorder operations plan", e);
-        }
-      await db
-        .prepare(
-          "INSERT INTO publishing_lifecycle_events(id,lifecycle_id,from_state,to_state,trigger_type,reason_code,metadata_json,created_at) VALUES(?,?,?,'preorder','schedule','preorder_opened',?,?)",
-        )
-        .bind(
-          id("lifeevt"),
-          row.id,
-          row.state,
-          JSON.stringify({ publicationVersionId: row.version_id }),
-          at,
-        )
-        .run();
-      await recordPublicationActivation(db, {
-        lifecycleId: row.id,
-        publicationVersionId: row.version_id,
-        fromPublicationVersionId: null,
-        activationType: "schedule",
-        reasonCode: "preorder_opened",
-        metadata: { versionNumber: Number(row.version_number), visibility: "preorder" },
-        at,
-      });
-      advanced.push({
-        publicationVersionId: row.version_id,
-        state: "preorder",
-        versionNumber: Number(row.version_number),
-      });
+      advanced.push(
+        hasPublicationOwner(db)
+          ? await dispatchPublicationPreorder(db, { publicationVersionId: row.version_id })
+          : await openPublicationPreorderOwned(db, row.version_id),
+      );
     }
   }
   return { checked: rows.length, advanced };

@@ -20,6 +20,7 @@ on:
       - "drizzle/0088_paid_repurchase_fresh_entitlement.sql"
       - "scripts/check-customer-media-owner-order.mjs"
       - "scripts/check-offline-epub-issuer-expiry.mjs"
+      - "scripts/check-offline-audio-issuer-authorization.mjs"
       - "scripts/check-stripe-terminal-order-states.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
       - "scripts/staging/provision-original-audio-qa.mjs"
@@ -53,6 +54,7 @@ on:
       - "scripts/staging/prove-private-paid-owner.mjs"
       - "scripts/check-paid-stage-initial-identity.mjs"
       - "scripts/check-offline-epub-issuer-expiry.mjs"
+      - "scripts/check-offline-audio-issuer-authorization.mjs"
       - ".github/workflows/paid-legal-full-schema-private-qa.yml"
   workflow_dispatch:
 permissions:
@@ -76,6 +78,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: node scripts/check-paid-stage-initial-identity.mjs
       - run: node scripts/check-offline-epub-issuer-expiry.mjs
+      - run: node scripts/check-offline-audio-issuer-authorization.mjs
       - run: node scripts/check-customer-media-owner-order.mjs
   real-test-payment-to-private-owner:
     if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(fromJSON('["qa/private-paid-owner-independent-20261028","qa/original-customer-media-paid-owner-20261028"]'), github.event.pull_request.head.ref)) || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main')
@@ -100,6 +103,7 @@ jobs:
           node scripts/check-paid-order-atomic-publication.mjs
           node scripts/check-paid-owner-worker-handlers.mjs
           node scripts/check-offline-epub-issuer-expiry.mjs
+          node scripts/check-offline-audio-issuer-authorization.mjs
           node scripts/check-stripe-terminal-order-states.mjs
           node scripts/check-customer-media-owner-order.mjs
           node scripts/check-commercial-legal-authority.mjs

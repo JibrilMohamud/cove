@@ -25,7 +25,11 @@ assert.equal(total, 60, "Keep the concurrency probe below the per-colo read cap"
 const origin = productionOrigin(process.env.COVE_SSR_STAGING_ORIGIN);
 const token = process.env.COVE_SSR_STAGING_GATE_KEY;
 assert.match(token || "", /^[a-f0-9]{64}$/, "Only protected staging may be load-tested");
-assert.match(origin, /-staging\.[a-z0-9.-]+\.workers\.dev$/);
+assert.ok(
+  origin === "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev" ||
+    origin === "https://ssr-canary.covereads.com",
+  "Only exact protected staging Worker or verified owned SSR canary may be load tested",
+);
 const thresholds = { maxTtfbMs: 800, p95TtfbMs: 650 };
 
 // The Node runner itself can queue sockets under 16 in-flight requests.

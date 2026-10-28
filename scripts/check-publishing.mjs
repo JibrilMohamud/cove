@@ -397,7 +397,7 @@ assert.match(
 );
 assert.match(
   server,
-  /frozenContributors=snapshot\.contributors, frozenAssets=snapshot\.assets/,
+  /frozenContributors\s*=\s*snapshot\.contributors,\s*frozenAssets\s*=\s*snapshot\.assets/,
   "publication must use frozen contributors/assets",
 );
 assert.match(
@@ -441,7 +441,7 @@ assert.match(
 );
 assert.match(
   server,
-  /status:"draft".*source:"fore-publishing"/s,
+  /status:\s*"draft".*source:\s*"fore-publishing"/s,
   "new publication rights must stage as draft before activation",
 );
 assert.match(
@@ -572,14 +572,14 @@ assert.match(trust, /submitCopyrightNotice/);
 assert.match(trust, /submitCopyrightCounterNotice/);
 assert.match(trust, /counter_notice_resubmitted/);
 assert.match(trust, /restore_not_before_at/);
-assert.match(trust, /addBusinessDays\(base,10\)/);
-assert.match(trust, /addBusinessDays\(base,14\)/);
+assert.match(trust, /addBusinessDays\(base,\s*10\)/);
+assert.match(trust, /addBusinessDays\(base,\s*14\)/);
 assert.match(trust, /copyright_court_actions/);
 assert.match(trust, /litigation_hold/);
 assert.match(trust, /royalty_holds/);
 assert.match(
   trust,
-  /forfeitRoyalties===true/,
+  /forfeitRoyalties\s*===\s*true/,
   "copyright resolution must reject silent royalty forfeiture",
 );
 assert.match(trust, /royaltyDisposition/);
@@ -653,7 +653,7 @@ assert.match(api, /\/admin\/moderation\/appeal-decision/);
 assert.match(api, /\/moderation\/copyright-complaint/);
 assert.match(api, /publishingUploadLimit/, "uploads must use bounded body limits");
 assert.match(ui, /Repeat-infringer controls/);
-assert.match(ui, /royaltyDisposition:"continue_hold"/);
+assert.match(ui, /royaltyDisposition\s*:\s*"continue_hold"/);
 assert.doesNotMatch(ui, /forfeitRoyalties:true/);
 assert.match(ui, /Pen names are public catalog identities/);
 assert.match(ui, /Legal address/);

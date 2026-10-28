@@ -134,6 +134,7 @@ import {
 } from "./catalog-model.server";
 import {
   adminTaxonomySnapshot,
+  projectedAnonymousHomePage,
   resolveStorefrontPage,
   setManualEditionTaxonomy,
   syncEditionTaxonomy,
@@ -390,6 +391,7 @@ import {
 } from "./traditional-publishing.server";
 import {
   localizationAdminSnapshot,
+  networkCountry,
   recordStorefrontContext,
   resolveStorefrontContext,
   saveStorefrontPreferences,
@@ -2119,7 +2121,8 @@ export async function runCatalogIngestion(
     const previous = new Map<string, Record<string, unknown>>();
     if (accepted.length && accepted.length <= 100) {
       const rows = await db
-        .prepare(`SELECT c.id,c.source_id,c.source_item_id,c.ingest_status,
+        .prepare(
+          `SELECT c.id,c.source_id,c.source_item_id,c.ingest_status,
           c.rights_status,c.commercial_use_status,c.rights_territories_json,
           c.rights_evidence_url,c.source_url,c.updated_at,
           c.title,c.authors_json,c.summary,c.subjects_json,
@@ -2130,7 +2133,8 @@ export async function runCatalogIngestion(
           FROM gutenberg_source_cache c
           JOIN catalog_search_documents d ON d.product_id=('prd_gutenberg_'||c.id)
           JOIN products p ON p.id=d.product_id
-          WHERE c.id IN (${accepted.map(() => "?").join(",")})`)
+          WHERE c.id IN (${accepted.map(() => "?").join(",")})`,
+        )
         .bind(...accepted.map((book: CatalogBook) => String(book.id)))
         .all<Record<string, unknown>>();
       for (const row of rows.results) previous.set(String(row.id), row);
@@ -2143,26 +2147,31 @@ export async function runCatalogIngestion(
       ),
     );
     const unchangedIds = new Set(unchanged.map((book: CatalogBook) => String(book.id)));
-    const popularityOnly = accepted.filter((book: CatalogBook) =>
-      !unchangedIds.has(String(book.id)) &&
-      popularityOnlyGutendexBook(
-        book,
-        previous.get(String(book.id)),
-        book.formats?.["text/html"] || "https://www.gutenberg.org/ebooks/" + book.id + "/",
-      ),
+    const popularityOnly = accepted.filter(
+      (book: CatalogBook) =>
+        !unchangedIds.has(String(book.id)) &&
+        popularityOnlyGutendexBook(
+          book,
+          previous.get(String(book.id)),
+          book.formats?.["text/html"] || "https://www.gutenberg.org/ebooks/" + book.id + "/",
+        ),
     );
     const popularityIds = new Set(popularityOnly.map((book: CatalogBook) => String(book.id)));
-    const changed = accepted.filter((book: CatalogBook) =>
-      !unchangedIds.has(String(book.id)) && !popularityIds.has(String(book.id))
+    const changed = accepted.filter(
+      (book: CatalogBook) =>
+        !unchangedIds.has(String(book.id)) && !popularityIds.has(String(book.id)),
     );
     // last_seen_at is a source-observation heartbeat, not a rights grant.
     // Preserve it even for unchanged rows, without triggering canonical FTS
     // rebuilds, changing normalized updated_at, or reissuing rights grants.
     if (unchanged.length) {
-      await db.prepare(
-        `UPDATE gutenberg_source_cache SET last_seen_at=?,source_updated_at=?
+      await db
+        .prepare(
+          `UPDATE gutenberg_source_cache SET last_seen_at=?,source_updated_at=?
          WHERE id IN (${unchanged.map(() => "?").join(",")})`,
-      ).bind(at, at, ...unchanged.map((book: CatalogBook) => String(book.id))).run();
+        )
+        .bind(at, at, ...unchanged.map((book: CatalogBook) => String(book.id)))
+        .run();
     }
     // Gutenberg download counts change frequently without changing a book's
     // description, rights, source files or existing canonical publication.
@@ -2175,22 +2184,28 @@ export async function runCatalogIngestion(
         const id = String(book.id);
         const count = Number(book.download_count);
         return [
-          db.prepare(`UPDATE gutenberg_source_cache
+          db
+            .prepare(
+              `UPDATE gutenberg_source_cache
             SET download_count=?,source_updated_at=?,last_seen_at=?,updated_at=?
             WHERE id=? AND updated_at=? AND ingest_status='active'
               AND rights_status='public-domain'
               AND commercial_use_status='approved'
-              AND rights_territories_json='["US"]'`)
-            .bind(count,at,at,at,id,row.updated_at),
-          db.prepare(`UPDATE catalog_search_documents
+              AND rights_territories_json='["US"]'`,
+            )
+            .bind(count, at, at, at, id, row.updated_at),
+          db
+            .prepare(
+              `UPDATE catalog_search_documents
             SET download_count=?,updated_at=?
             WHERE product_id=? AND updated_at=?
               AND EXISTS(SELECT 1 FROM gutenberg_source_cache c
                 WHERE c.id=? AND c.updated_at=? AND c.download_count=?
                   AND c.rights_status='public-domain'
                   AND c.commercial_use_status='approved'
-                  AND c.rights_territories_json='["US"]')`)
-            .bind(count,at,`prd_gutenberg_${id}`,row.projection_updated_at,id,at,count),
+                  AND c.rights_territories_json='["US"]')`,
+            )
+            .bind(count, at, `prd_gutenberg_${id}`, row.projection_updated_at, id, at, count),
         ];
       });
       await db.batch(popularityWrites);
@@ -3201,21 +3216,21 @@ async function handleCoveRequest(
     }
     const currentIdentity = identity(request);
     const firstPaint = request.method === "GET" && path === "/storefront/bootstrap";
-    // D1 replicas may serve *anonymous first-paint presentation metadata*
-    // close to ingress. Locale/market labels are hints, NEVER purchase or
-    // territorial authorization. Country-scoped book shelf, checkout, account
-    // entitlements and EPUB access use the original authoritative env.DB.
-    // Authenticated visitors instead start their configuration session at the
-    // primary, ensuring saved preferences cannot appear to roll backwards.
-    // No process/global context cache or legal rights snapshot is introduced.
+    // The generic bootstrap is also used by the production Vercel frontend.
+    // Independent replica sessions for markets and locale previously stalled
+    // that path even after the primary legal query completed. Use the same
+    // fresh primary presentation projection as native SSR for anonymous reads.
+    // Authenticated preferences retain their primary-anchored session.
     const configDb = machineDb as typeof machineDb & {
       withSession?: (constraint: "first-primary" | "first-unconstrained") => typeof machineDb;
     };
-    const configConstraint = currentIdentity?.id ? "first-primary" : "first-unconstrained";
+    const anonymousFirstPaint = firstPaint && !currentIdentity?.id;
+    const configConstraint = "first-primary" as const;
     const dbForContext =
-      firstPaint && typeof configDb.withSession === "function"
+      firstPaint && !anonymousFirstPaint && typeof configDb.withSession === "function"
         ? configDb.withSession(configConstraint)
         : machineDb;
+    const homepageProjection: { rows: Record<string, unknown>[] | null } = { rows: null };
     const phases: Record<string, number> = {};
     async function timed<T>(name: string, promise: Promise<T>): Promise<T> {
       const started = performance.now();
@@ -3230,7 +3245,30 @@ async function handleCoveRequest(
     // All must finish before any catalog data can be returned. This removes
     // two serial network round trips for geographically distant D1 visitors.
     const contextStarted = performance.now();
-    const [storefront, bootstrapPreflight] = await Promise.all([
+    const firstPaintLimit = firstPaint
+      ? timed("limit", rateLimitFirstPaint(request, env, currentIdentity?.id || null))
+      : Promise.resolve(null);
+    // A cookie-free anonymous visitor cannot override the market currency or
+    // acquire a verified account country. Resolve the currency in the SAME
+    // primary rights statement and start it before waiting for translations.
+    // Every promise joins the preflight below, so no denied/failed context can
+    // release books and no rejected primary read is left unobserved.
+    // Admission must succeed before the expensive rights query starts; a
+    // rejected visitor cannot bypass the D1 abuse limit through speculation.
+    const earlyShelf =
+      anonymousFirstPaint && !request.headers.has("cookie") && env.FORE_ENVIRONMENT === "production"
+        ? firstPaintLimit.then(() =>
+            timed(
+              "catalog",
+              firstPaintStorefrontShelf(
+                env,
+                null,
+                networkCountry(request, env.FORE_DEFAULT_TERRITORY || "US").country,
+              ),
+            ),
+          )
+        : Promise.resolve(null);
+    const [storefront, bootstrapPreflight, prefetchedShelf] = await Promise.all([
       timed(
         "context",
         resolveStorefrontContext(
@@ -3238,23 +3276,30 @@ async function handleCoveRequest(
           request,
           currentIdentity?.id || null,
           env.FORE_DEFAULT_TERRITORY || "US",
+          anonymousFirstPaint,
+          (rows) => {
+            homepageProjection.rows = rows;
+          },
         ),
       ),
       firstPaint
         ? Promise.all([
             // Do not share one session across concurrent reads: independent
             // sessions make the replica/primary routing and bookmarks explicit.
-            timed(
-              "markets",
-              storefrontMarkets(
-                firstPaint && typeof configDb.withSession === "function"
-                  ? configDb.withSession(configConstraint)
-                  : machineDb,
-              ),
-            ),
-            timed("limit", rateLimitFirstPaint(request, env, currentIdentity?.id || null)),
+            anonymousFirstPaint
+              ? Promise.resolve(null)
+              : timed(
+                  "markets",
+                  storefrontMarkets(
+                    typeof configDb.withSession === "function"
+                      ? configDb.withSession(configConstraint)
+                      : machineDb,
+                  ),
+                ),
+            firstPaintLimit,
           ])
         : Promise.resolve(null),
+      earlyShelf,
     ]);
     const contextMs = phases.context ?? performance.now() - contextStarted;
     timings.context = contextMs;
@@ -3266,7 +3311,11 @@ async function handleCoveRequest(
       if (env.FORE_ENVIRONMENT !== "production") await seedCatalog(env);
       // No book can be disclosed before BOTH live territorial context
       // and the independent rate-limit preflight have succeeded.
-      const [availableMarkets] = bootstrapPreflight!;
+      const availableMarkets = anonymousFirstPaint
+        ? storefront.availableMarkets
+        : bootstrapPreflight![0];
+      if (!Array.isArray(availableMarkets))
+        throw new ApiError(503, "Storefront market projection is unavailable.");
       const catalogQuery = new URLSearchParams({
         search: "",
         sort: "popular",
@@ -3278,15 +3327,28 @@ async function handleCoveRequest(
       const [page, firstPage] = await Promise.all([
         timed(
           "page",
-          resolveStorefrontPage(
-            dbForContext,
-            "/",
-            storefrontTerritory,
-            storefront.language,
-            storefront.locale,
-          ),
+          homepageProjection.rows && homepageProjection.rows.length <= 64
+            ? Promise.resolve(
+                projectedAnonymousHomePage(
+                  homepageProjection.rows,
+                  storefrontTerritory,
+                  storefront.language,
+                ),
+              )
+            : resolveStorefrontPage(
+                dbForContext,
+                "/",
+                storefrontTerritory,
+                storefront.language,
+                storefront.locale,
+              ),
         ),
-        timed("catalog", firstPaintStorefrontShelf(env, storefront.currency, storefrontTerritory)),
+        prefetchedShelf
+          ? Promise.resolve(prefetchedShelf)
+          : timed(
+              "catalog",
+              firstPaintStorefrontShelf(env, storefront.currency, storefrontTerritory),
+            ),
       ]);
       const response = json({
         context: { ...storefront, availableMarkets },

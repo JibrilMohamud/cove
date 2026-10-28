@@ -1,5 +1,6 @@
 import { z } from "zod/v3";
 import { formatMinorCurrency } from "./currency";
+import { postRefundAccounting } from "./refund-accounting.server";
 import { ApiError } from "./service";
 import type { CoveEnv } from "./api.server";
 import { canonicalBooksByProductIds, type CatalogDB } from "./catalog-model.server";
@@ -12,6 +13,7 @@ import {
 } from "./finance.server";
 import { promotionPermitted } from "./rights.server";
 import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
+import { revokePaidOrderAccess } from "../../storefront-strangler/paid-order-revocation.server";
 import {
   assertStagePaidOrderNotWithdrawn,
   certifyStagePaidSettlement,
@@ -1837,6 +1839,26 @@ export async function captureAuthorizedOrder(env: CoveEnv, orderId: string) {
   return { orderId, status: pi.status };
 }
 
+type RefundIntent = {
+  id: string;
+  order_id: string;
+  status: string;
+  reason: string;
+  idempotency_key: string;
+  provider_refund_id: string | null;
+  succeeded_at: string | null;
+  amount_minor: number;
+  stripe_amount_minor: number;
+  gift_card_amount_minor: number;
+  store_credit_amount_minor: number;
+};
+type RefundOrder = {
+  id: string;
+  status: string;
+  currency: string;
+  stripe_payment_intent_id: string | null;
+};
+
 export async function refundOrder(env: CoveEnv, raw: unknown) {
   const input = z
       .object({
@@ -1850,17 +1872,29 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
   const existing = await db
     .prepare("SELECT * FROM commerce_refunds WHERE idempotency_key=?")
     .bind(input.idempotencyKey)
-    .first<any>();
-  if (existing)
-    return {
-      id: existing.id,
-      providerRefundId: existing.provider_refund_id || null,
-      status: existing.status,
-      amountMinor: Number(existing.amount_minor),
-      stripeAmountMinor: Number(existing.stripe_amount_minor || 0),
-      giftCardAmountMinor: Number(existing.gift_card_amount_minor || 0),
-      storeCreditAmountMinor: Number(existing.store_credit_amount_minor || 0),
-    };
+    .first<RefundIntent>();
+  if (existing) {
+    if (
+      String(existing.order_id) !== input.orderId ||
+      String(existing.reason) !== input.reason ||
+      (input.amountMinor !== undefined && Number(existing.amount_minor) !== input.amountMinor)
+    )
+      throw new ApiError(409, "This refund key belongs to a different request.");
+    if (existing.succeeded_at) {
+      await applyRefundSuccess(env, String(existing.id), null);
+      return refundResponse(existing);
+    }
+    if (!["pending", "succeeded"].includes(existing.status)) return refundResponse(existing);
+    // An owner outage can leave the immutable pending intent committed
+    // before Stripe was contacted. Retrying must finish that SAME intent,
+    // not return a misleading pending result forever or reserve tender again.
+    const order = await db
+      .prepare("SELECT * FROM commerce_orders WHERE id=?")
+      .bind(existing.order_id)
+      .first<RefundOrder>();
+    if (!order) throw new ApiError(404, "Refund order not found.");
+    return completeRequestedRefund(env, order, existing);
+  }
   const o = await db
     .prepare("SELECT * FROM commerce_orders WHERE id=?")
     .bind(input.orderId)
@@ -1874,7 +1908,9 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
     .bind(o.id)
     .first<any>();
   const remainingTotal = Math.max(0, Number(o.total_minor) - Number(committed?.amount || 0));
-  const amount = Math.min(input.amountMinor || remainingTotal, remainingTotal);
+  if (input.amountMinor !== undefined && input.amountMinor > remainingTotal)
+    throw new ApiError(409, "The requested refund exceeds the unreserved order balance.");
+  const amount = input.amountMinor || remainingTotal;
   if (amount <= 0)
     throw new ApiError(
       409,
@@ -1898,24 +1934,78 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
     throw new ApiError(409, "Stripe payment information is missing for this order.");
   const id = `ref_${crypto.randomUUID()}`,
     at = now();
-  await db
-    .prepare(
-      "INSERT INTO commerce_refunds(id,order_id,amount_minor,stripe_amount_minor,gift_card_amount_minor,store_credit_amount_minor,currency,reason,status,idempotency_key,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?, 'pending',?,?,?)",
-    )
-    .bind(
-      id,
-      o.id,
-      amount,
-      stripeAmount,
-      giftAmount,
-      storeAmount,
-      o.currency,
-      input.reason,
-      input.idempotencyKey,
-      at,
-      at,
-    )
-    .run();
+  try {
+    // Reserve the complete immutable intent atomically against transaction-
+    // current refunds. Different request keys cannot both spend the same
+    // remaining order/tender balance after racing the preflight reads.
+    const reserved = await db
+      .prepare(
+        "INSERT INTO commerce_refunds(id,order_id,amount_minor,stripe_amount_minor,gift_card_amount_minor,store_credit_amount_minor,currency,reason,status,idempotency_key,created_at,updated_at) SELECT ?,?,?,?,?,?,?,?,'pending',?,?,? FROM commerce_orders o WHERE o.id=? AND o.status IN ('paid','partially_refunded','disputed') AND ?<=o.total_minor-COALESCE((SELECT SUM(amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0) AND ?<=o.stripe_due_minor-COALESCE((SELECT SUM(stripe_amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0) AND ?<=o.gift_card_minor-COALESCE((SELECT SUM(gift_card_amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0) AND ?<=o.store_credit_minor-COALESCE((SELECT SUM(store_credit_amount_minor) FROM commerce_refunds WHERE order_id=o.id AND status IN ('pending','succeeded')),0)",
+      )
+      .bind(
+        id,
+        o.id,
+        amount,
+        stripeAmount,
+        giftAmount,
+        storeAmount,
+        o.currency,
+        input.reason,
+        input.idempotencyKey,
+        at,
+        at,
+        o.id,
+        amount,
+        stripeAmount,
+        giftAmount,
+        storeAmount,
+      )
+      .run();
+    if (Number((reserved as { meta?: { changes?: number } })?.meta?.changes) !== 1)
+      throw new ApiError(409, "The refund balance was reserved by another request.");
+  } catch (error) {
+    // A concurrent identical request may have won the unique key. Resume
+    // that exact persisted intent through the normal scope validation.
+    const winner = await db
+      .prepare("SELECT id FROM commerce_refunds WHERE idempotency_key=?")
+      .bind(input.idempotencyKey)
+      .first<{ id: string }>();
+    if (winner) return refundOrder(env, input);
+    throw error;
+  }
+  const intent = await db
+    .prepare("SELECT * FROM commerce_refunds WHERE id=?")
+    .bind(id)
+    .first<RefundIntent>();
+  if (!intent) throw new ApiError(503, "Refund intent is unavailable.");
+  return completeRequestedRefund(env, o, intent);
+}
+
+function refundResponse(refund: RefundIntent) {
+  return {
+    id: refund.id,
+    providerRefundId: refund.provider_refund_id || null,
+    status: refund.status,
+    amountMinor: Number(refund.amount_minor),
+    stripeAmountMinor: Number(refund.stripe_amount_minor || 0),
+    giftCardAmountMinor: Number(refund.gift_card_amount_minor || 0),
+    storeCreditAmountMinor: Number(refund.store_credit_amount_minor || 0),
+  };
+}
+
+async function completeRequestedRefund(env: CoveEnv, o: RefundOrder, intent: RefundIntent) {
+  const db = env.DB,
+    id = String(intent.id),
+    amount = Number(intent.amount_minor),
+    stripeAmount = Number(intent.stripe_amount_minor || 0),
+    giftAmount = Number(intent.gift_card_amount_minor || 0),
+    storeAmount = Number(intent.store_credit_amount_minor || 0),
+    reason = String(intent.reason || "requested_by_customer");
+  if (
+    String(intent.order_id) !== String(o.id) ||
+    !["paid", "partially_refunded", "disputed", "refunded", "chargeback_lost"].includes(o.status)
+  )
+    throw new ApiError(409, "Refund recovery does not match its original order.");
   // With the private owner enabled, deny buyer access BEFORE contacting
   // Stripe for an external refund. Replaying the same refund ID is safe.
   await stageRevokeRefundEntitlements(env, String(o.id), id);
@@ -1932,17 +2022,28 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
     };
   }
   try {
-    const refund = await stripeRequest(env, "refunds", {
-      idempotencyKey: input.idempotencyKey,
-      params: {
-        payment_intent: o.stripe_payment_intent_id,
-        amount: stripeAmount,
-        reason: ["duplicate", "fraudulent", "requested_by_customer"].includes(input.reason)
-          ? input.reason
-          : "requested_by_customer",
-        metadata: { fore_order_id: o.id, fore_refund_id: id, fore_total_refund_minor: amount },
-      },
-    });
+    // If Stripe already accepted the refund, read that exact provider
+    // object. Otherwise retry creation with the ORIGINAL idempotency key;
+    // a lost provider response cannot produce a second external refund.
+    const refund = intent.provider_refund_id
+      ? await stripeRequest(
+          env,
+          `refunds/${encodeURIComponent(String(intent.provider_refund_id))}`,
+          {
+            method: "GET",
+          },
+        )
+      : await stripeRequest(env, "refunds", {
+          idempotencyKey: String(intent.idempotency_key),
+          params: {
+            payment_intent: o.stripe_payment_intent_id,
+            amount: stripeAmount,
+            reason: ["duplicate", "fraudulent", "requested_by_customer"].includes(reason)
+              ? reason
+              : "requested_by_customer",
+            metadata: { fore_order_id: o.id, fore_refund_id: id, fore_total_refund_minor: amount },
+          },
+        });
     await db
       .prepare("UPDATE commerce_refunds SET provider_refund_id=?,status=?,updated_at=? WHERE id=?")
       .bind(refund.id, refund.status || "pending", now(), id)
@@ -1958,8 +2059,13 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
       storeCreditAmountMinor: storeAmount,
     };
   } catch (e) {
+    // A transport or reconciliation failure does not prove the provider
+    // rejected the refund. Retain its tender reservation until retry can
+    // reconcile the same key; a second request cannot spend that budget.
     await db
-      .prepare("UPDATE commerce_refunds SET status='failed',updated_at=? WHERE id=?")
+      .prepare(
+        "UPDATE commerce_refunds SET status=CASE WHEN succeeded_at IS NOT NULL THEN 'succeeded' ELSE 'pending' END,updated_at=? WHERE id=?",
+      )
       .bind(now(), id)
       .run();
     throw e;
@@ -1967,39 +2073,13 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
 }
 
 async function stageRevokeRefundEntitlements(env: CoveEnv, orderId: string, refundId: string) {
-  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") return;
-  if (
-    env.COVE_SSR_STAGING !== "1" ||
-    env.COVE_CANONICAL_LEGAL_WRITE_LOCK !== "1" ||
-    !["5e3a6b69-6f3d-4b19-b837-01f7aa56ce87", "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"].includes(
-      env.COVE_LEGAL_WRITER_PRIMARY_ID || "",
-    ) ||
-    env.COVE_LEGAL_QUARANTINE_WRITER_STAGE !== "1" ||
-    !env.LEGAL_QUARANTINE_WRITER?.fetch ||
-    !/^[a-f0-9]{64}$/.test(env.COVE_LEGAL_QUARANTINE_SECRET || "")
-  )
-    throw new ApiError(503, "Refund entitlement owner is not certified.");
-  const response = await env.LEGAL_QUARANTINE_WRITER.fetch(
-    new Request("https://legal-quarantine.internal/commercial/entitlement/revoke-order", {
-      method: "POST",
-      headers: {
-        authorization: "Bearer " + env.COVE_LEGAL_QUARANTINE_SECRET,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ orderId, operationId: refundId }),
-    }),
-  );
-  if (response.status !== 200)
-    throw new ApiError(503, "Refund owner did not acknowledge entitlement withdrawal.");
-  const receipt = (await response.json()) as { orderDenied?: unknown };
-  if (receipt.orderDenied !== true)
-    throw new ApiError(503, "Refund ownership receipt was invalid.");
+  await revokePaidOrderAccess(env, orderId, refundId);
 }
 
 async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload: any) {
   const db = env.DB,
     r = await db.prepare("SELECT * FROM commerce_refunds WHERE id=?").bind(refundId).first<any>();
-  if (!r || r.succeeded_at) return;
+  if (!r) return;
   const o = await db
     .prepare("SELECT * FROM commerce_orders WHERE id=?")
     .bind(r.order_id)
@@ -2008,7 +2088,9 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
   const at = now(),
     previousRefunded = Number(o.refunded_minor || 0),
     refundAmount = Number(r.amount_minor),
-    newRefunded = Math.min(Number(o.total_minor), previousRefunded + refundAmount),
+    newRefunded = r.succeeded_at
+      ? previousRefunded
+      : Math.min(Number(o.total_minor), previousRefunded + refundAmount),
     full = newRefunded >= Number(o.total_minor);
   // Stripe's refund is not acknowledged as canonical until the private
   // owner has tombstoned every affected paid entitlement. Partial external
@@ -2016,59 +2098,10 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
   // owner revocation is implemented.
   if (full || env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1")
     await stageRevokeRefundEntitlements(env, String(o.id), refundId);
-  const giftAmount = Number(r.gift_card_amount_minor || 0),
-    storeAmount = Number(r.store_credit_amount_minor || 0),
-    stripeAmount = Number(r.stripe_amount_minor || 0);
-  if (giftAmount > 0) {
-    const reservation = await db
-      .prepare(
-        "SELECT source_key FROM commerce_balance_reservations WHERE order_id=? AND source_type='gift_card' AND status='consumed' LIMIT 1",
-      )
-      .bind(o.id)
-      .first<any>();
-    if (!reservation?.source_key)
-      throw new ApiError(500, "The original gift-card tender could not be restored.");
-    const card = await db
-      .prepare("SELECT balance_minor,status,expires_at FROM commerce_gift_cards WHERE code_hash=?")
-      .bind(reservation.source_key)
-      .first<any>();
-    if (!card) throw new ApiError(500, "The original gift card no longer exists.");
-    const after = Number(card.balance_minor) + giftAmount;
-    await db
-      .prepare(
-        "UPDATE commerce_gift_cards SET balance_minor=?,status=CASE WHEN status='exhausted' AND (expires_at IS NULL OR expires_at>?) THEN 'active' ELSE status END,updated_at=? WHERE code_hash=?",
-      )
-      .bind(after, at, at, reservation.source_key)
-      .run();
-    await db
-      .prepare(
-        "INSERT INTO commerce_gift_card_ledger(id,code_hash,order_id,entry_type,amount_minor,balance_after_minor,created_at) VALUES(?,?,?,'refund',?,?,?)",
-      )
-      .bind(crypto.randomUUID(), reservation.source_key, o.id, giftAmount, after, at)
-      .run();
-  }
-  if (storeAmount > 0)
-    await db
-      .prepare(
-        "INSERT INTO commerce_store_credit_ledger(id,user_id,order_id,entry_type,amount_minor,currency,reference,created_at) VALUES(?,?,?,'refund',?,?,?,?)",
-      )
-      .bind(crypto.randomUUID(), o.user_id, o.id, storeAmount, o.currency, `refund:${r.id}`, at)
-      .run();
-  await db
-    .prepare(
-      "UPDATE commerce_refunds SET status='succeeded',succeeded_at=?,updated_at=? WHERE id=?",
-    )
-    .bind(at, at, r.id)
-    .run();
-  try {
-    await reverseRoyaltiesForRefund(db, r.id);
-  } catch (e) {
-    console.error("Royalty reversal failed", e);
-  }
-  await db
-    .prepare("UPDATE commerce_orders SET refunded_minor=?,status=?,updated_at=? WHERE id=?")
-    .bind(newRefunded, full ? "refunded" : "partially_refunded", at, o.id)
-    .run();
+  await postRefundAccounting(db, refundId, at, env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1");
+  // A completed financial posting is safe to replay while repairing a
+  // later royalty, analytics or tax projection interrupted by a crash.
+  await reverseRoyaltiesForRefund(db, r.id);
   const refundItems = await db
     .prepare(
       "SELECT id,product_id,total_minor,source_surface,source_request_id FROM commerce_order_items WHERE order_id=? ORDER BY id",
@@ -2095,94 +2128,6 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
       properties: { orderId: o.id, orderItemId: item.id, refundId: r.id, fullOrderRefund: full },
       dedupeKey: `refund:${r.id}:${item.id}`,
     });
-  }
-  const totalTax = Number(o.tax_minor || 0) + Number(o.tax_inclusive_minor || 0),
-    targetTax = Math.round((totalTax * newRefunded) / Math.max(1, Number(o.total_minor))),
-    priorTargetTax = Math.round((totalTax * previousRefunded) / Math.max(1, Number(o.total_minor))),
-    taxRefund = Math.max(0, targetTax - priorTargetTax),
-    salesRefund = Math.max(0, refundAmount - taxRefund);
-  if (salesRefund)
-    await ledger(db, o.id, o.user_id, "refund", "sales_returns", salesRefund, o.currency, r.id, {
-      refundId: r.id,
-    });
-  if (taxRefund)
-    await ledger(db, o.id, o.user_id, "tax_refund", "tax_payable", taxRefund, o.currency, r.id, {
-      refundId: r.id,
-    });
-  if (stripeAmount)
-    await ledger(
-      db,
-      o.id,
-      o.user_id,
-      "refund_tender",
-      "stripe_receivable",
-      -stripeAmount,
-      o.currency,
-      r.id,
-      { refundId: r.id },
-    );
-  if (giftAmount)
-    await ledger(
-      db,
-      o.id,
-      o.user_id,
-      "refund_tender",
-      "gift_card_liability",
-      -giftAmount,
-      o.currency,
-      r.id,
-      { refundId: r.id },
-    );
-  if (storeAmount)
-    await ledger(
-      db,
-      o.id,
-      o.user_id,
-      "refund_tender",
-      "store_credit_liability",
-      -storeAmount,
-      o.currency,
-      r.id,
-      { refundId: r.id },
-    );
-  if (full) {
-    // When staged, the owner-first private executor has already revoked
-    // entitlement authority. Never bypass the canonical D1 write lock.
-    if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
-      await db
-        .prepare(
-          "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase'",
-        )
-        .bind(at, o.user_id, o.id)
-        .run();
-    await db
-      .prepare("UPDATE commerce_order_items SET entitlement_status='revoked' WHERE order_id=?")
-      .bind(o.id)
-      .run();
-    await db
-      .prepare(
-        "UPDATE preorders SET status='refunded',updated_at=? WHERE order_id=? AND status NOT IN ('released','refunded')",
-      )
-      .bind(at, o.id)
-      .run();
-    const promo = await db
-      .prepare(
-        "SELECT id,code_hash,status FROM commerce_promo_redemptions WHERE order_id=? LIMIT 1",
-      )
-      .bind(o.id)
-      .first<any>();
-    if (promo && promo.status === "applied") {
-      await db
-        .prepare("UPDATE commerce_promo_redemptions SET status='refunded',updated_at=? WHERE id=?")
-        .bind(at, promo.id)
-        .run();
-      await db
-        .prepare(
-          "UPDATE commerce_promo_codes SET redemptions=MAX(0,redemptions-1),updated_at=? WHERE code_hash=?",
-        )
-        .bind(at, promo.code_hash)
-        .run();
-    }
   }
   try {
     const ratio = Math.min(1, refundAmount / Math.max(1, Number(o.total_minor))),

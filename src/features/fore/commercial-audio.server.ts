@@ -1878,18 +1878,25 @@ export async function handleCommercialAudio(
       expires = new Date(
         Math.min(Date.now() + 30 * 86400000, ent.ends_at ? Date.parse(ent.ends_at) : Infinity),
       ).toISOString();
-    const signed = await signOfflineAudioLicense(env, {
-      licenseId,
-      userId,
-      productId: String(row.product_id),
-      editionId: edition.id,
-      deviceId: String(device.id),
-      deviceKeyHash: await hashText(String(device.device_key)),
-      tokenHash,
-      manifestHash,
-      issuedAt: issued,
-      expiresAt: expires,
-    });
+    const signed = await signOfflineAudioLicense(
+      env,
+      {
+        licenseId,
+        userId,
+        productId: String(row.product_id),
+        editionId: edition.id,
+        deviceId: String(device.id),
+        deviceKeyHash: await hashText(String(device.device_key)),
+        tokenHash,
+        manifestHash,
+        issuedAt: issued,
+        expiresAt: expires,
+      },
+      { entitlementId: String(ent.id), territory },
+    );
+    // The signer may shorten this lease if the entitlement changed while
+    // preparing it. Persist and return that exact authenticated expiry.
+    const signedExpires = signed.expiresAt;
     await db.batch([
       db
         .prepare(
@@ -1909,14 +1916,13 @@ export async function handleCommercialAudio(
           tokenHash,
           manifestHash,
           issued,
-          expires,
+          signedExpires,
           issued,
         ),
     ]);
-    return new Response(
-      JSON.stringify({ licenseId, token: rawToken, expiresAt: expires, manifestHash, ...signed }),
-      { headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } },
-    );
+    return new Response(JSON.stringify({ licenseId, token: rawToken, manifestHash, ...signed }), {
+      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    });
   }
   return null;
 }

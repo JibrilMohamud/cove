@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Canonical publication writes must execute under a durable product hold. */
 import assert from "node:assert/strict";
+import {createHash} from "node:crypto";
 import {DatabaseSync} from "node:sqlite";
 import {build} from "esbuild";
 import {mkdtempSync,readdirSync,readFileSync,rmSync} from "node:fs";
@@ -22,10 +23,11 @@ try {
   };
   const {CoveLegalAuthority}=await load("src/storefront-strangler/legal-authority.worker.ts","owner",true);
   const legal=await load("src/storefront-strangler/commercial-legal-core.ts","legal");
+  const storefront=await load("src/storefront-strangler/commercial-storefront-authority.ts","storefront");
   const commandCore=await load("src/storefront-strangler/publication-command-core.ts","command");
   const bindingsFile=join(directory,"bindings.mjs");
   await build({stdin:{contents:
-    'export * from "./src/features/fore/publishing.server.ts"; export * from "./src/storefront-strangler/publication-owner-routing.server.ts";',
+    'export * from "./src/features/fore/publishing.server.ts"; export * from "./src/storefront-strangler/publication-owner-routing.server.ts"; export * from "./src/storefront-strangler/legal-primary-write-lock.ts";',
     resolveDir:process.cwd()},outfile:bindingsFile,bundle:true,format:"esm",platform:"node",target:"node22",
     alias:{jszip:"jszip/dist/jszip.min.js"},logLevel:"silent"});
   const publisher=await import(pathToFileURL(bindingsFile).href),routing=publisher;
@@ -37,7 +39,7 @@ try {
   // and foreign keys, rather than simulating publication SQL with a mock.
   const productId="prd_owner_publication",versionId="pubv_owner_publication";
   const secret="c".repeat(64),at="2026-01-01T00:00:00.000Z";
-  function fixture({releaseDate=at,retirePrevious=false,legacyPrior=false}={}){
+  function fixture({releaseDate=at,preorderDate=null,initialCurrent=false,retirePrevious=false,legacyPrior=false,retainGrant=false,snapshotJson="{}"}={}){
     const primary=new DatabaseSync(":memory:"),owned=new DatabaseSync(":memory:");
     databases.push(primary,owned);
     for(const file of readdirSync("drizzle").filter(f=>f.endsWith(".sql")).sort())
@@ -57,20 +59,21 @@ try {
       tax_status:"verified",payout_status:"verified",created_at:at,updated_at:at});
     insert("publishing_titles",{id:"pubt_owner_publication",account_id:"puba_owner_publication",title:"Owner publication",created_at:at,updated_at:at});
     insert("publishing_edition_drafts",{id:"pubed_owner_publication",title_id:"pubt_owner_publication",created_at:at,updated_at:at});
+    const snapshotHash=createHash("sha256").update("{}").digest("hex");
     insert("publishing_submission_snapshots",{id:"pubsub_owner_publication",edition_id:"pubed_owner_publication",
-      account_id:"puba_owner_publication",revision:1,snapshot_json:"{}",snapshot_sha256:"d".repeat(64),
+      account_id:"puba_owner_publication",revision:1,snapshot_json:snapshotJson,snapshot_sha256:snapshotHash,
       status:"published",submitted_by_user_id:"user_owner_publication",submitted_at:at});
     insert("publishing_publications",{id:"pub_owner_publication",submission_id:"pubsub_owner_publication",
       publishing_account_id:"puba_owner_publication",work_id:"wrk_owner_publication",edition_id:"ed_owner_publication",
       product_id:productId,materialization_key:productId,published_at:at});
     insert("publishing_release_lifecycles",{id:"life_owner_publication",publishing_edition_id:"pubed_owner_publication",
       state:"scheduled",pending_publication_version_id:versionId,created_at:at,updated_at:at});
-    const manifest={workId:"wrk_owner_publication",catalogEditionId:"ed_owner_publication",productId,
-      metadata:{title:"Owner publication",language:"en",releaseDate},rightsGrantIds:["rgrant_owner_publication"],
+    const manifest={schemaVersion:4,submissionId:"pubsub_owner_publication",snapshotSha256:snapshotHash,workId:"wrk_owner_publication",catalogEditionId:"ed_owner_publication",productId,
+      metadata:{title:"Owner publication",language:"en",releaseDate,preorderDate},rightsGrantIds:["rgrant_owner_publication"],
       rightsContractId:"rcontract_owner_publication",rightsContractVersionId:"rcv_owner_publication",
       rightsContractManagedByPublication:false,offerId:"off_owner_publication"};
     insert("publishing_publication_versions",{id:versionId,lifecycle_id:"life_owner_publication",publication_id:"pub_owner_publication",
-      submission_id:"pubsub_owner_publication",version_number:retirePrevious?2:1,snapshot_sha256:"d".repeat(64),manifest_json:JSON.stringify(manifest),
+      submission_id:"pubsub_owner_publication",version_number:retirePrevious?2:1,snapshot_sha256:snapshotHash,manifest_json:JSON.stringify(manifest),
       release_state:"scheduled",created_by_user_id:"user_owner_publication",created_at:at});
     insert("rights_parties",{id:"rparty_owner_publication",display_name:"Fixture licensor",status:"active",created_at:at,updated_at:at});
     insert("rights_contracts",{id:"rcontract_owner_publication",reference_code:"owner-fixture",name:"Fixture contract",
@@ -79,11 +82,12 @@ try {
       status:"active",effective_from:at,retailer_commission_bps:3000,created_at:at});
     insert("rights_grants",{id:"rgrant_owner_publication",edition_id:"ed_owner_publication",rightsholder_party_id:"rparty_owner_publication",
       territory_code:"US",format:"ebook",license_type:"commercial",contract_id:"rcontract_owner_publication",
-      contract_version_id:"rcv_owner_publication",decision:"allow",status:"draft",created_at:at,updated_at:at});
+      contract_version_id:"rcv_owner_publication",decision:"allow",status:retainGrant?"active":"draft",created_at:at,updated_at:at});
     insert("offers",{id:"off_owner_publication",product_id:productId,offer_type:"purchase",currency:"USD",amount_minor:399,
       active:0,created_at:at,updated_at:at});
     insert("catalog_search_documents",{product_id:productId,external_book_id:productId,title:"Owner publication",currency:"USD",
       availability:"available",suppressed:0,first_ingested_at:at,updated_at:at});
+    if(initialCurrent)primary.prepare("UPDATE publishing_release_lifecycles SET current_publication_version_id=?,pending_publication_version_id=NULL").run(versionId);
     if(retirePrevious){
       insert("rights_contracts",{id:"rcontract_owner_previous",reference_code:"owner-previous",name:"Previous contract",
         rightsholder_party_id:"rparty_owner_publication",status:"active",created_at:at,updated_at:at});
@@ -91,16 +95,16 @@ try {
         status:"active",effective_from:at,retailer_commission_bps:3000,created_at:at});
       insert("rights_grants",{id:"rgrant_owner_previous",edition_id:"ed_owner_publication",rightsholder_party_id:"rparty_owner_publication",
         territory_code:"US",format:"ebook",license_type:"commercial",contract_id:"rcontract_owner_previous",
-        contract_version_id:"rcv_owner_previous",decision:"allow",status:"active",created_at:at,updated_at:at});
+        contract_version_id:"rcv_owner_previous",decision:"allow",status:retainGrant?"revoked":"active",created_at:at,updated_at:at});
       insert("publishing_submission_snapshots",{id:"pubsub_owner_previous",edition_id:"pubed_owner_publication",
         account_id:"puba_owner_publication",revision:2,snapshot_json:"{}",snapshot_sha256:"e".repeat(64),
         status:"published",submitted_by_user_id:"user_owner_publication",submitted_at:at});
-      const previous={...manifest,rightsGrantIds:legacyPrior?[]:["rgrant_owner_previous"],
+      const previous=retainGrant?{...manifest}:{...manifest,rightsGrantIds:legacyPrior?[]:["rgrant_owner_previous"],
         rightsContractId:"rcontract_owner_previous",rightsContractVersionId:"rcv_owner_previous",rightsContractManagedByPublication:true};
       insert("publishing_publication_versions",{id:"pubv_owner_previous",lifecycle_id:"life_owner_publication",publication_id:"pub_owner_publication",
         submission_id:"pubsub_owner_previous",version_number:1,snapshot_sha256:"e".repeat(64),manifest_json:JSON.stringify(previous),
         release_state:"live",created_by_user_id:"user_owner_publication",created_at:at});
-      primary.prepare("UPDATE publishing_release_lifecycles SET current_publication_version_id='pubv_owner_previous',state='live'").run();
+      primary.prepare("UPDATE publishing_release_lifecycles SET current_publication_version_id='pubv_owner_previous',state='scheduled'").run();
     }
     const sql={exec(query,...args){const q=owned.prepare(query);
       const rows=q.columns().length?q.all(...args):(q.run(...args),[]);return {toArray:()=>rows};}};
@@ -136,6 +140,7 @@ try {
       actorUserId:null,triggerType:"schedule",territory:"US",currency:"USD"};
     return {primary,owned,DB,env,sql,command,post,
       activate:(overrides={})=>post("/publication/activate-version",{...command,...overrides}),
+      preorder:(overrides={})=>post("/publication/open-preorder",{operationId:"preorder:test:01",publicationVersionId:versionId,territory:"US",currency:"USD",...overrides}),
       setBeforeWrite(fn){beforeWrite=fn;},setFailWrites(value){failWrites=value;},
       setFailOwnerCommit(value){failOwnerCommit=value;},
       restart(){owner=new CoveLegalAuthority(ctx,env);},
@@ -242,6 +247,103 @@ try {
     assert.equal(shared.primary.prepare("SELECT status FROM rights_contracts WHERE id='rcontract_owner_previous'").get().status,
       primaryOutage?"active":"terminated","Owner withdrawal must remain effective against stale primary contract state");
   }
+  const retained=fixture({retirePrevious:true,retainGrant:true});
+  assert.equal(legal.publishFreshCommercialProof(retained.sql,{
+    productId,editionId:"ed_owner_publication",territory:"US",channel:"retail",
+    grantId:"rgrant_owner_publication",contractId:"rcontract_owner_publication",contractVersionId:"rcv_owner_publication",
+    validUntil:new Date(Date.now()+60000).toISOString()
+  },0).applied,true);
+  storefront.publishCommercialStorefront(retained.sql,{
+    product_id:productId,edition_id:"ed_owner_publication",territory:"US",currency:"USD",rights_epoch:1,
+    grant_id:"rgrant_owner_publication",contract_id:"rcontract_owner_publication",contract_version_id:"rcv_owner_publication",
+    product_public_id:null,edition_public_id:null,
+    offer_json:JSON.stringify({type:"purchase",currency:"USD",amountMinor:399}),
+    valid_until:legal.readCommercialProofs(retained.sql,[productId],"US","retail")[0].valid_until,
+  });
+  assert.equal((await retained.activate()).status,200,
+    "A metadata/version update retaining the exact approved grant cannot revoke that same grant during activation");
+  assert.equal(storefront.readCommercialStorefront(retained.sql,[productId],"US","USD").length,1,
+    "A completed publication update retaining its prior valid offer must remain visible");
+  assert.equal(retained.primary.prepare("SELECT status FROM rights_grants WHERE id='rgrant_owner_publication'").get().status,"active");
+  assert.equal(retained.owned.prepare("SELECT COUNT(*) n FROM cove_commercial_subject_denials WHERE subject_id='rgrant_owner_publication'").get().n,0);
+
+  const invalidActivationSnapshot=fixture({snapshotJson:'{"changed":true}'});
+  assert.equal((await invalidActivationSnapshot.activate()).status,409);
+  assert.equal(invalidActivationSnapshot.stats().writes,0,"Activation hashes the immutable approved snapshot before its first owner hold or primary write");
+  const initial=fixture({initialCurrent:true});
+  assert.equal((await initial.activate()).status,200,
+    "Initial scheduled materialization already points at its target version but still requires real activation");
+  assert.ok(initial.stats().writes>10);
+  assert.equal(initial.primary.prepare("SELECT state FROM publishing_release_lifecycles").get().state,"live");
+  assert.equal((await initial.activate()).status,200,"Recorded initial activation replay stays idempotent");
+  const stale=fixture();
+  stale.primary.prepare("UPDATE publishing_release_lifecycles SET state='updated',current_publication_version_id=NULL").run();
+  assert.equal((await stale.activate()).status,409,"Stale scheduler cannot restore a nonselected publication");
+  assert.equal(stale.stats().writes,0);
+
+  function preorderFixture(overrides={}){return fixture({initialCurrent:true,
+    releaseDate:new Date(Date.now()+86400000).toISOString(),preorderDate:at,...overrides});}
+  const pre=preorderFixture();let preorderWrites=0;
+  pre.setBeforeWrite(async()=>{
+    preorderWrites++;
+    assert.equal(pre.owned.prepare("SELECT verdict FROM cove_commercial_authority WHERE product_id=?").get(productId).verdict,"deny");
+    assert.equal(pre.owned.prepare("SELECT COUNT(*) n FROM cove_publication_commands WHERE product_id=? AND state='pending'").get(productId).n,1);
+    if(preorderWrites===1)assert.equal((await pre.preorder()).status,409,"No parallel preorder executor may enter");
+  });
+  const opened=await pre.preorder();
+  assert.equal(opened.status,200,await opened.text());
+  assert.ok(preorderWrites>5,"Original positive commercial terms and preorder implementation executed");
+  assert.equal(pre.primary.prepare("SELECT state FROM publishing_release_lifecycles").get().state,"preorder");
+  assert.equal(pre.primary.prepare("SELECT release_status FROM editions").get().release_status,"preorder");
+  assert.equal(pre.primary.prepare("SELECT active FROM offers").get().active,1);
+  assert.equal(legal.readCommercialProofs(pre.sql,[productId],"US","retail").length,1);
+  const beforeReplay=pre.stats().writes;
+  assert.equal((await pre.preorder()).status,200);
+  assert.equal(pre.stats().writes,beforeReplay,"Exact preorder command replay does not repeat primary side effects");
+  assert.equal((await pre.preorder({currency:"CAD"})).status,503,"A preorder operation cannot change currency identity");
+
+  const scheduledClient=preorderFixture();
+  const enrolled=routing.bindPublicationOwner(publisher.makeStageLegalWriterLock(scheduledClient.DB),{
+    owner:{async fetch(request){assert.equal(request.headers.get("authorization"),"Bearer "+secret);
+      return scheduledClient.post(new URL(request.url).pathname,await request.json());}},
+    secret,territory:"US",currency:"USD"
+  });
+  const scheduledResult=await publisher.advancePublishingReleaseSchedules(enrolled);
+  assert.equal(scheduledResult.advanced.length,1);
+  assert.equal(scheduledResult.advanced[0].state,"preorder",
+    "Actual scheduler under legal SQL write lock must route the full positive preorder through its private owner");
+
+  const invalidSnapshot=preorderFixture({snapshotJson:'{"changed":true}'});
+  assert.equal((await invalidSnapshot.preorder()).status,409,"Byte hash mismatch refuses positive publication before its hold");
+  assert.equal(invalidSnapshot.stats().writes,0);
+  const invalidCompliance=preorderFixture();
+  invalidCompliance.primary.prepare("UPDATE publishing_accounts SET payout_status='restricted'").run();
+  assert.equal((await invalidCompliance.preorder()).status,409);
+  assert.equal(invalidCompliance.stats().writes,0);
+  const early=fixture({initialCurrent:true,releaseDate:new Date(Date.now()+86400000).toISOString(),
+    preorderDate:new Date(Date.now()+3600000).toISOString()});
+  assert.equal((await early.preorder()).status,409);
+  assert.equal(early.stats().writes,0);
+  const outage=preorderFixture();outage.setFailWrites(true);
+  assert.equal((await outage.preorder()).status,503);
+  assert.equal(legal.readCommercialProofs(outage.sql,[productId],"US","retail").length,0);
+  outage.restart();outage.setFailWrites(false);
+  assert.equal((await outage.preorder()).status,503,"Incomplete primary preorder command cannot be blindly replayed after restart");
+  const repair=preorderFixture();repair.setFailOwnerCommit(true);
+  assert.equal((await repair.preorder()).status,503);
+  assert.equal(repair.primary.prepare("SELECT state FROM publishing_release_lifecycles").get().state,"preorder");
+  const beforeRepair=repair.stats().writes;
+  repair.restart();repair.setFailOwnerCommit(false);
+  assert.equal((await repair.preorder({operationId:"preorder:response-lost"})).status,200,
+    "Complete canonical preorder marker reconciles the exact immutable pending command after restart");
+  assert.equal(repair.stats().writes,beforeRepair);
+  const withdrawnPre=preorderFixture();let withdrewPre=false;
+  withdrawnPre.setBeforeWrite(async()=>{if(!withdrewPre){withdrewPre=true;
+    assert.equal((await withdrawnPre.post("/commercial/deny-next",{productId,operationId:"qa:preorder-concurrent-withdrawal"})).status,200);}});
+  assert.equal((await withdrawnPre.preorder()).status,503);
+  assert.equal(legal.readCommercialProofs(withdrawnPre.sql,[productId],"US","retail").length,0);
+  assert.equal((await withdrawnPre.preorder()).status,503,"Replaying old preorder cannot reverse a concurrent withdrawal");
+
   const unavailable=fixture();unavailable.env.COVE_RIGHTS_OWNER_ENABLED="0";
   assert.equal((await unavailable.activate()).status,503);
   assert.equal(unavailable.stats().writes,0,"Owner outage cannot fall back to caller-side activation writes");

@@ -70,3 +70,25 @@ export async function dispatchPublicationActivation(db:object,command:Publicatio
   return {publicationVersionId:command.publicationVersionId,
     state:String(result.state),versionNumber:Number(result.versionNumber)};
 }
+
+export async function dispatchPublicationPreorder(db:object,command:{publicationVersionId:string}) {
+  const context=owners.get(db);
+  if(!context)throw new ApiError(503,"Publication owner is not configured.");
+  const operationId="preorder:"+crypto.randomUUID();
+  let response:Response,receipt:unknown;
+  try {
+    response=await context.owner.fetch(new Request("https://legal-authority.internal/publication/open-preorder",{
+      method:"POST",headers:{authorization:"Bearer "+context.secret,"content-type":"application/json"},
+      body:JSON.stringify({...command,operationId,territory:context.territory,currency:context.currency})
+    }));
+    if(response.status!==200)throw Error("publication_owner_refused");
+    receipt=await response.json();
+  } catch {throw new ApiError(503,"Preorder publication owner did not acknowledge completion.");}
+  const result=receipt as {schema?:unknown;operationId?:unknown;publicationVersionId?:unknown;
+    ownerFirst?:unknown;state?:unknown;versionNumber?:unknown}|null;
+  if(!result||result.schema!=="cove.publication-preorder.v1"||result.operationId!==operationId||
+    result.publicationVersionId!==command.publicationVersionId||result.ownerFirst!==true||
+    result.state!=="preorder"||!Number.isSafeInteger(result.versionNumber)||Number(result.versionNumber)<1)
+    throw new ApiError(503,"Publication owner receipt does not match this preorder.");
+  return {publicationVersionId:command.publicationVersionId,state:"preorder",versionNumber:Number(result.versionNumber)};
+}
