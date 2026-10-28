@@ -30,7 +30,7 @@ try {
     "Original signed payment writer must target the current-active partial uniqueness index",
   );
   const grant=(id,item)=>db.prepare(upsertSql).run(id,"qa-buyer","book-42",item,"2026-10-28","2026-10-28");
-  const rows=()=>db.prepare("SELECT id,status,order_item_id FROM entitlements WHERE user_id='qa-buyer' ORDER BY granted_at,id").all();
+  const rows=()=>db.prepare("SELECT id,status,order_item_id FROM entitlements WHERE user_id='qa-buyer' ORDER BY granted_at,id").all().map(row=>({...row}));
   grant("purchase-1","order-item-1");
   assert.equal(rows().length,1);
   db.prepare("UPDATE entitlements SET status='revoked' WHERE id='purchase-1'").run();
