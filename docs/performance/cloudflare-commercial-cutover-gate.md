@@ -172,3 +172,19 @@ serving, report the exact failing evidence, and do not relax the SLO.
   entitlement, customer media delivery, callback and offline migration QA.
   Offline files stored under a Vercel origin cannot be read directly from
   the new Cloudflare custom origin's IndexedDB or service worker.
+
+### Asset-router controlled reproduction
+
+The [owned canary public-ingress check](https://github.com/JibrilMohamud/cove/actions/runs/40612959230)
+returned **HTTP 200 for an unauthenticated manifest**; the custom-domain
+binding was immediately detached. The same test
+[failed on Workers.dev](https://github.com/JibrilMohamud/cove/actions/runs/40613154445).
+A separate ephemeral Worker with explicit
+`[assets] run_worker_first = ["/*"]` and a freshly installed bearer secret
+[still returned 200](https://github.com/JibrilMohamud/cove/actions/runs/40613473385).
+The throwaway Worker was deleted successfully and independently verified absent.
+The expected 401 remains an **unwaived** gate; see
+[issue #366](https://github.com/JibrilMohamud/cove/issues/366).
+There is currently **no** native storefront or canary custom-domain Worker
+attached to the live `www.covereads.com` site. Investigate the actual
+asset-routing behavior before any new binding or release.
