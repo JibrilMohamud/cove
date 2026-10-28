@@ -3273,7 +3273,18 @@ async function activatePublicationCommercialTerms(
   if (currentManifest.offerId) {
     statements.push(
       db
-        .prepare("UPDATE offers SET active=1,updated_at=? WHERE id=?")
+        .prepare(
+          `UPDATE offers SET active=1,updated_at=? WHERE id=?
+           AND EXISTS (
+             SELECT 1 FROM products p
+             JOIN rights_grants g ON g.edition_id=p.edition_id
+             LEFT JOIN rights_contracts rc ON rc.id=g.contract_id
+             WHERE p.id=offers.product_id
+               AND g.status='active' AND g.decision='allow'
+               AND g.sales_channel='retail'
+               AND (g.contract_id IS NULL OR rc.status='active')
+           )`,
+        )
         .bind(at, currentManifest.offerId),
     );
     statements.push(
@@ -3285,6 +3296,17 @@ async function activatePublicationCommercialTerms(
     );
   }
   if (statements.length) await db.batch(statements);
+  if (currentManifest.offerId) {
+    // A revoked/suspended legal scope may have changed between preflight and
+    // this D1 transaction. Do not report publication activation or expose a
+    // product when the conditional offer activation was denied.
+    const offer = await db.prepare(
+      "SELECT active FROM offers WHERE id=? AND product_id=?"
+    ).bind(currentManifest.offerId, currentManifest.productId).first<{active:number}>();
+    if (Number(offer?.active || 0)!==1)
+      throw new ApiError(409,
+        "Commercial offer activation is blocked until current rights are independently reverified.");
+  }
   await syncCatalogAccessibility(db, currentManifest, at);
 }
 
