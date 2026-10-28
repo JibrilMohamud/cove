@@ -19,7 +19,13 @@ enablement stayed `0`; the namespace is
 `83d7eadf3957436389a7b072120a9829`, with canonical primary
 `4bd657ac-8789-403e-a28c-93aba8d0a989`.
 
-## Functional changes under integration
+## Functional changes merged for deployed certification
+
+[PR 424](https://github.com/JibrilMohamud/cove/pull/424) merged at
+`272e6e0e7aec1bf9b739d1d8fd92ae2b728e4235`. Functional source, security,
+publishing, owner, six browser-profile and screen-reader checks passed.
+Failing release capacity results remain blocking; merging these repairs
+does not authorize a frontend traffic change.
 
 - Refund requests resume a persisted pending intent after owner/provider
   outage using the original Stripe idempotency key or exact provider object.
@@ -86,6 +92,30 @@ with no drops or invalid responses. Only its ephemeral rate-limit namespace
 permits the authorized campaign; production's 180/minute policy is unchanged.
 The canary is detached and its two temporary Workers deleted after testing.
 This campaign does not certify ORD/LAX/IAD/DFW repeatability.
+
+The first real owned-ingress campaign on source `9a191023`,
+[run 40788876111](https://github.com/JibrilMohamud/cove/actions/runs/40788876111),
+**failed**. Its initial 20-request probe passed with p95 173 ms, but independent
+cold maxima were 492/576/819/1,253/1,598 ms at 1/4/8/16/32 concurrency.
+Warm 32-concurrent maximum was 914 ms. The two 100-RPS phases returned
+894/2,000 and 958/2,000 valid responses, with 1,106 and 1,042 dropped arrivals;
+p95 was 3,971/3,595 ms and max 5,291/3,921 ms. All failed samples remain in
+artifact `12860488706`. These requests reached STL, which is not a certificate
+for the required four regions. Mobile lab LCP p75 was 4,020 ms. Cleanup passed.
+
+Catalog calls in that run had medians of 1,475/1,276 ms while their SQL
+execution medians were 11.0/10.7 ms; context calls had medians of
+1,865/2,174 ms. This supports primary-service queueing/latency as a material
+bottleneck; it does not isolate every provider or background-workload cause.
+
+An acceptance scheduling defect also canceled a required main campaign:
+GitHub's default shared concurrency group retains only one pending run.
+The native build verification now has its own PR group; its live deployment
+alone shares the owned campaign's exclusive queued group. Both live campaigns
+use `queue: max` with cancellation disabled, so independent real-primary load
+tests remain serial without replacing pending runs. PRs run owned-ingress
+source checks; the live owned campaign runs on main or manual dispatch.
+This scheduling change does not make failed performance evidence pass.
 
 Before these functional changes were deployed, a read-only probe from the
 Work execution environment against `https://www.covereads.com` at
