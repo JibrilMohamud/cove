@@ -12,7 +12,10 @@ import {
 } from "./finance.server";
 import { promotionPermitted } from "./rights.server";
 import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
-import { assertStagePaidOrderNotWithdrawn, certifyStagePaidSettlement } from "../../storefront-strangler/paid-settlement-publication.server";
+import {
+  assertStagePaidOrderNotWithdrawn,
+  certifyStagePaidSettlement,
+} from "../../storefront-strangler/paid-settlement-publication.server";
 import {
   assertPreorderPurchaseAllowed,
   completePreorderRefundJob,
@@ -2714,9 +2717,9 @@ async function syncDispute(db: CatalogDB, d: any, eventType: string, env: CoveEn
         await db
           .prepare(
             "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase'",
-        )
-        .bind(at, order.user_id, order.id)
-        .run();
+          )
+          .bind(at, order.user_id, order.id)
+          .run();
       if (amount) {
         await ledger(
           db,
