@@ -6,6 +6,7 @@ import { recordSyncProjection } from "./sync.server";
 import { ensureReadingJourney, recordReadingProgress } from "./social.server";
 import { signOfflineAudioLicense, verifyStoredAudioLicense } from "./offline-audio.server";
 import { hashText, audioManifestHash } from "./offline-audio-license";
+import { requireStagePaidEntitlementAccess } from "../../storefront-strangler/legal-consumer-fence.server";
 
 const id = (p: string) => `${p}_${crypto.randomUUID()}`;
 const safe = (s: string) => s.replace(/[^A-Za-z0-9_-]/g, "_");
@@ -1111,6 +1112,37 @@ export async function hasAudioAccess(
     .bind(userId, now(), now(), productId, territory, now(), now())
     .first<any>();
   return !!sub;
+}
+/** Independent paid authority is mandatory for every protected audiobook
+ * action in an enrolled staging consumer. Subscription-only access does not
+ * automatically inherit a retail purchase proof: deny until its separate
+ * strong-owner entitlement issuance has been certified.
+ */
+async function requireCommercialAudioOwner(
+  env: CoveEnv,
+  userId: string,
+  productId: string,
+  territory: string,
+  entitlementId?: string,
+) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") return;
+  let id = entitlementId;
+  if (!id) {
+    const ent = await env.DB.prepare(
+      "SELECT id FROM entitlements WHERE user_id=? AND product_id=? AND entitlement_type='purchase' AND status='active' AND (starts_at IS NULL OR starts_at<=?) AND (ends_at IS NULL OR ends_at>?) LIMIT 1",
+    )
+      .bind(userId, productId, now(), now())
+      .first<{ id: string }>();
+    id = ent?.id;
+  }
+  if (!id) throw new ApiError(451, "Independent audiobook purchase authorization is unavailable.");
+  await requireStagePaidEntitlementAccess(env, {
+    entitlementId: id,
+    userId,
+    productId,
+    territory,
+    channel: "retail",
+  });
 }
 export async function assertCommercialAudioRiskAccess(
   db: CoveEnv["DB"],
