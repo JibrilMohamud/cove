@@ -7,6 +7,12 @@ import { recordSyncProjection } from "./sync.server";
 import { requireStagePaidEntitlementAccess } from "../../storefront-strangler/legal-consumer-fence.server";
 
 type DB = CoveEnv["DB"];
+function entitlementSalesChannel(type: unknown): "retail" | "subscription" | "library" {
+  const name = String(type || "");
+  if (name === "subscription") return "subscription";
+  if (name.includes("library") || name.includes("loan")) return "library";
+  return "retail";
+}
 const uid = (p: string) => `${p}_${crypto.randomUUID()}`;
 function parseJson(v: any, f: any) {
   try {
