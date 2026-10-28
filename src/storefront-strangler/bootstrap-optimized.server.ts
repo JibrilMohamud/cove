@@ -7,6 +7,7 @@ import {
   readHomepagePresentation,
   authorizeHomepagePresentation,
 } from "./homepage-presentation.server";
+import { authorizeHomepageWithUnifiedOwner } from "./legal-authority-read.server";
 import type { FirstPaintD1QueryMetrics } from "../features/fore/catalog-model.server";
 import { networkCountry, resolveAnonymousHomepageContext } from "./localization-optimized.server";
 import { formatGenericStorefrontPageRecord } from "./page-record";
@@ -25,6 +26,15 @@ type OptimizedEnv = CoveEnv & {
   COVE_PRESENTATION_PREFIX?: string;
   COVE_STRANGLER_MODE?: string;
   COVE_STRANGLER_RELEASE_CERTIFIED?: string;
+  // Explicitly staging-only: production continues using primary-D1 rights.
+  COVE_LEGAL_OWNER_STAGE_READ_ENABLED?: string;
+  COVE_LEGAL_OWNER_WRITER_CLOSURE_AUDITED?: string;
+  COVE_CANONICAL_LEGAL_WRITE_LOCK?: string;
+  COVE_RIGHTS_OWNER_SECRET?: string;
+  COVE_STRANGLER_DATABASE_ID?: string;
+  LEGAL_AUTHORITY?: {
+    getByName(name: string): { fetch(request: Request): Promise<Response> };
+  };
 };
 
 // Preserve the exact serialized JSON from this freshly authorized bootstrap.
@@ -223,6 +233,23 @@ export async function serveLeanAnonymousBootstrap(
     kvStage && env.PRESENTATION && env.PRESENTATION_KV
       ? stageAcceleratedPresentation(env.PRESENTATION, env.PRESENTATION_KV)
       : env.PRESENTATION;
+  // Never trust owner-only positive grants unless the staging writer lock
+  // and private owner binding are both present on the same gateway.
+  const stagedLegalOwnerRead = env.COVE_LEGAL_OWNER_STAGE_READ_ENABLED === "1";
+  if (
+    stagedLegalOwnerRead &&
+    !(
+      env.COVE_SSR_STAGING === "1" &&
+      env.COVE_STRANGLER_MODE === "production-acceptance" &&
+      env.COVE_STRANGLER_DATABASE_ID === "4bd657ac-8789-403e-a28c-93aba8d0a989" &&
+      env.COVE_LEGAL_OWNER_WRITER_CLOSURE_AUDITED === "1" &&
+      env.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1" &&
+      typeof env.LEGAL_AUTHORITY?.getByName === "function" &&
+      /^[a-f0-9]{64}$/.test(env.COVE_RIGHTS_OWNER_SECRET || "") &&
+      model === "2"
+    )
+  )
+    throw Error("Legal owner read not certified for protected staging");
   const presentationStore = presentationBinding
     ? namespacedPresentationStore(presentationBinding, env.COVE_PRESENTATION_PREFIX, model === "2")
     : undefined;
@@ -255,7 +282,16 @@ export async function serveLeanAnonymousBootstrap(
     admission,
     model === "2"
       ? Promise.all([projection!, admission]).then(([p]) =>
-          timed("catalog", authorizeHomepagePresentation(rawDb, p, d1Metrics)),
+          timed(
+            "catalog",
+            stagedLegalOwnerRead
+              ? authorizeHomepageWithUnifiedOwner(
+                  env.LEGAL_AUTHORITY!.getByName("cove-staged-legal-global-v1"),
+                  env.COVE_RIGHTS_OWNER_SECRET!,
+                  p,
+                )
+              : authorizeHomepagePresentation(rawDb, p, d1Metrics),
+          ),
         )
       : model === "1"
         ? timed(
