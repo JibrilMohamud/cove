@@ -1877,6 +1877,8 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
       409,
       "This order has already been fully refunded or has a refund in progress.",
     );
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED === "1" && amount < remainingTotal)
+    throw new ApiError(409, "Partial refunds require an item-scoped legal owner.");
   let left = amount;
   const stripeAvailable = Math.max(0, Number(o.stripe_due_minor) - Number(committed?.stripe || 0)),
     stripeAmount = Math.min(left, stripeAvailable);
