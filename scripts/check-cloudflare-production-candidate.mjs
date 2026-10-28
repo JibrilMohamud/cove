@@ -8,7 +8,7 @@ const gate = fs.readFileSync("docs/performance/cloudflare-commercial-cutover-gat
 // Cloudflare assigns Worker scripts at
 // <script>.<account-subdomain>.workers.dev, never the account root.
 assert.match(production, /^name = "cove"$/m);
-assert.match(production, /^FORE_PUBLIC_URL = "https:\/\/cove\.cove-jibrilmohamud\.workers\.dev"$/m);
+assert.match(production, /^FORE_PUBLIC_URL = "https:\/\/www\.covereads\.com"$/m);
 assert.doesNotMatch(
   production,
   /^FORE_PUBLIC_URL = "https?:\/\/cove-jibrilmohamud\.workers\.dev"$/m,
