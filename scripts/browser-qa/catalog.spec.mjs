@@ -223,6 +223,10 @@ test("tracking links retain verified SSR books while real catalog filters do not
   expect(protectedLink.ok()).toBe(true);
   expect(await protectedLink.text()).toContain('class="book-card"');
 
+  const unrecognized = await request.get("/?external_tracking_nonce=example-only");
+  expect(unrecognized.ok()).toBe(true);
+  expect(await unrecognized.text()).toContain('class="book-card"');
+
   const filtered = await request.get("/?search=nonexistent");
   expect(filtered.ok()).toBe(true);
   expect(await filtered.text()).not.toContain('class="book-card"');
