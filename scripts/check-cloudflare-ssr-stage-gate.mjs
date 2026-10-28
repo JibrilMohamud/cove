@@ -39,6 +39,43 @@ try {
     env,
   );
   assert.equal(attemptedWrite.status, 405);
+  // No public bearer bypass for general checkout or account mutation. The
+  // only explicit exception is a QA Stripe webhook, which is subsequently
+  // authenticated by the actual signed-HMAC commerce handler.
+  const qa = {
+    ...env,
+    COVE_SSR_STAGING_COMMERCE_QA: "1",
+    COVE_STRIPE_SIGNED_WEBHOOK_QA_ENABLED: "1",
+  };
+  const qaUrl = "https://cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev";
+  const webhook = (url = qaUrl + "/api/fore/stripe/webhook", headers = {}) =>
+    new Request(url, { method: "POST", headers });
+  const stripeHeaders = {
+    "content-type": "application/json",
+    "stripe-signature": "t=1234567890,v1=" + "f".repeat(64),
+  };
+  assert.equal(
+    await rejectUnauthenticatedStagingRequest(webhook(undefined, stripeHeaders), qa),
+    null,
+    "Only configured isolated QA Stripe POST reaches mandatory HMAC verification",
+  );
+  for (const [req, vars] of [
+    [webhook(), qa],
+    [webhook(undefined, { "stripe-signature": stripeHeaders["stripe-signature"] }), qa],
+    [webhook(undefined, { "content-type": "application/json" }), qa],
+    [webhook(qaUrl + "/api/fore/checkout/payment", stripeHeaders), qa],
+    [webhook("https://www.covereads.com/api/fore/stripe/webhook", stripeHeaders), qa],
+    [webhook(undefined, stripeHeaders), { ...qa, COVE_STRIPE_SIGNED_WEBHOOK_QA_ENABLED: "0" }],
+    [webhook(undefined, stripeHeaders), { ...qa, COVE_SSR_STAGING_COMMERCE_QA: "0" }],
+  ]) {
+    const denied = await rejectUnauthenticatedStagingRequest(req, vars);
+    assert.equal(denied?.status, 401, "Untrusted QA webhook ingress must be denied");
+  }
+  const noQaSecret = await rejectUnauthenticatedStagingRequest(
+    webhook(undefined, stripeHeaders),
+    { ...qa, COVE_SSR_STAGING_GATE_KEY: undefined },
+  );
+  assert.equal(noQaSecret.status, 503);
   const unconfigured = await rejectUnauthenticatedStagingRequest(
     request({ Authorization: "Bearer " + token }),
     { COVE_SSR_STAGING: "1" },
