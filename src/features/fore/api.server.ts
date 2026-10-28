@@ -3890,7 +3890,10 @@ async function handleCoveRequest(
               allowExistingOwners: z.literal(false),
               reasonCode: z.string().min(1).max(120),
               reasonDetail: z.string().max(2000),
-              operationId: z.string().regex(/^dist:[a-zA-Z0-9_.:-]{1,80}$/).optional(),
+              operationId: z
+                .string()
+                .regex(/^dist:[a-zA-Z0-9_.:-]{1,80}$/)
+                .optional(),
             })
             .strict()
             .parse(incoming);
