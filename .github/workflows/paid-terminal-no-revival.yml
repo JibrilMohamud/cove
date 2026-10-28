@@ -1,0 +1,31 @@
+name: paid-terminal-no-revival
+on:
+  pull_request:
+    paths:
+      - "drizzle/0087_paid_revocation_terminal_guard.sql"
+      - "scripts/check-paid-revocation-no-revival.mjs"
+      - ".github/workflows/paid-terminal-no-revival.yml"
+  push:
+    branches: [main]
+    paths:
+      - "drizzle/0087_paid_revocation_terminal_guard.sql"
+      - "scripts/check-paid-revocation-no-revival.mjs"
+      - ".github/workflows/paid-terminal-no-revival.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  refuse-stale-payment-grants:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Assert production SQL revocation, refund and delivery terminal fences
+        run: node scripts/check-paid-revocation-no-revival.mjs
+      - name: Refuse new unowned canonical SQL writers
+        run: node scripts/check-canonical-writer-closure.mjs --no-new-writers

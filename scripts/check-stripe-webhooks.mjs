@@ -182,6 +182,20 @@ try {
   )
     .bind(timestamp, timestamp)
     .run();
+  // Each webhook lifecycle case gets its own isolated synthetic order. Tests
+  // must never reset a terminal canonical status to pending_payment: that
+  // setup pattern would bypass exactly the immutable refund guard under test.
+  async function freshLifecycleOrder(status, label) {
+    const suffix = label.replace(/[^a-z0-9_]/gi, "_").slice(0, 110);
+    const id = "ord_" + suffix;
+    const paymentIntentId = "pi_" + suffix;
+    await original(
+      "INSERT INTO commerce_orders(id,user_id,invoice_number,status,currency,territory_code,subtotal_minor,total_minor,stripe_due_minor,billing_address_json,idempotency_key,stripe_payment_intent_id,created_at,updated_at) VALUES(?,'qa',?,?,'JPY','JP',1000,1000,1000,'{}',?,?,?,?)",
+    )
+      .bind(id, "QA-" + suffix, status, "qa-" + suffix, paymentIntentId, timestamp, timestamp)
+      .run();
+    return { id, paymentIntentId };
+  }
   // A genuine signed event for a different PI must never update the
   // canonical order merely because Stripe metadata names that order.
   // This includes non-success lifecycle events, not only settlement.
@@ -252,18 +266,21 @@ try {
     ["refunded", "refunded"],
     ["disputed", "disputed"],
   ]) {
-    await original("UPDATE commerce_orders SET status=? WHERE id='ord-proof'").bind(existing).run();
+    const order = await freshLifecycleOrder(existing, "authorization_" + existing);
     await stripeWebhook(
       env,
       request({
         id: "evt_authorization_after_" + existing,
         type: "payment_intent.amount_capturable_updated",
         livemode: false,
-        data: { object: { id: "pi_expected", metadata: { fore_order_id: "ord-proof" } } },
+        data: { object: { id: order.paymentIntentId, metadata: { fore_order_id: order.id } } },
       }),
     );
+    const actual = await original("SELECT status FROM commerce_orders WHERE id=?")
+      .bind(order.id)
+      .first();
     assert.equal(
-      (await original("SELECT status FROM commerce_orders WHERE id='ord-proof'").first()).status,
+      actual.status,
       expected,
       "A late signed authorization cannot resurrect an order in state " + existing,
     );
@@ -286,9 +303,7 @@ try {
       ["refunded", "refunded"],
       ["disputed", "disputed"],
     ]) {
-      await original("UPDATE commerce_orders SET status=? WHERE id='ord-proof'")
-        .bind(existing)
-        .run();
+      const order = await freshLifecycleOrder(existing, "terminal_" + type + "_" + existing);
       await stripeWebhook(
         env,
         request({
@@ -297,15 +312,18 @@ try {
           livemode: false,
           data: {
             object: {
-              id: "pi_expected",
-              metadata: { fore_order_id: "ord-proof" },
+              id: order.paymentIntentId,
+              metadata: { fore_order_id: order.id },
               last_payment_error: { code: "card_declined" },
             },
           },
         }),
       );
+      const actual = await original("SELECT status FROM commerce_orders WHERE id=?")
+        .bind(order.id)
+        .first();
       assert.equal(
-        (await original("SELECT status FROM commerce_orders WHERE id='ord-proof'").first()).status,
+        actual.status,
         expected,
         "Stale signed event " + type + " may not regress order state " + existing,
       );
@@ -319,17 +337,17 @@ try {
     "SELECT count(*) AS n FROM commerce_ledger_entries",
   ).first();
   for (const terminal of ["canceled", "disputed", "chargeback_lost"]) {
-    await original("UPDATE commerce_orders SET status=? WHERE id='ord-proof'").bind(terminal).run();
+    const order = await freshLifecycleOrder(terminal, "late_success_" + terminal);
     const late = {
       id: "evt_late_success_after_" + terminal,
       type: "payment_intent.succeeded",
       livemode: false,
       data: {
         object: {
-          id: "pi_expected",
+          id: order.paymentIntentId,
           currency: "jpy",
           amount_received: 1000,
-          metadata: { fore_order_id: "ord-proof" },
+          metadata: { fore_order_id: order.id },
         },
       },
     };
@@ -338,9 +356,9 @@ try {
       /Terminal or invalid order cannot be settled/,
       "Signed late success must fail closed for " + terminal,
     );
-    const orderAfter = await original(
-      "SELECT status FROM commerce_orders WHERE id='ord-proof'",
-    ).first();
+    const orderAfter = await original("SELECT status FROM commerce_orders WHERE id=?")
+      .bind(order.id)
+      .first();
     assert.equal(orderAfter.status, terminal);
     const received = await original(
       "SELECT status FROM commerce_webhook_events WHERE provider_event_id=?",
@@ -357,7 +375,11 @@ try {
       baselineLedger.n,
     );
   }
-  await original("UPDATE commerce_orders SET status='pending_payment' WHERE id='ord-proof'").run();
+  assert.equal(
+    (await original("SELECT status FROM commerce_orders WHERE id='ord-proof'").first()).status,
+    "pending_payment",
+    "Independent signed webhook fixtures must not mutate the original pending order",
+  );
   await ingestStripeRiskSignal(
     env.DB,
     "ord-proof",
