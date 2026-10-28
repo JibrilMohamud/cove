@@ -95,6 +95,32 @@ jobs:
         run: node scripts/covereads-owned-canary-domain.mjs attach
       - name: Verify owned TLS canary cannot expose any anonymous static assets
         run: node scripts/check-covereads-owned-canary-live.mjs
+      - name: Strict licensed SSR cold-path check through owned Cloudflare ingress
+        shell: bash
+        env:
+          COVE_SSR_STAGING_ORIGIN: "https://ssr-canary.covereads.com"
+        run: |
+          set -euo pipefail
+          export COVE_SSR_STAGING_GATE_KEY="$COVE_GATE_TEST_BEARER"
+          node scripts/check-cloudflare-ssr-staging.mjs
+      - name: Strict 1/4/8/16 concurrent licensed SSR check on owned ingress
+        shell: bash
+        env:
+          COVE_SSR_STAGING_ORIGIN: "https://ssr-canary.covereads.com"
+        run: |
+          set -euo pipefail
+          export COVE_SSR_STAGING_GATE_KEY="$COVE_GATE_TEST_BEARER"
+          node scripts/performance/cloudflare-concurrency.mjs
+      - name: Upload owned canary performance evidence even after a failed hard gate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: covereads-owned-ssr-performance
+          path: |
+            artifacts/cloudflare-ssr-staging-performance.json
+            artifacts/cloudflare-concurrency-performance.json
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Detach owned canary and delete ONLY the two ephemeral test Workers
         if: always()
         shell: bash
