@@ -30,6 +30,7 @@ async function validBearer(header, secret) {
 
 export default {
   async fetch(request, env) {
+    const gatewayStartedAt = performance.now();
     const hostname = new URL(request.url).hostname;
     if (
       !env.COVE_STAGING_INGRESS_HOST ||
@@ -52,6 +53,13 @@ export default {
       const headers = new Headers(upstream.headers);
       headers.set("cache-control", "no-store, max-age=0");
       headers.set("x-robots-tag", "noindex, nofollow, noarchive");
+      // Diagnostic only. The underlying SSR cove_total excludes this gate,
+      // so the measured Cloudflare/network residual can now be separated
+      // from authentication, service-binding and downstream execution.
+      headers.append(
+        "server-timing",
+        "cove_gateway;dur=" + Math.max(0, performance.now() - gatewayStartedAt).toFixed(1),
+      );
       // Never forward a public redirect (e.g. auth/asset link) without a
       // security review of its exact destination and credential behavior.
       if (upstream.status >= 300 && upstream.status < 400)
