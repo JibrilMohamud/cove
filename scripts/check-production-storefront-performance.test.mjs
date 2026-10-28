@@ -125,7 +125,7 @@ test("Cloudflare request Ray identifiers are tightly validated before provider l
     "a518d36158d88596-IAD/secret",
     "a518d36158d88596-MSP" + "a".repeat(500),
   ]) {
-    assert.equal(safeCloudflareRay(new Headers({ "cf-ray": value })), null);
+    assert.equal(safeCloudflareRay({ get: () => value }), null);
   }
   assert.equal(safeCloudflareRay(new Headers({ "set-cookie": "private=secret" })), null);
 });
