@@ -44,10 +44,16 @@ async function requestOne(route = "/") {
       /(cove_[a-z_]+);dur=([0-9]+(?:\.[0-9]+)?)/g,
     ))
       serverTiming[match[1]] = Number(match[2]);
+    // Preserve immutable Cloudflare Ray evidence for the slowest requests.
+    // Ray IDs identify edge processing without exposing reader identity,
+    // request authorization, or page content. All responses still count.
+    const ray = resp.headers.get("cf-ray") || "";
+    const edgeRay = /^[a-f0-9]{12,32}-[A-Z]{3}$/.test(ray) ? ray : null;
     return {
       ttfbMs: Math.round(headersAt - start),
       valid: Boolean(valid),
       status: resp.status,
+      edgeRay,
       serverTiming,
     };
   } catch (error) {
@@ -84,6 +90,25 @@ function report(name, offered, rows, dropped = 0) {
     .map((row) => row.serverTiming.cove_catalog)
     .filter((value) => Number.isFinite(value));
   const residual = observed.map((row) => Math.max(0, row.ttfbMs - row.serverTiming.cove_bootstrap));
+  // Retain the *real* five worst samples, not a best-of-N selection or
+  // redacted percentile. These provider Ray IDs distinguish slow Worker
+  // execution from slow Cloudflare delivery at the exact release boundary.
+  const worstSamples = [...rows]
+    .sort((a, b) => b.ttfbMs - a.ttfbMs)
+    .slice(0, 5)
+    .map((row) => ({
+      ttfbMs: row.ttfbMs,
+      valid: row.valid,
+      status: row.status ?? null,
+      error: row.error ?? null,
+      ray: row.edgeRay ?? null,
+      workerMs: Number.isFinite(row.serverTiming?.cove_bootstrap)
+        ? row.serverTiming.cove_bootstrap
+        : null,
+      residualMs: Number.isFinite(row.serverTiming?.cove_bootstrap)
+        ? Math.max(0, Math.round(row.ttfbMs - row.serverTiming.cove_bootstrap))
+        : null,
+    }));
   const output = {
     name,
     offered,
@@ -100,6 +125,7 @@ function report(name, offered, rows, dropped = 0) {
     catalogP95Ms: catalog.length ? Math.round(percentile(catalog, 0.95)) : null,
     residualP95Ms: residual.length ? Math.round(percentile(residual, 0.95)) : null,
     residualMaxMs: residual.length ? Math.round(Math.max(...residual)) : null,
+    worstSamples,
   };
   results.phases.push(output);
   console.log("COVE_STRANGLER_CAPACITY " + JSON.stringify(output));

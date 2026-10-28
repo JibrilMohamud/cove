@@ -13,10 +13,16 @@ on:
       - ".github/workflows/strangler-hosted-capacity-evaluation.yml"
   push:
     branches: [main]
+    # Main-only review of either the measured renderer or the acceptance
+    # harness must exercise the *deployed* strict campaign. PRs run safe
+    # static CI only. No production cutover or primary data mutation.
     paths:
       - ".github/workflows/strangler-hosted-capacity-evaluation.yml"
       - "scripts/staging/check-strangler-live-capacity.mjs"
       - "scripts/staging/assert-strangler-capacity-evidence.mjs"
+      - "src/storefront-strangler/worker.ts"
+      - "src/storefront-strangler/bootstrap-optimized.server.ts"
+      - "src/storefront-strangler/prepared-catalog.server.ts"
   workflow_dispatch:
 
 permissions:
