@@ -15,6 +15,18 @@ assert.ok(
 assert.match(source.slice(auth, route + 260), /executeStageCanonicalAdminCommand/);
 assert.match(source, /executeStageRightsEditorSuspension\(env, "grant", input\)/);
 assert.match(source, /executeStageRightsEditorSuspension\(env, "contract", input\)/);
+const lockedStagingPattern =
+  /env\.COVE_SSR_STAGING === "1" \|\| env\.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1"/g;
+assert.equal(
+  [...source.matchAll(lockedStagingPattern)].length,
+  2,
+  "Both legacy rights editors must deny raw D1 in isolated locked staging",
+);
+assert.equal(
+  (source.match(/Staging rights edits require verified owner-first commands/g) || []).length,
+  2,
+  "Missing ownerAction may never silently fall through to legacy SQL",
+);
 assert.doesNotMatch(
   env,
   /LEGAL_QUARANTINE_WRITER|COVE_LEGAL_QUARANTINE_SECRET|COVE_LEGAL_WRITER_PRIMARY_ID/,
