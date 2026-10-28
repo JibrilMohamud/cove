@@ -39,7 +39,10 @@ const missing = await query("/manifest.webmanifest", {}, { COVE_SSR_STAGING_GATE
 assert.equal(missing.status, 503);
 assert.equal(upstreamCount, 0);
 
-const wrongHost = await gateway.fetch(new Request("https://unrelated.example/manifest.webmanifest"), env);
+const wrongHost = await gateway.fetch(
+  new Request("https://unrelated.example/manifest.webmanifest"),
+  env,
+);
 assert.equal(wrongHost.status, 404);
 assert.equal(upstreamCount, 0);
 
@@ -68,8 +71,14 @@ const redirected = await query("/", approved, {
 assert.equal(redirected.status, 502, "Unreviewed upstream redirect must fail closed");
 
 const outage = await query("/", approved, {
-  STAGING: { fetch: async () => { throw Error("upstream unavailable"); } },
+  STAGING: {
+    fetch: async () => {
+      throw Error("upstream unavailable");
+    },
+  },
 });
 assert.equal(outage.status, 503);
 assert.equal(outage.headers.get("cache-control"), "no-store, max-age=0");
-console.log("PASS: isolated asset-less gateway denies unauthorized assets, writes, redirects, and missing backends");
+console.log(
+  "PASS: isolated asset-less gateway denies unauthorized assets, writes, redirects, and missing backends",
+);
