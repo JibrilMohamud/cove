@@ -132,3 +132,17 @@ await build({
   external: ["node:*", "cloudflare:*"],
   logLevel: "silent",
 });
+
+// Build the isolated signed-Stripe TEST customer probe separately. No
+// production route, Worker binding or billing credential is affected.
+await build({
+  entryPoints: ["src/storefront-strangler/paid-settlement-stage-qa.worker.ts"],
+  outfile: ".output/strangler/paid-settlement-stage-qa.mjs",
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "es2022",
+  conditions: ["workerd", "worker", "browser", "import", "default"],
+  external: ["node:*", "cloudflare:*"],
+  logLevel: "silent",
+});
