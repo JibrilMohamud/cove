@@ -47,5 +47,5 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href) {
     };
     verifyProductionOwnerBinding(await get(PRODUCTION_OWNER_SCRIPT),after?await get("cove-persistence-backend"):null);
   }
-  console.log("PASS: production owner binding, disabled state and both secret binding TYPES verified; credential equality, runtime handshake and cutover are NOT certified");
+  console.log("PASS: disabled production owner and available private secret bindings verified for requested deployment phase; shared credential equality, runtime handshake and cutover are NOT certified");
 }
