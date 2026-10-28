@@ -29,6 +29,15 @@ try {
     source.includes("ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active'"),
     "Original signed payment writer must target the current-active partial uniqueness index",
   );
+  const preorderSource=readFileSync("src/features/fore/preorder.server.ts","utf8");
+  assert.ok(
+    preorderSource.includes("ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active'"),
+    "Preorder release must not revive the previous refunded purchase",
+  );
+  assert.ok(
+    preorderSource.includes("entitlement_type='purchase' AND status='active' AND order_item_id=?"),
+    "Preorder release must select the newly acquired order-linked entitlement, not historical rows",
+  );
   const librarySource=readFileSync("src/features/fore/api.server.ts","utf8");
   assert.ok(
     librarySource.includes("ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active'"),
