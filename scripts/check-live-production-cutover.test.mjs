@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier -- Intentionally compact topology assertions. */
 import {test} from "node:test";
 import assert from "node:assert/strict";
 import {assessProductionCutover,coversPublicWww,PRODUCTION_D1} from "./check-live-production-cutover.mjs";
