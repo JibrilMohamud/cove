@@ -10,10 +10,13 @@ import {build} from "esbuild";
 import {spawnSync,spawn} from "node:child_process";
 import {createServer} from "node:http";
 
-const runId=process.env.GITHUB_RUN_ID;
+// A GitHub Actions rerun reuses GITHUB_RUN_ID. Isolate fresh synthetic
+// payments, owners and order idempotency keys by the actual attempt as well.
+// Never reuse a prior attempt's potentially paid or refunded QA order.
+const runId=process.env.GITHUB_RUN_ID+"-"+(process.env.GITHUB_RUN_ATTEMPT||"1");
 const token=process.env.CLOUDFLARE_API_TOKEN;
 const account=process.env.CLOUDFLARE_ACCOUNT_ID;
-assert.match(runId||"",/^\d{8,15}$/);
+assert.match(runId||"",/^\d{8,15}-\d{1,5}$/);
 assert.match(account||"",/^[a-f0-9]{32}$/);
 assert.ok(token,"Cloudflare QA authorization required");
 const ownerName="cove-paid-legal-owner-"+runId;
@@ -175,7 +178,9 @@ const post=async(route,body)=>{
     method:"POST",headers:{"content-type":"application/json","authorization":"Bearer "+gate},
     body:JSON.stringify(body),signal:AbortSignal.timeout(12000)
   });
-  return {status:response.status,body:response.status===200?await response.json():null};
+  return {status:response.status,body:response.status===200?await response.json():null,
+    ray:response.headers.get("cf-ray"),
+    unavailableLayer:response.headers.get("x-cove-qa-unavailable-layer")};
 };
 const read=async(route,body)=>{
   let result;
@@ -318,6 +323,26 @@ try {
   await verifySecrets(callerName,["COVE_LEGAL_QA_GATE","COVE_RIGHTS_OWNER_SECRET",
     "COVE_LEGAL_WRITER_SECRET"]);
   await readyOwner();
+  // Confirm the *writer* route has propagated independently of the owner read
+  // route. An empty JSON object is rejected by the writer's validation before
+  // any owner call or D1 mutation; only HTTP 400 proves this path is live.
+  // Never retry the subsequent genuine positive legal publication.
+  let writerReady=false;
+  const writerReadinessStatuses=new Map();
+  for(let attempt=0;attempt<24;attempt++){
+    const probe=await post("/commercial/retail/publish-verified",{});
+    if(probe.status===400){writerReady=true;break;}
+    const key="HTTP_"+probe.status;
+    writerReadinessStatuses.set(key,(writerReadinessStatuses.get(key)||0)+1);
+    if(![404,503].includes(probe.status))
+      throw Error("paid_writer_readiness_unexpected_status:"+probe.status);
+    await pause(1500);
+  }
+  assert.equal(writerReady,true,"paid_writer_route_unavailable:"+
+    JSON.stringify(Object.fromEntries(writerReadinessStatuses)));
+  if(writerReadinessStatuses.size)
+    console.log("QA writer routing preflight recovered: "+
+      JSON.stringify(Object.fromEntries(writerReadinessStatuses)));
   // The private writer below intentionally reconciles the synthetic buyer
   // entitlement to 'revoked'. Recover only this exact test identity from a
   // prior interrupted run; never write the capacity or customer database.
@@ -335,7 +360,8 @@ try {
     productId:test.productId,territory:"US",currency:"USD",
     operationId:"qa:"+runId+":positive-retail-publication"
   });
-  assert.equal(publish.status,200,"Private positive canonical retail writer unavailable");
+  assert.equal(publish.status,200,"Private positive canonical retail writer unavailable "+
+    JSON.stringify({status:publish.status,ray:publish.ray,layer:publish.unavailableLayer}));
   assert.equal(publish.body?.published,true);
   assert.ok(Number.isSafeInteger(publish.body?.ownerEpoch)&&publish.body.ownerEpoch>0);
   const rights=await read("/commercial/authorize-batch",{
