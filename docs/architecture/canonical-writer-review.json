@@ -134,7 +134,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "880b587c2cbee64ca369769d2f7167d5a5dd3ae302f0e4ca160829eea8d08524",
+      "siteId": "8c2434bf4b815261d2cde780e17d396b6eba947852a203f2d73a1d2c4de781ab",
       "file": "src/features/fore/api.server.ts",
       "line": 821,
       "functionName": "catalogInsert",
@@ -147,7 +147,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "5534bcd5fb4c3952e63dd9d7a9da3fd1500de9d28fddac7b24c8709e6ace7f00",
+      "siteId": "4841f1062949b3e68311ff9b9b1ee83996c4c15cba2eb90b5425609dc6f02be1",
       "file": "src/features/fore/api.server.ts",
       "line": 1331,
       "functionName": "insertRegionalEvidence",
@@ -160,7 +160,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "2aec240685940b924c419d1ace6ad37cba15a3354f7bd609ba3cc7a124130185",
+      "siteId": "64b34c222d41d93b0fa8cf2bf07c0db8c6d7b1fad3b41c45e193e9fc304e0ddb",
       "file": "src/features/fore/api.server.ts",
       "line": 1352,
       "functionName": "insertRegionalEvidence",
@@ -173,7 +173,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "5cab8bcab1e091f01fe697fd72df1dc8129193bc7e8c18d5129fce5e4351fba6",
+      "siteId": "325804ee2c7ca498188cc8c4943b5bb183841581b1166225188a6f213a40f24d",
       "file": "src/features/fore/api.server.ts",
       "line": 1364,
       "functionName": "insertRegionalEvidence",
@@ -186,7 +186,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "c4689ff05234a6edc4c742f50f269392fe42379b243e0006ef920d5456d35d38",
+      "siteId": "be8f4a4b193aca2df1f4e34c9419c96949f1164b10d84b26b3f8645da3e0adde",
       "file": "src/features/fore/api.server.ts",
       "line": 1371,
       "functionName": "insertRegionalEvidence",
@@ -199,7 +199,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "d15b0be2dfaaf74eb8e76f60d5cdf892e0e39a7cabbc00ffbf047ffc14540825",
+      "siteId": "52fdb671ce6a46fc8b11837c3b0d2bf0df4fd770c80a8d51cdccbdf8cc82e19e",
       "file": "src/features/fore/api.server.ts",
       "line": 1393,
       "functionName": "quarantineRegionalItem",
@@ -212,7 +212,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "f4707ab793595ea54ac86f243a96a536e131df7cfa94456ecd64d61b24d72d5a",
+      "siteId": "e47b936c9ffe67b2bc3d7fd88c86dd653b2b336a106c339e44768c6854b0dfc5",
       "file": "src/features/fore/api.server.ts",
       "line": 1413,
       "functionName": "cachePendingEpubs",
@@ -225,7 +225,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "f7af21bb6f004d0714f18a6d91d278d58020116a5ad873240592bfde1c44e6dc",
+      "siteId": "a4ecedf089560287094517770fdc6c41190da7fa7ac1f5c90ec557656be96dae",
       "file": "src/features/fore/api.server.ts",
       "line": 1487,
       "functionName": "cachePendingEpubs",
@@ -238,7 +238,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "76895cf001dfe837f125f74917ba01a9415fb23407291a1275d83476b986f884",
+      "siteId": "aaddd507a9f0a57ac83a5609aa59357ff9574e163dadccff40a9ef36b31eaa76",
       "file": "src/features/fore/api.server.ts",
       "line": 1495,
       "functionName": "cachePendingEpubs",
@@ -251,7 +251,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b374b6f960d764bf651bff24df93cdea347cc4dfd8f2d03a6b7f362fea46ef0e",
+      "siteId": "8e0436a1e307f28224161b428892cc89a4c2318a273da2f60114be4a788ccb7a",
       "file": "src/features/fore/api.server.ts",
       "line": 1503,
       "functionName": "cachePendingEpubs",
@@ -264,7 +264,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "f7495b224d7859f60d18fb1266274a7e4fc5d81e65262af68f60c01298950963",
+      "siteId": "cd3591ba8458083572441f8227f122352e841c98f15d5bad40a20c90b749bb4c",
       "file": "src/features/fore/api.server.ts",
       "line": 1536,
       "functionName": "cachePendingEpubs",
@@ -277,7 +277,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "e1a5684d3fb883e6021ad631ca5f28d2eb786ab13d6d1661160474ef73c511e7",
+      "siteId": "34a73819c1634162410e2ddc5edecbb220a2e4861c28d962552530e6d21362a9",
       "file": "src/features/fore/api.server.ts",
       "line": 1602,
       "functionName": "cachePendingEpubs",
@@ -290,7 +290,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "02793d7a928eca2dad80b0719b008e05c916ead29d68b5ec54f27a242c21e2ec",
+      "siteId": "d0730ed7c10e2e44ff9dd1633180bd30b42a8e9473219c8d0b699fb037cb8f12",
       "file": "src/features/fore/api.server.ts",
       "line": 1613,
       "functionName": "cachePendingEpubs",
@@ -303,7 +303,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "a5e4c97c03478acd04fe5c03c6ae6fb0ed0d80b8edeadece6cb1887aa055dd10",
+      "siteId": "629727584787dd6a689e2c5a9885d81d5563030d2861df1e71ced98b53a5b21b",
       "file": "src/features/fore/api.server.ts",
       "line": 1636,
       "functionName": "cachePendingEpubs",
@@ -316,7 +316,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "b2078801470ca3c33a2395545c04abb5e45ee99dbcce8d32d39f79f4bca730d3",
+      "siteId": "d551f924ecd51405761b3a92f9ba86f85cd2f51e8f1b1ff4038f4e72fc79d149",
       "file": "src/features/fore/api.server.ts",
       "line": 1651,
       "functionName": "cachePendingEpubs",
@@ -329,7 +329,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "ca47f03bdc1a3e854d993d26e550a32b7772e31c40e8bc0cfe36fb352c75f478",
+      "siteId": "0712d96002f28d887ca1e80f45be5b589b29512e8ccd8a46ae719dbc570628b6",
       "file": "src/features/fore/api.server.ts",
       "line": 1722,
       "functionName": "runRegionalCatalogIngestion",
@@ -342,7 +342,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "9d953deaa47fb86f3fbe50280ab72c15379c091993a94347fb360d6bec442e35",
+      "siteId": "592af8103ffc6da9e9e244ea84d94efd2fdf71556cdac266a425666dd84dc0c1",
       "file": "src/features/fore/api.server.ts",
       "line": 1744,
       "functionName": "runRegionalCatalogIngestion",
@@ -355,7 +355,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "8e50af2d2e78857e1c7d7bdeaa9fc6f7713ed37410056452f9a26872216e3295",
+      "siteId": "d8b024accf442851730340e2afed5eae9e0d4ae0bb4f2c3db40d24f87263ec55",
       "file": "src/features/fore/api.server.ts",
       "line": 1765,
       "functionName": "runRegionalCatalogIngestion",
@@ -368,7 +368,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "7f696b2424bde7e0322e4bdc72ae77558f07809097e32e4cd463fe87e2660c80",
+      "siteId": "be460dc6a193da726763e7d354b5ed1004323711db4020b57994abf47383db6d",
       "file": "src/features/fore/api.server.ts",
       "line": 1795,
       "functionName": "runRegionalCatalogIngestion",
@@ -381,7 +381,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "48906a0073e87c6b8695951f76424cfef16889646d6db282587614b4d2ed032d",
+      "siteId": "45ddbe58cad9d64d6b548289cfb91c38eebecbf585d7628889feabbdb2738172",
       "file": "src/features/fore/api.server.ts",
       "line": 1898,
       "functionName": "runRegionalCatalogIngestion",
@@ -394,7 +394,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "08406c6ffa6455bd0ec0c73105920e708d8d334a67bdc1feab49ed656cd62299",
+      "siteId": "00078a3171ad12a52a34e1b7d72a9365702f8bbae9fbf7c9b75da03030778594",
       "file": "src/features/fore/api.server.ts",
       "line": 1906,
       "functionName": "runRegionalCatalogIngestion",
@@ -407,7 +407,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "e6a839ffdfb919ae26091929dffdacacd9fa167cc57c7b776a7bb3aeb6fd07c8",
+      "siteId": "c7a93c58aba8d0b6e8006c93d259dccf868f2205294738b8da7c74587590954a",
       "file": "src/features/fore/api.server.ts",
       "line": 1913,
       "functionName": "runRegionalCatalogIngestion",
@@ -420,7 +420,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "e3978fe19bc4ba964cf8072d281546592ab037fc74c92622f3823f8b04de4e13",
+      "siteId": "306d52aa955fb7a703c68a0d45507eb595e2c40ef862f39b2b3bc784d9ab364a",
       "file": "src/features/fore/api.server.ts",
       "line": 1920,
       "functionName": "runRegionalCatalogIngestion",
@@ -433,7 +433,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "50039522a467ab5a2e51b6e5eb1deaeec7cdccbad499f0e05c9587b2ee624845",
+      "siteId": "8659844b5c2cb3f75c93de1ab64c4b5e2eb494c6022ac641abe9e2090cadd325",
       "file": "src/features/fore/api.server.ts",
       "line": 1927,
       "functionName": "runRegionalCatalogIngestion",
@@ -446,7 +446,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "e00d970a1ee2136ea3209cdfd26bb745d2cb3b5ce83441ef5afb343559a24bb7",
+      "siteId": "cf9712b17a8765d101680b2c4b6154c86277e3f752bec50c80b174ce0cbd864d",
       "file": "src/features/fore/api.server.ts",
       "line": 1937,
       "functionName": "runRegionalCatalogIngestion",
@@ -459,7 +459,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "d5f0cb59d1687ddf8822b3909fd6c086ab385dbb274a1edd7902598f5aed44ed",
+      "siteId": "b741548520d21eae8451d70227adff9e37f8b31a9d035a7cad3a2e404246333e",
       "file": "src/features/fore/api.server.ts",
       "line": 2007,
       "functionName": "runRegionalCatalogIngestion",
@@ -472,7 +472,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "4056f88273e3af28e48cbc2c066d37346f78cc018d23a176cf7f81f6daec81e3",
+      "siteId": "bee56df06e86d144fc2e9e67ded69398bf63ab9b7522d5619d388a3451157994",
       "file": "src/features/fore/api.server.ts",
       "line": 2163,
       "functionName": "runCatalogIngestion",
@@ -485,7 +485,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "2dc6a382a66735a046eab47f305a436f775277182bb1dd55f797bd2cbdd6bcae",
+      "siteId": "84887e05e1d69fe6e13e065e8f7ac588350285864bd62d8ee40ae5666e8ba2c3",
       "file": "src/features/fore/api.server.ts",
       "line": 2178,
       "functionName": "runCatalogIngestion",
@@ -498,7 +498,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "e0ce4763c87ca5171ee1db5c93278f17fbe7e4f32d70ef6066f7737d6bb6b1a8",
+      "siteId": "3513c0e0bbd03edc5f0e631960927ae5d626d8d7420d20c0165c8d96f75aaea3",
       "file": "src/features/fore/api.server.ts",
       "line": 2185,
       "functionName": "runCatalogIngestion",
@@ -511,7 +511,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "421a537cf2610bc3c3abd11bfde908b57b464557be00c019254a9ae14f3fb4de",
+      "siteId": "44a5dcda3aae4db2fdd003f7ffcfd323d50eda131a0158c84ff8d6e4bdf395ef",
       "file": "src/features/fore/api.server.ts",
       "line": 2351,
       "functionName": "sourceEpubBytes",
@@ -524,7 +524,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "ee487aba4e42a4cb1578e067b3d11c4260a206823d4ab35fde2ce4aeb771febf",
+      "siteId": "dd4235c21019105b203cac6d074845606b3b585819b5803e6819a34047e04004",
       "file": "src/features/fore/api.server.ts",
       "line": 2386,
       "functionName": "sourceEpubBytes",
@@ -537,7 +537,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "0e73947fa8b903510ee1e606041a3686ae22076bb5e5fd6168bb5d408a87b5eb",
+      "siteId": "15059736d856eea378c728a93e378aa45641e3c7f67ff94d4d82e675e26cbb40",
       "file": "src/features/fore/api.server.ts",
       "line": 2390,
       "functionName": "sourceEpubBytes",
@@ -550,7 +550,7 @@
       "reason": "This executable SQL changes a protected canonical table. No complete production owner-first command and fenced executor has been demonstrated for this site; retain it as required migration work."
     },
     {
-      "siteId": "203db34dbae0b7a5b8acb76eeb15fcc8ea009defc7f588be49e9281f9f68dd2a",
+      "siteId": "e3bf26dddc1b2a3f8bd21b0bff78ccd058483e354e88bda565acbe82b39b8830",
       "file": "src/features/fore/api.server.ts",
       "line": 5673,
       "functionName": "handleCoveRequest",
