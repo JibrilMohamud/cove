@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier -- Private legal-authority boundary is security-sensitive. */
 import { DurableObject } from "cloudflare:workers";
+import {DISABLED_OWNER_ATTEST_ROUTE,PRODUCTION_OWNER_OBJECT,isDisabledProductionOwner,validOwnerChallenge,disabledOwnerReceipt} from "./production-disabled-owner-attestation";
 import {publishVerifiedPaidOrderAtomic,type VerifiedPaidOrderLine} from "./paid-order-atomic-publication";
 import {createMarketAuthoritySchema,denyMarket,marketIsWithdrawn} from "./market-authority-core";
 import { authorizeStorefrontPresentationIds, type CatalogDB } from "../features/fore/catalog-model.server";
@@ -75,6 +76,28 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
   async fetch(request: Request): Promise<Response> {
     const noStore={ "cache-control": "no-store" };
     const env=this.env;
+    // Disabled production mode exposes one private, authenticated read-only
+    // challenge. This path cannot invoke any rights, payment or D1 command.
+    // The QA lease below remains the ONLY authorized mutating/read mode.
+    if(new URL(request.url).pathname===DISABLED_OWNER_ATTEST_ROUTE){
+      if(!isDisabledProductionOwner(env))
+        return new Response(null,{status:503,headers:noStore});
+      if(request.headers.get("authorization")!=="Bearer "+env.COVE_RIGHTS_OWNER_SECRET)
+        return new Response(null,{status:401,headers:noStore});
+      if(request.method!=="POST"||
+         request.headers.get("content-type")?.split(";")[0]?.trim()!=="application/json")
+        return new Response(null,{status:405,headers:noStore});
+      const input=await request.text();
+      if(input.length>128)return new Response(null,{status:413,headers:noStore});
+      let parsed:unknown;
+      try{parsed=JSON.parse(input);}catch{return new Response(null,{status:400,headers:noStore});}
+      if(!parsed||typeof parsed!=="object"||Array.isArray(parsed)||
+         Object.keys(parsed).join(",")!=="challenge"||
+         !validOwnerChallenge((parsed as {challenge?:unknown}).challenge))
+        return new Response(null,{status:400,headers:noStore});
+      return Response.json(disabledOwnerReceipt((parsed as {challenge:string}).challenge),
+        {headers:noStore});
+    }
     if (!qaOwnerLeaseLive(env))
       return new Response(null,{status:503,headers:noStore});
     // All calls must arrive by private service binding with an independent
@@ -772,6 +795,15 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
 // The Durable Object remains the single legal serialization point.
 export default {
   async fetch(request:Request,env:LegalAuthorityEnv):Promise<Response> {
+    // Private service-binding proof only. The production owner stays
+    // disabled for every existing rights, publication and payment route.
+    if(new URL(request.url).pathname===DISABLED_OWNER_ATTEST_ROUTE){
+      if(!isDisabledProductionOwner(env)||!env.LEGAL_AUTHORITY?.getByName)
+        return new Response(null,{status:503,headers:{"cache-control":"no-store"}});
+      if(request.headers.get("authorization")!=="Bearer "+env.COVE_RIGHTS_OWNER_SECRET)
+        return new Response(null,{status:401,headers:{"cache-control":"no-store"}});
+      return env.LEGAL_AUTHORITY.getByName(PRODUCTION_OWNER_OBJECT).fetch(request);
+    }
     if(!qaOwnerLeaseLive(env) || !env.LEGAL_AUTHORITY?.getByName)
       return new Response(null,{status:503,headers:{"cache-control":"no-store"}});
     if(request.headers.get("authorization")!=="Bearer "+env.COVE_RIGHTS_OWNER_SECRET)
