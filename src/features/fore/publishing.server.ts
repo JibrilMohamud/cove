@@ -3242,10 +3242,18 @@ async function activatePublicationCommercialTerms(
         .prepare("UPDATE rights_contracts SET status='terminated',updated_at=? WHERE id=?")
         .bind(at, prior.rightsContractId),
     );
+  // A scheduled release or an old rollback manifest must NEVER turn a
+  // suspended/terminated contract, revoked grant, or retired royalty agreement
+  // back into a positive authority. Those states require fresh independent
+  // reapproval and new authority evidence, not a stale publication replay.
+  // Conditional SQL below is evaluated again in D1's batch transaction,
+  // not only during this function's earlier preflight reads.
   if (currentManifest.rightsContractManagedByPublication && currentManifest.rightsContractId)
     statements.push(
       db
-        .prepare("UPDATE rights_contracts SET status='active',updated_at=? WHERE id=?")
+        .prepare(
+          "UPDATE rights_contracts SET status='active',updated_at=? WHERE id=? AND status IN ('draft','active')",
+        )
         .bind(at, currentManifest.rightsContractId),
     );
   if (activatingIds.length) {
@@ -3253,7 +3261,7 @@ async function activatePublicationCommercialTerms(
     statements.push(
       db
         .prepare(
-          `UPDATE rights_grants SET status='active',updated_at=? WHERE id IN (${placeholders}) AND status IN ('draft','suspended','revoked')`,
+          `UPDATE rights_grants SET status='active',updated_at=? WHERE id IN (${placeholders}) AND status IN ('draft','active')`,
         )
         .bind(at, ...activatingIds),
     );
@@ -3261,14 +3269,57 @@ async function activatePublicationCommercialTerms(
   if (currentManifest.royaltyContractId)
     statements.push(
       db
-        .prepare("UPDATE finance_royalty_contracts SET status='active',updated_at=? WHERE id=?")
+        .prepare(
+          "UPDATE finance_royalty_contracts SET status='active',updated_at=? WHERE id=? AND status IN ('draft','active')",
+        )
         .bind(at, currentManifest.royaltyContractId),
     );
   if (currentManifest.offerId) {
+    // Every scheduled attempt recomputes retail visibility atomically. An
+    // already-active offer must be DEACTIVATED if a grant was subsequently
+    // revoked; simply issuing a conditional active=1 UPDATE would leave the
+    // stale active=1 row untouched and mistakenly succeed on the follow-up read.
+    // Any other grant is never a substitute for this frozen legal manifest.
+    if (!activatingIds.length)
+      throw new ApiError(409, "A retail offer requires a frozen approved rights-grant manifest.");
+    const grantPlaceholders = activatingIds.map(() => "?").join(",");
+    const contractId = currentManifest.rightsContractId || null;
+    const contractVersionId = currentManifest.rightsContractVersionId || null;
     statements.push(
       db
-        .prepare("UPDATE offers SET active=1,updated_at=? WHERE id=?")
-        .bind(at, currentManifest.offerId),
+        .prepare(
+          `UPDATE offers SET active=CASE WHEN EXISTS (
+             SELECT 1 FROM products p
+             JOIN rights_grants g ON g.edition_id=p.edition_id
+             LEFT JOIN rights_contracts rc ON rc.id=g.contract_id
+             WHERE p.id=offers.product_id
+               AND g.id IN (${grantPlaceholders})
+               AND g.status='active' AND g.decision='allow'
+               AND g.sales_channel='retail'
+               AND (? IS NULL OR g.contract_id=?)
+               AND (? IS NULL OR g.contract_version_id=?)
+               AND (g.contract_id IS NULL OR rc.status='active')
+               AND (g.contract_version_id IS NULL OR EXISTS (
+                 SELECT 1 FROM rights_contract_versions rcv
+                 WHERE rcv.id=g.contract_version_id
+                   AND rcv.contract_id=g.contract_id
+                   AND rcv.status='active'
+                   AND rcv.effective_from<=?
+                   AND (rcv.effective_to IS NULL OR rcv.effective_to>?)
+               ))
+           ) THEN 1 ELSE 0 END,updated_at=? WHERE id=?`,
+        )
+        .bind(
+          ...activatingIds,
+          contractId,
+          contractId,
+          contractVersionId,
+          contractVersionId,
+          at,
+          at,
+          at,
+          currentManifest.offerId,
+        ),
     );
     statements.push(
       db
@@ -3279,6 +3330,20 @@ async function activatePublicationCommercialTerms(
     );
   }
   if (statements.length) await db.batch(statements);
+  if (currentManifest.offerId) {
+    // A revoked/suspended legal scope may have changed between preflight and
+    // this D1 transaction. Do not report publication activation or expose a
+    // product when the conditional offer activation was denied.
+    const offer = await db
+      .prepare("SELECT active FROM offers WHERE id=? AND product_id=?")
+      .bind(currentManifest.offerId, currentManifest.productId)
+      .first<{ active: number }>();
+    if (Number(offer?.active || 0) !== 1)
+      throw new ApiError(
+        409,
+        "Commercial offer activation is blocked until current rights are independently reverified.",
+      );
+  }
   await syncCatalogAccessibility(db, currentManifest, at);
 }
 
