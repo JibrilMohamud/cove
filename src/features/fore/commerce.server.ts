@@ -1414,7 +1414,7 @@ export async function finalizePaidOrder(
     if (!preorder) {
       await db
         .prepare(
-          `INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,order_item_id,granted_at,updated_at) VALUES(?,?,?,'purchase','active','commerce',?,?,?) ON CONFLICT(user_id,product_id,entitlement_type) DO UPDATE SET status='active',order_item_id=excluded.order_item_id,updated_at=excluded.updated_at`,
+          `INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,order_item_id,granted_at,updated_at) VALUES(?,?,?,'purchase','active','commerce',?,?,?) ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active' DO UPDATE SET status='active',order_item_id=excluded.order_item_id,updated_at=excluded.updated_at`,
         )
         .bind(crypto.randomUUID(), order.user_id, item.product_id, item.id, at, at)
         .run();

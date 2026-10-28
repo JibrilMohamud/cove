@@ -1765,7 +1765,14 @@ export const entitlements = sqliteTable(
     updatedAt: text("updated_at").notNull(),
   },
   (t) => [
-    uniqueIndex("idx_entitlements_user_product_type").on(t.userId, t.productId, t.entitlementType),
+    // A refunded purchase is an immutable historical entitlement; only
+    // currently active access is unique. A new paid order gets a new ID.
+    uniqueIndex("idx_entitlements_current_user_product_type")
+      .on(t.userId, t.productId, t.entitlementType)
+      .where(sql`${t.status} = 'active'`),
+    uniqueIndex("idx_entitlements_order_item_lineage")
+      .on(t.orderItemId)
+      .where(sql`${t.orderItemId} IS NOT NULL`),
     index("idx_entitlements_active").on(t.userId, t.status, t.endsAt),
   ],
 );

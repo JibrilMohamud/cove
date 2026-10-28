@@ -404,15 +404,15 @@ async function grantReleaseEntitlement(db: CatalogDB, preorder: any) {
     .prepare(
       `INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,order_item_id,granted_at,updated_at)
     VALUES(?,?,?,'purchase','active','preorder',?,?,?)
-    ON CONFLICT(user_id,product_id,entitlement_type) DO UPDATE SET status='active',order_item_id=excluded.order_item_id,updated_at=excluded.updated_at`,
+    ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active' DO UPDATE SET status='active',order_item_id=excluded.order_item_id,updated_at=excluded.updated_at`,
     )
     .bind(entId, preorder.user_id, preorder.product_id, preorder.order_item_id, at, at)
     .run();
   const entitlement = await db
     .prepare(
-      "SELECT id FROM entitlements WHERE user_id=? AND product_id=? AND entitlement_type='purchase'",
+      "SELECT id FROM entitlements WHERE user_id=? AND product_id=? AND entitlement_type='purchase' AND status='active' AND order_item_id=? ORDER BY granted_at DESC LIMIT 1",
     )
-    .bind(preorder.user_id, preorder.product_id)
+    .bind(preorder.user_id, preorder.product_id, preorder.order_item_id)
     .first<any>();
   const product = await db
     .prepare("SELECT source_external_id FROM products WHERE id=?")
