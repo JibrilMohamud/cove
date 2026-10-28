@@ -2269,7 +2269,10 @@ export async function stripeWebhook(env: CoveEnv, request: Request) {
 async function orderFromPI(db: CatalogDB, pi: any) {
   const id = pi?.metadata?.fore_order_id;
   if (id) {
-    const order = await db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(id).first<any>();
+    const order = await db
+      .prepare("SELECT * FROM commerce_orders WHERE id=?")
+      .bind(id)
+      .first<any>();
     // A signed Stripe event is not proof that its caller-controlled metadata
     // references the matching canonical order. Apply this identity invariant
     // to *every* PI event (processing, failed, canceled, captured, succeeded),
