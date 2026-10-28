@@ -1524,7 +1524,6 @@ export async function handleCommercialAudio(
         "This offline license is no longer active. Save the recording again if access is available.",
       );
     await assertCommercialAudioRiskAccess(db, userId, String(row.product_id));
-    await requireCommercialAudioOwner(env, userId, String(row.product_id), territory);
     const verified = await verifyStoredAudioLicense(
       env,
       userId,
@@ -1532,6 +1531,7 @@ export async function handleCommercialAudio(
       input.licenseId,
       input.token,
       await audioManifestHash(edition),
+      territory,
     );
     return new Response(JSON.stringify(verified), {
       headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
