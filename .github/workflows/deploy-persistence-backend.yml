@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - "src/persistence-backend.worker.ts"
+      - "src/persistence-backend-entry.worker.ts"
       - "src/lib/catalog-ingestion-backpressure.ts"
       - "scripts/check-catalog-ingestion-backpressure.mjs"
       - "src/features/fore/**"

@@ -5,7 +5,7 @@ await rm("backend-dist", { recursive: true, force: true });
 await mkdir("backend-dist", { recursive: true });
 
 await build({
-  entryPoints: ["src/persistence-backend.worker.ts"],
+  entryPoints: ["src/persistence-backend-entry.worker.ts"],
   outfile: "backend-dist/worker.js",
   bundle: true,
   format: "esm",
