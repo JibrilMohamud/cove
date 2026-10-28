@@ -31,7 +31,11 @@ async function validBearer(header, secret) {
 export default {
   async fetch(request, env) {
     const hostname = new URL(request.url).hostname;
-    if (!env.COVE_STAGING_INGRESS_HOST || hostname !== env.COVE_STAGING_INGRESS_HOST)
+    if (
+      !env.COVE_STAGING_INGRESS_HOST ||
+      (hostname !== env.COVE_STAGING_INGRESS_HOST &&
+        hostname !== env.COVE_STAGING_CANARY_HOST)
+    )
       return denied(404, "Not found");
     if (!/^[a-f0-9]{64}$/.test(env.COVE_SSR_STAGING_GATE_KEY || ""))
       return denied(503, "Staging credentials unavailable");
