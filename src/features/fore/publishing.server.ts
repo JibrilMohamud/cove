@@ -3297,6 +3297,14 @@ async function activatePublicationCommercialTerms(
                AND (? IS NULL OR g.contract_id=?)
                AND (? IS NULL OR g.contract_version_id=?)
                AND (g.contract_id IS NULL OR rc.status='active')
+               AND (g.contract_version_id IS NULL OR EXISTS (
+                 SELECT 1 FROM rights_contract_versions rcv
+                 WHERE rcv.id=g.contract_version_id
+                   AND rcv.contract_id=g.contract_id
+                   AND rcv.status='active'
+                   AND rcv.effective_from<=?
+                   AND (rcv.effective_to IS NULL OR rcv.effective_to>?)
+               ))
            )`,
         )
         .bind(
@@ -3307,6 +3315,8 @@ async function activatePublicationCommercialTerms(
           contractId,
           contractVersionId,
           contractVersionId,
+          at,
+          at,
         ),
     );
     statements.push(
