@@ -11,6 +11,8 @@ import {
   reverseRoyaltiesForRefund,
 } from "./finance.server";
 import { promotionPermitted } from "./rights.server";
+import { requireStageLegalConsumerProof } from "../../storefront-strangler/legal-consumer-fence.server";
+import { assertStagePaidOrderNotWithdrawn, certifyStagePaidSettlement } from "../../storefront-strangler/paid-settlement-publication.server";
 import {
   assertPreorderPurchaseAllowed,
   completePreorderRefundJob,
