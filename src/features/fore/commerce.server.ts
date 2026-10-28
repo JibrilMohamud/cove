@@ -1913,6 +1913,9 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
       at,
     )
     .run();
+  // With the private owner enabled, deny buyer access BEFORE contacting
+  // Stripe for an external refund. Replaying the same refund ID is safe.
+  await stageRevokeRefundEntitlements(env, String(o.id), id);
   if (stripeAmount === 0) {
     await applyRefundSuccess(env, id, { id: `internal_${id}` });
     return {
