@@ -1,6 +1,7 @@
 import type { CoveEnv } from "./api.server";
 import { ApiError } from "./service";
 import { issueCommercialEpubGrant } from "./delivery.server";
+import { requireStagePaidEntitlementAccess } from "../../storefront-strangler/legal-consumer-fence.server";
 import { audioKeyId, base64Url, hashText, publicAudioKey } from "./offline-audio-license";
 import {
   OFFLINE_EPUB_CONTEXT,
@@ -90,10 +91,16 @@ export async function issueOfflineEpubLicense(
   // underlying entitlement. Bind this lookup to the grant just issued for
   // this exact buyer/product; a caller-provided expiry is never trusted.
   const entitlement = await env.DB.prepare(
-    "SELECT e.status,e.starts_at,e.ends_at FROM commercial_delivery_grants g JOIN entitlements e ON e.id=g.entitlement_id AND e.user_id=g.user_id AND e.product_id=g.product_id WHERE g.id=? AND g.user_id=? AND g.product_id=? AND g.status='active'",
+    "SELECT e.id,e.entitlement_type,e.status,e.starts_at,e.ends_at FROM commercial_delivery_grants g JOIN entitlements e ON e.id=g.entitlement_id AND e.user_id=g.user_id AND e.product_id=g.product_id WHERE g.id=? AND g.user_id=? AND g.product_id=? AND g.status='active'",
   )
     .bind(grant.grantId, userId, productId)
-    .first<{ status: string; starts_at: string | null; ends_at: string | null }>();
+    .first<{
+      id: string;
+      entitlement_type: string;
+      status: string;
+      starts_at: string | null;
+      ends_at: string | null;
+    }>();
   const startsAt = entitlement?.starts_at == null ? null : Date.parse(entitlement.starts_at);
   const endsAt = entitlement?.ends_at == null ? null : Date.parse(entitlement.ends_at);
   if (
@@ -118,6 +125,26 @@ export async function issueOfflineEpubLicense(
     keyId: await audioKeyId(publicKey),
   };
   const payload = base64Url(new TextEncoder().encode(JSON.stringify(claims)));
+  // The owner can withdraw a purchase while we validate the device, load the
+  // asset and prepare a seven-day receipt. Recheck the exact buyer/rights
+  // authority at the final online signing boundary. A canonical D1 active
+  // entitlement alone must never mint a new offline receipt after refund.
+  const entitlementType = String(entitlement.entitlement_type || "");
+  const channel =
+    entitlementType === "subscription"
+      ? "subscription"
+      : entitlementType.includes("library") || entitlementType.includes("loan")
+        ? "library"
+        : "retail";
+  await requireStagePaidEntitlementAccess(env, {
+    entitlementId: String(entitlement.id),
+    userId,
+    productId,
+    territory: (request.headers.get("cf-ipcountry") || env.FORE_DEFAULT_TERRITORY || "US")
+      .slice(0, 2)
+      .toUpperCase(),
+    channel,
+  });
   const privateKey = await crypto.subtle.importKey(
     "jwk",
     privateJwk,
