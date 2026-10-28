@@ -6,12 +6,16 @@ the owner promotes the Cloudflare frontend.
 
 ## Verified infrastructure (October 18, 2026 UTC)
 
-- Connected Cloudflare account `d26430caa63ec55f6612e32f36aca5e9`
-  has **0 DNS zones** and **0 Worker custom domains**.
-- Vercel project `cove` (`prj_bq7hKQw8JKWE6vpfdOgwowa8cjjM`) exposes
-  exactly one verified project domain:
-  `cove-puce-theta.vercel.app`. This is a Vercel-owned platform hostname,
-  **not** a transferable/Cloudflare-managed domain.
+- **October 27 ownership update:** Cloudflare account `d26430caa63ec55f6612e32f36aca5e9`
+  has active zone `covereads.com` (zone `07e218b2e74bc522122e0994b8e37576`).
+  Both `covereads.com` and `www.covereads.com` are verified Vercel
+  domains whose public DNS still routes to Vercel. `api.covereads.com`
+  is bound to the private `cove-persistence-backend` Worker.
+  A new, **bearer-protected, read-only** Worker custom domain
+  `ssr-canary.covereads.com` is bound only to
+  `cove-storefront-ssr-staging`, not to customer traffic.
+  **Domain ownership is no longer the release blocker**;
+  the other gates below remain mandatory. This is not a release approval.
 - The only audited native SSR stage service,
   `cove-storefront-ssr-staging`, has native `DB`, `BUCKET`,
   `ASSETS` and `COVE_STOREFRONT_READ_LIMITER` bindings plus staging
@@ -138,3 +142,27 @@ secrets are missing; auth, payment, offline or rights scenarios fail; any
 independent cold deployment fails the strict gate; source origin/callbacks
 mismatch; or rollback cannot be demonstrated. Keep Vercel's public origin
 serving, report the exact failing evidence, and do not relax the SLO.
+
+## Verified owned-domain canary update — October 27, 2026
+
+- Protected SSR canary: `https://ssr-canary.covereads.com`. It MUST return
+  **401** for unauthenticated requests, including static assets and API paths;
+  the same release-gated 256-bit bearer check runs before the asset handler.
+- Intended commercial origin: `https://www.covereads.com`. The apex remains
+  redirected to `www` by Vercel, while all public traffic stays on the
+  verified Vercel deployment until every gate is green.
+- The current Cloudflare production SSR Worker `cove` is **not deployed**,
+  and staging has D1, R2, ASSETS and a read limiter but **no Supabase or Stripe
+  secrets**. Do not attach `www` or `covereads.com` to either Worker.
+- Canonical owner-first writer closure is **not certified**. The draft static
+  audit (#360) identified 466 unverified mutation candidates and 120
+  protected tables; this is an audit inventory, not a count of proven bugs.
+- The recent genuine Cloudflare staging main-run
+  [40604444223](https://github.com/JibrilMohamud/cove/actions/runs/40604444223)
+  **FAILED** strict cold acceptance (1 request at least 800 ms in 3 rounds)
+  and browser-stage acceptance. This is still a no-go, irrespective of a
+  favorable p95 or separate Vercel observations.
+- Subsequent production cutover additionally requires paid webhook ownership,
+  entitlement, customer media delivery, callback and offline migration QA.
+  Offline files stored under a Vercel origin cannot be read directly from
+  the new Cloudflare custom origin's IndexedDB or service worker.
