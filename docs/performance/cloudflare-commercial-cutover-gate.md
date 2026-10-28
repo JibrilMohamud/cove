@@ -6,12 +6,19 @@ the owner promotes the Cloudflare frontend.
 
 ## Verified infrastructure (October 18, 2026 UTC)
 
-- Connected Cloudflare account `d26430caa63ec55f6612e32f36aca5e9`
-  has **0 DNS zones** and **0 Worker custom domains**.
-- Vercel project `cove` (`prj_bq7hKQw8JKWE6vpfdOgwowa8cjjM`) exposes
-  exactly one verified project domain:
-  `cove-puce-theta.vercel.app`. This is a Vercel-owned platform hostname,
-  **not** a transferable/Cloudflare-managed domain.
+- **October 27 ownership update:** Cloudflare account `d26430caa63ec55f6612e32f36aca5e9`
+  has active zone `covereads.com` (zone `07e218b2e74bc522122e0994b8e37576`).
+  Both `covereads.com` and `www.covereads.com` are verified Vercel
+  domains whose public DNS still routes to Vercel. `api.covereads.com`
+  is bound to the private `cove-persistence-backend` Worker.
+  The proposed protected `ssr-canary.covereads.com` binding was
+  **detached immediately** after a live public asset check returned
+  HTTP 200 for unauthenticated `/manifest.webmanifest`. The tested
+  protected Worker URL remains the original `workers.dev` hostname.
+  No customer traffic was rerouted. Do not reattach until every asset
+  is independently certified to pass through the auth gate.
+  **Domain ownership is no longer the release blocker**;
+  the other gates below remain mandatory. This is not a release approval.
 - The only audited native SSR stage service,
   `cove-storefront-ssr-staging`, has native `DB`, `BUCKET`,
   `ASSETS` and `COVE_STOREFRONT_READ_LIMITER` bindings plus staging
@@ -138,3 +145,73 @@ secrets are missing; auth, payment, offline or rights scenarios fail; any
 independent cold deployment fails the strict gate; source origin/callbacks
 mismatch; or rollback cannot be demonstrated. Keep Vercel's public origin
 serving, report the exact failing evidence, and do not relax the SLO.
+
+## Verified owned-domain canary update — October 27, 2026
+
+- Intended owned SSR canary: `https://ssr-canary.covereads.com`, **not
+  currently attached**. An unauthenticated test returned 200 for the static
+  `/manifest.webmanifest` despite other requests returning 401.
+  The domain was immediately detached. Re-attachment requires verified
+  401 on all static assets and API paths, exact host routing, and a
+  clean fail-closed test. Do not mistake a localhost/unit test for proof.
+- Intended commercial origin: `https://www.covereads.com`. The apex remains
+  redirected to `www` by Vercel, while all public traffic stays on the
+  verified Vercel deployment until every gate is green.
+- The current Cloudflare production SSR Worker `cove` is **not deployed**,
+  and staging has D1, R2, ASSETS and a read limiter but **no Supabase or Stripe
+  secrets**. Do not attach `www` or `covereads.com` to either Worker.
+- Canonical owner-first writer closure is **not certified**. The draft static
+  audit (#360) identified 466 unverified mutation candidates and 120
+  protected tables; this is an audit inventory, not a count of proven bugs.
+- The recent genuine Cloudflare staging main-run
+  [40604444223](https://github.com/JibrilMohamud/cove/actions/runs/40604444223)
+  **FAILED** strict cold acceptance (1 request at least 800 ms in 3 rounds)
+  and browser-stage acceptance. This is still a no-go, irrespective of a
+  favorable p95 or separate Vercel observations.
+- Subsequent production cutover additionally requires paid webhook ownership,
+  entitlement, customer media delivery, callback and offline migration QA.
+  Offline files stored under a Vercel origin cannot be read directly from
+  the new Cloudflare custom origin's IndexedDB or service worker.
+
+### Asset-router controlled reproduction
+
+The [owned canary public-ingress check](https://github.com/JibrilMohamud/cove/actions/runs/40612959230)
+returned **HTTP 200 for an unauthenticated manifest**; the custom-domain
+binding was immediately detached. The same test
+[failed on Workers.dev](https://github.com/JibrilMohamud/cove/actions/runs/40613154445).
+A separate ephemeral Worker with explicit
+`[assets] run_worker_first = ["/*"]` and a freshly installed bearer secret
+[still returned 200](https://github.com/JibrilMohamud/cove/actions/runs/40613473385).
+The throwaway Worker was deleted successfully and independently verified absent.
+The expected 401 remains an **unwaived** gate; see
+[issue #366](https://github.com/JibrilMohamud/cove/issues/366).
+There is currently **no** native storefront or canary custom-domain Worker
+attached to the live `www.covereads.com` site. Investigate the actual
+asset-routing behavior before any new binding or release.
+
+### Owned-zone fail-closed canary certification — October 28, 2026 UTC
+
+The isolation proof now includes the **real Cloudflare-owned ingress** at
+`https://ssr-canary.covereads.com`, assigned **only to an asset-less,
+authenticating Worker**, whose private SSR/asset Worker has `workers_dev=false`
+and no routes. See [owned canary test #40619516926](https://github.com/JibrilMohamud/cove/actions/runs/40619516926):
+
+- Unauthenticated and forged-token homepage, manifest (including query strings),
+  JavaScript, covers, favicon and account API requests were **all HTTP 401**.
+- The exact valid 256-bit bearer fetched the original internal manifest
+  successfully; an authenticated POST was denied **405**.
+- The inner asset Worker had no direct public `workers.dev` access. Both
+  temporary scripts and the custom-domain canary attachment were deleted.
+  Live Cloudflare inspection afterward showed only `api.covereads.com`
+  remained bound to the persistence backend, and `www.covereads.com` and
+  apex CNAME records still targeted the existing Vercel deployment.
+- The earlier isolated `workers.dev` **assets-bound SSR** bypass was real;
+  switching only to `run_worker_first=["/*"]` did not fix it. The separate
+  asset-less gateway and private service binding form the tested trust boundary.
+
+**Not equivalent to full release:** This test proves bearer-first staging ingress,
+not signed-in commercial SSR, OAuth/cookies, Stripe webhook settlement, EPUB/audio
+entitlement, offline device migration, global cold/concurrency performance or
+writer closure. The existing production `cove` frontend Worker remains unroutable
+and the public bookstore stays on Vercel. No owner-only D1 read cutover is
+allowed before positive and negative canonical writer closure.
