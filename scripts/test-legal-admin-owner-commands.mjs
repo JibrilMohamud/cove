@@ -23,6 +23,7 @@ try{
     "/commercial/retail/publish-verified":{published:true,ownerEpoch:5},
     "/market/withdraw":{marketWithdrawn:true,territory:"US"},
     "/commercial/entitlement/revoke":{revoked:true,epoch:6},
+    "/commercial/distribution/withdraw":{withdrawn:true,ownerDenied:true,publicationVersionId:"pv_commercial_123",status:"recalled",ownerEpoch:7},
   };
   const env={
     COVE_SSR_STAGING:"1",COVE_CANONICAL_LEGAL_WRITE_LOCK:"1",
@@ -54,6 +55,7 @@ try{
     {action:"publish-retail",productId:"prd_commercial_123",territory:"US",currency:"USD",operationId:"retail:2"},
     {action:"pause-market",territory:"US",operationId:"market:1"},
     {action:"revoke-entitlement",entitlementId:"entitle_123",operationId:"entitlement:1"},
+    {action:"withdraw-distribution",publicationVersionId:"pv_commercial_123",status:"recalled",allowExistingOwners:false,reasonCode:"RIGHTS_REVOKED",reasonDetail:"Contract no longer authorizes distribution",actorUserId:"staff_123",operationId:"distribution:1"},
   ];
   for(const x of operations){
     const result=await run(env,x);
@@ -94,6 +96,11 @@ try{
     {...operations[3],currency:"usd"},
     {...operations[4],territory:"*"},
     {action:"execute-sql",statement:"UPDATE rights_grants SET status='active'"},
+    {...operations.at(-1),status:"distributable"},
+    {...operations.at(-1),allowExistingOwners:true},
+    {...operations.at(-1),reasonCode:""},
+    {...operations.at(-1),reasonDetail:"x".repeat(2001)},
+    {...operations.at(-1),extra:"inject"},
   ])await assert.rejects(()=>run(env,invalid));
   assert.equal(messages.length,called,"Invalid scope must never reach private writer");
   status=503;
@@ -112,6 +119,8 @@ try{
   await assert.rejects(()=>run(env,operations[2]),/does not match the request/);
   override={retracted:2,sourceIds:["2703","other"]};
   await assert.rejects(()=>run(env,operations[3]),/does not match the request/);
+  override={withdrawn:true,ownerDenied:false,publicationVersionId:"pv_commercial_123",status:"recalled",ownerEpoch:7};
+  await assert.rejects(()=>run(env,operations.at(-1)),/does not match the request/);
   override=null;
   console.log("PASS: admin owner-first source quarantine, territory-scoped evidence and atomic batch retraction; rights-editor suspension, retail, market and paid-entitlement revocation; exact receipts, production disabled, no raw-D1 fallback");
 }finally{fs.rmSync(dir,{recursive:true,force:true});}
