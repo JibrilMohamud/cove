@@ -1,0 +1,32 @@
+name: covereads-owned-ssr-canary-guard
+on:
+  pull_request:
+    paths:
+      - "scripts/check-covereads-canary-deny.mjs"
+      - "wrangler.frontend.production.toml"
+      - "scripts/check-cloudflare-production-candidate.mjs"
+      - ".github/workflows/cloudflare-native-ssr-staging.yml"
+      - "scripts/performance/cloudflare-concurrency.mjs"
+      - ".github/workflows/covereads-owned-ssr-canary-guard.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  owned-domain-fail-closed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Confirm disabled production candidate and live canonical owned origin
+        run: |
+          node scripts/check-cloudflare-production-candidate.mjs
+          node scripts/check-cloudflare-ssr-stage-gate.mjs
+      - name: Verify public requests never reach protected owned-domain staging SSR
+        run: node scripts/check-covereads-canary-deny.mjs
