@@ -125,7 +125,9 @@ try {
     "A signed but oversized webhook must be refused before database mutation",
   );
   assert.equal(
-    await original("SELECT provider_event_id FROM commerce_webhook_events WHERE provider_event_id=?")
+    await original(
+      "SELECT provider_event_id FROM commerce_webhook_events WHERE provider_event_id=?",
+    )
       .bind(oversized.id)
       .first(),
     null,
