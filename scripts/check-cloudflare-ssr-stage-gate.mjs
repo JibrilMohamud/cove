@@ -76,6 +76,30 @@ try {
     COVE_SSR_STAGING_GATE_KEY: undefined,
   });
   assert.equal(noQaSecret.status, 503);
+  const gatewayHost = "https://cove-commerce-qa-ingress.cove-jibrilmohamud.workers.dev";
+  const gatewayEnv = { ...qa, COVE_COMMERCE_PRIVATE_GATEWAY_ENABLED: "1" };
+  assert.equal(
+    await rejectUnauthenticatedStagingRequest(
+      webhook(gatewayHost + "/api/fore/stripe/webhook", stripeHeaders),
+      gatewayEnv,
+    ),
+    null,
+    "Signed TEST event can reach the private backend only from the pinned QA gateway",
+  );
+  assert.equal(
+    await rejectUnauthenticatedStagingRequest(
+      webhook(gatewayHost + "/api/fore/stripe/webhook", stripeHeaders),
+      qa,
+    ).then((response) => response.status),
+    401,
+    "An unknown gateway host is forbidden without the private binding flag",
+  );
+  const signedQaWrite = await rejectUnauthenticatedStagingRequest(
+    webhook(gatewayHost + "/api/fore/cart/item", { authorization: "Bearer " + token }),
+    gatewayEnv,
+  );
+  assert.equal(signedQaWrite, null, "Bearer-authorized purchase test may cross private QA gateway");
+
   const unconfigured = await rejectUnauthenticatedStagingRequest(
     request({ Authorization: "Bearer " + token }),
     { COVE_SSR_STAGING: "1" },
