@@ -2323,6 +2323,18 @@ async function orderFromPI(db: CatalogDB, pi: any) {
       .first<any>();
   return null;
 }
+// Signed Stripe events can arrive out of order. A stale failure/cancel event
+// must not move a terminal buyer order backwards or release its reservations.
+const PAYMENT_FAILURE_MUTABLE_STATES = new Set([
+  "pending_payment",
+  "processing",
+  "authorized",
+  "payment_failed",
+]);
+const PAYMENT_CANCEL_MUTABLE_STATES = new Set([
+  ...PAYMENT_FAILURE_MUTABLE_STATES,
+  "canceled",
+]);
 async function processStripeEvent(env: CoveEnv, event: any) {
   const db = env.DB,
     obj = event.data?.object || {},
@@ -2381,10 +2393,10 @@ async function processStripeEvent(env: CoveEnv, event: any) {
         .run();
   } else if (type === "payment_intent.payment_failed") {
     const o = await orderFromPI(db, obj);
-    if (o) {
+    if (o && PAYMENT_FAILURE_MUTABLE_STATES.has(String(o.status))) {
       await db
         .prepare(
-          "UPDATE commerce_orders SET status='payment_failed',failure_code=?,failure_message=?,updated_at=? WHERE id=? AND status NOT IN ('paid','refunded')",
+          "UPDATE commerce_orders SET status='payment_failed',failure_code=?,failure_message=?,updated_at=? WHERE id=? AND status IN ('pending_payment','processing','authorized','payment_failed')",
         )
         .bind(
           obj.last_payment_error?.code || null,
@@ -2417,11 +2429,11 @@ async function processStripeEvent(env: CoveEnv, event: any) {
     }
   } else if (type === "payment_intent.canceled") {
     const o = await orderFromPI(db, obj);
-    if (o) {
+    if (o && PAYMENT_CANCEL_MUTABLE_STATES.has(String(o.status))) {
       await releaseOrderReservations(db, o.id);
       await db
         .prepare(
-          "UPDATE commerce_orders SET status='canceled',canceled_at=?,updated_at=? WHERE id=? AND status NOT IN ('paid','refunded')",
+          "UPDATE commerce_orders SET status='canceled',canceled_at=?,updated_at=? WHERE id=? AND status IN ('pending_payment','processing','authorized','payment_failed','canceled')",
         )
         .bind(now(), now(), o.id)
         .run();
