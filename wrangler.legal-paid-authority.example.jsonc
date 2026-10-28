@@ -1,0 +1,35 @@
+{
+  "name": "cove-paid-legal-authority-qa",
+  "main": ".output/strangler/legal-authority.mjs",
+  "compatibility_date": "2026-10-25",
+  "workers_dev": false,
+  "routes": [],
+  "preview_urls": false,
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "LEGAL_AUTHORITY",
+        "class_name": "CoveLegalAuthority"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "legal-paid-qa-v1",
+      "new_sqlite_classes": [
+        "CoveLegalAuthority"
+      ]
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "PRIMARY_DB",
+      "database_name": "cove-paid-commerce-legal-qa-20261027",
+      "database_id": "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"
+    }
+  ],
+  "vars": {
+    "COVE_RIGHTS_OWNER_ENABLED": "0",
+    "COVE_RIGHTS_OWNER_PRIMARY_ID": "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"
+  }
+}
