@@ -23,7 +23,11 @@ directory = "./.output/public"
 binding = "ASSETS"
 # A user must authenticate before any asset is served. The Worker then
 # delegates accepted static asset requests to ASSETS.fetch.
-run_worker_first = true
+# Route *every* path through the staging auth gate, including existing
+# static assets such as manifest.webmanifest. Test this explicit all-path
+# route separately from the previous boolean because Cloudflare's deployed
+# asset router returned 200 on unauthenticated manifest requests.
+run_worker_first = ["/*"]
 
 # Per-colo public storefront SSR abuse limit. All authenticated/account,
 # commerce and other search endpoints retain their durable D1 controls.
