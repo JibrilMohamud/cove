@@ -30,11 +30,13 @@ const ORDER="order_paid_qa_20261027";
 const BUYER="user_paid_qa_20261027";
 const ENTITLEMENT="ent_paid_qa_20261027";
 const PRODUCT="prd_paid_qa_20261027";
+// Match isolated GitHub run AND attempt; never borrow another run's buyer.
+// Production customer order IDs cannot satisfy these QA-only prefixes.
 const isInitial=(env:Env,orderId:unknown,userId:unknown)=>
   typeof env.COVE_PAID_INITIAL_ORDER==="string" &&
-  /^order_initial_qa_\d{8,15}$/.test(env.COVE_PAID_INITIAL_ORDER) &&
+  /^order_initial_qa_\d{8,15}-\d{1,5}$/.test(env.COVE_PAID_INITIAL_ORDER) &&
   typeof env.COVE_PAID_INITIAL_BUYER==="string" &&
-  /^user_initial_qa_\d{8,15}$/.test(env.COVE_PAID_INITIAL_BUYER) &&
+  /^user_initial_qa_\d{8,15}-\d{1,5}$/.test(env.COVE_PAID_INITIAL_BUYER) &&
   orderId===env.COVE_PAID_INITIAL_ORDER &&
   userId===env.COVE_PAID_INITIAL_BUYER;
 function available(env:Env):boolean{
