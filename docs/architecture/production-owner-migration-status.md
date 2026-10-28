@@ -65,6 +65,10 @@ The typed `/publication/activate-version` command runs the original canonical
 multi-table activation implementation inside the private owner. A durable
 product denial and pending-command journal precede every primary write.
 Independent positive publication is blocked while that hold is pending.
+Retiring prior grants or a publication-managed contract also receives a
+durable subject-level withdrawal before any primary write. That withdrawal
+immediately covers other products sharing the retired rights, including
+legacy manifests whose grant list must be resolved from their contract.
 Completion releases the hold only after checking the canonical activation
 marker; legal and offer publication then independently re-read current
 evidence and verify the owner epoch. A withdrawal during execution defeats

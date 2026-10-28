@@ -37,7 +37,7 @@ try {
   // and foreign keys, rather than simulating publication SQL with a mock.
   const productId="prd_owner_publication",versionId="pubv_owner_publication";
   const secret="c".repeat(64),at="2026-01-01T00:00:00.000Z";
-  function fixture({releaseDate=at}={}){
+  function fixture({releaseDate=at,retirePrevious=false,legacyPrior=false}={}){
     const primary=new DatabaseSync(":memory:"),owned=new DatabaseSync(":memory:");
     databases.push(primary,owned);
     for(const file of readdirSync("drizzle").filter(f=>f.endsWith(".sql")).sort())
@@ -70,7 +70,7 @@ try {
       rightsContractId:"rcontract_owner_publication",rightsContractVersionId:"rcv_owner_publication",
       rightsContractManagedByPublication:false,offerId:"off_owner_publication"};
     insert("publishing_publication_versions",{id:versionId,lifecycle_id:"life_owner_publication",publication_id:"pub_owner_publication",
-      submission_id:"pubsub_owner_publication",version_number:1,snapshot_sha256:"d".repeat(64),manifest_json:JSON.stringify(manifest),
+      submission_id:"pubsub_owner_publication",version_number:retirePrevious?2:1,snapshot_sha256:"d".repeat(64),manifest_json:JSON.stringify(manifest),
       release_state:"scheduled",created_by_user_id:"user_owner_publication",created_at:at});
     insert("rights_parties",{id:"rparty_owner_publication",display_name:"Fixture licensor",status:"active",created_at:at,updated_at:at});
     insert("rights_contracts",{id:"rcontract_owner_publication",reference_code:"owner-fixture",name:"Fixture contract",
@@ -84,6 +84,24 @@ try {
       active:0,created_at:at,updated_at:at});
     insert("catalog_search_documents",{product_id:productId,external_book_id:productId,title:"Owner publication",currency:"USD",
       availability:"available",suppressed:0,first_ingested_at:at,updated_at:at});
+    if(retirePrevious){
+      insert("rights_contracts",{id:"rcontract_owner_previous",reference_code:"owner-previous",name:"Previous contract",
+        rightsholder_party_id:"rparty_owner_publication",status:"active",created_at:at,updated_at:at});
+      insert("rights_contract_versions",{id:"rcv_owner_previous",contract_id:"rcontract_owner_previous",version_number:1,
+        status:"active",effective_from:at,retailer_commission_bps:3000,created_at:at});
+      insert("rights_grants",{id:"rgrant_owner_previous",edition_id:"ed_owner_publication",rightsholder_party_id:"rparty_owner_publication",
+        territory_code:"US",format:"ebook",license_type:"commercial",contract_id:"rcontract_owner_previous",
+        contract_version_id:"rcv_owner_previous",decision:"allow",status:"active",created_at:at,updated_at:at});
+      insert("publishing_submission_snapshots",{id:"pubsub_owner_previous",edition_id:"pubed_owner_publication",
+        account_id:"puba_owner_publication",revision:2,snapshot_json:"{}",snapshot_sha256:"e".repeat(64),
+        status:"published",submitted_by_user_id:"user_owner_publication",submitted_at:at});
+      const previous={...manifest,rightsGrantIds:legacyPrior?[]:["rgrant_owner_previous"],
+        rightsContractId:"rcontract_owner_previous",rightsContractVersionId:"rcv_owner_previous",rightsContractManagedByPublication:true};
+      insert("publishing_publication_versions",{id:"pubv_owner_previous",lifecycle_id:"life_owner_publication",publication_id:"pub_owner_publication",
+        submission_id:"pubsub_owner_previous",version_number:1,snapshot_sha256:"e".repeat(64),manifest_json:JSON.stringify(previous),
+        release_state:"live",created_by_user_id:"user_owner_publication",created_at:at});
+      primary.prepare("UPDATE publishing_release_lifecycles SET current_publication_version_id='pubv_owner_previous',state='live'").run();
+    }
     const sql={exec(query,...args){const q=owned.prepare(query);
       const rows=q.columns().length?q.all(...args):(q.run(...args),[]);return {toArray:()=>rows};}};
     let beforeWrite=null,reads=0,writes=0,failWrites=false,failOwnerCommit=false;
@@ -203,6 +221,27 @@ try {
   const premature=fixture({releaseDate:new Date(Date.now()+86400000).toISOString()});
   assert.equal((await premature.activate()).status,409);
   assert.equal(premature.stats().writes,0,"The owner independently enforces the scheduled release date");
+  for(const [legacyPrior,primaryOutage] of [[false,false],[true,false],[false,true]]){
+    const shared=fixture({retirePrevious:true,legacyPrior});
+    const otherProducts=["prd_shared_prior_grant","prd_shared_prior_contract"];
+    for(const [index,otherProduct] of otherProducts.entries())
+      assert.equal(legal.publishFreshCommercialProof(shared.sql,{
+        productId:otherProduct,editionId:"ed_owner_publication",territory:"US",channel:"retail",
+        grantId:index?"rgrant_other_contract_product":"rgrant_owner_previous",
+        contractId:"rcontract_owner_previous",contractVersionId:"rcv_owner_previous",
+        validUntil:new Date(Date.now()+60000).toISOString()
+      },0).applied,true);
+    assert.equal(legal.readCommercialProofs(shared.sql,otherProducts,"US","retail").length,2);
+    shared.setBeforeWrite(async()=>{
+      assert.equal(legal.readCommercialProofs(shared.sql,otherProducts,"US","retail").length,0,
+        "Retiring a grant or managed contract must deny every other product BEFORE canonical activation writes");
+    });
+    shared.setFailWrites(primaryOutage);
+    assert.equal((await shared.activate()).status,primaryOutage?503:200);
+    assert.equal(legal.readCommercialProofs(shared.sql,otherProducts,"US","retail").length,0);
+    assert.equal(shared.primary.prepare("SELECT status FROM rights_contracts WHERE id='rcontract_owner_previous'").get().status,
+      primaryOutage?"active":"terminated","Owner withdrawal must remain effective against stale primary contract state");
+  }
   const unavailable=fixture();unavailable.env.COVE_RIGHTS_OWNER_ENABLED="0";
   assert.equal((await unavailable.activate()).status,503);
   assert.equal(unavailable.stats().writes,0,"Owner outage cannot fall back to caller-side activation writes");

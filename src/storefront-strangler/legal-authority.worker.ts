@@ -189,7 +189,39 @@ export class CoveLegalAuthority extends DurableObject<LegalAuthorityEnv> {
             !lastDenial?.operation_id.startsWith("retail:publication:"))
             return new Response(null,{status:409,headers:noStore});
         }
-        const command=storage.transactionSync(()=>beginPublicationCommand(sql,identity));
+        // Canonical activation retires the prior manifest's grants and may
+        // terminate its publication-managed contract. Those identities can
+        // cover OTHER products: withdraw their owner proofs before any write,
+        // rather than relying only on this product's edit hold.
+        const retiring:{subjectKind:"grant"|"contract";subjectId:string}[]=[];
+        if(!resuming&&version.current_publication_version_id&&
+          version.current_publication_version_id!==input.publicationVersionId) {
+          const previous=await env.PRIMARY_DB.prepare(
+            "SELECT manifest_json FROM publishing_publication_versions WHERE id=? AND lifecycle_id=?"
+          ).bind(version.current_publication_version_id,version.lifecycle_id)
+            .first<{manifest_json:string}>();
+          if(!previous)return new Response(null,{status:409,headers:noStore});
+          const prior=JSON.parse(previous.manifest_json) as {
+            rightsGrantIds?:unknown;rightsContractManagedByPublication?:unknown;rightsContractId?:unknown
+          };
+          if(!prior||typeof prior!=="object")return new Response(null,{status:409,headers:noStore});
+          let grants=Array.isArray(prior.rightsGrantIds)?prior.rightsGrantIds.map(String).filter(Boolean):[];
+          if(!grants.length&&prior.rightsContractManagedByPublication&&prior.rightsContractId)
+            grants=(await env.PRIMARY_DB.prepare("SELECT id FROM rights_grants WHERE contract_id=?")
+              .bind(prior.rightsContractId).all<{id:string}>()).results.map(row=>row.id);
+          for(const subjectId of new Set(grants))retiring.push({subjectKind:"grant",subjectId});
+          const next=manifest as typeof manifest&{rightsContractId?:unknown};
+          if(prior.rightsContractManagedByPublication&&typeof prior.rightsContractId==="string"&&
+            prior.rightsContractId!==next.rightsContractId)
+            retiring.push({subjectKind:"contract",subjectId:prior.rightsContractId});
+        }
+        const command=storage.transactionSync(()=>{
+          const pending=beginPublicationCommand(sql,identity);
+          retiring.forEach((subject,index)=>denyCommercialSubject(sql,{
+            ...subject,operationId:"publication:"+identity.operationId+":retire:"+index
+          }));
+          return pending;
+        });
         let result:{publicationVersionId:string;state:string;versionNumber:number};
         if(version.current_publication_version_id===input.publicationVersionId) {
           const marker=await env.PRIMARY_DB.prepare(
