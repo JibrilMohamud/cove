@@ -46,6 +46,8 @@ before(offlineAudio,"await requireStagePaidEntitlementAccess(env,",
   "return { valid: true, expiresAt: current.expires_at }");
 before(offlineEpub,"await issueCommercialEpubGrant(",
   "await crypto.subtle.sign(");
+before(offlineEpub,"await requireStagePaidEntitlementAccess(env,",
+  "await crypto.subtle.sign(");
 assert.ok(offlineEpub.includes('purpose: "offline_package"'),
   "Offline EPUB cannot bypass the grant's contract-offline restrictions");
 assert.ok(offlineAudio.includes("l.status='active'") &&
