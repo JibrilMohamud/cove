@@ -253,6 +253,22 @@ async function cartPricing(db: CatalogDB, userId: string, territory: string) {
   if (finalCurrencies.size !== 1)
     throw new ApiError(409, "All items in an order must resolve to the same currency.");
   const resolvedCurrency = [...finalCurrencies][0];
+  if (env) {
+    await requireStageLegalConsumerProof(
+      env,
+      items.map((item) => ({
+        id: item.productId,
+        source_name:
+          item.productId === "prd_gutenberg_" + item.externalId ? "gutenberg" : "commercial",
+        source_external_id: item.externalId,
+        expectedEditionId: item.rightsSnapshot.editionId,
+        expectedGrantId: item.rightsGrantId,
+        expectedContractVersionId: item.rightsSnapshot.contractVersionId,
+      })),
+      territory.toUpperCase(),
+      resolvedCurrency,
+    );
+  }
   const fingerprint = await sha256(
     JSON.stringify(
       items.map((x) => [
