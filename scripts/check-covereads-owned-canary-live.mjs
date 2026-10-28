@@ -26,8 +26,7 @@ for (let i = 0; i < 18; i++) {
       ready = true;
       break;
     }
-    if (code === 200)
-      throw Error("Public canary manifest escaped authentication");
+    if (code === 200) throw Error("Public canary manifest escaped authentication");
   } catch (error) {
     if (String(error).includes("escaped authentication")) throw error;
   }
