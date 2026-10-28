@@ -1,0 +1,45 @@
+name: canonical-writer-closure-audit
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "worker/**"
+      - "workers/**"
+      - "scripts/check-canonical-writer-closure.mjs"
+      - "scripts/test-canonical-writer-closure.mjs"
+      - ".github/workflows/canonical-writer-closure-audit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "worker/**"
+      - "workers/**"
+      - "scripts/check-canonical-writer-closure.mjs"
+      - "scripts/test-canonical-writer-closure.mjs"
+      - ".github/workflows/canonical-writer-closure-audit.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inventory-and-cutover-denial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Inventory production rights, finance, delivery and publication writers
+        run: node scripts/test-canonical-writer-closure.mjs
+      - name: Save reviewable line-addressed mutation evidence
+        env:
+          COVE_WRITER_AUDIT_OUTPUT: ${{ runner.temp }}/cove-canonical-writer-inventory.json
+        run: node scripts/check-canonical-writer-closure.mjs --audit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: canonical-writer-inventory
+          path: ${{ runner.temp }}/cove-canonical-writer-inventory.json
+          retention-days: 30
+          if-no-files-found: error
