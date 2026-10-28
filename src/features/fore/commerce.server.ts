@@ -2331,10 +2331,7 @@ const PAYMENT_FAILURE_MUTABLE_STATES = new Set([
   "authorized",
   "payment_failed",
 ]);
-const PAYMENT_CANCEL_MUTABLE_STATES = new Set([
-  ...PAYMENT_FAILURE_MUTABLE_STATES,
-  "canceled",
-]);
+const PAYMENT_CANCEL_MUTABLE_STATES = new Set([...PAYMENT_FAILURE_MUTABLE_STATES, "canceled"]);
 async function processStripeEvent(env: CoveEnv, event: any) {
   const db = env.DB,
     obj = event.data?.object || {},
