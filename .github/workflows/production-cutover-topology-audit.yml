@@ -1,0 +1,53 @@
+name: production-cutover-topology-audit
+
+on:
+  pull_request:
+    paths:
+      - "scripts/check-live-production-cutover*.mjs"
+      - ".github/workflows/production-cutover-topology-audit.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/check-live-production-cutover*.mjs"
+      - "wrangler.frontend.production.toml"
+      - ".github/workflows/production-cutover-topology-audit.yml"
+  workflow_dispatch:
+    inputs:
+      release_gate:
+        description: "Fail closed and report that complete external release certification remains required"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify no new canonical writers and test topology safety policy
+        run: |
+          node --check scripts/check-live-production-cutover.mjs
+          node --test scripts/check-live-production-cutover.test.mjs
+          node scripts/check-canonical-writer-closure.mjs --no-new-writers
+
+  live-cloudflare:
+    needs: static
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+      CLOUDFLARE_ZONE_ID: "07e218b2e74bc522122e0994b8e37576"
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run live read-only production topology safety audit
+        run: |
+          echo "### Production topology safety audit — NOT a release certificate" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ inputs.release_gate || 'false' }}" == "true" ]]; then
+            node scripts/check-live-production-cutover.mjs --release-gate
+          else
+            node scripts/check-live-production-cutover.mjs --audit
+          fi
+
