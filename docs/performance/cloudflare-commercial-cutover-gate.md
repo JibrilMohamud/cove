@@ -14,7 +14,7 @@ the owner promotes the Cloudflare frontend.
 - Cloudflare API inspection confirms `cove-legal-authority-production`
   exists with its own Durable Object namespace, production `PRIMARY_DB`
   `4bd657ac-8789-403e-a28c-93aba8d0a989`, and
-  `COVE_RIGHTS_OWNER_ENABLED=0`. It is NOT certified or enabled for production commands (`COVE_RIGHTS_OWNER_ENABLED=0`); operational production fencing/positive-write certification remains missing.
+  `COVE_RIGHTS_OWNER_ENABLED=0`. A fresh 256-bit shared private `COVE_RIGHTS_OWNER_SECRET` was installed on this Worker and the persistence Worker on October 28; both secret-text bindings were read back without revealing the key. Provisioning alone does not prove an authenticated runtime handshake, operational fencing or writer closure. It is NOT certified or enabled for production commands (`COVE_RIGHTS_OWNER_ENABLED=0`); operational production fencing/positive-write certification remains missing.
 - `cove-persistence-backend` uses the same production D1 and private media
   R2. Its deployed `LEGAL_AUTHORITY` Durable Object binding now **exists and has been verified**: namespace `83d7eadf3957436389a7b072120a9829`, class `CoveLegalAuthority`, script `cove-legal-authority-production`. This matches production D1 `4bd657ac-8789-403e-a28c-93aba8d0a989`; the owner is still disabled. Production payment/Stripe capability and operational owner-first writers remain uncertified. Do not enable isolated-QA write locks in production.
 - The separate `cove-commerce-customer-qa-stage` has synthetic D1,
