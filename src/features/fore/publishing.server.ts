@@ -3271,6 +3271,13 @@ async function activatePublicationCommercialTerms(
         .bind(at, currentManifest.royaltyContractId),
     );
   if (currentManifest.offerId) {
+    // Any other grant for the same edition is NOT an acceptable substitute
+    // for this publication's frozen legal manifest.
+    if (!activatingIds.length)
+      throw new ApiError(409, "A retail offer requires a frozen approved rights-grant manifest.");
+    const grantPlaceholders = activatingIds.map(() => "?").join(",");
+    const contractId = currentManifest.rightsContractId || null;
+    const contractVersionId = currentManifest.rightsContractVersionId || null;
     statements.push(
       db
         .prepare(
@@ -3280,12 +3287,18 @@ async function activatePublicationCommercialTerms(
              JOIN rights_grants g ON g.edition_id=p.edition_id
              LEFT JOIN rights_contracts rc ON rc.id=g.contract_id
              WHERE p.id=offers.product_id
+               AND g.id IN (${grantPlaceholders})
                AND g.status='active' AND g.decision='allow'
                AND g.sales_channel='retail'
+               AND (? IS NULL OR g.contract_id=?)
+               AND (? IS NULL OR g.contract_version_id=?)
                AND (g.contract_id IS NULL OR rc.status='active')
            )`,
         )
-        .bind(at, currentManifest.offerId),
+        .bind(
+          at, currentManifest.offerId, ...activatingIds,
+          contractId, contractId, contractVersionId, contractVersionId,
+        ),
     );
     statements.push(
       db
