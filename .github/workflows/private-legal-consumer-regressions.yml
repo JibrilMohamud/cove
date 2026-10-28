@@ -4,22 +4,26 @@ on:
     paths:
       - "src/features/fore/commerce.server.ts"
       - "src/features/fore/delivery.server.ts"
+      - "src/features/fore/commercial-audio.server.ts"
       - "src/features/fore/api.server.ts"
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
       - "src/storefront-strangler/paid-settlement-publication.server.ts"
       - "scripts/check-legal-consumer-fence.mjs"
       - "scripts/check-staged-paid-settlement.mjs"
+      - "scripts/check-customer-media-owner-order.mjs"
       - ".github/workflows/private-legal-consumer-regressions.yml"
   push:
     branches: [main]
     paths:
       - "src/features/fore/commerce.server.ts"
       - "src/features/fore/delivery.server.ts"
+      - "src/features/fore/commercial-audio.server.ts"
       - "src/features/fore/api.server.ts"
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
       - "src/storefront-strangler/paid-settlement-publication.server.ts"
       - "scripts/check-legal-consumer-fence.mjs"
       - "scripts/check-staged-paid-settlement.mjs"
+      - "scripts/check-customer-media-owner-order.mjs"
       - ".github/workflows/private-legal-consumer-regressions.yml"
   workflow_dispatch:
 permissions:
@@ -41,6 +45,7 @@ jobs:
         run: |
           node scripts/check-legal-consumer-fence.mjs
           node scripts/check-staged-paid-settlement.mjs
+          node scripts/check-customer-media-owner-order.mjs
           node scripts/check-canonical-writer-closure.mjs --no-new-writers
       - name: Check no production stage owner binding
         run: |
