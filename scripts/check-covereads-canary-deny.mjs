@@ -66,5 +66,7 @@ const mutation = await fetch(origin + "/api/fore/cart/item", {
 });
 assert.equal(mutation.status, 405, "Read-only gateway must prevent even signed mutations");
 await mutation.body?.cancel();
-console.log("PASS: isolated assets-less Worker rejects anonymous/forged homepage, real static assets, account and mutations");
+console.log(
+  "PASS: isolated assets-less Worker rejects anonymous/forged homepage, real static assets, account and mutations",
+);
 console.log(JSON.stringify(outcomes));
