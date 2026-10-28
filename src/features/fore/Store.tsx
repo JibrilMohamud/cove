@@ -1209,7 +1209,13 @@ export function StorePage({
     if (!fastAnonymousHome || matchingInitial?.catalog || fastPreview || fastShelf.isError) return;
     const timeout = window.setTimeout(() => setCatalogFallbackReady(true), 800);
     return () => window.clearTimeout(timeout);
-  }, [fastAnonymousHome, matchingInitial?.catalog, fastPreview, fastShelf.isError, params.toString()]);
+  }, [
+    fastAnonymousHome,
+    matchingInitial?.catalog,
+    fastPreview,
+    fastShelf.isError,
+    params.toString(),
+  ]);
 
   // SSR already includes 24 *fresh, canonical rights-checked* book cards.
   // Avoid an immediate, heavyweight full-catalog read during critical paint:
