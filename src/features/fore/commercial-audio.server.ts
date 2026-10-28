@@ -1524,6 +1524,7 @@ export async function handleCommercialAudio(
         "This offline license is no longer active. Save the recording again if access is available.",
       );
     await assertCommercialAudioRiskAccess(db, userId, String(row.product_id));
+    await requireCommercialAudioOwner(env, userId, String(row.product_id), territory);
     const verified = await verifyStoredAudioLicense(
       env,
       userId,
@@ -1541,6 +1542,7 @@ export async function handleCommercialAudio(
     if (!(await hasAudioAccess(db, userId, String(row.product_id), territory)))
       throw new ApiError(403, "An active audiobook entitlement is required.");
     await assertCommercialAudioRiskAccess(db, userId, String(row.product_id));
+    await requireCommercialAudioOwner(env, userId, String(row.product_id), territory);
     const previous = await db
       .prepare(
         "SELECT id FROM completion_events WHERE user_id=? AND product_id=? ORDER BY finished_at DESC LIMIT 1",
@@ -1595,6 +1597,7 @@ export async function handleCommercialAudio(
         "Purchase or obtain subscription access to listen to this audiobook.",
       );
     if (userId) await assertCommercialAudioRiskAccess(db, userId, String(row.product_id));
+    if (userId) await requireCommercialAudioOwner(env, userId, String(row.product_id), territory);
     const c = (frozen?.chapters || []).find((x: any) => x.id === match[3]);
     if (!c) throw new ApiError(404, "Audio chapter not found.");
     return serveStoredAudio(
@@ -1609,6 +1612,7 @@ export async function handleCommercialAudio(
     if (!(await hasAudioAccess(db, userId, row.product_id, territory)))
       throw new ApiError(403, "Purchase or obtain subscription access to this audiobook.");
     await assertCommercialAudioRiskAccess(db, userId, String(row.product_id));
+    await requireCommercialAudioOwner(env, userId, String(row.product_id), territory);
     if (request.method === "GET") {
       const p = await db
         .prepare(
