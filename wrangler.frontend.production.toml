@@ -1,9 +1,8 @@
 # Production CANDIDATE only: deliberately not publicly routable until release gate
 # docs/performance/cloudflare-commercial-cutover-gate.md is satisfied.
-# Cloudflare account subdomain "cove-jibrilmohamud" is NOT itself a
-# serving Worker URL. Once verified, this script's HTTPS address is
-# https://cove.cove-jibrilmohamud.workers.dev/
-# Deploying with workers_dev=false cannot expose public customers.
+# Production canonical origin is https://www.covereads.com, owned in the
+# Cloudflare zone but CURRENTLY served by Vercel. This candidate is not
+# routed to that domain until the full commercial release gate passes.
 name = "cove"
 main = ".output/server/index.mjs"
 # Keep Nitro bundle minification, but avoid a second Wrangler transform
@@ -40,7 +39,7 @@ binding = "BUCKET"
 bucket_name = "cove-production-media"
 
 [vars]
-FORE_PUBLIC_URL = "https://cove.cove-jibrilmohamud.workers.dev"
+FORE_PUBLIC_URL = "https://www.covereads.com"
 FORE_ENVIRONMENT = "production"
 FORE_DEFAULT_TERRITORY = "US"
 FORE_AUTH_MODE = "supabase"
