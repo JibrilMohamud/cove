@@ -317,7 +317,7 @@ try {
   // entitlements, settling tender or rewriting canonical order status.
   const baselineEntitlements = await original("SELECT count(*) AS n FROM entitlements").first();
   const baselineLedger = await original("SELECT count(*) AS n FROM commerce_ledger_entries").first();
-  for (const terminal of ["canceled", "disputed", "revoked", "expired"]) {
+  for (const terminal of ["canceled", "disputed", "chargeback_lost"]) {
     await original("UPDATE commerce_orders SET status=? WHERE id='ord-proof'").bind(terminal).run();
     const late = {
       id: "evt_late_success_after_" + terminal,
