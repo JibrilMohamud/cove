@@ -2138,12 +2138,15 @@ async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload:
       { refundId: r.id },
     );
   if (full) {
-    await db
-      .prepare(
-        "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase'",
-      )
-      .bind(at, o.user_id, o.id)
-      .run();
+    // When staged, the owner-first private executor has already revoked
+    // entitlement authority. Never bypass the canonical D1 write lock.
+    if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1")
+      await db
+        .prepare(
+          "UPDATE entitlements SET status='revoked',updated_at=? WHERE user_id=? AND order_item_id IN (SELECT id FROM commerce_order_items WHERE order_id=?) AND entitlement_type='purchase'",
+        )
+        .bind(at, o.user_id, o.id)
+        .run();
     await db
       .prepare("UPDATE commerce_order_items SET entitlement_status='revoked' WHERE order_id=?")
       .bind(o.id)
