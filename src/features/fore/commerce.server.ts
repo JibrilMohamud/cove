@@ -994,6 +994,8 @@ export async function createCheckoutPayment(env: CoveEnv, user: User, raw: unkno
       .run();
   }
   try {
+    // Reject previously withdrawn buyer authority before tender reservation.
+    await assertStagePaidOrderNotWithdrawn(env, orderId);
     await reserveTender(db, { ...order, gift_card_hash: quote.gift_card_hash });
     await reservePromo(db, { ...order, promo_code_hash: quote.promo_code_hash });
   } catch (e) {
