@@ -493,6 +493,13 @@ export type CoveEnv = {
     limit(input: { key: string }): Promise<{ success: boolean }>;
   };
   COVE_SSR_STAGING?: string;
+  // Isolated QA ONLY: never deploy a positive/negative canonical writer
+  // service binding or enable a production rights-owner cutover by default.
+  COVE_CANONICAL_LEGAL_WRITE_LOCK?: string;
+  COVE_LEGAL_QUARANTINE_WRITER_STAGE?: string;
+  COVE_LEGAL_WRITER_PRIMARY_ID?: string;
+  COVE_LEGAL_QUARANTINE_SECRET?: string;
+  LEGAL_QUARANTINE_WRITER?: { fetch(request: Request): Promise<Response> };
   // Stage-only candidate: independent low-cardinality anonymous metrics.
   COVE_OPS_TELEMETRY_MODE?: string;
   OPS_ANALYTICS?: {
