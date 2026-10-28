@@ -3875,7 +3875,35 @@ async function handleCoveRequest(
       }
       if (request.method === "POST" && path === "/admin/publishing/distribution-control") {
         const staff = await requireStaffPermission(db, who, "publishing.rollback");
-        return json(await setDistributionControl(db, staff.userId, await body(request)));
+        const incoming = await body(request);
+        // When the isolated canonical writer lock is enrolled, the original
+        // publishing route must NOT attempt its legacy direct D1 writes.
+        // This path is negative-only and binds the audit actor to the
+        // authenticated staff identity, never a caller-supplied identity.
+        if (env.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1") {
+          if (env.COVE_SSR_STAGING !== "1")
+            throw new ApiError(503, "Production distribution owner cutover is not certified.");
+          const command = z
+            .object({
+              publicationVersionId: z.string().regex(/^[a-zA-Z0-9_-]{3,160}$/),
+              status: z.enum(["blocked", "recalled"]),
+              allowExistingOwners: z.literal(false),
+              reasonCode: z.string().min(1).max(120),
+              reasonDetail: z.string().max(2000),
+              operationId: z.string().regex(/^dist:[a-zA-Z0-9_.:-]{1,80}$/).optional(),
+            })
+            .strict()
+            .parse(incoming);
+          return json(
+            await executeStageCanonicalAdminCommand(env, {
+              ...command,
+              action: "withdraw-distribution",
+              actorUserId: staff.userId,
+              operationId: command.operationId || `dist:${crypto.randomUUID()}`,
+            }),
+          );
+        }
+        return json(await setDistributionControl(db, staff.userId, incoming));
       }
       if (request.method === "POST" && path === "/admin/publishing/delivery-policy") {
         const staff = await requireStaffPermission(db, who, "publishing.rollback");
@@ -4557,8 +4585,14 @@ async function handleCoveRequest(
       // This command is reachable only AFTER requireCommerceAdmin has verified
       // staff authorization. The private writer must independently prove
       // exact isolated D1 identity, lease and durable owner acknowledgement.
-      if (request.method === "POST" && path === "/admin/commerce/legal-owner-command")
-        return json(await executeStageCanonicalAdminCommand(env, await body(request)));
+      if (request.method === "POST" && path === "/admin/commerce/legal-owner-command") {
+        const command = await body(request);
+        // Only the verified publishing.rollback staff route may attribute a
+        // distribution withdrawal. A commerce operator cannot forge its actor.
+        if (command && typeof command === "object" && command.action === "withdraw-distribution")
+          throw new ApiError(403, "Use the authorized publishing distribution-control route.");
+        return json(await executeStageCanonicalAdminCommand(env, command));
+      }
       if (request.method === "POST" && path === "/admin/commerce/rights-party")
         return json(await upsertRightsParty(database(env), await body(request)));
       if (request.method === "POST" && path === "/admin/commerce/territory-set")
