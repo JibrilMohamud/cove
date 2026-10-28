@@ -7,6 +7,7 @@ import {
   percentile,
   productionOrigin,
   safeProbeTelemetry,
+  safeCloudflareRay,
   validateHtml,
 } from "../check-production-storefront-performance.mjs";
 
@@ -102,7 +103,8 @@ async function fetchOne(concurrency) {
     const clientQueueMs = elapsed(span.sentAt, span.createdAt);
     const sentToHeadersMs = elapsed(span.headersAt, span.sentAt);
     const residualMs = workerMs === null ? null : Math.max(0, Math.round(ttfbMs - workerMs));
-    const cfColo = (response.headers.get("cf-ray") || "").match(/-([A-Z]{3})$/)?.[1] || "unknown";
+    const cfRay = safeCloudflareRay(response.headers);
+    const cfColo = cfRay?.split("-")[1] || "unknown";
     return {
       sequence,
       concurrency,
@@ -111,6 +113,7 @@ async function fetchOne(concurrency) {
       ttfbMs,
       totalMs,
       cfColo,
+      cfRay,
       timing: timing.timing,
       workerMs,
       clientQueueMs,
@@ -128,6 +131,7 @@ async function fetchOne(concurrency) {
       ttfbMs: Math.round(performance.now() - begin),
       totalMs: null,
       cfColo: "unknown",
+      cfRay: null,
       timing: null,
       workerMs: null,
       clientQueueMs: elapsed(span.sentAt, span.createdAt),
@@ -292,14 +296,14 @@ const report = [
   ),
   `Edge control protection **${controlsSecure ? "pass" : "FAIL"}** — no authorization bypass; not included in 60 licensed samples.`,
   "",
-  "Slowest five samples (numeric-only edge vs client diagnostics):",
+  "Slowest five samples (validated CF Ray ID, numeric edge vs client diagnostics):",
   ...results
     .filter((r) => !r.error)
     .sort((a, b) => b.ttfbMs - a.ttfbMs)
     .slice(0, 5)
     .map(
       (r) =>
-        `sample ${r.sequence}, in-flight ${r.concurrency}, TTFB ${r.ttfbMs}ms, Worker ${r.workerMs ?? "n/a"}ms, outside Worker ${r.residualMs ?? "n/a"}ms, client queue ${r.clientQueueMs ?? "n/a"}ms, sent-to-headers ${r.sentToHeadersMs ?? "n/a"}ms, colo ${r.cfColo}`,
+        `sample ${r.sequence}, in-flight ${r.concurrency}, TTFB ${r.ttfbMs}ms, Worker ${r.workerMs ?? "n/a"}ms, outside Worker ${r.residualMs ?? "n/a"}ms, client queue ${r.clientQueueMs ?? "n/a"}ms, sent-to-headers ${r.sentToHeadersMs ?? "n/a"}ms, colo ${r.cfColo}, CF Ray ${r.cfRay ?? "n/a"}`,
     ),
 ].join("\n");
 console.log(report);
