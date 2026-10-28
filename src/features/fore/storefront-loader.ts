@@ -18,6 +18,8 @@ function hasCatalogChangingQuery(search: string): boolean {
     "msclkid",
     "__vercel_share",
     "__vercel_protection_bypass",
+    "x-vercel-protection-bypass",
+    "x-vercel-set-bypass-cookie",
   ]);
   for (const rawKey of new URLSearchParams(search).keys()) {
     const key = rawKey.toLowerCase();
