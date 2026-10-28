@@ -96,9 +96,24 @@ Binding the disabled owner does not enable production authorization. A random
 256-bit private `COVE_RIGHTS_OWNER_SECRET` was provisioned on the production
 owner and persistence Workers on October 28, 2026, and both secret-text
 binding names were verified by the Cloudflare settings API. The key itself
-was not returned or logged. Binding presence is not an authenticated runtime
-handshake, and neither operational fencing nor the protected writer migration
-is certified.
+was not returned or logged. Binding presence alone is not an authenticated runtime handshake.
+A separate **disabled-state attestation implementation** now uses the
+backend-token-authenticated persistence path
+`POST /__cove/legal-owner/attest-disabled` to send an unpredictable
+128-bit challenge to the exact privately bound production Durable Object.
+The actual DO and Worker service accept that challenge only with the
+production D1 identity, owner switch `0`, an absent QA lease and the private
+owner secret. The backend rejects wrong nonce, owner state, implementation or
+canonical primary identity. All protected legal, publication and payment
+operations still return 503 in this mode. Unit coverage bundles the real DO
+and proves replay, spoofing, wrong secret, QA-primary and protected-operation
+denial. A real authenticated invocation against the deployed persistence
+Worker is still necessary to certify the *live* handshake, independent
+of the binding metadata audit.
+
+This proves neither production owner-write fencing nor positive publication.
+The 433 protected writer sites still require migration or verified closure
+before any owner-only storefront or customer authorization is enabled.
 
 `check-publication-owner-command.mjs` exercises the actual activation and
 owner handlers against the fully migrated schema. It covers denial before
