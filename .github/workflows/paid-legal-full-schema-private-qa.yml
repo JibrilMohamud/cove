@@ -1,0 +1,100 @@
+name: paid-legal-full-schema-private-qa
+on:
+  pull_request:
+    paths:
+      - "src/storefront-strangler/paid-settlement-stage-qa.worker.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
+      - "src/storefront-strangler/paid-settlement-publication.server.ts"
+      - "src/storefront-strangler/legal-consumer-fence.server.ts"
+      - "src/features/fore/commerce.server.ts"
+      - "src/features/fore/delivery.server.ts"
+      - "scripts/check-customer-media-owner-order.mjs"
+      - "scripts/check-stripe-terminal-order-states.mjs"
+      - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/build-storefront-strangler.mjs"
+      - "wrangler.legal-paid-*.example.jsonc"
+      - ".github/workflows/paid-legal-full-schema-private-qa.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cove-paid-full-schema-private-qa
+  cancel-in-progress: false
+jobs:
+  real-test-payment-to-private-owner:
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'qa/private-paid-owner-full-schema-20261028') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: d26430caa63ec55f6612e32f36aca5e9
+      CLOUDFLARE_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Validate denial-first paid consumer and source rules
+        run: |
+          node scripts/check-paid-entitlement-authority.mjs
+          node scripts/check-paid-order-atomic-publication.mjs
+          node scripts/check-stripe-terminal-order-states.mjs
+          node scripts/check-customer-media-owner-order.mjs
+          node scripts/check-commercial-legal-authority.mjs
+          node scripts/check-staged-paid-settlement.mjs
+          node scripts/check-legal-consumer-fence.mjs
+          node scripts/check-legal-quarantine-writer.mjs
+          node scripts/test-legal-admin-owner-commands.mjs
+      - name: Reject all production routing in private paid owner configs
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          for(const filename of ["wrangler.legal-paid-authority.example.jsonc","wrangler.legal-paid-writer.example.jsonc","wrangler.legal-paid-caller.example.jsonc","wrangler.legal-paid-settlement-stage-qa.example.jsonc"]){
+            const c=JSON.parse(fs.readFileSync(filename,"utf8"));
+            assert.equal(c.workers_dev,false);
+            assert.equal(c.preview_urls,false);
+            assert.deepEqual(c.routes,[]);
+            for(const db of c.d1_databases||[]){
+              assert.notEqual(db.database_id,"4bd657ac-8789-403e-a28c-93aba8d0a989");
+              assert.equal(db.database_id,"7c7ab994-f6b3-419d-a72d-71eb9ea22e7e");
+            }
+          }
+          console.log("PASS: no QA Worker production URL or production customer D1");
+          '
+      - name: Build private QA Durable Object and synthetic settlement probe
+        run: node scripts/build-storefront-strangler.mjs
+      - name: Install sandbox-only official Stripe event forwarder
+        run: |
+          npm install --global @stripe/cli
+          stripe version
+      - name: Real signed Stripe TEST settlement, EPUB/audio/offline and owner revocation
+        env:
+          COVE_SANDBOX_SECRET_KEY: ${{ secrets.COVE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_SANDBOX_SECRET_KEY || secrets.COVE_STRIPE_TEST_SECRET_KEY || secrets.STRIPE_SANDBOX_SECRET_KEY || secrets.STRIPE_TEST_SECRET_KEY }}
+        run: node scripts/staging/prove-private-paid-owner.mjs
+      - name: Independently verify that all per-run QA Worker ingress was removed
+        if: always()
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          const id=process.env.GITHUB_RUN_ID;
+          assert.match(id||"",/^\d{8,15}$/);
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID;
+          const token=process.env.CLOUDFLARE_API_TOKEN;
+          assert.match(account||"",/^[a-f0-9]{32}$/);
+          assert.ok(token);
+          const url="https://api.cloudflare.com/client/v4/accounts/"+account+"/workers/scripts";
+          const reply=await fetch(url,{headers:{authorization:"Bearer "+token},signal:AbortSignal.timeout(20000)});
+          assert.equal(reply.status,200);
+          const result=await reply.json();
+          assert.equal(result.success,true);
+          const expected=["cove-paid-legal-owner-","cove-paid-legal-caller-","cove-paid-legal-writer-","cove-paid-settlement-qa-"].map(prefix=>prefix+id);
+          const remains=(result.result||[]).map(s=>s.id).filter(name=>expected.includes(name));
+          assert.deepEqual(remains,[],"Temporary paid QA worker scripts must all be deleted");
+          console.log("PASS: full paid-owner acceptance cleaned all four ephemeral QA Workers");
+          '
