@@ -67,6 +67,9 @@ export async function rejectUnauthenticatedStagingRequest(
         "/api/fore/checkout/quote",
         "/api/fore/checkout/payment",
         "/api/fore/delivery/epub/grant",
+        "/api/fore/account/device/register",
+        "/api/fore/account/device/revoke",
+        "/api/fore/offline-epub/license",
         "/api/fore/stripe/webhook",
         "/api/fore/admin/commerce/refund",
       ]).has(uri.pathname);
