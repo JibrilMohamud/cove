@@ -218,6 +218,36 @@ try {
     };
     await assert.rejects(stripeWebhook(env, request(mismatch)), /does not match/);
   }
+  // Stripe may deliver distinct, correctly signed PaymentIntent lifecycle
+  // events out of order. An old authorization must not reopen a canceled,
+  // failed, refunded, paid or disputed canonical order.
+  for (const [existing, expected] of [
+    ["pending_payment", "authorized"],
+    ["canceled", "canceled"],
+    ["payment_failed", "payment_failed"],
+    ["paid", "paid"],
+    ["refunded", "refunded"],
+    ["disputed", "disputed"],
+  ]) {
+    await original("UPDATE commerce_orders SET status=? WHERE id='ord-proof'")
+      .bind(existing)
+      .run();
+    await stripeWebhook(
+      env,
+      request({
+        id: "evt_authorization_after_" + existing,
+        type: "payment_intent.amount_capturable_updated",
+        livemode: false,
+        data: { object: { id: "pi_expected", metadata: { fore_order_id: "ord-proof" } } },
+      }),
+    );
+    assert.equal(
+      (await original("SELECT status FROM commerce_orders WHERE id='ord-proof'").first()).status,
+      expected,
+      "A late signed authorization cannot resurrect an order in state " + existing,
+    );
+  }
+  await original("UPDATE commerce_orders SET status='pending_payment' WHERE id='ord-proof'").run();
   await ingestStripeRiskSignal(
     env.DB,
     "ord-proof",
@@ -249,6 +279,26 @@ try {
     const invoice = await invoiceHtml(env.DB, "qa", "ord-proof");
     assert.ok(invoice.includes(expected), `${currency}: invoice renders ISO minor units`);
   }
+  // Refund.created may arrive after refund.updated(succeeded). Preserve the
+  // already settled/refunded state instead of presenting a completed
+  // revocation as a pending refund again.
+  await original(
+    "INSERT INTO commerce_refunds(id,order_id,provider_refund_id,amount_minor,currency,reason,status,idempotency_key,created_at,updated_at,succeeded_at) VALUES('rfd_terminal','ord-proof','re_terminal',500,'JPY','qa','succeeded','refund-terminal-qa',?,?,?)",
+  ).bind(timestamp, timestamp, timestamp).run();
+  await stripeWebhook(
+    env,
+    request({
+      id: "evt_refund_created_after_succeeded",
+      type: "refund.created",
+      livemode: false,
+      data: { object: { id: "re_terminal", status: "pending" } },
+    }),
+  );
+  assert.equal(
+    (await original("SELECT status FROM commerce_refunds WHERE id='rfd_terminal'").first()).status,
+    "succeeded",
+    "A late refund.created cannot downgrade an already succeeded refund",
+  );
   await assert.rejects(invoiceHtml(env.DB, "another-user", "ord-proof"), /not found/);
   console.log(
     "PASS: signed webhook mode/signature/replay gates, retry after transient failure, concurrent/expired leases and restricted API-key mode checks.",
