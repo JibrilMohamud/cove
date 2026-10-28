@@ -1360,12 +1360,18 @@ export async function finalizePaidOrder(
   const db = env.DB,
     order = await db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(orderId).first<any>();
   if (!order) throw new ApiError(404, "Order not found.");
-  if (["paid", "partially_refunded", "refunded"].includes(order.status)) return order;
+  if (["paid", "partially_refunded", "refunded"].includes(order.status)) {
+    if (order.status === "paid")
+      await certifyStagePaidSettlement(env, String(order.id), String(order.user_id));
+    return order;
+  }
   // A valid, signed and correctly linked success event can arrive after
   // cancellation, dispute or other terminal revocation. Never issue paid
   // entitlements, consume tender or accrue royalties for those orders.
   if (!["pending_payment", "processing", "authorized", "payment_failed"].includes(order.status))
     throw new ApiError(409, "Terminal or invalid order cannot be settled.");
+  // No late Stripe success can resurrect a buyer refunded in the owner.
+  await assertStagePaidOrderNotWithdrawn(env, String(order.id));
   const at = now();
   await consumeTender(db, order);
   await db
