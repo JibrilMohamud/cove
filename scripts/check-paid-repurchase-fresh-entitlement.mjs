@@ -29,6 +29,11 @@ try {
     source.includes("ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active'"),
     "Original signed payment writer must target the current-active partial uniqueness index",
   );
+  const librarySource=readFileSync("src/features/fore/api.server.ts","utf8");
+  assert.ok(
+    librarySource.includes("ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active'"),
+    "A legitimate public-domain library acquisition must match the new partial index",
+  );
   const grant=(id,item)=>db.prepare(upsertSql).run(id,"qa-buyer","book-42",item,"2026-10-28","2026-10-28");
   const rows=()=>db.prepare("SELECT id,status,order_item_id FROM entitlements WHERE user_id='qa-buyer' ORDER BY granted_at,id").all().map(row=>({...row}));
   grant("purchase-1","order-item-1");
@@ -58,5 +63,18 @@ try {
   }finally{db.exec("ROLLBACK");}
   assert.equal(rows().find(x=>x.id==="purchase-2")?.status,"active",
     "Failed replay cannot partially revoke an unrelated active purchase");
+  const freePurchase=(id)=>db.prepare(
+    "INSERT INTO entitlements(id,user_id,product_id,entitlement_type,status,source,granted_at,updated_at) VALUES(?,?,?,'public-domain','active','gutenberg',?,?) ON CONFLICT(user_id,product_id,entitlement_type) WHERE status='active' DO UPDATE SET status='active',updated_at=excluded.updated_at"
+  ).run(id,"qa-buyer","gutenberg-free","2026-10-28","2026-10-28");
+  freePurchase("free-1");
+  db.prepare("UPDATE entitlements SET status='revoked' WHERE id='free-1'").run();
+  freePurchase("free-2");
+  const free=db.prepare(
+    "SELECT id,status FROM entitlements WHERE product_id='gutenberg-free' ORDER BY id"
+  ).all().map(x=>({...x}));
+  assert.deepEqual(free,[
+    {id:"free-1",status:"revoked"},
+    {id:"free-2",status:"active"},
+  ],"Public-domain acquisition must use the same partial index and never revive an earlier withdrawn record");
   console.log("PASS: exact D1 paid repurchase index and signed writer allow fresh order-linked entitlement, preserve terminal history, deny stale revival and duplicate order attribution");
 }finally{db.close();}
