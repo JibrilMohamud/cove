@@ -3,13 +3,17 @@ on:
   pull_request:
     paths:
       - "drizzle/0085_canonical_terminal_rights_resurrection_guard.sql"
+      - "drizzle/0086_rights_contract_version_terminal_guard.sql"
       - "scripts/check-terminal-rights-resurrection.mjs"
+      - "scripts/check-rights-contract-version-no-revival.mjs"
       - ".github/workflows/canonical-terminal-rights.yml"
   push:
     branches: [main]
     paths:
       - "drizzle/0085_canonical_terminal_rights_resurrection_guard.sql"
+      - "drizzle/0086_rights_contract_version_terminal_guard.sql"
       - "scripts/check-terminal-rights-resurrection.mjs"
+      - "scripts/check-rights-contract-version-no-revival.mjs"
       - ".github/workflows/canonical-terminal-rights.yml"
   workflow_dispatch:
 permissions:
@@ -26,6 +30,8 @@ jobs:
         with:
           node-version: "22"
       - name: Exercise exact production trigger SQL with terminal and upsert replays
-        run: node scripts/check-terminal-rights-resurrection.mjs
+        run: |
+          node scripts/check-terminal-rights-resurrection.mjs
+          node scripts/check-rights-contract-version-no-revival.mjs
       - name: Reject newly introduced unaudited canonical writers
         run: node scripts/check-canonical-writer-closure.mjs --no-new-writers
