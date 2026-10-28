@@ -65,9 +65,61 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Disable workers.dev on the vulnerable static-assets backend.
+          # Only the assets-less gateway can invoke it via service binding.
+          cp wrangler.frontend.staging.toml wrangler.frontend.private.test.toml
+          sed -i 's/^name = "cove-storefront-ssr-staging"$/name = "cove-asset-auth-stage"/' wrangler.frontend.private.test.toml
+          sed -i 's/^workers_dev = true$/workers_dev = false/' wrangler.frontend.private.test.toml
+          grep -q '^workers_dev = false
+          # The assets-bound staging Worker is NOT a safe public ingress.
+          # Deploy a separate asset-less Worker with a service binding to stage.
+          # This gateway validates the *same* fresh bearer before ANY route.
           npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy \
-            --config wrangler.frontend.staging.toml \
-            --name cove-asset-auth-stage
+            --config wrangler.staging-auth-gateway.test.toml
+          COVE_GATE_TEST_BEARER="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))')"
+          echo "::add-mask::$COVE_GATE_TEST_BEARER"
+          echo "COVE_GATE_TEST_BEARER=$COVE_GATE_TEST_BEARER" >> "$GITHUB_ENV"
+          printf '%s' "$COVE_GATE_TEST_BEARER" | \
+            npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put \
+            COVE_SSR_STAGING_GATE_KEY --config wrangler.frontend.private.test.toml
+          printf '%s' "$COVE_GATE_TEST_BEARER" | \
+            npm exec --yes --package=wrangler@4.151.0 -- wrangler secret put \
+            COVE_SSR_STAGING_GATE_KEY --config wrangler.staging-auth-gateway.test.toml
+          # Control-plane propagation delay, NO HTTP warming.
+          sleep 25
+      - name: Prove SSR auth gate precedes real assets and account/mutation routes
+        run: node scripts/check-covereads-canary-deny.mjs
+      - name: Prove internal static-assets Worker has no public workers.dev route
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' \
+            https://cove-asset-auth-stage.cove-jibrilmohamud.workers.dev/manifest.webmanifest || true)"
+          if [ "$code" = "200" ]; then
+            echo "::error::Unprotected internal asset Worker still serves the manifest directly"
+            exit 1
+          fi
+          echo "PASS: protected asset backend has no public workers.dev manifest route (HTTP $code)"
+      - name: Delete ONLY the ephemeral test Worker
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          failures=0
+          for name in cove-asset-auth-gateway cove-asset-auth-stage; do
+            response="$(curl -sS --max-time 25 -w '\n%{http_code}' -X DELETE \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$name?force=true")"
+            code="$(printf '%s' "$response" | tail -n 1)"
+            if [ "$code" != "200" ] && [ "$code" != "404" ]; then
+              echo "::error::Ephemeral Worker cleanup failed for $name"
+              failures=1
+            fi
+          done
+          exit "$failures"
+ wrangler.frontend.private.test.toml
+          npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy \
+            --config wrangler.frontend.private.test.toml
           # The assets-bound staging Worker is NOT a safe public ingress.
           # Deploy a separate asset-less Worker with a service binding to stage.
           # This gateway validates the *same* fresh bearer before ANY route.
