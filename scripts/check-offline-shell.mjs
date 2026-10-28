@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
+assert.ok(
+  fs.readFileSync("src/offline-entry.tsx", "utf8").includes('href="/?_cove_reconnect=1"'),
+  "Offline reconnect link must opt out of cached offline fallback",
+);
 const handlers = {},
   storage = new Map();
 function cache(name) {
@@ -24,7 +28,8 @@ function cache(name) {
   };
 }
 let online = true,
-  missing = false;
+  missing = false,
+  serverUnavailable = false;
 const context = {
   self: {
     location: { origin: "https://cove.test" },
@@ -37,7 +42,7 @@ const context = {
     delete: async (name) => storage.delete(name),
   },
   fetch: async (request) => {
-    if (!online) throw Error("offline");
+    if (!online || serverUnavailable) throw Error("network_unavailable");
     const path = typeof request === "string" ? request : new URL(request.url).pathname;
     if (path === "/offline-manifest.json")
       return Response.json({
@@ -63,10 +68,10 @@ storage.set("cove-shell-v1", new Map([["https://cove.test/library", new Response
 handlers.activate({ waitUntil: (p) => (activated = p) });
 await activated;
 assert.ok(!storage.has("cove-shell-v1"));
-async function navigate() {
+async function navigate(url = "https://cove.test/library?auth=secret") {
   let result;
   handlers.fetch({
-    request: { method: "GET", mode: "navigate", url: "https://cove.test/library?auth=secret" },
+    request: { method: "GET", mode: "navigate", url },
     respondWith: (p) => (result = p),
   });
   return result;
@@ -79,6 +84,27 @@ for (const entries of storage.values())
   );
 online = false;
 assert.equal(await (await navigate()).text(), "PUBLIC OFFLINE READER");
+// Explicit reconnection bypasses the cached offline shell and returns a
+// distinct, uncacheable server error when the browser has no network.
+const reconnect = "https://cove.test/?_cove_reconnect=1";
+const disconnected = await navigate(reconnect);
+assert.equal(disconnected.status, 503);
+assert.match(await disconnected.text(), /Online Cove is unavailable/);
+assert.equal(disconnected.headers.get("cache-control"), "no-store");
+online = true;
+// navigator.onLine may be true while Vercel/backend requests fail.
+serverUnavailable = true;
+assert.equal(await (await navigate()).text(), "PUBLIC OFFLINE READER");
+const backendDown = await navigate(reconnect);
+assert.equal(backendDown.status, 503);
+assert.match(await backendDown.text(), /Return to saved books/);
+serverUnavailable = false;
+assert.equal(await (await navigate(reconnect)).text(), "PRIVATE ACCOUNT HTML");
+for (const entries of storage.values())
+  assert.ok(
+    ![...entries.keys()].some((k) => k.includes("_cove_reconnect")),
+    "reconnect attempts never cache personalized HTML",
+  );
 online = true;
 missing = true;
 handlers.install({ waitUntil: (p) => (installed = p) });
@@ -88,6 +114,6 @@ assert.ok(
   "partial install is not reported ready",
 );
 console.log(
-  "PASS: complete offline installation, partial-install rejection, legacy-private-cache removal, no document persistence and safe offline navigation.",
+  "PASS: complete offline installation, partial-install rejection, legacy-private-cache removal, no document persistence and safe offline navigation, explicit network-only reconnect and preserved saved books.",
 );
 await import("./check-browser-preparation.mjs");
