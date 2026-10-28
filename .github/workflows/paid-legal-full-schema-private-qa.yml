@@ -21,6 +21,7 @@ on:
       - "scripts/check-customer-media-owner-order.mjs"
       - "scripts/check-stripe-terminal-order-states.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/check-paid-stage-initial-identity.mjs"
       - "scripts/build-storefront-strangler.mjs"
       - "wrangler.legal-paid-*.example.jsonc"
       - ".github/workflows/paid-legal-full-schema-private-qa.yml"
@@ -48,6 +49,7 @@ on:
       - "drizzle/0088_paid_repurchase_fresh_entitlement.sql"
       - "scripts/check-customer-media-owner-order.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
+      - "scripts/check-paid-stage-initial-identity.mjs"
       - ".github/workflows/paid-legal-full-schema-private-qa.yml"
   workflow_dispatch:
 permissions:
@@ -56,6 +58,20 @@ concurrency:
   group: cove-paid-full-schema-private-qa
   cancel-in-progress: false
 jobs:
+  # Nonsecret proof runs on every relevant PR, even when the full deployed
+  # paid certification is restricted to reviewed main and protected QA.
+  qa-initial-identity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/check-paid-stage-initial-identity.mjs
   real-test-payment-to-private-owner:
     if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'qa/private-paid-owner-independent-20261028') || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
@@ -83,6 +99,7 @@ jobs:
           node scripts/check-customer-media-owner-order.mjs
           node scripts/check-commercial-legal-authority.mjs
           node scripts/check-staged-paid-settlement.mjs
+          node scripts/check-paid-stage-initial-identity.mjs
           node scripts/check-legal-consumer-fence.mjs
           node scripts/check-legal-quarantine-writer.mjs
           node scripts/test-legal-admin-owner-commands.mjs
