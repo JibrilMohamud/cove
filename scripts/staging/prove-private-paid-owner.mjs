@@ -1076,7 +1076,7 @@ try {
       userId:initialBuyer,deviceKey:qaDeviceKey,edition:expectedAudioEdition
     }
   )).userId,initialBuyer);
-  console.log("PASS: owner refund definitively denies authorization, original EPUB/audio/grants/old bearers and online license verification fail closed (4xx or 503) with no bytes; disconnected seven-day receipts remain signed until expiry");
+  console.log("PASS: owner refund definitively denies authorization, original EPUB/audio/grants/old bearers and online license verification fail closed (4xx or 503) with no bytes; disconnected format-specific signed receipts remain valid only until their existing expiry");
   assert.equal((await postSettlement("/certify-initial",
     initialOrder,initialBuyer)).status!==200,true,
     "Any previous signed successful-payment event may not resurrect refunded access");
