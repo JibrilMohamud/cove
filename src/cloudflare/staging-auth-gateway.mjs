@@ -33,8 +33,7 @@ export default {
     const hostname = new URL(request.url).hostname;
     if (
       !env.COVE_STAGING_INGRESS_HOST ||
-      (hostname !== env.COVE_STAGING_INGRESS_HOST &&
-        hostname !== env.COVE_STAGING_CANARY_HOST)
+      (hostname !== env.COVE_STAGING_INGRESS_HOST && hostname !== env.COVE_STAGING_CANARY_HOST)
     )
       return denied(404, "Not found");
     if (!/^[a-f0-9]{64}$/.test(env.COVE_SSR_STAGING_GATE_KEY || ""))
