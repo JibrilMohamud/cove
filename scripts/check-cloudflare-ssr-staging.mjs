@@ -70,6 +70,13 @@ function numericWorkerTiming(headers) {
     .find(Boolean);
   return matched ? Number(matched[1]) : null;
 }
+function numericGatewayTiming(headers) {
+  const parts = (headers.get("server-timing") || "").split(",");
+  const matched = parts
+    .map((item) => item.trim().match(/^cove_gateway;dur=(\d+(?:\.\d+)?)$/))
+    .find(Boolean);
+  return matched ? Number(matched[1]) : null;
+}
 
 function safeCloudflareColo(headers) {
   // Only the final three-letter colo identifier is retained, not the CF-Ray ID.
@@ -232,6 +239,7 @@ async function probe(language, sample, sequence) {
   if (!/cove_backend_lean;dur=0(?:\.0)?(?:,|$)/.test(response.headers.get("server-timing") || ""))
     throw new Error("Native first-paint did not use the rights-authoritative lean guest path.");
   const workerMs = numericWorkerTiming(response.headers);
+  const gatewayMs = numericGatewayTiming(response.headers);
   return {
     language,
     sample,
@@ -239,6 +247,13 @@ async function probe(language, sample, sequence) {
     cards,
     ...safeProbeTelemetry(response.headers, ttfbMs, totalMs),
     workerMs,
+    gatewayMs,
+    gatewayMinusSsrMs:
+      gatewayMs === null || workerMs === null
+        ? null
+        : Math.max(0, Math.round(gatewayMs - workerMs)),
+    outsideGatewayMs:
+      gatewayMs === null ? null : Math.max(0, Math.round(ttfbMs - gatewayMs)),
     unattributedMs: workerMs === null ? null : Math.max(0, Math.round(ttfbMs - workerMs)),
     cfColo: safeCloudflareColo(response.headers),
     clientQueueMs: integerDelta(span.sentAt, span.createdAt),
@@ -305,12 +320,13 @@ const table = [
   "Residual = client TTFB - timed Worker duration; not necessarily a cold-start diagnosis.",
   "Undici connect covers any new DNS/TCP/TLS setup and may be n/a for reused sockets.",
   "Undici client-to-headers includes network and remote processing; phases are diagnostic only.",
+  "Gateway includes service-binding/SSR header wait; outside-gateway is client TTFB minus gateway duration, not a provider blame statement.",
   "",
-  "| Sequence | Locale | Sample | TTFB | Worker | Residual | Client queue | New connect | Sent-to-headers | CF colo | SSR cards |",
-  "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |",
+  "| Sequence | Locale | Sample | TTFB | SSR Worker | Gateway inclusive | Gate minus SSR | Outside gateway | Client queue | New connect | Sent-to-headers | CF colo | SSR cards |",
+  "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |",
   ...results.map(
     (r) =>
-      `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.workerMs ?? "n/a"} ms | ${r.unattributedMs ?? "n/a"} ms | ${r.clientQueueMs ?? "n/a"} ms | ${r.clientConnectMs ?? "n/a"} ms | ${r.clientToHeadersMs ?? "n/a"} ms | ${r.cfColo} | ${r.cards} |`,
+      `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.workerMs ?? "n/a"} ms | ${r.gatewayMs ?? "n/a"} ms | ${r.gatewayMinusSsrMs ?? "n/a"} ms | ${r.outsideGatewayMs ?? "n/a"} ms | ${r.clientQueueMs ?? "n/a"} ms | ${r.clientConnectMs ?? "n/a"} ms | ${r.clientToHeadersMs ?? "n/a"} ms | ${r.cfColo} | ${r.cards} |`,
   ),
   "",
   `Result **${summary.status}** — p75 ${summary.p75 ?? "n/a"} ms, p95 ${summary.p95 ?? "n/a"} ms; ${summary.slowSamples} >=800 ms; ${summary.errors} failures.`,
