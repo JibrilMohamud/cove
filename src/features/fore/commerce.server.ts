@@ -1340,6 +1340,11 @@ export async function finalizePaidOrder(
     order = await db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(orderId).first<any>();
   if (!order) throw new ApiError(404, "Order not found.");
   if (["paid", "partially_refunded", "refunded"].includes(order.status)) return order;
+  // A valid, signed and correctly linked success event can arrive after
+  // cancellation, dispute or other terminal revocation. Never issue paid
+  // entitlements, consume tender or accrue royalties for those orders.
+  if (!["pending_payment", "processing", "authorized", "payment_failed"].includes(order.status))
+    throw new ApiError(409, "Terminal or invalid order cannot be settled.");
   const at = now();
   await consumeTender(db, order);
   await db
@@ -2338,6 +2343,11 @@ async function processStripeEvent(env: CoveEnv, event: any) {
     type = String(event.type || "");
   if (type === "payment_intent.succeeded") {
     const o = await orderFromPI(db, obj);
+    // Never acknowledge a Cove-tagged captured payment as processed when its
+    // canonical order has not become readable. Stripe can retry this event;
+    // a 2xx would permanently lose the buyer's fulfillment trigger.
+    if (!o && obj?.metadata?.fore_order_id)
+      throw new ApiError(409, "Cove payment order not yet available. Retry delivery.");
     if (o) {
       if (
         obj.id !== o.stripe_payment_intent_id ||
