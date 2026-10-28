@@ -21,6 +21,8 @@ assert.match(offer,/g.status='active' AND g.decision='allow'/);
 assert.match(offer,/g.sales_channel='retail'/);
 assert.match(offer,/g.id IN \(\?\)/,"Frozen grant ID must be bound in offer SQL");
 assert.match(offer,/g.contract_version_id=\?/);
+assert.match(offer,/rcv.status='active'/);
+assert.match(offer,/rcv.effective_to IS NULL OR rcv.effective_to>\?/);
 assert.match(source,/if \(!activatingIds.length\)/,"Missing grant manifest must deny activation");
 assert.match(offer,/g.contract_id IS NULL OR rc.status='active'/);
 assert.match(source,/if \(Number\(offer\?\.active \|\| 0\)\s*!==\s*1\)/,
@@ -32,6 +34,10 @@ try{
     CREATE TABLE rights_contracts(id TEXT PRIMARY KEY,status TEXT,updated_at TEXT);
     CREATE TABLE rights_grants(id TEXT PRIMARY KEY,status TEXT,edition_id TEXT,
       decision TEXT,sales_channel TEXT,contract_id TEXT,contract_version_id TEXT,updated_at TEXT);
+    CREATE TABLE rights_contract_versions(id TEXT PRIMARY KEY,contract_id TEXT,
+      status TEXT,effective_from TEXT,effective_to TEXT);
+    INSERT INTO rights_contract_versions VALUES('version_one','contract_one','active',
+      '2026-01-01T00:00:00.000Z',NULL);
     CREATE TABLE finance_royalty_contracts(id TEXT PRIMARY KEY,status TEXT,updated_at TEXT);
     CREATE TABLE products(id TEXT PRIMARY KEY,edition_id TEXT);
     CREATE TABLE offers(id TEXT PRIMARY KEY,product_id TEXT,active INTEGER,updated_at TEXT);
@@ -60,7 +66,7 @@ try{
     assert.equal(value(table),"active");
   }
   const offerRun=(grant="grant_one",contract="contract_one",version="version_one")=>
-    db.prepare(offer).run(at,"offer_one",grant,contract,contract,version,version).changes;
+    db.prepare(offer).run(at,"offer_one",grant,contract,contract,version,version,at,at).changes;
   const resetOffer=()=>db.prepare("UPDATE offers SET active=0 WHERE id='offer_one'").run();
   assert.equal(offerRun(),1,"Fresh active retail grant may activate");
   resetOffer();
@@ -80,6 +86,10 @@ try{
     "Offer must reject mismatching frozen contract identity");
   assert.equal(offerRun("grant_other","contract_one","wrong_version"),0,
     "Offer must reject mismatching frozen contract version");
+  db.prepare("UPDATE rights_contract_versions SET status='suspended'").run();
+  assert.equal(offerRun("grant_other"),0,"Suspended contract version must not reactivate price");
+  db.prepare("UPDATE rights_contract_versions SET status='active',effective_to='2026-10-01T00:00:00.000Z'").run();
+  assert.equal(offerRun("grant_other"),0,"Expired contract version must not reactivate price");
   assert.equal(db.prepare("SELECT active FROM offers").get().active,0);
   console.log("PASS: scheduled activation cannot revive suspended/revoked legal authority or expose retail offers without active matching grants");
 }finally{db.close();}
