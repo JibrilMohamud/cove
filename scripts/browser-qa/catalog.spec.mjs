@@ -178,3 +178,28 @@ test("cold first Bookstore page shows verified books before slow facet search, e
   await expect(book).toBeVisible();
   await expect(page.getByText("Books available to read")).toBeVisible();
 });
+
+
+test("anonymous /store does not wait for a stalled first-page bootstrap", async ({ page, request }) => {
+  test.setTimeout(30_000);
+  expect((await request.post("/__qa/seed?progress=1")).ok()).toBe(true);
+  let bootstrapRequests = 0;
+  let catalogRequests = 0;
+  await page.route("**/api/fore/storefront/bootstrap", async (route) => {
+    bootstrapRequests++;
+    await new Promise((resolve) => setTimeout(resolve, 6_000));
+    await route.abort("failed");
+  });
+  await page.route("**/api/fore/catalog?**", (route) => {
+    catalogRequests++;
+    return route.continue();
+  });
+  // This route has no homepage SSR shelf. Its live, rights-scoped catalog
+  // must be allowed to start within 800ms of the optional bootstrap stalling.
+  await page.goto("/store?sort=popular");
+  await expect.poll(() => bootstrapRequests, { timeout: 4_000 }).toBeGreaterThanOrEqual(1);
+  await expect.poll(() => catalogRequests, { timeout: 4_000 }).toBeGreaterThanOrEqual(1);
+  await expect(page.locator(".book-grid:not(.merch-grid) .book-card").first()).toBeVisible({
+    timeout: 5_000,
+  });
+});
