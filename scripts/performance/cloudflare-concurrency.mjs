@@ -24,10 +24,10 @@ assert.equal(total, 60, "Keep the concurrency probe below the per-colo read cap"
 const origin = productionOrigin(process.env.COVE_SSR_STAGING_ORIGIN);
 const token = process.env.COVE_SSR_STAGING_GATE_KEY;
 assert.match(token || "", /^[a-f0-9]{64}$/, "Only protected staging may be load-tested");
-assert.ok(
-  origin === "https://ssr-canary.covereads.com" ||
-    origin === "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev",
-  "Only the bearer-protected Cove staging Worker on the owned canary or its original workers.dev hostname may be load-tested",
+assert.equal(
+  origin,
+  "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev",
+  "Only the original bearer-protected stage may be load tested until owned-domain static asset protection is certified",
 );
 const thresholds = { maxTtfbMs: 800, p95TtfbMs: 650 };
 
