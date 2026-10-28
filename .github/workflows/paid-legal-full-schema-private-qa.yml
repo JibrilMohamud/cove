@@ -77,6 +77,8 @@ jobs:
         run: |
           node scripts/check-paid-entitlement-authority.mjs
           node scripts/check-paid-order-atomic-publication.mjs
+          node scripts/check-paid-owner-worker-handlers.mjs
+          node scripts/check-offline-epub-issuer-expiry.mjs
           node scripts/check-stripe-terminal-order-states.mjs
           node scripts/check-customer-media-owner-order.mjs
           node scripts/check-commercial-legal-authority.mjs

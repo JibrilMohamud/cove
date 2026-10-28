@@ -4,25 +4,38 @@ Status: **DO NOT ROUTE CUSTOMERS TO CLOUDFLARE YET.** This is a release gate,
 not an approved cutover. Update this checklist with verifiable evidence before
 the owner promotes the Cloudflare frontend.
 
-## Verified infrastructure (October 18, 2026 UTC)
+## Verified state (October 28, 2026)
 
-- Connected Cloudflare account `d26430caa63ec55f6612e32f36aca5e9`
-  has **0 DNS zones** and **0 Worker custom domains**.
-- Vercel project `cove` (`prj_bq7hKQw8JKWE6vpfdOgwowa8cjjM`) exposes
-  exactly one verified project domain:
-  `cove-puce-theta.vercel.app`. This is a Vercel-owned platform hostname,
-  **not** a transferable/Cloudflare-managed domain.
-- The only audited native SSR stage service,
-  `cove-storefront-ssr-staging`, has native `DB`, `BUCKET`,
-  `ASSETS` and `COVE_STOREFRONT_READ_LIMITER` bindings plus staging
-  flags. The only bound secret is `COVE_SSR_STAGING_GATE_KEY`.
-  **Supabase auth and Stripe checkout/webhook bindings are absent.**
-- D1 production database reports `read_replication.mode=auto`. Stage SSR
-  uses primary-anchored Sessions API for configuration, while rights
-  eligibility remains direct primary D1.
-- Existing protected staging HTML tests cover anonymous, rights-checked
-  storefront SSR. They do **not** establish signed-in sessions, orders,
-  entitlements or installed-reader portability on a new origin.
+- Audited source `main` is `e463c0e7903ff0b784901962d778b2dda2243b36`.
+  Account `d26430caa63ec55f6612e32f36aca5e9` owns the active
+  `covereads.com` zone `07e218b2e74bc522122e0994b8e37576`.
+  `www.covereads.com` remains on Vercel; hostname ownership is no longer
+  the missing prerequisite. Preserve the Vercel rollback deployment.
+- Cloudflare API inspection confirms `cove-legal-authority-production`
+  exists with its own Durable Object namespace, production `PRIMARY_DB`
+  `4bd657ac-8789-403e-a28c-93aba8d0a989`, and
+  `COVE_RIGHTS_OWNER_ENABLED=0`. It has no operational production lease,
+  authentication secret, or completed production command implementation.
+- `cove-persistence-backend` uses the same production D1 and private media
+  R2. Its deployed bindings contain **no `LEGAL_AUTHORITY` and no Stripe
+  credentials**. Do not enable the isolated-QA write lock in production.
+- The separate `cove-commerce-customer-qa-stage` has synthetic D1,
+  Supabase and Stripe TEST binding names. This is not certification of
+  production identities, secret values, ownership, or the complete journey.
+- The [exact writer-site review](../architecture/canonical-writer-review.json)
+  classifies all 458 existing candidates across 25 files: **433 require
+  owner-command migration, 24 are non-authorizing writes, and one is an
+  isolated browser-test fixture**. None is certified as production
+  owner-guarded. These are migration candidates, not 433 confirmed defects.
+  The independent release gate still blocks all 458 until ownership and
+  deployed/external writer closure are separately proved.
+- [Native SSR run 40701901773](https://github.com/JibrilMohamud/cove/actions/runs/40701901773)
+  tested this exact main commit. Its three independent first SSR requests
+  took **1203, 1421 and 893 ms**. All exceed the hard 800 ms threshold.
+  Concurrency maxima were **1061 ms at 4**, **1500 ms at 8**, and
+  **1179 ms at 16**. No full 32-concurrent or two-phase 12,000-request
+  production-equivalent pass is established by that campaign. Favorable
+  warm samples and zero HTTP errors do not redeem these failures.
 
 ## Owner-selected Workers.dev staging destination
 
@@ -43,8 +56,8 @@ continues to serve existing customers and is preserved for rollback.
 
 ## Infrastructure prerequisites
 
-1. Owner supplies a registered custom hostname/domain under their control.
-   Verify authoritative Cloudflare DNS zone ownership and active delegation.
+1. Reverify the registered `covereads.com` zone and active delegation before
+   releasing the exact candidate to the approved public hostname.
    Do not buy a domain, transfer DNS or claim a hostname without owner-approved
    details. A `*.workers.dev` or `*.vercel.app` hostname is not a
    verified Cove-owned production domain.

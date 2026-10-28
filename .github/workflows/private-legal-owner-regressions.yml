@@ -66,6 +66,7 @@ jobs:
           node scripts/check-commercial-storefront-owner.mjs
           node scripts/check-paid-entitlement-authority.mjs
           node scripts/check-paid-order-atomic-publication.mjs
+          node scripts/check-paid-owner-worker-handlers.mjs
           node scripts/check-market-authority-closure.mjs
           node scripts/check-legal-quarantine-writer.mjs
           node scripts/test-legal-admin-owner-commands.mjs
