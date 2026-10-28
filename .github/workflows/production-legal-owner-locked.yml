@@ -6,6 +6,8 @@ on:
       - "src/storefront-strangler/legal-authority.worker.ts"
       - "src/storefront-strangler/production-disabled-owner-attestation.ts"
       - "scripts/check-production-disabled-owner-attestation.mjs"
+      - "src/storefront-strangler/backend-owner-attestation-entrypoint.ts"
+      - "scripts/prove-production-owner-handshake.mjs"
       - "scripts/check-locked-production-legal-owner.mjs"
       - ".github/workflows/production-legal-owner-locked.yml"
   push:

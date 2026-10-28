@@ -12,6 +12,7 @@ on:
       - "scripts/check-catalog-ingestion-backpressure.mjs"
       - "src/features/fore/**"
       - "src/lib/persistence-backend.ts"
+      - "src/storefront-strangler/backend-owner-attestation-entrypoint.ts"
       # src/server.ts is the Vercel frontend gateway, not persistence code.
       # Frontend-only releases must not auto-run production D1 migrations.
       - "scripts/build-persistence-backend.mjs"
@@ -215,6 +216,20 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
         run: node scripts/check-production-owner-binding.mjs --after-deploy
+
+      - name: Prove live production backend credential and disabled owner handshake
+        if: ${{ steps.deploy_auth.outputs.enabled == 'true' && (inputs.worker_name == '' || inputs.worker_name == 'cove-persistence-backend') && (inputs.d1_database_id == '' || inputs.d1_database_id == '4bd657ac-8789-403e-a28c-93aba8d0a989') }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: "d26430caa63ec55f6612e32f36aca5e9"
+        run: node scripts/prove-production-owner-handshake.mjs
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: production-owner-handshake-${{ github.run_id }}
+          path: artifacts/production-owner-handshake/
+          if-no-files-found: ignore
 
       - name: Deployment summary
         if: ${{ steps.deploy_auth.outputs.enabled == 'true' }}

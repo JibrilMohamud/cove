@@ -1,4 +1,5 @@
 import { seedMusicProfiles } from "./features/fore/music-profiles.server";
+export { BackendOwnerAttestation } from "./storefront-strangler/backend-owner-attestation-entrypoint";
 import { scopePublicationOwnerEnv } from "./storefront-strangler/publication-owner-routing.server";
 import {
   attestDisabledOwnerFromBackend,
