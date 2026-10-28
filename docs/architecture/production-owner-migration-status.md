@@ -101,9 +101,17 @@ Any positive reinstatement requires a separate, newly verified legal proof
 and is not implemented by this command.
 
 This is executable, QA-gated owner-first migration code and adversarial test
-coverage, **not** a completed production writer migration. The original
-`setDistributionControl` production route still contains its three legacy
-protected SQL sites. All 433 reviewed production writer candidates remain
+coverage, **not** a completed production writer migration. The existing
+`/admin/publishing/distribution-control` route now uses this command whenever
+the isolated canonical writer lock is enrolled: it demands the
+`publishing.rollback` staff permission, derives the audit actor from the
+verified session, accepts only negative block/recall commands, and refuses
+any direct legacy-D1 fallback when the lock is active. The generic commerce
+legal-owner command endpoint rejects the new distribution action to prevent
+staff-identity substitution by a lower-privilege caller.
+
+Outside opt-in isolated QA, `setDistributionControl` still contains its three
+legacy protected SQL sites. All 433 reviewed production writer candidates remain
 unclosed, and the owner-only release gate must remain blocked. The existing
 administrative QA command is not a public production traffic path.
 
