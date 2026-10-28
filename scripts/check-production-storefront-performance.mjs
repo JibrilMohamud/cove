@@ -61,6 +61,14 @@ export function validateHtml(status, contentType, html) {
   return cards;
 }
 
+/** Only an exact Cloudflare-generated hexadecimal request trace identifier may
+ * enter provider diagnostics. Never retain arbitrary response headers, cookies,
+ * request origins, or malformed values. No user/session identity is recorded. */
+export function safeCloudflareRay(headers) {
+  const value = headers.get("cf-ray") || "";
+  return /^[a-f0-9]{16,32}-[A-Z]{3}$/.test(value) ? value : null;
+}
+
 /** Only allow numeric server timing and known CDN cache labels into diagnostics. */
 export function safeProbeTelemetry(headers, ttfbMs, totalMs) {
   const counters = {};

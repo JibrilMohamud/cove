@@ -9,6 +9,7 @@ import {
   validateHtml,
   percentile,
   safeProbeTelemetry,
+  safeCloudflareRay,
   productionOrigin,
 } from "./check-production-storefront-performance.mjs";
 
@@ -72,9 +73,7 @@ function numericWorkerTiming(headers) {
 }
 
 function safeCloudflareColo(headers) {
-  // Only the final three-letter colo identifier is retained, not the CF-Ray ID.
-  const match = (headers.get("cf-ray") || "").match(/-([A-Z]{3})$/);
-  return match ? match[1] : "unknown";
+  return safeCloudflareRay(headers)?.split("-")[1] || "unknown";
 }
 
 function headers(extra = {}) {
@@ -241,6 +240,7 @@ async function probe(language, sample, sequence) {
     workerMs,
     unattributedMs: workerMs === null ? null : Math.max(0, Math.round(ttfbMs - workerMs)),
     cfColo: safeCloudflareColo(response.headers),
+    cfRay: safeCloudflareRay(response.headers),
     clientQueueMs: integerDelta(span.sentAt, span.createdAt),
     clientConnectMs: integerDelta(span.connectDoneAt, span.connectStartedAt),
     clientToHeadersMs: integerDelta(span.headersAt, span.sentAt),
@@ -306,11 +306,11 @@ const table = [
   "Undici connect covers any new DNS/TCP/TLS setup and may be n/a for reused sockets.",
   "Undici client-to-headers includes network and remote processing; phases are diagnostic only.",
   "",
-  "| Sequence | Locale | Sample | TTFB | Worker | Residual | Client queue | New connect | Sent-to-headers | CF colo | SSR cards |",
-  "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: |",
+  "| Sequence | Locale | Sample | TTFB | Worker | Residual | Client queue | New connect | Sent-to-headers | CF colo | CF Ray | SSR cards |",
+  "| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | ---: |",
   ...results.map(
     (r) =>
-      `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.workerMs ?? "n/a"} ms | ${r.unattributedMs ?? "n/a"} ms | ${r.clientQueueMs ?? "n/a"} ms | ${r.clientConnectMs ?? "n/a"} ms | ${r.clientToHeadersMs ?? "n/a"} ms | ${r.cfColo} | ${r.cards} |`,
+      `| ${r.sequence} | ${r.language} | ${r.sample} | ${r.ttfbMs} ms | ${r.workerMs ?? "n/a"} ms | ${r.unattributedMs ?? "n/a"} ms | ${r.clientQueueMs ?? "n/a"} ms | ${r.clientConnectMs ?? "n/a"} ms | ${r.clientToHeadersMs ?? "n/a"} ms | ${r.cfColo} | ${r.cfRay ?? "n/a"} | ${r.cards} |`,
   ),
   "",
   `Result **${summary.status}** — p75 ${summary.p75 ?? "n/a"} ms, p95 ${summary.p95 ?? "n/a"} ms; ${summary.slowSamples} >=800 ms; ${summary.errors} failures.`,
