@@ -48,3 +48,27 @@ if(process.argv[1] && import.meta.url===new URL("file://"+process.argv[1]).href)
   console.log("PASS: production legal-owner namespace is private, QA-ineligible and DISABLED.");
   console.log("NOT CERTIFIED: no live writer ownership or positive publishing is enabled.");
 }
+
+if(process.argv.includes("--live")){
+  const token=process.env.CLOUDFLARE_API_TOKEN;
+  const account=process.env.CLOUDFLARE_ACCOUNT_ID;
+  assert.ok(token && account,"Live verification requires authenticated Cloudflare");
+  const response=await fetch(
+    "https://api.cloudflare.com/client/v4/accounts/"+
+    encodeURIComponent(account)+"/workers/scripts/cove-legal-authority-production/settings",
+    {headers:{authorization:"Bearer "+token}}
+  );
+  assert.equal(response.status,200,"Production private owner must be deployed");
+  const payload=await response.json();
+  assert.equal(payload.success,true);
+  const bindings=payload.result?.bindings||[];
+  const binding=(name)=>bindings.find(b=>b.name===name);
+  assert.equal(binding("PRIMARY_DB")?.type,"d1");
+  assert.equal(binding("PRIMARY_DB")?.id,PROD_D1);
+  assert.equal(binding("LEGAL_AUTHORITY")?.type,"durable_object_namespace");
+  assert.equal(binding("COVE_RIGHTS_OWNER_ENABLED")?.type,"plain_text");
+  assert.equal(binding("COVE_RIGHTS_OWNER_ENABLED")?.text,"0");
+  assert.equal(binding("COVE_RIGHTS_OWNER_PRIMARY_ID")?.text,PROD_D1);
+  assert.ok(!bindings.some(b=>b.type==="service"),"No external service binding in locked owner");
+  console.log("PASS: Cloudflare has the isolated production D1 and DO bindings; rights owner is DISABLED.");
+}
