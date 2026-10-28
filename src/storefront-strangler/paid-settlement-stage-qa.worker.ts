@@ -183,10 +183,10 @@ export default {
           return Response.json(license,{headers});
         }
         if(url.pathname==="/original/audio-preflight"){
-          const legal=await resolveProductRights(env.PRIMARY_DB!,PRODUCT,"US",{
+          const legal=await resolveProductRights(facade.DB,PRODUCT,"US",{
             salesChannel:"retail"
           });
-          const source=await env.PRIMARY_DB!.prepare(
+          const source=await facade.DB.prepare(
             `SELECT pv.manifest_json FROM publishing_publications pp
              JOIN publishing_release_lifecycles l
                ON l.publishing_edition_id=(SELECT edition_id FROM publishing_submission_snapshots WHERE id=pp.submission_id)
@@ -196,7 +196,7 @@ export default {
           ).bind(PRODUCT).first<{manifest_json:string}>();
           let frozen:Record<string,unknown>|null=null;
           try{frozen=JSON.parse(source?.manifest_json||"{}")?.sourceSnapshot?.commercialAudio||null;}
-          catch{}
+          catch{frozen=null;}
           return Response.json({
             allowed:legal.allowed,reason:legal.reasonCode,
             hasManifest:!!frozen,
