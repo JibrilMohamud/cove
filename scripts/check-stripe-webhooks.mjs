@@ -153,6 +153,30 @@ try {
     .bind(processing.id)
     .run();
   await stripeWebhook(env, request(processing));
+  // A genuine Cove-tagged successful charge must be retried if its D1
+  // order row has not arrived. A 200 here would permanently swallow payment
+  // fulfillment; unrelated untagged Stripe PaymentIntents are unaffected.
+  const missingOrderEvent = {
+    id: "evt_missing_initial_cove_order",
+    type: "payment_intent.succeeded",
+    livemode: false,
+    data: {
+      object: {
+        id: "pi_expected",
+        currency: "jpy",
+        amount_received: 1000,
+        metadata: { fore_order_id: "ord-proof" },
+      },
+    },
+  };
+  await assert.rejects(
+    stripeWebhook(env, request(missingOrderEvent)),
+    /order not yet available/,
+  );
+  const pendingMissing = await original(
+    "SELECT status FROM commerce_webhook_events WHERE provider_event_id=?",
+  ).bind(missingOrderEvent.id).first();
+  assert.equal(pendingMissing.status, "failed", "Cove-tagged missing order must remain retryable");
   const timestamp = new Date().toISOString();
   await original(
     "INSERT INTO commerce_orders(id,user_id,invoice_number,status,currency,territory_code,subtotal_minor,total_minor,stripe_due_minor,billing_address_json,idempotency_key,stripe_payment_intent_id,created_at,updated_at) VALUES('ord-proof','qa','QA-PROOF','pending_payment','JPY','JP',1000,1000,1000,'{}','qa-proof','pi_expected',?,?)",
