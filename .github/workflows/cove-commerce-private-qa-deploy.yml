@@ -13,6 +13,7 @@ on:
       - "scripts/staging/qa-refund-operator.mjs"
       - "scripts/staging/cleanup-qa-refund-operators.mjs"
       - "scripts/staging/run-protected-deployed-commerce-qa.mjs"
+      - "scripts/staging/cleanup-qa-offline-epub-signing-key.mjs"
       - ".github/workflows/deployed-commerce-browser-acceptance.yml"
   push:
     branches: [main]
@@ -26,6 +27,7 @@ on:
       - "src/lib/cloudflare-ssr-stage-gate.server.ts"
       - "scripts/staging/check-deployed-commerce-browser.mjs"
       - "scripts/staging/run-protected-deployed-commerce-qa.mjs"
+      - "scripts/staging/cleanup-qa-offline-epub-signing-key.mjs"
   workflow_dispatch:
 permissions:
   contents: read
@@ -51,6 +53,7 @@ jobs:
         run: |
           node --check scripts/staging/run-protected-deployed-commerce-qa.mjs
           node --check scripts/staging/check-deployed-commerce-browser.mjs
+          node --check scripts/staging/cleanup-qa-offline-epub-signing-key.mjs
   private-commerce:
     if: >-
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
@@ -170,3 +173,6 @@ jobs:
           if [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -f ".output/server/index.mjs" ]]; then
             npm exec --yes --package=wrangler@4.151.0 -- wrangler deploy --config wrangler.commerce-qa.stage.toml
           fi
+      - name: Remove ephemeral EPUB signer and verify no public QA ingress
+        if: always()
+        run: node scripts/staging/cleanup-qa-offline-epub-signing-key.mjs
