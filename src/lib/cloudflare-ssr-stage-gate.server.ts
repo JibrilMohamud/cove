@@ -3,6 +3,7 @@ type StagingEnvironment = {
   COVE_SSR_STAGING_GATE_KEY?: string;
   COVE_SSR_STAGING_COMMERCE_QA?: string;
   COVE_STRIPE_SIGNED_WEBHOOK_QA_ENABLED?: string;
+  COVE_COMMERCE_PRIVATE_GATEWAY_ENABLED?: string;
 };
 
 /**
@@ -30,10 +31,14 @@ export async function rejectUnauthenticatedStagingRequest(
   // BEFORE touching the isolated canonical database. This is never active
   // on production or the ordinary read-only staging Workers.
   const uri = new URL(request.url);
+  const qaHost =
+    uri.hostname === "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev" ||
+    (env.COVE_COMMERCE_PRIVATE_GATEWAY_ENABLED === "1" &&
+      uri.hostname === "cove-commerce-qa-ingress.cove-jibrilmohamud.workers.dev");
   const stripeQaWebhook =
     env.COVE_SSR_STAGING_COMMERCE_QA === "1" &&
     env.COVE_STRIPE_SIGNED_WEBHOOK_QA_ENABLED === "1" &&
-    uri.hostname === "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev" &&
+    qaHost &&
     uri.pathname === "/api/fore/stripe/webhook" &&
     request.method === "POST" &&
     request.headers.get("content-type")?.split(";")[0]?.trim() === "application/json" &&
@@ -59,7 +64,7 @@ export async function rejectUnauthenticatedStagingRequest(
     const uri = new URL(request.url);
     const allowedQaWrite =
       env.COVE_SSR_STAGING_COMMERCE_QA === "1" &&
-      uri.hostname === "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev" &&
+      qaHost &&
       request.method === "POST" &&
       new Set([
         "/api/fore/auth/login",
