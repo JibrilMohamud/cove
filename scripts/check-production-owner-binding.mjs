@@ -14,9 +14,14 @@ export function verifyProductionOwnerBinding(owner,backend=null) {
   assert.equal(byName("LEGAL_AUTHORITY")?.namespace_id,PRODUCTION_OWNER_NAMESPACE);
   assert.equal(byName("COVE_RIGHTS_OWNER_ENABLED")?.text,"0");
   assert.equal(byName("COVE_RIGHTS_OWNER_PRIMARY_ID")?.text,PRODUCTION_D1);
+  // Verify the private credential is provisioned without ever reading its value.
+  // Matching secret binding names alone does NOT certify an authenticated handshake.
+  assert.equal(byName("COVE_RIGHTS_OWNER_SECRET")?.type,"secret_text");
   if(backend) {
     const db=backend.bindings?.find(b=>b.name==="DB");
     const binding=backend.bindings?.find(b=>b.name==="LEGAL_AUTHORITY");
+    const secret=backend.bindings?.find(b=>b.name==="COVE_RIGHTS_OWNER_SECRET");
+    assert.equal(secret?.type,"secret_text");
     assert.equal(db?.type,"d1");assert.equal(db?.id,PRODUCTION_D1);
     assert.equal(binding?.type,"durable_object_namespace");
     assert.equal(binding?.namespace_id,PRODUCTION_OWNER_NAMESPACE);
@@ -42,5 +47,5 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href) {
     };
     verifyProductionOwnerBinding(await get(PRODUCTION_OWNER_SCRIPT),after?await get("cove-persistence-backend"):null);
   }
-  console.log("PASS: production owner binding targets the separate production D1/DO; owner remains DISABLED and cutover is not certified");
+  console.log("PASS: disabled production owner and available private secret bindings verified for requested deployment phase; shared credential equality, runtime handshake and cutover are NOT certified");
 }

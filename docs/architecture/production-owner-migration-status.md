@@ -92,7 +92,13 @@ production `LEGAL_AUTHORITY` namespace. Authenticated pre-deploy checks
 require production D1 `4bd657ac-8789-403e-a28c-93aba8d0a989`, namespace
 `83d7eadf3957436389a7b072120a9829`, and owner enablement `0`. Post-deploy
 checks require the persistence binding to resolve to that same namespace.
-Binding the disabled owner does not enable production authorization.
+Binding the disabled owner does not enable production authorization. A random
+256-bit private `COVE_RIGHTS_OWNER_SECRET` was provisioned on the production
+owner and persistence Workers on October 28, 2026, and both secret-text
+binding names were verified by the Cloudflare settings API. The key itself
+was not returned or logged. Binding presence is not an authenticated runtime
+handshake, and neither operational fencing nor the protected writer migration
+is certified.
 
 `check-publication-owner-command.mjs` exercises the actual activation and
 owner handlers against the fully migrated schema. It covers denial before

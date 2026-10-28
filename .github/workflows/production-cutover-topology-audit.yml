@@ -4,11 +4,15 @@ on:
   pull_request:
     paths:
       - "scripts/check-live-production-cutover*.mjs"
+      - "scripts/check-production-owner-binding.mjs"
+      - "scripts/test-production-owner-binding.mjs"
       - ".github/workflows/production-cutover-topology-audit.yml"
   push:
     branches: [main]
     paths:
       - "scripts/check-live-production-cutover*.mjs"
+      - "scripts/check-production-owner-binding.mjs"
+      - "scripts/test-production-owner-binding.mjs"
       - "wrangler.frontend.production.toml"
       - ".github/workflows/production-cutover-topology-audit.yml"
   workflow_dispatch:
@@ -30,6 +34,7 @@ jobs:
         run: |
           node --check scripts/check-live-production-cutover.mjs
           node --test scripts/check-live-production-cutover.test.mjs
+          node scripts/test-production-owner-binding.mjs
           node scripts/check-canonical-writer-closure.mjs --no-new-writers
 
   live-cloudflare:
@@ -45,6 +50,7 @@ jobs:
       - name: Run live read-only production topology safety audit
         run: |
           echo "### Production topology safety audit — NOT a release certificate" >> "$GITHUB_STEP_SUMMARY"
+          node scripts/check-production-owner-binding.mjs --after-deploy
           if [[ "${{ inputs.release_gate || 'false' }}" == "true" ]]; then
             node scripts/check-live-production-cutover.mjs --release-gate
           else
