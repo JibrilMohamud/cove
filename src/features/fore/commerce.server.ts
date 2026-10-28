@@ -1958,6 +1958,36 @@ export async function refundOrder(env: CoveEnv, raw: unknown) {
   }
 }
 
+async function stageRevokeRefundEntitlements(env: CoveEnv, orderId: string, refundId: string) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") return;
+  if (
+    env.COVE_SSR_STAGING !== "1" ||
+    env.COVE_CANONICAL_LEGAL_WRITE_LOCK !== "1" ||
+    !["5e3a6b69-6f3d-4b19-b837-01f7aa56ce87", "7c7ab994-f6b3-419d-a72d-71eb9ea22e7e"].includes(
+      env.COVE_LEGAL_WRITER_PRIMARY_ID || "",
+    ) ||
+    env.COVE_LEGAL_QUARANTINE_WRITER_STAGE !== "1" ||
+    !env.LEGAL_QUARANTINE_WRITER?.fetch ||
+    !/^[a-f0-9]{64}$/.test(env.COVE_LEGAL_QUARANTINE_SECRET || "")
+  )
+    throw new ApiError(503, "Refund entitlement owner is not certified.");
+  const response = await env.LEGAL_QUARANTINE_WRITER.fetch(
+    new Request("https://legal-quarantine.internal/commercial/entitlement/revoke-order", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer " + env.COVE_LEGAL_QUARANTINE_SECRET,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ orderId, operationId: refundId }),
+    }),
+  );
+  if (response.status !== 200)
+    throw new ApiError(503, "Refund owner did not acknowledge entitlement withdrawal.");
+  const receipt = (await response.json()) as { orderDenied?: unknown };
+  if (receipt.orderDenied !== true)
+    throw new ApiError(503, "Refund ownership receipt was invalid.");
+}
+
 async function applyRefundSuccess(env: CoveEnv, refundId: string, refundPayload: any) {
   const db = env.DB,
     r = await db.prepare("SELECT * FROM commerce_refunds WHERE id=?").bind(refundId).first<any>();
