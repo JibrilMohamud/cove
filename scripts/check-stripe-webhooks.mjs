@@ -169,13 +169,12 @@ try {
       },
     },
   };
-  await assert.rejects(
-    stripeWebhook(env, request(missingOrderEvent)),
-    /order not yet available/,
-  );
+  await assert.rejects(stripeWebhook(env, request(missingOrderEvent)), /order not yet available/);
   const pendingMissing = await original(
     "SELECT status FROM commerce_webhook_events WHERE provider_event_id=?",
-  ).bind(missingOrderEvent.id).first();
+  )
+    .bind(missingOrderEvent.id)
+    .first();
   assert.equal(pendingMissing.status, "failed", "Cove-tagged missing order must remain retryable");
   const timestamp = new Date().toISOString();
   await original(
@@ -316,7 +315,9 @@ try {
   // revoked order. These events must be retryable rather than publishing
   // entitlements, settling tender or rewriting canonical order status.
   const baselineEntitlements = await original("SELECT count(*) AS n FROM entitlements").first();
-  const baselineLedger = await original("SELECT count(*) AS n FROM commerce_ledger_entries").first();
+  const baselineLedger = await original(
+    "SELECT count(*) AS n FROM commerce_ledger_entries",
+  ).first();
   for (const terminal of ["canceled", "disputed", "chargeback_lost"]) {
     await original("UPDATE commerce_orders SET status=? WHERE id='ord-proof'").bind(terminal).run();
     const late = {
@@ -337,14 +338,24 @@ try {
       /Terminal or invalid order cannot be settled/,
       "Signed late success must fail closed for " + terminal,
     );
-    const orderAfter = await original("SELECT status FROM commerce_orders WHERE id='ord-proof'").first();
+    const orderAfter = await original(
+      "SELECT status FROM commerce_orders WHERE id='ord-proof'",
+    ).first();
     assert.equal(orderAfter.status, terminal);
     const received = await original(
       "SELECT status FROM commerce_webhook_events WHERE provider_event_id=?",
-    ).bind(late.id).first();
+    )
+      .bind(late.id)
+      .first();
     assert.equal(received.status, "failed", "Rejected late successes remain retryable");
-    assert.equal((await original("SELECT count(*) AS n FROM entitlements").first()).n, baselineEntitlements.n);
-    assert.equal((await original("SELECT count(*) AS n FROM commerce_ledger_entries").first()).n, baselineLedger.n);
+    assert.equal(
+      (await original("SELECT count(*) AS n FROM entitlements").first()).n,
+      baselineEntitlements.n,
+    );
+    assert.equal(
+      (await original("SELECT count(*) AS n FROM commerce_ledger_entries").first()).n,
+      baselineLedger.n,
+    );
   }
   await original("UPDATE commerce_orders SET status='pending_payment' WHERE id='ord-proof'").run();
   await ingestStripeRiskSignal(
