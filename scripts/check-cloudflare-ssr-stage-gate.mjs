@@ -71,10 +71,10 @@ try {
     const denied = await rejectUnauthenticatedStagingRequest(req, vars);
     assert.equal(denied?.status, 401, "Untrusted QA webhook ingress must be denied");
   }
-  const noQaSecret = await rejectUnauthenticatedStagingRequest(
-    webhook(undefined, stripeHeaders),
-    { ...qa, COVE_SSR_STAGING_GATE_KEY: undefined },
-  );
+  const noQaSecret = await rejectUnauthenticatedStagingRequest(webhook(undefined, stripeHeaders), {
+    ...qa,
+    COVE_SSR_STAGING_GATE_KEY: undefined,
+  });
   assert.equal(noQaSecret.status, 503);
   const unconfigured = await rejectUnauthenticatedStagingRequest(
     request({ Authorization: "Bearer " + token }),
