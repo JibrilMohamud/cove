@@ -4,6 +4,8 @@ on:
     paths:
       - "scripts/check-covereads-canary-deny.mjs"
       - "scripts/check-staging-auth-gateway.mjs"
+      - "scripts/check-covereads-owned-canary-live.mjs"
+      - "scripts/covereads-owned-canary-domain.mjs"
       - "src/cloudflare/staging-auth-gateway.mjs"
       - "wrangler.staging-auth-gateway.test.toml"
       - "wrangler.frontend.production.toml"
@@ -89,7 +91,11 @@ jobs:
           sleep 30
       - name: Verify missing/forged credential, authorized manifest, denial of mutation and no direct backend
         run: node scripts/check-covereads-canary-deny.mjs
-      - name: Delete ONLY the two ephemeral test Workers
+      - name: Attach ONLY protected gateway to owned canary domain
+        run: node scripts/covereads-owned-canary-domain.mjs attach
+      - name: Verify owned TLS canary cannot expose any anonymous static assets
+        run: node scripts/check-covereads-owned-canary-live.mjs
+      - name: Detach owned canary and delete ONLY the two ephemeral test Workers
         if: always()
         shell: bash
         run: |
@@ -99,6 +105,8 @@ jobs:
             echo "::error::No token to verify temporary Worker cleanup"
             exit 1
           fi
+          # Even if canary security fails, detach custom domain first.
+          node scripts/covereads-owned-canary-domain.mjs detach || failures=1
           for name in cove-asset-auth-gateway cove-asset-auth-stage; do
             response="$(curl --retry 3 --retry-delay 2 -sS --max-time 25 -w '\n%{http_code}' -X DELETE \
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
