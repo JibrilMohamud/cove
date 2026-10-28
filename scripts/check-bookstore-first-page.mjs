@@ -48,11 +48,13 @@ try {
   const store = readFileSync("src/features/fore/Store.tsx", "utf8");
   assert.match(
     store,
-    /enabled: !fastAnonymousHome \|\| !!matchingInitial\?\.catalog \|\| !!fastPreview \|\| fastShelf\.isError/,
+    /enabled:\s*!fastAnonymousHome \|\|\s*!!matchingInitial\?\.catalog \|\|\s*!!fastPreview \|\|\s*fastShelf\.isError \|\|\s*catalogFallbackReady/,
   );
   assert.match(store, /placeholderData: fastAnonymousHome \? fastPreview : undefined/);
   assert.match(store, /fastAnonymousHome && !matchingInitial\?\.catalog/);
   assert.match(store, /landingPath === "\/"/);
+  assert.match(store, /landingPath === "\/store"/);
+  assert.match(store, /setTimeout\(\(\) => setCatalogFallbackReady\(true\), 800\)/);
   assert.match(store, /sort === "popular"/);
   assert.match(store, /enabled: home && !!visitor && books\.length > 0/);
   assert.match(store, /queryFn: \(\{ signal \}\) => api\("\/catalog\?" \+ params/);
