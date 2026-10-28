@@ -363,7 +363,7 @@ try {
     { name: "ECDSA", hash: "SHA-256" },
     signatureKey,
     Buffer.from(offline.data.receipt.signature, "base64url"),
-    new TextEncoder().encode("cove-offline-epub:v1\\n" + offline.data.receipt.payload),
+    new TextEncoder().encode("cove-offline-epub:v1\n" + offline.data.receipt.payload),
   );
   assert.equal(signatureOkay, true, "Actual seven-day receipt signature must verify");
   assert.equal(offline.data.receipt.keyId, verifiedKey.data.keyId);
