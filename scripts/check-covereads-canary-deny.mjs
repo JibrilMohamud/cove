@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 
-const ownedCanary = "https://ssr-canary.covereads.com";
+// The custom-domain binding was detached after a static asset bypassed auth.
+// Prove the original Workers.dev staging ingress fails closed before any
+// future candidate custom-domain binding can be safely reattempted.
+const ownedCanary =
+  "https://cove-storefront-ssr-staging.cove-jibrilmohamud.workers.dev";
 const requests = [
   { path: "/", method: "GET" },
   { path: "/", method: "HEAD" },
@@ -32,5 +36,5 @@ for (const spec of requests) {
   );
   await response.body?.cancel();
 }
-console.log("PASS: owned-domain Cloudflare SSR canary denied every public, static, account and mutation request");
+console.log("PASS: original staging ingress denied public, static, account and mutation requests; owned-domain binding remains disabled");
 console.log(JSON.stringify(observations));
