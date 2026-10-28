@@ -6,6 +6,7 @@ import { recordSyncProjection } from "./sync.server";
 import { ensureReadingJourney, recordReadingProgress } from "./social.server";
 import { signOfflineAudioLicense, verifyStoredAudioLicense } from "./offline-audio.server";
 import { hashText, audioManifestHash } from "./offline-audio-license";
+import { requireStagePaidEntitlementAccess } from "../../storefront-strangler/legal-consumer-fence.server";
 
 const id = (p: string) => `${p}_${crypto.randomUUID()}`;
 const safe = (s: string) => s.replace(/[^A-Za-z0-9_-]/g, "_");
@@ -1112,6 +1113,32 @@ export async function hasAudioAccess(
     .first<any>();
   return !!sub;
 }
+async function requireCommercialAudioOwner(
+  env: CoveEnv,
+  userId: string,
+  productId: string,
+  territory: string,
+  entitlementId?: string,
+) {
+  if (env.COVE_LEGAL_CONSUMER_STAGE_ENABLED !== "1") return;
+  let id = entitlementId;
+  if (!id) {
+    const ent = await env.DB.prepare(
+      "SELECT id FROM entitlements WHERE user_id=? AND product_id=? AND entitlement_type='purchase' AND status='active' AND (starts_at IS NULL OR starts_at<=?) AND (ends_at IS NULL OR ends_at>?) LIMIT 1",
+    )
+      .bind(userId, productId, now(), now())
+      .first<{ id: string }>();
+    id = ent?.id;
+  }
+  if (!id) throw new ApiError(451, "Independent audiobook purchase authorization is unavailable.");
+  await requireStagePaidEntitlementAccess(env, {
+    entitlementId: id,
+    userId,
+    productId,
+    territory,
+    channel: "retail",
+  });
+}
 export async function assertCommercialAudioRiskAccess(
   db: CoveEnv["DB"],
   userId: string,
@@ -1492,6 +1519,7 @@ export async function handleCommercialAudio(
         "This offline license is no longer active. Save the recording again if access is available.",
       );
     await assertCommercialAudioRiskAccess(db, userId, String(row.product_id));
+    await requireCommercialAudioOwner(env, userId, String(row.product_id), territory);
     const verified = await verifyStoredAudioLicense(
       env,
       userId,
@@ -1509,6 +1537,7 @@ export async function handleCommercialAudio(
     if (!(await hasAudioAccess(db, userId, String(row.product_id), territory)))
       throw new ApiError(403, "An active audiobook entitlement is required.");
     await assertCommercialAudioRiskAccess(db, userId, String(row.product_id));
+    await requireCommercialAudioOwner(env, userId, String(row.product_id), territory);
     const previous = await db
       .prepare(
         "SELECT id FROM completion_events WHERE user_id=? AND product_id=? ORDER BY finished_at DESC LIMIT 1",
@@ -1563,6 +1592,7 @@ export async function handleCommercialAudio(
         "Purchase or obtain subscription access to listen to this audiobook.",
       );
     if (userId) await assertCommercialAudioRiskAccess(db, userId, String(row.product_id));
+    if (userId) await requireCommercialAudioOwner(env, userId, String(row.product_id), territory);
     const c = (frozen?.chapters || []).find((x: any) => x.id === match[3]);
     if (!c) throw new ApiError(404, "Audio chapter not found.");
     return serveStoredAudio(
@@ -1577,6 +1607,7 @@ export async function handleCommercialAudio(
     if (!(await hasAudioAccess(db, userId, row.product_id, territory)))
       throw new ApiError(403, "Purchase or obtain subscription access to this audiobook.");
     await assertCommercialAudioRiskAccess(db, userId, String(row.product_id));
+    await requireCommercialAudioOwner(env, userId, String(row.product_id), territory);
     if (request.method === "GET") {
       const p = await db
         .prepare(
@@ -1812,6 +1843,13 @@ export async function handleCommercialAudio(
       .bind(userId, row.product_id, now(), now())
       .first<any>();
     if (!ent) throw new ApiError(403, "A purchase entitlement is required for offline audio.");
+    await requireCommercialAudioOwner(
+      env,
+      userId,
+      String(row.product_id),
+      territory,
+      String(ent.id),
+    );
     const licensePolicy = await db
         .prepare("SELECT max_devices FROM licenses WHERE entitlement_id=?")
         .bind(ent.id)
