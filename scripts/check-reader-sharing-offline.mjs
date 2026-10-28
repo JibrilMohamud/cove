@@ -422,12 +422,12 @@ try {
   );
   // Purchase revocation is separately terminal. Neither state can be revived
   // by a stale queue retry to restore a previously valid offline receipt.
-  await db.prepare("UPDATE entitlements SET status='revoked' WHERE id='offline-purchase-test'").run();
+  await db
+    .prepare("UPDATE entitlements SET status='revoked' WHERE id='offline-purchase-test'")
+    .run();
   await assert.rejects(checkStored(), /no longer active/);
   await assert.rejects(
-    db
-      .prepare("UPDATE entitlements SET status='active' WHERE id='offline-purchase-test'")
-      .run(),
+    db.prepare("UPDATE entitlements SET status='active' WHERE id='offline-purchase-test'").run(),
     /fresh independently authorized purchase/,
   );
   const license = {
