@@ -1636,6 +1636,9 @@ export async function finalizePaidOrder(
   } catch (e) {
     console.error("Purchase receipt notification enqueue failed", e);
   }
+  // The paid D1 row is NOT a delivery license. A replay of the same signed
+  // Stripe event can finish owner publication after a temporary owner outage.
+  await certifyStagePaidSettlement(env, String(order.id), String(order.user_id));
   return db.prepare("SELECT * FROM commerce_orders WHERE id=?").bind(orderId).first<any>();
 }
 
