@@ -14,6 +14,7 @@ import {readdirSync,readFileSync,statSync,writeFileSync,mkdirSync} from "node:fs
 import {join,relative,resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import assert from "node:assert/strict";
+import {canonicalWriterDrift} from "./canonical-writer-baseline.mjs";
 const root=resolve(fileURLToPath(new URL("..",import.meta.url)));
 const sources=["src","scripts","worker","workers"];
 const protectedTables=[
@@ -122,6 +123,20 @@ console.log("Canonical writer scan: "+sourceFiles.length+" source files, "+
 console.log("Unverified by domain: "+JSON.stringify(summary.byDomain));
 console.log("Top direct writer files: "+JSON.stringify(
   Object.entries(summary.byFile).sort((a,b)=>b[1]-a[1]).slice(0,18)));
+if(process.argv.includes("--no-new-writers")) {
+  // Keeping the existing 458 known direct writes visible is NOT production
+  // owner-first certification. Prevent additional unreviewed sources from
+  // silently joining the inventory during the migration.
+  const drift=canonicalWriterDrift(findings);
+  if(drift.length) {
+    console.error("BLOCKED: new unverified canonical SQL writers since reviewed 458-site baseline.");
+    console.error("Unreviewed new mutations: "+JSON.stringify(drift));
+    process.exitCode=1;
+  } else {
+    console.log("PASS: no new direct canonical writer candidates since reviewed baseline. "+
+      "Existing "+findings.length+" source candidates STILL BLOCK owner-only release.");
+  }
+}
 const release=process.argv.includes("--release-gate");
 if(release){
   // No flag, signed string, owner snapshot, branch name, successful staging
