@@ -4561,12 +4561,22 @@ async function handleCoveRequest(
         // Only an explicit immutable negative suspension may cross the
         // owner-first boundary. Mixed changes/positive reinstatements cannot
         // masquerade as a suspension; the staged write lock denies raw D1.
+        if (env.COVE_SSR_STAGING === "1" || env.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1") {
+          if (!input || typeof input !== "object" || !("ownerAction" in input))
+            throw new ApiError(503, "Staging rights edits require verified owner-first commands.");
+          return json(await executeStageRightsEditorSuspension(env, "contract", input));
+        }
         if (input && typeof input === "object" && "ownerAction" in input)
           return json(await executeStageRightsEditorSuspension(env, "contract", input));
         return json(await upsertRightsContract(database(env), input));
       }
       if (request.method === "POST" && path === "/admin/commerce/rights-grant") {
         const input = await body(request);
+        if (env.COVE_SSR_STAGING === "1" || env.COVE_CANONICAL_LEGAL_WRITE_LOCK === "1") {
+          if (!input || typeof input !== "object" || !("ownerAction" in input))
+            throw new ApiError(503, "Staging rights edits require verified owner-first commands.");
+          return json(await executeStageRightsEditorSuspension(env, "grant", input));
+        }
         if (input && typeof input === "object" && "ownerAction" in input)
           return json(await executeStageRightsEditorSuspension(env, "grant", input));
         return json(await upsertRightsGrant(database(env), input));
