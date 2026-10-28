@@ -90,7 +90,7 @@ try {
       method:"POST",
       headers:{"content-type":"application/json","authorization":"Bearer "+writerSecret,...headers},
       body:JSON.stringify(payload)}),env);
-  const denied=await call(command(),"authorization" in {}?{}:{authorization:"Bearer wrong"});
+  const denied=await call(command(),{authorization:"Bearer wrong"});
   assert.equal(denied.status,401);
   assert.deepEqual(trace,[]);
   for(const patch of [
@@ -109,7 +109,7 @@ try {
     {...command(),status:"distributable"},{...command(),status:"owner_only"},
     {...command(),allowExistingOwners:true},
     {...command(),reasonCode:""},
-    {...command(),actorUserId:"anonymous"},
+    {...command(),actorUserId:"bad/staff"},
     {...command(),publicationVersionId:"pv_123;DROP TABLE"},
     {...command(),extra:"injected"},
     {...command(),reasonDetail:"x".repeat(2001)}
