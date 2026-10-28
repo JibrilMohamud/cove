@@ -276,8 +276,11 @@ try {
         data: { object: { id: order.paymentIntentId, metadata: { fore_order_id: order.id } } },
       }),
     );
+    const actual = await original("SELECT status FROM commerce_orders WHERE id=?")
+      .bind(order.id)
+      .first();
     assert.equal(
-      (await original("SELECT status FROM commerce_orders WHERE id=?").bind(order.id).first()).status,
+      actual.status,
       expected,
       "A late signed authorization cannot resurrect an order in state " + existing,
     );
@@ -316,8 +319,11 @@ try {
           },
         }),
       );
+      const actual = await original("SELECT status FROM commerce_orders WHERE id=?")
+        .bind(order.id)
+        .first();
       assert.equal(
-        (await original("SELECT status FROM commerce_orders WHERE id=?").bind(order.id).first()).status,
+        actual.status,
         expected,
         "Stale signed event " + type + " may not regress order state " + existing,
       );
@@ -350,9 +356,9 @@ try {
       /Terminal or invalid order cannot be settled/,
       "Signed late success must fail closed for " + terminal,
     );
-    const orderAfter = await original(
-      "SELECT status FROM commerce_orders WHERE id=?",
-    ).bind(order.id).first();
+    const orderAfter = await original("SELECT status FROM commerce_orders WHERE id=?")
+      .bind(order.id)
+      .first();
     assert.equal(orderAfter.status, terminal);
     const received = await original(
       "SELECT status FROM commerce_webhook_events WHERE provider_event_id=?",
