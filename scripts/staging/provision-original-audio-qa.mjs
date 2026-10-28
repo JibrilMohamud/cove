@@ -84,7 +84,7 @@ export async function provisionPublishedQaAudio(qaSql,{runId,productId,
   await qaSql("INSERT INTO publishing_release_lifecycles(id,publishing_edition_id,state,created_at,updated_at) VALUES(?,?,'live',?,?)",
     [lifecycle,edition,time,time]);
   await qaSql("INSERT INTO publishing_publication_versions(id,lifecycle_id,publication_id,submission_id,version_number,snapshot_sha256,manifest_json,release_state,created_by_user_id,created_at,activated_at) VALUES(?,?,?,?,?,?,?,'live',?,?,?)",
-    [version,lifecycle,publication,submission,Number(runId),sum,manifest,buyerId,time,time]);
+    [version,lifecycle,publication,submission,(Number(runId.split("-")[0])%1000000000)*1000+Number(runId.split("-")[1]),sum,manifest,buyerId,time,time]);
   await qaSql("UPDATE publishing_release_lifecycles SET current_publication_version_id=? WHERE id=?",
     [version,lifecycle]);
   console.log("QA original dual-format synthetic publisher/narrator/audio manifest provisioned");
