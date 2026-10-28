@@ -52,7 +52,6 @@ on:
       - "scripts/staging/prove-private-paid-owner.mjs"
       - "scripts/check-paid-stage-initial-identity.mjs"
       - "scripts/check-offline-epub-issuer-expiry.mjs"
-      - "scripts/check-customer-media-owner-order.mjs"
       - ".github/workflows/paid-legal-full-schema-private-qa.yml"
   workflow_dispatch:
 permissions:
