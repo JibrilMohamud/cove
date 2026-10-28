@@ -119,7 +119,10 @@ test("Cloudflare request Ray identifiers are tightly validated before provider l
   const safe = "a518d36158d88596-MSP";
   assert.equal(safeCloudflareRay(new Headers({ "CF-Ray": safe })), safe);
   for (const value of [
-    "", "Ray #123", "not-a-ray-MSP", "a518d36158d88596-abc",
+    "",
+    "Ray #123",
+    "not-a-ray-MSP",
+    "a518d36158d88596-abc",
     "a518d36158d88596-MSP\\r\\nSet-Cookie: session=leak",
     "a518d36158d88596-MSP,session=leak",
     "a518d36158d88596-IAD/secret",
