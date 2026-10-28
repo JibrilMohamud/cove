@@ -198,6 +198,37 @@ const billingAddress = {
   postalCode: "23220",
   country: "US",
 };
+// Isolated QA accounts persist between runs, unlike their synthetic purchase
+// fixtures. Clear ONLY fixture products from the authenticated QA buyer cart,
+// and fail closed if an unexpected product is present. This must never target
+// production or another user's cart.
+async function clearStaleQaFixtureCart(userId) {
+  assert.match(userId, /^sb:[a-f0-9-]{36}$/);
+  assert.equal(origin.hostname, "cove-commerce-customer-qa-stage.cove-jibrilmohamud.workers.dev");
+  const knownProducts = new Set([q.COVE_QA_EPUB_PRODUCT_ID, q.COVE_QA_AUDIO_PRODUCT_ID]);
+  const previous = await qaD1(
+    "SELECT i.product_id FROM shopping_cart_items i JOIN shopping_carts c ON c.id=i.cart_id WHERE c.user_id=? LIMIT 20",
+    [userId],
+  );
+  assert.ok(previous.length <= 2, "Unexpected existing QA cart size; never clear arbitrary items");
+  assert.ok(
+    previous.every((row) => knownProducts.has(row.product_id)),
+    "Unexpected QA cart product; refuse automatic cleanup",
+  );
+  if (previous.length) {
+    await qaD1(
+      "DELETE FROM shopping_cart_items WHERE cart_id IN (SELECT id FROM shopping_carts WHERE user_id=?) AND product_id IN (?,?)",
+      [userId, q.COVE_QA_EPUB_PRODUCT_ID, q.COVE_QA_AUDIO_PRODUCT_ID],
+    );
+  }
+  const remaining = await qaD1(
+    "SELECT COUNT(*) n FROM shopping_cart_items i JOIN shopping_carts c ON c.id=i.cart_id WHERE c.user_id=?",
+    [userId],
+  );
+  assert.equal(Number(remaining[0]?.n || 0), 0, "QA buyer cart not emptied");
+  console.log("QA_SYNTHETIC_CART_RESET", previous.length);
+}
+
 async function purchase(page, productId) {
   const cart = await request(page, "GET", "/cart");
   console.log("QA_CART_PROBE", cart.status, cart.appHeader, cart.finalPath, cart.mime);
@@ -270,6 +301,7 @@ try {
     buyerId,
     "Authenticated buyer identity required to certify device-bound offline receipt",
   );
+  await clearStaleQaFixtureCart(buyerId);
   const outsiderAccount = await request(outsider, "GET", "/account");
   assert.equal(outsiderAccount.status, 200);
   refundOperatorId = outsiderAccount.data?.user?.id || null;
