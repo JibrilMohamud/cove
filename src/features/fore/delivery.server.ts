@@ -558,6 +558,13 @@ export async function issueCommercialEpubGrant(
       400,
       "Secure commercial grants are only used for commercial catalog assets.",
     );
+  await requireStagePaidEntitlementAccess(env, {
+    entitlementId: String(ent.id),
+    userId,
+    productId: String(product.id),
+    territory: (requestMeta(request).country || env.FORE_DEFAULT_TERRITORY || "US").toUpperCase(),
+    channel: entitlementSalesChannel(ent.entitlement_type),
+  });
   const permanent = ["purchase", "gift", "publisher"].includes(String(ent.entitlement_type)),
     pvId = await resolvedPublicationVersion(db, ent, ownership, lifecycle);
   await assertDistributionAllowed(db, pvId, permanent);
