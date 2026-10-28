@@ -49,6 +49,15 @@ assert.equal(authorized.status, 200, "Valid bearer must reach the actual SSR ass
 assert.match(authorized.headers.get("cache-control") || "", /no-store/);
 assert.match(authorized.headers.get("x-robots-tag") || "", /noindex/);
 await authorized.body?.cancel();
+// Direct access to the asset-bound Worker must be disabled, even though
+// the inner service still works through the private gateway binding.
+const privateStage = await fetch(
+  "https://cove-asset-auth-stage.cove-jibrilmohamud.workers.dev/manifest.webmanifest",
+  { redirect: "manual", signal: AbortSignal.timeout(12_000) },
+);
+assert.notEqual(privateStage.status, 200, "Private asset backend is still publicly exposed");
+await privateStage.body?.cancel();
+
 const mutation = await fetch(origin + "/api/fore/cart/item", {
   method: "POST",
   headers: { authorization: "Bearer " + token },
