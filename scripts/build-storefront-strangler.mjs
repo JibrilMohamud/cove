@@ -101,7 +101,7 @@ await build({
 });
 
 // Legal authority remains isolated QA-only. This compiles disabled private
- // Workers, not a route or a production rights-owner binding.
+// Workers, not a route or a production rights-owner binding.
 for (const lane of [
   ["legal-authority.worker.ts", "legal-authority.mjs"],
   ["legal-quarantine-qa.writer.ts", "legal-quarantine-qa-writer.mjs"],
