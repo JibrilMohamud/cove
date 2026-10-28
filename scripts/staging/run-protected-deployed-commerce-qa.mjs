@@ -3,7 +3,7 @@
 // after a completed job, regardless of assertions passing or failing.
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { randomBytes } from "node:crypto";
+import { randomBytes, generateKeyPairSync } from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 
 const qaWorker = "cove-commerce-customer-qa-stage";
@@ -79,6 +79,13 @@ try {
   wrangler(["deploy", "--config", publicConfig]);
   opened = true;
   wrangler(["secret", "put", "COVE_SSR_STAGING_GATE_KEY", "--config", publicConfig], gate);
+  // A new, short-lived signer belongs ONLY to this disposable commerce QA
+  // Worker. Never reuse a production key or print the private JWK in CI.
+  const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  wrangler(
+    ["secret", "put", "FORE_OFFLINE_AUDIO_SIGNING_JWK", "--config", publicConfig],
+    JSON.stringify(privateKey.export({ format: "jwk" })),
+  );
   listener = spawn(
     "stripe",
     [
