@@ -11,9 +11,12 @@ the owner promotes the Cloudflare frontend.
   Both `covereads.com` and `www.covereads.com` are verified Vercel
   domains whose public DNS still routes to Vercel. `api.covereads.com`
   is bound to the private `cove-persistence-backend` Worker.
-  A new, **bearer-protected, read-only** Worker custom domain
-  `ssr-canary.covereads.com` is bound only to
-  `cove-storefront-ssr-staging`, not to customer traffic.
+  The proposed protected `ssr-canary.covereads.com` binding was
+  **detached immediately** after a live public asset check returned
+  HTTP 200 for unauthenticated `/manifest.webmanifest`. The tested
+  protected Worker URL remains the original `workers.dev` hostname.
+  No customer traffic was rerouted. Do not reattach until every asset
+  is independently certified to pass through the auth gate.
   **Domain ownership is no longer the release blocker**;
   the other gates below remain mandatory. This is not a release approval.
 - The only audited native SSR stage service,
@@ -145,9 +148,12 @@ serving, report the exact failing evidence, and do not relax the SLO.
 
 ## Verified owned-domain canary update — October 27, 2026
 
-- Protected SSR canary: `https://ssr-canary.covereads.com`. It MUST return
-  **401** for unauthenticated requests, including static assets and API paths;
-  the same release-gated 256-bit bearer check runs before the asset handler.
+- Intended owned SSR canary: `https://ssr-canary.covereads.com`, **not
+  currently attached**. An unauthenticated test returned 200 for the static
+  `/manifest.webmanifest` despite other requests returning 401.
+  The domain was immediately detached. Re-attachment requires verified
+  401 on all static assets and API paths, exact host routing, and a
+  clean fail-closed test. Do not mistake a localhost/unit test for proof.
 - Intended commercial origin: `https://www.covereads.com`. The apex remains
   redirected to `www` by Vercel, while all public traffic stays on the
   verified Vercel deployment until every gate is green.
