@@ -38,7 +38,11 @@ async function call(path, options = {}) {
 }
 const existing = (await call(endpoint)).find((d) => d.hostname === hostname);
 if (mode === "attach") {
-  assert.equal(existing, undefined, "Owned canary domain must not be assigned before the isolated test");
+  assert.equal(
+    existing,
+    undefined,
+    "Owned canary domain must not be assigned before the isolated test",
+  );
   const created = await call(endpoint, {
     method: "PUT",
     body: JSON.stringify({
@@ -57,7 +61,11 @@ if (mode === "attach") {
   if (existing === undefined) {
     console.log("PASS: protected owned canary domain already detached");
   } else {
-    assert.equal(existing.service, service, "Refusing to detach a different Worker from canary domain");
+    assert.equal(
+      existing.service,
+      service,
+      "Refusing to detach a different Worker from canary domain",
+    );
     assert.equal(existing.zone_id, zone, "Refusing to detach a different DNS zone");
     assert.match(existing.id || "", /^[a-f0-9]{40}$/, "Unexpected Worker Domain identifier");
     await call(endpoint + "/" + existing.id, { method: "DELETE" });
