@@ -9,11 +9,35 @@ on:
       - "src/storefront-strangler/legal-consumer-fence.server.ts"
       - "src/features/fore/commerce.server.ts"
       - "src/features/fore/delivery.server.ts"
+      - "src/features/fore/commercial-audio.server.ts"
+      - "src/features/fore/offline-audio.server.ts"
+      - "src/features/fore/offline-epub.server.ts"
+      - "src/features/fore/publishing.server.ts"
       - "scripts/check-customer-media-owner-order.mjs"
       - "scripts/check-stripe-terminal-order-states.mjs"
       - "scripts/staging/prove-private-paid-owner.mjs"
       - "scripts/build-storefront-strangler.mjs"
       - "wrangler.legal-paid-*.example.jsonc"
+      - ".github/workflows/paid-legal-full-schema-private-qa.yml"
+  # Reviewed, protected main code only. A payment/rights change must be
+  # checked with real signed Stripe TEST and the isolated canonical QA schema,
+  # rather than relying on manually dispatched or special-branch runs.
+  push:
+    branches: [main]
+    paths:
+      - "src/storefront-strangler/paid-settlement-stage-qa.worker.ts"
+      - "src/storefront-strangler/legal-authority.worker.ts"
+      - "src/storefront-strangler/legal-quarantine-qa.writer.ts"
+      - "src/storefront-strangler/paid-settlement-publication.server.ts"
+      - "src/storefront-strangler/legal-consumer-fence.server.ts"
+      - "src/features/fore/commerce.server.ts"
+      - "src/features/fore/delivery.server.ts"
+      - "src/features/fore/commercial-audio.server.ts"
+      - "src/features/fore/offline-audio.server.ts"
+      - "src/features/fore/offline-epub.server.ts"
+      - "src/features/fore/publishing.server.ts"
+      - "scripts/check-customer-media-owner-order.mjs"
+      - "scripts/staging/prove-private-paid-owner.mjs"
       - ".github/workflows/paid-legal-full-schema-private-qa.yml"
   workflow_dispatch:
 permissions:
@@ -23,7 +47,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   real-test-payment-to-private-owner:
-    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'qa/private-paid-owner-independent-20261028') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'qa/private-paid-owner-independent-20261028') || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
