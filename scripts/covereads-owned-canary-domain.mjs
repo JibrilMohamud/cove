@@ -21,9 +21,19 @@ async function call(path, options = {}) {
     },
     signal: AbortSignal.timeout(20_000),
   });
-  const payload = await response.json();
-  if (!response.ok || payload.success !== true)
+  // Cloudflare's Worker Domain DELETE succeeds with HTTP 200 and an
+  // intentionally empty body. Do not mistake successful cleanup for a JSON
+  // parsing failure; read back the domain list to certify detachment.
+  const body = await response.text();
+  if (!response.ok)
     throw Error("Cloudflare canary-domain management failed (HTTP " + response.status + ")");
+  if (!body) {
+    assert.equal(options.method, "DELETE", "Only a successful DELETE may omit JSON");
+    return null;
+  }
+  const payload = JSON.parse(body);
+  if (payload.success !== true)
+    throw Error("Cloudflare canary-domain management response was unsuccessful");
   return payload.result;
 }
 const existing = (await call(endpoint)).find((d) => d.hostname === hostname);
