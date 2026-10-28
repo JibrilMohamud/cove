@@ -6,7 +6,7 @@ the owner promotes the Cloudflare frontend.
 
 ## Verified state (October 28, 2026)
 
-- Audited source `main` is `e463c0e7903ff0b784901962d778b2dda2243b36`.
+- Read-only operational snapshot is based on `main` at `254eb2b6e53e47b8e90996deb163697a103e5f92`. The canonical source-review inventory is independently pinned to its reviewed commit, not silently reapproved by this document.
   Account `d26430caa63ec55f6612e32f36aca5e9` owns the active
   `covereads.com` zone `07e218b2e74bc522122e0994b8e37576`.
   `www.covereads.com` remains on Vercel; hostname ownership is no longer
@@ -14,11 +14,9 @@ the owner promotes the Cloudflare frontend.
 - Cloudflare API inspection confirms `cove-legal-authority-production`
   exists with its own Durable Object namespace, production `PRIMARY_DB`
   `4bd657ac-8789-403e-a28c-93aba8d0a989`, and
-  `COVE_RIGHTS_OWNER_ENABLED=0`. It has no operational production lease,
-  authentication secret, or completed production command implementation.
+  `COVE_RIGHTS_OWNER_ENABLED=0`. It is NOT certified or enabled for production commands (`COVE_RIGHTS_OWNER_ENABLED=0`); operational production fencing/positive-write certification remains missing.
 - `cove-persistence-backend` uses the same production D1 and private media
-  R2. Its deployed bindings contain **no `LEGAL_AUTHORITY` and no Stripe
-  credentials**. Do not enable the isolated-QA write lock in production.
+  R2. Its deployed `LEGAL_AUTHORITY` Durable Object binding now **exists and has been verified**: namespace `83d7eadf3957436389a7b072120a9829`, class `CoveLegalAuthority`, script `cove-legal-authority-production`. This matches production D1 `4bd657ac-8789-403e-a28c-93aba8d0a989`; the owner is still disabled. Production payment/Stripe capability and operational owner-first writers remain uncertified. Do not enable isolated-QA write locks in production.
 - The separate `cove-commerce-customer-qa-stage` has synthetic D1,
   Supabase and Stripe TEST binding names. This is not certification of
   production identities, secret values, ownership, or the complete journey.
@@ -29,13 +27,9 @@ the owner promotes the Cloudflare frontend.
   owner-guarded. These are migration candidates, not 433 confirmed defects.
   The independent release gate still blocks all 458 until ownership and
   deployed/external writer closure are separately proved.
-- [Native SSR run 40701901773](https://github.com/JibrilMohamud/cove/actions/runs/40701901773)
-  tested this exact main commit. Its three independent first SSR requests
-  took **1203, 1421 and 893 ms**. All exceed the hard 800 ms threshold.
-  Concurrency maxima were **1061 ms at 4**, **1500 ms at 8**, and
-  **1179 ms at 16**. No full 32-concurrent or two-phase 12,000-request
-  production-equivalent pass is established by that campaign. Favorable
-  warm samples and zero HTTP errors do not redeem these failures.
+- [Cloudflare-native SSR staging run 40761709662](https://github.com/JibrilMohamud/cove/actions/runs/40761709662) failed: **one of three independent cold deployments did not meet the strict test**, and the 4-concurrent probe reached **855 ms**, over the 800 ms hard ceiling. That run includes fast warm samples but cannot be released on partial passes.
+- [Public Vercel homepage run 40761709594](https://github.com/JibrilMohamud/cove/actions/runs/40761709594) failed: **11 slow samples, TTFB p75 995 ms, p95 4464 ms**, and two homepage SSR samples missing server-rendered book cards. [Fullsite browser run 40761709684](https://github.com/JibrilMohamud/cove/actions/runs/40761709684) also failed with mobile lab LCP p75 **4132 ms** and a reader timeout.
+- No verified multi-egress ORD/LAX/IAD/DFW repeatability, all-32-concurrency, or fully successful **two 100-RPS phases** has been established. For the 100-RPS acceptance this means 2,000/2,000 valid responses per 20-second phase, p95 <600 ms, p99 <750 ms, every response <800 ms, and zero drops. Do not lower these limits to obtain a release result.
 
 ## Owner-selected Workers.dev staging destination
 
@@ -143,6 +137,12 @@ continues to serve existing customers and is preserved for rollback.
   not a production service worker/installed app on a new domain.
 - Other checkout/auth/reader tests validate components and backend behavior
   but are **not** proof of a complete production Cloudflare customer journey.
+
+## Rollback readiness is not a completed rehearsal
+
+The owned Cloudflare zone is active, but `covereads.com` and `www.covereads.com` remain **unproxied Vercel CNAMEs**; no Cloudflare Workers route is attached to those hosts. The only Cloudflare custom Worker domain currently inventoried is `api.covereads.com`, serving the persistence backend. Existing Vercel production is the retained fallback, not proof that a Cloudflare-to-Vercel traffic reversion works under live sessions.
+
+An actual rollback rehearsal is BLOCKED until owner-first writer closure and an independently certified protected canary. The drill must record pre-change DNS and routes, direct Vercel availability, a controlled canary switch, TLS/auth/rights/checkout/media checks on both sides, rollback of the same route, cache purging/invalidation, webhook deduplication, and account/entitlement continuity. No live customer DNS, owner enablement, or production route should be changed just to mark a test complete.
 
 ## Cutover stop conditions
 
